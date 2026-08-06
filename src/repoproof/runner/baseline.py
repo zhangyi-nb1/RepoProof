@@ -59,8 +59,10 @@ from repoproof.harness.budget import BudgetExceeded, BudgetMeter
 from repoproof.harness.oracle_guard import hash_tree, make_read_only
 from repoproof.harness.policy import evaluate_argv
 from repoproof.harness.trace import verify_chain
+from repoproof.harness.wheelhouse import select_wheel, verify_wheelhouse
 from repoproof.persistence.run_store import FileRunStore
 from repoproof.verification import completion_gate
+from repoproof.verification.junit import check_test_completion, parse_junit_xml
 from repoproof.verification.verifiers import (
     REPLAY_MODE_BASELINE,
     capability_result,
@@ -112,7 +114,12 @@ def ensure_upstream(cache_root: Path, source: SourceRepo) -> tuple[Path, RepoMan
     if head != source.resolved_commit:
         raise AdmissionError(f"upstream pin mismatch: HEAD={head} contract={source.resolved_commit}")
     git_tree = _git("rev-parse", "HEAD^{tree}")
-    worktree_clean = _git("status", "--porcelain") == ""
+    porcelain = _git("status", "--porcelain")
+    if porcelain:
+        raise AdmissionError(
+            f"upstream worktree not clean (dirty/tracked-mod/untracked): {porcelain.splitlines()[:3]}"
+        )
+    worktree_clean = True
     content_tree = _content_tree_sha(dest)
     license_sha = None
     for name in ("LICENSE", "LICENSE.md", "LICENSE.txt"):
@@ -154,6 +161,8 @@ class PassOutcome:
     regression_failed: list[str]
     probe_raw_sha: str
     probe_normalized_sha: str
+    capability_completion: object | None = None
+    regression_completion: object | None = None
 
     def summary(self) -> dict:
         return {
@@ -182,6 +191,10 @@ class _Runner:
         self.consumer_src = self.project_root / Path(self.contract.target_project.path)
         self.probes_src = self.project_root / "src" / "repoproof" / "probes"
         self.user = f"{os.getuid()}:{os.getgid()}"
+        self.expected_nodes: dict | None = None
+        if self.package.collection_manifest_sha256:
+            cpath = task_package.collection_path_for(self.contract_path)
+            self.expected_nodes = json.loads(cpath.read_text(encoding="utf-8"))
         self._action_seq = 0
         self.timings: dict[str, float] = {
             "system_setup_s": 0.0,
@@ -272,18 +285,26 @@ class _Runner:
         if not manifest_path.exists():
             wh.mkdir(parents=True, exist_ok=True)
             net = "bridge" if self.contract.environment.network_install else "none"
+            stage = self.store.run_dir / "_src_stage"
+            stage.mkdir(parents=True, exist_ok=True)
+            subprocess.run(
+                ["git", "-C", str(upstream), "archive", "--format=tar",
+                 "-o", str(stage / "source.tar"), self.contract.source_repo.resolved_commit],
+                check=True,
+                timeout=300,
+            )
             c = self.backend.start(
                 name_prefix="rp-wheelhouse",
                 network=net,
-                mounts=[Mount(upstream, "/upstream", True), Mount(wh, "/wheels", False)],
+                mounts=[Mount(stage, "/src_stage", True), Mount(wh, "/wheels", False)],
                 user=self.user,
                 image_ref=self.image_ref,
             )
             try:
                 self._exec_step(
                     c,
-                    ["sh", "-c", "cp -r /upstream /tmp/build && chmod -R u+w /tmp/build && rm -rf /tmp/build/.git"],
-                    label="wheelhouse.stage-source",
+                    ["sh", "-c", "mkdir -p /tmp/build && tar -xf /src_stage/source.tar -C /tmp/build"],
+                    label="wheelhouse.stage-source-git-archive",
                     meter=meter,
                 )
                 res, _ = self._exec_step(
@@ -318,6 +339,32 @@ class _Runner:
         venv_dir = self.store.run_dir / label / "venv"
         venv_dir.mkdir(parents=True, exist_ok=True)
 
+        # -------- wheelhouse admission BEFORE every pass (D)
+        if self.package.wheelhouse_root and self.package.wheelhouse_wheels:
+            verified = verify_wheelhouse(
+                wheelhouse,
+                expected_wheels=self.package.wheelhouse_wheels,
+                expected_root=self.package.wheelhouse_root,
+            )
+            sel_name, sel_sha = select_wheel(self.package.wheelhouse_wheels, "chonkie")
+            expected_names = sorted(self.package.wheelhouse_wheels)
+        else:  # legacy (v1/v2 packages without wheelhouse binding)
+            local = json.loads((wheelhouse / "wheelhouse_manifest.json").read_text())
+            verified = local
+            sel_name, sel_sha = select_wheel(local["wheels"], "chonkie")
+            expected_names = sorted(local["wheels"])
+        self.store.append_event(
+            "wheelhouse.verified",
+            actor="harness",
+            payload={
+                "pass": label,
+                "root": verified["root"],
+                "wheels": len(expected_names),
+                "selected_chonkie_wheel": sel_name,
+                "selected_chonkie_sha256": sel_sha,
+            },
+        )
+
         # -------- offline install phase (network=none, wheelhouse only)
         c_install = self.backend.start(
             name_prefix=f"rp-{label}-install",
@@ -334,14 +381,12 @@ class _Runner:
                     "/venv/env/bin/pip",
                     "install",
                     "--no-index",
-                    "--find-links",
-                    "/wheels",
+                    "--no-deps",
                     "--no-cache-dir",
                     "--disable-pip-version-check",
-                    "chonkie",
-                    "pytest",
-                ],
-                label=f"{label}.offline-install",
+                ]
+                + [f"/wheels/{name}" for name in expected_names],
+                label=f"{label}.offline-install-explicit-wheels",
                 meter=meter,
             )
             if res.exit_code != 0:
@@ -361,16 +406,36 @@ class _Runner:
                 label=f"{label}.direct-url",
                 meter=meter,
             )
-            self._exec_step(
+            probe_env, _ = self._exec_step(
                 c_install,
                 [
                     "/venv/env/bin/python",
                     "-c",
-                    "import chonkie, platform, sys;"
-                    "print(getattr(chonkie,'__version__','?'), platform.machine(), sys.version.split()[0])",
+                    (
+                        "import json, platform, sys, chonkie;"
+                        "print(json.dumps({'machine': platform.machine(),"
+                        "'python': '%d.%d' % sys.version_info[:2],"
+                        "'chonkie': getattr(chonkie, '__version__', '?')}))"
+                    ),
                 ],
-                label=f"{label}.import-chonkie",
+                label=f"{label}.env-probe",
                 meter=meter,
+            )
+            try:
+                env_probe = json.loads(probe_env.stdout.decode("utf-8", errors="replace").strip())
+            except json.JSONDecodeError as exc:
+                raise AdmissionError(f"env probe unparseable in {label}: {exc}") from exc
+            expected_env = self.package.environment_constraints or {}
+            for key, want in expected_env.items():
+                got = str(env_probe.get(key))
+                if got != str(want):
+                    raise AdmissionError(
+                        f"environment admission failed in {label}: {key}={got!r} != contract {want!r}"
+                    )
+            self.store.append_event(
+                "environment.admitted",
+                actor="harness",
+                payload={"pass": label, **env_probe, "checked_against": expected_env},
             )
         finally:
             self.backend.destroy(c_install)
@@ -438,29 +503,58 @@ class _Runner:
                 name_hint="probe.normalized.json",
             )
             cap_cmd = ["/venv/env/bin/python", "-m", "pytest", "-q", "-p", "no:cacheprovider",
-                       "/oracle/test_capability.py"]
+                       "/oracle/test_capability.py", "--junitxml=/tmp/execution/junit_cap.xml"]
             cap_res, cap_ref = self._exec_step(
                 c_run, cap_cmd, label=f"{label}.capability-pytest", meter=meter, workdir="/tmp/execution"
             )
+            cap_junit_res = self.backend.exec(c_run, ["cat", "/tmp/execution/junit_cap.xml"], timeout_s=30)
             reg_cmd = ["/venv/env/bin/python", "-m", "pytest", "-q", "-p", "no:cacheprovider",
-                       "/oracle/test_regression.py"]
+                       "/oracle/test_regression.py", "--junitxml=/tmp/execution/junit_reg.xml"]
             reg_res, reg_ref = self._exec_step(
                 c_run, reg_cmd, label=f"{label}.regression-pytest", meter=meter, workdir="/tmp/execution"
             )
+            reg_junit_res = self.backend.exec(c_run, ["cat", "/tmp/execution/junit_reg.xml"], timeout_s=30)
         finally:
             self.backend.destroy(c_run)
 
+        cap_junit = parse_junit_xml(cap_junit_res.stdout if cap_junit_res.exit_code == 0 else None)
+        reg_junit = parse_junit_xml(reg_junit_res.stdout if reg_junit_res.exit_code == 0 else None)
+        for name, data in (("junit_cap.xml", cap_junit_res), ("junit_reg.xml", reg_junit_res)):
+            if data.exit_code == 0:
+                self.store.store_artifact(
+                    data.stdout, media_type="application/xml", producer=f"{label}.junit", name_hint=name
+                )
+
         cap_stdout = cap_res.stdout.decode("utf-8", errors="replace")
         reg_stdout = reg_res.stdout.decode("utf-8", errors="replace")
+        cap_completion = reg_completion = None
+        if self.expected_nodes is not None:
+            cap_completion = check_test_completion(
+                exit_code=cap_res.exit_code, junit=cap_junit,
+                expected_node_ids=self.expected_nodes["capability_nodes"],
+            )
+            reg_completion = check_test_completion(
+                exit_code=reg_res.exit_code, junit=reg_junit,
+                expected_node_ids=self.expected_nodes["regression_nodes"],
+            )
+        def _junit_failed(junit: dict, stdout: str) -> list[str]:
+            if junit.get("junit_present") and not junit.get("junit_parse_error"):
+                return sorted(n["node_id"] for n in junit.get("nodes", []) if n["outcome"] != "passed")
+            return parse_pytest(stdout)["failed_tests"]
+
+        cap_failed = _junit_failed(cap_junit, cap_stdout)
+        reg_failed = _junit_failed(reg_junit, reg_stdout)
         return PassOutcome(
             label=label,
             steps_used=meter.steps_used,
             capability_exit=cap_res.exit_code,
-            capability_failed=parse_pytest(cap_stdout)["failed_tests"],
+            capability_failed=cap_failed,
             capability_stdout_sha=cap_ref.sha256,
+            capability_completion=cap_completion,
             regression_exit=reg_res.exit_code,
             regression_stdout_sha=reg_ref.sha256,
-            regression_failed=parse_pytest(reg_stdout)["failed_tests"],
+            regression_failed=reg_failed,
+            regression_completion=reg_completion,
             probe_raw_sha=probe_ref.sha256,
             probe_normalized_sha=norm_ref.sha256,
         )
@@ -596,17 +690,43 @@ class _Runner:
             recheck_ok, recheck_detail = verify_frozen(adaptation, adaptation_manifest)
         else:
             recheck_ok, recheck_detail = False, "adaptation never frozen"
+        def _completion_vr(verifier: str, completion, exit_code, evidence_sha) -> VerificationResult:
+            x = completion.extra
+            return VerificationResult(
+                verifier=verifier,
+                passed=completion.ok,
+                detail=(
+                    f"passed_checks={x['passed_count']}, "
+                    f"failed_checks={len(x['failed_nodes'])}, "
+                    f"total_checks={x['expected_count']}; {completion.detail}"
+                ),
+                evidence=[evidence_sha],
+                extra={"exit_code": exit_code, **x},
+            )
+
         if first is not None:
-            cap = capability_result(
-                exit_code=first.capability_exit,
-                stdout=self.store.artifacts.read(first.capability_stdout_sha).decode("utf-8", errors="replace"),
-                evidence=[first.capability_stdout_sha],
-            )
-            reg = regression_result(
-                exit_code=first.regression_exit,
-                stdout=self.store.artifacts.read(first.regression_stdout_sha).decode("utf-8", errors="replace"),
-                evidence=[first.regression_stdout_sha],
-            )
+            if first.capability_completion is not None:
+                cap = _completion_vr(
+                    "CapabilityVerifier", first.capability_completion,
+                    first.capability_exit, first.capability_stdout_sha,
+                )
+            else:
+                cap = capability_result(
+                    exit_code=first.capability_exit,
+                    stdout=self.store.artifacts.read(first.capability_stdout_sha).decode("utf-8", errors="replace"),
+                    evidence=[first.capability_stdout_sha],
+                )
+            if first.regression_completion is not None:
+                reg = _completion_vr(
+                    "HostRegressionVerifier", first.regression_completion,
+                    first.regression_exit, first.regression_stdout_sha,
+                )
+            else:
+                reg = regression_result(
+                    exit_code=first.regression_exit,
+                    stdout=self.store.artifacts.read(first.regression_stdout_sha).decode("utf-8", errors="replace"),
+                    evidence=[first.regression_stdout_sha],
+                )
         else:
             cap = VerificationResult(verifier="CapabilityVerifier", passed=False, detail="not run")
             reg = VerificationResult(verifier="HostRegressionVerifier", passed=False, detail="not run")
@@ -633,9 +753,20 @@ class _Runner:
                 mode=REPLAY_MODE_BASELINE,
                 evidence=[first.probe_normalized_sha],
             )
+        vr_hashes: dict[str, str] = {}
         for r in (cap, reg, pol) + ((rep,) if rep else ()):
-            self.store.save_verification(r)
-            ev("verification.result", actor=r.verifier, payload={"passed": r.passed, "detail": r.detail})
+            path = self.store.save_verification(r)
+            ref = self.store.store_artifact(
+                path.read_bytes(), media_type="application/json",
+                producer="verification", name_hint=path.name,
+            )
+            vr_hashes[r.verifier] = ref.sha256
+            ev(
+                "verification.result",
+                actor=r.verifier,
+                payload={"passed": r.passed, "detail": r.detail, "result_sha256": ref.sha256},
+                artifact_refs=[ref.sha256],
+            )
 
         gate = completion_gate.decide(
             capability=cap,
@@ -646,7 +777,11 @@ class _Runner:
             missing_external=missing_external,
             budget_exhausted=budget_exhausted,
         )
-        ev("gate.verdict", actor="completion-gate", payload=gate.model_dump(mode="json"))
+        ev(
+            "gate.verdict",
+            actor="completion-gate",
+            payload={**gate.model_dump(mode="json"), "verification_input_hashes": vr_hashes},
+        )
 
         self.timings["total_wall_s"] = round(time.monotonic() - t0, 1)
         ev(
@@ -663,10 +798,19 @@ class _Runner:
             "task_id": self.contract.task_id,
             "task_package_root_hash": self.package.root_hash,
             "contract_sha256": self.contract_sha,
+            "source_commit": self.contract.source_repo.resolved_commit,
+            "source_git_tree_hash": self.package.source_git_tree_hash,
+            "image_digest": self.image_ref if self.image_ref != IMAGE else None,
+            "wheelhouse_root": self.package.wheelhouse_root,
+            "adaptation_root": adaptation_manifest.tree_root_sha256 if adaptation_manifest else None,
+            "verification_result_hashes": vr_hashes,
+            "missing_external": missing_external,
+            "budget_exhausted": budget_exhausted,
             "final_trace_sha256": final_trace_sha,
             "trace_events": n_events,
             "trace_chain_ok": chain_ok,
             "verdict": gate.verdict.value,
+            "final_verdict": gate.verdict.value,
             "timings": self.timings,
         }
         self.store.save_json("run_manifest.json", run_manifest)

@@ -1,0 +1,37 @@
+{
+  "documents": [
+    {
+      "document_id": "doc-201-incident-log",
+      "text": "事故复盘记录 2026-07\n02:14 监控发现磁盘占用异常上升。\n系统在本地完成全部处理。\n02:20 值班同学确认为日志轮转失效。\n系统在本地完成全部处理。\n02:31 手动触发清理脚本并恢复轮转配置。\n系统在本地完成全部处理。\n02:47 复核切分流水线未受影响,产物哈希一致。\n系统在本地完成全部处理。\n03:05 记录时间线并生成事故报告草稿。\n系统在本地完成全部处理。\n03:30 与团队约定次日评审改进项。\n系统在本地完成全部处理。\n附:后续需要为清理脚本增加回归测试。\n系统在本地完成全部处理。\n附:报告必须能够在干净环境中重放验证。\n系统在本地完成全部处理。\n附:所有证据按内容寻址存档。\n系统在本地完成全部处理。\n结论:流程闭环,无数据丢失。\n系统在本地完成全部处理。",
+      "metadata": {
+        "source": "incident",
+        "lang": "zh",
+        "severity": "medium"
+      }
+    },
+    {
+      "document_id": "doc-202-longform-en",
+      "text": "The adoption pipeline treats every candidate repository as untrusted input until proven otherwise. A frozen contract states the goal before any action happens. The upstream snapshot is pinned to one commit and mounted read only. The oracle directory holds acceptance tests that nobody may edit during a run. Every command becomes an event with a policy decision recorded first. Outputs are stored by content hash so later steps can cite them precisely. When the first environment is destroyed a fresh container rebuilds everything from pinned inputs. Only then can a passing result be trusted as more than an accident. Honest failure reports are considered a correct outcome rather than an embarrassment. The final bundle carries enough evidence for an outside reviewer to replay the whole story.",
+      "metadata": {
+        "source": "design-notes",
+        "lang": "en"
+      }
+    },
+    {
+      "document_id": "doc-203-emoji-dense",
+      "text": "发布清单 ✅\n打包产物已生成 📦。\n哈希清单已核对 🔍。\n容器已销毁 🧹。\n重放通过 ✅。\n通知已发送 📨。\n发布窗口关闭 🔒。\n下一次迭代排期已建 📅。",
+      "metadata": {
+        "source": "release-checklist",
+        "lang": "zh-emoji"
+      }
+    },
+    {
+      "document_id": "doc-204-run-on-zh",
+      "text": "验收流程明确规定所有失败结论都必须以结构化的形式记录下来并且附带能够精确定位的轨迹事件标识。任何一次成功的结论都必须在销毁初始运行环境之后于完全崭新的环境当中重放证明才可以被采信。凡是无法在干净环境中复现的成功结果一律降级为不可信状态并且要求提交方重新给出完整的证据链。预算耗尽而目标未达成的情况会被判定为失败而不是阻塞因为阻塞仅保留给缺少外部输入的场景使用。",
+      "metadata": {
+        "source": "run-on-held",
+        "lang": "zh"
+      }
+    }
+  ]
+}

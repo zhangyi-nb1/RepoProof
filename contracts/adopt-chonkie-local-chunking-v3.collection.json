@@ -1,0 +1,43 @@
+{
+  "capability_nodes": [
+    "test_capability::test_boundaries_match_chonkie_reference[held-recursive]",
+    "test_capability::test_boundaries_match_chonkie_reference[held-sentence]",
+    "test_capability::test_boundaries_match_chonkie_reference[public-recursive]",
+    "test_capability::test_boundaries_match_chonkie_reference[public-sentence]",
+    "test_capability::test_document_order_and_contiguous_ordinals[held-recursive]",
+    "test_capability::test_document_order_and_contiguous_ordinals[held-sentence]",
+    "test_capability::test_document_order_and_contiguous_ordinals[public-recursive]",
+    "test_capability::test_document_order_and_contiguous_ordinals[public-sentence]",
+    "test_capability::test_ids_stable_unique_and_not_upstream[held-recursive]",
+    "test_capability::test_ids_stable_unique_and_not_upstream[held-sentence]",
+    "test_capability::test_ids_stable_unique_and_not_upstream[public-recursive]",
+    "test_capability::test_ids_stable_unique_and_not_upstream[public-sentence]",
+    "test_capability::test_input_not_mutated[recursive]",
+    "test_capability::test_input_not_mutated[sentence]",
+    "test_capability::test_metadata_passthrough[held-recursive]",
+    "test_capability::test_metadata_passthrough[held-sentence]",
+    "test_capability::test_metadata_passthrough[public-recursive]",
+    "test_capability::test_metadata_passthrough[public-sentence]",
+    "test_capability::test_record_schema_exact_fields[held-recursive]",
+    "test_capability::test_record_schema_exact_fields[held-sentence]",
+    "test_capability::test_record_schema_exact_fields[public-recursive]",
+    "test_capability::test_record_schema_exact_fields[public-sentence]",
+    "test_capability::test_repeated_text_every_occurrence_covered[recursive]",
+    "test_capability::test_repeated_text_every_occurrence_covered[sentence]",
+    "test_capability::test_response_json_serializable[recursive]",
+    "test_capability::test_response_json_serializable[sentence]",
+    "test_capability::test_strategies_differ_on_run_on_document",
+    "test_capability::test_units_equal_char_span[held-recursive]",
+    "test_capability::test_units_equal_char_span[held-sentence]",
+    "test_capability::test_units_equal_char_span[public-recursive]",
+    "test_capability::test_units_equal_char_span[public-sentence]",
+    "test_capability::test_upstream_errors_wrapped[recursive]",
+    "test_capability::test_upstream_errors_wrapped[sentence]"
+  ],
+  "regression_nodes": [
+    "test_regression::test_chunk_record_roundtrip",
+    "test_regression::test_health_endpoint_logic",
+    "test_regression::test_loader_does_not_modify_fixture_file",
+    "test_regression::test_loader_loads_all_documents"
+  ]
+}

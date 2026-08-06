@@ -23,10 +23,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from repoproof.domain.models import AdaptationManifest, TaskContract, sha256_bytes, sha256_file
+from repoproof.domain.models import (
+    AdaptationManifest,
+    TaskContract,
+    VerificationResult,
+    sha256_bytes,
+    sha256_file,
+)
 from repoproof.harness import task_package
 from repoproof.harness.adaptation import verify_frozen
 from repoproof.harness.trace import scan_events, verify_chain
+from repoproof.verification import completion_gate
 
 
 def verify_bundle(run_dir: Path, project_root: Path, contract_path: Path | None) -> dict:
@@ -100,6 +107,88 @@ def verify_bundle(run_dir: Path, project_root: Path, contract_path: Path | None)
         except json.JSONDecodeError:
             bad += 1
     add("verification_results", bad == 0 and vcount > 0, f"{vcount} results, {bad} broken evidence refs")
+
+    # Gate 3A.E — hash closure: VR file hashes, trace refs, gate-input
+    # hashes, deterministic gate recomputation, root cross-consistency.
+    rm = json.loads(rm_path.read_text(encoding="utf-8")) if rm_path.exists() else {}
+    vr_recorded: dict = rm.get("verification_result_hashes") or {}
+    vrs: dict[str, VerificationResult] = {}
+    vr_problems: list[str] = []
+    trace_vr_events = {
+        e["actor"]: e for e in scan_events(trace_path, "verification.result")
+    }
+    for vf in sorted(vdir.glob("*.json")) if vdir.exists() else []:
+        actual_sha = sha256_file(vf)
+        vr = VerificationResult.model_validate(json.loads(vf.read_text(encoding="utf-8")))
+        vrs[vr.verifier] = vr
+        if vr_recorded:
+            if vr_recorded.get(vr.verifier) != actual_sha:
+                vr_problems.append(f"{vr.verifier}: file sha != run_manifest record")
+            tev = trace_vr_events.get(vr.verifier)
+            if not tev or tev["payload"].get("result_sha256") != actual_sha:
+                vr_problems.append(f"{vr.verifier}: trace event does not reference file sha")
+            if not (objects / actual_sha).exists():
+                vr_problems.append(f"{vr.verifier}: result artifact object missing")
+    if vr_recorded:
+        gate_events = scan_events(trace_path, "gate.verdict")
+        gate_inputs = (gate_events[-1]["payload"].get("verification_input_hashes") if gate_events else None) or {}
+        if gate_inputs != vr_recorded:
+            vr_problems.append("gate input hashes != run_manifest verification_result_hashes")
+        add(
+            "verification_hash_closure",
+            not vr_problems,
+            "; ".join(vr_problems[:4]) or "VR hashes bind file/trace/gate",
+        )
+
+        # deterministic gate recomputation
+        am_path0 = run_dir / "adaptation_manifest.json"
+        adaptation0 = (
+            AdaptationManifest.model_validate(json.loads(am_path0.read_text(encoding="utf-8")))
+            if am_path0.exists()
+            else None
+        )
+        needed = {"CapabilityVerifier", "HostRegressionVerifier", "PolicyVerifier"}
+        if needed.issubset(vrs):
+            recomputed = completion_gate.decide(
+                capability=vrs["CapabilityVerifier"],
+                regression=vrs["HostRegressionVerifier"],
+                policy=vrs["PolicyVerifier"],
+                replay=vrs.get("ReplayVerifier"),
+                adaptation=adaptation0,
+                missing_external=rm.get("missing_external") or [],
+                budget_exhausted=rm.get("budget_exhausted"),
+            )
+            recorded_verdicts = {
+                "run_manifest": rm.get("final_verdict"),
+                "trace": (gate_events[-1]["payload"].get("verdict") if gate_events else None),
+            }
+            rp_path = run_dir / "report.json"
+            if rp_path.exists():
+                recorded_verdicts["report"] = json.loads(rp_path.read_text(encoding="utf-8")).get("verdict")
+            mismatch = {k: v for k, v in recorded_verdicts.items() if v != recomputed.verdict.value}
+            add(
+                "gate_recompute",
+                not mismatch,
+                f"recomputed={recomputed.verdict.value}"
+                + ("" if not mismatch else f" but recorded {mismatch}"),
+            )
+        else:
+            add("gate_recompute", False, f"missing verification results: {sorted(needed - set(vrs))}")
+
+        # root cross-consistency
+        root_problems: list[str] = []
+        if contract_path is not None:
+            try:
+                pkg = task_package.load_and_verify(project_root, contract_path)
+                if rm.get("task_package_root_hash") != pkg.root_hash:
+                    root_problems.append("run_manifest.task_package_root_hash != package")
+                if pkg.wheelhouse_root and rm.get("wheelhouse_root") != pkg.wheelhouse_root:
+                    root_problems.append("run_manifest.wheelhouse_root != package")
+            except Exception as exc:  # noqa: BLE001
+                root_problems.append(f"package unavailable: {str(exc)[:80]}")
+        if adaptation0 is not None and rm.get("adaptation_root") != adaptation0.tree_root_sha256:
+            root_problems.append("run_manifest.adaptation_root != adaptation manifest")
+        add("root_cross_consistency", not root_problems, "; ".join(root_problems[:3]) or "all roots agree")
 
     # adaptation manifest vs frozen zone
     am_path = run_dir / "adaptation_manifest.json"

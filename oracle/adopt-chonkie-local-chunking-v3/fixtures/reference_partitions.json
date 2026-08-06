@@ -1,0 +1,343 @@
+{
+ "chonkie_version": "1.7.0",
+ "chunk_size": 120,
+ "fixtures": {
+  "held_out_documents.json": {
+   "doc-201-incident-log": {
+    "recursive": [
+     {
+      "end": 118,
+      "start": 0,
+      "text": "事故复盘记录 2026-07\n02:14 监控发现磁盘占用异常上升。\n系统在本地完成全部处理。\n02:20 值班同学确认为日志轮转失效。\n系统在本地完成全部处理。\n02:31 手动触发清理脚本并恢复轮转配置。\n系统在本地完成全部处理。\n"
+     },
+     {
+      "end": 225,
+      "start": 118,
+      "text": "02:47 复核切分流水线未受影响,产物哈希一致。\n系统在本地完成全部处理。\n03:05 记录时间线并生成事故报告草稿。\n系统在本地完成全部处理。\n03:30 与团队约定次日评审改进项。\n系统在本地完成全部处理。\n"
+     },
+     {
+      "end": 345,
+      "start": 225,
+      "text": "附:后续需要为清理脚本增加回归测试。\n系统在本地完成全部处理。\n附:报告必须能够在干净环境中重放验证。\n系统在本地完成全部处理。\n附:所有证据按内容寻址存档。\n系统在本地完成全部处理。\n结论:流程闭环,无数据丢失。\n系统在本地完成全部处理。"
+     }
+    ],
+    "sentence": [
+     {
+      "end": 118,
+      "start": 0,
+      "text": "事故复盘记录 2026-07\n02:14 监控发现磁盘占用异常上升。\n系统在本地完成全部处理。\n02:20 值班同学确认为日志轮转失效。\n系统在本地完成全部处理。\n02:31 手动触发清理脚本并恢复轮转配置。\n系统在本地完成全部处理。\n"
+     },
+     {
+      "end": 225,
+      "start": 118,
+      "text": "02:47 复核切分流水线未受影响,产物哈希一致。\n系统在本地完成全部处理。\n03:05 记录时间线并生成事故报告草稿。\n系统在本地完成全部处理。\n03:30 与团队约定次日评审改进项。\n系统在本地完成全部处理。\n"
+     },
+     {
+      "end": 345,
+      "start": 225,
+      "text": "附:后续需要为清理脚本增加回归测试。\n系统在本地完成全部处理。\n附:报告必须能够在干净环境中重放验证。\n系统在本地完成全部处理。\n附:所有证据按内容寻址存档。\n系统在本地完成全部处理。\n结论:流程闭环,无数据丢失。\n系统在本地完成全部处理。"
+     }
+    ]
+   },
+   "doc-202-longform-en": {
+    "recursive": [
+     {
+      "end": 99,
+      "start": 0,
+      "text": "The adoption pipeline treats every candidate repository as untrusted input until proven otherwise. "
+     },
+     {
+      "end": 160,
+      "start": 99,
+      "text": "A frozen contract states the goal before any action happens. "
+     },
+     {
+      "end": 229,
+      "start": 160,
+      "text": "The upstream snapshot is pinned to one commit and mounted read only. "
+     },
+     {
+      "end": 308,
+      "start": 229,
+      "text": "The oracle directory holds acceptance tests that nobody may edit during a run. "
+     },
+     {
+      "end": 378,
+      "start": 308,
+      "text": "Every command becomes an event with a policy decision recorded first. "
+     },
+     {
+      "end": 453,
+      "start": 378,
+      "text": "Outputs are stored by content hash so later steps can cite them precisely. "
+     },
+     {
+      "end": 551,
+      "start": 453,
+      "text": "When the first environment is destroyed a fresh container rebuilds everything from pinned inputs. "
+     },
+     {
+      "end": 619,
+      "start": 551,
+      "text": "Only then can a passing result be trusted as more than an accident. "
+     },
+     {
+      "end": 705,
+      "start": 619,
+      "text": "Honest failure reports are considered a correct outcome rather than an embarrassment. "
+     },
+     {
+      "end": 796,
+      "start": 705,
+      "text": "The final bundle carries enough evidence for an outside reviewer to replay the whole story."
+     }
+    ],
+    "sentence": [
+     {
+      "end": 99,
+      "start": 0,
+      "text": "The adoption pipeline treats every candidate repository as untrusted input until proven otherwise. "
+     },
+     {
+      "end": 160,
+      "start": 99,
+      "text": "A frozen contract states the goal before any action happens. "
+     },
+     {
+      "end": 229,
+      "start": 160,
+      "text": "The upstream snapshot is pinned to one commit and mounted read only. "
+     },
+     {
+      "end": 308,
+      "start": 229,
+      "text": "The oracle directory holds acceptance tests that nobody may edit during a run. "
+     },
+     {
+      "end": 378,
+      "start": 308,
+      "text": "Every command becomes an event with a policy decision recorded first. "
+     },
+     {
+      "end": 453,
+      "start": 378,
+      "text": "Outputs are stored by content hash so later steps can cite them precisely. "
+     },
+     {
+      "end": 551,
+      "start": 453,
+      "text": "When the first environment is destroyed a fresh container rebuilds everything from pinned inputs. "
+     },
+     {
+      "end": 619,
+      "start": 551,
+      "text": "Only then can a passing result be trusted as more than an accident. "
+     },
+     {
+      "end": 705,
+      "start": 619,
+      "text": "Honest failure reports are considered a correct outcome rather than an embarrassment. "
+     },
+     {
+      "end": 796,
+      "start": 705,
+      "text": "The final bundle carries enough evidence for an outside reviewer to replay the whole story."
+     }
+    ]
+   },
+   "doc-203-emoji-dense": {
+    "recursive": [
+     {
+      "end": 77,
+      "start": 0,
+      "text": "发布清单 ✅\n打包产物已生成 📦。\n哈希清单已核对 🔍。\n容器已销毁 🧹。\n重放通过 ✅。\n通知已发送 📨。\n发布窗口关闭 🔒。\n下一次迭代排期已建 📅。"
+     }
+    ],
+    "sentence": [
+     {
+      "end": 77,
+      "start": 0,
+      "text": "发布清单 ✅\n打包产物已生成 📦。\n哈希清单已核对 🔍。\n容器已销毁 🧹。\n重放通过 ✅。\n通知已发送 📨。\n发布窗口关闭 🔒。\n下一次迭代排期已建 📅。"
+     }
+    ]
+   },
+   "doc-204-run-on-zh": {
+    "recursive": [
+     {
+      "end": 120,
+      "start": 0,
+      "text": "验收流程明确规定所有失败结论都必须以结构化的形式记录下来并且附带能够精确定位的轨迹事件标识。任何一次成功的结论都必须在销毁初始运行环境之后于完全崭新的环境当中重放证明才可以被采信。凡是无法在干净环境中复现的成功结果一律降级为不可信状态并且要"
+     },
+     {
+      "end": 180,
+      "start": 120,
+      "text": "求提交方重新给出完整的证据链。预算耗尽而目标未达成的情况会被判定为失败而不是阻塞因为阻塞仅保留给缺少外部输入的场景使用。"
+     }
+    ],
+    "sentence": [
+     {
+      "end": 180,
+      "start": 0,
+      "text": "验收流程明确规定所有失败结论都必须以结构化的形式记录下来并且附带能够精确定位的轨迹事件标识。任何一次成功的结论都必须在销毁初始运行环境之后于完全崭新的环境当中重放证明才可以被采信。凡是无法在干净环境中复现的成功结果一律降级为不可信状态并且要求提交方重新给出完整的证据链。预算耗尽而目标未达成的情况会被判定为失败而不是阻塞因为阻塞仅保留给缺少外部输入的场景使用。"
+     }
+    ]
+   }
+  },
+  "public_documents.json": {
+   "doc-101-ops-manual": {
+    "recursive": [
+     {
+      "end": 109,
+      "start": 0,
+      "text": "本地部署运维手册 🛠\n第一步:准备一台仅有 CPU 的机器。\n第二步:安装 Python 3.12 与固定版本依赖。\n本方案支持完全离线运行。\n第三步:将文档目录挂载为只读卷。\n第四步:执行切分流水线并生成检索索引。\n"
+     },
+     {
+      "end": 207,
+      "start": 109,
+      "text": "本方案支持完全离线运行。\nAll processing happens on the local machine. No external API is called at any stage.\n"
+     },
+     {
+      "end": 287,
+      "start": 207,
+      "text": "第五步:核对输出 Schema 与宿主契约一致。\n第六步:销毁临时容器并保留产物清单。\n本方案支持完全离线运行。\n附注:如遇版本冲突,请先锁定依赖再重试 🚀。\n"
+     },
+     {
+      "end": 385,
+      "start": 287,
+      "text": "The pipeline must remain reproducible in a clean environment. Every artifact is content addressed."
+     }
+    ],
+    "sentence": [
+     {
+      "end": 109,
+      "start": 0,
+      "text": "本地部署运维手册 🛠\n第一步:准备一台仅有 CPU 的机器。\n第二步:安装 Python 3.12 与固定版本依赖。\n本方案支持完全离线运行。\n第三步:将文档目录挂载为只读卷。\n第四步:执行切分流水线并生成检索索引。\n"
+     },
+     {
+      "end": 207,
+      "start": 109,
+      "text": "本方案支持完全离线运行。\nAll processing happens on the local machine. No external API is called at any stage.\n"
+     },
+     {
+      "end": 287,
+      "start": 207,
+      "text": "第五步:核对输出 Schema 与宿主契约一致。\n第六步:销毁临时容器并保留产物清单。\n本方案支持完全离线运行。\n附注:如遇版本冲突,请先锁定依赖再重试 🚀。\n"
+     },
+     {
+      "end": 385,
+      "start": 287,
+      "text": "The pipeline must remain reproducible in a clean environment. Every artifact is content addressed."
+     }
+    ]
+   },
+   "doc-102-support-faq": {
+    "recursive": [
+     {
+      "end": 111,
+      "start": 0,
+      "text": "What does the pipeline do? It splits long documents into retrieval sized chunks. It supports offline chunking. "
+     },
+     {
+      "end": 207,
+      "start": 111,
+      "text": "Does it call any external service? No, everything runs on the local CPU without network access. "
+     },
+     {
+      "end": 270,
+      "start": 207,
+      "text": "It supports offline chunking. How are chunk boundaries chosen? "
+     },
+     {
+      "end": 371,
+      "start": 270,
+      "text": "Sentence boundaries are preferred and long passages are split recursively. Can I replay a run later? "
+     },
+     {
+      "end": 470,
+      "start": 371,
+      "text": "Yes, every run rebuilds from pinned inputs inside a fresh container. It supports offline chunking. "
+     },
+     {
+      "end": 551,
+      "start": 470,
+      "text": "What about repeated sentences? Offsets must point at each occurrence separately. "
+     },
+     {
+      "end": 610,
+      "start": 551,
+      "text": "The final report lists every chunk with stable identifiers."
+     }
+    ],
+    "sentence": [
+     {
+      "end": 111,
+      "start": 0,
+      "text": "What does the pipeline do? It splits long documents into retrieval sized chunks. It supports offline chunking. "
+     },
+     {
+      "end": 207,
+      "start": 111,
+      "text": "Does it call any external service? No, everything runs on the local CPU without network access. "
+     },
+     {
+      "end": 270,
+      "start": 207,
+      "text": "It supports offline chunking. How are chunk boundaries chosen? "
+     },
+     {
+      "end": 371,
+      "start": 270,
+      "text": "Sentence boundaries are preferred and long passages are split recursively. Can I replay a run later? "
+     },
+     {
+      "end": 470,
+      "start": 371,
+      "text": "Yes, every run rebuilds from pinned inputs inside a fresh container. It supports offline chunking. "
+     },
+     {
+      "end": 551,
+      "start": 470,
+      "text": "What about repeated sentences? Offsets must point at each occurrence separately. "
+     },
+     {
+      "end": 610,
+      "start": 551,
+      "text": "The final report lists every chunk with stable identifiers."
+     }
+    ]
+   },
+   "doc-103-blank": {
+    "recursive": [
+     {
+      "end": 9,
+      "start": 0,
+      "text": "   \n\n\t   "
+     }
+    ],
+    "sentence": []
+   },
+   "doc-104-run-on-zh": {
+    "recursive": [
+     {
+      "end": 120,
+      "start": 0,
+      "text": "项目组在本季度完成了切分流水线的全面本地化改造并且把所有第三方依赖逐一锁定到了固定的版本号。改造后的流水线在任何阶段都不会访问外部网络服务而且所有中间产物均按照内容哈希寻址存档以便随时审计。为了验证整套流程的可复现性我们在全新的一次性容器中"
+     },
+     {
+      "end": 238,
+      "start": 120,
+      "text": "重放了全部步骤并确认了输出与首次运行逐字节一致。后续的计划是把验收测试冻结为不可变的契约文件并且交由独立于执行方的验证层来给出最终的通过结论。所有超出预算或者违反策略的行为都会被记录为结构化事件并在报告中如实呈现给需要复核证据的审阅者。"
+     }
+    ],
+    "sentence": [
+     {
+      "end": 238,
+      "start": 0,
+      "text": "项目组在本季度完成了切分流水线的全面本地化改造并且把所有第三方依赖逐一锁定到了固定的版本号。改造后的流水线在任何阶段都不会访问外部网络服务而且所有中间产物均按照内容哈希寻址存档以便随时审计。为了验证整套流程的可复现性我们在全新的一次性容器中重放了全部步骤并确认了输出与首次运行逐字节一致。后续的计划是把验收测试冻结为不可变的契约文件并且交由独立于执行方的验证层来给出最终的通过结论。所有超出预算或者违反策略的行为都会被记录为结构化事件并在报告中如实呈现给需要复核证据的审阅者。"
+     }
+    ]
+   }
+  }
+ },
+ "generated_by": "trusted container calibration (pinned wheelhouse + image digest); see docs/evidence"
+}

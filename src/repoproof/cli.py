@@ -29,6 +29,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_freeze = sub.add_parser("freeze-task", help="freeze the task package manifest (pre-run, human step)")
     p_freeze.add_argument("--contract", required=True, type=Path)
+    p_freeze.add_argument("--full", action="store_true", help="bind collection+wheelhouse+image+env (v3)")
 
     p_trace = sub.add_parser("verify-trace", help="verify the tamper-evident trace chain of a run")
     p_trace.add_argument("--run-dir", required=True, type=Path)
@@ -50,12 +51,35 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "freeze-task":
         from repoproof.domain.models import TaskContract
+        from repoproof.execution.docker_backend import DockerExecutionBackend
         from repoproof.harness import task_package
-        from repoproof.runner.baseline import ensure_upstream
+        from repoproof.harness.wheelhouse import compute_manifest
+        from repoproof.runner.baseline import IMAGE, ensure_upstream
 
         contract, _ = TaskContract.load_frozen(args.contract, require_sidecar=True)
         upstream, _mf = ensure_upstream(PROJECT_ROOT / "upstream-cache", contract.source_repo)
-        manifest = task_package.freeze(PROJECT_ROOT, args.contract, upstream_dir=upstream)
+        collection = wheelhouse_manifest = image_digest = env_constraints = None
+        if args.full:
+            collection = task_package.collect_test_nodes(PROJECT_ROOT, contract)
+            wh = PROJECT_ROOT / "upstream-cache" / f"wheelhouse-{contract.source_repo.resolved_commit[:12]}"
+            wheelhouse_manifest = compute_manifest(wh)
+            backend = DockerExecutionBackend(image=IMAGE)
+            backend.pull()
+            image_digest = backend.image_digest()
+            env_constraints = {
+                "machine": "aarch64" if contract.environment.arch == "arm64" else contract.environment.arch,
+                "python": contract.environment.python,
+                "chonkie": "1.7.0",
+            }
+        manifest = task_package.freeze(
+            PROJECT_ROOT,
+            args.contract,
+            upstream_dir=upstream,
+            collection=collection,
+            wheelhouse_manifest=wheelhouse_manifest,
+            image_digest=image_digest,
+            environment_constraints=env_constraints,
+        )
         print(json.dumps(manifest.model_dump(), ensure_ascii=False, indent=2, sort_keys=True))
         return 0
 

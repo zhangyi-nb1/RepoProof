@@ -227,7 +227,13 @@ class AdaptationManifest(BaseModel):
 class TaskPackageManifest(BaseModel):
     """Immutable binding of everything a run depends on. Built ONCE by
     the freeze CLI and committed; the runner only VERIFIES it — never
-    regenerates it after start."""
+    regenerates it after start.
+
+    v3 additions (optional so v1/v2 manifests stay valid history):
+    test-collection manifest binding, wheelhouse root, image digest and
+    environment constraints. ``held_out_fixture_sha256`` refers to the
+    runtime-held-out fixture set (not visible to the agent at run
+    time)."""
 
     task_id: str
     contract_sha256: str
@@ -239,6 +245,13 @@ class TaskPackageManifest(BaseModel):
     source_git_tree_hash: str
     acceptance_capability_command: list[str]
     acceptance_regression_command: list[str]
+    collection_manifest_sha256: str | None = None
+    expected_capability_nodes: int | None = None
+    expected_regression_nodes: int | None = None
+    wheelhouse_root: str | None = None
+    wheelhouse_wheels: dict[str, str] | None = None
+    image_digest: str | None = None
+    environment_constraints: dict[str, str] | None = None
     root_hash: str = ""
 
     def compute_root_hash(self) -> str:
