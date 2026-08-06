@@ -75,6 +75,38 @@ _FORBIDDEN_INSTALL_TOKENS = (
 )
 
 
+# Agent-command policy (Gate 3B): string-level checks on the single
+# bash command an agent submits. The trusted harness wrapper
+# (docker exec bash -lc) is NOT the agent using a shell string; what we
+# deny is the agent explicitly invoking nested shell launchers or
+# forbidden operations. This is a best-effort denylist — we do not
+# claim complete static analysis of arbitrary bash.
+_AGENT_COMMAND_DENY = (
+    "docker.sock",
+    "docker ",
+    "sudo ",
+    "--privileged",
+    "sh -c",
+    "bash -c",
+    "dash -c",
+)
+
+
+def evaluate_agent_command(command: str) -> PolicyDecision:
+    reasons: list[str] = []
+    lowered = command.strip()
+    for bad in _AGENT_COMMAND_DENY:
+        if bad in lowered:
+            reasons.append(f"agent_command_denied:{bad.strip()}")
+    if "pip" in lowered and "install" in lowered:
+        for tok in _FORBIDDEN_INSTALL_TOKENS:
+            if tok in lowered:
+                reasons.append(f"forbidden_install_extra:{tok}")
+    if reasons:
+        return PolicyDecision(False, reasons)
+    return PolicyDecision(True, ["ok"])
+
+
 def evaluate_argv(
     argv: list[str],
     *,

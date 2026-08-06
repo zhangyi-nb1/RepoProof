@@ -8,9 +8,12 @@ whether the result actually works: capability tests, host regression,
 policy checks, and a clean-room replay. `PASS` is earned from
 executable evidence, never from an agent's self-claim.
 
-> Status: **Gate 2.5 (evidence hardening).** The deterministic
-> evidence chain is real, hardened and runnable today; the autonomous
-> agent is deliberately not wired yet (Gate 3).
+> Status: **Gate 3B.** v3 reference-calibrated task package with
+> positive/negative oracle controls; mini-swe-agent 2.4.6 wired as the
+> single autonomous loop and verified end-to-end with a deterministic
+> fake model (no LLM). The first REAL model run is currently BLOCKED on
+> provider availability (docs/evidence/gate3-preflight/) — honest
+> BLOCKED is a correct outcome here; no silent model switching.
 
 ## What exists today (Gate 2 → 2.5)
 

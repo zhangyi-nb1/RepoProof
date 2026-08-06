@@ -1,0 +1,20 @@
+{
+  "verdict": "BLOCKED",
+  "typed_failure": "PROVIDER_UNAVAILABLE",
+  "provider": "user-configured OpenAI-compatible LAN proxy (host redacted), path /v1",
+  "evidence": [
+    "litellm native tool-call path: 2 full retry cycles (4s..60s backoff), every attempt ServiceUnavailableError 503",
+    "raw POST /chat/completions gpt-5.5 (plain): 503 Service temporarily unavailable",
+    "raw POST /chat/completions gpt-5.4-mini (plain): 503 (rules out model-alias issue)",
+    "raw POST /chat/completions gpt-5.5 (with bash tool schema): 503 (rules out tools-path issue)",
+    "GET /models: 200 (proxy process alive; backend down)",
+    "delayed retries at +20s and +90s: still 503"
+  ],
+  "policy_applied": [
+    "no silent model switch (both configured models 503; no other provider configured)",
+    "native and textbased protocols untestable while backend is down -> BLOCKED per Gate 3B.F",
+    "Gate 3C real agent run NOT started (prohibited without passing preflight)",
+    "API key existed only in the host preflight process; never in containers, trace, or artifacts"
+  ],
+  "next_step": "re-run scripts/model_preflight.py when the provider backend is restored; on success Gate 3C may proceed unchanged"
+}
