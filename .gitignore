@@ -1,0 +1,37 @@
+# --- secrets & local config (never commit) ---
+.env*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials*
+secrets*
+
+# --- python ---
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# --- databases ---
+*.db
+*.sqlite3
+
+# --- run data (Adoption Bundle raw runtime data is NOT committed
+#     unless explicitly reviewed & sanitized) ---
+artifacts/
+runs/
+workspaces/
+upstream-cache/
+
+# --- model / API provider config ---
+models.local.*
+provider.local.*
+
+# --- OS noise ---
+.DS_Store

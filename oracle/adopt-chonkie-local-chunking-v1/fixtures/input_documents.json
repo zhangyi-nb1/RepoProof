@@ -1,0 +1,19 @@
+{
+  "documents": [
+    {
+      "document_id": "doc-001-meeting-notes",
+      "text": "季度复盘会议纪要 📝\n\n本次会议讨论了 Q3 的预算方案。The Q3 budget was approved. 预算需要再确认一次。\n\n\n王芳提出 offline chunking 的需求:所有文档必须在本地完成切分,不允许调用外部 embedding 服务 🚀。The Q3 budget was approved. 预算需要再确认一次。\n\n下一步:技术部在周五前给出 PoC,验证中英文混排文本的切分质量。",
+      "metadata": {"source": "meeting", "lang": "zh-en", "priority": 1}
+    },
+    {
+      "document_id": "doc-002-product-faq",
+      "text": "Frequently Asked Questions\n\nWhat does the pipeline do? It splits long documents into retrieval-sized chunks. It supports offline chunking.\n\nDoes it call any external service? No. Everything runs on the local CPU. It supports offline chunking.\n\nHow are chunk boundaries chosen? Sentence boundaries are preferred; long sentences may be split recursively.",
+      "metadata": {"source": "faq", "lang": "en"}
+    },
+    {
+      "document_id": "doc-003-blank",
+      "text": "   \n\n\t   ",
+      "metadata": {"source": "empty-test"}
+    }
+  ]
+}

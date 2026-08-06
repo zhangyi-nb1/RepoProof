@@ -1,0 +1,48 @@
+{
+  "detail": "clean-room replay reproduced run #1 outcomes",
+  "evidence": [
+    "b992d8ef5edb84bb824d7e82a41232e2d3b21839fc062ed4c2c2c62b05cdd297"
+  ],
+  "extra": {
+    "checks": {
+      "capability_exit_equal": true,
+      "capability_failed_tests_equal": true,
+      "probe_normalized_sha_equal": true,
+      "regression_exit_equal": true
+    },
+    "first": {
+      "capability_exit": 1,
+      "capability_failed": [
+        "../oracle/test_capability.py::test_chunk_ids_stable_and_not_upstream_uuid",
+        "../oracle/test_capability.py::test_deterministic_repeat_run",
+        "../oracle/test_capability.py::test_document_order_and_ordinals",
+        "../oracle/test_capability.py::test_metadata_and_document_id_passthrough",
+        "../oracle/test_capability.py::test_offsets_match_source_slice",
+        "../oracle/test_capability.py::test_record_schema_exact_fields",
+        "../oracle/test_capability.py::test_returns_records_for_each_document",
+        "../oracle/test_capability.py::test_upstream_errors_wrapped_as_host_error"
+      ],
+      "probe_normalized_sha": "b992d8ef5edb84bb824d7e82a41232e2d3b21839fc062ed4c2c2c62b05cdd297",
+      "regression_exit": 0,
+      "regression_failed": []
+    },
+    "replay": {
+      "capability_exit": 1,
+      "capability_failed": [
+        "../oracle/test_capability.py::test_chunk_ids_stable_and_not_upstream_uuid",
+        "../oracle/test_capability.py::test_deterministic_repeat_run",
+        "../oracle/test_capability.py::test_document_order_and_ordinals",
+        "../oracle/test_capability.py::test_metadata_and_document_id_passthrough",
+        "../oracle/test_capability.py::test_offsets_match_source_slice",
+        "../oracle/test_capability.py::test_record_schema_exact_fields",
+        "../oracle/test_capability.py::test_returns_records_for_each_document",
+        "../oracle/test_capability.py::test_upstream_errors_wrapped_as_host_error"
+      ],
+      "probe_normalized_sha": "b992d8ef5edb84bb824d7e82a41232e2d3b21839fc062ed4c2c2c62b05cdd297",
+      "regression_exit": 0,
+      "regression_failed": []
+    }
+  },
+  "passed": true,
+  "verifier": "ReplayVerifier"
+}

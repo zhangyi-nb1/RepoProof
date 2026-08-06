@@ -1,0 +1,22 @@
+{
+  "detail": "8 capability check(s) failed: ../oracle/test_capability.py::test_chunk_ids_stable_and_not_upstream_uuid, ../oracle/test_capability.py::test_deterministic_repeat_run, ../oracle/test_capability.py::test_document_order_and_ordinals, ../oracle/test_capability.py::test_metadata_and_document_id_passthrough, ../oracle/test_capability.py::test_offsets_match_source_slice, ../oracle/test_capability.py::test_record_schema_exact_fields, ../oracle/test_capability.py::test_returns_records_for_each_document, ../oracle/test_capability.py::test_upstream_errors_wrapped_as_host_error",
+  "evidence": [
+    "8a723ea38e3b0bf25d195d6698f98f5825fc4964bbee0def785fda00fe9949b4"
+  ],
+  "extra": {
+    "exit_code": 1,
+    "failed_tests": [
+      "../oracle/test_capability.py::test_chunk_ids_stable_and_not_upstream_uuid",
+      "../oracle/test_capability.py::test_deterministic_repeat_run",
+      "../oracle/test_capability.py::test_document_order_and_ordinals",
+      "../oracle/test_capability.py::test_metadata_and_document_id_passthrough",
+      "../oracle/test_capability.py::test_offsets_match_source_slice",
+      "../oracle/test_capability.py::test_record_schema_exact_fields",
+      "../oracle/test_capability.py::test_returns_records_for_each_document",
+      "../oracle/test_capability.py::test_upstream_errors_wrapped_as_host_error"
+    ],
+    "passed_count": 3
+  },
+  "passed": false,
+  "verifier": "CapabilityVerifier"
+}

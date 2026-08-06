@@ -1,0 +1,80 @@
+# Adoption Contract — FROZEN. Agents may change their solution, never
+# this problem statement, the hard constraints, or the oracle.
+# Integrity: contracts/adopt-chonkie-local-chunking-v1.yaml.sha256
+#
+# Deliberately absent: any expected-outcome label. The human benchmark
+# annotation lives outside this file and is never visible to the
+# runner or to a future agent.
+
+task_id: adopt-chonkie-local-chunking-v1
+
+source_repo:
+  url: https://github.com/feyninc/chonkie
+  revision: v1.7.0
+  resolved_commit: 0a6baea1a42c9afe9b3bc31ecb37739e744bb1ec
+  license: MIT
+
+target_project:
+  kind: consumer_fixture
+  path: fixtures/consumer_rag
+
+capability:
+  statement: >
+    Adopt Chonkie's offline Sentence/Recursive chunking into the local
+    RAG consumer fixture: rag_consumer.chunk_documents(request) must
+    return host-schema ChunkRecord rows (stable non-uuid chunk ids,
+    document order + contiguous ordinals, char offsets that slice back
+    to the source text, metadata/document_id passthrough, blank-doc and
+    error handling) — fully offline, CPU-only.
+  output_schema: ChunkRecord
+
+environment:
+  os: linux
+  arch: arm64
+  python: "3.12"
+  cpu_only: true
+  network_install: true
+  network_test: false
+
+constraints:
+  forbidden:
+    - gpu
+    - privileged_container
+    - oracle_write
+    - model_download
+    - embedding_calls
+    - network_at_test_time
+  editable_zones:
+    - adaptation
+  forbidden_install_extras:
+    - "[all]"
+    - "[semantic]"
+    - "[neural]"
+    - "[late]"
+    - "[slumber]"
+    - "[st]"
+    - sentence-transformers
+    - torch
+    - openai
+    - google-genai
+    - gemini
+    - qdrant
+    - chromadb
+    - pgvector
+    - weaviate
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 8
+  max_patch_lines: 400
+  max_input_tokens_total: 250000
+  max_output_tokens_total: 30000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "/oracle/test_regression.py"]

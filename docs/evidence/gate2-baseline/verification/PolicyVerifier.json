@@ -1,0 +1,12 @@
+{
+  "detail": "oracle/upstream intact; no denied action executed",
+  "evidence": [
+    "f1212e109aac2dbca936eb0c94dfd9a10f810efb0fbcbce7d620d1446f083494"
+  ],
+  "extra": {
+    "adaptation_files": [],
+    "denied_count": 0
+  },
+  "passed": true,
+  "verifier": "PolicyVerifier"
+}

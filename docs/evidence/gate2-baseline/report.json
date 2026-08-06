@@ -1,0 +1,38 @@
+{
+  "adaptation_files": [],
+  "budget_wall": {
+    "elapsed_seconds": 105.0,
+    "max_agent_steps": 20,
+    "max_wall_time_minutes": 30,
+    "steps_used": 0
+  },
+  "capability_failed_tests": [
+    "../oracle/test_capability.py::test_chunk_ids_stable_and_not_upstream_uuid",
+    "../oracle/test_capability.py::test_deterministic_repeat_run",
+    "../oracle/test_capability.py::test_document_order_and_ordinals",
+    "../oracle/test_capability.py::test_metadata_and_document_id_passthrough",
+    "../oracle/test_capability.py::test_offsets_match_source_slice",
+    "../oracle/test_capability.py::test_record_schema_exact_fields",
+    "../oracle/test_capability.py::test_returns_records_for_each_document",
+    "../oracle/test_capability.py::test_upstream_errors_wrapped_as_host_error"
+  ],
+  "contract_sha256": "c80bb12c21edc4ee68cd07c70cb464c87216378822cb12fd44807010691f5fcb",
+  "gate_reasons": [
+    "CapabilityVerifier: 8 capability check(s) failed: ../oracle/test_capability.py::test_chunk_ids_stable_and_not_upstream_uuid, ../oracle/test_capability.py::test_deterministic_repeat_run, ../oracle/test_capability.py::test_document_order_and_ordinals, ../oracle/test_capability.py::test_metadata_and_document_id_passthrough, ../oracle/test_capability.py::test_offsets_match_source_slice, ../oracle/test_capability.py::test_record_schema_exact_fields, ../oracle/test_capability.py::test_returns_records_for_each_document, ../oracle/test_capability.py::test_upstream_errors_wrapped_as_host_error"
+  ],
+  "mode": "direct-adoption-baseline (scripted, no agent, no LLM)",
+  "regression_failed_tests": [],
+  "replay_consistent": true,
+  "run_id": "adopt-chonkie-local-chunking-v1-20260807-004204",
+  "steps_per_pass": {
+    "baseline": 11,
+    "replay": 11
+  },
+  "task_id": "adopt-chonkie-local-chunking-v1",
+  "trace_chain": {
+    "error": "",
+    "events": 77,
+    "ok": true
+  },
+  "verdict": "FAIL"
+}

@@ -1,0 +1,18 @@
+{
+  "agent_model": null,
+  "container_arch": null,
+  "container_python": null,
+  "docker_client": "29.6.1",
+  "docker_server": "29.5.2",
+  "host_arch": "arm64",
+  "host_os": "Darwin",
+  "host_os_version": "26.5.2",
+  "image": "python:3.12-slim-bookworm",
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "network_install": "bridge",
+  "network_run": "none",
+  "notes": [
+    "Gate 2: no agent, no LLM calls; scripted deterministic sequence only"
+  ],
+  "runtime_provider": "colima (colima version 0.10.3)"
+}

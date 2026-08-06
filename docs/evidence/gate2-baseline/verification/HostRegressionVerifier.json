@@ -1,0 +1,10 @@
+{
+  "detail": "host fixture regression intact",
+  "evidence": [],
+  "extra": {
+    "exit_code": 0,
+    "failed_tests": []
+  },
+  "passed": true,
+  "verifier": "HostRegressionVerifier"
+}
