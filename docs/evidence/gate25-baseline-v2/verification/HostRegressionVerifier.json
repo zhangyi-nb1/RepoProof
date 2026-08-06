@@ -1,0 +1,15 @@
+{
+  "detail": "passed_checks=4, failed_checks=0, total_checks=4",
+  "evidence": [
+    "4250d1f2029068ddc50a143f438d48c0e151e05c734fe713ffea94436ecf9381"
+  ],
+  "extra": {
+    "exit_code": 0,
+    "failed_checks": 0,
+    "failed_tests": [],
+    "passed_checks": 4,
+    "total_checks": 4
+  },
+  "passed": true,
+  "verifier": "HostRegressionVerifier"
+}

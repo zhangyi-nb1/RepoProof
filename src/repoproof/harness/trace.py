@@ -16,6 +16,10 @@ from pathlib import Path
 from repoproof.domain.models import RunEvent, sha256_bytes
 
 
+class TraceTampered(RuntimeError):
+    pass
+
+
 class TraceWriter:
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
@@ -23,7 +27,11 @@ class TraceWriter:
         self._seq = 0
         self._prev_hash: str | None = None
         if self.path.exists():
-            # Resume append-only: recover seq + last-line hash.
+            # Resume append-only — but FIRST verify the existing chain;
+            # appending to a tampered trace would launder it.
+            ok, at, err = verify_chain(self.path)
+            if not ok:
+                raise TraceTampered(f"refusing to append to broken trace at seq {at}: {err}")
             lines = self.path.read_bytes().splitlines()
             self._seq = len(lines)
             if lines:

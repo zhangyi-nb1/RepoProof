@@ -1,8 +1,10 @@
-"""RepoProof CLI — Gate 2 surface.
+"""RepoProof CLI — Gate 2.5 surface.
 
 Commands:
-  baseline     run the direct-adoption baseline (scripted, no agent)
-  verify-trace verify a run's append-only trace hash chain
+  baseline      run the direct-adoption baseline (scripted, no agent)
+  freeze-task   build + commit the TaskPackageManifest (human pre-run step)
+  verify-trace  verify a run's append-only trace hash chain
+  verify-bundle verify hash/reference integrity of a whole run bundle
 """
 
 from __future__ import annotations
@@ -13,7 +15,6 @@ import sys
 from pathlib import Path
 
 from repoproof.harness.trace import verify_chain
-from repoproof.runner.baseline import run_baseline
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -22,26 +23,53 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="repoproof")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p_base = sub.add_parser("baseline", help="run direct-adoption baseline for a contract")
+    p_base = sub.add_parser("baseline", help="run direct-adoption baseline for a frozen contract")
     p_base.add_argument("--contract", required=True, type=Path)
     p_base.add_argument("--runs-root", type=Path, default=None)
+
+    p_freeze = sub.add_parser("freeze-task", help="freeze the task package manifest (pre-run, human step)")
+    p_freeze.add_argument("--contract", required=True, type=Path)
 
     p_trace = sub.add_parser("verify-trace", help="verify the tamper-evident trace chain of a run")
     p_trace.add_argument("--run-dir", required=True, type=Path)
 
+    p_bundle = sub.add_parser("verify-bundle", help="verify hash/reference integrity of a run bundle")
+    p_bundle.add_argument("--run-dir", required=True, type=Path)
+    p_bundle.add_argument("--contract", type=Path, default=None)
+
     args = parser.parse_args(argv)
 
     if args.cmd == "baseline":
+        from repoproof.runner.baseline import run_baseline
+
         report = run_baseline(args.contract, PROJECT_ROOT, args.runs_root)
         print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
         # Exit 0 = the evidence chain completed; the verdict itself is
         # data (FAIL is a legitimate, honest outcome of a baseline).
         return 0
 
+    if args.cmd == "freeze-task":
+        from repoproof.domain.models import TaskContract
+        from repoproof.harness import task_package
+        from repoproof.runner.baseline import ensure_upstream
+
+        contract, _ = TaskContract.load_frozen(args.contract, require_sidecar=True)
+        upstream, _mf = ensure_upstream(PROJECT_ROOT / "upstream-cache", contract.source_repo)
+        manifest = task_package.freeze(PROJECT_ROOT, args.contract, upstream_dir=upstream)
+        print(json.dumps(manifest.model_dump(), ensure_ascii=False, indent=2, sort_keys=True))
+        return 0
+
     if args.cmd == "verify-trace":
         ok, n, err = verify_chain(args.run_dir / "trace.jsonl")
         print(json.dumps({"ok": ok, "events": n, "error": err}))
         return 0 if ok else 1
+
+    if args.cmd == "verify-bundle":
+        from repoproof.verification.bundle_check import verify_bundle
+
+        result = verify_bundle(args.run_dir, PROJECT_ROOT, args.contract)
+        print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0 if result["ok"] else 1
 
     return 2
 

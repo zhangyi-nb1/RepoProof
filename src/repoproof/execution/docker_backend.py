@@ -80,8 +80,16 @@ class DockerExecutionBackend:
         network: str,
         mounts: list[Mount],
         env: dict[str, str] | None = None,
+        user: str | None = "1000:1000",
+        cap_drop_all: bool = True,
+        image_ref: str | None = None,
     ) -> str:
-        """Start a long-lived idle container; commands run via exec."""
+        """Start a long-lived idle container; commands run via exec.
+
+        Hardened defaults: non-root user, cap-drop ALL,
+        no-new-privileges, cpu/memory/pid limits. ``image_ref`` lets the
+        runner pin by digest instead of the mutable tag.
+        """
         name = f"{name_prefix}-{uuid.uuid4().hex[:8]}"
         argv = [
             "docker",
@@ -100,11 +108,15 @@ class DockerExecutionBackend:
             "--security-opt",
             "no-new-privileges",
         ]
+        if cap_drop_all:
+            argv += ["--cap-drop", "ALL"]
+        if user:
+            argv += ["--user", user, "-e", "HOME=/tmp"]
         for m in mounts:
             argv += ["-v", m.as_flag()]
         for k, v in (env or {}).items():
             argv += ["-e", f"{k}={v}"]
-        argv += [self.image, "sleep", "infinity"]
+        argv += [image_ref or self.image, "sleep", "infinity"]
         res = _run_host(argv, 120)
         if res.exit_code != 0:
             raise RuntimeError(
@@ -145,6 +157,30 @@ class DockerExecutionBackend:
             stdout=res.stdout,
             stderr=res.stderr,
         )
+
+    def inspect_security(self, container: str) -> dict:
+        """Structured evidence of the container's actual security knobs."""
+        proc = subprocess.run(
+            [
+                "docker",
+                "inspect",
+                container,
+                "--format",
+                '{"network_mode":"{{.HostConfig.NetworkMode}}","user":"{{.Config.User}}",'
+                '"cap_drop":"{{.HostConfig.CapDrop}}","pids_limit":{{.HostConfig.PidsLimit}},'
+                '"security_opt":"{{.HostConfig.SecurityOpt}}"}',
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            return {"error": proc.stderr.strip()[:200]}
+        import json as _json
+
+        try:
+            return _json.loads(proc.stdout.strip())
+        except _json.JSONDecodeError:
+            return {"raw": proc.stdout.strip()[:300]}
 
     def destroy(self, container: str) -> None:
         subprocess.run(["docker", "rm", "-f", container], capture_output=True)

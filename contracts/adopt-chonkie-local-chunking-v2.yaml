@@ -1,0 +1,104 @@
+# Adoption Contract v2 — FROZEN. Agents may change their solution,
+# never this problem statement, the hard constraints, or the oracle.
+# Integrity: contracts/adopt-chonkie-local-chunking-v2.yaml.sha256 and
+# contracts/adopt-chonkie-local-chunking-v2.package.json (task package
+# root hash binding contract + oracle + fixtures + source tree).
+#
+# v1 (adopt-chonkie-local-chunking-v1) stays frozen as history; this
+# file does not modify it.
+#
+# capability.params are FROZEN FROM THE PINNED UPSTREAM API — verified
+# against chonkie source at commit 0a6baea (SentenceChunker and
+# RecursiveChunker both accept tokenizer + chunk_size; sentence
+# additionally chunk_overlap; both default tokenizer="character").
+# No parameter is declared that the pinned upstream does not support.
+#
+# Deliberately absent: any expected-outcome label. The human benchmark
+# annotation lives outside this file and is never visible to the
+# runner or to a future agent.
+
+task_id: adopt-chonkie-local-chunking-v2
+
+source_repo:
+  url: https://github.com/feyninc/chonkie
+  revision: v1.7.0
+  resolved_commit: 0a6baea1a42c9afe9b3bc31ecb37739e744bb1ec
+  license: MIT
+
+target_project:
+  kind: consumer_fixture
+  path: fixtures/consumer_rag
+
+capability:
+  statement: >
+    Adopt Chonkie's offline chunking into the local RAG consumer:
+    rag_consumer.chunk_documents(request) must honor request-level
+    strategy selection ("sentence" | "recursive") and the frozen
+    chunk_size, and return host-schema ChunkRecord rows — multiple
+    chunks for long documents, document attribution and input order,
+    contiguous ordinals, stable non-upstream chunk ids, char offsets
+    that slice back to the source (each occurrence of repeated text
+    addressed separately, offsets in-bounds, strictly monotonic,
+    non-overlapping), metadata passthrough, blank-doc and error
+    handling — fully offline, CPU-only.
+  output_schema: ChunkRecord
+  params:
+    strategies: [sentence, recursive]
+    tokenizer: character
+    chunk_size: 120
+    chunk_overlap: 0
+  units_semantics: >
+    units = chunk length in the contract-frozen counting unit
+    (characters, per tokenizer="character"); MUST equal
+    char_end - char_start for every record.
+
+environment:
+  os: linux
+  arch: arm64
+  python: "3.12"
+  cpu_only: true
+  network_install: true
+  network_test: false
+
+constraints:
+  forbidden:
+    - gpu
+    - privileged_container
+    - oracle_write
+    - model_download
+    - embedding_calls
+    - network_at_test_time
+  editable_zones:
+    - adaptation
+  forbidden_install_extras:
+    - "[all]"
+    - "[semantic]"
+    - "[neural]"
+    - "[late]"
+    - "[slumber]"
+    - "[st]"
+    - sentence-transformers
+    - torch
+    - openai
+    - google-genai
+    - gemini
+    - qdrant
+    - chromadb
+    - pgvector
+    - weaviate
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 8
+  max_patch_lines: 400
+  max_input_tokens_total: 250000
+  max_output_tokens_total: 30000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "/oracle/test_regression.py"]

@@ -50,9 +50,22 @@ class TargetProject(BaseModel):
     path: str
 
 
+class CapabilityParams(BaseModel):
+    """Parameters FROZEN from the pinned upstream API — never invented.
+    (chonkie@0a6baea: SentenceChunker/RecursiveChunker both accept
+    tokenizer + chunk_size; sentence additionally chunk_overlap.)"""
+
+    strategies: list[str] = Field(default_factory=lambda: ["sentence"])
+    tokenizer: str = "character"
+    chunk_size: int = 2048
+    chunk_overlap: int = 0
+
+
 class Capability(BaseModel):
     statement: str
     output_schema: str
+    params: CapabilityParams | None = None
+    units_semantics: str | None = None
 
 
 class Environment(BaseModel):
@@ -106,21 +119,24 @@ class TaskContract(BaseModel):
     acceptance: Acceptance
 
     @classmethod
-    def load_frozen(cls, contract_path: Path) -> tuple[TaskContract, str]:
+    def load_frozen(
+        cls, contract_path: Path, *, require_sidecar: bool = False
+    ) -> tuple[TaskContract, str]:
         """Load a contract and verify it against its ``.sha256`` sidecar.
 
-        Returns (contract, contract_sha256). Raises ``ContractTampered``
-        when the sidecar exists and does not match the file bytes.
+        Official runs pass ``require_sidecar=True``: a missing sidecar
+        is refused outright — an unfrozen contract is not runnable.
         """
         raw = Path(contract_path).read_bytes()
         digest = sha256_bytes(raw)
         sidecar = Path(str(contract_path) + ".sha256")
-        if sidecar.exists():
+        if not sidecar.exists():
+            if require_sidecar:
+                raise ContractTampered(f"contract not frozen: missing sidecar {sidecar.name}")
+        else:
             pinned = sidecar.read_text(encoding="utf-8").split()[0].strip()
             if pinned != digest:
-                raise ContractTampered(
-                    f"contract hash mismatch: file={digest} sidecar={pinned}"
-                )
+                raise ContractTampered(f"contract hash mismatch: file={digest} sidecar={pinned}")
         data = yaml.safe_load(raw.decode("utf-8"))
         return cls.model_validate(data), digest
 
@@ -142,7 +158,9 @@ class RepoManifest(BaseModel):
     resolved_commit: str
     license_spdx: str
     license_file_sha256: str | None = None
-    tree_sha256: str | None = None
+    git_tree_hash: str | None = None
+    worktree_clean: bool | None = None
+    content_tree_sha256: str | None = None
 
 
 class EnvironmentManifest(BaseModel):
@@ -189,6 +207,46 @@ class VerificationResult(BaseModel):
     detail: str
     evidence: list[str] = Field(default_factory=list)
     extra: dict[str, Any] = Field(default_factory=dict)
+
+
+class AdaptationManifest(BaseModel):
+    """Frozen inventory of the adaptation zone. ``adaptation_present``
+    is DERIVED from this (file count + root hash), never a caller bool."""
+
+    files: list[dict[str, Any]] = Field(default_factory=list)
+    total_files: int = 0
+    total_lines: int = 0
+    tree_root_sha256: str = ""
+    frozen: bool = False
+
+    @property
+    def present(self) -> bool:
+        return self.frozen and self.total_files > 0
+
+
+class TaskPackageManifest(BaseModel):
+    """Immutable binding of everything a run depends on. Built ONCE by
+    the freeze CLI and committed; the runner only VERIFIES it — never
+    regenerates it after start."""
+
+    task_id: str
+    contract_sha256: str
+    oracle_tree_sha256: str
+    public_fixture_sha256: str
+    held_out_fixture_sha256: str | None = None
+    consumer_fixture_tree_sha256: str
+    source_commit: str
+    source_git_tree_hash: str
+    acceptance_capability_command: list[str]
+    acceptance_regression_command: list[str]
+    root_hash: str = ""
+
+    def compute_root_hash(self) -> str:
+        import json as _json
+
+        payload = self.model_dump()
+        payload.pop("root_hash", None)
+        return sha256_bytes(_json.dumps(payload, sort_keys=True, ensure_ascii=False).encode())
 
 
 class GateResult(BaseModel):

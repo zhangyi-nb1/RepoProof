@@ -75,12 +75,26 @@ _FORBIDDEN_INSTALL_TOKENS = (
 )
 
 
-def evaluate_argv(argv: list[str], *, forbidden_install_tokens: tuple[str, ...] | None = None) -> PolicyDecision:
+def evaluate_argv(
+    argv: list[str],
+    *,
+    actor_kind: str = "harness_setup",
+    forbidden_install_tokens: tuple[str, ...] | None = None,
+) -> PolicyDecision:
+    """argv policy, differentiated by actor.
+
+    ``harness_setup``: the trusted deterministic runner — may use a
+    small set of fixed ``sh -c`` staging commands.
+    ``agent``: a future agent NEVER inherits that latitude — raw shell
+    strings (sh/bash -c) are denied; actions must be structured argv.
+    """
     joined = " ".join(argv)
     reasons: list[str] = []
     for bad in _ARGV_DENY_SUBSTRINGS:
         if bad in joined:
             reasons.append(f"denied_substring:{bad.strip()}")
+    if actor_kind == "agent" and len(argv) >= 2 and argv[0] in ("sh", "bash", "dash") and "-c" in argv[:3]:
+        reasons.append("agent_shell_string_forbidden (use structured argv)")
     is_pip_install = "pip" in joined and "install" in joined
     if is_pip_install:
         tokens = forbidden_install_tokens or _FORBIDDEN_INSTALL_TOKENS

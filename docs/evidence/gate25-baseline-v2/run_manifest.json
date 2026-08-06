@@ -1,0 +1,18 @@
+{
+  "contract_sha256": "c0d2cf7d612b6d2d6f720251ba896d3c9404c4697458d6405b3c9d24a45579fb",
+  "final_trace_sha256": "13c94e68d2fcb656abb3a3876f263c9db4b132d57fbd44a8be12472c15fcc844",
+  "run_id": "adopt-chonkie-local-chunking-v2-20260807-013149",
+  "task_id": "adopt-chonkie-local-chunking-v2",
+  "task_package_root_hash": "f8b727159c792a0e4005e0c228905a517eaac41f41132943e60c6e4106f3a426",
+  "timings": {
+    "agent_command_s": 0.0,
+    "agent_model_call_s": 0.0,
+    "replay_s": 9.9,
+    "system_setup_s": 6.5,
+    "total_wall_s": 26.1,
+    "verification_s": 9.7
+  },
+  "trace_chain_ok": true,
+  "trace_events": 77,
+  "verdict": "FAIL"
+}

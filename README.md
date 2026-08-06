@@ -8,11 +8,11 @@ whether the result actually works: capability tests, host regression,
 policy checks, and a clean-room replay. `PASS` is earned from
 executable evidence, never from an agent's self-claim.
 
-> Status: **Gate 2 vertical slice.** The deterministic evidence chain
-> is real and runnable today; the autonomous agent is deliberately not
-> wired yet (Gate 3).
+> Status: **Gate 2.5 (evidence hardening).** The deterministic
+> evidence chain is real, hardened and runnable today; the autonomous
+> agent is deliberately not wired yet (Gate 3).
 
-## What exists today (Gate 2)
+## What exists today (Gate 2 → 2.5)
 
 - **Frozen Task Contract** (`contracts/*.yaml` + `.sha256` sidecar) —
   goal, environment, forbidden actions, budgets, acceptance commands.
@@ -41,23 +41,28 @@ executable evidence, never from an agent's self-claim.
   records the real gap between upstream output and the host
   `ChunkRecord` contract as a granular failed-test list.
 
-### Measured baseline (evidence: `docs/evidence/gate2-baseline/`)
+### Measured baseline v2 (evidence: `docs/evidence/gate25-baseline-v2/`)
 
-Real run on linux/arm64 containers (aarch64 verified in-container;
-`chonkie-1.7.0 + chonkie-core-0.10.2 + tokie-0.1.4 + numpy-2.5.1` all
-installed cleanly on arm64):
+Gate 2.5 hardened run — v2 task package (root hash committed as
+`contracts/adopt-chonkie-local-chunking-v2.package.json`), offline
+installs from a content-addressed wheelhouse, digest-pinned image,
+non-root cap-drop-ALL containers, per-action policy causality:
 
 | Check | Result |
 |---|---|
 | Direct-adoption verdict (completion gate) | **FAIL** — honest: naive integration is not enough; no adapter was attempted |
-| Capability checks | **8 of 11 failed**: upstream ids are per-call unstable (`chnk_<hex>`), records lack `document_id`/`ordinal`/`metadata`, schema differs from `ChunkRecord`, offsets don't slice back, upstream errors unwrapped; 3 passed (JSON-serializable, input not mutated, blank doc → 0 records) |
-| Host regression | 4/4 passed (adoption path broke nothing) |
-| Clean-room replay | **consistent** — fresh containers + fresh venv + fresh execution tree reproduced the identical failed-test set and normalized probe hash |
-| Trace | 78 events, tamper-evident hash chain verifies |
-| Budget | 11 scripted steps per pass (limit 20), ~105 s wall |
+| Capability | `passed_checks=4, failed_checks=42, total_checks=46` across public **and held-out** fixtures × both frozen strategies (sentence, recursive): no strategy/chunk_size honoring, unstable upstream ids, missing attribution/ordinals/metadata, offsets not sliceable, errors unwrapped |
+| Host regression | `passed_checks=4, failed_checks=0, total_checks=4` |
+| Policy | oracle/upstream intact; per-action-id causality holds; patch budgets enforced (0 adaptation files) |
+| Clean-room replay | `mode=baseline_failure_reproduction, status=PASS` — reproduction of a failing baseline can NEVER ground a final PASS (gate-pinned) |
+| Trace | 77 events, tamper-evident hash chain verified AFTER `run.end`; final sha256 recorded in `run_manifest.json` |
+| verify-bundle | 7/7 integrity checks pass (contract / task package / trace / final sha / artifacts / verification refs / adaptation) |
+| Negative control | a cheating one-record-per-doc adapter is REJECTED by the v2 oracle (pinned test) |
 
-This failed-test list is the future agent's job description — the
-solution is deliberately NOT pre-written anywhere in this repo.
+The v1 baseline (`docs/evidence/gate2-baseline/`) is preserved as
+history. The 42-item failed-check list is the future agent's job
+description — the solution is deliberately NOT pre-written anywhere in
+this repo.
 
 ## What does NOT exist yet (honest non-goals of this slice)
 

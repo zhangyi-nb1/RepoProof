@@ -1,0 +1,21 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_regression.py"
+  ],
+  "consumer_fixture_tree_sha256": "253f39777452175b4cb7c05f88f56cfa6e98560b38633e66987513a35aa5e817",
+  "contract_sha256": "c0d2cf7d612b6d2d6f720251ba896d3c9404c4697458d6405b3c9d24a45579fb",
+  "held_out_fixture_sha256": "b037b8786d569a44f973154dca582e59cd0ed20d8b904ad7d6ed205b8ff4ef6e",
+  "oracle_tree_sha256": "e70f4060f50dadd8c4ad644fd66b103048fade50033a09545b464628419bcaf8",
+  "public_fixture_sha256": "3acd75fb0cec89fabd02958d36abf5b6851c927b62b3f1cd43154991850e8bf1",
+  "root_hash": "f8b727159c792a0e4005e0c228905a517eaac41f41132943e60c6e4106f3a426",
+  "source_commit": "0a6baea1a42c9afe9b3bc31ecb37739e744bb1ec",
+  "source_git_tree_hash": "dd0e963fd33177fda72bf10dda0c78909bf68918",
+  "task_id": "adopt-chonkie-local-chunking-v2"
+}

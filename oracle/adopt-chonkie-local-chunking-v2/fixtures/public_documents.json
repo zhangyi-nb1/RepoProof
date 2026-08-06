@@ -1,0 +1,19 @@
+{
+  "documents": [
+    {
+      "document_id": "doc-101-ops-manual",
+      "text": "本地部署运维手册 🛠\n第一步:准备一台仅有 CPU 的机器。\n第二步:安装 Python 3.12 与固定版本依赖。\n本方案支持完全离线运行。\n第三步:将文档目录挂载为只读卷。\n第四步:执行切分流水线并生成检索索引。\n本方案支持完全离线运行。\nAll processing happens on the local machine. No external API is called at any stage.\n第五步:核对输出 Schema 与宿主契约一致。\n第六步:销毁临时容器并保留产物清单。\n本方案支持完全离线运行。\n附注:如遇版本冲突,请先锁定依赖再重试 🚀。\nThe pipeline must remain reproducible in a clean environment. Every artifact is content addressed.",
+      "metadata": {"source": "ops-manual", "lang": "zh-en", "priority": 2}
+    },
+    {
+      "document_id": "doc-102-support-faq",
+      "text": "What does the pipeline do? It splits long documents into retrieval sized chunks. It supports offline chunking. Does it call any external service? No, everything runs on the local CPU without network access. It supports offline chunking. How are chunk boundaries chosen? Sentence boundaries are preferred and long passages are split recursively. Can I replay a run later? Yes, every run rebuilds from pinned inputs inside a fresh container. It supports offline chunking. What about repeated sentences? Offsets must point at each occurrence separately. The final report lists every chunk with stable identifiers.",
+      "metadata": {"source": "faq", "lang": "en"}
+    },
+    {
+      "document_id": "doc-103-blank",
+      "text": "   \n\n\t   ",
+      "metadata": {"source": "empty-test"}
+    }
+  ]
+}

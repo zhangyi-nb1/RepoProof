@@ -1,22 +1,37 @@
 """Direct-adoption baseline runner — a DETERMINISTIC scripted sequence.
 
 Explicitly NOT an agent (design P9): no model call, no planning, no
-autonomous loop — a fixed order of actions used to prove the external
-evidence chain works before any agent exists. It emits a scripted
-``agent.claim_complete`` event precisely so tests can prove the
-completion gate ignores self-claims.
+autonomous loop. It exists to prove the external evidence chain works
+before any agent does, and it emits a scripted ``agent.claim_complete``
+event precisely so tests can prove the completion gate ignores it.
 
-Flow (baseline pass, then a clean-room replay pass):
-  contract freeze-check → upstream pin → oracle snapshot+hash →
-  install container (network per contract) with the arm64 install
-  preflight → run container (network=none): ephemeral execution copy,
-  direct-adoption probe, capability pytest, regression pytest →
-  hashes re-checked → four verifiers → completion gate → report.
+Gate 2.5 hardening implemented here:
+  * runner REFUSES unfrozen contracts (sidecar required) and only
+    VERIFIES the committed TaskPackageManifest — never regenerates it;
+  * source evidence: pinned HEAD, HEAD^{tree}, clean worktree, content
+    tree hash; wheel(house) built ONCE from the pinned source, then
+    both passes install OFFLINE (network=none) from the same
+    content-addressed wheelhouse;
+  * containers run non-root, cap-drop ALL, no-new-privileges, by IMAGE
+    DIGEST; network=none is proven by docker inspect AND an in-container
+    socket probe, not a catch-all HTTP exception;
+  * every action carries an action_id; policy.decision / action.start /
+    action.end / action.denied share it (causality verified);
+  * the adaptation zone is FROZEN (AdaptationManifest + read-only)
+    after the (empty) agent phase; verifiers consume the frozen
+    manifest and the tree hash is re-checked before and after;
+  * replay runs in mode=baseline_failure_reproduction — it reproduces
+    the failing baseline and can never ground a final PASS;
+  * budget exhaustion with unmet hard goals is FAIL/BUDGET_EXHAUSTED
+    (BLOCKED is reserved for missing external facts/resources);
+  * ``run.end`` is written BEFORE the final chain verification; the
+    final trace sha256 + event count land in run_manifest.json.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import platform
 import re
 import shutil
@@ -34,8 +49,12 @@ from repoproof.domain.models import (
     TaskContract,
     VerificationResult,
     sha256_bytes,
+    sha256_file,
 )
 from repoproof.execution.docker_backend import DockerExecutionBackend, Mount
+from repoproof.execution.profiles import verifier_profile
+from repoproof.harness import task_package
+from repoproof.harness.adaptation import PatchBudgetExceeded, freeze_adaptation, verify_frozen
 from repoproof.harness.budget import BudgetExceeded, BudgetMeter
 from repoproof.harness.oracle_guard import hash_tree, make_read_only
 from repoproof.harness.policy import evaluate_argv
@@ -43,29 +62,25 @@ from repoproof.harness.trace import verify_chain
 from repoproof.persistence.run_store import FileRunStore
 from repoproof.verification import completion_gate
 from repoproof.verification.verifiers import (
+    REPLAY_MODE_BASELINE,
     capability_result,
     parse_pytest,
     policy_result,
+    regression_result,
     replay_result,
 )
 
 IMAGE = "python:3.12-slim-bookworm"
 
-_UUID4_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-)
+_UUID4_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 
 
 def _normalize_probe(payload: object) -> object:
-    """Strip volatile fields (uuid ids) so replay comparison targets
-    deterministic content. The RAW probe (with uuids) is kept as its
-    own artifact — the uuid churn is itself recorded evidence."""
+    """Strip volatile fields (per-call upstream ids) so replay
+    comparison targets deterministic content. RAW probe is kept — the
+    id churn is itself recorded evidence."""
     if isinstance(payload, dict):
-        return {
-            k: _normalize_probe(v)
-            for k, v in payload.items()
-            if k not in ("id",)
-        }
+        return {k: _normalize_probe(v) for k, v in payload.items() if k not in ("id",)}
     if isinstance(payload, list):
         return [_normalize_probe(v) for v in payload]
     if isinstance(payload, str) and _UUID4_RE.match(payload):
@@ -74,8 +89,8 @@ def _normalize_probe(payload: object) -> object:
 
 
 def ensure_upstream(cache_root: Path, source: SourceRepo) -> tuple[Path, RepoManifest]:
-    """Clone the candidate repo pinned to the contract commit; verify
-    the pin; hash the tree; make the snapshot physically read-only."""
+    """Pinned clone + full source evidence: HEAD, HEAD^{tree}, clean
+    worktree status, content tree hash; snapshot made read-only."""
     cache_root.mkdir(parents=True, exist_ok=True)
     dest = cache_root / f"upstream-{source.resolved_commit[:12]}"
     if not dest.exists():
@@ -87,11 +102,18 @@ def ensure_upstream(cache_root: Path, source: SourceRepo) -> tuple[Path, RepoMan
             timeout=120,
         )
         tmp.rename(dest)
-    head = subprocess.run(
-        ["git", "-C", str(dest), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
-    ).stdout.strip()
+
+    def _git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(dest), *args], capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+    head = _git("rev-parse", "HEAD")
     if head != source.resolved_commit:
         raise AdmissionError(f"upstream pin mismatch: HEAD={head} contract={source.resolved_commit}")
+    git_tree = _git("rev-parse", "HEAD^{tree}")
+    worktree_clean = _git("status", "--porcelain") == ""
+    content_tree = _content_tree_sha(dest)
     license_sha = None
     for name in ("LICENSE", "LICENSE.md", "LICENSE.txt"):
         lp = dest / name
@@ -103,9 +125,21 @@ def ensure_upstream(cache_root: Path, source: SourceRepo) -> tuple[Path, RepoMan
         resolved_commit=head,
         license_spdx=source.license,
         license_file_sha256=license_sha,
+        git_tree_hash=git_tree,
+        worktree_clean=worktree_clean,
+        content_tree_sha256=content_tree,
     )
     make_read_only(dest)
     return dest, manifest
+
+
+def _content_tree_sha(root: Path) -> str:
+    entries: dict[str, str] = {}
+    for p in sorted(Path(root).rglob("*")):
+        if p.is_symlink() or not p.is_file() or ".git" in p.parts:
+            continue
+        entries[str(p.relative_to(root))] = sha256_bytes(p.read_bytes())
+    return sha256_bytes(json.dumps(entries, sort_keys=True).encode())
 
 
 @dataclass
@@ -116,6 +150,7 @@ class PassOutcome:
     capability_failed: list[str]
     capability_stdout_sha: str
     regression_exit: int | None
+    regression_stdout_sha: str
     regression_failed: list[str]
     probe_raw_sha: str
     probe_normalized_sha: str
@@ -133,44 +168,79 @@ class PassOutcome:
 class _Runner:
     def __init__(self, contract_path: Path, project_root: Path, runs_root: Path | None) -> None:
         self.project_root = Path(project_root)
-        self.contract, self.contract_sha = TaskContract.load_frozen(Path(contract_path))
+        self.contract_path = Path(contract_path)
+        # Official runs REQUIRE the frozen sidecar and the committed
+        # task package manifest; both verified, neither regenerated.
+        self.contract, self.contract_sha = TaskContract.load_frozen(self.contract_path, require_sidecar=True)
+        self.package = task_package.load_and_verify(self.project_root, self.contract_path)
         self.run_id = f"{self.contract.task_id}-{time.strftime('%Y%m%d-%H%M%S')}"
         self.store = FileRunStore((runs_root or self.project_root / "runs") / self.run_id)
-        self.meter = BudgetMeter(self.contract.budgets)
+        self.meter = BudgetMeter(self.contract.budgets)  # global wall clock
         self.backend = DockerExecutionBackend(image=IMAGE)
+        self.image_ref: str = IMAGE
         self.oracle_src = self.project_root / "oracle" / self.contract.task_id
-        self.consumer_src = self.project_root / "fixtures" / "consumer_rag"
+        self.consumer_src = self.project_root / Path(self.contract.target_project.path)
         self.probes_src = self.project_root / "src" / "repoproof" / "probes"
+        self.user = f"{os.getuid()}:{os.getgid()}"
+        self._action_seq = 0
+        self.timings: dict[str, float] = {
+            "system_setup_s": 0.0,
+            "verification_s": 0.0,
+            "replay_s": 0.0,
+            "agent_model_call_s": 0.0,
+            "agent_command_s": 0.0,
+        }
 
     # ------------------------------------------------------------ helpers
-    def _exec_step(
-        self, container: str, argv: list[str], *, label: str, meter: BudgetMeter, workdir: str | None = None
-    ) -> tuple:
-        """Policy-checked, budget-metered, trace-logged container exec.
+    def _next_action_id(self) -> str:
+        self._action_seq += 1
+        return f"a{self._action_seq:04d}"
 
-        ``meter`` counts steps PER EXECUTION PASS — the contract's
-        max_agent_steps bounds one execution, and the clean-room replay
-        is a fresh execution with a fresh step budget. The run-level
-        meter still enforces the global wall-time budget.
+    def _exec_step(
+        self,
+        container: str,
+        argv: list[str],
+        *,
+        label: str,
+        meter: BudgetMeter,
+        workdir: str | None = None,
+        actor_kind: str = "harness_setup",
+    ) -> tuple:
+        """Policy-checked, budget-metered, causally-traced container exec.
+
+        One action_id threads policy.decision → action.start →
+        action.end (or action.denied). ``meter`` counts steps PER
+        EXECUTION PASS; the run-level meter enforces global wall time.
         """
+        action_id = self._next_action_id()
         meter.note_step(label)
         self.meter.check_wall(label)
-        decision = evaluate_argv(argv)
+        decision = evaluate_argv(argv, actor_kind=actor_kind)
         self.store.append_event(
             "policy.decision",
             actor="harness",
-            payload={"label": label, "argv": argv, "allowed": decision.allowed, "reasons": decision.reasons},
+            payload={
+                "action_id": action_id,
+                "label": label,
+                "argv": argv,
+                "actor_kind": actor_kind,
+                "allowed": decision.allowed,
+                "reasons": decision.reasons,
+            },
         )
         if not decision.allowed:
-            # Denied actions are never executed; the trace proves it.
             self.store.append_event(
-                "action.denied", actor="harness", payload={"label": label, "reasons": decision.reasons}
+                "action.denied",
+                actor="harness",
+                payload={"action_id": action_id, "label": label, "reasons": decision.reasons},
             )
             raise AdmissionError(f"policy denied scripted step {label}: {decision.reasons}")
-        self.store.append_event("action.start", actor="runner", payload={"label": label, "argv": argv})
-        res = self.backend.exec(
-            container, argv, timeout_s=meter.command_timeout_seconds, workdir=workdir
+        self.store.append_event(
+            "action.start",
+            actor="runner",
+            payload={"action_id": action_id, "label": label, "argv": argv},
         )
+        res = self.backend.exec(container, argv, timeout_s=meter.command_timeout_seconds, workdir=workdir)
         out_ref = self.store.store_artifact(
             res.stdout, media_type="text/plain", producer=label, name_hint=f"{label}.stdout"
         )
@@ -181,6 +251,7 @@ class _Runner:
             "action.end",
             actor="runner",
             payload={
+                "action_id": action_id,
                 "label": label,
                 "exit_code": res.exit_code,
                 "timed_out": res.timed_out,
@@ -191,51 +262,105 @@ class _Runner:
         )
         return res, out_ref
 
+    # ------------------------------------------------------------ wheelhouse
+    def ensure_wheelhouse(self, upstream: Path, meter: BudgetMeter) -> tuple[Path, dict]:
+        """Build wheels ONCE from the pinned source (network allowed per
+        contract.network_install); both passes then install offline from
+        this content-addressed wheelhouse."""
+        wh = self.project_root / "upstream-cache" / f"wheelhouse-{self.contract.source_repo.resolved_commit[:12]}"
+        manifest_path = wh / "wheelhouse_manifest.json"
+        if not manifest_path.exists():
+            wh.mkdir(parents=True, exist_ok=True)
+            net = "bridge" if self.contract.environment.network_install else "none"
+            c = self.backend.start(
+                name_prefix="rp-wheelhouse",
+                network=net,
+                mounts=[Mount(upstream, "/upstream", True), Mount(wh, "/wheels", False)],
+                user=self.user,
+                image_ref=self.image_ref,
+            )
+            try:
+                self._exec_step(
+                    c,
+                    ["sh", "-c", "cp -r /upstream /tmp/build && chmod -R u+w /tmp/build && rm -rf /tmp/build/.git"],
+                    label="wheelhouse.stage-source",
+                    meter=meter,
+                )
+                res, _ = self._exec_step(
+                    c,
+                    ["python3", "-m", "pip", "wheel", "--no-cache-dir",
+                     "--disable-pip-version-check", "/tmp/build", "-w", "/wheels"],
+                    label="wheelhouse.build-chonkie",
+                    meter=meter,
+                )
+                if res.exit_code != 0:
+                    raise AdmissionError("wheel build failed on arm64 — see wheelhouse.build-chonkie artifacts")
+                self._exec_step(
+                    c,
+                    ["python3", "-m", "pip", "wheel", "--no-cache-dir",
+                     "--disable-pip-version-check", "pytest", "-w", "/wheels"],
+                    label="wheelhouse.build-pytest",
+                    meter=meter,
+                )
+            finally:
+                self.backend.destroy(c)
+            wheels = {p.name: sha256_file(p) for p in sorted(wh.glob("*.whl"))}
+            manifest = {"wheels": wheels, "root": sha256_bytes(json.dumps(wheels, sort_keys=True).encode())}
+            manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        return wh, manifest
+
     # ------------------------------------------------------------ passes
-    def one_pass(self, label: str, upstream: Path, oracle_snap: Path, adaptation: Path) -> PassOutcome:
+    def one_pass(
+        self, label: str, upstream: Path, oracle_snap: Path, adaptation: Path, wheelhouse: Path
+    ) -> PassOutcome:
         meter = BudgetMeter(self.contract.budgets)
-        pass_dir = self.store.run_dir / label
-        venv_dir = pass_dir / "venv"
+        venv_dir = self.store.run_dir / label / "venv"
         venv_dir.mkdir(parents=True, exist_ok=True)
 
-        install_net = "bridge" if self.contract.environment.network_install else "none"
+        # -------- offline install phase (network=none, wheelhouse only)
         c_install = self.backend.start(
             name_prefix=f"rp-{label}-install",
-            network=install_net,
-            mounts=[Mount(upstream, "/upstream", True), Mount(venv_dir, "/venv", False)],
+            network="none",
+            mounts=[Mount(wheelhouse, "/wheels", True), Mount(venv_dir, "/venv", False)],
+            user=self.user,
+            image_ref=self.image_ref,
         )
         try:
-            self._exec_step(c_install, ["python3", "-m", "venv", "/venv/env"], meter=meter, label=f"{label}.venv")
+            self._exec_step(c_install, ["python3", "-m", "venv", "/venv/env"], label=f"{label}.venv", meter=meter)
+            res, _ = self._exec_step(
+                c_install,
+                [
+                    "/venv/env/bin/pip",
+                    "install",
+                    "--no-index",
+                    "--find-links",
+                    "/wheels",
+                    "--no-cache-dir",
+                    "--disable-pip-version-check",
+                    "chonkie",
+                    "pytest",
+                ],
+                label=f"{label}.offline-install",
+                meter=meter,
+            )
+            if res.exit_code != 0:
+                raise AdmissionError(f"offline install from wheelhouse failed in {label}")
+            self._exec_step(c_install, ["/venv/env/bin/pip", "freeze"], label=f"{label}.pip-freeze", meter=meter)
             self._exec_step(
                 c_install,
                 [
-                    "sh",
+                    "/venv/env/bin/python",
                     "-c",
-                    "cp -r /upstream /tmp/build && rm -rf /tmp/build/.git && chmod -R u+w /tmp/build",
+                    (
+                        "import json,glob;"
+                        "p=glob.glob('/venv/env/lib/python3*/site-packages/chonkie-*.dist-info/direct_url.json');"
+                        "print(open(p[0]).read() if p else 'no-direct_url')"
+                    ),
                 ],
-                meter=meter, label=f"{label}.stage-build-copy",
+                label=f"{label}.direct-url",
+                meter=meter,
             )
-            res, _ = self._exec_step(
-                c_install,
-                ["/venv/env/bin/pip", "install", "--no-cache-dir", "--disable-pip-version-check", "/tmp/build"],
-                meter=meter, label=f"{label}.preflight-install-arm64",
-            )
-            if res.exit_code != 0:
-                self.store.append_event(
-                    "env.admission_failure",
-                    actor="harness",
-                    payload={
-                        "kind": "arm64_install_path_failed",
-                        "policy": "no silent amd64 switch / no commit change / no contract dilution",
-                    },
-                )
-                raise AdmissionError("arm64 install preflight failed — see preflight-install artifacts")
-            self._exec_step(
-                c_install,
-                ["/venv/env/bin/pip", "install", "--no-cache-dir", "--disable-pip-version-check", "pytest"],
-                meter=meter, label=f"{label}.install-pytest",
-            )
-            self._exec_step(c_install, ["/venv/env/bin/pip", "freeze"], meter=meter, label=f"{label}.pip-freeze")
             self._exec_step(
                 c_install,
                 [
@@ -244,41 +369,38 @@ class _Runner:
                     "import chonkie, platform, sys;"
                     "print(getattr(chonkie,'__version__','?'), platform.machine(), sys.version.split()[0])",
                 ],
-                meter=meter, label=f"{label}.import-chonkie",
+                label=f"{label}.import-chonkie",
+                meter=meter,
             )
         finally:
             self.backend.destroy(c_install)
 
-        run_env = {
-            "PYTHONPATH": "/execution/consumer/src",
-            "REPOPROOF_ADAPTATION_DIR": "/adaptation",
-            "PYTHONHASHSEED": "0",
-            "PYTHONDONTWRITEBYTECODE": "1",
-        }
-        c_run = self.backend.start(
-            name_prefix=f"rp-{label}-run",
-            network="none",
-            mounts=[
-                Mount(upstream, "/upstream", True),
-                Mount(oracle_snap, "/oracle", True),
-                Mount(adaptation, "/adaptation", False),
-                Mount(venv_dir, "/venv", False),
-                Mount(self.consumer_src, "/consumer_src", True),
-                Mount(self.probes_src, "/probes", True),
-            ],
-            env=run_env,
+        # -------- verification phase (verifier profile, network=none)
+        profile = verifier_profile(
+            upstream=upstream,
+            consumer_clean=self.consumer_src,
+            adaptation=adaptation,
+            oracle_snapshot=oracle_snap,
+            venv=venv_dir,
+            probes=self.probes_src,
         )
+        kwargs = profile.start_kwargs()
+        kwargs["user"] = self.user
+        c_run = self.backend.start(name_prefix=f"rp-{label}-verify", image_ref=self.image_ref, **kwargs)
         try:
-            # Ephemeral execution tree: container-local copy, destroyed
-            # with the container — never persisted.
+            security = self.backend.inspect_security(c_run)
+            self.store.append_event(
+                "container.security",
+                actor="harness",
+                payload={"label": f"{label}.verify", "profile": profile.name, **security},
+            )
+            if str(security.get("network_mode")) != "none":
+                raise AdmissionError(f"verifier container network_mode={security.get('network_mode')} != none")
             self._exec_step(
                 c_run,
-                [
-                    "sh",
-                    "-c",
-                    "mkdir -p /execution && cp -r /consumer_src /execution/consumer && chmod -R u+w /execution",
-                ],
-                meter=meter, label=f"{label}.execution-copy",
+                ["sh", "-c", "mkdir -p /tmp/execution && cp -r /consumer_src /tmp/execution/consumer"],
+                label=f"{label}.execution-copy",
+                meter=meter,
             )
             self._exec_step(
                 c_run,
@@ -286,20 +408,23 @@ class _Runner:
                     "/venv/env/bin/python",
                     "-c",
                     (
-                        "import urllib.request,sys\n"
+                        "import socket\n"
                         "try:\n"
-                        "    urllib.request.urlopen('https://pypi.org', timeout=5); sys.exit(1)\n"
-                        "except Exception:\n"
-                        "    print('network-none-confirmed')"
+                        "    socket.create_connection(('1.1.1.1', 80), timeout=3)\n"
+                        "    print('UNEXPECTED-NETWORK-ACCESS'); raise SystemExit(1)\n"
+                        "except OSError as exc:\n"
+                        "    print('socket-probe-blocked:', type(exc).__name__)"
                     ),
                 ],
-                meter=meter, label=f"{label}.network-none-check",
+                label=f"{label}.socket-probe",
+                meter=meter,
             )
             probe_res, probe_ref = self._exec_step(
                 c_run,
-                ["/venv/env/bin/python", "/probes/direct_chonkie_probe.py", "/oracle/fixtures/input_documents.json"],
-                meter=meter, label=f"{label}.direct-probe",
-                workdir="/execution",
+                ["/venv/env/bin/python", "/probes/direct_chonkie_probe.py", "/oracle/fixtures/public_documents.json"],
+                label=f"{label}.direct-probe",
+                meter=meter,
+                workdir="/tmp/execution",
             )
             try:
                 normalized = _normalize_probe(json.loads(probe_res.stdout.decode("utf-8", errors="replace")))
@@ -312,17 +437,15 @@ class _Runner:
                 producer=f"{label}.direct-probe",
                 name_hint="probe.normalized.json",
             )
+            cap_cmd = ["/venv/env/bin/python", "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                       "/oracle/test_capability.py"]
             cap_res, cap_ref = self._exec_step(
-                c_run,
-                ["/venv/env/bin/python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "/oracle/test_capability.py"],
-                meter=meter, label=f"{label}.capability-pytest",
-                workdir="/execution",
+                c_run, cap_cmd, label=f"{label}.capability-pytest", meter=meter, workdir="/tmp/execution"
             )
-            reg_res, _reg_ref = self._exec_step(
-                c_run,
-                ["/venv/env/bin/python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "/oracle/test_regression.py"],
-                meter=meter, label=f"{label}.regression-pytest",
-                workdir="/execution",
+            reg_cmd = ["/venv/env/bin/python", "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                       "/oracle/test_regression.py"]
+            reg_res, reg_ref = self._exec_step(
+                c_run, reg_cmd, label=f"{label}.regression-pytest", meter=meter, workdir="/tmp/execution"
             )
         finally:
             self.backend.destroy(c_run)
@@ -336,6 +459,7 @@ class _Runner:
             capability_failed=parse_pytest(cap_stdout)["failed_tests"],
             capability_stdout_sha=cap_ref.sha256,
             regression_exit=reg_res.exit_code,
+            regression_stdout_sha=reg_ref.sha256,
             regression_failed=parse_pytest(reg_stdout)["failed_tests"],
             probe_raw_sha=probe_ref.sha256,
             probe_normalized_sha=norm_ref.sha256,
@@ -344,6 +468,7 @@ class _Runner:
     # ------------------------------------------------------------ full run
     def run(self) -> dict:
         ev = self.store.append_event
+        t0 = time.monotonic()
         ev(
             "run.start",
             actor="runner",
@@ -353,109 +478,161 @@ class _Runner:
                 "scripted_sequence": True,
                 "agent": None,
                 "llm_calls": 0,
+                "task_package_root_hash": self.package.root_hash,
             },
         )
         ev("contract.frozen", actor="harness", payload={"task_id": self.contract.task_id, "sha256": self.contract_sha})
+        ev("task_package.verified", actor="harness", payload={"root_hash": self.package.root_hash})
+
+        missing_external: list[str] = []
+        budget_exhausted: str | None = None
+        first = replay = None
+        adaptation_manifest = None
+        setup_meter = BudgetMeter(self.contract.budgets)
 
         ok, server = self.backend.available()
         if not ok:
-            raise AdmissionError(f"docker unavailable: {server}")
-        self.backend.pull()
+            missing_external.append(f"docker unavailable: {server}")
+        upstream = oracle_snap = adaptation = wheelhouse = None
+        oracle_before: dict = {}
+        upstream_before: dict = {}
+        env_manifest = None
 
-        upstream, repo_manifest = ensure_upstream(self.project_root / "upstream-cache", self.contract.source_repo)
-        ev("upstream.pinned", actor="harness", payload=repo_manifest.model_dump())
-
-        oracle_snap = self.store.run_dir / "oracle_snapshot"
-        shutil.copytree(self.oracle_src, oracle_snap)
-        make_read_only(oracle_snap)
-        adaptation = self.store.run_dir / "adaptation"
-        adaptation.mkdir(exist_ok=True)
-
-        oracle_before = hash_tree(oracle_snap)
-        upstream_before = _hash_tree_skip_symlinks(upstream)
-        ora_ref = self.store.store_artifact(
-            json.dumps(oracle_before, sort_keys=True).encode(), media_type="application/json",
-            producer="oracle-guard", name_hint="oracle.before.json",
-        )
-        ev("oracle.hashed", actor="harness", payload={"files": len(oracle_before)}, artifact_refs=[ora_ref.sha256])
-
-        env_manifest = EnvironmentManifest(
-            host_os=platform.system(),
-            host_os_version=platform.mac_ver()[0] or platform.release(),
-            host_arch=platform.machine(),
-            docker_client=_docker_fmt("{{.Client.Version}}"),
-            docker_server=server,
-            runtime_provider=_colima_version(),
-            image=IMAGE,
-            image_digest=self.backend.image_digest(),
-            network_install="bridge" if self.contract.environment.network_install else "none",
-            network_run="none",
-            agent_model=None,
-            notes=["Gate 2: no agent, no LLM calls; scripted deterministic sequence only"],
-        )
-        self.store.save_json("environment_manifest.json", env_manifest.model_dump())
-        ev("env.manifest", actor="harness", payload={"image": IMAGE, "digest": env_manifest.image_digest})
-
-        blocked: list[str] = []
-        first = replay = None
-        try:
-            first = self.one_pass("baseline", upstream, oracle_snap, adaptation)
-            # Scripted claim — the gate MUST ignore this (tested).
-            ev(
-                "agent.claim_complete",
-                actor="scripted-fixture",
-                payload={"note": "scripted self-claim; completion gate must not honor this"},
+        if not missing_external:
+            self.backend.pull()
+            digest = self.backend.image_digest()
+            if digest:
+                self.image_ref = digest
+            upstream, repo_manifest = ensure_upstream(
+                self.project_root / "upstream-cache", self.contract.source_repo
             )
-            replay = self.one_pass("replay", upstream, oracle_snap, adaptation)
-        except AdmissionError as exc:
-            blocked.append(str(exc))
-        except BudgetExceeded as exc:
-            ev("budget.exhausted", actor="harness", payload={"kind": exc.kind, "detail": exc.detail})
-            blocked.append(f"budget exhausted: {exc.kind} ({exc.detail})")
+            if repo_manifest.git_tree_hash != self.package.source_git_tree_hash:
+                raise AdmissionError("upstream git tree hash != task package binding")
+            ev("upstream.pinned", actor="harness", payload=repo_manifest.model_dump())
 
-        oracle_after = hash_tree(oracle_snap)
-        upstream_after = _hash_tree_skip_symlinks(upstream)
-        adaptation_files = sorted(str(p.relative_to(adaptation)) for p in adaptation.rglob("*") if p.is_file())
+            wheelhouse, wh_manifest = self.ensure_wheelhouse(upstream, setup_meter)
+            ev(
+                "wheelhouse.frozen",
+                actor="harness",
+                payload={"root": wh_manifest["root"], "wheels": len(wh_manifest["wheels"])},
+            )
 
+            oracle_snap = self.store.run_dir / "oracle_snapshot"
+            shutil.copytree(self.oracle_src, oracle_snap)
+            make_read_only(oracle_snap)
+            adaptation = self.store.run_dir / "adaptation"
+            adaptation.mkdir(exist_ok=True)
+            oracle_before = hash_tree(oracle_snap)
+            upstream_before = _skip_symlink_tree(upstream)
+            ora_ref = self.store.store_artifact(
+                json.dumps(oracle_before, sort_keys=True).encode(),
+                media_type="application/json",
+                producer="oracle-guard",
+                name_hint="oracle.before.json",
+            )
+            ev("oracle.hashed", actor="harness", payload={"files": len(oracle_before)}, artifact_refs=[ora_ref.sha256])
+
+            env_manifest = EnvironmentManifest(
+                host_os=platform.system(),
+                host_os_version=platform.mac_ver()[0] or platform.release(),
+                host_arch=platform.machine(),
+                docker_client=_docker_fmt("{{.Client.Version}}"),
+                docker_server=server,
+                runtime_provider=_colima_version(),
+                image=IMAGE,
+                image_digest=digest,
+                network_install="none (offline wheelhouse)",
+                network_run="none",
+                agent_model=None,
+                notes=[
+                    "Gate 2.5: no agent, no LLM calls; scripted deterministic sequence",
+                    f"containers run as user {self.user}, cap-drop ALL, no-new-privileges",
+                ],
+            )
+            self.store.save_json("environment_manifest.json", env_manifest.model_dump())
+            ev("env.manifest", actor="harness", payload={"image": IMAGE, "digest": digest})
+
+            # Agent phase would run HERE (Gate 3). It is empty in the
+            # baseline; the adaptation zone is frozen immediately after.
+            try:
+                adaptation_manifest = freeze_adaptation(adaptation, self.contract.budgets)
+            except PatchBudgetExceeded as exc:
+                budget_exhausted = str(exc)
+                adaptation_manifest = None
+            if adaptation_manifest is not None:
+                self.store.save_json("adaptation_manifest.json", adaptation_manifest.model_dump())
+                ev(
+                    "adaptation.frozen",
+                    actor="harness",
+                    payload={
+                        "files": adaptation_manifest.total_files,
+                        "lines": adaptation_manifest.total_lines,
+                        "root": adaptation_manifest.tree_root_sha256,
+                    },
+                )
+        self.timings["system_setup_s"] = round(time.monotonic() - t0, 1)
+
+        if not missing_external and budget_exhausted is None:
+            try:
+                t1 = time.monotonic()
+                first = self.one_pass("baseline", upstream, oracle_snap, adaptation, wheelhouse)
+                self.timings["verification_s"] = round(time.monotonic() - t1, 1)
+                ev(
+                    "agent.claim_complete",
+                    actor="scripted-fixture",
+                    payload={"note": "scripted self-claim; completion gate must not honor this"},
+                )
+                t2 = time.monotonic()
+                replay = self.one_pass("replay", upstream, oracle_snap, adaptation, wheelhouse)
+                self.timings["replay_s"] = round(time.monotonic() - t2, 1)
+            except AdmissionError as exc:
+                missing_external.append(str(exc))
+            except BudgetExceeded as exc:
+                ev("budget.exhausted", actor="harness", payload={"kind": exc.kind, "detail": exc.detail})
+                budget_exhausted = f"{exc.kind} ({exc.detail})"
+
+        # ---------------- verification results
+        if adaptation_manifest is not None and adaptation is not None:
+            recheck_ok, recheck_detail = verify_frozen(adaptation, adaptation_manifest)
+        else:
+            recheck_ok, recheck_detail = False, "adaptation never frozen"
         if first is not None:
             cap = capability_result(
                 exit_code=first.capability_exit,
                 stdout=self.store.artifacts.read(first.capability_stdout_sha).decode("utf-8", errors="replace"),
                 evidence=[first.capability_stdout_sha],
             )
-            reg_ok = first.regression_exit == 0
-            reg = VerificationResult(
-                verifier="HostRegressionVerifier",
-                passed=reg_ok,
-                detail=(
-                    "host fixture regression intact"
-                    if reg_ok
-                    else f"host regression broken: {first.regression_failed[:8]}"
-                ),
-                extra={"exit_code": first.regression_exit, "failed_tests": first.regression_failed},
+            reg = regression_result(
+                exit_code=first.regression_exit,
+                stdout=self.store.artifacts.read(first.regression_stdout_sha).decode("utf-8", errors="replace"),
+                evidence=[first.regression_stdout_sha],
             )
         else:
-            cap = VerificationResult(
-                verifier="CapabilityVerifier", passed=False, detail="not run (admission failure)"
-            )
-            reg = VerificationResult(
-                verifier="HostRegressionVerifier", passed=False, detail="not run (admission failure)"
-            )
+            cap = VerificationResult(verifier="CapabilityVerifier", passed=False, detail="not run")
+            reg = VerificationResult(verifier="HostRegressionVerifier", passed=False, detail="not run")
+
+        from repoproof.domain.models import AdaptationManifest as _AM
 
         pol = policy_result(
             trace_path=self.store.trace_path,
             oracle_before=oracle_before,
-            oracle_after=oracle_after,
+            oracle_after=hash_tree(oracle_snap) if oracle_snap else {},
             upstream_before=upstream_before,
-            upstream_after=upstream_after,
-            adaptation_files=adaptation_files,
-            max_patch_files=self.contract.budgets.max_patch_files,
-            evidence=[ora_ref.sha256],
+            upstream_after=_skip_symlink_tree(upstream) if upstream else {},
+            adaptation_manifest=adaptation_manifest or _AM(),
+            adaptation_recheck_ok=recheck_ok,
+            adaptation_recheck_detail=recheck_detail,
+            budgets=self.contract.budgets,
+            evidence=[],
         )
         rep = None
         if first is not None and replay is not None:
-            rep = replay_result(first=first.summary(), replay=replay.summary(), evidence=[first.probe_normalized_sha])
-
+            rep = replay_result(
+                first=first.summary(),
+                replay=replay.summary(),
+                mode=REPLAY_MODE_BASELINE,
+                evidence=[first.probe_normalized_sha],
+            )
         for r in (cap, reg, pol) + ((rep,) if rep else ()):
             self.store.save_verification(r)
             ev("verification.result", actor=r.verifier, payload={"passed": r.passed, "detail": r.detail})
@@ -465,43 +642,61 @@ class _Runner:
             regression=reg,
             policy=pol,
             replay=rep,
-            adaptation_present=bool(adaptation_files),
-            blocked_conditions=blocked,
+            adaptation=adaptation_manifest,
+            missing_external=missing_external,
+            budget_exhausted=budget_exhausted,
         )
         ev("gate.verdict", actor="completion-gate", payload=gate.model_dump(mode="json"))
 
+        self.timings["total_wall_s"] = round(time.monotonic() - t0, 1)
+        ev(
+            "run.end",
+            actor="runner",
+            payload={"verdict": gate.verdict.value, "timings": self.timings},
+        )
+
+        # ---- FINAL verification happens AFTER run.end (no off-by-one)
         chain_ok, n_events, chain_err = verify_chain(self.store.trace_path)
-        report = {
+        final_trace_sha = sha256_file(self.store.trace_path)
+        run_manifest = {
             "run_id": self.run_id,
             "task_id": self.contract.task_id,
+            "task_package_root_hash": self.package.root_hash,
             "contract_sha256": self.contract_sha,
-            "mode": "direct-adoption-baseline (scripted, no agent, no LLM)",
+            "final_trace_sha256": final_trace_sha,
+            "trace_events": n_events,
+            "trace_chain_ok": chain_ok,
             "verdict": gate.verdict.value,
+            "timings": self.timings,
+        }
+        self.store.save_json("run_manifest.json", run_manifest)
+        report = {
+            **run_manifest,
+            "mode": "direct-adoption-baseline (scripted, no agent, no LLM)",
             "gate_reasons": gate.reasons,
+            "capability": cap.detail,
             "capability_failed_tests": first.capability_failed if first else [],
-            "regression_failed_tests": first.regression_failed if first else [],
-            "replay_consistent": (rep.passed if rep else None),
-            "trace_chain": {"ok": chain_ok, "events": n_events, "error": chain_err},
-            "budget_wall": self.meter.snapshot(),
+            "regression": reg.detail,
+            "policy": pol.detail,
+            "replay": rep.detail if rep else None,
+            "trace_chain_error": chain_err,
             "steps_per_pass": {
+                "setup": setup_meter.steps_used,
                 "baseline": first.steps_used if first else None,
                 "replay": replay.steps_used if replay else None,
             },
-            "adaptation_files": adaptation_files,
+            "adaptation_files": adaptation_manifest.total_files if adaptation_manifest else None,
         }
         self.store.save_json("report.json", report)
-        ev("run.end", actor="runner", payload={"verdict": gate.verdict.value, "events": n_events})
         return report
 
 
-def _hash_tree_skip_symlinks(root: Path) -> dict[str, str]:
-    import hashlib
-
+def _skip_symlink_tree(root: Path) -> dict[str, str]:
     out: dict[str, str] = {}
     for p in sorted(Path(root).rglob("*")):
         if p.is_symlink() or not p.is_file():
             continue
-        out[str(p.relative_to(root))] = hashlib.sha256(p.read_bytes()).hexdigest()
+        out[str(p.relative_to(root))] = sha256_bytes(p.read_bytes())
     return out
 
 
