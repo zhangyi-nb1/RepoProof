@@ -1,0 +1,59 @@
+{
+  "adaptation_files": 0,
+  "adaptation_root": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "budget_exhausted": null,
+  "capability": "passed_checks=8, failed_checks=10, total_checks=18; exit_code=1; passed=8 != expected=18; failures=10",
+  "capability_failed_tests": [
+    "test_capability::test_flag_truth_table_public",
+    "test_capability::test_json_serializable[held]",
+    "test_capability::test_json_serializable[public]",
+    "test_capability::test_order_one_to_one[held]",
+    "test_capability::test_order_one_to_one[public]",
+    "test_capability::test_output_matches_reference[held]",
+    "test_capability::test_output_matches_reference[public]",
+    "test_capability::test_record_schema[held]",
+    "test_capability::test_record_schema[public]",
+    "test_capability::test_upstream_parse_error_code"
+  ],
+  "contract_sha256": "6fc81af7adc079827d0997a26437e5d720fd2bdc16468aaf6bfc1b991d2f329f",
+  "final_trace_sha256": "c65ac7a917eaaa12e84e4124dd12de1698b8f94efa19f4b312a3ebf795921fdc",
+  "final_verdict": "FAIL",
+  "gate_reasons": [
+    "CapabilityVerifier: passed_checks=8, failed_checks=10, total_checks=18; exit_code=1; passed=8 != expected=18; failures=10"
+  ],
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "missing_external": [],
+  "mode": "direct-adoption-baseline (scripted, no agent, no LLM)",
+  "policy": "oracle/upstream intact; action causality holds; patch budgets respected",
+  "regression": "passed_checks=3, failed_checks=0, total_checks=3; all 3 frozen nodes executed and passed",
+  "replay": "mode=baseline_failure_reproduction, status=PASS",
+  "run_id": "adopt-frontmatter-local-ingest-v1-v2-20260807-200214",
+  "source_commit": "dc7c0af5466b104e0ba01ae3c5b2cd77edc27292",
+  "source_git_tree_hash": "8655f7752b44e5278d9d07b14149f918d968f364",
+  "steps_per_pass": {
+    "baseline": 10,
+    "replay": 10,
+    "setup": 0
+  },
+  "task_id": "adopt-frontmatter-local-ingest-v1-v2",
+  "task_package_root_hash": "667b4ce3ae4e00d99d3f33fe681e2ae7afc4e1bd21a503f367029a326abc3349",
+  "timings": {
+    "agent_command_s": 0.0,
+    "agent_model_call_s": 0.0,
+    "replay_s": 8.1,
+    "system_setup_s": 6.8,
+    "total_wall_s": 25.1,
+    "verification_s": 10.2
+  },
+  "trace_chain_error": "",
+  "trace_chain_ok": true,
+  "trace_events": 81,
+  "verdict": "FAIL",
+  "verification_result_hashes": {
+    "CapabilityVerifier": "22b9b336ff4893401d30223f39fc87386741c7609609734d917cccfb24fe7e77",
+    "HostRegressionVerifier": "24ecc9945f3a0fb9f63989e34d88d51bb178526b160f9b25263ac996bc56bca9",
+    "PolicyVerifier": "bd5fdf0c5561db9291eb75e2424367e40e20736e3d41aca578edbd4bcab1ed23",
+    "ReplayVerifier": "826d9eff07364ab19cf4023186e426d4f9d28c5d74a042520879f0dfd7b56ed9"
+  },
+  "wheelhouse_root": "c286953bef054c13910332a1fde57ca23546438bcb9bf6e99535ae967f5cd0c4"
+}

@@ -34,6 +34,20 @@ def main(argv: list[str] | None = None) -> int:
     p_adeq = sub.add_parser("adequacy-check", help="ContractAdequacyGate: deterministic pre-agent spec admission")
     p_adeq.add_argument("--contract", required=True, type=Path)
 
+    p_demo = sub.add_parser("demo", help="no-model evidence demos (Gate 8C): list / verify / replay")
+    p_demo.add_argument("demo_cmd", choices=["list", "verify", "replay"])
+    p_demo.add_argument("--case", default=None)
+
+    p_task = sub.add_parser("task", help="task scaffolding (Gate 8D): init a DRAFT task / check adequacy pre-flight")
+    p_task.add_argument("task_cmd", choices=["init", "check"])
+    p_task.add_argument("--task-id", required=True)
+    p_task.add_argument("--source-repo-url", default="TODO")
+    p_task.add_argument("--source-commit", default="TODO")
+    p_task.add_argument("--distribution", default="TODO")
+    p_task.add_argument("--target-project", default="")
+    p_task.add_argument("--capability-statement", default="TODO")
+    p_task.add_argument("--dry-run", action="store_true")
+
     p_trace = sub.add_parser("verify-trace", help="verify the tamper-evident trace chain of a run")
     p_trace.add_argument("--run-dir", required=True, type=Path)
 
@@ -142,6 +156,44 @@ def main(argv: list[str] | None = None) -> int:
         result = run_adequacy_gate(args.contract, PROJECT_ROOT)
         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         return 0 if result["ok"] else 4
+
+    if args.cmd == "demo":
+        from repoproof.runner.demo import CASES, demo_list, demo_replay, demo_verify
+
+        if args.demo_cmd == "list":
+            out = demo_list()
+        else:
+            if args.case not in CASES:
+                print(json.dumps({"error": f"unknown case {args.case!r}", "known": sorted(CASES)}))
+                return 2
+            fn = demo_verify if args.demo_cmd == "verify" else demo_replay
+            out = fn(PROJECT_ROOT, args.case)
+        print(json.dumps(out, ensure_ascii=False, indent=2, sort_keys=False))
+        if args.demo_cmd == "verify":
+            return 0 if out.get("verdict_recomputation_matches") else 1
+        if args.demo_cmd == "replay":
+            return 0 if out.get("replay_ok") else 1
+        return 0
+
+    if args.cmd == "task":
+        from repoproof.runner.scaffold import task_check, task_init
+
+        if args.task_cmd == "init":
+            out = task_init(
+                PROJECT_ROOT,
+                task_id=args.task_id,
+                source_repo_url=args.source_repo_url,
+                source_commit=args.source_commit,
+                distribution=args.distribution,
+                target_project=args.target_project,
+                capability_statement=args.capability_statement,
+                dry_run=args.dry_run,
+            )
+            print(json.dumps(out, ensure_ascii=False, indent=2))
+            return 0 if out.get("ok") else 2
+        out = task_check(PROJECT_ROOT, args.task_id)
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0 if out.get("ready") else 4
 
     if args.cmd == "agent-run":
         from repoproof.runner.agent_run import provider_from_env, run_gate3c

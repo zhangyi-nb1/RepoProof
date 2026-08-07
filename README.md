@@ -1,139 +1,152 @@
 # RepoProof
 
-**Evidence-driven harness for verifiable open-source capability
-adoption.** A coding agent will diagnose and minimally adapt a target
-capability from a pinned public repo inside disposable containers —
-and an **independent verification layer outside the agent** decides
-whether the result actually works: capability tests, host regression,
-policy checks, and a clean-room replay. `PASS` is earned from
-executable evidence, never from an agent's self-claim.
+**RepoProof is an evidence-driven harness for verifying whether an
+agent-generated open-source capability adaptation actually satisfies a
+frozen adoption contract.**
 
-> Status: **Gate 7.2 — first PASS_ADAPTED, earned by fixing the SPEC,
-> not by prompting harder.** Full results in
-> [docs/BENCHMARK.md](docs/BENCHMARK.md), typed failures in
-> [docs/FAILURE_TAXONOMY.md](docs/FAILURE_TAXONOMY.md). Eleven runs
-> across three capability domains; every earlier verdict an honest
-> FAIL (Chonkie 4/33→31/33; rank_bm25 1/12→9/12; frontmatter v1
-> 1/11→8/11). Gate 7's FAIL decomposed into a task-author contract
-> gap (a rule defined only in yaml comments) plus an agent omission
-> (text=None never wrapped, replicated in 2 domains) — so Gate 7.1
-> fixed the SPEC SIDE deterministically, zero LLM calls: a v2 task
-> splitting the ambiguous flag into `frontmatter_present` +
-> `metadata_nonempty` with a container-calibrated public truth table,
-> a typed RequirementSpec (owner/severity/examples/oracle bindings),
-> a 13-check ContractAdequacyGate that refuses to start any agent on
-> an inadequate spec (INVALID_TASK_SPEC, zero model calls), a
-> hash-pinned Contract→Prompt projection (PromptManifest), and a host
-> InputContractGuard that owns deterministic input validation so
-> agents stop re-implementing it. Gate 7.2 then ran the corrected
-> spec ONCE (same model/budgets/policy; ledger off, budget text off):
-> capability 18/18 incl. held-out, regression 3/3, policy clean,
-> clean-room replay in clean_adoption mode PASS, agent submitted
-> voluntarily at 16/20 calls — verdict **PASS_ADAPTED**, prompt sha
-> and provider hash matching the preregistration exactly. NOT a
-> single-variable delta vs Gate 7 (task version, schema, prompt
-> surface and guard changed together). Gate 7 history untouched.
->
-> Earlier status (Gate 3C — first REAL agent baseline): One
-> mini-swe-agent run (deepseek-v4-pro, native tool-calls, temp 0,
-> user-directed provider) wrote a 134-line adapter inside its budget
-> and moved capability from the direct baseline's 4/33 to **31/33**
-> under the agent-invisible reference oracle; regression 4/4, policy
-> (30-command causality) clean, failure reproduced deterministically
-> in clean-room replay. Completion gate verdict: honest **FAIL** — the
-> adapter misses upstream-error wrapping on malformed input, and no
-> human patched it (docs/evidence/gate3c-real-run/).
+## The problem
 
-## What exists today (Gate 2 → 2.5)
+Coding agents routinely REPORT success. "I integrated the library,
+all done" is a claim, not evidence — and in our recorded runs, agents
+produced adapters that were 94% correct (31/33 checks) yet still
+unusable, invented their own BM25 scoring instead of calling the
+pinned upstream, and trusted a contaminated prompt over source code
+they had already read. Adopting an open-source capability into a host
+project needs a verdict that does not come from the agent.
 
-- **Frozen Task Contract** (`contracts/*.yaml` + `.sha256` sidecar) —
-  goal, environment, forbidden actions, budgets, acceptance commands.
-  The runner refuses tampered contracts.
-- **Trust zones** — pinned read-only `upstream` snapshot (git commit
-  verified), read-only hash-guarded `oracle` (capability + regression
-  tests), persistent `adaptation` products zone, and an **ephemeral
-  in-container execution copy** destroyed with the container.
-- **Docker execution backend** — create → argv exec (with
-  in-container timeouts) → destroy; CPU/memory/PID limits;
-  `network=none` at verification time (probed from inside).
-- **Append-only, tamper-evident trace** — every action, policy
-  decision, exit code, artifact and verdict in one JSONL stream with a
-  per-line SHA-256 hash chain (`repoproof verify-trace`).
-- **Content-addressed artifacts** — stdout/stderr, pip logs, probe
-  dumps and manifests stored by SHA-256 and referenced from events.
-- **Four independent verifiers + completion gate** —
-  Capability / HostRegression / Policy / Replay; the gate consumes
-  structured results only and **ignores `claim_complete` events by
-  construction** (pinned by tests). No clean-room replay → no final
-  PASS.
-- **First real task admitted** — `adopt-chonkie-local-chunking-v1`:
-  adopt [Chonkie](https://github.com/feyninc/chonkie) (pinned MIT
-  commit `0a6baea`, CPU-only, offline, base install only) into a small
-  RAG consumer fixture. The committed **direct-adoption baseline** run
-  records the real gap between upstream output and the host
-  `ChunkRecord` contract as a granular failed-test list.
+## How it works
 
-### Measured baseline v2 (evidence: `docs/evidence/gate25-baseline-v2/`)
+```
+Task Contract → Contract Adequacy → Single Coding Agent
+     → Frozen Adaptation → Independent Verification
+     → Clean Replay → Completion Gate
+```
 
-Gate 2.5 hardened run — v2 task package (root hash committed as
-`contracts/adopt-chonkie-local-chunking-v2.package.json`), offline
-installs from a content-addressed wheelhouse, digest-pinned image,
-non-root cap-drop-ALL containers, per-action policy causality:
+- **One autonomous agent loop.** The agent is
+  [mini-swe-agent](https://github.com/SWE-agent/mini-swe-agent)'s
+  `DefaultAgent` — exactly one, no critic/reflection/multi-agent.
+  RepoProof itself is the application + harness + verification
+  protocol around it.
+- **The agent cannot read the oracle or held-out fixtures.** It sees
+  the public contract, public examples, runnable public tests, and
+  the consumer source — never the acceptance tests.
+- **Agent claims never produce a PASS.** The completion gate consumes
+  structured verifier results only (capability, host regression,
+  policy, replay); `claim_complete` events are ignored by
+  construction, pinned by tests.
+- **PASS_ADAPTED exists only when** capability AND host regression
+  AND policy AND a `clean_adoption` replay in a fresh container all
+  pass.
+- **Contract adequacy is checked before any agent starts.** A typed
+  RequirementSpec (owner / severity / public text / examples / oracle
+  bindings) plus a 13-check deterministic ContractAdequacyGate refuse
+  inadequate specs as `INVALID_TASK_SPEC` with zero model calls —
+  because our own Gate 7 proved that an underspecified contract
+  produces failures that are the task author's fault, not the agent's.
+- **Docker is used for isolation, disposal and replay** (non-root,
+  cap-drop ALL, network=none at test time, digest-pinned images) —
+  it is NOT presented as a security sandbox for malicious code
+  (see [SECURITY.md](SECURITY.md)).
 
-| Check | Result |
-|---|---|
-| Direct-adoption verdict (completion gate) | **FAIL** — honest: naive integration is not enough; no adapter was attempted |
-| Capability | `passed_checks=4, failed_checks=42, total_checks=46` across public **and held-out** fixtures × both frozen strategies (sentence, recursive): no strategy/chunk_size honoring, unstable upstream ids, missing attribution/ordinals/metadata, offsets not sliceable, errors unwrapped |
-| Host regression | `passed_checks=4, failed_checks=0, total_checks=4` |
-| Policy | oracle/upstream intact; per-action-id causality holds; patch budgets enforced (0 adaptation files) |
-| Clean-room replay | `mode=baseline_failure_reproduction, status=PASS` — reproduction of a failing baseline can NEVER ground a final PASS (gate-pinned) |
-| Trace | 77 events, tamper-evident hash chain verified AFTER `run.end`; final sha256 recorded in `run_manifest.json` |
-| verify-bundle | 7/7 integrity checks pass (contract / task package / trace / final sha / artifacts / verification refs / adaptation) |
-| Negative control | a cheating one-record-per-doc adapter is REJECTED by the v2 oracle (pinned test) |
+## Recorded cases (all numbers: [docs/benchmark_summary.json](docs/benchmark_summary.json))
 
-The v1 baseline (`docs/evidence/gate2-baseline/`) is preserved as
-history. The 42-item failed-check list is the future agent's job
-description — the solution is deliberately NOT pre-written anywhere in
-this repo.
+### ✅ Positive: Front Matter corrected-spec case — PASS_ADAPTED
 
-## What does NOT exist yet (honest non-goals of this slice)
+A real deepseek-v4-pro agent wrote a 1-file / 67-line adapter that
+calls the pinned python-frontmatter, splits the record flags per the
+public truth table, projects metadata JSON-safe (dates → ISO), and
+wraps upstream parse errors — then submitted voluntarily at 16 of its 20
+allowed model calls. Independent verification: capability **18/18** including
+held-out inputs, host regression 3/3, policy clean, and a
+`clean_adoption` replay in a fresh container. Responsibility is
+explicit: deterministic input validation (text=None, missing fields,
+bad ids) is done by the HOST's InputContractGuard — that part is not
+agent capability, and the docs never count it as such.
+Evidence: [docs/evidence/gate72-corrected-spec-run/](docs/evidence/gate72-corrected-spec-run/).
 
-- No agent and no LLM calls (mini-swe-agent lands at Gate 3 as the
-  single autonomous loop).
-- No final Chonkie adapter — writing it is the future agent's job;
-  shipping it now would poison the benchmark.
-- No typed-failure recovery, no repeated-action guard, no
-  HumanRequest state machine (these must be justified by real failure
-  traces first).
-- No MySQL, no FastAPI, no web UI.
-- Docker here means **isolation, disposal and replay** for
-  human-admitted public repos — **not** a hardened sandbox for
-  malicious code (see SECURITY.md).
+### ❌ Negative: Chonkie — 31/33 and still FAIL
+
+An earlier agent adapted the Chonkie chunking library to 31/33
+capability checks — regression passed, policy clean, a highly
+complete artifact. The independent verifiers refused it anyway: it
+never wrapped upstream errors on malformed input, the same failure
+reproduced deterministically in a clean container, and the verdict
+stayed **FAIL**. High completion is not adoption.
+Evidence: [docs/evidence/gate3c-real-run/](docs/evidence/gate3c-real-run/).
+
+### ❌ Negative: rank_bm25 — semantic substitution
+
+The agent produced schema-perfect rankings (9/12) from its OWN BM25
+arithmetic instead of the pinned upstream's — behavioral reference
+testing caught score drift on public and held-out corpora alike.
+Evidence: [docs/evidence/gate5-second-repo/](docs/evidence/gate5-second-repo/).
+
+## No-model demo (reproducible without any provider)
+
+```bash
+.venv/bin/repoproof demo list
+.venv/bin/repoproof demo verify --case frontmatter-v2-pass
+.venv/bin/repoproof demo verify --case chonkie-agent-fail
+.venv/bin/repoproof demo replay --case frontmatter-v2-pass   # fresh container, no LLM
+```
+
+`demo verify` recomputes the completion-gate decision from the
+committed verifier evidence; `demo replay` re-runs the committed
+PASS_ADAPTED adapter against the frozen oracle in a new container.
+Neither calls a model. Walkthroughs: [docs/DEMO.md](docs/DEMO.md),
+[docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md).
+
+## Boundaries (read before quoting numbers)
+
+- Scope today: **public Python repos, Linux containers, CPU-first
+  capability-adoption tasks** — three capability domains recorded
+  (chunking, BM25 ranking, front-matter parsing), each requiring
+  human task engineering (contract, oracle, controls).
+- 12 recorded runs, **1 PASS_ADAPTED**, 11 honest FAILs. Nothing here
+  guarantees adaptation success or claims to work with any repo.
+- The Gate 7.2 positive case is a **corrected-spec** result — the
+  task specification was repaired between attempts, so it is NOT a
+  single-variable improvement claim.
+- Budget-awareness ablation returned a null result; the Coverage
+  Ledger is experimental and default-off. Neither supports a success
+  claim — the negative results are kept.
+- Traces are tamper-EVIDENT (hash-chained), not tamper-proof.
+- Claim discipline is machine-checked:
+  [docs/CLAIMS_MATRIX.md](docs/CLAIMS_MATRIX.md) +
+  `scripts/check_public_claims.py`.
 
 ## Quickstart
 
 ```bash
 # prerequisites: docker daemon (tested via colima on Apple Silicon), python 3.12
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/pytest                       # host unit tests (no docker needed)
-./reproduce.sh                         # full evidence chain incl. baseline + replay
-.venv/bin/repoproof verify-trace --run-dir runs/<run_id>
+.venv/bin/pytest                       # host tests (no docker/model needed)
+.venv/bin/repoproof demo verify --case frontmatter-v2-pass
+.venv/bin/repoproof task init --help   # scaffold a new DRAFT task
+.venv/bin/repoproof task check --task-id <id>
 ```
 
 ## Layout
 
 ```
-contracts/            frozen task contracts (+ sha256 sidecars)
-oracle/<task>/        read-only acceptance: capability + regression tests
-fixtures/consumer_rag host consumer fixture (the project adopting the capability)
-src/repoproof/        domain / harness / execution / verification / persistence / runner
-runs/                 (gitignored) per-run trace, artifacts, verification, report
-upstream-cache/       (gitignored) pinned upstream snapshots
-docs/lineage.md       LocalFlow → RepoProof provenance rules
+contracts/            frozen task contracts + RequirementSpecs (+ sha sidecars)
+oracle/<task>/        held-out acceptance: capability + regression tests
+fixtures/             consumer projects + negative-control adapters
+src/repoproof/        domain / harness / agents / execution / verification / runner
+docs/evidence/        committed, redaction-scanned run evidence bundles
+docs/benchmark_summary.json   machine-readable fact source for all numbers
+runs/                 (gitignored) live per-run trace, artifacts, verification
 ```
+
+Docs: [ARCHITECTURE](docs/ARCHITECTURE.md) ·
+[PROJECT_EVOLUTION](docs/PROJECT_EVOLUTION.md) ·
+[BENCHMARK](docs/BENCHMARK.md) ·
+[FAILURE_TAXONOMY](docs/FAILURE_TAXONOMY.md) ·
+[CLAIMS_MATRIX](docs/CLAIMS_MATRIX.md) ·
+[HANDOFF_STATE](docs/HANDOFF_STATE.md)
 
 ## Provenance
 
 Evolved from the author's LocalFlow harness project; concepts
-referenced read-only, all code re-implemented (docs/lineage.md).
-License: Apache-2.0.
+referenced read-only, all code re-implemented
+([docs/lineage.md](docs/lineage.md)). License: Apache-2.0.
