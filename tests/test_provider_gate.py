@@ -106,12 +106,17 @@ def test_temperature_fallback_recorded() -> None:
 
 def test_config_hash_stable_and_key_excluded() -> None:
     same = ProviderConfig(
-        provider="openai-compatible",
+        provider="a-totally-different-display-label",
         model_name="gpt-5.5",
         api_base="http://proxy.example/v1/",
         api_key="sk-DIFFERENT-KEY",
     )
-    assert CFG.config_sha256 == same.config_sha256  # key + trailing slash irrelevant
+    # key, trailing slash AND display label are all irrelevant (canonical)
+    assert CFG.config_sha256 == same.config_sha256
+    norm = CFG.normalized()
+    assert "http" not in str(norm), "raw api base must not appear in canonical form"
+    assert set(norm) == {"provider_type", "api_base_fingerprint", "model_name",
+                         "action_protocol", "temperature_policy"}
     other = ProviderConfig(
         provider="openai-compatible",
         model_name="gpt-5.4-mini",

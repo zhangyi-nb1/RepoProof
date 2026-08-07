@@ -37,6 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     p_agent = sub.add_parser("agent-run", help="Gate 3C/4A: provider admission + ONE real agent run")
     p_agent.add_argument("--contract", required=True, type=Path)
     p_agent.add_argument("--budget-visibility", action="store_true", help="Gate 4A ablation variable")
+    p_agent.add_argument("--coverage-ledger", action="store_true", help="Gate 4B ablation variable")
 
     p_bundle = sub.add_parser("verify-bundle", help="verify hash/reference integrity of a run bundle")
     p_bundle.add_argument("--run-dir", required=True, type=Path)
@@ -91,7 +92,11 @@ def main(argv: list[str] | None = None) -> int:
         from repoproof.runner.agent_run import provider_from_env, run_gate3c
 
         out = run_gate3c(
-            args.contract, PROJECT_ROOT, provider_from_env(), budget_visibility=args.budget_visibility
+            args.contract,
+            PROJECT_ROOT,
+            provider_from_env(),
+            budget_visibility=args.budget_visibility,
+            coverage_ledger=args.coverage_ledger,
         )
         print(json.dumps(out, ensure_ascii=False, indent=2, sort_keys=True, default=str))
         return 0 if not out.get("blocked") else 3

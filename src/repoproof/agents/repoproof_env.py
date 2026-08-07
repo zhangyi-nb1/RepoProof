@@ -62,6 +62,13 @@ class RepoProofEnvironment:
     adaptation_dir: Path | None = None
     patch_files_limit: int = 0
     patch_lines_limit: int = 0
+    # ---- Gate 4B: Public Contract Coverage Ledger (the ONE variable) ----
+    ledger_enabled: bool = False
+    ledger_requirements: list[dict] = field(default_factory=list)
+    ledger_path: str = "/tmp/coverage_ledger.json"
+    injected_chars: int = 0
+    """Cumulative characters the harness appended to observations
+    (budget + ledger lines) — the measured harness token overhead."""
 
     def _next_action_id(self) -> str:
         self._action_seq += 1
@@ -165,12 +172,31 @@ class RepoProofEnvironment:
                 "cwd": workdir,
             },
         }
-        # Submit-marker check runs on the RAW output; the budget summary
-        # is appended afterwards so it can never mask or fake the marker.
+        # Submit-marker check runs on the RAW output; harness lines are
+        # appended afterwards so they can never mask or fake the marker.
         self._check_finished(result)
+        appended = ""
         if self.budget_visibility:
-            result["output"] = output + "\n\n" + self._budget_summary(state)
+            appended += "\n\n" + self._budget_summary(state)
+        if self.ledger_enabled:
+            appended += "\n" + self._ledger_line(state)
+        if appended:
+            self.injected_chars += len(appended)
+            result["output"] = output + appended
         return result
+
+    def _ledger_line(self, state: dict) -> str:
+        from repoproof.harness.coverage_ledger import observation_line, summarize
+
+        read = self.backend.exec(self.container, ["cat", self.ledger_path], timeout_s=15)
+        raw = read.stdout.decode("utf-8", errors="replace") if read.exit_code == 0 else None
+        summary = summarize(raw, self.ledger_requirements)
+        self.last_ledger_summary = summary
+        low = bool(state.get("low_budget")) if self.budget_visibility else (
+            self.model_calls_provider is not None
+            and self.model_call_limit - self.model_calls_provider() <= 5
+        )
+        return observation_line(summary, low_budget=low, requirements=self.ledger_requirements)
 
     def _check_finished(self, output: dict) -> None:
         lines = output["output"].lstrip().splitlines()

@@ -62,13 +62,20 @@ class ProviderConfig:
     temperature_policy: str = "0"  # "0" | "provider_default"
     action_protocol: str = "auto"  # "auto" | "native" | "textbased"
 
+    PROVIDER_TYPE = "openai-compatible"
+
     def normalized(self) -> dict:
+        """Canonical hash input (Gate 4B): provider TYPE (never a
+        display label), a redacted api-base fingerprint (sha256 of the
+        normalized base — the raw URL never enters evidence), model,
+        action protocol and temperature policy. No labels, no config
+        source, no notes, no key."""
         return {
-            "provider": self.provider,
+            "provider_type": self.PROVIDER_TYPE,
+            "api_base_fingerprint": sha256_bytes(self.api_base.rstrip("/").encode())[:16],
             "model_name": self.model_name,
-            "api_base": self.api_base.rstrip("/"),
-            "temperature_policy": self.temperature_policy,
             "action_protocol": self.action_protocol,
+            "temperature_policy": self.temperature_policy,
         }
 
     @property

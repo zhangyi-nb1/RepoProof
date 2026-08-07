@@ -128,7 +128,12 @@ class AgentRunner(_Runner):
     the single agent phase between setup and verification."""
 
     def run_agent(
-        self, provider: ProviderConfig, preflight: PreflightResult, *, budget_visibility: bool = False
+        self,
+        provider: ProviderConfig,
+        preflight: PreflightResult,
+        *,
+        budget_visibility: bool = False,
+        coverage_ledger: bool = False,
     ) -> dict:
         import os as _os
 
@@ -155,6 +160,7 @@ class AgentRunner(_Runner):
                 "run_id": self.run_id,
                 "mode": "real-agent-baseline",
                 "budget_visibility": budget_visibility,
+                "coverage_ledger": coverage_ledger,
                 "agent": "mini-swe-agent-2.4.6",
                 "task_package_root_hash": self.package.root_hash,
                 "provider_config_sha256": preflight.provider_config_sha256,
@@ -236,6 +242,16 @@ class AgentRunner(_Runner):
                 assert str(security.get("network_mode")) == "none"
 
                 cap = self.contract.capability
+                ledger_paragraph = ""
+                if coverage_ledger:
+                    ledger_paragraph = (
+                        "\n\nSELF-TRACKING LEDGER\n"
+                        "A checklist built ONLY from the public contract lives at "
+                        "/tmp/coverage_ledger.json. Keep each requirement's status updated as you work "
+                        "(UNASSESSED/IMPLEMENTED/SELF_TESTED/BLOCKED). Observations show your "
+                        "addressed count and unresolved ids; it is a self-tracking aid with no "
+                        "acceptance knowledge."
+                    )
                 prompt = AGENT_PROMPT_TEMPLATE.format(
                     statement=cap.statement.strip(),
                     strategies=", ".join(cap.params.strategies) if cap.params else "sentence",
@@ -246,10 +262,34 @@ class AgentRunner(_Runner):
                     step_limit=self.contract.budgets.max_agent_steps,
                     command_budget=command_budget,
                     cmd_timeout=cmd_timeout,
-                )
+                ) + ledger_paragraph
                 prompt_sha = sha256_bytes(prompt.encode())
                 ev("agent.prompt", actor="harness", payload={"sha256": prompt_sha, "chars": len(prompt)})
 
+                ledger_requirements: list[dict] = []
+                if coverage_ledger:
+                    from repoproof.harness.coverage_ledger import (
+                        LEDGER_PATH,
+                        build_requirements,
+                        initial_ledger_json,
+                    )
+
+                    ledger_requirements = build_requirements(self.contract)
+                    seed = initial_ledger_json(self.contract)
+                    res_seed = self.backend.exec(
+                        c_agent,
+                        ["bash", "-lc", f"cat > {LEDGER_PATH} <<'RPLEDGER'\n{seed}\nRPLEDGER"],
+                        timeout_s=30,
+                    )
+                    ev(
+                        "ledger.seeded",
+                        actor="harness",
+                        payload={
+                            "requirements": len(ledger_requirements),
+                            "exit_code": res_seed.exit_code,
+                            "path": LEDGER_PATH,
+                        },
+                    )
                 env = RepoProofEnvironment(
                     backend=self.backend,
                     container=c_agent,
@@ -262,7 +302,24 @@ class AgentRunner(_Runner):
                     adaptation_dir=adaptation,
                     patch_files_limit=self.contract.budgets.max_patch_files,
                     patch_lines_limit=self.contract.budgets.max_patch_lines,
+                    ledger_enabled=coverage_ledger,
+                    ledger_requirements=ledger_requirements,
                 )
+
+                # Aggregate REAL token usage via litellm's success hook
+                # (non-behavioral: prompts/observations/actions untouched).
+                import litellm as _litellm
+
+                token_totals = {"in": 0, "out": 0, "seen": False}
+
+                def _usage_cb(kwargs, completion_response, start_time, end_time):  # noqa: ANN001
+                    usage = getattr(completion_response, "usage", None)
+                    if usage:
+                        token_totals["seen"] = True
+                        token_totals["in"] += getattr(usage, "prompt_tokens", 0) or 0
+                        token_totals["out"] += getattr(usage, "completion_tokens", 0) or 0
+
+                _litellm.success_callback = [_usage_cb]
                 if preflight.action_protocol == "textbased":
                     model_cls = LitellmTextbasedModel
                 else:
@@ -283,8 +340,27 @@ class AgentRunner(_Runner):
                     "denied": result.denied_count,
                     "exit_status": result.exit_status,
                     "cost": result.cost,
+                    "input_tokens": token_totals["in"] if token_totals["seen"] else "UNKNOWN",
+                    "output_tokens": token_totals["out"] if token_totals["seen"] else "UNKNOWN",
+                    "harness_injected_chars": env.injected_chars,
                     "agent_wall_s": round(time.monotonic() - t_agent, 1),
                 }
+                _litellm.success_callback = []
+                ledger_final = None
+                if coverage_ledger:
+                    from repoproof.harness.coverage_ledger import LEDGER_PATH, summarize
+
+                    read = self.backend.exec(c_agent, ["cat", LEDGER_PATH], timeout_s=15)
+                    raw = read.stdout if read.exit_code == 0 else b""
+                    if raw:
+                        self.store.store_artifact(
+                            raw, media_type="application/json", producer="ledger",
+                            name_hint="coverage_ledger.final.json",
+                        )
+                    ledger_final = summarize(raw.decode("utf-8", errors="replace") or None, ledger_requirements)
+                    ledger_final.pop("statuses", None)
+                    ev("ledger.final", actor="harness", payload=ledger_final)
+                agent_metrics["ledger_final"] = ledger_final
                 ev("agent.end", actor="harness", payload=agent_metrics)
             finally:
                 self.backend.destroy(c_agent)
@@ -414,6 +490,7 @@ class AgentRunner(_Runner):
             "task_id": self.contract.task_id,
             "mode": "real-agent-baseline",
             "budget_visibility": budget_visibility,
+            "coverage_ledger": coverage_ledger,
             "task_package_root_hash": self.package.root_hash,
             "contract_sha256": self.contract_sha,
             "provider_config_sha256": preflight.provider_config_sha256,
@@ -494,6 +571,7 @@ def run_gate3c(
     provider: ProviderConfig,
     *,
     budget_visibility: bool = False,
+    coverage_ledger: bool = False,
 ) -> dict:
     """CLI entry: real preflight → BLOCKED stop or the single agent run."""
     pf = run_preflight(provider)
@@ -506,7 +584,9 @@ def run_gate3c(
         return {"blocked": True, "preflight": pf.summary(), "agent_model_call_count": 0}
     runner = AgentRunner(contract_path, project_root, None)
     try:
-        report = runner.run_agent(provider, pf, budget_visibility=budget_visibility)
+        report = runner.run_agent(
+            provider, pf, budget_visibility=budget_visibility, coverage_ledger=coverage_ledger
+        )
     finally:
         runner.backend.destroy_all()
     return {"blocked": False, "preflight": pf.summary(), "report": report}
