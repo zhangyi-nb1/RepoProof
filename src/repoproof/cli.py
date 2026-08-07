@@ -40,6 +40,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_ahost.add_argument("--path", required=True, type=Path)
 
+    p_arepo = sub.add_parser(
+        "analyze-repo",
+        help="Guided Adoption Phase 2: repository analysis "
+        "(anonymous shallow clone OR --local-path; never executes repo code)",
+    )
+    g = p_arepo.add_mutually_exclusive_group(required=True)
+    g.add_argument("--url", help="public GitHub URL (will shallow-clone into upstream-cache/analysis/)")
+    g.add_argument("--local-path", type=Path, help="analyze an already-present repo directory (offline)")
+    p_arepo.add_argument("--revision", default=None)
+
     p_demo = sub.add_parser("demo", help="no-model evidence demos (Gate 8C): list / verify / replay")
     p_demo.add_argument("demo_cmd", choices=["list", "verify", "replay"])
     p_demo.add_argument("--case", default=None)
@@ -168,6 +178,20 @@ def main(argv: list[str] | None = None) -> int:
 
         report = analyze_host_project(args.path)
         print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "analyze-repo":
+        from repoproof.adoption.analysis.repository_analyzer import (
+            analyze_repository,
+            analyze_repository_dir,
+        )
+
+        if args.local_path:
+            rep = analyze_repository_dir(args.local_path, requested_revision=args.revision)
+        else:
+            rep = analyze_repository(args.url, args.revision,
+                                     cache_root=PROJECT_ROOT / "upstream-cache")
+        print(json.dumps(rep.to_dict(), ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd == "demo":
