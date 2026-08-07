@@ -220,6 +220,7 @@ def test_simple_mode_hides_trace_token_hash() -> None:
     """P0.5:简单模式页面文本不出现 Trace/Token/哈希 概念。"""
     for page in ("progress.py", "case_view.py", "history.py"):
         at = _page(page)
+        at.session_state["case"] = "frontmatter-v2-pass"
         at.run()
         text = _all_text(at)
         for word in ("Trace", "Token", "tokens", "哈希", "sha256", "trace_sha"):

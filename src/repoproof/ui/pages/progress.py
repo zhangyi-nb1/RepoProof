@@ -80,9 +80,9 @@ if case in _locals:
         f"**最终系统结论:{_vs2(_v2)}**(由独立验证产生)"
     )
     if _ag.get("exit_status") == "TokenBudgetExhausted":
-        st.warning("本次失败原因:AI 使用额度在完成前耗尽(输入 "
-                   f"{_ag.get('input_tokens', 0):,} tokens 超过合同上限),验收未能运行。"
-                   "额度限制是合同的一部分——防止无界消耗。")
+        st.warning("本次失败原因:AI 使用额度在完成前耗尽"
+                   f"(读入量 {_ag.get('input_tokens', 0):,}(字符量级)超过合同上限),"
+                   "验收未能运行。额度限制是合同的一部分——防止无界消耗。")
     _cap = _rep.get("capability")
     st.markdown(f"- 目标功能验收:{_cap if _cap else '—'}\n"
                 f"- AI 对话轮数:{_ag.get('model_calls', '—')} · 执行命令:{_ag.get('commands', '—')}\n"
