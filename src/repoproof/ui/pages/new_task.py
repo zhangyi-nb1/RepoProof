@@ -202,6 +202,13 @@ elif step == 4:
         f"- **独立测试**:用{TERM['held_out_tests']}做{TERM['oracle']},AI 看不到,也改不了\n"
         "- **你**:现在确认成功标准;开始后 AI 只能改解决方案,不能改评分规则"
     )
+    st.subheader("给出验收样例(必填,至少 3 行)")
+    st.caption("每行一组:输入 => 期望。期望以 contains: 开头表示「包含即通过」,否则要求完全相等。"
+               "这些样例就是你的成功标准:大部分给 AI 看并自测,至少 1 组会被留作它看不到的隐藏验证。")
+    ss["wz_examples"] = st.text_area(
+        "样例(输入 => 期望)", value=ss.get("wz_examples",
+        "周合 => contains:周会纪要\n读书 => contains:测试驱动\n咖啡 => contains:购物清单\nkafei => contains:购物清单"),
+        height=140)
     ok = st.checkbox("我确认:以上成功标准代表我真实想要的结果", value=ss.get("wz_plan_ok", False))
     ss["wz_plan_ok"] = ok
     c1, c2, _ = st.columns([1, 1, 3])
@@ -239,6 +246,52 @@ elif step == 5:
     info = live_run.active_run(_root)
     if info and info.get("alive"):
         st.info(f"⏳ 正在运行:{info.get('task_id')}(后台进程 {info.get('pid')};刷新页面不会中断)")
+    st.divider()
+    st.subheader("装配你的新任务(全自动,无需任何外部 AI)")
+    st.caption("把你确认的目标 + 样例编译成完整任务(合同/验收测试/控制组)并冻结;"
+               "冻结成功后它会出现在上方「真实运行」下拉框,由你亲手运行。验收强度=用户样例级。")
+    if st.button("装配并冻结新任务", width="stretch"):
+        import subprocess as _sp
+
+        from repoproof.adoption.analysis.repository_analyzer import analyze_repository_dir
+        from repoproof.adoption.assembly.example_compiler import CompileError
+        from repoproof.adoption.assembly.task_assembler import assemble_task
+
+        try:
+            exs = []
+            for line in (ss.get("wz_examples") or "").splitlines():
+                if "=>" in line:
+                    left, right = line.split("=>", 1)
+                    exs.append({"input": left.strip(), "expected": right.strip()})
+            repo_name = (ss.get("wz_repo", "").rstrip("/").rsplit("/", 1) or [""])[-1]
+            cand = sorted((_root / "upstream-cache" / "analysis").glob(f"{repo_name}-*"))
+            if not cand:
+                st.error(f"未找到目标仓库的本地分析副本({repo_name})——请先在终端运行 "
+                         f"repoproof analyze-repo --url {ss.get('wz_repo', '<url>')}")
+                st.stop()
+            rep = analyze_repository_dir(cand[0], url=ss.get("wz_repo", ""))
+            with st.status("装配任务文件……", expanded=True) as _s:
+                out = assemble_task(
+                    _root, goal=ss.get("wz_goal", ""), repo_url=ss.get("wz_repo", ""),
+                    resolved_commit=str(rep.commit.value), distribution=repo_name,
+                    import_module=repo_name.replace("-", "_"),
+                    license_id=str(rep.license.value), examples=exs)
+                _s.update(label=f"文件已生成({out['public']} 公开 + {out['held']} 隐藏样例),开始冻结"
+                                "(构建离线依赖 + 控制组自检,约 1-3 分钟)……")
+                proc = _sp.run([str(_root / ".venv" / "bin" / "python"), "-m", "repoproof.cli",
+                                "freeze-task", "--contract", f"contracts/{out['task_id']}.yaml",
+                                "--full"], capture_output=True, text=True, cwd=str(_root),
+                               timeout=900, check=False)
+                if proc.returncode == 0:
+                    _s.update(label="装配并冻结完成", state="complete")
+                    st.success(f"任务 {out['task_id']} 已冻结——刷新后在上方「真实运行」选择它,"
+                               "亲手开始你的第一次运行。")
+                else:
+                    _s.update(label="冻结未通过", state="error")
+                    st.error("冻结失败(通常是控制组自检或依赖构建问题)。技术输出末段:")
+                    st.code((proc.stdout + proc.stderr)[-1200:], language="text")
+        except CompileError as exc:
+            st.error(f"样例不满足要求:{exc}")
     st.divider()
     st.subheader("或者:先看看流程与案例")
     c1, c2, _ = st.columns([1, 1, 2])
