@@ -52,7 +52,10 @@ _names = {
     "chonkie-agent-fail": "示例:文本分块(未通过案例)",
     "bm25-agent-fail": "示例:检索排序(未通过案例)",
 }
-_valid = list(CASES)
+_locals = facts.local_runs()
+for _ln in _locals:
+    _names[_ln] = f"你的运行:{_ln}"
+_valid = [*_locals, *list(CASES)]
 _default = st.session_state.get("case") or _valid[0]
 if _default not in _valid:
     _default = _valid[0]
@@ -60,6 +63,34 @@ case = st.selectbox(
     "选择要回顾的任务", _valid, index=_valid.index(_default), format_func=lambda c: _names[c]
 )
 st.session_state["case"] = case
+
+if case in _locals:
+    # ---- 你的本地真实运行:持久回看(不依赖运行锁) ----
+    from repoproof.ui.presenters.glossary import verdict_icon as _vic
+    from repoproof.ui.presenters.glossary import verdict_simple as _vs2
+
+    _lr_data = facts.load_local_run(case)
+    _rep, _man = _lr_data["report"], _lr_data["manifest"]
+    _ag = _man.get("agent") or {}
+    _v2 = _rep.get("final_verdict")
+    st.markdown(f"## {_vic(_v2)} {_vs2(_v2)}")
+    st.markdown(
+        f"**AI 助手状态:{agent_exit_simple(_ag.get('exit_status'))}**"
+        "(结束方式不代表结论)  \n"
+        f"**最终系统结论:{_vs2(_v2)}**(由独立验证产生)"
+    )
+    if _ag.get("exit_status") == "TokenBudgetExhausted":
+        st.warning("本次失败原因:AI 使用额度在完成前耗尽(输入 "
+                   f"{_ag.get('input_tokens', 0):,} tokens 超过合同上限),验收未能运行。"
+                   "额度限制是合同的一部分——防止无界消耗。")
+    _cap = _rep.get("capability")
+    st.markdown(f"- 目标功能验收:{_cap if _cap else '—'}\n"
+                f"- AI 对话轮数:{_ag.get('model_calls', '—')} · 执行命令:{_ag.get('commands', '—')}\n"
+                f"- 本地目录:`{_lr_data['dir']}`(适配代码在 adaptation/ 内)")
+    if is_tech():
+        with tech_expander("查看技术详情(report 原始字段)"):
+            st.json(_rep)
+    st.stop()
 
 report = facts.load_report(case)
 manifest = facts.load_run_manifest(case)

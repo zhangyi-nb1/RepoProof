@@ -132,3 +132,20 @@ def trace_preview(case: str, limit: int = 200) -> list[dict]:
             except json.JSONDecodeError:
                 rows.append({"seq": i, "actor": "?", "event": "unparsed", "摘要": line[:120]})
     return rows
+
+
+def local_runs() -> list[str]:
+    """本地真实运行目录(有 report.json 的,最新在前)——持久事实,刷新不丢。"""
+    root = repo_root() / "runs"
+    dirs = [d for d in root.glob("adopt-*-2*") if (d / "report.json").exists()]
+    return [d.name for d in sorted(dirs, key=lambda x: x.name, reverse=True)]
+
+
+def load_local_run(run_name: str) -> dict:
+    root = repo_root() / "runs" / run_name
+    rep = json.loads((root / "report.json").read_text(encoding="utf-8"))
+    man = {}
+    mp = root / "run_manifest.json"
+    if mp.exists():
+        man = json.loads(mp.read_text(encoding="utf-8"))
+    return {"report": rep, "manifest": man, "dir": str(root)}
