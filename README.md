@@ -8,23 +8,26 @@ whether the result actually works: capability tests, host regression,
 policy checks, and a clean-room replay. `PASS` is earned from
 executable evidence, never from an agent's self-claim.
 
-> Status: **Gate 6 — three-task benchmark; the harness caught itself.**
-> Full results in [docs/BENCHMARK.md](docs/BENCHMARK.md), typed
-> failures in [docs/FAILURE_TAXONOMY.md](docs/FAILURE_TAXONOMY.md).
-> Eight runs, three capability domains (Chonkie chunking 4/33→31/33;
-> rank_bm25 ranking 1/12→9/12; python-frontmatter ingest 1/11→1/11),
-> zero PASS_ADAPTED — every verdict an honest FAIL. The preregistered
-> solvable third task FAILED for a harness-attributed reason the
-> evidence chain exposed precisely: the prompt template carried
-> hardcoded first-task deliverable text into other tasks' prompts
-> (HARNESS_PROMPT_CONTAMINATION), and the agent trusted the
-> contaminated request shape over the consumer source it had already
-> read. Fixed contract-driven post-run; the preregistration's
-> no-re-run rule was honoured, so the FAIL stands and a clean-prompt
-> run awaits a future gate. Also fixed en route: distribution≠import
-> name portability gap (`SourceRepo.import_module`). Coverage Ledger:
-> experimental, default off. Token budgets genuinely enforced since
-> Gate 5.1.
+> Status: **Gate 7 — prompt fix verified on a real run; still no
+> PASS_ADAPTED, and the evidence says exactly why.** Full results in
+> [docs/BENCHMARK.md](docs/BENCHMARK.md), typed failures in
+> [docs/FAILURE_TAXONOMY.md](docs/FAILURE_TAXONOMY.md). Nine runs,
+> three capability domains (Chonkie chunking 4/33→31/33; rank_bm25
+> ranking 1/12→9/12; python-frontmatter ingest 1/11→8/11), zero
+> PASS_ADAPTED — every verdict an honest FAIL. Gate 6 caught the
+> harness's own bug (HARNESS_PROMPT_CONTAMINATION: hardcoded
+> first-task deliverable text leaking into other tasks' prompts);
+> Gate 7 re-ran the same frozen task once with the decontaminated
+> contract-driven prompt as the only variable: capability moved
+> 1/11 → 8/11 (held-out records fully matched; pinned parse + P1
+> date→ISO projection + schema/order/determinism all achieved). The
+> remaining 3 failures decompose into a task-author contract gap
+> (P2's definition existed only in yaml comments —
+> CONTRACT_UNDERSPECIFICATION) and a cross-domain replicated agent
+> omission (malformed text=None never wrapped — the same neglect
+> chonkie's agent showed, n=2 domains). Preregistered no-re-run rule
+> honoured both gates. Coverage Ledger: experimental, default off.
+> Token budgets genuinely enforced since Gate 5.1.
 >
 > Earlier status (Gate 3C — first REAL agent baseline): One
 > mini-swe-agent run (deepseek-v4-pro, native tool-calls, temp 0,

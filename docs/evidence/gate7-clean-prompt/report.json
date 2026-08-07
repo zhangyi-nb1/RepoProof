@@ -1,0 +1,80 @@
+{
+  "action_protocol": "native",
+  "adaptation_root": "e44d1118a3c687c62b8c837bef24f3401f71f04bac8b8b5b5e706e1ed83b8c68",
+  "agent": {
+    "agent_wall_s": 134.9,
+    "commands": 34,
+    "cost": "UNKNOWN",
+    "denied": 0,
+    "exit_status": "LimitsExceeded",
+    "harness_injected_chars": 5188,
+    "input_tokens": 284687,
+    "ledger_final": null,
+    "model_calls": 20,
+    "output_tokens": 8268
+  },
+  "budget_exhausted": null,
+  "budget_visibility": true,
+  "capability": "passed_checks=8, failed_checks=3, total_checks=11; exit_code=1; passed=8 != expected=11; failures=3",
+  "capability_failed_tests": [
+    "test_capability::test_malformed_request_wrapped",
+    "test_capability::test_records_match_pinned_reference[public]",
+    "test_capability::test_unfenced_document_follows_upstream_behaviour"
+  ],
+  "contract_sha256": "870a2649c63aac287ce3c42a085d5458c83044bb10f6410ee5e3b57bd2de895e",
+  "coverage_ledger": false,
+  "final_trace_sha256": "882d73d314de42a04c5c5c918a3cb5318a5514ca3cedfd625a4826d955485e55",
+  "final_verdict": "FAIL",
+  "gate_reasons": [
+    "CapabilityVerifier: passed_checks=8, failed_checks=3, total_checks=11; exit_code=1; passed=8 != expected=11; failures=3"
+  ],
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "missing_external": [],
+  "mode": "real-agent-baseline",
+  "policy": "oracle/upstream intact; action causality holds; patch budgets respected",
+  "preflight": {
+    "action_protocol": "native",
+    "api_base": "https://<redacted-host>",
+    "evidence": [
+      "native action parsed: 'echo PREFLIGHT_OK'"
+    ],
+    "model_name": "deepseek-v4-pro",
+    "preflight_calls": 1,
+    "preflight_cost": "UNKNOWN",
+    "preflight_input_tokens": 299,
+    "preflight_output_tokens": 60,
+    "preflight_wall_time_s": 1.5,
+    "provider_config_sha256": "21f537380c779f8f8348a5cdd4be8034cba6aa2cc8c895a341bb2dc0f5b57d90",
+    "status": "PROVIDER_READY",
+    "temperature": "0"
+  },
+  "prompt_sha256": "eee16562af9e0e3e554a4743ad1574469c8d0d5299f2d6846e7e17783afb23aa",
+  "provider_config_sha256": "21f537380c779f8f8348a5cdd4be8034cba6aa2cc8c895a341bb2dc0f5b57d90",
+  "regression": "passed_checks=3, failed_checks=0, total_checks=3; all 3 frozen nodes executed and passed",
+  "replay": "mode=baseline_failure_reproduction, status=PASS",
+  "run_id": "adopt-frontmatter-local-ingest-v1-20260807-172916",
+  "source_git_tree_hash": "8655f7752b44e5278d9d07b14149f918d968f364",
+  "task_id": "adopt-frontmatter-local-ingest-v1",
+  "task_package_root_hash": "7815d12eaf5fb9dd180fd0c124538e3c3746d5563f6f8c1eb038686053ae65be",
+  "temperature": "0",
+  "timings": {
+    "agent_command_s": 0.0,
+    "agent_model_call_s": 134.9,
+    "replay_s": 7.1,
+    "system_setup_s": 12.1,
+    "total_wall_s": 162.2,
+    "verification_s": 8.0
+  },
+  "trace_chain_error": "",
+  "trace_chain_ok": true,
+  "trace_events": 203,
+  "trajectory_sha256": "12918e7773096b558ac673ee8f5d329dc509f9364e6a36fd5205808691158db5",
+  "verdict": "FAIL",
+  "verification_result_hashes": {
+    "CapabilityVerifier": "73923fa769a9aed74506da312077921c592072f984c2646f040a2dcacb41b97f",
+    "HostRegressionVerifier": "aa66478ba706cadd7cc2dadbfa89f446560e30549b652dc2e7e778badce0f6d1",
+    "PolicyVerifier": "7cc189f627db87c36368cb53a5b2767bfbe0216b580200ea4c0abc49b1c73528",
+    "ReplayVerifier": "ffc4ee2c8ebcf86754918d1e2ea70a0228b46568c6eb50fee7125ec5739f5b99"
+  },
+  "wheelhouse_root": "c286953bef054c13910332a1fde57ca23546438bcb9bf6e99535ae967f5cd0c4"
+}

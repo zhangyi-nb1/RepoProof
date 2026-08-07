@@ -1,17 +1,25 @@
 # RepoAdoptBench-mini — consolidated results
 
-Three adoption tasks, eight runs, one agent (mini-swe-agent 2.4.6 +
+Three adoption tasks, nine runs, one agent (mini-swe-agent 2.4.6 +
 deepseek-v4-pro, native tool-calls, temperature 0, 20-model-call
 budget). Every number below comes from a committed evidence bundle
-(`docs/evidence/…`) with a verified trace chain and a 10/10
+(`docs/evidence/…`) with a verified trace chain and an all-checks-pass
 verify-bundle. **No run below reached PASS_ADAPTED — every verdict is
 an honest FAIL**, each with a deterministic failure reproduction.
 
 Budget disclosure: the frontmatter task (Gate 6, preregistered
 solvable-by-design, LOW difficulty) relaxed token budgets to
-400k in / 40k out; all other budgets identical. Its agent run was
-invalidated as an agent measurement by HARNESS_PROMPT_CONTAMINATION
-(see below) — the FAIL verdict stands and was not re-run.
+400k in / 40k out; all other budgets identical. Its Gate 6 agent run
+was invalidated as an agent measurement by
+HARNESS_PROMPT_CONTAMINATION (see below) — the FAIL verdict stands
+and was not re-run. The Gate 7 clean-prompt run (new preregistration,
+only variable = decontaminated prompt) moved capability 1/11 → 8/11,
+**verifying the prompt fix on a real run**; its remaining failures
+decompose into a task-author contract gap (P2 defined only in yaml
+comments — CONTRACT_UNDERSPECIFICATION) and the cross-domain
+replicated agent omission on malformed input (text=None). Still no
+PASS_ADAPTED; closing it needs a public P1–P4 definition fix +
+another preregistered gate.
 
 rank_bm25 provenance wording: source_commit=`47aa3ddf`,
 source_relation_to_release=after_tag_0.2.2,
@@ -29,6 +37,7 @@ NOT the official 0.2.2 tag itself.)
 | bm25-agent | v4 | agent (budget+ledger) | **9/12** | 3/3 | PASS | failure_reproduction PASS | FAIL | 20 (LimitsExceeded) | 35 | 290,819 / 11,122 | 1 file / 335 ln | 172.5s | SEMANTIC_SUBSTITUTION (+ HARNESS_SIGNAL_IGNORED: ledger 0/9; prompt retroactively found contaminated — see note) | oracle `test_rankings_match_pinned_reference` (public AND held-out) |
 | fm-direct | v5 | direct (no agent) | 1/11 | 3/3 | PASS | failure_reproduction PASS | FAIL | 0 | 0 | — | 0 files | — | (baseline) | reference oracle; first attempt BLOCKED on import-name gap (fixed via `import_module`) |
 | fm-agent | v5 | agent (budget vis, ledger OFF) | 1/11 | 3/3 | PASS | failure_reproduction PASS | FAIL | 20 (LimitsExceeded) | 40 | 302,498 / 11,212 | 1 file / 70 ln | 169.5s | **HARNESS_PROMPT_CONTAMINATION** (harness-attributed: prompt carried chonkie deliverable; adapter used prompt's `document_id` over consumer's `doc_id`) | prompt/trajectory diff + adapter line 28; NOT an agent-capability measurement |
+| fm-agent-clean (G7) | v5 | agent, decontaminated prompt (only variable vs fm-agent) | **8/11** | 3/3 | PASS | failure_reproduction PASS | FAIL | 20 (LimitsExceeded) | 34 | 284,687 / 8,268 | 1 file / 81 ln | 134.9s | CONTRACT_UNDERSPECIFICATION (P2 flag on d-004/d-005; task-author-attributed) + CONTRACT_REQUIREMENT_OMISSION (text=None unwrapped — replicates the chonkie omission cross-domain) | junit flag-only diffs; held-out records fully matched; core adoption (pinned parse + P1 projection + schema/order/determinism) achieved |
 
 Notes:
 - **HARNESS_PROMPT_CONTAMINATION (Gate 6 discovery)**: the module-level
