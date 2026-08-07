@@ -191,6 +191,7 @@ class _Runner:
         self.consumer_src = self.project_root / Path(self.contract.target_project.path)
         self.probes_src = self.project_root / "src" / "repoproof" / "probes"
         self.user = f"{os.getuid()}:{os.getgid()}"
+        self.dist_module = self.contract.source_repo.distribution.replace("-", "_")
         self.expected_nodes: dict | None = None
         if self.package.collection_manifest_sha256:
             cpath = task_package.collection_path_for(self.contract_path)
@@ -346,12 +347,14 @@ class _Runner:
                 expected_wheels=self.package.wheelhouse_wheels,
                 expected_root=self.package.wheelhouse_root,
             )
-            sel_name, sel_sha = select_wheel(self.package.wheelhouse_wheels, "chonkie")
+            sel_name, sel_sha = select_wheel(
+                self.package.wheelhouse_wheels, self.contract.source_repo.distribution
+            )
             expected_names = sorted(self.package.wheelhouse_wheels)
         else:  # legacy (v1/v2 packages without wheelhouse binding)
             local = json.loads((wheelhouse / "wheelhouse_manifest.json").read_text())
             verified = local
-            sel_name, sel_sha = select_wheel(local["wheels"], "chonkie")
+            sel_name, sel_sha = select_wheel(local["wheels"], self.contract.source_repo.distribution)
             expected_names = sorted(local["wheels"])
         self.store.append_event(
             "wheelhouse.verified",
@@ -412,10 +415,11 @@ class _Runner:
                     "/venv/env/bin/python",
                     "-c",
                     (
-                        "import json, platform, sys, chonkie;"
+                        "import json, platform, sys, importlib, importlib.metadata as md;"
+                        f"importlib.import_module('{self.dist_module}');"
                         "print(json.dumps({'machine': platform.machine(),"
                         "'python': '%d.%d' % sys.version_info[:2],"
-                        "'chonkie': getattr(chonkie, '__version__', '?')}))"
+                        f"'{self.dist_module}': md.version('{self.contract.source_repo.distribution}')}}))"
                     ),
                 ],
                 label=f"{label}.env-probe",
@@ -493,7 +497,11 @@ class _Runner:
             )
             probe_res, probe_ref = self._exec_step(
                 c_run,
-                ["/venv/env/bin/python", "/probes/direct_chonkie_probe.py", "/oracle/fixtures/public_documents.json"],
+                [
+                    "/venv/env/bin/python",
+                    f"/probes/{self.contract.acceptance.probe_script}",
+                    "/oracle/fixtures/public_documents.json",
+                ],
                 label=f"{label}.direct-probe",
                 meter=meter,
                 workdir="/tmp/execution",

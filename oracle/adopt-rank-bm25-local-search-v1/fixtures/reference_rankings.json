@@ -1,0 +1,388 @@
+{
+ "fixtures": {
+  "held_out_documents.json": {
+   "h-001": [
+    {
+     "chunk_id": "c-002",
+     "score": 5.378762
+    },
+    {
+     "chunk_id": "c-004",
+     "score": 1.188699
+    },
+    {
+     "chunk_id": "c-009",
+     "score": 1.188699
+    },
+    {
+     "chunk_id": "c-001",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-003",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-005",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-006",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-007",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-008",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-010",
+     "score": 0.0
+    }
+   ],
+   "h-002": [
+    {
+     "chunk_id": "c-006",
+     "score": 8.964604
+    },
+    {
+     "chunk_id": "c-001",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-002",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-003",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-004",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-005",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-007",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-008",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-009",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-010",
+     "score": 0.0
+    }
+   ],
+   "h-003": [
+    {
+     "chunk_id": "c-005",
+     "score": 5.578634
+    },
+    {
+     "chunk_id": "c-001",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-002",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-003",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-004",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-006",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-007",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-008",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-009",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-010",
+     "score": 0.0
+    }
+   ],
+   "h-004": [
+    {
+     "chunk_id": "c-009",
+     "score": 4.774541
+    },
+    {
+     "chunk_id": "c-004",
+     "score": 1.188699
+    },
+    {
+     "chunk_id": "c-001",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-002",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-003",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-005",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-006",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-007",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-008",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-010",
+     "score": 0.0
+    }
+   ]
+  },
+  "public_documents.json": {
+   "q-001": [
+    {
+     "chunk_id": "c-001",
+     "score": 4.325285
+    },
+    {
+     "chunk_id": "c-008",
+     "score": 1.331852
+    },
+    {
+     "chunk_id": "c-005",
+     "score": 1.23287
+    },
+    {
+     "chunk_id": "c-002",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-003",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-004",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-006",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-007",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-009",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-010",
+     "score": 0.0
+    }
+   ],
+   "q-002": [
+    {
+     "chunk_id": "c-004",
+     "score": 4.774541
+    },
+    {
+     "chunk_id": "c-009",
+     "score": 1.188699
+    },
+    {
+     "chunk_id": "c-001",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-002",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-003",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-005",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-006",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-007",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-008",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-010",
+     "score": 0.0
+    }
+   ],
+   "q-003": [
+    {
+     "chunk_id": "c-009",
+     "score": 5.378762
+    },
+    {
+     "chunk_id": "c-001",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-002",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-003",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-004",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-005",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-006",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-007",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-008",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-010",
+     "score": 0.0
+    }
+   ],
+   "q-004": [
+    {
+     "chunk_id": "c-008",
+     "score": 4.017678
+    },
+    {
+     "chunk_id": "c-001",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-002",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-003",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-004",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-005",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-006",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-007",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-009",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-010",
+     "score": 0.0
+    }
+   ],
+   "q-005": [
+    {
+     "chunk_id": "c-001",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-002",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-003",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-004",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-005",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-006",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-007",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-008",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-009",
+     "score": 0.0
+    },
+    {
+     "chunk_id": "c-010",
+     "score": 0.0
+    }
+   ]
+  }
+ },
+ "tokenization": "lower+whitespace",
+ "upstream": "rank_bm25.BM25Okapi@47aa3ddf"
+}

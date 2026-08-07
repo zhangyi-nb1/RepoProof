@@ -1,0 +1,26 @@
+{
+  "detail": "passed_checks=9, failed_checks=3, total_checks=12; exit_code=1; passed=9 != expected=12; failures=3",
+  "evidence": [
+    "acc24a42d92c02b4d26553b11672015e6f73df3d03cc09093c67388e166c6851"
+  ],
+  "extra": {
+    "exit_code": 1,
+    "expected_count": 12,
+    "extra_nodes": [],
+    "failed_nodes": [
+      "test_capability::test_rankings_match_pinned_reference[public]",
+      "test_capability::test_rankings_match_pinned_reference[held]",
+      "test_capability::test_malformed_query_wrapped"
+    ],
+    "missing_nodes": [],
+    "passed_count": 9,
+    "totals": {
+      "errors": 0,
+      "failures": 3,
+      "skipped": 0,
+      "tests": 12
+    }
+  },
+  "passed": false,
+  "verifier": "CapabilityVerifier"
+}

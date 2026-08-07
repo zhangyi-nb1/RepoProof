@@ -1,0 +1,41 @@
+{
+  "detail": "mode=baseline_failure_reproduction, status=PASS",
+  "evidence": [
+    "fe27198db807397761aed35c3cf4d33894c890e640ed51b53cebcb5ffc8ea054"
+  ],
+  "extra": {
+    "checks": {
+      "capability_exit_equal": true,
+      "capability_failed_tests_equal": true,
+      "probe_normalized_sha_equal": true,
+      "regression_exit_equal": true
+    },
+    "first": {
+      "capability_exit": 1,
+      "capability_failed": [
+        "test_capability::test_malformed_query_wrapped",
+        "test_capability::test_rankings_match_pinned_reference[held]",
+        "test_capability::test_rankings_match_pinned_reference[public]"
+      ],
+      "probe_normalized_sha": "fe27198db807397761aed35c3cf4d33894c890e640ed51b53cebcb5ffc8ea054",
+      "regression_exit": 0,
+      "regression_failed": []
+    },
+    "mode": "baseline_failure_reproduction",
+    "replay": {
+      "capability_exit": 1,
+      "capability_failed": [
+        "test_capability::test_malformed_query_wrapped",
+        "test_capability::test_rankings_match_pinned_reference[held]",
+        "test_capability::test_rankings_match_pinned_reference[public]"
+      ],
+      "probe_normalized_sha": "fe27198db807397761aed35c3cf4d33894c890e640ed51b53cebcb5ffc8ea054",
+      "regression_exit": 0,
+      "regression_failed": []
+    },
+    "replay_agent_commands": 0,
+    "replay_model_calls": 0
+  },
+  "passed": true,
+  "verifier": "ReplayVerifier"
+}

@@ -1,0 +1,22 @@
+{
+  "detail": "passed_checks=3, failed_checks=0, total_checks=3; all 3 frozen nodes executed and passed",
+  "evidence": [
+    "e0a6ea218ea5d725ce7272da8d68d45a029e489423e03af6960c7bff0f7fe414"
+  ],
+  "extra": {
+    "exit_code": 0,
+    "expected_count": 3,
+    "extra_nodes": [],
+    "failed_nodes": [],
+    "missing_nodes": [],
+    "passed_count": 3,
+    "totals": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 3
+    }
+  },
+  "passed": true,
+  "verifier": "HostRegressionVerifier"
+}

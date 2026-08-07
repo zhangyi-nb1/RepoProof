@@ -43,6 +43,10 @@ class SourceRepo(BaseModel):
     revision: str
     resolved_commit: str
     license: str
+    distribution: str = "chonkie"
+    """Installed python distribution name (portability: probe/env
+    admission/wheel selection derive from this, not from hardcoded
+    names). Default keeps the frozen v1–v3 contracts valid."""
 
 
 class TargetProject(BaseModel):
@@ -66,6 +70,10 @@ class Capability(BaseModel):
     output_schema: str
     params: CapabilityParams | None = None
     units_semantics: str | None = None
+    coverage_requirements: list[dict] | None = None
+    """PUBLIC coverage-ledger requirements ({id, source_field,
+    source_quote}); quotes must be verbatim public-contract text.
+    None -> the frozen chonkie-task fallback list."""
 
 
 class Environment(BaseModel):
@@ -99,6 +107,9 @@ class Budgets(BaseModel):
 class Acceptance(BaseModel):
     capability_command: list[str]
     regression_command: list[str]
+    probe_script: str = "direct_chonkie_probe.py"
+    """Diagnostic direct-adoption probe under src/repoproof/probes/
+    (portability: task-selected, defaulting to the v1–v3 probe)."""
 
 
 class TaskContract(BaseModel):

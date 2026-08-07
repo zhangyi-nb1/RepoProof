@@ -1,0 +1,82 @@
+{
+  "action_protocol": "native",
+  "adaptation_root": "423ada97b7db3d0f96fc3299e4e95d9f5ee6b7d15b950b632c7b74eb77ed7fe7",
+  "agent": {
+    "agent_wall_s": 172.5,
+    "commands": 35,
+    "cost": "UNKNOWN",
+    "denied": 0,
+    "exit_status": "LimitsExceeded",
+    "harness_injected_chars": 15141,
+    "input_tokens": 290819,
+    "ledger_final": {
+      "addressed": 0,
+      "parse_note": null,
+      "total": 9,
+      "unresolved_ids": [
+        "ranking-from-upstream",
+        "score-rounding",
+        "tie-break",
+        "rank-contiguity",
+        "top-k",
+        "empty-query",
+        "wrapped-errors",
+        "determinism",
+        "offline-cpu-only"
+      ]
+    },
+    "model_calls": 20,
+    "output_tokens": 11122
+  },
+  "budget_exhausted": null,
+  "budget_visibility": true,
+  "contract_sha256": "53dad0b72229c6ed17b62b027764a755c4ba3880c68b61c4a1e394a1002b0c51",
+  "coverage_ledger": true,
+  "final_trace_sha256": "09520ca23547559e0d4c05fc0527c598c2e17f556d654ae8b40f530aa73de4e5",
+  "final_verdict": "FAIL",
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "missing_external": [],
+  "mode": "real-agent-baseline",
+  "preflight": {
+    "action_protocol": "native",
+    "api_base": "https://<redacted-host>",
+    "evidence": [
+      "native action parsed: 'echo PREFLIGHT_OK'"
+    ],
+    "model_name": "deepseek-v4-pro",
+    "preflight_calls": 1,
+    "preflight_cost": "UNKNOWN",
+    "preflight_input_tokens": 299,
+    "preflight_output_tokens": 60,
+    "preflight_wall_time_s": 1.4,
+    "provider_config_sha256": "21f537380c779f8f8348a5cdd4be8034cba6aa2cc8c895a341bb2dc0f5b57d90",
+    "status": "PROVIDER_READY",
+    "temperature": "0"
+  },
+  "prompt_sha256": "70433240b332b39abbd1d8121b73118634fc7bf17ee5529562b97f423d9c7718",
+  "provider_config_sha256": "21f537380c779f8f8348a5cdd4be8034cba6aa2cc8c895a341bb2dc0f5b57d90",
+  "run_id": "adopt-rank-bm25-local-search-v1-20260807-160831",
+  "source_git_tree_hash": "77eafe76bcae138c62ac46e53cb8029a02b7092a",
+  "task_id": "adopt-rank-bm25-local-search-v1",
+  "task_package_root_hash": "bb2308bcbb58d5e3cb2eb42550808aa975e3e753eaff667aff3ce9311c416692",
+  "temperature": "0",
+  "timings": {
+    "agent_command_s": 0.0,
+    "agent_model_call_s": 172.6,
+    "replay_s": 10.5,
+    "system_setup_s": 14.7,
+    "total_wall_s": 208.0,
+    "verification_s": 10.1
+  },
+  "trace_chain_ok": true,
+  "trace_events": 208,
+  "trajectory_sha256": "43c11eeefac4f1faf9a8a37468155f186fbb549b208ddc25e9399224b039dce2",
+  "verdict": "FAIL",
+  "verification_result_hashes": {
+    "CapabilityVerifier": "e8b4d782fbf043b72b3e2569a30b93f8d953541c85f27fa4995214c3896df3e4",
+    "HostRegressionVerifier": "aa66478ba706cadd7cc2dadbfa89f446560e30549b652dc2e7e778badce0f6d1",
+    "PolicyVerifier": "30080c2914ea28b9ec22921e78467629d6fe3964c841f932be866c476ff73b70",
+    "ReplayVerifier": "6c3e8d8fe11c42ac620530c5ba60635ed2c137b135ce7be674a3210c7b0a45fb"
+  },
+  "wheelhouse_root": "e976c278ab66f4331d40a70d37f520ee891e30677a4c94b1342657f7d3c59501"
+}

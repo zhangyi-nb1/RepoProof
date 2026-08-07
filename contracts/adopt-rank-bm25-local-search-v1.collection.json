@@ -1,0 +1,21 @@
+{
+  "capability_nodes": [
+    "test_capability::test_deterministic_repeat_and_input_not_mutated",
+    "test_capability::test_empty_query_yields_zero_hits",
+    "test_capability::test_hit_schema_exact_fields[held]",
+    "test_capability::test_hit_schema_exact_fields[public]",
+    "test_capability::test_hit_text_matches_corpus[held]",
+    "test_capability::test_hit_text_matches_corpus[public]",
+    "test_capability::test_malformed_query_wrapped",
+    "test_capability::test_rank_contiguous_and_query_order[held]",
+    "test_capability::test_rank_contiguous_and_query_order[public]",
+    "test_capability::test_rankings_match_pinned_reference[held]",
+    "test_capability::test_rankings_match_pinned_reference[public]",
+    "test_capability::test_top_k_larger_than_corpus_truncates_cleanly"
+  ],
+  "regression_nodes": [
+    "test_regression::test_corpus_loads",
+    "test_regression::test_health",
+    "test_regression::test_loader_does_not_modify_fixture"
+  ]
+}

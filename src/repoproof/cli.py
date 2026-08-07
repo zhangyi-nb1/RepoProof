@@ -71,10 +71,15 @@ def main(argv: list[str] | None = None) -> int:
             backend = DockerExecutionBackend(image=IMAGE)
             backend.pull()
             image_digest = backend.image_digest()
+            from repoproof.harness.wheelhouse import select_wheel
+
+            dist = contract.source_repo.distribution
+            wheel_name, _sha = select_wheel(wheelhouse_manifest["wheels"], dist)
+            version = wheel_name.split("-")[1]
             env_constraints = {
                 "machine": "aarch64" if contract.environment.arch == "arm64" else contract.environment.arch,
                 "python": contract.environment.python,
-                "chonkie": "1.7.0",
+                dist.replace("-", "_"): version,
             }
         manifest = task_package.freeze(
             PROJECT_ROOT,

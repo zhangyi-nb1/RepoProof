@@ -1,0 +1,60 @@
+{
+  "adaptation_files": 0,
+  "adaptation_root": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "budget_exhausted": null,
+  "capability": "passed_checks=1, failed_checks=11, total_checks=12; exit_code=1; passed=1 != expected=12; failures=11",
+  "capability_failed_tests": [
+    "test_capability::test_empty_query_yields_zero_hits",
+    "test_capability::test_hit_schema_exact_fields[held]",
+    "test_capability::test_hit_schema_exact_fields[public]",
+    "test_capability::test_hit_text_matches_corpus[held]",
+    "test_capability::test_hit_text_matches_corpus[public]",
+    "test_capability::test_malformed_query_wrapped",
+    "test_capability::test_rank_contiguous_and_query_order[held]",
+    "test_capability::test_rank_contiguous_and_query_order[public]",
+    "test_capability::test_rankings_match_pinned_reference[held]",
+    "test_capability::test_rankings_match_pinned_reference[public]",
+    "test_capability::test_top_k_larger_than_corpus_truncates_cleanly"
+  ],
+  "contract_sha256": "53dad0b72229c6ed17b62b027764a755c4ba3880c68b61c4a1e394a1002b0c51",
+  "final_trace_sha256": "7f978781d8690c924ec4166b689e3928e01a842f1988dc576f42bf21e51e1abc",
+  "final_verdict": "FAIL",
+  "gate_reasons": [
+    "CapabilityVerifier: passed_checks=1, failed_checks=11, total_checks=12; exit_code=1; passed=1 != expected=12; failures=11"
+  ],
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "missing_external": [],
+  "mode": "direct-adoption-baseline (scripted, no agent, no LLM)",
+  "policy": "oracle/upstream intact; action causality holds; patch budgets respected",
+  "regression": "passed_checks=3, failed_checks=0, total_checks=3; all 3 frozen nodes executed and passed",
+  "replay": "mode=baseline_failure_reproduction, status=PASS",
+  "run_id": "adopt-rank-bm25-local-search-v1-20260807-160749",
+  "source_commit": "47aa3ddf8dc1ebeb7ef4e65f2b4536af44594099",
+  "source_git_tree_hash": "77eafe76bcae138c62ac46e53cb8029a02b7092a",
+  "steps_per_pass": {
+    "baseline": 10,
+    "replay": 10,
+    "setup": 0
+  },
+  "task_id": "adopt-rank-bm25-local-search-v1",
+  "task_package_root_hash": "bb2308bcbb58d5e3cb2eb42550808aa975e3e753eaff667aff3ce9311c416692",
+  "timings": {
+    "agent_command_s": 0.0,
+    "agent_model_call_s": 0.0,
+    "replay_s": 10.3,
+    "system_setup_s": 6.2,
+    "total_wall_s": 27.0,
+    "verification_s": 10.5
+  },
+  "trace_chain_error": "",
+  "trace_chain_ok": true,
+  "trace_events": 81,
+  "verdict": "FAIL",
+  "verification_result_hashes": {
+    "CapabilityVerifier": "7d15c9ed40dfa2d8ef1432dfe6fc294dfc30b00512b790e0aa5476b32177b3a4",
+    "HostRegressionVerifier": "aa66478ba706cadd7cc2dadbfa89f446560e30549b652dc2e7e778badce0f6d1",
+    "PolicyVerifier": "bd5fdf0c5561db9291eb75e2424367e40e20736e3d41aca578edbd4bcab1ed23",
+    "ReplayVerifier": "6bf04163546e197427e90749c2da9469a67a7a0bd978c0b0416e9a8abbe213d9"
+  },
+  "wheelhouse_root": "e976c278ab66f4331d40a70d37f520ee891e30677a4c94b1342657f7d3c59501"
+}

@@ -55,10 +55,18 @@ def contract_public_text(contract: TaskContract) -> str:
 
 def build_requirements(contract: TaskContract) -> list[dict]:
     """Every quote MUST be a verbatim substring of the public contract
-    text (whitespace-normalized) — enforced here and pinned by tests."""
+    text (whitespace-normalized) — enforced here and pinned by tests.
+    Portability: requirements come from the contract's PUBLIC
+    coverage_requirements field when present; the frozen chonkie-task
+    list is the fallback for the v3 contract."""
     public = " ".join(contract_public_text(contract).split())
+    specs = (
+        [(r["id"], r["source_field"], r["source_quote"]) for r in contract.capability.coverage_requirements]
+        if contract.capability.coverage_requirements
+        else _REQUIREMENT_SPECS
+    )
     out = []
-    for rid, field, quote in _REQUIREMENT_SPECS:
+    for rid, field, quote in specs:
         norm_quote = " ".join(quote.split())
         if norm_quote not in public:
             raise ValueError(f"requirement {rid}: quote is not verbatim public contract text")

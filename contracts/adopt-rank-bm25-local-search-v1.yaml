@@ -1,0 +1,98 @@
+# Adoption Contract — FROZEN. Second-repo portability task (Gate 5).
+# Same discipline as v3: agents change solutions, never the problem,
+# the hard constraints, or the oracle. No expected-outcome label.
+#
+# Frozen upstream facts (from the pinned source): rank_bm25 exposes
+# BM25Okapi(tokenized_corpus) / .get_scores(tokenized_query) returning
+# a raw numpy score array — no ids, no ordering, no top-k.
+#
+# Calibrated deterministic rules:
+#   S1: tokenization is lowercased whitespace split for corpus and queries.
+#   S2: ranking scores come from the pinned rank_bm25 BM25Okapi, rounded to 6 decimals.
+#   S3: ties break by score descending then chunk_id ascending.
+#   S4: empty or whitespace-only queries yield zero hits.
+#   S5: top_k truncates after the full deterministic ordering.
+
+task_id: adopt-rank-bm25-local-search-v1
+
+source_repo:
+  url: https://github.com/dorianbrown/rank_bm25
+  revision: master
+  resolved_commit: 47aa3ddf8dc1ebeb7ef4e65f2b4536af44594099
+  license: Apache-2.0
+  distribution: rank-bm25
+
+target_project:
+  kind: consumer_fixture
+  path: fixtures/consumer_rag_search
+
+capability:
+  statement: >
+    Adopt rank_bm25's offline BM25 ranking into the local search
+    consumer: rag_search.search_documents(request) must return
+    host-schema SearchHit rows whose ordering and scores come from the
+    pinned rank_bm25 for tokenization S1, scores rounded per S2, ties
+    per S3. Per query: hits in rank order with contiguous ranks from 0,
+    honoring top_k per S5; empty queries yield zero hits per S4; stable
+    chunk attribution; malformed queries wrapped as
+    rag_search.SearchError; deterministic across repeated calls; fully
+    offline, CPU-only.
+  output_schema: SearchHit
+  coverage_requirements:
+    - id: ranking-from-upstream
+      source_field: capability.statement
+      source_quote: "ordering and scores come from the pinned rank_bm25 for tokenization S1"
+    - id: score-rounding
+      source_field: capability.statement
+      source_quote: "scores rounded per S2"
+    - id: tie-break
+      source_field: capability.statement
+      source_quote: "ties per S3"
+    - id: rank-contiguity
+      source_field: capability.statement
+      source_quote: "hits in rank order with contiguous ranks from 0"
+    - id: top-k
+      source_field: capability.statement
+      source_quote: "honoring top_k per S5"
+    - id: empty-query
+      source_field: capability.statement
+      source_quote: "empty queries yield zero hits per S4"
+    - id: wrapped-errors
+      source_field: capability.statement
+      source_quote: "malformed queries wrapped as rag_search.SearchError"
+    - id: determinism
+      source_field: capability.statement
+      source_quote: "deterministic across repeated calls"
+    - id: offline-cpu-only
+      source_field: capability.statement
+      source_quote: "fully offline, CPU-only"
+
+environment:
+  os: linux
+  arch: arm64
+  python: "3.12"
+  cpu_only: true
+  network_install: true
+  network_test: false
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, embedding_calls, network_at_test_time]
+  editable_zones: [adaptation]
+  forbidden_install_extras: ["[all]", sentence-transformers, torch, openai, google-genai, gemini, qdrant, chromadb, pgvector, weaviate]
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 8
+  max_patch_lines: 400
+  max_input_tokens_total: 250000
+  max_output_tokens_total: 30000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "/oracle/test_regression.py"]
+  probe_script: direct_bm25_probe.py

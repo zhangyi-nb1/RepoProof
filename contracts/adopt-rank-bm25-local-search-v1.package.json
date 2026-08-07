@@ -1,0 +1,40 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_regression.py"
+  ],
+  "collection_manifest_sha256": "53328cf74e100a4a7a67107681d018a38cf8dfbcc9ba207fe852a5c82862ccb9",
+  "consumer_fixture_tree_sha256": "b8461d6fd384a73e726d241f1f3f279329badd3df700685ed6d8745a266a133f",
+  "contract_sha256": "53dad0b72229c6ed17b62b027764a755c4ba3880c68b61c4a1e394a1002b0c51",
+  "environment_constraints": {
+    "machine": "aarch64",
+    "python": "3.12",
+    "rank_bm25": "0.2.2"
+  },
+  "expected_capability_nodes": 12,
+  "expected_regression_nodes": 3,
+  "held_out_fixture_sha256": "a0e0d3f16b726873e31c53135d77eecc87f0e65081e48b33e6465441dd44e5cf",
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "oracle_tree_sha256": "2fb3f4d5496d56bb62e02048d130edbf1f0e2e0b0f0c672e46db0371924f1443",
+  "public_fixture_sha256": "94ea884652b74ba28672a9f9bf47743c567084d5891783b46885e11473737617",
+  "root_hash": "bb2308bcbb58d5e3cb2eb42550808aa975e3e753eaff667aff3ce9311c416692",
+  "source_commit": "47aa3ddf8dc1ebeb7ef4e65f2b4536af44594099",
+  "source_git_tree_hash": "77eafe76bcae138c62ac46e53cb8029a02b7092a",
+  "task_id": "adopt-rank-bm25-local-search-v1",
+  "wheelhouse_root": "e976c278ab66f4331d40a70d37f520ee891e30677a4c94b1342657f7d3c59501",
+  "wheelhouse_wheels": {
+    "iniconfig-2.3.0-py3-none-any.whl": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12",
+    "numpy-2.5.1-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl": "61ac47e772e6b8ea489e1d2f441a34c5c3ac17327e7ce294cbdf535795ad4e75",
+    "packaging-26.3-py3-none-any.whl": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+    "pluggy-1.6.0-py3-none-any.whl": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+    "pygments-2.20.0-py3-none-any.whl": "81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176",
+    "pytest-9.1.1-py3-none-any.whl": "37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c",
+    "rank_bm25-0.2.2-py3-none-any.whl": "fff3b8362a7f7c823f0bbccf88692a0b153b9bb148464610f4a758f2c53cfa48"
+  }
+}

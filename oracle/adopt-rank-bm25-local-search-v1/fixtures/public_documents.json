@@ -1,0 +1,71 @@
+{
+ "documents": [
+  {
+   "chunk_id": "c-001",
+   "text": "The pipeline splits long documents into retrieval sized chunks for offline search."
+  },
+  {
+   "chunk_id": "c-002",
+   "text": "Every artifact is content addressed and can be replayed inside a fresh container."
+  },
+  {
+   "chunk_id": "c-003",
+   "text": "BM25 ranking rewards rare terms and penalizes very common words across the corpus."
+  },
+  {
+   "chunk_id": "c-004",
+   "text": "The completion gate refuses any success that lacks a clean room replay proof."
+  },
+  {
+   "chunk_id": "c-005",
+   "text": "Offline chunking never calls an external embedding service or a remote api."
+  },
+  {
+   "chunk_id": "c-006",
+   "text": "A frozen contract states the goal before any agent action happens at all."
+  },
+  {
+   "chunk_id": "c-007",
+   "text": "Chunk offsets must slice back into the source text exactly for every record."
+  },
+  {
+   "chunk_id": "c-008",
+   "text": "Retrieval quality depends on tokenization choices and consistent lowercasing rules."
+  },
+  {
+   "chunk_id": "c-009",
+   "text": "本地 检索 流水线 支持 中文 语料 的 离线 排序 与 审计 replay ."
+  },
+  {
+   "chunk_id": "c-010",
+   "text": "The ledger tracks requirement coverage without granting any acceptance knowledge."
+  }
+ ],
+ "queries": [
+  {
+   "query_id": "q-001",
+   "text": "offline retrieval chunks",
+   "top_k": 3
+  },
+  {
+   "query_id": "q-002",
+   "text": "clean room replay proof",
+   "top_k": 4
+  },
+  {
+   "query_id": "q-003",
+   "text": "中文 离线 排序",
+   "top_k": 3
+  },
+  {
+   "query_id": "q-004",
+   "text": "tokenization lowercasing",
+   "top_k": 2
+  },
+  {
+   "query_id": "q-005",
+   "text": "nonexistent zebra unicorn",
+   "top_k": 3
+  }
+ ]
+}
