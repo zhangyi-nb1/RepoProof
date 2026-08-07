@@ -1,0 +1,12 @@
+{
+  "detail": "oracle/upstream intact; action causality holds; patch budgets respected",
+  "evidence": [],
+  "extra": {
+    "adaptation_files": 1,
+    "adaptation_lines": 105,
+    "adaptation_root": "a608b57b0c87891d14bce41ae1cd4ed0d377a3524387543d90ea336971e7aaa5",
+    "causality_problems": 0
+  },
+  "passed": true,
+  "verifier": "PolicyVerifier"
+}

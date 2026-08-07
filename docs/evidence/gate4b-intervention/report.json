@@ -1,0 +1,84 @@
+{
+  "action_protocol": "native",
+  "adaptation_root": "a608b57b0c87891d14bce41ae1cd4ed0d377a3524387543d90ea336971e7aaa5",
+  "agent": {
+    "agent_wall_s": 155.1,
+    "commands": 33,
+    "cost": "UNKNOWN",
+    "denied": 0,
+    "exit_status": "Submitted",
+    "harness_injected_chars": 13914,
+    "input_tokens": 251387,
+    "ledger_final": {
+      "addressed": 12,
+      "parse_note": null,
+      "total": 12,
+      "unresolved_ids": []
+    },
+    "model_calls": 17,
+    "output_tokens": 11412
+  },
+  "budget_exhausted": null,
+  "budget_visibility": true,
+  "capability": "passed_checks=31, failed_checks=2, total_checks=33; exit_code=1; passed=31 != expected=33; failures=2",
+  "capability_failed_tests": [
+    "test_capability::test_upstream_errors_wrapped[recursive]",
+    "test_capability::test_upstream_errors_wrapped[sentence]"
+  ],
+  "contract_sha256": "0253f539af2231775d7cd3b3d885c2f03b8d1e4973ea99982962dad21f72a156",
+  "coverage_ledger": true,
+  "final_trace_sha256": "330b7194f3b92ee3e8f7e1a4ad6675fd104502a9920152d46f38eef597ccbab2",
+  "final_verdict": "FAIL",
+  "gate_reasons": [
+    "CapabilityVerifier: passed_checks=31, failed_checks=2, total_checks=33; exit_code=1; passed=31 != expected=33; failures=2"
+  ],
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "missing_external": [],
+  "mode": "real-agent-baseline",
+  "policy": "oracle/upstream intact; action causality holds; patch budgets respected",
+  "preflight": {
+    "action_protocol": "native",
+    "api_base": "https://<redacted-host>",
+    "evidence": [
+      "native action parsed: 'echo PREFLIGHT_OK'"
+    ],
+    "model_name": "deepseek-v4-pro",
+    "preflight_calls": 1,
+    "preflight_cost": "UNKNOWN",
+    "preflight_input_tokens": 299,
+    "preflight_output_tokens": 60,
+    "preflight_wall_time_s": 1.4,
+    "provider_config_sha256": "21f537380c779f8f8348a5cdd4be8034cba6aa2cc8c895a341bb2dc0f5b57d90",
+    "status": "PROVIDER_READY",
+    "temperature": "0"
+  },
+  "prompt_sha256": "20452d1cf2add14cc8e4050f0426910567dd375a6d8c61f23e3b48295fe12c9b",
+  "provider_config_sha256": "21f537380c779f8f8348a5cdd4be8034cba6aa2cc8c895a341bb2dc0f5b57d90",
+  "regression": "passed_checks=4, failed_checks=0, total_checks=4; all 4 frozen nodes executed and passed",
+  "replay": "mode=baseline_failure_reproduction, status=PASS",
+  "run_id": "adopt-chonkie-local-chunking-v3-20260807-154259",
+  "source_git_tree_hash": "dd0e963fd33177fda72bf10dda0c78909bf68918",
+  "task_id": "adopt-chonkie-local-chunking-v3",
+  "task_package_root_hash": "1074cf08b3909f23317978606d322ff09ff173f537b671acafefdfa87c920029",
+  "temperature": "0",
+  "timings": {
+    "agent_command_s": 0.0,
+    "agent_model_call_s": 155.2,
+    "replay_s": 11.7,
+    "system_setup_s": 14.4,
+    "total_wall_s": 193.2,
+    "verification_s": 11.8
+  },
+  "trace_chain_error": "",
+  "trace_chain_ok": true,
+  "trace_events": 203,
+  "trajectory_sha256": "704275ae931a3fff1a8eb496672c56622755301f7b15da8f314a97e159c3c72b",
+  "verdict": "FAIL",
+  "verification_result_hashes": {
+    "CapabilityVerifier": "6e81ff51a49de023a32b7f6fec024ed59d1dd07ee58294c056aa64cc5b6b7b44",
+    "HostRegressionVerifier": "40459f61796ecdbc8410125f070a49a2597c0b4a96627708165b4c3e162db6b0",
+    "PolicyVerifier": "689d7402877aa5f9ca55c663840dc37318c5d88370e6de7b95eb23b90d8089c2",
+    "ReplayVerifier": "31119d6462a7be0a1fcd1e1e4386deb2aecc0fb49fe0a997e2689e22de3f507b"
+  },
+  "wheelhouse_root": "fd82860145f8140cc119fc09e904f1ce671b2591a7f114a0c9c9f50f6bf280b6"
+}

@@ -1,0 +1,77 @@
+{
+ "note": "Public Contract Coverage Ledger. Update status per requirement as you work: UNASSESSED/IMPLEMENTED/SELF_TESTED/BLOCKED. This is YOUR self-tracking aid built only from the public contract; it grants no acceptance knowledge and no verification power.",
+ "requirements": [
+  {
+   "id": "strategy-selection",
+   "source_field": "capability.statement",
+   "source_quote": "honor request-level strategy selection (\"sentence\" | \"recursive\") with the frozen parameters",
+   "status": "SELF_TESTED"
+  },
+  {
+   "id": "boundaries-from-chonkie",
+   "source_field": "capability.statement",
+   "source_quote": "core chunk text/order/boundaries come from the pinned Chonkie for the requested strategy",
+   "status": "SELF_TESTED"
+  },
+  {
+   "id": "r1-blank-zero",
+   "source_field": "capability.statement",
+   "source_quote": "R1 (blank documents -> zero records)",
+   "status": "SELF_TESTED"
+  },
+  {
+   "id": "r2-preserve-oversize",
+   "source_field": "capability.statement",
+   "source_quote": "R2 (preserve indivisible over-size chunks verbatim)",
+   "status": "SELF_TESTED"
+  },
+  {
+   "id": "stable-ids",
+   "source_field": "capability.statement",
+   "source_quote": "Stable non-upstream chunk ids",
+   "status": "SELF_TESTED"
+  },
+  {
+   "id": "document-order-ordinals",
+   "source_field": "capability.statement",
+   "source_quote": "document order, contiguous ordinals",
+   "status": "SELF_TESTED"
+  },
+  {
+   "id": "offsets-slice-back",
+   "source_field": "capability.statement",
+   "source_quote": "offsets that slice back",
+   "status": "SELF_TESTED"
+  },
+  {
+   "id": "metadata-passthrough",
+   "source_field": "capability.statement",
+   "source_quote": "metadata passthrough",
+   "status": "SELF_TESTED"
+  },
+  {
+   "id": "wrapped-errors",
+   "source_field": "capability.statement",
+   "source_quote": "wrapped upstream errors",
+   "status": "SELF_TESTED"
+  },
+  {
+   "id": "units-equal-span",
+   "source_field": "capability.units_semantics",
+   "source_quote": "MUST equal char_end - char_start for every record",
+   "status": "SELF_TESTED"
+  },
+  {
+   "id": "chunk-size-frozen",
+   "source_field": "capability.params",
+   "source_quote": "chunk_size: 120",
+   "status": "SELF_TESTED"
+  },
+  {
+   "id": "offline-cpu-only",
+   "source_field": "capability.statement",
+   "source_quote": "fully offline, CPU-only",
+   "status": "SELF_TESTED"
+  }
+ ]
+}

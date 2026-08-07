@@ -1,0 +1,25 @@
+{
+  "detail": "passed_checks=31, failed_checks=2, total_checks=33; exit_code=1; passed=31 != expected=33; failures=2",
+  "evidence": [
+    "74ff388e280bc9dce24b0c8312817059985194d8a6dc49c434b8aaf5061156aa"
+  ],
+  "extra": {
+    "exit_code": 1,
+    "expected_count": 33,
+    "extra_nodes": [],
+    "failed_nodes": [
+      "test_capability::test_upstream_errors_wrapped[sentence]",
+      "test_capability::test_upstream_errors_wrapped[recursive]"
+    ],
+    "missing_nodes": [],
+    "passed_count": 31,
+    "totals": {
+      "errors": 0,
+      "failures": 2,
+      "skipped": 0,
+      "tests": 33
+    }
+  },
+  "passed": false,
+  "verifier": "CapabilityVerifier"
+}
