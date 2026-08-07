@@ -35,13 +35,73 @@ _names = {
     "chonkie-agent-fail": "文本分块(Chonkie)— 未通过案例",
     "bm25-agent-fail": "检索排序(rank_bm25)— 未通过案例",
 }
-_valid = list(CASES)
+_locals = facts.local_runs()
+for _rn in _locals:
+    _names[_rn] = f"你的运行:{_rn}"
+_valid = [*_locals, *list(CASES)]
 _default = st.query_params.get("case") or st.session_state.get("case") or "frontmatter-v2-pass"
 if _default not in _valid:
     _default = "frontmatter-v2-pass"
 case = st.selectbox("选择任务", _valid, index=_valid.index(_default), format_func=lambda c: _names[c])
 st.query_params["case"] = case
 st.session_state["case"] = case
+
+if case in _locals:
+    # ================= 你的本地运行:完整结果视图 =================
+    import io as _io
+    import re as _re
+    import zipfile as _zf
+    from pathlib import Path
+
+    _d = facts.load_local_run(case)
+    _rep, _man = _d["report"], _d["manifest"]
+    _ag = _man.get("agent") or {}
+    _v = _rep.get("final_verdict")
+    with st.container(border=True):
+        st.caption("在当前测试条件下(固定版本、你的样例作为成功标准):")
+        st.markdown(f"## {verdict_icon(_v)} {verdict_simple(_v)}")
+        if _ag.get("exit_status") == "TokenBudgetExhausted":
+            st.markdown("**为什么**:AI 使用额度在完成前耗尽"
+                        f"(读入量 {_ag.get('input_tokens', 0):,},字符量级,超过合同上限),验收未能运行。")
+        elif _v == "PASS_ADAPTED":
+            st.markdown("**为什么**:全部样例(含隐藏样例)、确定性检查与干净环境复测通过。")
+        else:
+            _m = _re.search(r"passed_checks=(\d+).*?total_checks=(\d+)", _rep.get("capability") or "")
+            st.markdown(f"**为什么**:验收未全部通过({_m.group(1)}/{_m.group(2)})。" if _m
+                        else "**为什么**:详见技术详情。")
+        st.markdown(f"**你的下一步**:{verdict_next(_v)}")
+    st.caption(
+        f"AI 助手状态:**{agent_exit_simple(_ag.get('exit_status'))}** · "
+        f"最终结论:**{verdict_simple(_v)}** —— AI 的自述不参与判定。"
+    )
+    _run_dir = Path(_d["dir"])
+    _ad = _run_dir / "adaptation" / "adapter.py"
+    st.subheader("AI 修改了什么")
+    if _ad.exists():
+        _src = _ad.read_text(encoding="utf-8")
+        st.markdown(f"AI 写了 **1 个适配文件,共 {len(_src.splitlines())} 行**。")
+        with st.expander("查看适配代码"):
+            st.code(_src, language="python")
+    else:
+        st.markdown("本次运行没有产出适配代码(如额度耗尽/提前终止)。")
+    _failed = _rep.get("capability_failed_tests") or []
+    if _failed:
+        st.subheader("哪些问题没解决")
+        for _n in _failed:
+            st.markdown(f"- ❌ `{_n}`")
+    st.subheader("下载结果")
+    _buf = _io.BytesIO()
+    with _zf.ZipFile(_buf, "w", _zf.ZIP_DEFLATED) as _z:
+        for _f in sorted(_run_dir.rglob("*")):
+            if _f.is_file() and _f.stat().st_size < 5_000_000:
+                _z.write(_f, arcname=f"{_run_dir.name}/{_f.relative_to(_run_dir)}")
+    st.download_button("下载代码 + 报告(ZIP)", data=_buf.getvalue(),
+                       file_name=f"{_run_dir.name}.zip", mime="application/zip",
+                       type="primary", key=f"dl-local-{case}")
+    if is_tech():
+        with tech_expander("查看技术详情(report 原始字段)"):
+            st.json(_rep)
+    st.stop()
 
 report = facts.load_report(case)
 manifest = facts.load_run_manifest(case)
