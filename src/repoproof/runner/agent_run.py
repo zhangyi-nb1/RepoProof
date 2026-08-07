@@ -127,7 +127,9 @@ class AgentRunner(_Runner):
     """Gate 3C runner. Reuses the hardened baseline infrastructure; adds
     the single agent phase between setup and verification."""
 
-    def run_agent(self, provider: ProviderConfig, preflight: PreflightResult) -> dict:
+    def run_agent(
+        self, provider: ProviderConfig, preflight: PreflightResult, *, budget_visibility: bool = False
+    ) -> dict:
         import os as _os
 
         # Proxy-custom model aliases (e.g. deepseek-v4-pro) are absent
@@ -135,6 +137,9 @@ class AgentRunner(_Runner):
         # dies in cost tracking (observed run 20260807-145003). Official
         # mini-swe-agent escape hatch — cost stays honestly UNKNOWN.
         _os.environ.setdefault("MSWEA_COST_TRACKING", "ignore_errors")
+        _os.environ["OPENAI_API_KEY"] = provider.api_key
+        _os.environ["OPENAI_API_BASE"] = provider.api_base
+        _os.environ["OPENAI_BASE_URL"] = provider.api_base
         from minisweagent.models.litellm_model import LitellmModel
         from minisweagent.models.litellm_textbased_model import LitellmTextbasedModel
 
@@ -149,6 +154,7 @@ class AgentRunner(_Runner):
             payload={
                 "run_id": self.run_id,
                 "mode": "real-agent-baseline",
+                "budget_visibility": budget_visibility,
                 "agent": "mini-swe-agent-2.4.6",
                 "task_package_root_hash": self.package.root_hash,
                 "provider_config_sha256": preflight.provider_config_sha256,
@@ -250,6 +256,12 @@ class AgentRunner(_Runner):
                     store=self.store,
                     command_timeout_s=cmd_timeout,
                     command_budget=command_budget,
+                    budget_visibility=budget_visibility,
+                    model_call_limit=self.contract.budgets.max_agent_steps,
+                    wall_limit_s=self.contract.budgets.max_wall_time_minutes * 60,
+                    adaptation_dir=adaptation,
+                    patch_files_limit=self.contract.budgets.max_patch_files,
+                    patch_lines_limit=self.contract.budgets.max_patch_lines,
                 )
                 if preflight.action_protocol == "textbased":
                     model_cls = LitellmTextbasedModel
@@ -401,6 +413,7 @@ class AgentRunner(_Runner):
             "run_id": self.run_id,
             "task_id": self.contract.task_id,
             "mode": "real-agent-baseline",
+            "budget_visibility": budget_visibility,
             "task_package_root_hash": self.package.root_hash,
             "contract_sha256": self.contract_sha,
             "provider_config_sha256": preflight.provider_config_sha256,
@@ -455,7 +468,33 @@ class AgentRunner(_Runner):
         )
 
 
-def run_gate3c(contract_path: Path, project_root: Path, provider: ProviderConfig) -> dict:
+def provider_from_env() -> ProviderConfig:
+    """Official runs read ONLY host env vars (Gate 4A decoupling):
+    REPOPROOF_API_BASE / REPOPROOF_API_KEY / REPOPROOF_MODEL
+    (compatible aliases REPOPROOF_BASE_URL / REPOPROOF_MODEL_NAME).
+    RepoProof never reads any other project's .env; the key never
+    reaches the repo, trace or artifacts."""
+    import os
+
+    base = os.environ.get("REPOPROOF_API_BASE") or os.environ.get("REPOPROOF_BASE_URL")
+    key = os.environ.get("REPOPROOF_API_KEY")
+    model = os.environ.get("REPOPROOF_MODEL") or os.environ.get("REPOPROOF_MODEL_NAME")
+    pairs = (("REPOPROOF_API_BASE", base), ("REPOPROOF_API_KEY", key), ("REPOPROOF_MODEL", model))
+    missing = [n for n, v in pairs if not v]
+    if missing:
+        raise RuntimeError(f"provider env vars missing: {missing}")
+    return ProviderConfig(
+        provider="openai-compatible", model_name=model, api_base=base.rstrip("/"), api_key=key
+    )
+
+
+def run_gate3c(
+    contract_path: Path,
+    project_root: Path,
+    provider: ProviderConfig,
+    *,
+    budget_visibility: bool = False,
+) -> dict:
     """CLI entry: real preflight → BLOCKED stop or the single agent run."""
     pf = run_preflight(provider)
     evidence_dir = project_root / "docs" / "evidence" / "gate3-preflight"
@@ -467,7 +506,7 @@ def run_gate3c(contract_path: Path, project_root: Path, provider: ProviderConfig
         return {"blocked": True, "preflight": pf.summary(), "agent_model_call_count": 0}
     runner = AgentRunner(contract_path, project_root, None)
     try:
-        report = runner.run_agent(provider, pf)
+        report = runner.run_agent(provider, pf, budget_visibility=budget_visibility)
     finally:
         runner.backend.destroy_all()
     return {"blocked": False, "preflight": pf.summary(), "report": report}

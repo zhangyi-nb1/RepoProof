@@ -34,6 +34,10 @@ def main(argv: list[str] | None = None) -> int:
     p_trace = sub.add_parser("verify-trace", help="verify the tamper-evident trace chain of a run")
     p_trace.add_argument("--run-dir", required=True, type=Path)
 
+    p_agent = sub.add_parser("agent-run", help="Gate 3C/4A: provider admission + ONE real agent run")
+    p_agent.add_argument("--contract", required=True, type=Path)
+    p_agent.add_argument("--budget-visibility", action="store_true", help="Gate 4A ablation variable")
+
     p_bundle = sub.add_parser("verify-bundle", help="verify hash/reference integrity of a run bundle")
     p_bundle.add_argument("--run-dir", required=True, type=Path)
     p_bundle.add_argument("--contract", type=Path, default=None)
@@ -82,6 +86,15 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(json.dumps(manifest.model_dump(), ensure_ascii=False, indent=2, sort_keys=True))
         return 0
+
+    if args.cmd == "agent-run":
+        from repoproof.runner.agent_run import provider_from_env, run_gate3c
+
+        out = run_gate3c(
+            args.contract, PROJECT_ROOT, provider_from_env(), budget_visibility=args.budget_visibility
+        )
+        print(json.dumps(out, ensure_ascii=False, indent=2, sort_keys=True, default=str))
+        return 0 if not out.get("blocked") else 3
 
     if args.cmd == "verify-trace":
         ok, n, err = verify_chain(args.run_dir / "trace.jsonl")

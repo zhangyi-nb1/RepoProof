@@ -19,7 +19,10 @@ request only; the completion gate never consumes it.
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from minisweagent.exceptions import Submitted
@@ -46,6 +49,19 @@ class RepoProofEnvironment:
     denied_count: int = 0
     _action_seq: int = 0
     template_vars: dict[str, Any] = field(default_factory=dict)
+    # ---- Gate 4A: budget visibility (the ONE ablation variable) ----
+    budget_visibility: bool = False
+    """When True, every observation carries the full budget_state AND a
+    short text summary the model actually sees. Counters are the
+    harness's REAL counters — no extra LLM, no oracle/test knowledge."""
+    model_call_limit: int = 0
+    model_calls_provider: Callable[[], int] | None = None
+    """Set by MiniSWEBackend to the live DefaultAgent.n_calls reader."""
+    wall_limit_s: float = 0.0
+    started_at: float = field(default_factory=time.monotonic)
+    adaptation_dir: Path | None = None
+    patch_files_limit: int = 0
+    patch_lines_limit: int = 0
 
     def _next_action_id(self) -> str:
         self._action_seq += 1
@@ -79,8 +95,12 @@ class RepoProofEnvironment:
                 actor="harness",
                 payload={"action_id": action_id, "actor_kind": "agent", "reasons": decision.reasons},
             )
+            deny_state = self._budget_state()
+            deny_output = "POLICY_DENIED: " + "; ".join(decision.reasons)
+            if self.budget_visibility:
+                deny_output += "\n\n" + self._budget_summary(deny_state)
             return {
-                "output": "POLICY_DENIED: " + "; ".join(decision.reasons),
+                "output": deny_output,
                 "returncode": 126,
                 "exception_info": "",
                 "extra": {
@@ -88,7 +108,7 @@ class RepoProofEnvironment:
                     "policy_decision": "deny",
                     "typed_failure": "POLICY_DENIED",
                     "artifact_refs": [],
-                    "budget_state": self._budget_state(),
+                    "budget_state": deny_state,
                     "cwd": workdir,
                 },
             }
@@ -131,6 +151,7 @@ class RepoProofEnvironment:
         typed_failure = None
         if res.timed_out:
             typed_failure = "COMMAND_TIMEOUT"
+        state = self._budget_state()
         result = {
             "output": output,
             "returncode": res.exit_code,
@@ -140,11 +161,15 @@ class RepoProofEnvironment:
                 "policy_decision": "allow",
                 "typed_failure": typed_failure,
                 "artifact_refs": [out_ref.sha256, err_ref.sha256],
-                "budget_state": self._budget_state(),
+                "budget_state": state,
                 "cwd": workdir,
             },
         }
+        # Submit-marker check runs on the RAW output; the budget summary
+        # is appended afterwards so it can never mask or fake the marker.
         self._check_finished(result)
+        if self.budget_visibility:
+            result["output"] = output + "\n\n" + self._budget_summary(state)
         return result
 
     def _check_finished(self, output: dict) -> None:
@@ -169,11 +194,56 @@ class RepoProofEnvironment:
             )
 
     def _budget_state(self) -> dict:
-        return {
+        state = {
             "commands_used": self.commands_used,
             "command_budget": self.command_budget,
             "denied": self.denied_count,
         }
+        if not self.budget_visibility:
+            return state
+        model_used = self.model_calls_provider() if self.model_calls_provider else 0
+        model_remaining = max(0, self.model_call_limit - model_used)
+        files_used = lines_used = 0
+        if self.adaptation_dir is not None:
+            from repoproof.harness.adaptation import inventory
+
+            inv = inventory(self.adaptation_dir)
+            files_used, lines_used = inv.total_files, inv.total_lines
+        wall_remaining = max(0.0, self.wall_limit_s - (time.monotonic() - self.started_at))
+        state.update(
+            {
+                "model_calls_used": model_used,
+                "model_calls_remaining": model_remaining,
+                "agent_commands_used": self.commands_used,
+                "agent_commands_remaining": max(0, self.command_budget - self.commands_used),
+                "wall_time_remaining_seconds": int(wall_remaining),
+                "patch_files_remaining": max(0, self.patch_files_limit - files_used),
+                "patch_lines_remaining": max(0, self.patch_lines_limit - lines_used),
+                "low_budget": model_remaining <= 5,
+                "critical_budget": model_remaining <= 3,
+                "final_model_call": model_remaining == 1,
+            }
+        )
+        return state
+
+    def _budget_summary(self, state: dict) -> str:
+        """Short text the model actually sees. Built ONLY from harness
+        counters — never oracle contents, hidden fixtures or test names."""
+        flags = "".join(
+            f" {name}=true"
+            for name in ("low_budget", "critical_budget", "final_model_call")
+            if state.get(name)
+        )
+        return (
+            f"[BUDGET] model_calls {state['model_calls_used']}/"
+            f"{state['model_calls_used'] + state['model_calls_remaining']} used "
+            f"({state['model_calls_remaining']} remaining); "
+            f"commands {state['agent_commands_used']} used "
+            f"({state['agent_commands_remaining']} remaining); "
+            f"wall {state['wall_time_remaining_seconds']}s remaining; "
+            f"patch budget {state['patch_files_remaining']} files / "
+            f"{state['patch_lines_remaining']} lines remaining.{flags}"
+        )
 
     def get_template_vars(self, **kwargs) -> dict[str, Any]:
         return {"cwd": self.default_cwd, **self.template_vars}

@@ -65,6 +65,8 @@ class MiniSWEBackend:
             cost_limit=self._cost_limit,
             output_path=self._output_path,
         )
+        if hasattr(self._env, "model_calls_provider"):
+            self._env.model_calls_provider = lambda: agent.n_calls
         try:
             extra = agent.run(task)
         except Exception as exc:  # noqa: BLE001 — uncaught agent errors become a typed exit

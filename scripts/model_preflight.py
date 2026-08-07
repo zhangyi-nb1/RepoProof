@@ -17,27 +17,21 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
 
-LOCALFLOW_ENV = Path("/Users/zhangronglei/Desktop/XIANGMU/localflow/.env")
-
-
 def load_provider_env() -> dict:
-    """Read-only key/base load from the user's existing provider config."""
-    conf: dict[str, str] = {}
-    for line in LOCALFLOW_ENV.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, v = line.split("=", 1)
-            conf[k.strip()] = v.strip().strip('"').strip("'")
-    os.environ["OPENAI_API_KEY"] = conf["OPENAI_API_KEY"]
-    base = conf.get("OPENAI_BASE_URL", "")
-    if base:
-        os.environ["OPENAI_BASE_URL"] = base
-        os.environ["OPENAI_API_BASE"] = base
-    return {"api_base_set": bool(base), "key_chars": len(conf.get("OPENAI_API_KEY", ""))}
+    """Gate 4A decoupling: official runs read ONLY host env vars
+    (REPOPROOF_API_BASE / REPOPROOF_API_KEY / REPOPROOF_MODEL)."""
+    base = os.environ.get("REPOPROOF_API_BASE", "")
+    key = os.environ.get("REPOPROOF_API_KEY", "")
+    if not base or not key:
+        raise RuntimeError("set REPOPROOF_API_BASE and REPOPROOF_API_KEY")
+    os.environ["OPENAI_API_KEY"] = key
+    os.environ["OPENAI_BASE_URL"] = base
+    os.environ["OPENAI_API_BASE"] = base
+    return {"api_base_set": True, "key_chars": len(key)}
 
 
 def main() -> int:
-    model_name = os.environ.get("PREFLIGHT_MODEL", "openai/gpt-5.5")
+    model_name = "openai/" + os.environ.get("REPOPROOF_MODEL", "gpt-5.5")
     meta = load_provider_env()
     report: dict = {"model_name": model_name, "api_base_set": meta["api_base_set"]}
 
