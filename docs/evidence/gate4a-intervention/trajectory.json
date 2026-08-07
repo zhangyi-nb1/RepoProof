@@ -12,7 +12,7 @@
         "cost_limit": 5.0,
         "wall_time_limit_seconds": 0,
         "max_consecutive_format_errors": 3,
-        "output_path": "/Users/zhangronglei/Desktop/XIANGMU/RepoProof/runs/adopt-chonkie-local-chunking-v3-20260807-151829/trajectory.json"
+        "output_path": "<repo>/runs/adopt-chonkie-local-chunking-v3-20260807-151829/trajectory.json"
       },
       "agent_type": "minisweagent.agents.default.DefaultAgent",
       "model": {
