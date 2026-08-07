@@ -1,0 +1,27 @@
+{
+  "capability_nodes": [
+    "test_capability::test_flag_truth_table_public",
+    "test_capability::test_guard_rejects_bad_doc_id",
+    "test_capability::test_guard_rejects_missing_text",
+    "test_capability::test_guard_rejects_nondict_document",
+    "test_capability::test_guard_rejects_none_text",
+    "test_capability::test_guard_rejects_nonstring_text[dict]",
+    "test_capability::test_guard_rejects_nonstring_text[int]",
+    "test_capability::test_guard_rejects_nonstring_text[list]",
+    "test_capability::test_json_serializable[held]",
+    "test_capability::test_json_serializable[public]",
+    "test_capability::test_order_one_to_one[held]",
+    "test_capability::test_order_one_to_one[public]",
+    "test_capability::test_output_matches_reference[held]",
+    "test_capability::test_output_matches_reference[public]",
+    "test_capability::test_record_schema[held]",
+    "test_capability::test_record_schema[public]",
+    "test_capability::test_repeat_stable_input_untouched",
+    "test_capability::test_upstream_parse_error_code"
+  ],
+  "regression_nodes": [
+    "test_regression::test_health",
+    "test_regression::test_loader_does_not_modify_fixture",
+    "test_regression::test_loader_loads_documents"
+  ]
+}

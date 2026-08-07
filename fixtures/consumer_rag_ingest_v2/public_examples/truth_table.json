@@ -1,0 +1,25 @@
+{
+  "note": "PUBLIC boolean semantics for the v2 record flags, grounded in the pinned upstream (python-frontmatter 1.3.0). frontmatter_present = the pinned upstream recognised AND stripped a front-matter block when parsing (true even when the block is empty). metadata_nonempty = the parsed metadata contains at least one key. The frozen environment ships no TOML support, so '+++' fences are NOT recognised (frontmatter_present=false). A structurally complete fence whose payload the upstream fails to parse makes the whole batch raise IngestError with code UPSTREAM_PARSE_ERROR.",
+  "truth_table": [
+    {"case": "plain body, no front matter", "text": "Just a body.\nNo fences.", "frontmatter_present": false, "metadata_nonempty": false},
+    {"case": "empty YAML front matter", "text": "---\n---\nBody after empty fm.", "frontmatter_present": true, "metadata_nonempty": false},
+    {"case": "key-value YAML front matter", "text": "---\ntitle: Hi\n---\nBody.", "frontmatter_present": true, "metadata_nonempty": true},
+    {"case": "empty JSON front matter", "text": "{\n}\nBody after json.", "frontmatter_present": true, "metadata_nonempty": false},
+    {"case": "key-value JSON front matter", "text": "{\n\"a\": 1\n}\nBody.", "frontmatter_present": true, "metadata_nonempty": true},
+    {"case": "unclosed fence — upstream does not recognise it; full original text stays content", "text": "---\ntitle: Hi\nnever closed\nBody text.", "frontmatter_present": false, "metadata_nonempty": false},
+    {"case": "TOML fence — unsupported in the frozen environment, treated as plain body", "text": "+++\na = 1\n+++\nBody.", "frontmatter_present": false, "metadata_nonempty": false}
+  ],
+  "upstream_parse_error": {
+    "case": "complete fence, invalid YAML payload",
+    "text": "---\nkey: [unclosed\n---\nBody.",
+    "behaviour": "ingest_documents raises IngestError with code UPSTREAM_PARSE_ERROR (adapter responsibility: wrap the upstream exception; never let it escape raw)"
+  },
+  "input_guard": {
+    "behaviour": "handled by the HOST before any adapter runs — adapters must not re-implement these checks",
+    "cases": [
+      {"case": "text is null", "error_code": "INVALID_DOCUMENT_INPUT"},
+      {"case": "text field missing", "error_code": "INVALID_DOCUMENT_INPUT"},
+      {"case": "doc_id empty or missing", "error_code": "INVALID_DOCUMENT_INPUT"}
+    ]
+  }
+}

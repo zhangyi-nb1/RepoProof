@@ -1,0 +1,83 @@
+# Adoption Contract v2 — FROZEN. Successor task to Gate 7's
+# adopt-frontmatter-local-ingest-v1 (which stays untouched as history).
+# All NORMATIVE semantics live in structured fields (capability.statement
+# + the RequirementSpec referenced by requirement_spec_file) — never in
+# comments. This header is descriptive only.
+
+task_id: adopt-frontmatter-local-ingest-v1-v2
+
+source_repo:
+  url: https://github.com/eyeseast/python-frontmatter
+  revision: v1.3.0
+  resolved_commit: dc7c0af5466b104e0ba01ae3c5b2cd77edc27292
+  license: MIT
+  distribution: python-frontmatter
+  import_module: frontmatter
+
+target_project:
+  kind: consumer_fixture
+  path: fixtures/consumer_rag_ingest_v2
+  package: rag_ingest
+  entry_point: ingest_documents
+
+requirement_spec_file: adopt-frontmatter-local-ingest-v1-v2.requirements.yaml
+
+capability:
+  statement: >
+    Adopt python-frontmatter's parsing into the local ingest consumer:
+    rag_ingest.ingest_documents(request) must return one IngestRecord
+    per input document, in input order, with exactly the fields
+    (doc_id, frontmatter_present, metadata_nonempty, metadata,
+    content). metadata and content MUST come from the pinned
+    python-frontmatter parse of the document text. frontmatter_present
+    is true exactly when the pinned upstream recognised and stripped a
+    front-matter block while parsing — operationally: parse the text
+    with the pinned upstream, then frontmatter_present = (metadata has
+    at least one key) OR (returned content differs from the input text
+    stripped of leading/trailing whitespace); an empty-but-recognised
+    block therefore yields true, and an unrecognised fence (e.g. an
+    unclosed one) yields false. metadata_nonempty is true exactly when
+    the parsed metadata contains at least one key. metadata values are
+    projected JSON-safe: date/datetime values become ISO strings;
+    str/int/float/bool/null are kept; lists and dicts are projected
+    recursively. When a document carries a structurally complete fence
+    whose payload the pinned upstream fails to parse, the whole call
+    raises rag_ingest.IngestError with code UPSTREAM_PARSE_ERROR.
+    Malformed request entries (wrong types, missing fields, empty
+    doc_id) are rejected BEFORE any adapter runs by the host
+    InputContractGuard with IngestError code INVALID_DOCUMENT_INPUT —
+    adapters must not re-implement or bypass that guard. Repeated
+    calls are deterministic and never mutate the input. Fully offline,
+    CPU-only. The public truth table and runnable public contract
+    tests under the consumer fixture are part of this contract.
+  output_schema: IngestRecord
+
+environment:
+  os: linux
+  arch: arm64
+  python: "3.12"
+  cpu_only: true
+  network_install: true
+  network_test: false
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, embedding_calls, network_at_test_time]
+  editable_zones: [adaptation]
+  forbidden_install_extras: ["[all]", sentence-transformers, torch, openai, google-genai, gemini, qdrant, chromadb, pgvector, weaviate]
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 8
+  max_patch_lines: 400
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "/oracle/test_regression.py"]
+  probe_script: direct_frontmatter_probe_v2.py

@@ -103,6 +103,12 @@ def freeze(
     wheelhouse_manifest: dict | None = None,
     image_digest: str | None = None,
     environment_constraints: dict | None = None,
+    requirement_spec_sha256: str | None = None,
+    prompt_manifest_sha256: str | None = None,
+    public_tests_tree_sha256: str | None = None,
+    public_examples_sha256: str | None = None,
+    responsibility_matrix: dict | None = None,
+    controls_summary: dict | None = None,
 ) -> TaskPackageManifest:
     contract, contract_sha = TaskContract.load_frozen(contract_path, require_sidecar=True)
     oracle_dir = project_root / "oracle" / contract.task_id
@@ -146,6 +152,12 @@ def freeze(
         wheelhouse_wheels=(wheelhouse_manifest or {}).get("wheels"),
         image_digest=image_digest,
         environment_constraints=environment_constraints,
+        requirement_spec_sha256=requirement_spec_sha256,
+        prompt_manifest_sha256=prompt_manifest_sha256,
+        public_tests_tree_sha256=public_tests_tree_sha256,
+        public_examples_sha256=public_examples_sha256,
+        responsibility_matrix=responsibility_matrix,
+        controls_summary=controls_summary,
     )
     manifest = manifest.model_copy(update={"root_hash": manifest.compute_root_hash()})
     out = manifest_path_for(contract_path)
@@ -192,6 +204,29 @@ def load_and_verify(project_root: Path, contract_path: Path) -> TaskPackageManif
                 problems.append("capability node count != frozen expectation")
             if len(coll.get("regression_nodes", [])) != manifest.expected_regression_nodes:
                 problems.append("regression node count != frozen expectation")
+    if manifest.requirement_spec_sha256:
+        if not contract.requirement_spec_file:
+            problems.append("manifest binds a requirement spec but contract names none")
+        else:
+            spec_path = contract_path.parent / contract.requirement_spec_file
+            if not spec_path.exists():
+                problems.append("requirement spec file missing")
+            elif sha256_file(spec_path) != manifest.requirement_spec_sha256:
+                problems.append("requirement spec changed since freeze")
+    if manifest.prompt_manifest_sha256:
+        pm_path = contract_path.parent / (contract_path.stem + ".prompt_manifest.json")
+        if not pm_path.exists():
+            problems.append("prompt manifest file missing")
+        elif sha256_file(pm_path) != manifest.prompt_manifest_sha256:
+            problems.append("prompt manifest changed since freeze")
+    if manifest.public_tests_tree_sha256:
+        pt_dir = consumer_dir / "public_tests"
+        if _tree_sha(pt_dir) != manifest.public_tests_tree_sha256:
+            problems.append("public tests tree changed since freeze")
+    if manifest.public_examples_sha256:
+        ex_path = consumer_dir / "public_examples" / "truth_table.json"
+        if not ex_path.exists() or sha256_file(ex_path) != manifest.public_examples_sha256:
+            problems.append("public examples changed since freeze")
     if problems:
         raise ContractTampered("task package verification failed: " + "; ".join(problems))
     return manifest

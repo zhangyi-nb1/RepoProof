@@ -30,7 +30,7 @@ from repoproof.agents.provider_gate import (
     Transport,
     run_preflight,
 )
-from repoproof.domain.models import VerificationResult, sha256_bytes
+from repoproof.domain.models import TaskContract, VerificationResult, sha256_bytes
 from repoproof.execution.docker_backend import Mount
 from repoproof.harness.adaptation import PatchBudgetExceeded, freeze_adaptation, verify_frozen
 from repoproof.harness.budget import BudgetMeter
@@ -83,6 +83,7 @@ def render_agent_prompt(
     cmd_timeout: int,
     installed_note: str,
     sample_inputs_line: str = "",
+    spec=None,
 ) -> str:
     """Fully CONTRACT-DRIVEN agent prompt.
 
@@ -135,6 +136,33 @@ def render_agent_prompt(
         f"read /consumer/src/{target.package}/ and treat it as AUTHORITATIVE for\n"
         "field names and shapes — do not invent or rename fields."
     )
+    if spec is not None:
+        req_lines: list[str] = []
+        for r in spec.requirements:
+            text = " ".join(r.public_text.split())
+            req_lines.append(f"[{r.id}] ({r.owner}, {r.severity}) {text}")
+            for ex in r.examples:
+                req_lines.append(f"    e.g. {ex}")
+        parts.append("REQUIREMENTS (each is verified; owners below)\n" + "\n".join(req_lines))
+        matrix = spec.responsibility_matrix()
+        matrix_lines = [f"- {owner}: {', '.join(ids)}" for owner, ids in matrix.items()]
+        parts.append(
+            "RESPONSIBILITY MATRIX\n"
+            + "\n".join(matrix_lines)
+            + "\nHOST_INPUT_GUARD requirements are ALREADY IMPLEMENTED by the host "
+            "(see the consumer source) — do not re-implement or bypass them. "
+            "HARNESS/UPSTREAM rows are enforced outside your code. "
+            "Your adapter owns exactly the ADAPTER rows."
+        )
+        parts.append(
+            "PUBLIC EXAMPLES AND RUNNABLE PUBLIC TESTS\n"
+            "- /consumer/public_examples/truth_table.json   the boolean truth table + error-code cases\n"
+            "- /consumer/public_tests/   public contract tests you SHOULD run before submitting:\n"
+            "  PYTHONPATH=/consumer/src REPOPROOF_ADAPTATION_DIR=/adaptation \\\n"
+            "    /venv/env/bin/python -m pytest -q /consumer/public_tests\n"
+            "These cover the public semantics only; final acceptance additionally runs "
+            "held-out inputs of the SAME public semantics."
+        )
     parts.append(
         "BUDGETS\n"
         f"- model calls: {contract.budgets.max_agent_steps}; executed commands: {command_budget}; "
@@ -144,6 +172,95 @@ def render_agent_prompt(
         "When done, submit with: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"
     )
     return "\n\n".join(parts)
+
+
+def render_task_prompt(contract, *, environment_constraints: dict | None, project_root: Path):
+    """The ONE Contract -> Prompt projection, shared verbatim by
+    freeze (PromptManifest), the ContractAdequacyGate and the real run
+    — three call sites, one renderer, so the projection cannot drift.
+    Returns (prompt, spec_or_None, spec_sha_or_None)."""
+    from repoproof.harness.requirement_spec import load_requirement_spec
+
+    spec = spec_sha = None
+    if contract.requirement_spec_file:
+        spec_path = project_root / "contracts" / contract.requirement_spec_file
+        spec, spec_sha = load_requirement_spec(spec_path)
+    version = (environment_constraints or {}).get(contract.source_repo.import_name)
+    installed_note = contract.source_repo.distribution + (f" {version}" if version else "")
+    consumer_dir = project_root / Path(contract.target_project.path)
+    sample_file = consumer_dir / "sample_documents.json"
+    sample_line = (
+        "- /consumer/sample_documents.json   public sample inputs you may test with\n"
+        if sample_file.exists()
+        else ""
+    )
+    prompt = render_agent_prompt(
+        contract,
+        command_budget=contract.budgets.max_agent_steps * 2,
+        cmd_timeout=contract.budgets.max_command_minutes * 60,
+        installed_note=installed_note,
+        sample_inputs_line=sample_line,
+        spec=spec,
+    )
+    return prompt, spec, spec_sha
+
+
+def run_adequacy_gate(contract_path: Path, project_root: Path) -> dict:
+    """Deterministic pre-agent ContractAdequacyGate (zero model calls).
+
+    For requirement-spec tasks: verifies requirement/oracle/prompt
+    mutual adequacy, the frozen PromptManifest projection and the
+    frozen control results. Legacy contracts (no spec) pass through
+    with adequacy_applicable=False."""
+    import json as _json
+
+    from repoproof.harness import task_package
+    from repoproof.harness.contract_adequacy import evaluate_adequacy
+    from repoproof.harness.prompt_manifest import verify_prompt_manifest
+
+    contract, _sha = TaskContract.load_frozen(contract_path, require_sidecar=True)
+    package = task_package.load_and_verify(project_root, contract_path)
+    if not contract.requirement_spec_file:
+        return {"adequacy_applicable": False, "state": "ADEQUATE", "ok": True, "failures": []}
+
+    prompt, spec, _spec_sha = render_task_prompt(
+        contract,
+        environment_constraints=package.environment_constraints,
+        project_root=project_root,
+    )
+    coll = _json.loads(task_package.collection_path_for(contract_path).read_text(encoding="utf-8"))
+    forbidden = tuple(
+        n.split("::", 1)[1].split("[", 1)[0]
+        for n in coll.get("capability_nodes", []) + coll.get("regression_nodes", [])
+    ) + ("ORACLE CALIBRATION ONLY", "held_out_documents", "8/11", "PASS_ADAPTED", "expected verdict")
+    result = evaluate_adequacy(
+        spec=spec,
+        capability_nodes=coll.get("capability_nodes", []),
+        regression_nodes=coll.get("regression_nodes", []),
+        rendered_prompt=prompt,
+        contract_path=contract_path,
+        controls_summary=package.controls_summary,
+        forbidden_prompt_tokens=forbidden,
+    )
+    failures = list(result.failures)
+    pm_path = contract_path.parent / (contract_path.stem + ".prompt_manifest.json")
+    if not pm_path.exists():
+        failures.append("prompt_manifest: file missing (re-run freeze-task --full)")
+    else:
+        manifest = _json.loads(pm_path.read_text(encoding="utf-8"))
+        failures.extend(
+            f"prompt_manifest: {f}"
+            for f in verify_prompt_manifest(manifest, spec=spec, rendered_prompt=prompt)
+        )
+    ok = not failures
+    return {
+        "adequacy_applicable": True,
+        "state": "ADEQUATE" if ok else "INVALID_TASK_SPEC",
+        "ok": ok,
+        "failures": failures,
+        "checked": result.checked,
+        "prompt_sha256": sha256_bytes(prompt.encode()),
+    }
 
 
 class AgentRunner(_Runner):
@@ -274,28 +391,12 @@ class AgentRunner(_Runner):
                         "addressed count and unresolved ids; it is a self-tracking aid with no "
                         "acceptance knowledge."
                     )
-                dist_version = (self.package.environment_constraints or {}).get(
-                    self.contract.source_repo.import_name
+                base_prompt, _spec, _spec_sha = render_task_prompt(
+                    self.contract,
+                    environment_constraints=self.package.environment_constraints,
+                    project_root=self.project_root,
                 )
-                installed_note = self.contract.source_repo.distribution + (
-                    f" {dist_version}" if dist_version else ""
-                )
-                sample_file = self.consumer_src / "sample_documents.json"
-                sample_line = (
-                    "- /consumer/sample_documents.json   public sample inputs you may test with\n"
-                    if sample_file.exists()
-                    else ""
-                )
-                prompt = (
-                    render_agent_prompt(
-                        self.contract,
-                        command_budget=command_budget,
-                        cmd_timeout=cmd_timeout,
-                        installed_note=installed_note,
-                        sample_inputs_line=sample_line,
-                    )
-                    + ledger_paragraph
-                )
+                prompt = base_prompt + ledger_paragraph
                 prompt_sha = sha256_bytes(prompt.encode())
                 ev("agent.prompt", actor="harness", payload={"sha256": prompt_sha, "chars": len(prompt)})
 
@@ -626,7 +727,19 @@ def run_gate3c(
     budget_visibility: bool = False,
     coverage_ledger: bool = False,
 ) -> dict:
-    """CLI entry: real preflight → BLOCKED stop or the single agent run."""
+    """CLI entry: adequacy gate → real preflight → BLOCKED stop or the
+    single agent run. The ContractAdequacyGate runs FIRST: an
+    inadequate spec yields INVALID_TASK_SPEC with zero model calls
+    (not even preflight) and never an agent FAIL."""
+    adequacy = run_adequacy_gate(contract_path, project_root)
+    if not adequacy["ok"]:
+        return {
+            "blocked": True,
+            "state": "INVALID_TASK_SPEC",
+            "adequacy": adequacy,
+            "agent_model_call_count": 0,
+            "preflight": None,
+        }
     pf = run_preflight(provider)
     evidence_dir = project_root / "docs" / "evidence" / "gate3-preflight"
     evidence_dir.mkdir(parents=True, exist_ok=True)

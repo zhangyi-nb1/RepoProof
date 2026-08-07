@@ -1,0 +1,142 @@
+{
+ "upstream": "python-frontmatter@dc7c0af5 (v1.3.0)",
+ "projection": "v2: frontmatter_present=(parse stripped a block), metadata_nonempty=(>=1 key), P1 dates->ISO",
+ "fixtures": {
+  "public_documents.json": {
+   "d-101-standard-yaml": {
+    "frontmatter_present": true,
+    "metadata_nonempty": true,
+    "metadata": {
+     "title": "项目周报 Weekly",
+     "author": "张三",
+     "tags": [
+      "harness",
+      "eval"
+     ],
+     "priority": 2
+    },
+    "content": "# 本周进展\n\n完成了 verifier 接线。"
+   },
+   "d-102-plain-no-frontmatter": {
+    "frontmatter_present": false,
+    "metadata_nonempty": false,
+    "metadata": {},
+    "content": "Just an ordinary body.\nNo fences anywhere."
+   },
+   "d-103-dates-nested": {
+    "frontmatter_present": true,
+    "metadata_nonempty": true,
+    "metadata": {
+     "published": "2026-01-15",
+     "review": {
+      "by": "李四",
+      "score": 4.5
+     },
+     "draft": false
+    },
+    "content": "Dated content body."
+   },
+   "d-104-empty-yaml-frontmatter": {
+    "frontmatter_present": true,
+    "metadata_nonempty": false,
+    "metadata": {},
+    "content": "Body after an empty fence."
+   },
+   "d-105-unclosed-fence": {
+    "frontmatter_present": false,
+    "metadata_nonempty": false,
+    "metadata": {},
+    "content": "---\ntitle: Broken\nnever closed here\nThe fence above never closes, so this whole text is body."
+   },
+   "d-106-unicode-emoji": {
+    "frontmatter_present": true,
+    "metadata_nonempty": true,
+    "metadata": {
+     "title": "发布 🚀",
+     "channel": "微信"
+    },
+    "content": "中文正文,含 emoji 🎯 与标点。"
+   },
+   "d-107-json-frontmatter-kv": {
+    "frontmatter_present": true,
+    "metadata_nonempty": true,
+    "metadata": {
+     "kind": "note",
+     "level": 3
+    },
+    "content": "Body after JSON front matter."
+   },
+   "d-108-json-frontmatter-empty": {
+    "frontmatter_present": true,
+    "metadata_nonempty": false,
+    "metadata": {},
+    "content": "Body after empty JSON front matter."
+   }
+  },
+  "held_out_documents.json": {
+   "h-101-list-heavy": {
+    "frontmatter_present": true,
+    "metadata_nonempty": true,
+    "metadata": {
+     "items": [
+      "alpha",
+      "beta",
+      "gamma"
+     ],
+     "nested": [
+      {
+       "key": "v1"
+      },
+      {
+       "key": "v2"
+      }
+     ]
+    },
+    "content": "List heavy body."
+   },
+   "h-102-date-only": {
+    "frontmatter_present": true,
+    "metadata_nonempty": true,
+    "metadata": {
+     "when": "2027-11-30"
+    },
+    "content": "Date only."
+   },
+   "h-103-bool-null": {
+    "frontmatter_present": true,
+    "metadata_nonempty": true,
+    "metadata": {
+     "flag": true,
+     "owner": null
+    },
+    "content": "Bool and null body."
+   },
+   "h-104-json-nested": {
+    "frontmatter_present": true,
+    "metadata_nonempty": true,
+    "metadata": {
+     "outer": {
+      "inner": [
+       1,
+       2
+      ]
+     },
+     "name": "深层"
+    },
+    "content": "Nested JSON front matter body."
+   },
+   "h-105-plain-trailing-newlines": {
+    "frontmatter_present": false,
+    "metadata_nonempty": false,
+    "metadata": {},
+    "content": "Plain body with trailing newlines."
+   },
+   "h-106-empty-yaml-unicode-body": {
+    "frontmatter_present": true,
+    "metadata_nonempty": false,
+    "metadata": {},
+    "content": "只有正文,围栏为空。"
+   }
+  }
+ }
+}

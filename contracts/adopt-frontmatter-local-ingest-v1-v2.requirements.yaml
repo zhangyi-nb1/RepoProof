@@ -1,0 +1,213 @@
+task_id: adopt-frontmatter-local-ingest-v1-v2
+
+controls:
+  positive: tests/calibration_fm_v2
+  negatives:
+    - path: fixtures/negative_control_fm_conflate
+      label: NC1_flag_conflation
+      must_fail_nodes: ["test_flag_truth_table_public"]
+    - path: fixtures/negative_control_fm_regex_v2
+      label: NC2_regex_no_upstream
+      must_fail_nodes: ["test_output_matches_reference"]
+    - path: fixtures/negative_control_fm_types
+      label: NC3_bad_conversions
+      must_fail_nodes: ["test_order_one_to_one", "test_output_matches_reference"]
+    - path: fixtures/negative_control_fm_bypass
+      label: NC4_error_contract_broken
+      must_fail_nodes: ["test_upstream_parse_error_code"]
+
+# RequirementSpec — the machine-checkable requirement inventory.
+# owner in {HOST_INPUT_GUARD, ADAPTER, HARNESS, UPSTREAM};
+# severity in {HARD, SOFT}. Every verdict-affecting rule lives HERE
+# (public_text is rendered verbatim into the agent prompt); oracle_nodes
+# bind each requirement to frozen acceptance nodes. This file is
+# task-author/harness material: oracle_nodes are NEVER shown to agents.
+
+requirements:
+  - id: parse-from-pinned-upstream
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      Each record's metadata and content MUST come from the pinned
+      python-frontmatter parse of the document text — do not write your
+      own front-matter splitter.
+    examples:
+      - "'---\\ntitle: Hi\\n---\\nBody.' -> metadata {'title': 'Hi'}, content 'Body.'"
+    oracle_nodes:
+      - "test_capability::test_output_matches_reference[public]"
+      - "test_capability::test_output_matches_reference[held]"
+
+  - id: flag-frontmatter-present
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    boolean_field: frontmatter_present
+    public_text: >
+      frontmatter_present is true exactly when the pinned upstream
+      recognised and stripped a front-matter block while parsing —
+      operationally: frontmatter_present = (metadata has at least one
+      key) OR (returned content differs from the input text stripped of
+      leading/trailing whitespace). An empty-but-recognised block gives
+      true; an unrecognised fence (e.g. unclosed) gives false.
+    examples:
+      - "plain body, no fences -> frontmatter_present=false"
+      - "'---\\n---\\nBody.' empty YAML block -> frontmatter_present=true"
+      - "'---\\ntitle: Hi\\n---\\nBody.' -> frontmatter_present=true"
+      - "unclosed fence '---\\ntitle: Hi\\nnever closed\\nBody.' -> frontmatter_present=false"
+      - "'{\\n}\\nBody.' empty JSON block -> frontmatter_present=true"
+      - "'+++' TOML fence (unsupported in frozen env) -> frontmatter_present=false"
+    oracle_nodes:
+      - "test_capability::test_flag_truth_table_public"
+      - "test_capability::test_output_matches_reference[public]"
+      - "test_capability::test_output_matches_reference[held]"
+
+  - id: flag-metadata-nonempty
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    boolean_field: metadata_nonempty
+    public_text: >
+      metadata_nonempty is true exactly when the parsed metadata
+      contains at least one key; an empty or absent block gives false.
+    examples:
+      - "'---\\n---\\nBody.' -> metadata_nonempty=false"
+      - "'---\\ntitle: Hi\\n---\\nBody.' -> metadata_nonempty=true"
+      - "plain body -> metadata_nonempty=false"
+    oracle_nodes:
+      - "test_capability::test_flag_truth_table_public"
+      - "test_capability::test_output_matches_reference[public]"
+      - "test_capability::test_output_matches_reference[held]"
+
+  - id: json-safe-projection
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      metadata values are projected JSON-safe: date/datetime values
+      become ISO strings (e.g. 2026-01-15); str/int/float/bool/null are
+      kept as-is; lists and dicts are projected recursively.
+    examples:
+      - "'published: 2026-01-15' -> metadata {'published': '2026-01-15'} (string)"
+      - "nested dicts/lists survive with their int/float/bool values intact"
+    oracle_nodes:
+      - "test_capability::test_json_serializable[public]"
+      - "test_capability::test_json_serializable[held]"
+      - "test_capability::test_output_matches_reference[public]"
+      - "test_capability::test_output_matches_reference[held]"
+
+  - id: record-schema
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      Every record has exactly the fields (doc_id, frontmatter_present,
+      metadata_nonempty, metadata, content) — no extras, no renames.
+    examples:
+      - "record keys == {'doc_id','frontmatter_present','metadata_nonempty','metadata','content'}"
+    oracle_nodes:
+      - "test_capability::test_record_schema[public]"
+      - "test_capability::test_record_schema[held]"
+
+  - id: document-order
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      One record per input document, in exactly the input order, with
+      doc_id copied through unchanged.
+    examples:
+      - "documents [a, b, c] -> records [a, b, c]"
+    oracle_nodes:
+      - "test_capability::test_order_one_to_one[public]"
+      - "test_capability::test_order_one_to_one[held]"
+
+  - id: upstream-error-wrapped
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      When a document carries a structurally complete fence whose
+      payload the pinned upstream fails to parse, the whole call raises
+      rag_ingest.IngestError with code UPSTREAM_PARSE_ERROR — never let
+      the raw upstream exception escape.
+    examples:
+      - "'---\\nkey: [unclosed\\n---\\nBody.' -> IngestError(code=UPSTREAM_PARSE_ERROR)"
+    oracle_nodes:
+      - "test_capability::test_upstream_parse_error_code"
+
+  - id: determinism-no-mutation
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      Repeated calls over the same request return equal results and
+      never mutate the input request object.
+    examples:
+      - "ingest_documents(r) == ingest_documents(r); r unchanged after the call"
+    oracle_nodes:
+      - "test_capability::test_repeat_stable_input_untouched"
+
+  - id: host-input-guard
+    owner: HOST_INPUT_GUARD
+    severity: HARD
+    deterministic_input_boundary: true
+    source_field: capability.statement
+    public_text: >
+      Malformed request entries (text missing or not a string, doc_id
+      missing/empty/not a string, non-dict documents) are rejected
+      BEFORE any adapter runs by the host InputContractGuard with
+      IngestError code INVALID_DOCUMENT_INPUT. This is host
+      responsibility: adapters receive only validated documents and
+      must not re-implement or bypass the guard.
+    examples:
+      - "text=null -> IngestError(code=INVALID_DOCUMENT_INPUT), adapter never invoked"
+      - "missing text field -> IngestError(code=INVALID_DOCUMENT_INPUT)"
+      - "doc_id '' -> IngestError(code=INVALID_DOCUMENT_INPUT)"
+    oracle_nodes:
+      - "test_capability::test_guard_rejects_none_text"
+      - "test_capability::test_guard_rejects_missing_text"
+      - "test_capability::test_guard_rejects_bad_doc_id"
+      - "test_capability::test_guard_rejects_nonstring_text[int]"
+      - "test_capability::test_guard_rejects_nonstring_text[list]"
+      - "test_capability::test_guard_rejects_nonstring_text[dict]"
+      - "test_capability::test_guard_rejects_nondict_document"
+
+  - id: host-surface-unbroken
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      The adapter must not break the host's pre-existing surface:
+      document loading and health keep working unchanged.
+    examples:
+      - "load_documents(fixture) still returns the documents; health() == 'ok'"
+    oracle_nodes:
+      - "test_regression::test_loader_loads_documents"
+      - "test_regression::test_loader_does_not_modify_fixture"
+      - "test_regression::test_health"
+
+  - id: offline-cpu-only
+    owner: HARNESS
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      Fully offline, CPU-only: the task container runs with
+      network=none and everything needed is preinstalled.
+    examples:
+      - "no network calls at test time; no GPU use"
+    oracle_nodes: []
+    verified_by: PolicyVerifier
+
+  - id: pinned-upstream-behaviour
+    owner: UPSTREAM
+    severity: SOFT
+    source_field: source_repo
+    public_text: >
+      The pinned python-frontmatter v1.3.0 defines what counts as a
+      recognised front-matter block (YAML and JSON fences in the frozen
+      environment; TOML is not available) and what its parse returns.
+    examples:
+      - "reference records are generated from the pinned upstream inside the pinned container"
+    oracle_nodes: []
+    verified_by: reference_calibration

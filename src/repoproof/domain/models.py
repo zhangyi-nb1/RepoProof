@@ -144,6 +144,10 @@ class TaskContract(BaseModel):
     constraints: Constraints
     budgets: Budgets
     acceptance: Acceptance
+    requirement_spec_file: str | None = None
+    """Contract-relative path of the structured RequirementSpec (v2+
+    tasks). When set, prompt rendering and the ContractAdequacyGate are
+    requirement-driven; older contracts stay valid without it."""
 
     @classmethod
     def load_frozen(
@@ -279,6 +283,12 @@ class TaskPackageManifest(BaseModel):
     wheelhouse_wheels: dict[str, str] | None = None
     image_digest: str | None = None
     environment_constraints: dict[str, str] | None = None
+    requirement_spec_sha256: str | None = None
+    prompt_manifest_sha256: str | None = None
+    public_tests_tree_sha256: str | None = None
+    public_examples_sha256: str | None = None
+    responsibility_matrix: dict[str, list[str]] | None = None
+    controls_summary: dict[str, str] | None = None
     root_hash: str = ""
 
     def compute_root_hash(self) -> str:

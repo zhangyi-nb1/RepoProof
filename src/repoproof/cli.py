@@ -31,6 +31,9 @@ def main(argv: list[str] | None = None) -> int:
     p_freeze.add_argument("--contract", required=True, type=Path)
     p_freeze.add_argument("--full", action="store_true", help="bind collection+wheelhouse+image+env (v3)")
 
+    p_adeq = sub.add_parser("adequacy-check", help="ContractAdequacyGate: deterministic pre-agent spec admission")
+    p_adeq.add_argument("--contract", required=True, type=Path)
+
     p_trace = sub.add_parser("verify-trace", help="verify the tamper-evident trace chain of a run")
     p_trace.add_argument("--run-dir", required=True, type=Path)
 
@@ -81,6 +84,45 @@ def main(argv: list[str] | None = None) -> int:
                 "python": contract.environment.python,
                 contract.source_repo.import_name: version,
             }
+        spec_kw: dict = {}
+        if args.full and contract.requirement_spec_file:
+            from repoproof.domain.models import sha256_file
+            from repoproof.harness.controls_battery import run_controls_battery
+            from repoproof.harness.prompt_manifest import build_prompt_manifest, write_prompt_manifest
+            from repoproof.harness.task_package import _tree_sha
+            from repoproof.runner.agent_run import render_task_prompt
+
+            _c2, contract_sha = TaskContract.load_frozen(args.contract, require_sidecar=True)
+            prompt, spec, spec_sha = render_task_prompt(
+                contract, environment_constraints=env_constraints, project_root=PROJECT_ROOT
+            )
+            consumer_dir = PROJECT_ROOT / contract.target_project.path
+            examples_path = consumer_dir / "public_examples" / "truth_table.json"
+            public_tests_sha = _tree_sha(consumer_dir / "public_tests")
+            pm = build_prompt_manifest(
+                task_id=contract.task_id,
+                public_contract_sha=contract_sha,
+                requirement_spec_sha=spec_sha,
+                public_examples_path=examples_path if examples_path.exists() else None,
+                public_tests_tree_sha=public_tests_sha,
+                rendered_prompt=prompt,
+                spec=spec,
+            )
+            pm_path = args.contract.parent / (args.contract.stem + ".prompt_manifest.json")
+            pm_sha = write_prompt_manifest(pm_path, pm)
+            controls = run_controls_battery(
+                PROJECT_ROOT, contract, spec,
+                upstream=upstream,
+                wheelhouse=PROJECT_ROOT / "upstream-cache" / f"wheelhouse-{contract.source_repo.resolved_commit[:12]}",
+            )
+            spec_kw = {
+                "requirement_spec_sha256": sha256_file(args.contract.parent / contract.requirement_spec_file),
+                "prompt_manifest_sha256": pm_sha,
+                "public_tests_tree_sha256": public_tests_sha,
+                "public_examples_sha256": sha256_file(examples_path) if examples_path.exists() else None,
+                "responsibility_matrix": spec.responsibility_matrix(),
+                "controls_summary": controls,
+            }
         manifest = task_package.freeze(
             PROJECT_ROOT,
             args.contract,
@@ -89,9 +131,17 @@ def main(argv: list[str] | None = None) -> int:
             wheelhouse_manifest=wheelhouse_manifest,
             image_digest=image_digest,
             environment_constraints=env_constraints,
+            **spec_kw,
         )
         print(json.dumps(manifest.model_dump(), ensure_ascii=False, indent=2, sort_keys=True))
         return 0
+
+    if args.cmd == "adequacy-check":
+        from repoproof.runner.agent_run import run_adequacy_gate
+
+        result = run_adequacy_gate(args.contract, PROJECT_ROOT)
+        print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0 if result["ok"] else 4
 
     if args.cmd == "agent-run":
         from repoproof.runner.agent_run import provider_from_env, run_gate3c

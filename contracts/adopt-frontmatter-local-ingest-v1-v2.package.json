@@ -1,0 +1,73 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_regression.py"
+  ],
+  "collection_manifest_sha256": "e6028becb92159f7e933bffc47d4e0dd0d50452544089502519c6a85108c922e",
+  "consumer_fixture_tree_sha256": "f8c8a587422dfe387629c26af9bb0ef4e9fe687af81113270ee045aeeff3ea9c",
+  "contract_sha256": "6fc81af7adc079827d0997a26437e5d720fd2bdc16468aaf6bfc1b991d2f329f",
+  "controls_summary": {
+    "negative_control_NC1_flag_conflation": "FAILED_AS_EXPECTED",
+    "negative_control_NC2_regex_no_upstream": "FAILED_AS_EXPECTED",
+    "negative_control_NC3_bad_conversions": "FAILED_AS_EXPECTED",
+    "negative_control_NC4_error_contract_broken": "FAILED_AS_EXPECTED",
+    "positive_control": "PASS"
+  },
+  "environment_constraints": {
+    "frontmatter": "1.3.0",
+    "machine": "aarch64",
+    "python": "3.12"
+  },
+  "expected_capability_nodes": 18,
+  "expected_regression_nodes": 3,
+  "held_out_fixture_sha256": "b4c33ed574cbb02cf580edd19ef70c0c4a85ccfbd04921c7e5119b0d84baf32d",
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "oracle_tree_sha256": "204492eb2131244c66095a9e52d5cdf6e11fa174d5ebba4dfe1de8cfa0626d49",
+  "prompt_manifest_sha256": "781bb906944e6629bcd3476a639af38ef4384e5c718729e600e63febd546ee81",
+  "public_examples_sha256": "6d207e25e7b7c61b22def4b29654a39379415b9aa272307e81806a315bc195d3",
+  "public_fixture_sha256": "c7bccd42249c1287eb1ce59876afb8b4fcb90b24b4fb3386db1f7d5afb85a76b",
+  "public_tests_tree_sha256": "6f2a6cae44697a738166c922e1aa127d2202f1898525244043deecdcf72acd81",
+  "requirement_spec_sha256": "3a3cc6188b09e05755622b0d836311f91284196dc0ff3a29307a70022bfe8f8d",
+  "responsibility_matrix": {
+    "ADAPTER": [
+      "determinism-no-mutation",
+      "document-order",
+      "flag-frontmatter-present",
+      "flag-metadata-nonempty",
+      "host-surface-unbroken",
+      "json-safe-projection",
+      "parse-from-pinned-upstream",
+      "record-schema",
+      "upstream-error-wrapped"
+    ],
+    "HARNESS": [
+      "offline-cpu-only"
+    ],
+    "HOST_INPUT_GUARD": [
+      "host-input-guard"
+    ],
+    "UPSTREAM": [
+      "pinned-upstream-behaviour"
+    ]
+  },
+  "root_hash": "667b4ce3ae4e00d99d3f33fe681e2ae7afc4e1bd21a503f367029a326abc3349",
+  "source_commit": "dc7c0af5466b104e0ba01ae3c5b2cd77edc27292",
+  "source_git_tree_hash": "8655f7752b44e5278d9d07b14149f918d968f364",
+  "task_id": "adopt-frontmatter-local-ingest-v1-v2",
+  "wheelhouse_root": "c286953bef054c13910332a1fde57ca23546438bcb9bf6e99535ae967f5cd0c4",
+  "wheelhouse_wheels": {
+    "iniconfig-2.3.0-py3-none-any.whl": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12",
+    "packaging-26.3-py3-none-any.whl": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+    "pluggy-1.6.0-py3-none-any.whl": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+    "pygments-2.20.0-py3-none-any.whl": "81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176",
+    "pytest-9.1.1-py3-none-any.whl": "37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c",
+    "python_frontmatter-1.3.0-py3-none-any.whl": "b67263aa09cb292f5a064db33b81fb7631974fdaaa2b3d85a312643b25bde778",
+    "pyyaml-6.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl": "9149cad251584d5fb4981be1ecde53a1ca46c891a79788c0df828d2f166bda28"
+  }
+}

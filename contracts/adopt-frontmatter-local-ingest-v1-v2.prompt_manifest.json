@@ -1,0 +1,22 @@
+{
+  "public_contract_sha256": "6fc81af7adc079827d0997a26437e5d720fd2bdc16468aaf6bfc1b991d2f329f",
+  "public_examples_sha256": "6d207e25e7b7c61b22def4b29654a39379415b9aa272307e81806a315bc195d3",
+  "public_smoke_tests_tree_sha256": "6f2a6cae44697a738166c922e1aa127d2202f1898525244043deecdcf72acd81",
+  "rendered_prompt_sha256": "83931a19074b3015749101d83be85948cb9d7fabf7f1d73c1925a7ee8501f4b1",
+  "requirement_ids_rendered": [
+    "parse-from-pinned-upstream",
+    "flag-frontmatter-present",
+    "flag-metadata-nonempty",
+    "json-safe-projection",
+    "record-schema",
+    "document-order",
+    "upstream-error-wrapped",
+    "determinism-no-mutation",
+    "host-input-guard",
+    "host-surface-unbroken",
+    "offline-cpu-only",
+    "pinned-upstream-behaviour"
+  ],
+  "requirement_spec_sha256": "3a3cc6188b09e05755622b0d836311f91284196dc0ff3a29307a70022bfe8f8d",
+  "task_id": "adopt-frontmatter-local-ingest-v1-v2"
+}

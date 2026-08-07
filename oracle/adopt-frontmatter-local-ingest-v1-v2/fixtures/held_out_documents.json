@@ -1,0 +1,10 @@
+{
+  "documents": [
+    {"doc_id": "h-101-list-heavy", "text": "---\nitems:\n  - alpha\n  - beta\n  - gamma\nnested:\n  - key: v1\n  - key: v2\n---\nList heavy body.\n"},
+    {"doc_id": "h-102-date-only", "text": "---\nwhen: 2027-11-30\n---\nDate only.\n"},
+    {"doc_id": "h-103-bool-null", "text": "---\nflag: true\nowner: null\n---\nBool and null body.\n"},
+    {"doc_id": "h-104-json-nested", "text": "{\n\"outer\": {\"inner\": [1, 2]},\n\"name\": \"深层\"\n}\nNested JSON front matter body.\n"},
+    {"doc_id": "h-105-plain-trailing-newlines", "text": "Plain body with trailing newlines.\n\n\n"},
+    {"doc_id": "h-106-empty-yaml-unicode-body", "text": "---\n---\n只有正文,围栏为空。\n"}
+  ]
+}

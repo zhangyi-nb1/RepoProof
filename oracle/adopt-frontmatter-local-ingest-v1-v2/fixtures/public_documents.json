@@ -1,0 +1,12 @@
+{
+  "documents": [
+    {"doc_id": "d-101-standard-yaml", "text": "---\ntitle: 项目周报 Weekly\nauthor: 张三\ntags:\n  - harness\n  - eval\npriority: 2\n---\n# 本周进展\n\n完成了 verifier 接线。\n"},
+    {"doc_id": "d-102-plain-no-frontmatter", "text": "Just an ordinary body.\nNo fences anywhere.\n"},
+    {"doc_id": "d-103-dates-nested", "text": "---\npublished: 2026-01-15\nreview:\n  by: 李四\n  score: 4.5\ndraft: false\n---\nDated content body.\n"},
+    {"doc_id": "d-104-empty-yaml-frontmatter", "text": "---\n---\nBody after an empty fence.\n"},
+    {"doc_id": "d-105-unclosed-fence", "text": "---\ntitle: Broken\nnever closed here\nThe fence above never closes, so this whole text is body.\n"},
+    {"doc_id": "d-106-unicode-emoji", "text": "---\ntitle: 发布 🚀\nchannel: 微信\n---\n中文正文,含 emoji 🎯 与标点。\n"},
+    {"doc_id": "d-107-json-frontmatter-kv", "text": "{\n\"kind\": \"note\",\n\"level\": 3\n}\nBody after JSON front matter.\n"},
+    {"doc_id": "d-108-json-frontmatter-empty", "text": "{\n}\nBody after empty JSON front matter.\n"}
+  ]
+}
