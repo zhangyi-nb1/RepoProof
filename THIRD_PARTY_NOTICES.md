@@ -8,6 +8,8 @@ RepoProof itself is licensed under Apache-2.0 (see LICENSE).
 |---|---|---|---|---|
 | Chonkie | https://github.com/feyninc/chonkie | `0a6baea1a42c9afe9b3bc31ecb37739e744bb1ec` (v1.7.0) | MIT | Cloned at runtime into the gitignored `upstream-cache/` as the first adoption candidate. Never vendored into this repository; installed only inside disposable containers (base install, no extras). |
 
+| rank_bm25 | https://github.com/dorianbrown/rank_bm25 | source_commit=`47aa3ddf` — source_relation_to_release=after_tag_0.2.2, upstream_declared_version=0.2.2, build_metadata_workaround=PKG_INFO_injection (NOT the official 0.2.2 tag itself) | Apache-2.0 | Second adoption candidate; cloned at runtime, never vendored; wheel built from the pinned commit with sdist-equivalent PKG-INFO metadata. |
+
 ## Integrated agent backend (Gate 3B)
 
 | Component | Version | Source | License | Wheel SHA-256 |

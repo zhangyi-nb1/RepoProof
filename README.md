@@ -8,7 +8,17 @@ whether the result actually works: capability tests, host regression,
 policy checks, and a clean-room replay. `PASS` is earned from
 executable evidence, never from an agent's self-claim.
 
-> Status: **Gate 3C — first REAL agent baseline complete.** One
+> Status: **Gate 5.1 — two-task benchmark consolidated.** Full results
+> in [docs/BENCHMARK.md](docs/BENCHMARK.md), typed failures in
+> [docs/FAILURE_TAXONOMY.md](docs/FAILURE_TAXONOMY.md). Six runs, two
+> capability domains (Chonkie chunking 4/33→31/33; rank_bm25 ranking
+> 1/12→9/12), zero PASS_ADAPTED yet — every verdict an honest FAIL
+> with deterministic failure reproduction. Coverage Ledger:
+> experimental, default off, cross-task effect not supported. Token
+> budgets are now genuinely enforced (Gate 5.1) after real runs
+> exposed a paper-only 250k cap.
+>
+> Earlier status (Gate 3C — first REAL agent baseline): One
 > mini-swe-agent run (deepseek-v4-pro, native tool-calls, temp 0,
 > user-directed provider) wrote a 134-line adapter inside its budget
 > and moved capability from the direct baseline's 4/33 to **31/33**

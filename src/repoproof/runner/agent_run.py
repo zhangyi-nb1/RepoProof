@@ -325,7 +325,17 @@ class AgentRunner(_Runner):
                 else:
                     model_cls = LitellmModel
                 mkwargs = {"temperature": 0} if preflight.temperature == "0" else {}
-                model = model_cls(model_name=f"openai/{provider.model_name}", model_kwargs=mkwargs)
+                from repoproof.agents.token_budget import TokenBudgetedModel
+
+                model = TokenBudgetedModel(
+                    inner=model_cls(model_name=f"openai/{provider.model_name}", model_kwargs=mkwargs),
+                    totals=token_totals,
+                    max_input_tokens=self.contract.budgets.max_input_tokens_total,
+                    max_output_tokens=self.contract.budgets.max_output_tokens_total,
+                    on_exhausted=lambda payload: self.store.append_event(
+                        "budget.exhausted", actor="harness", payload=payload
+                    ),
+                )
                 backend = MiniSWEBackend(
                     model=model,
                     env=env,
@@ -346,6 +356,9 @@ class AgentRunner(_Runner):
                     "agent_wall_s": round(time.monotonic() - t_agent, 1),
                 }
                 _litellm.success_callback = []
+                if result.exit_status == "TokenBudgetExhausted" and model.exhausted:
+                    ex = model.exhausted
+                    budget_exhausted = f"{ex['kind']} ({ex['used']} >= {ex['limit']})"
                 ledger_final = None
                 if coverage_ledger:
                     from repoproof.harness.coverage_ledger import LEDGER_PATH, summarize
@@ -416,7 +429,14 @@ class AgentRunner(_Runner):
 
         from repoproof.domain.models import AdaptationManifest as _AM
 
+        token_budget_stats = {
+            "input_used": agent_metrics.get("input_tokens"),
+            "output_used": agent_metrics.get("output_tokens"),
+            "input_limit": self.contract.budgets.max_input_tokens_total,
+            "output_limit": self.contract.budgets.max_output_tokens_total,
+        }
         pol_vr = policy_result(
+            token_budget=token_budget_stats,
             trace_path=self.store.trace_path,
             oracle_before=oracle_before,
             oracle_after=hash_tree(oracle_snap) if oracle_snap else {},

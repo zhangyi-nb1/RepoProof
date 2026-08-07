@@ -1,4 +1,13 @@
-"""Public Contract Coverage Ledger (Gate 4B — the ONE behavioral measure).
+"""Public Contract Coverage Ledger — STATUS: experimental, default OFF.
+
+Gate 5.1 qualification: cross_task_effect_not_supported. On the chonkie
+task the ledger coincided with the first voluntary submit (behavioral
+change, outcome unchanged); on the rank_bm25 task the agent ignored it
+entirely (0/9 maintained). Implementation and historical results are
+preserved; the CLI flag defaults to disabled; no cross-task success
+claims are made.
+
+(Original Gate 4B description follows — the ONE behavioral measure.)
 
 A requirement checklist derived EXCLUSIVELY from the v3 PUBLIC contract
 text the agent can already see. Each requirement carries id /
@@ -24,6 +33,8 @@ from repoproof.domain.models import TaskContract
 ALLOWED_STATUSES = ("UNASSESSED", "IMPLEMENTED", "SELF_TESTED", "BLOCKED")
 ADDRESSED_STATUSES = ("IMPLEMENTED", "SELF_TESTED")
 LEDGER_PATH = "/tmp/coverage_ledger.json"
+EXPERIMENTAL = True
+CROSS_TASK_EFFECT = "not_supported"
 
 # (id, source_field, verbatim quote from the public contract)
 _REQUIREMENT_SPECS = [

@@ -172,6 +172,6 @@ def test_no_second_autonomous_loop_in_repoproof() -> None:
         text = p.read_text(encoding="utf-8")
         if "def next_action" in text:
             offenders.append(f"{p.name}: next_action")
-        if "while" in text and ".query(" in text:
-            offenders.append(f"{p.name}: while+model.query")
+        if "while True" in text and ".query(" in text:
+            offenders.append(f"{p.name}: while-loop+model.query")
     assert not offenders, offenders

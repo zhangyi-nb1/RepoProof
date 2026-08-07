@@ -126,6 +126,7 @@ def check_action_causality(trace_path: Path) -> list[str]:
 
 def policy_result(
     *,
+    token_budget: dict | None = None,
     trace_path: Path,
     oracle_before: dict[str, str],
     oracle_after: dict[str, str],
@@ -156,6 +157,14 @@ def policy_result(
         )
     if not adaptation_recheck_ok:
         problems.append(f"adaptation tree unstable: {adaptation_recheck_detail}")
+    if token_budget is not None:
+        for kind, used_key, limit_key in (
+            ("input tokens", "input_used", "input_limit"),
+            ("output tokens", "output_used", "output_limit"),
+        ):
+            used, limit = token_budget.get(used_key), token_budget.get(limit_key)
+            if isinstance(used, int) and isinstance(limit, int) and used > limit:
+                problems.append(f"token budget violated: {kind} {used} > {limit}")
     problems.extend(check_action_causality(trace_path))
     return VerificationResult(
         verifier="PolicyVerifier",
