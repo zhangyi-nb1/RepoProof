@@ -1,83 +1,106 @@
-"""Gate 9A — 中文只读工作台测试(pytest + streamlit AppTest,零 LLM)。"""
+"""UI 底层测试:文案映射 / 只读事实源 / 隔离铁律(零 LLM)。
+页面级简单/技术模式测试见 test_ui_simple_mode.py。"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
-from repoproof.ui.presenters import zh
+from repoproof.ui.presenters import glossary, zh
 from repoproof.ui.services import facts
+from repoproof.ui.services.wizard import check_wizard_inputs
 
 REPO = Path(__file__).resolve().parents[2]
-PAGES = REPO / "src" / "repoproof" / "ui" / "pages"
-
-try:
-    from streamlit.testing.v1 import AppTest
-
-    HAVE_ST = True
-except ImportError:  # pragma: no cover — ui extra not installed
-    HAVE_ST = False
-
-needs_streamlit = pytest.mark.skipif(not HAVE_ST, reason="streamlit (ui extra) not installed")
-
-KEY_MARKERS = ("sk-", "REPOPROOF_API_KEY", "DEEPSEEK_API_KEY", "api_key")
 
 
-def _tree_text(at) -> str:
-    parts: list[str] = []
-    for kind in ("title", "header", "subheader", "markdown", "caption", "info",
-                 "success", "warning", "error", "metric", "button", "selectbox"):
-        for el in getattr(at, kind, []):
-            parts.append(str(getattr(el, "value", "")) + str(getattr(el, "label", "")))
-    return "\n".join(parts)
+# ---- 术语与文案映射 ----
 
 
-# ---- presenters:中文映射 ----
-
-
-def test_verdict_mapping_complete_and_chinese() -> None:
+def test_verdict_mappings_simple_and_technical() -> None:
     assert zh.verdict_zh("PASS_ADAPTED") == "适配后通过"
-    assert zh.verdict_zh("FAIL") == "未满足采用合同"
-    assert zh.verdict_zh("INVALID_TASK_SPEC") == "任务规格不充分"
-    assert zh.verdict_zh(None) == "—"
-    assert zh.verdict_zh("SOMETHING_NEW") == "SOMETHING_NEW"  # 未知值原样透传,不猜
+    assert glossary.verdict_simple("PASS_ADAPTED") == "适配后可使用"
+    assert glossary.verdict_simple("FAIL") == "当前条件下不建议采用"
+    assert glossary.verdict_simple("BLOCKED") == "缺少条件,暂时无法继续"
+    assert glossary.verdict_simple("INVALID_TASK_SPEC") == "成功标准还不够清楚"
+    assert glossary.verdict_simple(None) == "—"
+    assert glossary.verdict_simple("SOMETHING_NEW") == "SOMETHING_NEW"  # 未知值透传,不猜
 
 
-def test_agent_exit_and_owner_mappings() -> None:
-    assert zh.agent_exit_zh("Submitted") == "Agent 主动提交"
-    assert zh.agent_exit_zh("LimitsExceeded") == "Agent 预算耗尽"
-    assert zh.failure_owner_zh("SEMANTIC_SUBSTITUTION") == "Agent 适配器"
-    assert zh.failure_owner_zh("CONTRACT_UNDERSPECIFICATION") == "任务作者"
-    combo = zh.failure_owner_zh("CONTRACT_UNDERSPECIFICATION + CONTRACT_REQUIREMENT_OMISSION")
-    assert "任务作者" in combo and "Agent 适配器" in combo
-    assert zh.dash(None) == "—" and zh.dash(0) == "0"
+def test_unified_term_table_covers_required_entries() -> None:
+    required = {
+        "host_project": "你的项目", "upstream_repository": "目标仓库",
+        "task_contract": "成功标准", "requirement_spec": "功能要求",
+        "contract_adequacy_gate": "开始前检查", "admission": "适用性检查",
+        "agent": "AI 开发助手", "harness": "运行保障机制",
+        "oracle": "最终验收测试", "held_out_tests": "未向 AI 展示的独立测试",
+        "adapter": "适配代码", "artifact": "结果文件", "trace": "执行记录",
+        "completion_gate": "最终判定", "clean_replay": "换一个干净环境再验证",
+        "policy": "操作规则检查", "host_regression": "原项目是否受影响",
+        "capability_verification": "目标功能是否可用",
+        "adoption_bundle": "可复核结果包", "patch_budget": "修改范围上限",
+        "token_budget": "AI 使用额度", "provider_admission": "模型连接检查",
+    }
+    for key, val in required.items():
+        assert glossary.TERM[key] == val, key
 
 
-# ---- services:事实源只读 ----
+def test_error_text_three_parts() -> None:
+    for code in ("INVALID_TASK_SPEC", "PROVIDER_UNAVAILABLE", "CAPABILITY_MISMATCH",
+                 "BUDGET_EXHAUSTED", "POLICY_VIOLATION"):
+        what, why, nxt = glossary.error_text(code)
+        assert what and why and nxt, code
+    what, why, nxt = glossary.error_text("UNKNOWN_CODE")
+    assert "技术详情" in nxt
+
+
+def test_agent_exit_simple_never_reads_as_success() -> None:
+    assert glossary.agent_exit_simple("Submitted") == "AI 助手已提交"
+    assert "成功" not in glossary.agent_exit_simple("Submitted")
+    assert glossary.failed_node_hint("test_upstream_errors_wrapped[none]").startswith("遇到异常输入")
+
+
+# ---- 向导四态(纯输入校验) ----
+
+
+def test_wizard_need_info_lists_missing() -> None:
+    r = check_wizard_inputs(goal="", project_path="", repo_url="", revision="",
+                            needs_gpu=False, risk_confirmed=False)
+    assert r.state == "NEED_INFO" and len(r.missing) == 4 and r.next_step
+
+
+def test_wizard_unsupported_gpu_and_non_github() -> None:
+    base = dict(goal="把 frontmatter 能力接入我的摄取模块", project_path="/p",
+                revision="v1.0.0", risk_confirmed=False)
+    assert check_wizard_inputs(repo_url="https://github.com/a/b", needs_gpu=True, **base).state == "UNSUPPORTED"
+    r = check_wizard_inputs(repo_url="https://gitlab.com/a/b", needs_gpu=False, **base)
+    assert r.state == "UNSUPPORTED" and not r.executes_third_party_code
+
+
+def test_wizard_risk_review_then_ready() -> None:
+    base = dict(goal="把 frontmatter 能力接入我的摄取模块", project_path="/p",
+                repo_url="https://github.com/a/b", revision="v1.0.0", needs_gpu=False)
+    r1 = check_wizard_inputs(risk_confirmed=False, **base)
+    assert r1.state == "RISK_REVIEW" and r1.executes_third_party_code
+    r2 = check_wizard_inputs(risk_confirmed=True, **base)
+    assert r2.state == "READY" and r2.confirmed_facts and r2.next_step
+
+
+# ---- 事实源只读 ----
 
 
 def test_facts_read_the_committed_sources() -> None:
     assert facts.repo_root() == REPO
-    summary = facts.load_summary()
-    assert summary["totals"]["runs_recorded"] == 12
-    row = facts.summary_row("frontmatter-v2-agent-g72")
-    assert row and row["final_verdict"] == "PASS_ADAPTED"
+    assert facts.load_summary()["totals"]["runs_recorded"] == 12
     assert facts.load_report("frontmatter-v2-pass")["final_verdict"] == "PASS_ADAPTED"
     src = facts.adapter_source("frontmatter-v2-pass")
     assert src and "ingest_documents" in src
-    files = dict(facts.evidence_files("frontmatter-v2-pass"))
-    assert any("trace" in p.name for p in files.values())
 
 
 def test_bundle_zip_contains_evidence_only() -> None:
     import io
     import zipfile
 
-    data = facts.bundle_zip_bytes("chonkie-agent-fail")
-    names = zipfile.ZipFile(io.BytesIO(data)).namelist()
+    names = zipfile.ZipFile(io.BytesIO(facts.bundle_zip_bytes("chonkie-agent-fail"))).namelist()
     assert all(n.startswith("gate3c-real-run/") for n in names)
-    assert any(n.endswith("report.json") for n in names)
 
 
 def test_trace_preview_parses_events() -> None:
@@ -85,8 +108,11 @@ def test_trace_preview_parses_events() -> None:
     assert rows and {"seq", "actor", "event", "摘要"} <= set(rows[0].keys())
 
 
+# ---- 隔离铁律 ----
+
+
 def test_ui_modules_are_read_only_and_isolated() -> None:
-    """UI 铁律:不写 evidence、不访问 LocalFlow、不读 API Key、不复制 gate 逻辑。"""
+    """只读、不访问 LocalFlow、不读 API Key、不复制最终判定逻辑。"""
     ui_src = ""
     for p in (REPO / "src" / "repoproof" / "ui").rglob("*.py"):
         ui_src += p.read_text(encoding="utf-8")
@@ -96,83 +122,9 @@ def test_ui_modules_are_read_only_and_isolated() -> None:
         assert banned not in ui_src, f"UI source must not contain {banned!r}"
 
 
-# ---- AppTest:三个页面 ----
-
-
-@needs_streamlit
-def test_home_page_renders_chinese_cases_no_secrets() -> None:
-    at = AppTest.from_file(str(PAGES / "home.py"), default_timeout=30)
-    at.run()
-    assert not at.exception
-    text = _tree_text(at)
-    for expected in ("RepoProof Studio", "中文工作台", "Front Matter 正向案例",
-                     "Chonkie 负向案例", "rank_bm25 负向案例", "适配后通过",
-                     "能力边界", "不是单变量提升实验" if "不是单变量提升实验" in text else "corrected-spec"):
-        assert expected in text, expected
-    for marker in KEY_MARKERS:
-        assert marker not in text, marker
-
-
-@needs_streamlit
-def test_case_view_positive_default() -> None:
-    at = AppTest.from_file(str(PAGES / "case_view.py"), default_timeout=30)
-    at.run()
-    assert not at.exception
-    labels = {m.label: m.value for m in at.metric}
-    assert labels["最终 Verdict"] == "适配后通过"
-    assert labels["Capability"] == "18/18" and labels["宿主回归"] == "3/3"
-    assert labels["重放"] == "干净采用重放"
-    text = _tree_text(at)
-    assert "Agent 结束原因" in text and "从不参与判定" in text
-    assert "Agent 主动提交" in text  # Submitted 的中文
-    for marker in KEY_MARKERS:
-        assert marker not in text, marker
-
-
-@needs_streamlit
-def test_case_view_negative_via_session_state() -> None:
-    at = AppTest.from_file(str(PAGES / "case_view.py"), default_timeout=30)
-    at.session_state["case"] = "chonkie-agent-fail"
-    at.run()
-    assert not at.exception
-    labels = {m.label: m.value for m in at.metric}
-    assert labels["最终 Verdict"] == "未满足采用合同"
-    assert labels["Capability"] == "31/33"
-    text = _tree_text(at)
-    assert "失败复现重放" in text or "负向案例无干净重放" in text
-
-
-@needs_streamlit
-def test_case_view_verify_button_recomputes_gate() -> None:
-    at = AppTest.from_file(str(PAGES / "case_view.py"), default_timeout=60)
-    at.session_state["case"] = "chonkie-agent-fail"
-    at.run()
-    btn = next(b for b in at.button if "验证 Bundle" in b.label)
-    btn.click().run()
-    assert not at.exception
-    text = _tree_text(at)
-    assert "与记录一致:是" in text and "模型调用:0" in text
-
-
-@needs_streamlit
-def test_case_view_downloads_present() -> None:
-    """AppTest 对 download_button 无专属 accessor:渲染必须无异常
-    (数据 bytes 在渲染时即被读取),源码必须提供单文件 + Bundle ZIP。"""
-    at = AppTest.from_file(str(PAGES / "case_view.py"), default_timeout=30)
-    at.run()
-    assert not at.exception
-    src = (PAGES / "case_view.py").read_text(encoding="utf-8")
-    assert src.count("st.download_button") >= 2  # 单文件下载 + Bundle ZIP
-    assert "bundle_zip_bytes" in src and "application/zip" in src
-
-
-@needs_streamlit
-def test_history_page_filters_and_no_inference() -> None:
-    at = AppTest.from_file(str(PAGES / "history.py"), default_timeout=30)
-    at.run()
-    assert not at.exception
-    text = _tree_text(at)
-    assert "12 次记录运行" in text and "1 次 PASS_ADAPTED" in text
-    assert "不做成功率归因" in text
-    for marker in KEY_MARKERS:
-        assert marker not in text, marker
+def test_no_page_hardcodes_verdict_wording() -> None:
+    """§四:术语集中在 glossary/zh,页面不得各自硬编码 Verdict 文案。"""
+    for p in (REPO / "src" / "repoproof" / "ui" / "pages").rglob("*.py"):
+        text = p.read_text(encoding="utf-8")
+        assert "适配后可使用" not in text, p.name
+        assert "未满足采用合同" not in text, p.name

@@ -1,7 +1,7 @@
-"""RepoProof Studio — 本地中文工作台入口(Gate 9A:只读)。
+"""RepoProof Studio — 本地中文工作台入口。
 
-启动:scripts/run_ui.sh(默认 127.0.0.1,不对局域网/公网开放)。
-事实源:benchmark_summary.json + Evidence Bundle;UI 不改写任何历史。
+主导航四页(开始新任务 / 运行进度 / 结果报告 / 历史记录)+
+次级「系统设置」。默认简单模式;127.0.0.1 启动(scripts/run_ui.sh)。
 """
 
 from __future__ import annotations
@@ -10,13 +10,19 @@ from pathlib import Path
 
 import streamlit as st
 
-PAGES_DIR = Path(__file__).parent / "pages"
+PAGES = Path(__file__).parent / "pages"
 
 nav = st.navigation(
-    [
-        st.Page(str(PAGES_DIR / "home.py"), title="首页 / 快速体验", icon="🛡️", default=True),
-        st.Page(str(PAGES_DIR / "case_view.py"), title="结果与证据", icon="🔍"),
-        st.Page(str(PAGES_DIR / "history.py"), title="历史运行", icon="🗂️"),
-    ]
+    {
+        "工作台": [
+            st.Page(str(PAGES / "new_task.py"), title="开始新任务", icon="🚀", default=True),
+            st.Page(str(PAGES / "progress.py"), title="运行进度", icon="⏳"),
+            st.Page(str(PAGES / "case_view.py"), title="结果报告", icon="📋"),
+            st.Page(str(PAGES / "history.py"), title="历史记录", icon="🗂️"),
+        ],
+        "更多": [
+            st.Page(str(PAGES / "settings.py"), title="系统设置", icon="⚙️"),
+        ],
+    }
 )
 nav.run()

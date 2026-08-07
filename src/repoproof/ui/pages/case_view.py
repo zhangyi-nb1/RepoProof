@@ -1,8 +1,8 @@
-"""结果与证据 — 内置案例的完整只读视图。
+"""结果报告 — 第一屏只回答:能不能用 / 为什么 / 下一步。
 
-事实源:Evidence Bundle(report / run_manifest / trace / adapter)+
-benchmark_summary.json。UI 不复算业务逻辑;「验证 Bundle」直接调用
-Core 的 demo_verify(gate 决策表复算),「无模型重放」调用 demo_replay。
+简单模式:通俗结论 + 四项检查 + AI 修改 + 下载。
+技术模式 / 「查看技术详情」:原始 verifier 输出、哈希、枚举、Trace。
+「核对判定」按钮直接调用 Core 的 demo_verify;UI 不复算判定逻辑。
 """
 
 from __future__ import annotations
@@ -10,185 +10,179 @@ from __future__ import annotations
 import streamlit as st
 
 from repoproof.runner.demo import CASES
-from repoproof.ui.presenters.zh import (
-    agent_exit_zh,
+from repoproof.ui.presenters.glossary import (
+    FOUR_CHECKS,
+    TERM,
+    agent_exit_simple,
     dash,
+    failed_node_hint,
     failure_owner_zh,
     replay_mode_zh,
+    verdict_icon,
+    verdict_next,
+    verdict_simple,
     verdict_zh,
 )
 from repoproof.ui.services import actions, facts
+from repoproof.ui.services.state import mode_toggle_sidebar, tech_expander
 
-st.set_page_config(page_title="结果与证据 · RepoProof Studio", page_icon="🔍", layout="wide")
-st.title("🔍 结果与证据")
+st.set_page_config(page_title="结果报告 · RepoProof Studio", layout="wide")
+mode_toggle_sidebar()
+st.title("结果报告")
 
-# ---- 案例选择:query_params 优先(刷新不丢),其次 session_state ----
+_names = {
+    "frontmatter-v2-pass": "文档元数据解析(python-frontmatter)— 成功案例",
+    "chonkie-agent-fail": "文本分块(Chonkie)— 未通过案例",
+    "bm25-agent-fail": "检索排序(rank_bm25)— 未通过案例",
+}
 _valid = list(CASES)
 _default = st.query_params.get("case") or st.session_state.get("case") or "frontmatter-v2-pass"
 if _default not in _valid:
     _default = "frontmatter-v2-pass"
-case = st.selectbox(
-    "选择案例", _valid, index=_valid.index(_default),
-    format_func=lambda c: f"{c} — {CASES[c]['headline'][:44]}",
-)
+case = st.selectbox("选择任务", _valid, index=_valid.index(_default), format_func=lambda c: _names[c])
 st.query_params["case"] = case
 st.session_state["case"] = case
 
 report = facts.load_report(case)
 manifest = facts.load_run_manifest(case)
 srow = facts.summary_row(facts.CASE_TO_SUMMARY[case]) or {}
+agent = manifest.get("agent") or report.get("agent") or {}
 verdict = report.get("final_verdict") or report.get("verdict")
 
-# ---- 五个核心卡 ----
-k1, k2, k3, k4, k5 = st.columns(5)
-k1.metric("最终 Verdict", verdict_zh(verdict), delta=verdict, delta_color="off")
-k2.metric("Capability", dash(
-    f"{srow.get('capability_passed')}/{srow.get('capability_total')}"
-    if srow.get("capability_passed") is not None else None))
-k3.metric("宿主回归", dash(
-    f"{srow.get('regression_passed')}/{srow.get('regression_total')}"
-    if srow.get("regression_passed") is not None else None))
-k4.metric("Policy", dash(srow.get("policy_result")))
-k5.metric("重放", replay_mode_zh(srow.get("replay_mode")))
+# ================= 第一屏:结论 / 为什么 / 下一步 =================
+with st.container(border=True):
+    st.markdown(f"## {verdict_icon(verdict)} {verdict_simple(verdict)}")
+    if verdict == "PASS_ADAPTED":
+        why = "四项检查全部通过:目标功能可用、原项目不受影响、操作合规、并且在全新环境复测成功。"
+    elif verdict == "FAIL":
+        n_fail = len(report.get("capability_failed_tests") or [])
+        why = f"独立验收中仍有 {n_fail} 项测试未通过,未达到成功标准(即使 AI 已完成大部分工作)。"
+    else:
+        why = "详见下方检查明细。"
+    st.markdown(f"**为什么**:{why}")
+    st.markdown(f"**你的下一步**:{verdict_next(verdict)}")
 
-agent = (manifest.get("agent") or report.get("agent") or {})
-m1, m2, m3, m4, m5 = st.columns(5)
-m1.metric("模型调用", dash(agent.get("model_calls")))
-m2.metric("执行命令", dash(agent.get("commands")))
-m3.metric("Tokens(入/出)", (
-    f"{agent['input_tokens']:,} / {agent['output_tokens']:,}"
-    if agent.get("input_tokens") is not None else "—"))
-m4.metric("模型耗时", (
-    f"{(manifest.get('timings') or {}).get('agent_model_call_s', 0):.0f}s"
-    if (manifest.get("timings") or {}).get("agent_model_call_s") is not None else "—"))
-m5.metric("Adapter 规模", (
-    f"{srow.get('adaptation_files')} 文件 / {srow.get('adaptation_lines')} 行"
-    if srow.get("adaptation_lines") else "—"))
-
-# ---- Agent 结束原因 ≠ 最终 Verdict ----
-exit_status = agent.get("exit_status")
-st.info(
-    f"**Agent 结束原因:{agent_exit_zh(exit_status)}(`{dash(exit_status)}`)  ≠  "
-    f"系统最终 Verdict:{verdict_zh(verdict)}(`{dash(verdict)}`)** — "
-    "Agent 的自述与结束状态从不参与判定;Verdict 只由独立 verifier 结果产生。"
+# ---- AI 状态 ≠ 系统结论 ----
+st.caption(
+    f"AI 助手状态:**{agent_exit_simple(agent.get('exit_status'))}** · "
+    f"最终结论:**{verdict_simple(verdict)}** —— AI 的自述不参与判定。"
 )
 
-# ---- 无模型操作 ----
-a1, a2 = st.columns(2)
-with a1:
-    if st.button("🧾 验证 Bundle(复算 Completion Gate 决策)", key=f"verify-{case}"):
+# ================= 四项通俗检查 =================
+st.subheader("四项检查")
+_check_pass = {
+    "capability": (srow.get("capability_passed") == srow.get("capability_total")
+                   and srow.get("capability_total") is not None),
+    "regression": (srow.get("regression_passed") == srow.get("regression_total")
+                   and srow.get("regression_total") is not None),
+    "policy": srow.get("policy_result") == "PASS",
+    "replay": srow.get("replay_mode") == "clean_adoption" and srow.get("replay_result") == "PASS",
+}
+cols = st.columns(4)
+for col, (key, label, _term) in zip(cols, FOUR_CHECKS, strict=True):
+    ok = _check_pass[key]
+    if key == "replay" and not ok and srow.get("replay_result") == "PASS":
+        text, icon = "已复现失败(确认问题真实存在)", "❌"
+    else:
+        text, icon = ("通过", "✅") if ok else ("未通过", "❌")
+    with col, st.container(border=True):
+        st.markdown(f"**{label}**")
+        st.markdown(f"{icon} {text}")
+
+# ================= AI 修改了什么 =================
+st.subheader("AI 修改了什么")
+src = facts.adapter_source(case)
+if src:
+    n_lines = len(src.splitlines())
+    st.markdown(f"AI 写了 **1 个适配文件,共 {n_lines} 行**;你的项目原有文件没有被修改。")
+    with st.expander("查看适配代码"):
+        st.code(src, language="python")
+else:
+    st.markdown("本次记录中没有适配代码文件。")
+
+# ================= 哪些问题没解决(FAIL 时默认展开) =================
+failed = report.get("capability_failed_tests") or []
+if failed:
+    st.subheader("哪些问题没解决")
+    for node in failed:
+        st.markdown(f"- ❌ {failed_node_hint(node)}")
+    ftype = srow.get("failure_type")
+    if ftype:
+        st.markdown(f"**主要责任方**:{failure_owner_zh(ftype)}")
+    with tech_expander("查看原始测试名称(技术详情)"):
+        for node in failed:
+            st.code(node, language="text")
+        if ftype:
+            st.markdown(f"失败类型(内部枚举):`{ftype}`")
+
+# ================= 下载 =================
+st.subheader("下载结果")
+st.download_button(
+    label=f"下载{TERM['adoption_bundle']}(ZIP)",
+    data=facts.bundle_zip_bytes(case),
+    file_name=f"{facts.evidence_dir(case).name}.zip",
+    mime="application/zip",
+    type="primary",
+    key=f"dl-bundle-{case}",
+)
+st.caption("结果包内含:结果报告、执行记录、适配代码与全部检查输出,可离线复核。")
+with st.expander("单独下载某个文件"):
+    for label, path in facts.evidence_files(case):
+        st.download_button(label=label, data=path.read_bytes(), file_name=path.name,
+                           key=f"dl-{case}-{path.name}")
+
+# ================= 核对与复测(调用 Core,零模型) =================
+st.subheader("不放心?自己核对")
+c1, c2 = st.columns(2)
+with c1:
+    if st.button("核对最终判定(用检查数据重新推导结论)"):
         out = actions.verify_case(case)
         ok = out.get("verdict_recomputation_matches")
-        (st.success if ok else st.error)(
-            f"复算 Verdict = {verdict_zh(out['recomputed_verdict'])}(`{out['recomputed_verdict']}`) · "
-            f"与记录一致:{'是' if ok else '否'} · 模型调用:{out['model_calls']}"
-        )
-        with st.expander("Gate 输入(来自证据,非叙述)"):
+        if ok:
+            st.success(f"核对一致:根据检查数据重新推导,结论同样是「{verdict_simple(out['recomputed_verdict'])}」。"
+                       "整个核对没有调用任何 AI 模型。")
+        else:
+            st.error("核对不一致——请展开技术详情查看原始数据。")
+        with tech_expander("查看核对明细(技术详情)"):
             st.json(out["inputs_to_gate"])
-            st.json({"verifier_result_hashes": out["verifier_result_hashes"],
+            st.json({"recorded": out["recorded_verdict"], "recomputed": out["recomputed_verdict"],
                      "trace_sha256": out["trace_sha256"],
-                     "agent_claim_consulted": out["agent_claim_consulted"]})
-with a2:
+                     "verifier_result_hashes": out["verifier_result_hashes"]})
+with c2:
     if CASES[case]["kind"] == "positive":
-        if st.button("🔁 无模型重放(全新容器重跑已提交 Adapter)", key=f"replay-{case}"):
-            with st.status("正在全新容器中重放…(需要 Docker,约 30–60 秒)", expanded=True) as status:
+        if st.button("在全新环境里再测一遍(约 1 分钟,需要 Docker)"):
+            with st.status("正在全新隔离环境中复测……", expanded=True) as status:
                 out = actions.replay_case(case)
                 if out.get("replay_ok"):
-                    status.update(label="重放完成", state="complete")
-                    st.success(
-                        f"Capability {out['capability']}(期望 {out['expected']}) · "
-                        f"模型调用:{out['model_calls']} · 容器:{out['container']}"
-                    )
+                    status.update(label="复测完成", state="complete")
+                    st.success(f"✅ 复测通过:{out['capability']} 项测试在全新环境中再次全部通过,"
+                               "全程零 AI 调用——结果由代码本身承载,不依赖当时的 AI 会话。")
                 else:
-                    status.update(label="重放未通过", state="error")
-                    st.error(out)
+                    status.update(label="复测未通过", state="error")
+                    st.error("复测未通过——请展开技术详情。")
+                    with tech_expander():
+                        st.json(out)
     else:
-        st.caption("负向案例无干净重放:其失败已在失败复现重放中确定性复现(见「重放」标签)。")
+        st.caption("未通过案例的问题已在干净环境中复现过(见上方「新环境中是否还能运行」)。")
 
-# ---- 详情标签页 ----
-tabs = st.tabs(["结果概览", "适配产物", "能力验收", "宿主回归", "Policy", "重放", "失败归因", "证据下载"])
-
-with tabs[0]:
+# ================= 技术详情(全部原始字段) =================
+with tech_expander("查看技术详情(原始字段与哈希)"):
     st.markdown(f"""
-- **任务**:`{report.get("task_id")}` · Run:`{report.get("run_id")}`
-- **目标仓库**:{dash(srow.get("source_repo"))} @ `{dash((srow.get("source_commit") or "")[:12])}`
-- **模型**:{dash(srow.get("model"))} · 温度 {dash(report.get("temperature"))} ·
-  协议 {dash(report.get("action_protocol"))}
-- **判定依据**:{dash("; ".join(report.get("gate_reasons") or []))}
-- **TaskPackage Root**:`{dash((report.get("task_package_root_hash") or "")[:16])}…` ·
-  **Adaptation Root**:`{dash((report.get("adaptation_root") or "")[:16])}…`
+| 字段 | 值 | 中文说明 |
+|---|---|---|
+| final_verdict | `{dash(verdict)}` | 最终判定:{verdict_zh(verdict)} |
+| task_id | `{dash(report.get("task_id"))}` | 任务标识 |
+| run_id | `{dash(report.get("run_id"))}` | 本次运行标识 |
+| capability | `{dash(report.get("capability"))}` | {TERM["capability_verification"]}原始输出 |
+| regression | `{dash(report.get("regression"))}` | {TERM["host_regression"]}原始输出 |
+| policy | `{dash(report.get("policy"))}` | {TERM["policy"]}原始输出 |
+| replay | `{dash(report.get("replay"))}` | {replay_mode_zh(srow.get("replay_mode"))}原始输出 |
+| agent.exit_status | `{dash(agent.get("exit_status"))}` | AI 助手结束方式(不参与判定) |
+| task_package_root | `{dash((report.get("task_package_root_hash") or "")[:16])}…` | 任务包指纹 |
+| adaptation_root | `{dash((report.get("adaptation_root") or "")[:16])}…` | 适配产物指纹 |
+| trace_sha256 | `{dash((report.get("final_trace_sha256") or "")[:16])}…` | 执行记录链指纹 |
+| model | `{dash(srow.get("model"))}` | 使用的模型 |
+| tokens | `{dash(agent.get("input_tokens"))}/{dash(agent.get("output_tokens"))}` | {TERM["token_budget"]}用量(入/出) |
 """)
-    if CASES[case]["kind"] == "positive":
-        st.success(
-            "责任分离:确定性输入校验(text=None、缺字段、坏 doc_id)由宿主 "
-            "InputContractGuard 完成——不计入 Agent 能力;Agent 负责调用 pinned "
-            "上游、旗标拆分、JSON-safe 投影与异常包装。"
-        )
-    else:
-        st.warning("Agent 完成了大部分适配,但完整合同未满足;独立 verifier 拒绝放行,失败已在干净环境确定性复现。")
-
-with tabs[1]:
-    src = facts.adapter_source(case)
-    if src:
-        st.caption(f"Agent 生成的 adapter.py({len(src.splitlines())} 行,冻结于 Adaptation Root)")
-        st.code(src, language="python")
-    else:
-        st.caption("该案例证据中未包含 adapter 文件。")
-
-with tabs[2]:
-    st.markdown(f"**Capability verifier 输出**:`{dash(report.get('capability'))}`")
-    failed = report.get("capability_failed_tests") or []
-    if failed:
-        st.markdown("**未通过的验收节点(held-out oracle):**")
-        for node in failed:
-            st.markdown(f"- `{node}`")
-    else:
-        st.success("全部能力验收节点通过(含 held-out 输入)。")
-
-with tabs[3]:
-    st.markdown(f"**宿主回归 verifier 输出**:`{dash(report.get('regression'))}`")
-    st.caption("回归 = 宿主项目原有功能(loader / health)在适配后保持不变。")
-
-with tabs[4]:
-    st.markdown(f"**Policy verifier 输出**:`{dash(report.get('policy'))}`")
-    st.caption("覆盖:oracle/upstream 完整性 · 写入区约束 · action_id 因果链 · 命令/Token/Patch 预算。")
-
-with tabs[5]:
-    st.markdown(f"""
-- **Replay verifier 输出**:`{dash(report.get("replay"))}`
-- **模式**:{replay_mode_zh(srow.get("replay_mode"))}(`{dash(srow.get("replay_mode"))}`)
-- **Image Digest**:`{dash((report.get("image_digest") or "").split("@")[-1][:20])}…`
-- **Wheelhouse Root**:`{dash((report.get("wheelhouse_root") or "")[:16])}…`
-- **重放中的模型调用:0**(重放只执行冻结产物,不重跑 Agent)
-""")
-
-with tabs[6]:
-    ftype = srow.get("failure_type")
-    if verdict == "PASS_ADAPTED":
-        st.success("无失败归因:四项独立验证与干净采用重放全部通过。")
-    else:
-        st.markdown(f"""
-- **失败类型**:`{dash(ftype)}`
-- **主要责任方**:{failure_owner_zh(ftype)}
-- **证据**:`{dash(srow.get("evidence_path"))}` · Trace sha `{dash((srow.get("trace_sha256") or "")[:16])}…`
-- 详细分类学见 `docs/FAILURE_TAXONOMY.md`(每类都挂真实 run 证据)。
-""")
-
-with tabs[7]:
-    st.markdown("**单文件下载(只读证据副本,均已通过脱敏扫描):**")
-    for label, path in facts.evidence_files(case):
-        st.download_button(
-            label=f"⬇️ {label}", data=path.read_bytes(), file_name=path.name,
-            key=f"dl-{case}-{path.name}",
-        )
-    st.divider()
-    st.download_button(
-        label="📦 下载完整 Evidence Bundle(ZIP)",
-        data=facts.bundle_zip_bytes(case),
-        file_name=f"{facts.evidence_dir(case).name}.zip",
-        mime="application/zip",
-        key=f"dl-bundle-{case}",
-    )
-    st.divider()
-    st.markdown("**Trace 预览(前 200 行事件):**")
-    st.dataframe(facts.trace_preview(case), width="stretch", hide_index=True, height=300)
+    st.markdown("**执行记录预览(前 100 行)**:")
+    st.dataframe(facts.trace_preview(case, limit=100), width="stretch", hide_index=True, height=260)
