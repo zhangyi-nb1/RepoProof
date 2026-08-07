@@ -263,16 +263,17 @@ elif step == 5:
                 if "=>" in line:
                     left, right = line.split("=>", 1)
                     exs.append({"input": left.strip(), "expected": right.strip()})
-            repo_name = (ss.get("wz_repo", "").rstrip("/").rsplit("/", 1) or [""])[-1]
+            _url = (ss.get("wz_repo") or "").strip().rstrip("/")
+            repo_name = _url.rsplit("/", 1)[-1].removesuffix(".git").strip()
             cand = sorted((_root / "upstream-cache" / "analysis").glob(f"{repo_name}-*"))
             if not cand:
                 st.error(f"未找到目标仓库的本地分析副本({repo_name})——请先在终端运行 "
                          f"repoproof analyze-repo --url {ss.get('wz_repo', '<url>')}")
                 st.stop()
-            rep = analyze_repository_dir(cand[0], url=ss.get("wz_repo", ""))
+            rep = analyze_repository_dir(cand[0], url=_url)
             with st.status("装配任务文件……", expanded=True) as _s:
                 out = assemble_task(
-                    _root, goal=ss.get("wz_goal", ""), repo_url=ss.get("wz_repo", ""),
+                    _root, goal=ss.get("wz_goal", ""), repo_url=_url,
                     resolved_commit=str(rep.commit.value), distribution=repo_name,
                     import_module=repo_name.replace("-", "_"),
                     license_id=str(rep.license.value), examples=exs)
