@@ -34,6 +34,12 @@ def main(argv: list[str] | None = None) -> int:
     p_adeq = sub.add_parser("adequacy-check", help="ContractAdequacyGate: deterministic pre-agent spec admission")
     p_adeq.add_argument("--contract", required=True, type=Path)
 
+    p_ahost = sub.add_parser(
+        "analyze-host",
+        help="Guided Adoption Phase 1: static host-project analysis (read-only, no LLM, no Docker)",
+    )
+    p_ahost.add_argument("--path", required=True, type=Path)
+
     p_demo = sub.add_parser("demo", help="no-model evidence demos (Gate 8C): list / verify / replay")
     p_demo.add_argument("demo_cmd", choices=["list", "verify", "replay"])
     p_demo.add_argument("--case", default=None)
@@ -156,6 +162,13 @@ def main(argv: list[str] | None = None) -> int:
         result = run_adequacy_gate(args.contract, PROJECT_ROOT)
         print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         return 0 if result["ok"] else 4
+
+    if args.cmd == "analyze-host":
+        from repoproof.adoption.analysis.host_analyzer import analyze_host_project
+
+        report = analyze_host_project(args.path)
+        print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        return 0
 
     if args.cmd == "demo":
         from repoproof.runner.demo import CASES, demo_list, demo_replay, demo_verify
