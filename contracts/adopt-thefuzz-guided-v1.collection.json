@@ -1,0 +1,14 @@
+{
+  "capability_nodes": [
+    "test_capability::test_deterministic",
+    "test_capability::test_example_1",
+    "test_capability::test_example_2",
+    "test_capability::test_example_3",
+    "test_capability::test_held_example_1"
+  ],
+  "regression_nodes": [
+    "test_regression::test_direct_mode_declares_not_implemented",
+    "test_regression::test_examples_file_intact",
+    "test_regression::test_health"
+  ]
+}

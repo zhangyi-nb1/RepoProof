@@ -1,0 +1,1 @@
+{"examples": [{"input": "周合", "expected": "contains:周会纪要"}, {"input": "读书", "expected": "contains:测试驱动"}, {"input": "咖啡", "expected": "contains:购物清单"}]}

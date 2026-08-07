@@ -1,0 +1,46 @@
+task_id: adopt-thefuzz-guided-v1
+
+source_repo:
+  url: https://github.com/seatgeek/thefuzz
+  revision: guided
+  resolved_commit: a1a8cdebd84d5bc3abf25ebcb398f26bbfdf30a8
+  license: MIT
+  distribution: thefuzz
+  import_module: thefuzz
+
+target_project:
+  kind: consumer_fixture
+  path: fixtures/assembled_thefuzz
+  package: user_capability
+  entry_point: run
+
+requirement_spec_file: adopt-thefuzz-guided-v1.requirements.yaml
+
+capability:
+  statement: >
+    把 thefuzz 的模糊匹配能力接入我的笔记搜索,输入是查询词,输出为按相似度排序的笔记列表 交付 /adaptation/adapter.py,暴露 run(value) 单函数,必须调用 pinned thefuzz 实现该能力;行为以公开样例为准(例:run('周合') -> 'contains:周会纪要'; run('读书') -> 'contains:测试驱动'; run('咖啡') -> 'contains:购物清单');重复调用确定;完全离线 CPU-only。公开样例与可运行公开测试位于 /consumer 下,是本合同的一部分。
+  output_schema: UserExampleOutcome
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [adaptation]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 8
+  max_patch_lines: 400
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "/oracle/test_regression.py"]
+  probe_script: direct_frontmatter_probe_v2.py

@@ -277,13 +277,23 @@ elif step == 5:
                     resolved_commit=str(rep.commit.value), distribution=repo_name,
                     import_module=repo_name.replace("-", "_"),
                     license_id=str(rep.license.value), examples=exs)
-                _s.update(label=f"文件已生成({out['public']} 公开 + {out['held']} 隐藏样例),开始冻结"
-                                "(构建离线依赖 + 控制组自检,约 1-3 分钟)……")
-                proc = _sp.run([str(_root / ".venv" / "bin" / "python"), "-m", "repoproof.cli",
-                                "freeze-task", "--contract", f"contracts/{out['task_id']}.yaml",
-                                "--full"], capture_output=True, text=True, cwd=str(_root),
-                               timeout=900, check=False)
-                if proc.returncode == 0:
+                steps = [
+                    (["freeze-task", "--contract", f"contracts/{out['task_id']}.yaml"],
+                     "封存合同、获取目标仓库固定版本……"),
+                    (["baseline", "--contract", f"contracts/{out['task_id']}.yaml"],
+                     "构建离线依赖 + 直连基线(未适配时样例应当失败,这是正常的)……"),
+                    (["freeze-task", "--contract", f"contracts/{out['task_id']}.yaml", "--full"],
+                     "冻结验收集合 + 控制组自检……"),
+                ]
+                proc = None
+                for args_, label_ in steps:
+                    _s.update(label=f"({out['public']} 公开 + {out['held']} 隐藏样例){label_}")
+                    proc = _sp.run([str(_root / ".venv" / "bin" / "python"), "-m", "repoproof.cli",
+                                    *args_], capture_output=True, text=True, cwd=str(_root),
+                                   timeout=900, check=False)
+                    if proc.returncode != 0:
+                        break
+                if proc and proc.returncode == 0:
                     _s.update(label="装配并冻结完成", state="complete")
                     st.success(f"任务 {out['task_id']} 已冻结——刷新后在上方「真实运行」选择它,"
                                "亲手开始你的第一次运行。")

@@ -1,0 +1,17 @@
+{
+ "note": "用户样例(公开子集)。expected 以 contains: 开头为包含断言,否则相等断言。验收强度=用户样例级;另有同语义 held-out 样例用于隐藏验证。",
+ "examples": [
+  {
+   "input": "周合",
+   "expected": "contains:周会纪要"
+  },
+  {
+   "input": "读书",
+   "expected": "contains:测试驱动"
+  },
+  {
+   "input": "咖啡",
+   "expected": "contains:购物清单"
+  }
+ ]
+}
