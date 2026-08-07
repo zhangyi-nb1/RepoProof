@@ -191,7 +191,7 @@ class _Runner:
         self.consumer_src = self.project_root / Path(self.contract.target_project.path)
         self.probes_src = self.project_root / "src" / "repoproof" / "probes"
         self.user = f"{os.getuid()}:{os.getgid()}"
-        self.dist_module = self.contract.source_repo.distribution.replace("-", "_")
+        self.dist_module = self.contract.source_repo.import_name
         self.expected_nodes: dict | None = None
         if self.package.collection_manifest_sha256:
             cpath = task_package.collection_path_for(self.contract_path)

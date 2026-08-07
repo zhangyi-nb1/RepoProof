@@ -1,0 +1,100 @@
+# Adoption Contract — FROZEN. Third task (Gate 6): low-complexity,
+# preregistered, solvable-by-design. Same discipline: agents change
+# solutions, never the problem/hard constraints/oracle. No
+# expected-outcome label in this file.
+#
+# Frozen upstream facts: python-frontmatter v1.3.0 (pinned commit IS
+# the official release tag) exposes frontmatter.loads(text) -> Post
+# with .metadata (python dict incl. YAML dates) and .content (str).
+#
+# Calibrated deterministic rules:
+#   P1: metadata is projected JSON-safe — date/datetime values become
+#       ISO strings; str/int/float/bool/null kept; lists/dicts
+#       projected recursively; any other type becomes str(value).
+#   P2: has_frontmatter == (projected metadata != {}).
+#   P3: unfenced/malformed front matter follows the pinned upstream's
+#       actual behaviour.
+#   P4: malformed request entries (non-string text) are wrapped as
+#       rag_ingest.IngestError.
+
+task_id: adopt-frontmatter-local-ingest-v1
+
+source_repo:
+  url: https://github.com/eyeseast/python-frontmatter
+  revision: v1.3.0
+  resolved_commit: dc7c0af5466b104e0ba01ae3c5b2cd77edc27292
+  license: MIT
+  distribution: python-frontmatter
+  import_module: frontmatter
+
+target_project:
+  kind: consumer_fixture
+  path: fixtures/consumer_rag_ingest
+
+capability:
+  statement: >
+    Adopt python-frontmatter's parsing into the local ingest consumer:
+    rag_ingest.ingest_documents(request) must return host-schema
+    IngestRecord rows whose metadata and content come from the pinned
+    python-frontmatter parse of each document, with metadata projected
+    JSON-safe per P1 (dates become ISO strings), has_frontmatter per
+    P2, upstream behaviour preserved for malformed fences per P3,
+    document input order preserved, one record per document,
+    malformed request entries wrapped as rag_ingest.IngestError per
+    P4, deterministic across repeated calls — fully offline, CPU-only.
+  output_schema: IngestRecord
+  coverage_requirements:
+    - id: parse-from-upstream
+      source_field: capability.statement
+      source_quote: "metadata and content come from the pinned python-frontmatter parse of each document"
+    - id: json-safe-projection
+      source_field: capability.statement
+      source_quote: "metadata projected JSON-safe per P1 (dates become ISO strings)"
+    - id: has-frontmatter-flag
+      source_field: capability.statement
+      source_quote: "has_frontmatter per P2"
+    - id: malformed-fence-upstream
+      source_field: capability.statement
+      source_quote: "upstream behaviour preserved for malformed fences per P3"
+    - id: document-order
+      source_field: capability.statement
+      source_quote: "document input order preserved, one record per document"
+    - id: wrapped-errors
+      source_field: capability.statement
+      source_quote: "malformed request entries wrapped as rag_ingest.IngestError per P4"
+    - id: determinism
+      source_field: capability.statement
+      source_quote: "deterministic across repeated calls"
+    - id: offline-cpu-only
+      source_field: capability.statement
+      source_quote: "fully offline, CPU-only"
+
+environment:
+  os: linux
+  arch: arm64
+  python: "3.12"
+  cpu_only: true
+  network_install: true
+  network_test: false
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, embedding_calls, network_at_test_time]
+  editable_zones: [adaptation]
+  forbidden_install_extras: ["[all]", sentence-transformers, torch, openai, google-genai, gemini, qdrant, chromadb, pgvector, weaviate]
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 8
+  max_patch_lines: 400
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "/oracle/test_regression.py"]
+  probe_script: direct_frontmatter_probe.py

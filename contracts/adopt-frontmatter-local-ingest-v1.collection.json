@@ -1,0 +1,20 @@
+{
+  "capability_nodes": [
+    "test_capability::test_deterministic_repeat_and_input_not_mutated",
+    "test_capability::test_document_order_preserved[held]",
+    "test_capability::test_document_order_preserved[public]",
+    "test_capability::test_malformed_request_wrapped",
+    "test_capability::test_record_schema_exact_fields[held]",
+    "test_capability::test_record_schema_exact_fields[public]",
+    "test_capability::test_records_match_pinned_reference[held]",
+    "test_capability::test_records_match_pinned_reference[public]",
+    "test_capability::test_response_json_serializable[held]",
+    "test_capability::test_response_json_serializable[public]",
+    "test_capability::test_unfenced_document_follows_upstream_behaviour"
+  ],
+  "regression_nodes": [
+    "test_regression::test_health",
+    "test_regression::test_loader_does_not_modify_fixture",
+    "test_regression::test_loader_loads_documents"
+  ]
+}

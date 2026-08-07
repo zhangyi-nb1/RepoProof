@@ -47,6 +47,15 @@ class SourceRepo(BaseModel):
     """Installed python distribution name (portability: probe/env
     admission/wheel selection derive from this, not from hardcoded
     names). Default keeps the frozen v1–v3 contracts valid."""
+    import_module: str | None = None
+    """Importable module name when it differs from the distribution
+    (e.g. distribution python-frontmatter -> module frontmatter).
+    Discovered as a real portability gap by the third task's blocked
+    baseline; None keeps the prior derivation for older contracts."""
+
+    @property
+    def import_name(self) -> str:
+        return self.import_module or self.distribution.replace("-", "_")
 
 
 class TargetProject(BaseModel):

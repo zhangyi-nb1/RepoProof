@@ -79,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
             env_constraints = {
                 "machine": "aarch64" if contract.environment.arch == "arm64" else contract.environment.arch,
                 "python": contract.environment.python,
-                dist.replace("-", "_"): version,
+                contract.source_repo.import_name: version,
             }
         manifest = task_package.freeze(
             PROJECT_ROOT,

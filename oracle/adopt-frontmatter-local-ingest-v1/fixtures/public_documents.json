@@ -1,0 +1,28 @@
+{
+ "documents": [
+  {
+   "doc_id": "d-001-standard",
+   "text": "---\ntitle: Offline Ingest Guide\nauthor: 王芳\ntags: [rag, offline]\npriority: 2\n---\n# Guide\n\nAll processing stays local. 完全离线。"
+  },
+  {
+   "doc_id": "d-002-no-frontmatter",
+   "text": "# Plain Document\n\nNo front matter here, content passes through untouched."
+  },
+  {
+   "doc_id": "d-003-dates-nested",
+   "text": "---\npublished: 2026-01-15\nreview:\n  by: qa-team\n  score: 4.5\ndraft: false\n---\nBody with nested metadata and a date."
+  },
+  {
+   "doc_id": "d-004-empty-frontmatter",
+   "text": "---\n---\nOnly an empty front matter block above this line."
+  },
+  {
+   "doc_id": "d-005-malformed-unclosed",
+   "text": "---\ntitle: Broken\nBody continues without closing the front matter fence."
+  },
+  {
+   "doc_id": "d-006-unicode",
+   "text": "---\ntitle: 中文标题 🚀\nsource: 微信\n---\n正文:emoji 😀 与中英混排 works fine."
+  }
+ ]
+}

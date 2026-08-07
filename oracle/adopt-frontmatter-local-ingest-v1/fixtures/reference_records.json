@@ -1,0 +1,93 @@
+{
+ "fixtures": {
+  "held_out_documents.json": {
+   "h-001-list-heavy": {
+    "content": "Held-out doc with list metadata.",
+    "has_frontmatter": true,
+    "metadata": {
+     "authors": [
+      "alice",
+      "bob",
+      "carol"
+     ],
+     "refs": [
+      "a1",
+      "a2"
+     ]
+    }
+   },
+   "h-002-plain": {
+    "content": "Just text. Not even a heading.",
+    "has_frontmatter": false,
+    "metadata": {}
+   },
+   "h-003-date-only": {
+    "content": "Dated held-out body.",
+    "has_frontmatter": true,
+    "metadata": {
+     "date": "2026-08-07"
+    }
+   },
+   "h-004-bool-null": {
+    "content": "Booleans and nulls survive projection.",
+    "has_frontmatter": true,
+    "metadata": {
+     "active": true,
+     "owner": null
+    }
+   }
+  },
+  "public_documents.json": {
+   "d-001-standard": {
+    "content": "# Guide\n\nAll processing stays local. 完全离线。",
+    "has_frontmatter": true,
+    "metadata": {
+     "author": "王芳",
+     "priority": 2,
+     "tags": [
+      "rag",
+      "offline"
+     ],
+     "title": "Offline Ingest Guide"
+    }
+   },
+   "d-002-no-frontmatter": {
+    "content": "# Plain Document\n\nNo front matter here, content passes through untouched.",
+    "has_frontmatter": false,
+    "metadata": {}
+   },
+   "d-003-dates-nested": {
+    "content": "Body with nested metadata and a date.",
+    "has_frontmatter": true,
+    "metadata": {
+     "draft": false,
+     "published": "2026-01-15",
+     "review": {
+      "by": "qa-team",
+      "score": 4.5
+     }
+    }
+   },
+   "d-004-empty-frontmatter": {
+    "content": "Only an empty front matter block above this line.",
+    "has_frontmatter": false,
+    "metadata": {}
+   },
+   "d-005-malformed-unclosed": {
+    "content": "---\ntitle: Broken\nBody continues without closing the front matter fence.",
+    "has_frontmatter": false,
+    "metadata": {}
+   },
+   "d-006-unicode": {
+    "content": "正文:emoji 😀 与中英混排 works fine.",
+    "has_frontmatter": true,
+    "metadata": {
+     "source": "微信",
+     "title": "中文标题 🚀"
+    }
+   }
+  }
+ },
+ "projection": "P1 dates->ISO strings",
+ "upstream": "python-frontmatter@dc7c0af5 (v1.3.0)"
+}
