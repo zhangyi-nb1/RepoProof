@@ -1,0 +1,76 @@
+{
+  "action_protocol": "native",
+  "adaptation_root": "924fe67fb6dfbdd47cde61f9c0001db72296f85261f27fc72affbe0c5c156665",
+  "agent": {
+    "agent_wall_s": 93.4,
+    "commands": 26,
+    "cost": "UNKNOWN",
+    "denied": 0,
+    "exit_status": "Submitted",
+    "harness_injected_chars": 0,
+    "input_tokens": 241258,
+    "ledger_final": null,
+    "model_calls": 16,
+    "output_tokens": 7301
+  },
+  "budget_exhausted": null,
+  "budget_visibility": false,
+  "capability": "passed_checks=18, failed_checks=0, total_checks=18; all 18 frozen nodes executed and passed",
+  "capability_failed_tests": [],
+  "contract_sha256": "6fc81af7adc079827d0997a26437e5d720fd2bdc16468aaf6bfc1b991d2f329f",
+  "coverage_ledger": false,
+  "final_trace_sha256": "afe4f52efec1480cd067f2e676340fa2308c1efa78838fa846348a03513c0d45",
+  "final_verdict": "PASS_ADAPTED",
+  "gate_reasons": [
+    "capability, host regression, policy and clean_adoption replay all passed"
+  ],
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "missing_external": [],
+  "mode": "real-agent-baseline",
+  "policy": "oracle/upstream intact; action causality holds; patch budgets respected",
+  "preflight": {
+    "action_protocol": "native",
+    "api_base": "https://<redacted-host>",
+    "evidence": [
+      "native action parsed: 'echo PREFLIGHT_OK'"
+    ],
+    "model_name": "deepseek-v4-pro",
+    "preflight_calls": 1,
+    "preflight_cost": "UNKNOWN",
+    "preflight_input_tokens": 299,
+    "preflight_output_tokens": 60,
+    "preflight_wall_time_s": 1.3,
+    "provider_config_sha256": "21f537380c779f8f8348a5cdd4be8034cba6aa2cc8c895a341bb2dc0f5b57d90",
+    "status": "PROVIDER_READY",
+    "temperature": "0"
+  },
+  "prompt_sha256": "83931a19074b3015749101d83be85948cb9d7fabf7f1d73c1925a7ee8501f4b1",
+  "provider_config_sha256": "21f537380c779f8f8348a5cdd4be8034cba6aa2cc8c895a341bb2dc0f5b57d90",
+  "regression": "passed_checks=3, failed_checks=0, total_checks=3; all 3 frozen nodes executed and passed",
+  "replay": "mode=clean_adoption, status=PASS",
+  "run_id": "adopt-frontmatter-local-ingest-v1-v2-20260807-201155",
+  "source_git_tree_hash": "8655f7752b44e5278d9d07b14149f918d968f364",
+  "task_id": "adopt-frontmatter-local-ingest-v1-v2",
+  "task_package_root_hash": "667b4ce3ae4e00d99d3f33fe681e2ae7afc4e1bd21a503f367029a326abc3349",
+  "temperature": "0",
+  "timings": {
+    "agent_command_s": 0.0,
+    "agent_model_call_s": 93.4,
+    "replay_s": 7.7,
+    "system_setup_s": 13.0,
+    "total_wall_s": 121.7,
+    "verification_s": 7.6
+  },
+  "trace_chain_error": "",
+  "trace_chain_ok": true,
+  "trace_events": 180,
+  "trajectory_sha256": "7062de8fda6365964ddedca8da9d0ae04a37e13a59c084ffc66cf1ad427dc7f0",
+  "verdict": "PASS_ADAPTED",
+  "verification_result_hashes": {
+    "CapabilityVerifier": "1608273dd4e52ac552f76a1cf8837be1660a8ceb9934252bbf6b06e4a4078cd3",
+    "HostRegressionVerifier": "aa66478ba706cadd7cc2dadbfa89f446560e30549b652dc2e7e778badce0f6d1",
+    "PolicyVerifier": "00729e4e7cb4402c6d0f433cc518d8f2ef1460b588cb7b4998150f991de70903",
+    "ReplayVerifier": "7d8adf23558dad40fbddc738ef73feb45eda29763eadb69b9a5733738f4aad6e"
+  },
+  "wheelhouse_root": "c286953bef054c13910332a1fde57ca23546438bcb9bf6e99535ae967f5cd0c4"
+}

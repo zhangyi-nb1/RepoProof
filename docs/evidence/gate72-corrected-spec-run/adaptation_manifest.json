@@ -1,0 +1,14 @@
+{
+  "files": [
+    {
+      "lines": 67,
+      "path": "adapter.py",
+      "sha256": "4436992720840c409cdb49761172aa7bc69458d3b687a47dfb62afcfda196ea3",
+      "size": 2129
+    }
+  ],
+  "frozen": true,
+  "total_files": 1,
+  "total_lines": 67,
+  "tree_root_sha256": "924fe67fb6dfbdd47cde61f9c0001db72296f85261f27fc72affbe0c5c156665"
+}

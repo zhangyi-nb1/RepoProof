@@ -1,11 +1,16 @@
 # RepoAdoptBench-mini — consolidated results
 
-Three adoption tasks, nine runs, one agent (mini-swe-agent 2.4.6 +
-deepseek-v4-pro, native tool-calls, temperature 0, 20-model-call
-budget). Every number below comes from a committed evidence bundle
-(`docs/evidence/…`) with a verified trace chain and an all-checks-pass
-verify-bundle. **No run below reached PASS_ADAPTED — every verdict is
-an honest FAIL**, each with a deterministic failure reproduction.
+Four task versions across three capability domains, eleven runs
+(2 direct baselines shown separately for the fm tasks), one agent
+(mini-swe-agent 2.4.6 + deepseek-v4-pro, native tool-calls,
+temperature 0, 20-model-call budget). Every number below comes from a
+committed evidence bundle (`docs/evidence/…`) with a verified trace
+chain and an all-checks-pass verify-bundle. **The first (and only)
+PASS_ADAPTED is the Gate 7.2 corrected-spec run** — it required an
+adequate contract (RequirementSpec + public truth table + runnable
+public tests), a hash-pinned Contract→Prompt projection, and
+deterministic input validation owned by the HOST guard; every earlier
+verdict is an honest FAIL with a deterministic failure reproduction.
 
 Budget disclosure: the frontmatter task (Gate 6, preregistered
 solvable-by-design, LOW difficulty) relaxed token budgets to
@@ -38,6 +43,8 @@ NOT the official 0.2.2 tag itself.)
 | fm-direct | v5 | direct (no agent) | 1/11 | 3/3 | PASS | failure_reproduction PASS | FAIL | 0 | 0 | — | 0 files | — | (baseline) | reference oracle; first attempt BLOCKED on import-name gap (fixed via `import_module`) |
 | fm-agent | v5 | agent (budget vis, ledger OFF) | 1/11 | 3/3 | PASS | failure_reproduction PASS | FAIL | 20 (LimitsExceeded) | 40 | 302,498 / 11,212 | 1 file / 70 ln | 169.5s | **HARNESS_PROMPT_CONTAMINATION** (harness-attributed: prompt carried chonkie deliverable; adapter used prompt's `document_id` over consumer's `doc_id`) | prompt/trajectory diff + adapter line 28; NOT an agent-capability measurement |
 | fm-agent-clean (G7) | v5 | agent, decontaminated prompt (only variable vs fm-agent) | **8/11** | 3/3 | PASS | failure_reproduction PASS | FAIL | 20 (LimitsExceeded) | 34 | 284,687 / 8,268 | 1 file / 81 ln | 134.9s | CONTRACT_UNDERSPECIFICATION (P2 flag on d-004/d-005; task-author-attributed) + CONTRACT_REQUIREMENT_OMISSION (text=None unwrapped — replicates the chonkie omission cross-domain) | junit flag-only diffs; held-out records fully matched; core adoption (pinned parse + P1 projection + schema/order/determinism) achieved |
+| fm-v2-baseline (G7.1) | v2-spec | direct adoption (no adapter) | 8/18 | 3/3 | PASS | failure_reproduction PASS | FAIL | 0 | — | — / — | 0 files | — | (baseline: host guard nodes pass by construction; schema/flags/projection/wrapping gaps recorded) | adequate-spec task; ContractAdequacyGate ADEQUATE 13/13 before any run |
+| **fm-v2-agent (G7.2)** | v2-spec | agent, corrected spec (RequirementSpec + truth table + public tests + host guard; ledger OFF, budget text OFF) | **18/18** | 3/3 | PASS | **clean_adoption PASS** | **PASS_ADAPTED** | 16 (**Submitted**) | 26 | 241,258 / 7,301 | 1 file / 67 ln | 93.4s | — | FIRST positive closure; prompt sha + provider hash matched preregistration exactly; NOT comparable to G7 as a single-variable delta (task version, schema, prompt surface and guard all changed) |
 
 Notes:
 - **HARNESS_PROMPT_CONTAMINATION (Gate 6 discovery)**: the module-level

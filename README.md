@@ -8,26 +8,31 @@ whether the result actually works: capability tests, host regression,
 policy checks, and a clean-room replay. `PASS` is earned from
 executable evidence, never from an agent's self-claim.
 
-> Status: **Gate 7 — prompt fix verified on a real run; still no
-> PASS_ADAPTED, and the evidence says exactly why.** Full results in
+> Status: **Gate 7.2 — first PASS_ADAPTED, earned by fixing the SPEC,
+> not by prompting harder.** Full results in
 > [docs/BENCHMARK.md](docs/BENCHMARK.md), typed failures in
-> [docs/FAILURE_TAXONOMY.md](docs/FAILURE_TAXONOMY.md). Nine runs,
-> three capability domains (Chonkie chunking 4/33→31/33; rank_bm25
-> ranking 1/12→9/12; python-frontmatter ingest 1/11→8/11), zero
-> PASS_ADAPTED — every verdict an honest FAIL. Gate 6 caught the
-> harness's own bug (HARNESS_PROMPT_CONTAMINATION: hardcoded
-> first-task deliverable text leaking into other tasks' prompts);
-> Gate 7 re-ran the same frozen task once with the decontaminated
-> contract-driven prompt as the only variable: capability moved
-> 1/11 → 8/11 (held-out records fully matched; pinned parse + P1
-> date→ISO projection + schema/order/determinism all achieved). The
-> remaining 3 failures decompose into a task-author contract gap
-> (P2's definition existed only in yaml comments —
-> CONTRACT_UNDERSPECIFICATION) and a cross-domain replicated agent
-> omission (malformed text=None never wrapped — the same neglect
-> chonkie's agent showed, n=2 domains). Preregistered no-re-run rule
-> honoured both gates. Coverage Ledger: experimental, default off.
-> Token budgets genuinely enforced since Gate 5.1.
+> [docs/FAILURE_TAXONOMY.md](docs/FAILURE_TAXONOMY.md). Eleven runs
+> across three capability domains; every earlier verdict an honest
+> FAIL (Chonkie 4/33→31/33; rank_bm25 1/12→9/12; frontmatter v1
+> 1/11→8/11). Gate 7's FAIL decomposed into a task-author contract
+> gap (a rule defined only in yaml comments) plus an agent omission
+> (text=None never wrapped, replicated in 2 domains) — so Gate 7.1
+> fixed the SPEC SIDE deterministically, zero LLM calls: a v2 task
+> splitting the ambiguous flag into `frontmatter_present` +
+> `metadata_nonempty` with a container-calibrated public truth table,
+> a typed RequirementSpec (owner/severity/examples/oracle bindings),
+> a 13-check ContractAdequacyGate that refuses to start any agent on
+> an inadequate spec (INVALID_TASK_SPEC, zero model calls), a
+> hash-pinned Contract→Prompt projection (PromptManifest), and a host
+> InputContractGuard that owns deterministic input validation so
+> agents stop re-implementing it. Gate 7.2 then ran the corrected
+> spec ONCE (same model/budgets/policy; ledger off, budget text off):
+> capability 18/18 incl. held-out, regression 3/3, policy clean,
+> clean-room replay in clean_adoption mode PASS, agent submitted
+> voluntarily at 16/20 calls — verdict **PASS_ADAPTED**, prompt sha
+> and provider hash matching the preregistration exactly. NOT a
+> single-variable delta vs Gate 7 (task version, schema, prompt
+> surface and guard changed together). Gate 7 history untouched.
 >
 > Earlier status (Gate 3C — first REAL agent baseline): One
 > mini-swe-agent run (deepseek-v4-pro, native tool-calls, temp 0,
