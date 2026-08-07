@@ -121,7 +121,7 @@ def test_wizard_five_steps_flow() -> None:
     assert "确认采用计划" in _all_text(at)  # step 4
     next(c for c in at.checkbox if "我确认" in c.label).check().run()
     next(b for b in at.button if b.label == "下一步").click().run()
-    assert "只读演示版" in _all_text(at)  # step 5
+    assert "真实运行" in _all_text(at)  # step 5:真实运行区已就位
 
 
 # 6. 必填缺失 → 中文可操作提示
