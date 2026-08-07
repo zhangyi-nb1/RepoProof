@@ -230,12 +230,14 @@ def test_simple_mode_hides_trace_token_hash() -> None:
 def test_completed_task_stages_use_past_tense() -> None:
     """P0.6:已完成任务回顾用过去时;P1.5:简单模式压缩为三阶段。"""
     at = _page("progress.py")
+    at.session_state["case"] = "frontmatter-v2-pass"  # 固定示例(本地 run 有专属视图)
     at.run()
     text = _all_text(at)
     assert "AI 理解与修改" in text and "干净环境复测" in text  # 三阶段
     assert "正在运行测试" not in text  # 无进行时
     at2 = _page("progress.py")
     at2.session_state["ui_mode"] = "tech"
+    at2.session_state["case"] = "frontmatter-v2-pass"
     at2.run()
     text2 = _all_text(at2)
     assert "已运行测试" in text2 and "已完成最终验收" in text2  # 九段过去时
