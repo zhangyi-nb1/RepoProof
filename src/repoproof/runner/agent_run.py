@@ -76,51 +76,74 @@ def admit_or_block(
     }
 
 
-AGENT_PROMPT_TEMPLATE = """You are adopting a capability from a pinned open-source repo \
-into a host project, fully offline.
+def render_agent_prompt(
+    contract,
+    *,
+    command_budget: int,
+    cmd_timeout: int,
+    installed_note: str,
+    sample_inputs_line: str = "",
+) -> str:
+    """Fully CONTRACT-DRIVEN agent prompt.
 
-GOAL
-{statement}
-
-FROZEN PARAMETERS (from the pinned upstream API)
-- strategies: {strategies}
-- tokenizer: {tokenizer}
-- chunk_size: {chunk_size}
-- chunk_overlap (sentence strategy only): {chunk_overlap}
-- units semantics: {units}
-
-POST-PROCESSING RULES (contract-frozen)
-- R1: whitespace-only documents yield ZERO records.
-- R2: an indivisible over-size chunk from upstream is preserved verbatim (never re-split).
-
-YOUR ENVIRONMENT (network=none; everything is already installed)
-- /upstream        read-only pinned source checkout of the candidate repo
-- /consumer        read-only host consumer fixture (python package under /consumer/src/rag_consumer)
-- /consumer/sample_documents.json   public sample inputs you may test with
-- /adaptation      THE ONLY PERSISTENT WRITABLE ZONE — your deliverable goes here
-- /venv/env/bin/python   pinned python with chonkie 1.7.0 + pytest preinstalled
-- /tmp             scratch (destroyed afterwards)
-
-DELIVERABLE
-Write /adaptation/adapter.py exposing:
-    def chunk_documents(request: dict) -> dict
-The host loads it automatically (rag_consumer.chunk_documents delegates to it when
-REPOPROOF_ADAPTATION_DIR is set — it already is: try
-  PYTHONPATH=/consumer/src REPOPROOF_ADAPTATION_DIR=/adaptation \
-  /venv/env/bin/python -c "from rag_consumer import chunk_documents; ..."
-). Request shape: {{"documents": [{{"document_id", "text", "metadata"}}...],
-"strategy": "sentence"|"recursive", "chunk_size": int}}.
-Each output record must carry exactly these fields:
-    chunk_id, document_id, ordinal, text, char_start, char_end, units, metadata
-with stable deterministic chunk ids (never upstream per-call ids), document input order,
-per-document ordinals from 0, offsets that slice back into the source text, metadata passthrough,
-upstream errors wrapped as rag_consumer.chunking.ConsumerChunkingError.
-The chunk text/order/boundaries must come from the real chonkie chunkers for the requested strategy.
-
-BUDGETS
-- model calls: {step_limit}; executed commands: {command_budget}; per-command timeout {cmd_timeout}s.
-Acceptance is judged AFTER you finish by tests you cannot see; there is no partial credit for claims.
-When done, submit with: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"""
+    Every task-specific token comes from the contract (statement,
+    params, target package/entry point) or the frozen package
+    (installed distribution note). The Gate 6 run proved why: the old
+    module-level template carried hardcoded chonkie deliverable text
+    ('chunk_documents', 'document_id', 'ConsumerChunkingError') into
+    OTHER tasks' prompts, and the agent trusted the contaminated
+    request shape over the consumer source it had already read
+    (HARNESS_PROMPT_CONTAMINATION in docs/FAILURE_TAXONOMY.md).
+    """
+    cap = contract.capability
+    target = contract.target_project
+    parts = [
+        "You are adopting a capability from a pinned open-source repo "
+        "into a host project, fully offline.",
+        f"GOAL\n{cap.statement.strip()}",
+    ]
+    if cap.params is not None:
+        params = [
+            f"- strategies: {', '.join(cap.params.strategies)}",
+            f"- tokenizer: {cap.params.tokenizer}",
+            f"- chunk_size: {cap.params.chunk_size}",
+            f"- chunk_overlap (sentence strategy only): {cap.params.chunk_overlap}",
+        ]
+        if cap.units_semantics:
+            params.append(f"- units semantics: {cap.units_semantics.strip()}")
+        parts.append("FROZEN PARAMETERS (from the pinned upstream API)\n" + "\n".join(params))
+    parts.append(
+        "YOUR ENVIRONMENT (network=none; everything is already installed)\n"
+        "- /upstream        read-only pinned source checkout of the candidate repo\n"
+        f"- /consumer        read-only host consumer fixture (python package under /consumer/src/{target.package})\n"
+        f"{sample_inputs_line}"
+        "- /adaptation      THE ONLY PERSISTENT WRITABLE ZONE — your deliverable goes here\n"
+        f"- /venv/env/bin/python   pinned python with {installed_note} + pytest preinstalled\n"
+        "- /tmp             scratch (destroyed afterwards)"
+    )
+    parts.append(
+        "DELIVERABLE\n"
+        "Write /adaptation/adapter.py exposing:\n"
+        f"    def {target.entry_point}(request: dict) -> dict\n"
+        f"The host loads it automatically ({target.package}.{target.entry_point} delegates to it when\n"
+        "REPOPROOF_ADAPTATION_DIR is set — it already is: try\n"
+        "  PYTHONPATH=/consumer/src REPOPROOF_ADAPTATION_DIR=/adaptation \\\n"
+        f'  /venv/env/bin/python -c "from {target.package} import {target.entry_point}; ..."\n'
+        ").\n"
+        "The exact request/response field names, record schema and error-wrapping\n"
+        "contract are defined by the GOAL above and by the host consumer source:\n"
+        f"read /consumer/src/{target.package}/ and treat it as AUTHORITATIVE for\n"
+        "field names and shapes — do not invent or rename fields."
+    )
+    parts.append(
+        "BUDGETS\n"
+        f"- model calls: {contract.budgets.max_agent_steps}; executed commands: {command_budget}; "
+        f"per-command timeout {cmd_timeout}s.\n"
+        "Acceptance is judged AFTER you finish by tests you cannot see; there is no partial "
+        "credit for claims.\n"
+        "When done, submit with: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"
+    )
+    return "\n\n".join(parts)
 
 
 class AgentRunner(_Runner):
@@ -241,7 +264,6 @@ class AgentRunner(_Runner):
                 ev("container.security", actor="harness", payload={"label": "agent", **security})
                 assert str(security.get("network_mode")) == "none"
 
-                cap = self.contract.capability
                 ledger_paragraph = ""
                 if coverage_ledger:
                     ledger_paragraph = (
@@ -252,17 +274,28 @@ class AgentRunner(_Runner):
                         "addressed count and unresolved ids; it is a self-tracking aid with no "
                         "acceptance knowledge."
                     )
-                prompt = AGENT_PROMPT_TEMPLATE.format(
-                    statement=cap.statement.strip(),
-                    strategies=", ".join(cap.params.strategies) if cap.params else "sentence",
-                    tokenizer=cap.params.tokenizer if cap.params else "character",
-                    chunk_size=cap.params.chunk_size if cap.params else 120,
-                    chunk_overlap=cap.params.chunk_overlap if cap.params else 0,
-                    units=(cap.units_semantics or "").strip(),
-                    step_limit=self.contract.budgets.max_agent_steps,
-                    command_budget=command_budget,
-                    cmd_timeout=cmd_timeout,
-                ) + ledger_paragraph
+                dist_version = (self.package.environment_constraints or {}).get(
+                    self.contract.source_repo.import_name
+                )
+                installed_note = self.contract.source_repo.distribution + (
+                    f" {dist_version}" if dist_version else ""
+                )
+                sample_file = self.consumer_src / "sample_documents.json"
+                sample_line = (
+                    "- /consumer/sample_documents.json   public sample inputs you may test with\n"
+                    if sample_file.exists()
+                    else ""
+                )
+                prompt = (
+                    render_agent_prompt(
+                        self.contract,
+                        command_budget=command_budget,
+                        cmd_timeout=cmd_timeout,
+                        installed_note=installed_note,
+                        sample_inputs_line=sample_line,
+                    )
+                    + ledger_paragraph
+                )
                 prompt_sha = sha256_bytes(prompt.encode())
                 ev("agent.prompt", actor="harness", payload={"sha256": prompt_sha, "chars": len(prompt)})
 

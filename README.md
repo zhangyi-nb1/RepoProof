@@ -8,15 +8,23 @@ whether the result actually works: capability tests, host regression,
 policy checks, and a clean-room replay. `PASS` is earned from
 executable evidence, never from an agent's self-claim.
 
-> Status: **Gate 5.1 — two-task benchmark consolidated.** Full results
-> in [docs/BENCHMARK.md](docs/BENCHMARK.md), typed failures in
-> [docs/FAILURE_TAXONOMY.md](docs/FAILURE_TAXONOMY.md). Six runs, two
-> capability domains (Chonkie chunking 4/33→31/33; rank_bm25 ranking
-> 1/12→9/12), zero PASS_ADAPTED yet — every verdict an honest FAIL
-> with deterministic failure reproduction. Coverage Ledger:
-> experimental, default off, cross-task effect not supported. Token
-> budgets are now genuinely enforced (Gate 5.1) after real runs
-> exposed a paper-only 250k cap.
+> Status: **Gate 6 — three-task benchmark; the harness caught itself.**
+> Full results in [docs/BENCHMARK.md](docs/BENCHMARK.md), typed
+> failures in [docs/FAILURE_TAXONOMY.md](docs/FAILURE_TAXONOMY.md).
+> Eight runs, three capability domains (Chonkie chunking 4/33→31/33;
+> rank_bm25 ranking 1/12→9/12; python-frontmatter ingest 1/11→1/11),
+> zero PASS_ADAPTED — every verdict an honest FAIL. The preregistered
+> solvable third task FAILED for a harness-attributed reason the
+> evidence chain exposed precisely: the prompt template carried
+> hardcoded first-task deliverable text into other tasks' prompts
+> (HARNESS_PROMPT_CONTAMINATION), and the agent trusted the
+> contaminated request shape over the consumer source it had already
+> read. Fixed contract-driven post-run; the preregistration's
+> no-re-run rule was honoured, so the FAIL stands and a clean-prompt
+> run awaits a future gate. Also fixed en route: distribution≠import
+> name portability gap (`SourceRepo.import_module`). Coverage Ledger:
+> experimental, default off. Token budgets genuinely enforced since
+> Gate 5.1.
 >
 > Earlier status (Gate 3C — first REAL agent baseline): One
 > mini-swe-agent run (deepseek-v4-pro, native tool-calls, temp 0,

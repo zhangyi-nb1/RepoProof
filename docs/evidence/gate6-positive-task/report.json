@@ -1,0 +1,87 @@
+{
+  "action_protocol": "native",
+  "adaptation_root": "b5703225424116d6ef003120d9491cadf4451c20899df57ba26b9d74c7a1fd98",
+  "agent": {
+    "agent_wall_s": 169.3,
+    "commands": 40,
+    "cost": "UNKNOWN",
+    "denied": 3,
+    "exit_status": "LimitsExceeded",
+    "harness_injected_chars": 5934,
+    "input_tokens": 302498,
+    "ledger_final": null,
+    "model_calls": 20,
+    "output_tokens": 11212
+  },
+  "budget_exhausted": null,
+  "budget_visibility": true,
+  "capability": "passed_checks=1, failed_checks=10, total_checks=11; exit_code=1; passed=1 != expected=11; failures=10",
+  "capability_failed_tests": [
+    "test_capability::test_deterministic_repeat_and_input_not_mutated",
+    "test_capability::test_document_order_preserved[held]",
+    "test_capability::test_document_order_preserved[public]",
+    "test_capability::test_record_schema_exact_fields[held]",
+    "test_capability::test_record_schema_exact_fields[public]",
+    "test_capability::test_records_match_pinned_reference[held]",
+    "test_capability::test_records_match_pinned_reference[public]",
+    "test_capability::test_response_json_serializable[held]",
+    "test_capability::test_response_json_serializable[public]",
+    "test_capability::test_unfenced_document_follows_upstream_behaviour"
+  ],
+  "contract_sha256": "f4451b31cdde129ba0c832a5314c4cc657f0983022df359dc04fe6e94957199b",
+  "coverage_ledger": false,
+  "final_trace_sha256": "20e923f43880095b0e18bcc48f8ed146e7053db00349e6b6418d0119d06535cf",
+  "final_verdict": "FAIL",
+  "gate_reasons": [
+    "CapabilityVerifier: passed_checks=1, failed_checks=10, total_checks=11; exit_code=1; passed=1 != expected=11; failures=10"
+  ],
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "missing_external": [],
+  "mode": "real-agent-baseline",
+  "policy": "oracle/upstream intact; action causality holds; patch budgets respected",
+  "preflight": {
+    "action_protocol": "native",
+    "api_base": "https://<redacted-host>",
+    "evidence": [
+      "native action parsed: 'echo PREFLIGHT_OK'"
+    ],
+    "model_name": "deepseek-v4-pro",
+    "preflight_calls": 1,
+    "preflight_cost": "UNKNOWN",
+    "preflight_input_tokens": 299,
+    "preflight_output_tokens": 61,
+    "preflight_wall_time_s": 1.5,
+    "provider_config_sha256": "21f537380c779f8f8348a5cdd4be8034cba6aa2cc8c895a341bb2dc0f5b57d90",
+    "status": "PROVIDER_READY",
+    "temperature": "0"
+  },
+  "prompt_sha256": "f5cdaee4c6005cbe555d2455ae4e32f850d6bb67fdf6722e924c85bde39bd02a",
+  "provider_config_sha256": "21f537380c779f8f8348a5cdd4be8034cba6aa2cc8c895a341bb2dc0f5b57d90",
+  "regression": "passed_checks=3, failed_checks=0, total_checks=3; all 3 frozen nodes executed and passed",
+  "replay": "mode=baseline_failure_reproduction, status=PASS",
+  "run_id": "adopt-frontmatter-local-ingest-v1-20260807-170957",
+  "source_git_tree_hash": "8655f7752b44e5278d9d07b14149f918d968f364",
+  "task_id": "adopt-frontmatter-local-ingest-v1",
+  "task_package_root_hash": "333b2d868dfad26e197efd699b252ca0624d5c2c8d2bb10b02808043e2308aeb",
+  "temperature": "0",
+  "timings": {
+    "agent_command_s": 0.0,
+    "agent_model_call_s": 169.5,
+    "replay_s": 6.8,
+    "system_setup_s": 11.0,
+    "total_wall_s": 194.2,
+    "verification_s": 6.9
+  },
+  "trace_chain_error": "",
+  "trace_chain_ok": true,
+  "trace_events": 227,
+  "trajectory_sha256": "b0a840c194b8a61fd184b73e10b48b17eb6df15d97f5d794357a1fb912299cba",
+  "verdict": "FAIL",
+  "verification_result_hashes": {
+    "CapabilityVerifier": "681995da4268cbb70b5ab157e513c310acfdc74e3fe6ad0a238805b60dd4a436",
+    "HostRegressionVerifier": "aa66478ba706cadd7cc2dadbfa89f446560e30549b652dc2e7e778badce0f6d1",
+    "PolicyVerifier": "42d023a5be37f7e7bf1ff90ba96f35582b33e1ff04aaab3812ab87db5bca0820",
+    "ReplayVerifier": "9cf74371ffedbc44c2edfefabb0bf5a63bd9a5f9b3a89380cb242a5d46c53469"
+  },
+  "wheelhouse_root": "c286953bef054c13910332a1fde57ca23546438bcb9bf6e99535ae967f5cd0c4"
+}

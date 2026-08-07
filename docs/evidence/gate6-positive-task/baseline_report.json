@@ -1,0 +1,59 @@
+{
+  "adaptation_files": 0,
+  "adaptation_root": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "budget_exhausted": null,
+  "capability": "passed_checks=1, failed_checks=10, total_checks=11; exit_code=1; passed=1 != expected=11; failures=10",
+  "capability_failed_tests": [
+    "test_capability::test_document_order_preserved[held]",
+    "test_capability::test_document_order_preserved[public]",
+    "test_capability::test_malformed_request_wrapped",
+    "test_capability::test_record_schema_exact_fields[held]",
+    "test_capability::test_record_schema_exact_fields[public]",
+    "test_capability::test_records_match_pinned_reference[held]",
+    "test_capability::test_records_match_pinned_reference[public]",
+    "test_capability::test_response_json_serializable[held]",
+    "test_capability::test_response_json_serializable[public]",
+    "test_capability::test_unfenced_document_follows_upstream_behaviour"
+  ],
+  "contract_sha256": "f4451b31cdde129ba0c832a5314c4cc657f0983022df359dc04fe6e94957199b",
+  "final_trace_sha256": "d5dff1bc6e45b5e15f01859fe14f62f040a42918291893620e0f29fd9f45a384",
+  "final_verdict": "FAIL",
+  "gate_reasons": [
+    "CapabilityVerifier: passed_checks=1, failed_checks=10, total_checks=11; exit_code=1; passed=1 != expected=11; failures=10"
+  ],
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "missing_external": [],
+  "mode": "direct-adoption-baseline (scripted, no agent, no LLM)",
+  "policy": "oracle/upstream intact; action causality holds; patch budgets respected",
+  "regression": "passed_checks=3, failed_checks=0, total_checks=3; all 3 frozen nodes executed and passed",
+  "replay": "mode=baseline_failure_reproduction, status=PASS",
+  "run_id": "adopt-frontmatter-local-ingest-v1-20260807-170633",
+  "source_commit": "dc7c0af5466b104e0ba01ae3c5b2cd77edc27292",
+  "source_git_tree_hash": "8655f7752b44e5278d9d07b14149f918d968f364",
+  "steps_per_pass": {
+    "baseline": 10,
+    "replay": 10,
+    "setup": 0
+  },
+  "task_id": "adopt-frontmatter-local-ingest-v1",
+  "task_package_root_hash": "333b2d868dfad26e197efd699b252ca0624d5c2c8d2bb10b02808043e2308aeb",
+  "timings": {
+    "agent_command_s": 0.0,
+    "agent_model_call_s": 0.0,
+    "replay_s": 6.9,
+    "system_setup_s": 5.7,
+    "total_wall_s": 19.4,
+    "verification_s": 6.8
+  },
+  "trace_chain_error": "",
+  "trace_chain_ok": true,
+  "trace_events": 81,
+  "verdict": "FAIL",
+  "verification_result_hashes": {
+    "CapabilityVerifier": "789ab6fbca74a353fa24251f905a4194da900487fbf1f5d77198b4b2b7d6e087",
+    "HostRegressionVerifier": "aa66478ba706cadd7cc2dadbfa89f446560e30549b652dc2e7e778badce0f6d1",
+    "PolicyVerifier": "bd5fdf0c5561db9291eb75e2424367e40e20736e3d41aca578edbd4bcab1ed23",
+    "ReplayVerifier": "61c74fc6165bfb57a8da2f010315162b02dc03d3a6900293d68303b263ab6af8"
+  },
+  "wheelhouse_root": "c286953bef054c13910332a1fde57ca23546438bcb9bf6e99535ae967f5cd0c4"
+}

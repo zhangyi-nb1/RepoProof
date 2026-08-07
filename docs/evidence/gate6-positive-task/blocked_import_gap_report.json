@@ -1,0 +1,49 @@
+{
+  "adaptation_files": 0,
+  "adaptation_root": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "budget_exhausted": null,
+  "capability": "not run",
+  "capability_failed_tests": [],
+  "contract_sha256": "9e1efd43a9200c85d565c00480ef7c491945d25286f445da93ee0e2aa25baaa3",
+  "final_trace_sha256": "5cb2d0de46b0e3660adaf3bcbe7877f3305ed81dbfccd2cb1f888acfdeef59e9",
+  "final_verdict": "BLOCKED",
+  "gate_reasons": [
+    "blocked (external): env probe unparseable in baseline: Expecting value: line 1 column 1 (char 0)"
+  ],
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "missing_external": [
+    "env probe unparseable in baseline: Expecting value: line 1 column 1 (char 0)"
+  ],
+  "mode": "direct-adoption-baseline (scripted, no agent, no LLM)",
+  "policy": "oracle/upstream intact; action causality holds; patch budgets respected",
+  "regression": "not run",
+  "replay": null,
+  "run_id": "adopt-frontmatter-local-ingest-v1-20260807-170447",
+  "source_commit": "dc7c0af5466b104e0ba01ae3c5b2cd77edc27292",
+  "source_git_tree_hash": "8655f7752b44e5278d9d07b14149f918d968f364",
+  "steps_per_pass": {
+    "baseline": null,
+    "replay": null,
+    "setup": 0
+  },
+  "task_id": "adopt-frontmatter-local-ingest-v1",
+  "task_package_root_hash": "7c9b12d113330a6788422e52feab67a2662e32b0885c0dcdc5fa0ce1bd5bb8c0",
+  "timings": {
+    "agent_command_s": 0.0,
+    "agent_model_call_s": 0.0,
+    "replay_s": 0.0,
+    "system_setup_s": 6.8,
+    "total_wall_s": 13.5,
+    "verification_s": 0.0
+  },
+  "trace_chain_error": "",
+  "trace_chain_ok": true,
+  "trace_events": 29,
+  "verdict": "BLOCKED",
+  "verification_result_hashes": {
+    "CapabilityVerifier": "d8b6da654d877fc60c067b22fef8da2d368acc7d56eabc516e556ba1a024ac36",
+    "HostRegressionVerifier": "0548a867db552f48f0e7a22201f7f190b747d41c89f0292e51e6b91052f5235a",
+    "PolicyVerifier": "bd5fdf0c5561db9291eb75e2424367e40e20736e3d41aca578edbd4bcab1ed23"
+  },
+  "wheelhouse_root": "c286953bef054c13910332a1fde57ca23546438bcb9bf6e99535ae967f5cd0c4"
+}

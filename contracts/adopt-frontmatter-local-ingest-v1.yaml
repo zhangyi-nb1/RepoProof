@@ -30,6 +30,8 @@ source_repo:
 target_project:
   kind: consumer_fixture
   path: fixtures/consumer_rag_ingest
+  package: rag_ingest
+  entry_point: ingest_documents
 
 capability:
   statement: >

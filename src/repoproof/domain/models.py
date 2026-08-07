@@ -61,6 +61,13 @@ class SourceRepo(BaseModel):
 class TargetProject(BaseModel):
     kind: str = "consumer_fixture"
     path: str
+    package: str = "rag_consumer"
+    entry_point: str = "chunk_documents"
+    """Host package + delegating callable the adapter must serve.
+    Defaults keep the frozen chonkie contracts valid. Added after the
+    Gate 6 run exposed AGENT_PROMPT_TEMPLATE carrying hardcoded
+    chonkie deliverable text into other tasks' prompts
+    (HARNESS_PROMPT_CONTAMINATION)."""
 
 
 class CapabilityParams(BaseModel):
