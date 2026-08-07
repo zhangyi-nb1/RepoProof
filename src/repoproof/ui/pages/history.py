@@ -9,7 +9,6 @@ import streamlit as st
 from repoproof.ui.presenters.glossary import (
     dash,
     run_type_zh,
-    verdict_icon,
     verdict_simple,
     verdict_zh,
 )
@@ -42,9 +41,12 @@ def _domain(task_version: str) -> str:
 f1, f2 = st.columns(2)
 sel_verdict = f1.multiselect(
     "按最终结果筛选", sorted({r["final_verdict"] for r in runs if r["final_verdict"]}),
-    format_func=verdict_simple,
+    format_func=verdict_simple, placeholder="请选择(可多选)",
 )
-sel_domain = f2.multiselect("按功能类型筛选", sorted({_domain(r["task_version"]) for r in runs}))
+sel_domain = f2.multiselect(
+    "按功能类型筛选", sorted({_domain(r["task_version"]) for r in runs}),
+    placeholder="请选择(可多选)",
+)
 
 rows = [
     r for r in runs
@@ -52,20 +54,32 @@ rows = [
     and (not sel_domain or _domain(r["task_version"]) in sel_domain)
 ]
 
-if not is_tech():
-    st.dataframe(
-        [
-            {
-                "功能类型": _domain(r["task_version"]),
-                "运行方式": run_type_zh(r["run_type"]),
-                "最终结果": f"{verdict_icon(r['final_verdict'])} {verdict_simple(r['final_verdict'])}",
-                "AI 是否参与": "是" if r["run_type"] != "direct_baseline" else "否(直连基线)",
-            }
-            for r in rows
-        ],
-        width="stretch", hide_index=True,
+def _plain_result(v: str | None) -> str:
+    """P2.3:列表里用文字标签,不用大红叉;图标只留给结果页大结论。"""
+    return {"PASS_ADAPTED": "可使用(适配后)", "PASS_DIRECT": "可直接使用"}.get(
+        v or "", "未达标" if v == "FAIL" else verdict_simple(v)
     )
-    st.caption("想看测试通过数、Token 用量、哈希等原始字段?打开左侧「技术模式」。")
+
+
+if not is_tech():
+    # P1.1 按任务聚合:一个功能类型一组,组内列每次运行
+    for domain in sorted({_domain(r["task_version"]) for r in rows}):
+        group = [r for r in rows if _domain(r["task_version"]) == domain]
+        best = "可使用(适配后)" if any(r["final_verdict"] == "PASS_ADAPTED" for r in group) else "未达标"
+        with st.expander(f"{domain} —— {len(group)} 次运行 · 最好结果:{best}",
+                         expanded=(best.startswith("可使用"))):
+            st.dataframe(
+                [
+                    {
+                        "运行方式": run_type_zh(r["run_type"]),
+                        "最终结果": _plain_result(r["final_verdict"]),
+                        "AI 是否参与": "是" if r["run_type"] != "direct_baseline" else "否(直连基线)",
+                    }
+                    for r in group
+                ],
+                width="stretch", hide_index=True,
+            )
+    st.caption("想看测试通过数、用量、原始字段?打开左侧「显示技术详情」。")
 else:
     st.dataframe(
         [
@@ -90,8 +104,12 @@ else:
         width="stretch", hide_index=True,
     )
 
+if not is_tech():
+    st.stop()  # P0.5:对比与原始字段仅在「显示技术详情」下渲染
+
 with tech_expander("两次运行对比(技术详情)"):
-    pick = st.multiselect("选择两条运行", [r["case_id"] for r in runs], max_selections=2)
+    pick = st.multiselect("选择两条运行", [r["case_id"] for r in runs], max_selections=2,
+                          placeholder="请选择两条")
     if len(pick) == 2:
         a, b = (facts.summary_row(cid) for cid in pick)
         fields = [

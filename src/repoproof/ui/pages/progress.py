@@ -1,7 +1,8 @@
-"""运行进度 — 通俗九阶段视图。
+"""运行进度 — 已完成任务的回顾视图(过去时)。
 
-本版本无实时任务;选择一个已完成的真实案例,按九阶段回顾其执行,
-并常驻区分「AI 助手状态」与「最终系统结论」。技术执行记录默认折叠。
+本版本无实时任务。简单模式:三阶段回顾,不出现 Trace/Token/Hash;
+「显示技术详情」开启后:九阶段 + 用量明细 + 执行记录。
+常驻区分「AI 助手状态」与「最终系统结论」。
 """
 
 from __future__ import annotations
@@ -10,7 +11,8 @@ import streamlit as st
 
 from repoproof.runner.demo import CASES
 from repoproof.ui.presenters.glossary import (
-    STAGES_SIMPLE,
+    STAGES_DONE,
+    STAGES_DONE_3,
     agent_exit_simple,
     verdict_icon,
     verdict_simple,
@@ -43,11 +45,14 @@ manifest = facts.load_run_manifest(case)
 agent = manifest.get("agent") or report.get("agent") or {}
 verdict = report.get("final_verdict") or report.get("verdict")
 
-# ---- 九阶段(已完成运行 → 全部走完) ----
-st.subheader("执行阶段")
-done = len(STAGES_SIMPLE)
-for i, stage in enumerate(STAGES_SIMPLE, 1):
-    st.markdown(f"{'✅' if i < done else verdict_icon(verdict)} 第 {i} 步 · {stage}")
+# ---- 阶段回顾(过去时;简单=3 段,技术=9 段) ----
+st.subheader("这次任务经历了什么")
+if is_tech():
+    for i, stage in enumerate(STAGES_DONE, 1):
+        st.markdown(f"✅ 第 {i} 步 · {stage}")
+else:
+    for stage, detail in STAGES_DONE_3:
+        st.markdown(f"✅ **{stage}** —— {detail}")
 st.progress(1.0, text="该任务已执行完毕")
 
 # ---- AI 状态 ≠ 系统结论(§七 硬性要求) ----
@@ -61,23 +66,27 @@ st.markdown(
     "(由独立测试与最终判定产生,AI 的自述不参与)"
 )
 
-if agent.get("exit_status") == "Submitted" and verdict == "FAIL":
-    st.warning("注意:AI 助手已提交 ≠ 成功。本例中独立测试未全部通过,最终结论是「当前条件下不建议采用」。")
-
-# ---- 用量(简单) ----
+# ---- 用量(简单模式不出现 Token 概念,P0.5) ----
 st.subheader("本次用量")
-u1, u2, u3 = st.columns(3)
-u1.metric("AI 对话轮数", str(agent.get("model_calls", "—")))
-u2.metric("执行命令数", str(agent.get("commands", "—")))
-u3.metric("AI 使用额度(字符量级)", (
-    f"读 {agent['input_tokens']:,} / 写 {agent['output_tokens']:,}"
-    if agent.get("input_tokens") is not None else "—"))
+if is_tech():
+    u1, u2, u3 = st.columns(3)
+    u1.metric("AI 对话轮数", str(agent.get("model_calls", "—")))
+    u2.metric("执行命令数", str(agent.get("commands", "—")))
+    u3.metric("Tokens(入/出)", (
+        f"{agent['input_tokens']:,} / {agent['output_tokens']:,}"
+        if agent.get("input_tokens") is not None else "—"))
+else:
+    u1, u2 = st.columns(2)
+    u1.metric("AI 对话轮数", str(agent.get("model_calls", "—")))
+    u2.metric("执行命令数", str(agent.get("commands", "—")))
 
-# ---- 技术执行记录(折叠) ----
-with tech_expander("查看技术详情(执行记录 Trace)"):
-    if is_tech():
+# ---- 执行记录:仅技术模式渲染(P0.5) ----
+if is_tech():
+    with tech_expander("查看技术详情(执行记录 Trace)"):
         st.caption("执行记录 = 每一步动作的防篡改哈希链(tamper-evident,非 tamper-proof)。")
-    st.dataframe(facts.trace_preview(case, limit=100), width="stretch", hide_index=True, height=280)
+        st.dataframe(
+            facts.trace_preview(case, limit=100), width="stretch", hide_index=True, height=280
+        )
 
 if st.button("查看结果报告", type="primary"):
     st.switch_page("pages/case_view.py")

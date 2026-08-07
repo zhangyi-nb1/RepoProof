@@ -83,14 +83,14 @@ def adapter_source(case: str) -> str | None:
 def evidence_files(case: str) -> list[tuple[str, Path]]:
     """可下载的证据文件清单(存在的才列出)。"""
     labels = [
-        ("运行报告 report.json", "report.json"),
-        ("Run Manifest", "run_manifest.json"),
-        ("Trace(JSONL,tamper-evident 链)", "trace.jsonl"),
-        ("Agent 轨迹 trajectory", "trajectory.json"),
-        ("Agent 轨迹 trajectory(脱敏)", "trajectory.redacted.json"),
-        ("Agent Adapter 源码", "agent_adapter.py"),
-        ("Adaptation Manifest", "adaptation_manifest.json"),
-        ("预注册 PREREGISTRATION.md", "PREREGISTRATION.md"),
+        ("结果报告(report.json)", "report.json"),
+        ("运行清单(run_manifest.json)", "run_manifest.json"),
+        ("执行记录(trace.jsonl)", "trace.jsonl"),
+        ("AI 对话轨迹(trajectory.json)", "trajectory.json"),
+        ("AI 对话轨迹·脱敏(trajectory.redacted.json)", "trajectory.redacted.json"),
+        ("适配代码(agent_adapter.py)", "agent_adapter.py"),
+        ("产物清单(adaptation_manifest.json)", "adaptation_manifest.json"),
+        ("预注册说明(PREREGISTRATION.md)", "PREREGISTRATION.md"),
     ]
     out = []
     for label, name in labels:

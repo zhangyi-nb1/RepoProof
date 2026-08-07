@@ -2,5 +2,9 @@
 # 红色仅用于失败/危险;主行动按钮用蓝色
 primaryColor = "#1C7ED6"
 
+[client]
+# P0.3 隐藏 Deploy 与开发者菜单
+toolbarMode = "minimal"
+
 [browser]
 gatherUsageStats = false

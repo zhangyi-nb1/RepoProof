@@ -24,7 +24,7 @@ from repoproof.ui.presenters.glossary import (
     verdict_zh,
 )
 from repoproof.ui.services import actions, facts
-from repoproof.ui.services.state import mode_toggle_sidebar, tech_expander
+from repoproof.ui.services.state import is_tech, mode_toggle_sidebar, tech_expander
 
 st.set_page_config(page_title="结果报告 · RepoProof Studio", layout="wide")
 mode_toggle_sidebar()
@@ -51,6 +51,7 @@ verdict = report.get("final_verdict") or report.get("verdict")
 
 # ================= 第一屏:结论 / 为什么 / 下一步 =================
 with st.container(border=True):
+    st.caption("在当前测试条件下(固定版本、固定成功标准):")
     st.markdown(f"## {verdict_icon(verdict)} {verdict_simple(verdict)}")
     if verdict == "PASS_ADAPTED":
         why = "四项检查全部通过:目标功能可用、原项目不受影响、操作合规、并且在全新环境复测成功。"
@@ -100,6 +101,16 @@ if src:
 else:
     st.markdown("本次记录中没有适配代码文件。")
 
+# ================= 使用前注意(P1.3,正向案例) =================
+if verdict in ("PASS_ADAPTED", "PASS_DIRECT"):
+    st.subheader("使用前注意")
+    st.markdown(
+        "- 合入前**通读一遍适配代码**——最终采用决定在你,不在系统\n"
+        "- 结论只对**当前锁定的目标仓库版本**成立;升级版本需要重新验证\n"
+        "- 确认目标仓库的**开源许可证**与你的项目兼容\n"
+        "- 建议先在测试分支合入,跑一遍你自己的测试再上主分支"
+    )
+
 # ================= 哪些问题没解决(FAIL 时默认展开) =================
 failed = report.get("capability_failed_tests") or []
 if failed:
@@ -109,23 +120,24 @@ if failed:
     ftype = srow.get("failure_type")
     if ftype:
         st.markdown(f"**主要责任方**:{failure_owner_zh(ftype)}")
-    with tech_expander("查看原始测试名称(技术详情)"):
-        for node in failed:
-            st.code(node, language="text")
-        if ftype:
-            st.markdown(f"失败类型(内部枚举):`{ftype}`")
+    if is_tech():
+        with tech_expander("查看原始测试名称(技术详情)"):
+            for node in failed:
+                st.code(node, language="text")
+            if ftype:
+                st.markdown(f"失败类型(内部枚举):`{ftype}`")
 
 # ================= 下载 =================
 st.subheader("下载结果")
 st.download_button(
-    label=f"下载{TERM['adoption_bundle']}(ZIP)",
+    label="下载代码 + 报告(ZIP)",
     data=facts.bundle_zip_bytes(case),
     file_name=f"{facts.evidence_dir(case).name}.zip",
     mime="application/zip",
     type="primary",
     key=f"dl-bundle-{case}",
 )
-st.caption("结果包内含:结果报告、执行记录、适配代码与全部检查输出,可离线复核。")
+st.caption(f"即{TERM['adoption_bundle']}:适配代码、结果报告、执行记录与全部检查输出,可离线复核。")
 with st.expander("单独下载某个文件"):
     for label, path in facts.evidence_files(case):
         st.download_button(label=label, data=path.read_bytes(), file_name=path.name,
@@ -143,11 +155,12 @@ with c1:
                        "整个核对没有调用任何 AI 模型。")
         else:
             st.error("核对不一致——请展开技术详情查看原始数据。")
-        with tech_expander("查看核对明细(技术详情)"):
-            st.json(out["inputs_to_gate"])
-            st.json({"recorded": out["recorded_verdict"], "recomputed": out["recomputed_verdict"],
-                     "trace_sha256": out["trace_sha256"],
-                     "verifier_result_hashes": out["verifier_result_hashes"]})
+        if is_tech():
+            with tech_expander("查看核对明细(技术详情)"):
+                st.json(out["inputs_to_gate"])
+                st.json({"recorded": out["recorded_verdict"], "recomputed": out["recomputed_verdict"],
+                         "trace_sha256": out["trace_sha256"],
+                         "verifier_result_hashes": out["verifier_result_hashes"]})
 with c2:
     if CASES[case]["kind"] == "positive":
         if st.button("在全新环境里再测一遍(约 1 分钟,需要 Docker)"):
@@ -159,30 +172,32 @@ with c2:
                                "全程零 AI 调用——结果由代码本身承载,不依赖当时的 AI 会话。")
                 else:
                     status.update(label="复测未通过", state="error")
-                    st.error("复测未通过——请展开技术详情。")
-                    with tech_expander():
-                        st.json(out)
+                    st.error("复测未通过——打开左侧「显示技术详情」查看原始输出。")
+                    if is_tech():
+                        with tech_expander():
+                            st.json(out)
     else:
         st.caption("未通过案例的问题已在干净环境中复现过(见上方「新环境中是否还能运行」)。")
 
-# ================= 技术详情(全部原始字段) =================
-with tech_expander("查看技术详情(原始字段与哈希)"):
-    st.markdown(f"""
-| 字段 | 值 | 中文说明 |
-|---|---|---|
-| final_verdict | `{dash(verdict)}` | 最终判定:{verdict_zh(verdict)} |
-| task_id | `{dash(report.get("task_id"))}` | 任务标识 |
-| run_id | `{dash(report.get("run_id"))}` | 本次运行标识 |
-| capability | `{dash(report.get("capability"))}` | {TERM["capability_verification"]}原始输出 |
-| regression | `{dash(report.get("regression"))}` | {TERM["host_regression"]}原始输出 |
-| policy | `{dash(report.get("policy"))}` | {TERM["policy"]}原始输出 |
-| replay | `{dash(report.get("replay"))}` | {replay_mode_zh(srow.get("replay_mode"))}原始输出 |
-| agent.exit_status | `{dash(agent.get("exit_status"))}` | AI 助手结束方式(不参与判定) |
-| task_package_root | `{dash((report.get("task_package_root_hash") or "")[:16])}…` | 任务包指纹 |
-| adaptation_root | `{dash((report.get("adaptation_root") or "")[:16])}…` | 适配产物指纹 |
-| trace_sha256 | `{dash((report.get("final_trace_sha256") or "")[:16])}…` | 执行记录链指纹 |
-| model | `{dash(srow.get("model"))}` | 使用的模型 |
-| tokens | `{dash(agent.get("input_tokens"))}/{dash(agent.get("output_tokens"))}` | {TERM["token_budget"]}用量(入/出) |
-""")
-    st.markdown("**执行记录预览(前 100 行)**:")
-    st.dataframe(facts.trace_preview(case, limit=100), width="stretch", hide_index=True, height=260)
+# ================= 技术详情(全部原始字段;仅技术模式渲染,P0.5) =================
+if is_tech():
+    with tech_expander("查看技术详情(原始字段与哈希)"):
+        st.markdown(f"""
+    | 字段 | 值 | 中文说明 |
+    |---|---|---|
+    | final_verdict | `{dash(verdict)}` | 最终判定:{verdict_zh(verdict)} |
+    | task_id | `{dash(report.get("task_id"))}` | 任务标识 |
+    | run_id | `{dash(report.get("run_id"))}` | 本次运行标识 |
+    | capability | `{dash(report.get("capability"))}` | {TERM["capability_verification"]}原始输出 |
+    | regression | `{dash(report.get("regression"))}` | {TERM["host_regression"]}原始输出 |
+    | policy | `{dash(report.get("policy"))}` | {TERM["policy"]}原始输出 |
+    | replay | `{dash(report.get("replay"))}` | {replay_mode_zh(srow.get("replay_mode"))}原始输出 |
+    | agent.exit_status | `{dash(agent.get("exit_status"))}` | AI 助手结束方式(不参与判定) |
+    | task_package_root | `{dash((report.get("task_package_root_hash") or "")[:16])}…` | 任务包指纹 |
+    | adaptation_root | `{dash((report.get("adaptation_root") or "")[:16])}…` | 适配产物指纹 |
+    | trace_sha256 | `{dash((report.get("final_trace_sha256") or "")[:16])}…` | 执行记录链指纹 |
+    | model | `{dash(srow.get("model"))}` | 使用的模型 |
+    | tokens | `{dash(agent.get("input_tokens"))}/{dash(agent.get("output_tokens"))}` | 用量(入/出) |
+    """)
+        st.markdown("**执行记录预览(前 100 行)**:")
+        st.dataframe(facts.trace_preview(case, limit=100), width="stretch", hide_index=True, height=260)

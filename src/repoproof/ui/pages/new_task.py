@@ -29,21 +29,31 @@ def _goto(step: int) -> None:
 
 # ================= 欢迎区(step 0) =================
 if st.session_state[W] == 0:
-    st.title("把一个开源仓库的能力,安全地接入你的项目")
+    st.title("把一个开源仓库的能力,在隔离环境中可控地接入你的项目")
     st.markdown(
         "告诉系统:**你的项目**、**目标仓库**、**想实现的功能**。"
         "AI 开发助手会在隔离环境里尝试适配,独立测试给出**最终结果**——"
         "AI 自己说「做完了」不算数。"
     )
+    st.markdown(
+        "**三步流程**:\n"
+        "1. 说清目标 —— 你的项目 + 目标仓库 + 想实现的功能\n"
+        "2. AI 尝试适配 —— 在隔离环境中编写适配代码,不碰你的原文件\n"
+        "3. 独立验收 —— 测试、回归、规则检查、干净环境复测,给出最终结果"
+    )
     c1, c2, _ = st.columns([1, 1, 2])
-    if c1.button("开始一次适配", type="primary"):
+    if c1.button("体验任务配置流程", type="primary", width="stretch"):
         _goto(1)
-    if c2.button("查看示例"):
+    if c2.button("查看示例", width="stretch"):
         st.session_state["case"] = "frontmatter-v2-pass"
         st.switch_page("pages/case_view.py")
     st.caption(
-        "本版本为只读演示版:可完整体验任务向导与三个已完成的真实案例;"
+        "本版本为只读演示版:可完整体验任务配置流程与三个已完成的真实案例;"
         "真实 AI 运行将在下一版本开放。"
+    )
+    st.markdown(
+        "**当前支持范围**:公开的 GitHub Python 仓库 · CPU 环境 · "
+        "本机 Docker · 中小型能力接入(不支持整站迁移或私有仓库)"
     )
     if is_tech():
         with tech_expander():
@@ -84,9 +94,9 @@ if step == 1:
         help="一两句话说清楚:接入哪类能力、输出什么。写得越具体,成功标准越可靠。",
     )
     c1, c2, _ = st.columns([1, 1, 3])
-    if c1.button("上一步"):
+    if c1.button("上一步", width="stretch"):
         _goto(0)
-    if c2.button("下一步", type="primary"):
+    if c2.button("下一步", type="primary", width="stretch"):
         if len(ss.get("wz_goal", "").strip()) < 10:
             st.error("还差一点:请把想实现的功能写成至少一句完整的话(不少于 10 个字),再点下一步。")
         else:
@@ -127,9 +137,9 @@ elif step == 2:
                 language="text",
             )
     c1, c2, _ = st.columns([1, 1, 3])
-    if c1.button("上一步"):
+    if c1.button("上一步", width="stretch"):
         _goto(1)
-    if c2.button("下一步", type="primary"):
+    if c2.button("下一步", type="primary", width="stretch"):
         _goto(3)
 
 # ================= Step 3:适用性检查 =================
@@ -171,9 +181,9 @@ elif step == 3:
                 "不替代任何 Core 判定)"
             )
     c1, c2, _ = st.columns([1, 1, 3])
-    if c1.button("上一步"):
+    if c1.button("上一步", width="stretch"):
         _goto(2)
-    if c2.button("下一步", type="primary", disabled=result.state != "READY"):
+    if c2.button("下一步", type="primary", disabled=result.state != "READY", width="stretch"):
         _goto(4)
 
 # ================= Step 4:确认采用计划 =================
@@ -195,9 +205,9 @@ elif step == 4:
     ok = st.checkbox("我确认:以上成功标准代表我真实想要的结果", value=ss.get("wz_plan_ok", False))
     ss["wz_plan_ok"] = ok
     c1, c2, _ = st.columns([1, 1, 3])
-    if c1.button("上一步"):
+    if c1.button("上一步", width="stretch"):
         _goto(3)
-    if c2.button("下一步", type="primary", disabled=not ok):
+    if c2.button("下一步", type="primary", disabled=not ok, width="stretch"):
         _goto(5)
 
 # ================= Step 5:开始执行(只读版) =================
@@ -224,5 +234,5 @@ elif step == 5:
         st.session_state["case"] = "frontmatter-v2-pass"
         st.switch_page("pages/case_view.py")
     st.divider()
-    if st.button("上一步"):
+    if st.button("上一步", width="stretch"):
         _goto(4)

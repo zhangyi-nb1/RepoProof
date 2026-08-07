@@ -93,7 +93,7 @@ def test_welcome_has_single_primary_button() -> None:
     at = _page("new_task.py")
     at.run()
     labels = [b.label for b in at.button]
-    assert "开始一次适配" in labels and "查看示例" in labels
+    assert "体验任务配置流程" in labels and "查看示例" in labels
     src = (PAGES / "new_task.py").read_text(encoding="utf-8")
     welcome = src.split("# ================= 向导公共头")[0]
     assert welcome.count('type="primary"') == 1
@@ -104,7 +104,7 @@ def test_welcome_has_single_primary_button() -> None:
 def test_wizard_five_steps_flow() -> None:
     at = _page("new_task.py", timeout=60)
     at.run()
-    next(b for b in at.button if b.label == "开始一次适配").click().run()
+    next(b for b in at.button if b.label == "体验任务配置流程").click().run()
     assert "用一两句话描述你想要的功能" in _all_text(at)  # step 1 头部
     at.text_area[0].set_value("把 python-frontmatter 的解析能力接入我的文档摄取模块").run()
     next(b for b in at.button if b.label == "下一步").click().run()
@@ -129,7 +129,7 @@ def test_wizard_five_steps_flow() -> None:
 def test_required_field_error_is_actionable_chinese() -> None:
     at = _page("new_task.py")
     at.run()
-    next(b for b in at.button if b.label == "开始一次适配").click().run()
+    next(b for b in at.button if b.label == "体验任务配置流程").click().run()
     next(b for b in at.button if b.label == "下一步").click().run()
     errs = "".join(str(e.value) for e in at.error)
     assert "请把想实现的功能写成至少一句完整的话" in errs and "再点下一步" in errs
@@ -210,3 +210,69 @@ def test_download_buttons_present() -> None:
 def test_verify_button_delegates_to_core() -> None:
     src = (REPO / "src" / "repoproof" / "ui" / "services" / "actions.py").read_text(encoding="utf-8")
     assert "from repoproof.runner.demo import demo_replay, demo_verify" in src
+
+
+# ---- P0/P1 增补验收 ----
+
+
+@needs_streamlit
+def test_simple_mode_hides_trace_token_hash() -> None:
+    """P0.5:简单模式页面文本不出现 Trace/Token/哈希 概念。"""
+    for page in ("progress.py", "case_view.py", "history.py"):
+        at = _page(page)
+        at.run()
+        text = _all_text(at)
+        for word in ("Trace", "Token", "tokens", "哈希", "sha256", "trace_sha"):
+            assert word not in text, f"{page}: {word}"
+
+
+@needs_streamlit
+def test_completed_task_stages_use_past_tense() -> None:
+    """P0.6:已完成任务回顾用过去时;P1.5:简单模式压缩为三阶段。"""
+    at = _page("progress.py")
+    at.run()
+    text = _all_text(at)
+    assert "AI 理解与修改" in text and "干净环境复测" in text  # 三阶段
+    assert "正在运行测试" not in text  # 无进行时
+    at2 = _page("progress.py")
+    at2.session_state["ui_mode"] = "tech"
+    at2.run()
+    text2 = _all_text(at2)
+    assert "已运行测试" in text2 and "已完成最终验收" in text2  # 九段过去时
+
+
+@needs_streamlit
+def test_result_title_scoped_and_usage_notes() -> None:
+    """P1.2 结论带条件前缀;P1.3 正向案例有使用前注意;P1.6 下载文案。"""
+    at = _page("case_view.py")
+    at.run()
+    text = _all_text(at)
+    assert "在当前测试条件下" in text
+    assert "使用前注意" in text and "开源许可证" in text
+    src = (PAGES / "case_view.py").read_text(encoding="utf-8")
+    assert "下载代码 + 报告(ZIP)" in src
+
+
+@needs_streamlit
+def test_history_grouped_by_task_in_simple_mode() -> None:
+    """P1.1 简单模式历史按任务聚合;P2.3 列表用文字标签不用大红叉。"""
+    at = _page("history.py")
+    at.run()
+    expanders = [str(getattr(e, "label", "")) for e in getattr(at, "expander", [])]
+    assert any("文档元数据解析" in e and "次运行" in e for e in expanders), expanders
+    text = _all_text(at)
+    assert "❌" not in text
+
+
+def test_welcome_wording_honest_for_readonly() -> None:
+    """P0.1/P0.2:不说「安全地」;只读版主按钮不叫「开始一次适配」。"""
+    src = (PAGES / "new_task.py").read_text(encoding="utf-8")
+    assert "安全地接入" not in src
+    assert "可控地接入" in src
+    assert "体验任务配置流程" in src
+
+
+def test_multiselects_have_chinese_placeholder() -> None:
+    """P0.4:Choose options 全部替换为中文占位。"""
+    src = (PAGES / "history.py").read_text(encoding="utf-8")
+    assert src.count('placeholder="请选择') >= 3
