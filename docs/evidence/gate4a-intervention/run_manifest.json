@@ -1,0 +1,62 @@
+{
+  "action_protocol": "native",
+  "adaptation_root": "0caef35b88af434e162efee2b3d3cda5c4c84992e86936e6ea011bab2240ff96",
+  "agent": {
+    "agent_wall_s": 180.6,
+    "commands": 32,
+    "cost": "UNKNOWN",
+    "denied": 0,
+    "exit_status": "LimitsExceeded",
+    "model_calls": 20
+  },
+  "budget_exhausted": null,
+  "budget_visibility": true,
+  "contract_sha256": "0253f539af2231775d7cd3b3d885c2f03b8d1e4973ea99982962dad21f72a156",
+  "final_trace_sha256": "ff6ea5dd1fa56f436bd2a37c1338036a6ffd6b1b8702c4d02327f53cf072a20e",
+  "final_verdict": "FAIL",
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "missing_external": [],
+  "mode": "real-agent-baseline",
+  "preflight": {
+    "action_protocol": "native",
+    "api_base": "https://<redacted-host>",
+    "evidence": [
+      "native action parsed: 'echo PREFLIGHT_OK'"
+    ],
+    "model_name": "deepseek-v4-pro",
+    "preflight_calls": 1,
+    "preflight_cost": "UNKNOWN",
+    "preflight_input_tokens": 299,
+    "preflight_output_tokens": 62,
+    "preflight_wall_time_s": 1.5,
+    "provider_config_sha256": "7103a90faef24f6acf744f50ad7fb5b19796502c791c17317232f7f0b7a62fe3",
+    "status": "PROVIDER_READY",
+    "temperature": "0"
+  },
+  "prompt_sha256": "ed5ea8b28208cc658cebe7861b49a07a951b8fbc25de58ae79ac97478ace991b",
+  "provider_config_sha256": "7103a90faef24f6acf744f50ad7fb5b19796502c791c17317232f7f0b7a62fe3",
+  "run_id": "adopt-chonkie-local-chunking-v3-20260807-151829",
+  "source_git_tree_hash": "dd0e963fd33177fda72bf10dda0c78909bf68918",
+  "task_id": "adopt-chonkie-local-chunking-v3",
+  "task_package_root_hash": "1074cf08b3909f23317978606d322ff09ff173f537b671acafefdfa87c920029",
+  "temperature": "0",
+  "timings": {
+    "agent_command_s": 0.0,
+    "agent_model_call_s": 180.7,
+    "replay_s": 11.5,
+    "system_setup_s": 13.9,
+    "total_wall_s": 217.0,
+    "verification_s": 10.7
+  },
+  "trace_chain_ok": true,
+  "trace_events": 197,
+  "trajectory_sha256": "fb28de6fbab2fc106c1d07c08705990a729aeb89a083928ab4bbf2ae9915ba04",
+  "verdict": "FAIL",
+  "verification_result_hashes": {
+    "CapabilityVerifier": "5c60cfa097fd6c19afbe8fe625b3002aa9a17d16f26bd05635895803fcb77c98",
+    "HostRegressionVerifier": "40459f61796ecdbc8410125f070a49a2597c0b4a96627708165b4c3e162db6b0",
+    "PolicyVerifier": "4aefd3664aabca70d70fc729ad378758eefa02401e0dbdc8c0cfdada6cfb3a45",
+    "ReplayVerifier": "31119d6462a7be0a1fcd1e1e4386deb2aecc0fb49fe0a997e2689e22de3f507b"
+  },
+  "wheelhouse_root": "fd82860145f8140cc119fc09e904f1ce671b2591a7f114a0c9c9f50f6bf280b6"
+}

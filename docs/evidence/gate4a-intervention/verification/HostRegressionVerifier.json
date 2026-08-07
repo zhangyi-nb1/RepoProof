@@ -1,0 +1,22 @@
+{
+  "detail": "passed_checks=4, failed_checks=0, total_checks=4; all 4 frozen nodes executed and passed",
+  "evidence": [
+    "4250d1f2029068ddc50a143f438d48c0e151e05c734fe713ffea94436ecf9381"
+  ],
+  "extra": {
+    "exit_code": 0,
+    "expected_count": 4,
+    "extra_nodes": [],
+    "failed_nodes": [],
+    "missing_nodes": [],
+    "passed_count": 4,
+    "totals": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 4
+    }
+  },
+  "passed": true,
+  "verifier": "HostRegressionVerifier"
+}
