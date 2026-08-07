@@ -55,6 +55,22 @@ if st.session_state[W] == 0:
         "**当前支持范围**:公开的 GitHub Python 仓库 · CPU 环境 · "
         "本机 Docker · 中小型能力接入(不支持整站迁移或私有仓库)"
     )
+    from repoproof.ui.services import live_run as _lr0
+    from repoproof.ui.services.facts import repo_root as _rr0
+
+    _root0 = _rr0()
+    _tasks0 = _lr0.frozen_tasks(_root0)
+    if _tasks0:
+        st.divider()
+        st.subheader("已就绪的任务(装配/冻结过的任务在这里,刷新不丢)")
+        _sel0 = st.selectbox("直接选择并运行,无需重走五步", _tasks0, index=len(_tasks0) - 1)
+        if st.button("直接开始真实运行", disabled=not _lr0.provider_ready()):
+            _out0 = _lr0.start_run(_root0, _sel0)
+            (st.success if _out0.get("ok") else st.error)(_out0.get("note") or _out0.get("error"))
+            if _out0.get("ok"):
+                st.markdown("到「运行进度」页查看实时状态与最终结论。")
+        if not _lr0.provider_ready():
+            st.caption("模型连接未配置:用 ./scripts/run_ui_live.sh 启动即可启用。")
     if is_tech():
         with tech_expander():
             st.markdown(

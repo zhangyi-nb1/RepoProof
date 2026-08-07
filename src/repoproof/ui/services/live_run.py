@@ -37,17 +37,28 @@ def active_run(root: Path) -> dict | None:
         info = json.loads(lock.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return None
-    # 进程还活着吗
-    try:
-        os.kill(int(info.get("pid", -1)), 0)
-        info["alive"] = True
-    except (OSError, ValueError):
+    # 完成判定优先看产物:最新 run 目录已有 report.json 即完成
+    tid = str(info.get("task_id", ""))
+    run_dirs = sorted((root / "runs").glob(f"{tid}-2*"), reverse=True) if tid else []
+    latest = run_dirs[0] if run_dirs else None
+    info["latest_run"] = latest.name if latest else None
+    info["report_ready"] = bool(latest and (latest / "report.json").exists())
+    if info["report_ready"]:
         info["alive"] = False
-    run_dir = root / "runs" / str(info.get("run_hint", ""))
-    info["report_ready"] = any(
-        (root / "runs").glob(f"{info.get('task_id', '')}*/report.json")
-    ) if info.get("task_id") else False
-    _ = run_dir
+        try:
+            import json as _j
+            info["verdict"] = _j.loads((latest / "report.json").read_text())["final_verdict"]
+        except Exception:  # noqa: BLE001
+            info["verdict"] = None
+        return info
+    # 无产物:探测进程(僵尸 defunct 一律视为已结束)
+    try:
+        import subprocess as _sp
+        stat = _sp.run(["ps", "-p", str(int(info.get("pid", -1))), "-o", "stat="],
+                       capture_output=True, text=True, timeout=5, check=False).stdout.strip()
+        info["alive"] = bool(stat) and "Z" not in stat
+    except Exception:  # noqa: BLE001
+        info["alive"] = False
     return info
 
 

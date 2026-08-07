@@ -18,13 +18,34 @@ from repoproof.ui.presenters.glossary import (
     verdict_simple,
 )
 from repoproof.ui.services import facts
+from repoproof.ui.services import live_run as _lr
+from repoproof.ui.services.facts import repo_root as _rr2
 from repoproof.ui.services.state import is_tech, mode_toggle_sidebar, tech_expander
 
 st.set_page_config(page_title="运行进度 · RepoProof Studio", layout="wide")
 mode_toggle_sidebar()
 st.title("运行进度")
 
-st.info("🟡 当前没有正在运行的任务(本版本为只读演示版)。下面可以回顾一次已完成任务的全过程。")
+_root2 = _rr2()
+_info = _lr.active_run(_root2)
+if _info and _info.get("alive"):
+    st.info(f"⏳ 正在运行:{_info.get('task_id')}(后台进程 {_info.get('pid')})。"
+            "本页每次刷新读取最新状态;运行通常需要 2-6 分钟。")
+    from pathlib import Path as _P
+    _log = _P(str(_info.get("log", "")))
+    if _log.exists():
+        st.code(_log.read_text(encoding="utf-8", errors="replace")[-800:] or "(启动中……)",
+                language="text")
+elif _info and _info.get("report_ready"):
+    from repoproof.ui.presenters.glossary import verdict_icon as _vi
+    from repoproof.ui.presenters.glossary import verdict_simple as _vs
+    _v = _info.get("verdict")
+    st.success(f"✅ 你的任务 {_info.get('task_id')} 已完成 —— 最终结论:{_vi(_v)} **{_vs(_v)}**"
+               f"(本地运行目录:runs/{_info.get('latest_run')})")
+    st.caption("完整产物(适配代码/执行记录/各项检查输出)都在上述目录;结论由独立验证产生,AI 自述不参与。")
+    _lr.clear_lock_if_done(_root2)
+else:
+    st.info("🟡 当前没有正在运行的任务。下面可以回顾一次已完成任务的全过程。")
 
 _names = {
     "frontmatter-v2-pass": "示例:文档元数据解析(成功案例)",
