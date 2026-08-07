@@ -46,6 +46,8 @@ def test_plan_page_shows_plan_and_gate_blocks_unanswered() -> None:
     if not (REPO / "upstream-cache" / "upstream-dc7c0af5466b").exists():
         pytest.skip("pinned cache absent")
     at = AppTest.from_file(str(PAGES / "plan_view.py"), default_timeout=120)
+    at.session_state["plan_host"] = str(REPO)  # 确定性:宿主=RepoProof 自身
+    at.session_state["plan_repo"] = str(REPO / "upstream-cache" / "upstream-dc7c0af5466b")
     at.run()
     assert not at.exception
     text = _all_text(at)
