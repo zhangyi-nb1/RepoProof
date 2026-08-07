@@ -212,12 +212,37 @@ elif step == 4:
 
 # ================= Step 5:开始执行(只读版) =================
 elif step == 5:
-    st.info(
-        "🟡 本版本为只读演示版,不启动真实 AI 运行(需要模型连接,下一版本开放)。"
-        "你可以先预览任务草稿会生成什么,或查看一次真实完成的案例。"
-    )
+    from repoproof.ui.services import live_run
+    from repoproof.ui.services.facts import repo_root as _rr
+
+    _root = _rr()
+    live_run.clear_lock_if_done(_root)
+    tasks = live_run.frozen_tasks(_root)
+    st.subheader("真实运行(在你自己的机器上跑一次完整流程)")
+    if not live_run.provider_ready():
+        st.warning("模型连接未配置。用 `./scripts/run_ui_live.sh` 启动工作台即可开启此入口"
+                   "(密钥只进进程环境,不落盘、不显示)。")
+    task_sel = st.selectbox(
+        "选择一个已冻结的任务(合同与验收已封存,AI 只能改解决方案)",
+        tasks, index=len(tasks) - 1 if tasks else 0,
+        help="只有完成「开始前检查」并冻结的任务才能真实运行;新任务需先完成任务工程。")
+    st.caption("说明:这是产品模式运行——结果写入本地 runs/,不进入公开 benchmark,不触碰历史证据。"
+               "一次运行会真实调用你配置的模型(消耗额度)。")
+    if st.button("开始真实运行", type="primary", disabled=not live_run.provider_ready()):
+        out = live_run.start_run(_root, task_sel)
+        if out.get("ok"):
+            st.success(out["note"])
+            st.markdown("到「运行进度」页可查看状态;完成后在本地 `runs/` 目录与「结果报告」思路一致地复核 "
+                        "`report.json`(最终判定由独立验证产生,AI 自述不算数)。")
+        else:
+            st.error(out["error"])
+    info = live_run.active_run(_root)
+    if info and info.get("alive"):
+        st.info(f"⏳ 正在运行:{info.get('task_id')}(后台进程 {info.get('pid')};刷新页面不会中断)")
+    st.divider()
+    st.subheader("或者:先看看流程与案例")
     c1, c2, _ = st.columns([1, 1, 2])
-    if c1.button("预览任务草稿(不写入文件)", type="primary"):
+    if c1.button("预览任务草稿(不写入文件)"):
         from repoproof.runner.scaffold import task_init
         from repoproof.ui.services.facts import repo_root
 
