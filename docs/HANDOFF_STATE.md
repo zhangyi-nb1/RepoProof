@@ -3,7 +3,33 @@
 > Purpose: the single in-repo status anchor for AI/human handoff.
 > Update ONLY at gate boundaries; history below is append-only.
 
-## Current status (2026-08-07, after Gate 7.2)
+## Current status (2026-08-07, after Gate 8 — USER-ACCEPTED)
+
+**v0.1.0 released and user-accepted. MVP frozen; UI phase (Gate 9)
+begins on top, read-only over all frozen history.**
+
+| Anchor | Value |
+|---|---|
+| Gate 8 close (MVP freeze) | `97d2810` |
+| Release | tag `v0.1.0` + https://github.com/zhangyi-nb1/RepoProof/releases/tag/v0.1.0 |
+| Fact source | `docs/benchmark_summary.json` (12 runs, extraction-only) + `scripts/check_public_claims.py` |
+| Claim rules | `docs/CLAIMS_MATRIX.md` (9 allowed / 12 forbidden) |
+| No-model demos | `repoproof demo list/verify/replay` (verify recomputes gate decisions; replay re-earns 18/18 in a fresh container) |
+| Scaffolding | `repoproof task init/check` (DRAFT → READY_TO_FREEZE) |
+| Job materials | `docs/RESUME_CLAIMS.md` (3 versions) + `docs/INTERVIEW_GUIDE.md` |
+
+Gate 8 verdict (user acceptance 2026-08-07): benchmark totals — 3
+capability domains, 12 recorded runs (7 real-agent), **1
+PASS_ADAPTED**, 11 honest FAILs; 183 tests green; zero LLM calls in
+Gate 8; history and evidence untouched; LocalFlow untouched.
+
+**Standing hard rules for the UI phase (from the Gate 9 order):**
+UI reads Core results only (never re-implements the completion gate);
+facts come only from RunManifest / Trace / VerificationResult /
+benchmark_summary / Evidence bundles; no history modification; no
+LocalFlow access; API keys never persisted or logged; localhost only.
+
+## Previous status (Gate 7.2)
 
 **Core MVP complete. First real PASS_ADAPTED achieved and pushed.**
 
