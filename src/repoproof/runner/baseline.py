@@ -332,10 +332,10 @@ class _Runner:
         return wh, manifest
 
     # ------------------------------------------------------------ passes
-    def one_pass(
-        self, label: str, upstream: Path, oracle_snap: Path, adaptation: Path, wheelhouse: Path
-    ) -> PassOutcome:
-        meter = BudgetMeter(self.contract.budgets)
+    def _install_phase(self, label: str, wheelhouse: Path, meter: BudgetMeter) -> Path:
+        """Wheelhouse admission + offline venv provisioning + env
+        admission for one pass (shared by verifier passes and the agent
+        phase — the agent gets the IDENTICAL pinned environment)."""
         venv_dir = self.store.run_dir / label / "venv"
         venv_dir.mkdir(parents=True, exist_ok=True)
 
@@ -439,6 +439,13 @@ class _Runner:
             )
         finally:
             self.backend.destroy(c_install)
+        return venv_dir
+
+    def one_pass(
+        self, label: str, upstream: Path, oracle_snap: Path, adaptation: Path, wheelhouse: Path
+    ) -> PassOutcome:
+        meter = BudgetMeter(self.contract.budgets)
+        venv_dir = self._install_phase(label, wheelhouse, meter)
 
         # -------- verification phase (verifier profile, network=none)
         profile = verifier_profile(
