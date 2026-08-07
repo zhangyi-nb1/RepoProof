@@ -1,0 +1,39 @@
+{
+  "detail": "mode=baseline_failure_reproduction, status=PASS",
+  "evidence": [
+    "75eb07ffe4845c73e03c41e43cdda0c123ba4954c83c35c6a6b0a3998971a3e5"
+  ],
+  "extra": {
+    "checks": {
+      "capability_exit_equal": true,
+      "capability_failed_tests_equal": true,
+      "probe_normalized_sha_equal": true,
+      "regression_exit_equal": true
+    },
+    "first": {
+      "capability_exit": 1,
+      "capability_failed": [
+        "test_capability::test_upstream_errors_wrapped[recursive]",
+        "test_capability::test_upstream_errors_wrapped[sentence]"
+      ],
+      "probe_normalized_sha": "75eb07ffe4845c73e03c41e43cdda0c123ba4954c83c35c6a6b0a3998971a3e5",
+      "regression_exit": 0,
+      "regression_failed": []
+    },
+    "mode": "baseline_failure_reproduction",
+    "replay": {
+      "capability_exit": 1,
+      "capability_failed": [
+        "test_capability::test_upstream_errors_wrapped[recursive]",
+        "test_capability::test_upstream_errors_wrapped[sentence]"
+      ],
+      "probe_normalized_sha": "75eb07ffe4845c73e03c41e43cdda0c123ba4954c83c35c6a6b0a3998971a3e5",
+      "regression_exit": 0,
+      "regression_failed": []
+    },
+    "replay_agent_commands": 0,
+    "replay_model_calls": 0
+  },
+  "passed": true,
+  "verifier": "ReplayVerifier"
+}

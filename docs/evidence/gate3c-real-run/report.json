@@ -1,0 +1,73 @@
+{
+  "action_protocol": "native",
+  "adaptation_root": "36550288b125434cba2fb0e2c40a2b60a099dc4c7ee4ca5f908b1583977a11bf",
+  "agent": {
+    "agent_wall_s": 126.5,
+    "commands": 30,
+    "cost": "UNKNOWN",
+    "denied": 0,
+    "exit_status": "LimitsExceeded",
+    "model_calls": 20
+  },
+  "budget_exhausted": null,
+  "capability": "passed_checks=31, failed_checks=2, total_checks=33; exit_code=1; passed=31 != expected=33; failures=2",
+  "capability_failed_tests": [
+    "test_capability::test_upstream_errors_wrapped[recursive]",
+    "test_capability::test_upstream_errors_wrapped[sentence]"
+  ],
+  "contract_sha256": "0253f539af2231775d7cd3b3d885c2f03b8d1e4973ea99982962dad21f72a156",
+  "final_trace_sha256": "c7c22db7348f836982eea25ba292fdc38c82fd1571939189b769f170148bb8f6",
+  "final_verdict": "FAIL",
+  "gate_reasons": [
+    "CapabilityVerifier: passed_checks=31, failed_checks=2, total_checks=33; exit_code=1; passed=31 != expected=33; failures=2"
+  ],
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "missing_external": [],
+  "mode": "real-agent-baseline",
+  "policy": "oracle/upstream intact; action causality holds; patch budgets respected",
+  "preflight": {
+    "action_protocol": "native",
+    "api_base": "https://<redacted-host>",
+    "evidence": [
+      "native action parsed: 'echo PREFLIGHT_OK'"
+    ],
+    "model_name": "deepseek-v4-pro",
+    "preflight_calls": 1,
+    "preflight_cost": "UNKNOWN",
+    "preflight_input_tokens": 299,
+    "preflight_output_tokens": 60,
+    "preflight_wall_time_s": 1.6,
+    "provider_config_sha256": "f906965baabd31e9dd13e0cc75ffbbbc281c38c09fad1c74464bf702dd7de5c1",
+    "status": "PROVIDER_READY",
+    "temperature": "0"
+  },
+  "prompt_sha256": "ed5ea8b28208cc658cebe7861b49a07a951b8fbc25de58ae79ac97478ace991b",
+  "provider_config_sha256": "f906965baabd31e9dd13e0cc75ffbbbc281c38c09fad1c74464bf702dd7de5c1",
+  "regression": "passed_checks=4, failed_checks=0, total_checks=4; all 4 frozen nodes executed and passed",
+  "replay": "mode=baseline_failure_reproduction, status=PASS",
+  "run_id": "adopt-chonkie-local-chunking-v3-20260807-145257",
+  "source_git_tree_hash": "dd0e963fd33177fda72bf10dda0c78909bf68918",
+  "task_id": "adopt-chonkie-local-chunking-v3",
+  "task_package_root_hash": "1074cf08b3909f23317978606d322ff09ff173f537b671acafefdfa87c920029",
+  "temperature": "0",
+  "timings": {
+    "agent_command_s": 0.0,
+    "agent_model_call_s": 126.7,
+    "replay_s": 10.9,
+    "system_setup_s": 15.3,
+    "total_wall_s": 163.8,
+    "verification_s": 10.8
+  },
+  "trace_chain_error": "",
+  "trace_chain_ok": true,
+  "trace_events": 191,
+  "trajectory_sha256": "381c0b892695529891b4cbddde114e944b1b2a305e47739af074c73d76fc2a0f",
+  "verdict": "FAIL",
+  "verification_result_hashes": {
+    "CapabilityVerifier": "93668a99f27eef99b8c2e0944ec140e4886a97efbec14360f735bb73c89f944c",
+    "HostRegressionVerifier": "40459f61796ecdbc8410125f070a49a2597c0b4a96627708165b4c3e162db6b0",
+    "PolicyVerifier": "a9d08e61deb01701584639d9dcee6b996befb93b4adc8edf49e7c0ca6c26240b",
+    "ReplayVerifier": "31119d6462a7be0a1fcd1e1e4386deb2aecc0fb49fe0a997e2689e22de3f507b"
+  },
+  "wheelhouse_root": "fd82860145f8140cc119fc09e904f1ce671b2591a7f114a0c9c9f50f6bf280b6"
+}

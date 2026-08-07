@@ -128,6 +128,13 @@ class AgentRunner(_Runner):
     the single agent phase between setup and verification."""
 
     def run_agent(self, provider: ProviderConfig, preflight: PreflightResult) -> dict:
+        import os as _os
+
+        # Proxy-custom model aliases (e.g. deepseek-v4-pro) are absent
+        # from litellm's price map; without this the FIRST model call
+        # dies in cost tracking (observed run 20260807-145003). Official
+        # mini-swe-agent escape hatch — cost stays honestly UNKNOWN.
+        _os.environ.setdefault("MSWEA_COST_TRACKING", "ignore_errors")
         from minisweagent.models.litellm_model import LitellmModel
         from minisweagent.models.litellm_textbased_model import LitellmTextbasedModel
 

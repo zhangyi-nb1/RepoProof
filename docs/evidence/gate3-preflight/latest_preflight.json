@@ -1,16 +1,16 @@
 {
-  "action_protocol": null,
-  "api_base": "http://<redacted-host>/v1",
+  "action_protocol": "native",
+  "api_base": "https://<redacted-host>",
   "evidence": [
-    "http 503 -> PROVIDER_UNAVAILABLE"
+    "native action parsed: 'echo PREFLIGHT_OK'"
   ],
-  "model_name": "gpt-5.5",
+  "model_name": "deepseek-v4-pro",
   "preflight_calls": 1,
   "preflight_cost": "UNKNOWN",
-  "preflight_input_tokens": 0,
-  "preflight_output_tokens": 0,
-  "preflight_wall_time_s": 0.1,
-  "provider_config_sha256": "48626e78199534428e293186e3e729bfada91566b1a37471cee1d9acf8b3d8fc",
-  "status": "PROVIDER_UNAVAILABLE",
+  "preflight_input_tokens": 299,
+  "preflight_output_tokens": 60,
+  "preflight_wall_time_s": 1.6,
+  "provider_config_sha256": "f906965baabd31e9dd13e0cc75ffbbbc281c38c09fad1c74464bf702dd7de5c1",
+  "status": "PROVIDER_READY",
   "temperature": "0"
 }

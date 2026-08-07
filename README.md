@@ -8,12 +8,15 @@ whether the result actually works: capability tests, host regression,
 policy checks, and a clean-room replay. `PASS` is earned from
 executable evidence, never from an agent's self-claim.
 
-> Status: **Gate 3B.** v3 reference-calibrated task package with
-> positive/negative oracle controls; mini-swe-agent 2.4.6 wired as the
-> single autonomous loop and verified end-to-end with a deterministic
-> fake model (no LLM). The first REAL model run is currently BLOCKED on
-> provider availability (docs/evidence/gate3-preflight/) — honest
-> BLOCKED is a correct outcome here; no silent model switching.
+> Status: **Gate 3C — first REAL agent baseline complete.** One
+> mini-swe-agent run (deepseek-v4-pro, native tool-calls, temp 0,
+> user-directed provider) wrote a 134-line adapter inside its budget
+> and moved capability from the direct baseline's 4/33 to **31/33**
+> under the agent-invisible reference oracle; regression 4/4, policy
+> (30-command causality) clean, failure reproduced deterministically
+> in clean-room replay. Completion gate verdict: honest **FAIL** — the
+> adapter misses upstream-error wrapping on malformed input, and no
+> human patched it (docs/evidence/gate3c-real-run/).
 
 ## What exists today (Gate 2 → 2.5)
 
