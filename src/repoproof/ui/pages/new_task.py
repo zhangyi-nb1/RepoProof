@@ -258,10 +258,16 @@ elif step == 3:
         st.subheader(f"深度检查:{_meta2['icon']} {_meta2['title']}")
         for f2 in _adm.confirmed_facts:
             st.markdown(f"- ✅ {f2}")
-        for q2 in _adm.questions:
-            st.markdown(f"- 🟡 {q2}")
         for b2 in _adm.blockers:
             st.markdown(f"- ❌ {b2}")
+        if _adm.questions:
+            st.markdown("**需要你人工核实的信息(系统不会替你猜,由你确认)**:")
+            _ans: list[str] = []
+            for j2, q2 in enumerate(_adm.questions):
+                if st.checkbox(f"我已人工核实并确认:{q2}", key=f"wz_adm_q_{j2}",
+                               value=q2 in ss.get("wz_confirmed_questions", [])):
+                    _ans.append(q2)
+            ss["wz_confirmed_questions"] = _ans
         if _adm.risks:
             st.markdown("**需要你逐条确认接受的风险**:")
             _acc: list[str] = []
@@ -270,11 +276,19 @@ elif step == 3:
                                value=r2 in ss.get("wz_accepted_risks", [])):
                     _acc.append(r2)
             ss["wz_accepted_risks"] = _acc
-        st.markdown(f"**你的下一步**:{_adm.next_step}")
-        deep_ok = _adm.status == "READY" or (
-            _adm.status == "RISK_REVIEW"
+        deep_ok = (
+            not _adm.blockers
             and all(r in ss.get("wz_accepted_risks", []) for r in _adm.risks)
+            and all(q in ss.get("wz_confirmed_questions", []) for q in _adm.questions)
         )
+        if _adm.blockers:
+            _hint = _adm.next_step
+        elif _adm.questions or _adm.risks:
+            _hint = ("逐条勾选上方确认项后,「下一步」会解锁" if not deep_ok
+                     else "确认完毕——点「下一步」继续")
+        else:
+            _hint = _adm.next_step
+        st.markdown(f"**你的下一步**:{_hint}")
     if is_tech():
         with tech_expander():
             st.markdown(

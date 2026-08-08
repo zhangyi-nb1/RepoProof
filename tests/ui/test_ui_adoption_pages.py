@@ -72,3 +72,52 @@ def test_repair_page_teaches_multi_round() -> None:
         assert section in text, section
     assert "5/9" in text and "8/9" in text and "9/9" in text
     assert "永远不宣布成功" in text  # 全绿≠最终成功的诚实边界
+
+
+@needs_streamlit
+def test_wizard_step3_need_information_unlocks_via_confirmations(tmp_path) -> None:
+    """死角修复(用户实测 2026-08-08):深度检查 NEED_INFORMATION 时,
+    「?」条目只渲染成文字、无处补齐,「下一步」永久灰死。现在每条
+    问题=人工确认勾选框,问题+风险全勾即解锁;阻断项仍不可绕过。"""
+    import subprocess
+
+    from repoproof.adoption.admission.admission_report import decide
+    from repoproof.adoption.analysis.host_analyzer import analyze_host_project
+    from repoproof.adoption.analysis.repository_analyzer import analyze_repository_dir
+
+    host_dir = tmp_path / "empty_project"
+    host_dir.mkdir()
+    repo_dir = tmp_path / "norepo"
+    repo_dir.mkdir()
+    (repo_dir / "README.md").write_text("# demo\n", encoding="utf-8")
+    (repo_dir / "demo.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(repo_dir)], check=True)
+    for args in (["add", "-A"], ["commit", "-qm", "init"]):
+        subprocess.run(["git", "-C", str(repo_dir), "-c", "user.email=t@t",
+                        "-c", "user.name=t", *args], check=True)
+
+    host = analyze_host_project(str(host_dir))
+    repo = analyze_repository_dir(repo_dir, url="https://github.com/example/norepo")
+    adm = decide(host, repo)
+    assert adm.status == "NEED_INFORMATION" and adm.questions  # 测试前提
+
+    at = AppTest.from_file(str(PAGES / "new_task.py"), default_timeout=60)
+    at.session_state["wizard_step"] = 3
+    at.session_state["wz_goal"] = "为我的项目引入演示能力,输入输出都是字符串"
+    at.session_state["wz_project"] = str(host_dir)
+    at.session_state["wz_repo"] = "https://github.com/example/norepo"
+    at.session_state["wz_rev"] = "main"
+    at.session_state["wz_risk_ok"] = True
+    at.session_state["wz_host_report"] = host.to_dict()
+    at.session_state["wz_repo_report"] = repo.to_dict()
+    at.run()
+    assert not at.exception
+    assert next(b for b in at.button if b.label == "下一步").disabled  # 未确认前锁死
+    q_boxes = [c for c in at.checkbox if str(c.label).startswith("我已人工核实并确认")]
+    assert q_boxes, "「?」条目必须有对应的确认控件"
+    for c in at.checkbox:  # 问题确认 + 风险接受全勾
+        c.check()
+    at.run()
+    assert not at.exception
+    assert not next(b for b in at.button if b.label == "下一步").disabled  # 解锁
+    assert "会解锁" not in _all_text(at) or "确认完毕" in _all_text(at)
