@@ -280,6 +280,28 @@ class _Runner:
         return res, out_ref
 
     # ------------------------------------------------------------ wheelhouse
+    @staticmethod
+    def assert_wheel_contains_code(wheelhouse: Path, distribution: str) -> None:
+        """上游发行 wheel 必须真的含代码文件——打包配置与目录结构脱节时
+        setuptools 会静默产出仅 dist-info 的空壳(真实案例:inflection
+        master 的 py_modules 声明单文件而实际是包目录),空壳直到 agent
+        阶段 import 才炸成难懂的探针崩溃。构建时就拦下,给可行动的原因。"""
+        import zipfile
+
+        dist = (distribution or "").replace("-", "_").lower()
+        for whl in sorted(wheelhouse.glob("*.whl")):
+            if not whl.name.replace("-", "_").lower().startswith(f"{dist}_"):
+                continue
+            with zipfile.ZipFile(whl) as z:
+                if not any(".dist-info/" not in n for n in z.namelist()):
+                    raise AdmissionError(
+                        f"上游 wheel 是空壳(只有元数据、没有任何代码文件):{whl.name}。"
+                        "该固定版本的打包配置损坏(常见于开发中的 master 分支)。"
+                        "建议:把版本号改钉正式发布 Tag 后重新装配任务。")
+            return
+        raise AdmissionError(
+            f"wheelhouse 中找不到 {distribution} 的 wheel——上游构建未产出目标发行包")
+
     def ensure_wheelhouse(self, upstream: Path, meter: BudgetMeter) -> tuple[Path, dict]:
         """Build wheels ONCE from the pinned source (network allowed per
         contract.network_install); both passes then install offline from
@@ -326,6 +348,7 @@ class _Runner:
                 )
                 if res.exit_code != 0:
                     raise AdmissionError("wheel build failed — see wheelhouse.build-source artifacts")
+                self.assert_wheel_contains_code(wh, self.contract.source_repo.distribution)
                 self._exec_step(
                     c,
                     ["python3", "-m", "pip", "wheel", "--no-cache-dir",

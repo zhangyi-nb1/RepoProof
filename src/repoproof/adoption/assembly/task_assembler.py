@@ -15,7 +15,6 @@ import re
 from pathlib import Path
 
 from repoproof.adoption.assembly.example_compiler import (
-    CompileError,
     Example,
     compile_pytest,
     split_examples,
@@ -93,11 +92,14 @@ def assemble_task(
     exs = [Example(**e) for e in examples]
     public, held = split_examples(exs)
     slug = re.sub(r"[^a-z0-9-]+", "-", distribution.lower()).strip("-")
-    task_id = f"adopt-{slug}-guided-v1"
-    if (root / "contracts" / f"{task_id}.yaml").exists():
-        raise CompileError(f"任务 {task_id} 已存在,不覆盖;如需重装配请先删除旧任务文件")
+    # 失败后换版本重装配是正常产品循环(用户实测:上游 master 打包损坏,
+    # 改钉正式 Tag 重装时不该撞名)——版本号自动递增,旧任务原样保留
+    n = 1
+    while (root / "contracts" / f"adopt-{slug}-guided-v{n}.yaml").exists():
+        n += 1
+    task_id = f"adopt-{slug}-guided-v{n}"
 
-    consumer_rel = f"fixtures/assembled_{slug}"
+    consumer_rel = f"fixtures/assembled_{slug}" if n == 1 else f"fixtures/assembled_{slug}-v{n}"
     files: dict[str, str] = {}
 
     ex_lines = "; ".join(f"run({e.input!r}) -> {e.expected!r}" for e in public[:3])

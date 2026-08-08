@@ -310,22 +310,31 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if out.get("ready") else 4
 
     if args.cmd == "agent-run":
-        from repoproof.runner.agent_run import provider_from_env, run_gate3c
+        from repoproof.runner.agent_run import provider_from_env, run_gate3c, write_crash_report
 
-        out = run_gate3c(
-            args.contract,
-            PROJECT_ROOT,
-            provider_from_env(),
-            budget_visibility=args.budget_visibility,
-            coverage_ledger=args.coverage_ledger,
-        )
+        try:
+            out = run_gate3c(
+                args.contract,
+                PROJECT_ROOT,
+                provider_from_env(),
+                budget_visibility=args.budget_visibility,
+                coverage_ledger=args.coverage_ledger,
+            )
+        except Exception as exc:
+            write_crash_report(PROJECT_ROOT, args.contract.stem, "real-agent-baseline", exc)
+            raise
         print(json.dumps(out, ensure_ascii=False, indent=2, sort_keys=True, default=str))
         return 0 if not out.get("blocked") else 3
 
     if args.cmd == "guided-run":
+        from repoproof.runner.agent_run import write_crash_report
         from repoproof.runner.guided_repair import run_guided_cli
 
-        out = run_guided_cli(args.contract, PROJECT_ROOT, max_rounds=args.max_rounds)
+        try:
+            out = run_guided_cli(args.contract, PROJECT_ROOT, max_rounds=args.max_rounds)
+        except Exception as exc:
+            write_crash_report(PROJECT_ROOT, args.contract.stem, "guided-repair", exc)
+            raise
         print(json.dumps(out, ensure_ascii=False, indent=2, sort_keys=True, default=str))
         return 0 if not out.get("blocked") else 3
 

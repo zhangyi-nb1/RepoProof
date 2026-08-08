@@ -719,6 +719,37 @@ def provider_from_env() -> ProviderConfig:
     )
 
 
+def write_crash_report(project_root: Path, task_id: str, mode: str, exc: Exception) -> str | None:
+    """运行崩溃时的兜底报告——运行绝不允许"隐身"。
+
+    用户实测:env probe 崩溃后进程直接死掉、不写 report.json,该次
+    运行在进度页/回顾下拉/历史里全体消失。这里找到该任务最新且尚无
+    report.json 的 runs/ 目录,写入典型化 BLOCKED(CRASHED_INTERNAL)
+    报告:系统层中断是可恢复的非结论,与任务级 FAIL 严格区分。"""
+    runs = project_root / "runs"
+    cands = sorted(
+        (p for p in runs.glob(f"{task_id}-2*") if p.is_dir() and not (p / "report.json").exists()),
+        key=lambda p: p.name, reverse=True)
+    if not cands:
+        return None
+    err = f"{type(exc).__name__}: {exc}"
+    report = {
+        "run_id": cands[0].name, "task_id": task_id, "mode": mode,
+        "final_verdict": "BLOCKED", "verdict": "BLOCKED",
+        "state": "CRASHED_INTERNAL", "error": err[:500],
+        "capability": "not_run", "regression": "not_run",
+        "policy": "not_run", "replay": "not_run",
+        "gate_reasons": [
+            f"运行中断:{err[:300]}",
+            "这是系统层中断,不是任务结论;根因排除后可重新运行同一任务",
+        ],
+        "agent": {"exit_status": "Crashed", "model_calls": None},
+    }
+    (cands[0] / "report.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    return str(cands[0])
+
+
 def run_gate3c(
     contract_path: Path,
     project_root: Path,

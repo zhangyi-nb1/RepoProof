@@ -71,10 +71,14 @@ def test_assemble_generates_complete_runnable_fileset(tmp_path: Path) -> None:
     assert ns2["run"]("周合") == ""
 
 
-def test_assemble_refuses_overwrite(tmp_path: Path) -> None:
-    _assemble(tmp_path)
-    with pytest.raises(CompileError, match="不覆盖"):
-        _assemble(tmp_path)
+def test_assemble_never_overwrites_but_bumps_version(tmp_path: Path) -> None:
+    """契约更新(用户实测):重装配是失败后的正常循环——自动升版本号,
+    旧任务文件一个字节都不动(细节钉在 test_crash_visibility_and_wheel_guard)。"""
+    out1 = _assemble(tmp_path)
+    v1 = (tmp_path / "contracts" / f"{out1['task_id']}.yaml").read_bytes()
+    out2 = _assemble(tmp_path)
+    assert out2["task_id"] != out1["task_id"] and out2["task_id"].endswith("-v2")
+    assert (tmp_path / "contracts" / f"{out1['task_id']}.yaml").read_bytes() == v1
 
 
 def test_contract_loads_with_frozen_discipline(tmp_path: Path) -> None:

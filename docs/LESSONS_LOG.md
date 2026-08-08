@@ -84,6 +84,21 @@
     提示用户做 X 的每一处,界面必须真的存在 X;解锁逻辑跟着待办清单
     走,不跟着状态枚举走。
 
+12. **上游 master 空壳 wheel → agent 探针深处炸 → 运行集体隐身(一次事故揪出三个系统缺口)**
+    现象:inflection guided 运行启动即死,重试四次同样死法;完成横幅
+    消失且回顾下拉/历史全无该运行。根因链:上游 master 的 setup.cfg
+    仍写 `py_modules = inflection`(单文件)而代码已改包目录,setuptools
+    **静默**打出仅 dist-info 的空 wheel(带 .git 构建也一样,纯上游打包
+    缺陷);pip"Successfully installed"照报成功;直到 agent 阶段 env
+    probe import 失败,异常未兜底→进程死、不写 report.json→运行对
+    所有页面隐身。修复(三连):①wheelhouse 构建后立即校验目标 wheel
+    含代码文件,空壳典型化拦截并建议改钉正式 Tag;②CLI 两个运行入口
+    崩溃兜底写 report.json(BLOCKED/CRASHED_INTERNAL,幂等、绝不覆盖
+    已有报告),四次隐身运行已补报告复活;③重装配自动升版本号
+    (v2/v3…),旧任务字节不动。教训:pip 的"安装成功"不等于"能
+    import";任何运行路径都必须以 report.json 落地收尾;面向失败重试
+    的入口不能撞名。
+
 ## 更早关键坑(索引)
 
 - 全角冒号紧贴 `**` 的 markdown 粗体不闭合(两次踩)→ 全局正则清扫
