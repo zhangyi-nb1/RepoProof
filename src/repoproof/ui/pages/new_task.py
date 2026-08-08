@@ -145,6 +145,15 @@ elif step == 2:
         placeholder="示例:v1.3.0",
         help="锁定版本保证结果可复现;不确定就填最新的正式发布 Tag。",
     )
+    # 就地填错检测(用户实测:路径与网址曾整体错位一格,而界面毫无提示)
+    _p, _u, _v = (ss.get(k, "").strip() for k in ("wz_project", "wz_repo", "wz_rev"))
+    _URLISH = ("http://", "https://", "github.com/")
+    if _p.startswith(_URLISH):
+        st.warning("「你的项目路径」应是本机目录(如 /Users/你/我的项目),你填的像一个网址——是不是填错框了?")
+    if _u and not _u.startswith(_URLISH):
+        st.warning("「目标仓库地址」应是 GitHub 网址(https://github.com/作者/仓库名),你填的像本机路径——是不是填错框了?")
+    if _v.startswith(_URLISH):
+        st.warning("「版本号」应填 Tag 或 Commit(如 v1.3.0 或 88eefaacf7d0),你填的像一个网址——是不是填错框了?")
     with st.expander("高级设置(默认不用改)"):
         ss["wz_gpu"] = st.checkbox("目标仓库需要 GPU", value=ss.get("wz_gpu", False))
         st.caption("以下上限使用推荐默认值;技术模式下可见原始字段名。")

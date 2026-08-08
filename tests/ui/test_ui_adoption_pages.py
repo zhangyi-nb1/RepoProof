@@ -121,3 +121,20 @@ def test_wizard_step3_need_information_unlocks_via_confirmations(tmp_path) -> No
     assert not at.exception
     assert not next(b for b in at.button if b.label == "下一步").disabled  # 解锁
     assert "会解锁" not in _all_text(at) or "确认完毕" in _all_text(at)
+
+
+@needs_streamlit
+def test_wizard_step2_warns_on_swapped_fields() -> None:
+    """用户实测:项目路径/仓库地址/版本号整体错位一格,界面曾零提示。
+    现在三个字段任一填成"不像它该有的形态"都就地黄条提醒。"""
+    at = AppTest.from_file(str(PAGES / "new_task.py"), default_timeout=60)
+    at.session_state["wizard_step"] = 2
+    at.session_state["wz_project"] = ""  # 真正的项目路径框空着
+    at.session_state["wz_repo"] = "/Users/someone/Desktop/pluralize_demo"
+    at.session_state["wz_rev"] = "https://github.com/jpvanhal/inflection"
+    at.run()
+    assert not at.exception
+    warns = "".join(str(w.value) for w in at.warning)
+    assert "像本机路径" in warns  # 仓库框里是路径
+    assert "像一个网址" in warns  # 版本框里是网址
+    assert "填错框" in warns
