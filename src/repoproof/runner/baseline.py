@@ -219,6 +219,7 @@ class _Runner:
         meter: BudgetMeter,
         workdir: str | None = None,
         actor_kind: str = "harness_setup",
+        env: dict[str, str] | None = None,
     ) -> tuple:
         """Policy-checked, budget-metered, causally-traced container exec.
 
@@ -252,9 +253,11 @@ class _Runner:
         self.store.append_event(
             "action.start",
             actor="runner",
-            payload={"action_id": action_id, "label": label, "argv": argv},
+            payload={"action_id": action_id, "label": label, "argv": argv,
+                     **({"env": env} if env else {})},
         )
-        res = self.backend.exec(container, argv, timeout_s=meter.command_timeout_seconds, workdir=workdir)
+        res = self.backend.exec(
+            container, argv, timeout_s=meter.command_timeout_seconds, workdir=workdir, env=env)
         out_ref = self.store.store_artifact(
             res.stdout, media_type="text/plain", producer=label, name_hint=f"{label}.stdout"
         )
@@ -312,11 +315,17 @@ class _Runner:
                     c,
                     ["python3", "-m", "pip", "wheel", "--no-cache-dir",
                      "--disable-pip-version-check", "/tmp/build", "-w", "/wheels"],
-                    label="wheelhouse.build-chonkie",
+                    label="wheelhouse.build-source",
                     meter=meter,
+                    # git-archive 暂存没有 .git/PKG-INFO,setuptools-scm/hatch-vcs
+                    # 类动态版本项目取不到版本(BUILD_METADATA_INCOMPATIBILITY,
+                    # rank_bm25 时代靠手工注入 PKG-INFO)。钉住确定性伪版本,
+                    # 静态版本项目会忽略该变量。
+                    env={"SETUPTOOLS_SCM_PRETEND_VERSION":
+                         f"0+rp.pinned.{self.contract.source_repo.resolved_commit[:12]}"},
                 )
                 if res.exit_code != 0:
-                    raise AdmissionError("wheel build failed on arm64 — see wheelhouse.build-chonkie artifacts")
+                    raise AdmissionError("wheel build failed — see wheelhouse.build-source artifacts")
                 self._exec_step(
                     c,
                     ["python3", "-m", "pip", "wheel", "--no-cache-dir",

@@ -1,0 +1,1 @@
+{"examples": [{"input": "1", "expected": "1 Byte"}, {"input": "300", "expected": "300 Bytes"}, {"input": "999", "expected": "999 Bytes"}, {"input": "1000", "expected": "1.0 kB"}, {"input": "5500", "expected": "5.5 kB"}, {"input": "1000000", "expected": "1.0 MB"}]}

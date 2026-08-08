@@ -1,0 +1,13 @@
+{
+  "public_contract_sha256": "e94b963367efa072102e8edb504ec6a19d0e33200af67bbcf2324e7f74dd19cf",
+  "public_examples_sha256": "6cd31eb96cb8a22e559bd2c1427339c05e0ec410bb9247fe72803f0a54ebb623",
+  "public_smoke_tests_tree_sha256": "d917602604ad7cf80885bec60d158dd4d759c9e61fb3e98c387fe9f777a4f8a9",
+  "rendered_prompt_sha256": "fbb01a331dcc9b5a3c7e8385634cfaa90f9616f641c516c48e1b99d37c5064ed",
+  "requirement_ids_rendered": [
+    "satisfy-user-examples",
+    "deterministic-runs",
+    "seam-unbroken"
+  ],
+  "requirement_spec_sha256": "dde4e82a75cc504f510abd6533a87d655b51fbad846a9a47606ad3e9c66be486",
+  "task_id": "adopt-humanize-guided-v1"
+}
