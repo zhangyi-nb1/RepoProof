@@ -156,6 +156,9 @@ elif step == 2:
         st.warning("「目标仓库地址」应是 GitHub 网址(https://github.com/作者/仓库名),你填的像本机路径——是不是填错框了?")
     if _v.startswith(_URLISH):
         st.warning("「版本号」应填 Tag 或 Commit(如 v1.3.0 或 88eefaacf7d0),你填的像一个网址——是不是填错框了?")
+    if _u.startswith(_URLISH) and not _v:
+        st.info("「版本号」还没填:此时点分析会使用默认分支的**最新开发提交**——开发中的代码"
+                "可能根本装不上。推荐:点「获取并分析目标仓库」后,从检测到的正式发布 Tag 中一键填入。")
     with st.expander("高级设置(默认不用改)"):
         ss["wz_gpu"] = st.checkbox("目标仓库需要 GPU", value=ss.get("wz_gpu", False))
         st.caption("以下上限使用推荐默认值;技术模式下可见原始字段名。")
@@ -179,7 +182,9 @@ elif step == 2:
             st.error("请先在上方填写你的项目路径(可以是一个空目录)。")
         else:
             ss["wz_host_report"] = analyze_host_project(ss["wz_project"]).to_dict()
-    if cb.button("获取并分析目标仓库", width="stretch"):
+    if cb.button("获取并分析目标仓库", width="stretch",
+                 help="按上方「版本号」取快照做静态分析(留空=默认分支最新开发提交);"
+                      "同时检测正式发布 Tag 供你选用。它不会替你选版本。"):
         from repoproof.adoption.analysis.repository_analyzer import analyze_repository
         from repoproof.ui.services.facts import repo_root as _rr2
 
@@ -190,6 +195,9 @@ elif step == 2:
             with st.spinner("正在匿名获取并静态分析目标仓库……"):
                 rep2 = analyze_repository(_url2, ss.get("wz_rev") or None,
                                           cache_root=_rr2() / "upstream-cache")
+                from repoproof.adoption.analysis.repository_analyzer import list_remote_tags
+
+                ss["wz_repo_tags"] = list_remote_tags(_url2)
             ss["wz_repo_report"] = rep2.to_dict()
     hr = ss.get("wz_host_report")
     if hr:
@@ -211,8 +219,19 @@ elif step == 2:
         _gpu = "需要 GPU ⚠️" if rr["gpu"]["value"] is True else "CPU 即可"
         _sec = "需要密钥 ⚠️" if rr.get("secrets_required") else "不需要密钥"
         _api = len(rr.get("public_api", []))
+        _sha12 = str(rr["commit"]["value"])[:12] if rr["commit"]["value"] else "未固定"
         st.markdown(f"**目标仓库**:许可证 {_lic} · {_gpu} · {_sec} · 公开入口 {_api} 个 · "
-                    f"版本 {str(rr['commit']['value'])[:12] if rr['commit']['value'] else '未固定'}")
+                    f"本次分析快照 {_sha12}(这是「分析用了哪个提交」的记录,**不是**版本推荐)")
+        _tags2 = ss.get("wz_repo_tags") or []
+        if _tags2:
+            st.markdown("**检测到的正式发布 Tag(推荐钉这些,而不是开发中的提交)**:"
+                        + "、".join(_tags2[:8]))
+            if st.button(f"一键填入最新正式 Tag:{_tags2[0]}"):
+                ss["wz_rev"] = _tags2[0]
+                st.rerun()
+        elif "wz_repo_tags" in ss:
+            st.caption("该仓库没有任何发布 Tag——只能钉 commit;若后续依赖构建失败,"
+                       "多半是开发版自身的打包问题。")
         if is_tech():
             with tech_expander("仓库分析完整 JSON(技术详情)"):
                 st.json(rr)

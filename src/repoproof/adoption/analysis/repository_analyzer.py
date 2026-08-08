@@ -320,3 +320,37 @@ def analyze_repository(
         dest, url=url, requested_revision=revision,
         is_public=Finding.fact(True, "匿名浅克隆成功"),
     )
+
+
+def sort_release_tags(tags: list[str]) -> list[str]:
+    """发布 Tag 按版本号降序(可解析的在前,无法解析的字符串降序在后)。"""
+    from packaging.version import InvalidVersion, Version
+
+    parseable: list[tuple[object, str]] = []
+    other: list[str] = []
+    for t in tags:
+        s = t[1:] if t[:1] in ("v", "V") else t
+        try:
+            parseable.append((Version(s), t))
+        except InvalidVersion:
+            other.append(t)
+    parseable.sort(key=lambda p: p[0], reverse=True)  # type: ignore[arg-type]
+    return [t for _, t in parseable] + sorted(other, reverse=True)
+
+
+def list_remote_tags(url: str, timeout: int = 20) -> list[str]:
+    """匿名列出远端正式发布 Tag(git ls-remote,不克隆、不执行);失败容忍返回 []。
+
+    动机(用户实测):版本号留空时分析定位默认分支 HEAD,分析结果里
+    显示的 commit 被用户当成"系统推荐的版本"抄回版本框——从而钉住了
+    打包损坏的开发版。只有把真正的发布 Tag 列出来,才能斩断这个歧义。"""
+    try:
+        out = subprocess.run(
+            ["git", "ls-remote", "--tags", "--refs", url],
+            capture_output=True, text=True, timeout=timeout, check=True,
+        ).stdout
+    except (subprocess.SubprocessError, OSError):
+        return []
+    tags = [ln.rsplit("refs/tags/", 1)[-1].strip()
+            for ln in out.splitlines() if "refs/tags/" in ln]
+    return sort_release_tags(tags)

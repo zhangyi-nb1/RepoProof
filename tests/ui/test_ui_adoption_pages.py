@@ -163,3 +163,39 @@ def test_frozen_tasks_detailed_newest_first_with_labels(tmp_path) -> None:
         "adopt-zzz-guided-v1", "adopt-aaa-guided-v1"]  # 时间序压过字母序
     assert items[0]["label"].startswith("🆕 ") and "今天" in items[0]["label"]
     assert "🆕" not in items[1]["label"] and "冻结" in items[1]["label"]
+
+
+@needs_streamlit
+def test_wizard_step2_version_ambiguity_guards(tmp_path) -> None:
+    """歧义修复(用户实测):版本号留空时用户把「本次分析快照 commit」
+    当成系统推荐版本抄回。现在:留空即提示默认分支语义;检测到的
+    发布 Tag 可一键填入版本框。"""
+    import subprocess
+
+    from repoproof.adoption.analysis.repository_analyzer import analyze_repository_dir
+
+    repo_dir = tmp_path / "demo"
+    repo_dir.mkdir()
+    (repo_dir / "demo.py").write_text("X = 1\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(repo_dir)], check=True)
+    for args in (["add", "-A"], ["commit", "-qm", "init"]):
+        subprocess.run(["git", "-C", str(repo_dir), "-c", "user.email=t@t",
+                        "-c", "user.name=t", *args], check=True)
+    rep = analyze_repository_dir(repo_dir, url="https://github.com/example/demo")
+
+    at = AppTest.from_file(str(PAGES / "new_task.py"), default_timeout=60)
+    at.session_state["wizard_step"] = 2
+    at.session_state["wz_repo"] = "https://github.com/example/demo"
+    at.session_state["wz_rev"] = ""
+    at.session_state["wz_repo_report"] = rep.to_dict()
+    at.session_state["wz_repo_tags"] = ["0.5.1", "0.5.0"]
+    at.run()
+    assert not at.exception
+    infos = "".join(str(i.value) for i in at.info)
+    assert "最新开发提交" in infos  # 留空语义就地说明
+    text = _all_text(at)
+    assert "不是**版本推荐" in text or "不是版本推荐" in text.replace("**", "")
+    assert "正式发布 Tag" in text
+    fill = next(b for b in at.button if "一键填入最新正式 Tag" in str(b.label))
+    fill.click().run()
+    assert at.session_state["wz_rev"] == "0.5.1"  # 点击后版本框被填入 Tag

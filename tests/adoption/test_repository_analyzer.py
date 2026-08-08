@@ -127,9 +127,9 @@ def test_analyzer_module_static_bans() -> None:
     for banned in ("litellm", "openai.", "docker", "importlib", "exec(", "eval(",
                    "os.system", '"pip",', "'pip',"):
         assert banned not in src, banned
-    # subprocess 只允许 git 用途:恰好两处调用,命令列表全部以 "git" 开头
-    assert src.count("subprocess.run") == 2
-    assert src.count('["git"') == 2  # clone 的 cmd 构造 + rev-parse 内联
+    # subprocess 只允许 git 用途:恰好三处调用,命令列表全部以 "git" 开头
+    assert src.count("subprocess.run") == 3
+    assert src.count('["git"') == 3  # clone 的 cmd 构造 + rev-parse 内联 + ls-remote(Tag 检测)
 
 
 # ---- 真实仓库自测(本地 pinned 快照,零网络) ----
@@ -148,3 +148,12 @@ def test_real_repo_pinned_python_frontmatter() -> None:
     assert r.runtime["gpu"] is False
     assert r.tests.provenance == FACT
     assert r.to_dict()["repository"].endswith("python-frontmatter")
+
+
+def test_sort_release_tags_version_order() -> None:
+    """歧义修复(用户实测):分析快照 commit 被误当版本推荐。Tag 推荐
+    必须按语义版本降序,v 前缀可解析,无法解析的字符串沉底。"""
+    from repoproof.adoption.analysis.repository_analyzer import sort_release_tags
+
+    out = sort_release_tags(["0.4.0", "v0.10.0", "0.5.1", "weird-tag", "0.5.0"])
+    assert out == ["v0.10.0", "0.5.1", "0.5.0", "0.4.0", "weird-tag"]
