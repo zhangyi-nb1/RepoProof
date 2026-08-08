@@ -331,7 +331,10 @@ elif step == 4:
     # ---- 正式采用计划(RFC-008 §7):双侧报告都在时,走真实 Plan + Human Gate ----
     _deep = bool(ss.get("wz_host_report") and ss.get("wz_repo_report"))
     if _deep:
-        from repoproof.adoption.admission.admission_report import decide
+        from repoproof.adoption.admission.admission_report import (
+            apply_user_confirmations,
+            decide,
+        )
         from repoproof.adoption.analysis.host_analyzer import HostProjectReport
         from repoproof.adoption.analysis.repository_analyzer import RepositoryReport
         from repoproof.adoption.intent.intent_parser import parse_intent
@@ -339,7 +342,10 @@ elif step == 4:
 
         _host_m = HostProjectReport.model_validate(ss["wz_host_report"])
         _repo_m = RepositoryReport.model_validate(ss["wz_repo_report"])
-        _adm_m = decide(_host_m, _repo_m)
+        # 第 3 步逐条勾选的人工确认必须传导到计划层,否则黄灯状态在
+        # 这里再次拦路(用户实测死角第二段)
+        _adm_m = apply_user_confirmations(
+            decide(_host_m, _repo_m), ss.get("wz_confirmed_questions", []))
         _intent_m = parse_intent(ss.get("wz_goal", ""))
         _accepted = ss.get("wz_accepted_risks", [])
         st.divider()

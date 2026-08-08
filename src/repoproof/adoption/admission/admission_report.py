@@ -62,3 +62,34 @@ def decide(host: HostProjectReport, repo: RepositoryReport) -> AdmissionReport:
         next_step=_NEXT_STEP[status],
         executes_third_party_code=(status != UNSUPPORTED),
     )
+
+
+def apply_user_confirmations(
+    report: AdmissionReport, confirmed_questions: list[str]
+) -> AdmissionReport:
+    """用户逐条人工确认后的报告形态(UI 深度检查勾选框 → 计划层)。
+
+    被确认的 question 转为「已由你人工确认:…」的事实(出处=用户,
+    系统仍未自动识别,不伪装成自动结论);状态按剩余待办重算。
+    blockers 不受影响——阻断项不可被人工确认绕过。"""
+    confirmed = [q for q in report.questions if q in confirmed_questions]
+    if not confirmed:
+        return report
+    remaining = [q for q in report.questions if q not in confirmed_questions]
+    if report.blockers:
+        status = UNSUPPORTED
+    elif remaining:
+        status = NEED_INFORMATION
+    elif report.risks:
+        status = RISK_REVIEW
+    else:
+        status = READY
+    return AdmissionReport(
+        status=status,
+        confirmed_facts=report.confirmed_facts + [f"已由你人工确认:{q}" for q in confirmed],
+        questions=remaining,
+        blockers=report.blockers,
+        risks=report.risks,
+        next_step=_NEXT_STEP[status],
+        executes_third_party_code=report.executes_third_party_code,
+    )

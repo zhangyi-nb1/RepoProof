@@ -319,3 +319,61 @@ def test_cli_admission_json_pipeline(tmp_path: Path) -> None:
                    "--source-report", str(src_json), "--json")
     assert out["kind"] == "admission_report"
     assert out["report"]["status"] in ("READY", "NEED_INFORMATION", "RISK_REVIEW", "UNSUPPORTED")
+
+
+def test_user_confirmations_unlock_plan_but_never_blockers(tmp_path) -> None:
+    """用户实测死角第二段:第 3 步勾选的人工确认未传导到计划层,
+    NEED_INFORMATION 在第 4 步再次拦路。apply_user_confirmations:
+    全确认 → 计划可生成;部分确认 → 仍拦;blockers 永不可绕过。"""
+    import subprocess
+
+    from repoproof.adoption.admission.admission_report import (
+        AdmissionReport,
+        apply_user_confirmations,
+        decide,
+    )
+    from repoproof.adoption.analysis.host_analyzer import analyze_host_project
+    from repoproof.adoption.analysis.repository_analyzer import analyze_repository_dir
+    from repoproof.adoption.intent.intent_parser import parse_intent
+    from repoproof.adoption.planning.adoption_plan import build_plan
+
+    host_dir = tmp_path / "empty_project"
+    host_dir.mkdir()
+    repo_dir = tmp_path / "norepo"
+    repo_dir.mkdir()
+    (repo_dir / "README.md").write_text("# demo\n", encoding="utf-8")
+    (repo_dir / "demo.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(repo_dir)], check=True)
+    for args in (["add", "-A"], ["commit", "-qm", "init"]):
+        subprocess.run(["git", "-C", str(repo_dir), "-c", "user.email=t@t",
+                        "-c", "user.name=t", *args], check=True)
+
+    host = analyze_host_project(str(host_dir))
+    repo = analyze_repository_dir(repo_dir, url="https://github.com/example/norepo")
+    adm = decide(host, repo)
+    assert adm.status == "NEED_INFORMATION" and len(adm.questions) >= 2
+
+    intent = parse_intent("为我的项目引入演示能力,输入输出都是字符串")
+
+    # 未确认 → 计划层拒绝(现状保持)
+    with pytest.raises(ValueError, match="NEED_INFORMATION"):
+        build_plan(intent, host, repo, adm)
+
+    # 部分确认 → 仍拒绝,剩余问题在列
+    part = apply_user_confirmations(adm, adm.questions[:1])
+    assert part.status == "NEED_INFORMATION" and len(part.questions) == len(adm.questions) - 1
+    with pytest.raises(ValueError):
+        build_plan(intent, host, repo, part)
+
+    # 全部确认 → 状态按剩余待办重算,确认进入事实并标注出处
+    full = apply_user_confirmations(adm, list(adm.questions))
+    assert full.questions == [] and full.status in ("READY", "RISK_REVIEW")
+    assert any("已由你人工确认" in f for f in full.confirmed_facts)
+    plan = build_plan(intent, host, repo, full,
+                      accepted_risks=list(full.risks) or None)
+    assert plan.strategies  # 计划真的生成了
+
+    # blockers 永不可被确认绕过
+    blocked = AdmissionReport(status="UNSUPPORTED", questions=["q"], blockers=["硬阻断"])
+    still = apply_user_confirmations(blocked, ["q"])
+    assert still.status == "UNSUPPORTED" and still.blockers == ["硬阻断"]
