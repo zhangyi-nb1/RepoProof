@@ -91,6 +91,11 @@ T1 副本:~/RepoProofBench/offerclaw-t1-fastapi-mcp(--no-hardlinks 重建,
    gap_store 等 untracked 数据不受 git 保底,Phase 1 首测时对其做
    一次性备份后方可开跑。
 
+**开跑前审计**:主目录破坏风险逐通道审计见 `OFFERCLAW-RISK-AUDIT.md`
+(结论:代码内"写出项目"通道为零,全 __file__ 锚定;风险登记册
+S1-S7 已解决 / L1-L7 潜在对策已备;API Key 政策四条)。**L1(副本
+携带真实个人数据)与 L2(假 HOME)在 T1 冻结前必须落实。**
+
 ## 5. 执行架构与证据分级
 
 - **模式 L(默认)**:副本 + 基线 venv(只读,一次构建,构建输入
