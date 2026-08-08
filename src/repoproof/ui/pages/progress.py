@@ -53,8 +53,14 @@ _names = {
     "bm25-agent-fail": "示例:检索排序(未通过案例)",
 }
 _locals = facts.local_runs()
-for _ln in _locals:
-    _names[_ln] = f"你的运行:{_ln}"
+if _locals:
+    from repoproof.ui.presenters.glossary import verdict_icon as _vic0
+    from repoproof.ui.presenters.glossary import verdict_simple as _vsi0
+
+    for _ln in _locals:
+        _v0 = facts.local_run_verdict(_ln)
+        _names[_ln] = (f"你的运行:{_ln} · {facts.run_ts_human(_ln)} · "
+                       f"{_vic0(_v0)}{_vsi0(_v0)}")
 _valid = [*_locals, *list(CASES)]
 _default = st.session_state.get("case") or _valid[0]
 if _default not in _valid:

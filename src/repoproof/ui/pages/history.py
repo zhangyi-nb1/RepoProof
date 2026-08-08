@@ -28,9 +28,10 @@ if _locals:
         _rep0, _man0 = _d["report"], _d["manifest"]
         _ag0 = _man0.get("agent") or {}
         _rows_local.append({
+            "时间": facts.run_ts_human(_rn),
             "运行": _rn,
             "最终结果": verdict_simple(_rep0.get("final_verdict")),
-            "AI 结束方式": _ag0.get("exit_status") or "—",
+            "AI 结束方式": _ag0.get("exit_status") or _rep0.get("agent", {}).get("exit_status") or "—",
         })
     st.dataframe(_rows_local, width="stretch", hide_index=True)
     st.caption("在「运行进度」或「结果报告」页选择对应条目可看详情;这些运行不进入下方公开基准。")

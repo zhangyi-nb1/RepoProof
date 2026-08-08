@@ -1,0 +1,1 @@
+{"examples": [{"input": "person", "expected": "people"}, {"input": "child", "expected": "children"}, {"input": "analysis", "expected": "analyses"}, {"input": "tomato", "expected": "tomatoes"}, {"input": "bus", "expected": "buses"}, {"input": "sheep", "expected": "sheep"}]}

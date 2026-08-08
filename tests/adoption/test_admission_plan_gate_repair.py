@@ -449,3 +449,32 @@ def test_suggest_answers_deterministic_with_basis() -> None:
     # 完全没有依据的问题:不返回(绝不编造)
     out3 = suggest_answers(["这个能力上线后由谁负责运维?"], goal="x")
     assert out3 == {}
+
+
+def test_suggestions_generalize_and_guidance_always_exists() -> None:
+    """泛化(用户实测):换任务/换情况推荐仍要成立——目标未命中已知类别
+    时引用目标原文并如实标注;任意未知问题必有作答格式指导兜底。"""
+    from repoproof.adoption.planning.answer_suggestions import (
+        answer_guidance,
+        suggest_answers,
+    )
+
+    q_cap = "你想采用的是哪类能力(解析/检索/转换/其他)?"
+    # 任意新能力(不在关键词表):推荐=引用目标原文,依据如实说明可改写
+    out = suggest_answers([q_cap], goal="为我的项目引入英文名词复数化能力")
+    sug, basis = out[q_cap]
+    assert "复数化" in sug and "未匹配到已知类别" in basis
+
+    # 仓库自述可作为第二来源
+    out2 = suggest_answers([q_cap], goal="",
+                           repo_report={"description": {"value": "BM25 检索排序库"}})
+    assert out2[q_cap][0] == "检索排序" and "仓库" in out2[q_cap][1]
+
+    # 任意未知问题:无推荐,但指导永远存在且非空
+    weird = "这个能力上线后由谁负责运维?"
+    assert suggest_answers([weird], goal="x") == {}
+    assert "一句话" in answer_guidance(weird)
+    for q in (q_cap, "是否允许为你的项目新增第三方依赖?",
+              "预期输出的字段/格式是什么(能给一个例子最好)?",
+              "有没有必须保持不变的现有行为?"):
+        assert answer_guidance(q)  # 四类标准问题都有专属格式指导

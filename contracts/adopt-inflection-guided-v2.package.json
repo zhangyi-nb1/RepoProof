@@ -1,0 +1,54 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_regression.py"
+  ],
+  "collection_manifest_sha256": "33e79c59dd76a35a7e74911f109d8987250204a3b6558c890cd6538c1c06459b",
+  "consumer_fixture_tree_sha256": "61da22e16c947d981b3ac1c2fa578dda45e1eba790d1b548407ac260cbe56f3b",
+  "contract_sha256": "84860a2d17cd1e032ed7f0adcd2751635ce00014072404e2c157cc4bc25f30cb",
+  "controls_summary": {
+    "negative_control_NC_empty_adapter": "FAILED_AS_EXPECTED",
+    "positive_control": "PASS"
+  },
+  "environment_constraints": {
+    "inflection": "0.5.1",
+    "machine": "aarch64",
+    "python": "3.12"
+  },
+  "expected_capability_nodes": 9,
+  "expected_regression_nodes": 3,
+  "held_out_fixture_sha256": "c4d2e6fd77845ee5016806a083ff31f264eb1007997b5e612109bb7c4908f905",
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "oracle_tree_sha256": "8f27732d353935b840f06896883b913a2b2dfb97c6b7ac2ac08e0b39439d406f",
+  "prompt_manifest_sha256": "0f9ee6928871599eee883329722593b40c8bf905f1de93efccd802189bdd86dd",
+  "public_examples_sha256": "ef5bc458de8e7a8756e0514d93dd534ea965c27804756d9f2595b779726b971a",
+  "public_fixture_sha256": "5f8936755b6d97b72dd332233f4a6cbab5834d616921de13cb0087c4be4c96f3",
+  "public_tests_tree_sha256": "d6ae29696bebf42eadbf52e5ff11540dbface43a571b719440d451a0f54bc434",
+  "requirement_spec_sha256": "5c8dd9cfe589381e0c41dc536e8e62f37801d09566c923eaa5023b89f015a602",
+  "responsibility_matrix": {
+    "ADAPTER": [
+      "deterministic-runs",
+      "satisfy-user-examples",
+      "seam-unbroken"
+    ]
+  },
+  "root_hash": "bf1e91695ab9807643c5323f2cb3b6b338a5b151d5328f1fab8442211d9e4802",
+  "source_commit": "b00d4d348b32ef5823221b20ee4cbd1d2d924462",
+  "source_git_tree_hash": "55a4bfd2bc6cb86dec935ba98119f41a77edcbf2",
+  "task_id": "adopt-inflection-guided-v2",
+  "wheelhouse_root": "4177e2b57308f48866481c9baea17172b647428707320c0ce7a64e0b93f0ede5",
+  "wheelhouse_wheels": {
+    "inflection-0.5.1-py2.py3-none-any.whl": "bc863633a36c8b8e4dd2353a9822e57f0204f5414846ed656981422aaf024170",
+    "iniconfig-2.3.0-py3-none-any.whl": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12",
+    "packaging-26.3-py3-none-any.whl": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+    "pluggy-1.6.0-py3-none-any.whl": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+    "pygments-2.20.0-py3-none-any.whl": "81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176",
+    "pytest-9.1.1-py3-none-any.whl": "37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c"
+  }
+}

@@ -9,7 +9,7 @@
   "preflight_cost": "UNKNOWN",
   "preflight_input_tokens": 70,
   "preflight_output_tokens": 21,
-  "preflight_wall_time_s": 1.7,
+  "preflight_wall_time_s": 2.0,
   "provider_config_sha256": "ad67323fd7bb50c83f068798b6106987b3661eff5099a35171d56544b5c0f2c6",
   "status": "PROVIDER_READY",
   "temperature": "0"

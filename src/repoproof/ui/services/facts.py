@@ -134,11 +134,32 @@ def trace_preview(case: str, limit: int = 200) -> list[dict]:
     return rows
 
 
+def run_ts(name: str) -> str:
+    """运行目录名的尾缀时间戳(YYYYMMDD-HHMMSS,字典序=时间序)。"""
+    return name[-15:]
+
+
+def run_ts_human(name: str) -> str:
+    s = run_ts(name)
+    return f"{s[4:6]}-{s[6:8]} {s[9:11]}:{s[11:13]}" if len(s) == 15 else s
+
+
 def local_runs() -> list[str]:
-    """本地真实运行目录(有 report.json 的,最新在前)——持久事实,刷新不丢。"""
+    """本地真实运行目录(有 report.json 的,最新在前)——持久事实,刷新不丢。
+
+    按尾缀时间戳排序,不按目录名字母序:用户实测里 thefuzz(t)把
+    刚跑完的 inflection(i)压到列表深处,新运行被"埋没"。"""
     root = repo_root() / "runs"
     dirs = [d for d in root.glob("adopt-*-2*") if (d / "report.json").exists()]
-    return [d.name for d in sorted(dirs, key=lambda x: x.name, reverse=True)]
+    return [d.name for d in sorted(dirs, key=lambda x: run_ts(x.name), reverse=True)]
+
+
+def local_run_verdict(name: str) -> str | None:
+    try:
+        return json.loads((repo_root() / "runs" / name / "report.json")
+                          .read_text(encoding="utf-8")).get("final_verdict")
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 def load_local_run(run_name: str) -> dict:

@@ -405,11 +405,15 @@ elif step == 4:
             _answers: dict[str, str] = {}
             if _plan.questions:
                 st.markdown("**待确认问题(必答)**:")
-                from repoproof.adoption.planning.answer_suggestions import suggest_answers
+                from repoproof.adoption.planning.answer_suggestions import (
+                    answer_guidance,
+                    suggest_answers,
+                )
 
                 _sugs = suggest_answers(
                     list(_plan.questions), goal=ss.get("wz_goal", ""),
                     host_report=ss.get("wz_host_report"),
+                    repo_report=ss.get("wz_repo_report"),
                     examples_text=ss.get("wz_examples", ""))
                 for i3, q3 in enumerate(_plan.questions):
                     if q3 in _sugs:
@@ -418,6 +422,8 @@ elif step == 4:
                         if st.button("填入推荐答案", key=f"wz_plan_use_{i3}"):
                             st.session_state[f"wz_plan_q_{i3}"] = _sg
                             st.rerun()
+                    else:
+                        st.caption(f"ℹ️ 怎么答:{answer_guidance(q3)}")
                     _answers[q3] = st.text_input(q3, key=f"wz_plan_q_{i3}", placeholder="必填")
             from repoproof.adoption.planning.human_gate import (
                 ACK_TEXT,

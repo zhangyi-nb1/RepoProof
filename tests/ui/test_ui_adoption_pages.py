@@ -199,3 +199,15 @@ def test_wizard_step2_version_ambiguity_guards(tmp_path) -> None:
     fill = next(b for b in at.button if "一键填入最新正式 Tag" in str(b.label))
     fill.click().run()
     assert at.session_state["wz_rev"] == "0.5.1"  # 点击后版本框被填入 Tag
+
+
+def test_local_runs_sorted_by_time_not_name() -> None:
+    """用户实测:字母序把 thefuzz(t)顶在最前,刚跑完的 inflection(i)
+    被埋没。回顾/历史列表必须按尾缀时间戳最新在前。"""
+    from repoproof.ui.services.facts import local_runs, run_ts_human
+
+    names = local_runs()
+    assert names, "本仓库应有本地运行"
+    stamps = [n[-15:] for n in names]
+    assert stamps == sorted(stamps, reverse=True)  # 时间序,不是名字序
+    assert run_ts_human("adopt-x-guided-v2-20260808-172420") == "08-08 17:24"
