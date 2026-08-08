@@ -109,4 +109,10 @@ UI 宿主路径就地拦截;指纹=工作树含 untracked+git refs 摘要,untrac
 OfferClaw 那 4 处 `~` 访问)、净化环境+合成密钥(实测不继承用户真钥、
 白名单外变量不外泄)、cwd 越界即拒;mounts 语义=**复制**非挂载非软链
 (会话内改动不回写源目录,实测);超时杀进程组。钉死测试 6 项)。
-③ 快照排除 → 下一步;④⑤⑥ 未开始。
+**③ 宿主快照排除+合成替身+PII 出口扫描 ✅ 完成**(harness/host_snapshot.py)。
+实测两项发现:(a) **L1 风险降级**——OfferClaw 的 user_profile/applications/
+daily_log 均为 untracked,git 克隆天然不携带 PII,真正通道是 B 类资源
+引导(复制 chroma_db=3538 条真实简历/JD 向量);(b) 真实副本试跑
+(6255 文件)暴露 `logs` 排除模式误伤 `.git/logs`(reflog)→ 修为
+".git 整体保留或整体排除,不允许挖洞"。真实副本 PII 扫描 0 命中。
+钉死测试 5 项。④ 宿主级任务包接线 → 下一步;⑤⑥ 未开始。
