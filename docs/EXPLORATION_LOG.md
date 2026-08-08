@@ -89,3 +89,14 @@ deepseek(14 调用)、gpt-5.4(5 调用)、deepseek(7 调用)全部
 +「时间·模型·判定」标注;历史/回顾/修复三处列表全面增加**模型
 型号列**(用户要求,取自预检记录);锁竞态案例写入
 ENGINEERING_CASEBOOK 案例 1(面试复盘级)。
+
+## 状态条目 · 2026-08-09 · 测试方案 v2 执行版定稿(阶段:Phase 0 未开始)
+
+TESTPLAN-V2 执行版(docs/testplans/TESTPLAN-V2-OFFERCLAW.md)经独立
+agent 对抗审核:**有条件通过,16 必改项全部落实**。审核最大战果 =
+两个已在磁盘上成立的红线隐患:①本地 git clone 默认硬链接对象库,
+T1 副本与 OfferClaw 主仓共享同一批 .git/objects 物理文件(改副本=
+毁主仓)——已用 --no-hardlinks 重建并核验零共享 inode,主仓 fsck
+完好;②副本 origin 指向主开发目录(git push 即写穿)——已移除。
+两案入 CASEBOOK 候选。待用户批准执行版后进入 Phase 0(①护栏+指纹
+对账 ②本地执行后端 ③快照排除 ④任务包接线 ⑤provenance ⑥v2 记录器)。

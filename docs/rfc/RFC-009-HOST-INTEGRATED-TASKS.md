@@ -1,5 +1,6 @@
 # RFC-009: Host-Integrated Task Shape(L2+ 工程级集成任务)
 
+- **注意:本 RFC 以 §六(v2 修订,宿主 OfferClaw)为现行口径;§一-五为 v1 历史(fastapi-template 线,已废弃)**
 - 状态:**草案,待用户决策后实施**
 - 依据:E2 结论(单函数 seam 对 2026 代模型一轮即解,探索价值收敛)
   + 用户采纳的《渐进式复杂任务测试与 Harness 演进方案》(外部方案,
