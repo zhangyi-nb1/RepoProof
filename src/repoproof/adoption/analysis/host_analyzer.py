@@ -117,13 +117,15 @@ def _first_content(root: Path) -> Path | None:
         for p in entries:
             if p.name in _IGNORABLE_JUNK:
                 continue
-            if p.is_symlink() or p.is_file():
-                return p
-            if p.is_dir():
-                # .git 目录(未说明的)直接算内容
+            if p.is_dir() and not p.is_symlink():
+                # .git(目录或 worktree 指针文件)一律算内容
                 if p.name == ".git":
                     return p
                 stack.append(p)
+            else:
+                # 文件/符号链接/FIFO/套接字/设备文件:一律算内容
+                # (独立验证发现:仅含 FIFO 的目录曾被误判 BLANK)
+                return p
     return None
 
 
@@ -140,8 +142,11 @@ def detect_host_mode(project_path: str | Path) -> Finding:
         if not os.access(root, os.W_OK):
             return Finding.fact(INVALID_PATH, "目录为空但不可写,无法作为空白项目目标")
         return Finding.fact(BLANK_PROJECT, "递归扫描无普通/隐藏/链接内容,目录可写")
-    if (root / ".git").is_dir():
-        return Finding.fact(GIT_PROJECT, ".git/ 目录存在")
+    git_marker = root / ".git"
+    if git_marker.exists():
+        # 目录 = 常规仓库;文件 = worktree/submodule 指针,同样是 Git 管理
+        kind = ".git/ 目录存在" if git_marker.is_dir() else ".git 指针文件存在(worktree/submodule)"
+        return Finding.fact(GIT_PROJECT, kind)
     return Finding.fact(PLAIN_PROJECT, f"存在内容(首个条目:{content.relative_to(root)}),非 Git 仓库")
 
 

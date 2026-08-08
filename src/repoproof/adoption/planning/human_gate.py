@@ -116,5 +116,10 @@ def require_confirmed(
         raise HumanGateError("计划在确认后被修改(sha 失配)——请重新走确认流程")
     if intent.admission_sha256 != _sha(admission.to_dict()):
         raise HumanGateError("适用性报告在确认后被修改(sha 失配)——请重新走确认流程")
-    if intent_dict is not None and intent.intent_sha256 and intent.intent_sha256 != _sha(intent_dict):
-        raise HumanGateError("意图草稿在确认后被修改(sha 失配)——请重新走确认流程")
+    if intent_dict is not None:
+        # 独立验证发现:未绑定指纹时静默放行是漏洞——调用方既然提供
+        # intent_dict 要求校验,冻结件就必须携带绑定,否则一律拒绝。
+        if not intent.intent_sha256:
+            raise HumanGateError("冻结意向未绑定意图草稿指纹,无法校验——请重新走确认流程")
+        if intent.intent_sha256 != _sha(intent_dict):
+            raise HumanGateError("意图草稿在确认后被修改(sha 失配)——请重新走确认流程")

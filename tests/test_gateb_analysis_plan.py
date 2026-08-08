@@ -93,6 +93,19 @@ def test_invalid_path_mode() -> None:
     assert detect_host_mode("/nonexistent/definitely-missing-xyz").value == INVALID_PATH
 
 
+def test_blank_mode_rejects_fifo(tmp_path: Path) -> None:
+    """独立验证反例:仅含 FIFO 的目录不是空白项目。"""
+    os.mkfifo(tmp_path / "pipe")
+    assert detect_host_mode(tmp_path).value == PLAIN_PROJECT
+
+
+def test_git_pointer_file_counts_as_git_project(tmp_path: Path) -> None:
+    """独立验证反例:.git 为 worktree/submodule 指针文件时也是 Git 项目。"""
+    (tmp_path / ".git").write_text("gitdir: /some/where", encoding="utf-8")
+    (tmp_path / "app.py").write_text("x=1", encoding="utf-8")
+    assert detect_host_mode(tmp_path).value == GIT_PROJECT
+
+
 def test_git_project_facts_on_repoproof_itself() -> None:
     rep = analyze_host_project(REPO)
     assert rep.host_mode.value == GIT_PROJECT
@@ -217,6 +230,17 @@ def test_intent_sha_binding_and_tamper_invalidation(tmp_path: Path) -> None:
     tampered = intent.to_dict() | {"goal": "改掉目标"}
     with pytest.raises(HumanGateError, match="意图草稿"):
         require_confirmed(frozen, plan, adm, intent_dict=tampered)
+
+
+def test_unbound_intent_fingerprint_rejected(tmp_path: Path) -> None:
+    """独立验证反例:冻结件无 intent 指纹时,带 intent_dict 的校验必须拒绝而非放行。"""
+    intent, plan, adm = _ready_pair(tmp_path)
+    frozen = confirm_plan(
+        plan, adm, answers=dict.fromkeys(plan.questions, "无"), user_ack=ACK_TEXT,
+        confirmed_at="2026-08-08T00:00:00Z", accepted_risks=list(adm.risks) or None,
+        chosen_strategy=plan.recommended)  # 未传 intent_dict → 无绑定
+    with pytest.raises(HumanGateError, match="未绑定意图草稿指纹"):
+        require_confirmed(frozen, plan, adm, intent_dict=intent.to_dict())
 
 
 def test_wrong_strategy_name_rejected(tmp_path: Path) -> None:
