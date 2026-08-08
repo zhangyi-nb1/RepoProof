@@ -155,6 +155,13 @@ elif step == 2:
     _URLISH = ("http://", "https://", "github.com/")
     if _p.startswith(_URLISH):
         st.warning("「你的项目路径」应是本机目录(如 /Users/你/我的项目),你填的像一个网址——是不是填错框了?")
+    if _p:
+        from repoproof.harness.host_guard import is_protected
+
+        if is_protected(_p):
+            st.error("🛑 该路径是受保护的真实开发目录(硬护栏,无旁路)。"
+                     "请改用 ~/RepoProofBench/ 下的独立副本"
+                     "(git clone --no-hardlinks 并移除 origin)。")
     if _u and not _u.startswith(_URLISH):
         st.warning("「目标仓库地址」应是 GitHub 网址(https://github.com/作者/仓库名),你填的像本机路径——是不是填错框了?")
     if _v.startswith(_URLISH):

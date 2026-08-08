@@ -31,6 +31,9 @@ def stage_bundle(
 ) -> tuple[StagingInfo, ApplyManifest, dict]:
     """创建 staging 副本并把 bundle 适配件落入其中;返回
     (staging 信息, 写回账本, bundle 清单)。原项目在本函数中只读。"""
+    from repoproof.harness.host_guard import assert_writable_target
+
+    assert_writable_target(project_path, purpose="以该项目为写回目标建立 staging")
     bundle = Path(bundle_dir).expanduser().resolve()
     bm_path = bundle / "bundle_manifest.json"
     if not bm_path.exists():

@@ -95,6 +95,9 @@ def apply_confirmed(
     全部前置满足才动第一笔;任何一笔失败 → 自动回滚已写部分并抛错。
     成功返回 result_state=APPLIED 的 manifest(含 preimage 备份位置)。
     """
+    from repoproof.harness.host_guard import assert_writable_target
+
+    assert_writable_target(project_root, purpose="向该项目写入")
     project = Path(project_root).expanduser().resolve()
     staged = Path(staged_root).expanduser().resolve()
     backups = Path(backup_dir).expanduser().resolve()
@@ -179,6 +182,9 @@ def rollback(
     backup_dir: str | Path,
 ) -> ApplyManifest:
     """按账本回滚:只动 manifest 列出的文件;幂等;绝不递归删除。"""
+    from repoproof.harness.host_guard import assert_writable_target
+
+    assert_writable_target(project_root, purpose="对该项目执行回滚写入")
     project = Path(project_root).expanduser().resolve()
     backups = Path(backup_dir).expanduser().resolve()
     for action in manifest.rollback_actions:

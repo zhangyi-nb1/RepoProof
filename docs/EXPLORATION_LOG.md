@@ -98,5 +98,9 @@ agent 对抗审核:**有条件通过,16 必改项全部落实**。审核最大�
 T1 副本与 OfferClaw 主仓共享同一批 .git/objects 物理文件(改副本=
 毁主仓)——已用 --no-hardlinks 重建并核验零共享 inode,主仓 fsck
 完好;②副本 origin 指向主开发目录(git push 即写穿)——已移除。
-两案入 CASEBOOK 候选。待用户批准执行版后进入 Phase 0(①护栏+指纹
-对账 ②本地执行后端 ③快照排除 ④任务包接线 ⑤provenance ⑥v2 记录器)。
+两案入 CASEBOOK 候选。用户已批准执行版(2026-08-09)。**Phase 0 进度:① 主目录护栏+指纹
+对账 ✅ 完成**(harness/host_guard.py:realpath+大小写不敏感+软链/
+子路径/相对路径全拦截;apply/stage/rollback 三写入口无旁路接线;
+UI 宿主路径就地拦截;指纹=工作树含 untracked+git refs 摘要,untracked
+新增/内容改/refs 变动全报警,噪声目录不误报;钉死测试 5 项)。
+② 本地执行后端 → 进行中;③④⑤⑥ 未开始。
