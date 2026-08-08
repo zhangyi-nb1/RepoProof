@@ -103,4 +103,10 @@ T1 副本与 OfferClaw 主仓共享同一批 .git/objects 物理文件(改副本
 子路径/相对路径全拦截;apply/stage/rollback 三写入口无旁路接线;
 UI 宿主路径就地拦截;指纹=工作树含 untracked+git refs 摘要,untracked
 新增/内容改/refs 变动全报警,噪声目录不误报;钉死测试 5 项)。
-② 本地执行后端 → 进行中;③④⑤⑥ 未开始。
+**② LocalWorktree 执行后端 ✅ 完成**(execution/local_worktree_backend.py:
+与 Docker 后端同形 start/exec/destroy/destroy_all;四条硬约束焊死——
+护栏拒绝保护目录会话根、**假 HOME**(HOME/XDG/HF 全指会话内,一举切断
+OfferClaw 那 4 处 `~` 访问)、净化环境+合成密钥(实测不继承用户真钥、
+白名单外变量不外泄)、cwd 越界即拒;mounts 语义=**复制**非挂载非软链
+(会话内改动不回写源目录,实测);超时杀进程组。钉死测试 6 项)。
+③ 快照排除 → 下一步;④⑤⑥ 未开始。
