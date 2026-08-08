@@ -1,0 +1,48 @@
+task_id: adopt-emoji-guided-v1
+
+controls:
+  positive: controls/adopt-emoji-guided-v1/positive
+  negatives:
+    - path: controls/adopt-emoji-guided-v1/negative_empty
+      label: NC_empty_adapter
+      must_fail_nodes: ["test_example"]
+
+requirements:
+  - id: satisfy-user-examples
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      调用 pinned emoji 实现能力,使全部用户样例断言通过
+      (行为以公开样例为准,例:run('I ❤️ Python') -> 'I :red_heart: Python'; run('会议 👍 顺利') -> '会议 :thumbs_up: 顺利'; run('no emoji here') -> 'no emoji here')。
+    examples:
+      - "run('I ❤️ Python') -> 'I :red_heart: Python'; run('会议 👍 顺利') -> '会议 :thumbs_up: 顺利'; run('no emoji here') -> 'no emoji here'"
+    oracle_nodes:
+      - "test_capability::test_example_1"
+      - "test_capability::test_example_2"
+      - "test_capability::test_example_3"
+      - "test_capability::test_example_4"
+      - "test_capability::test_example_5"
+      - "test_capability::test_held_example_1"
+  - id: deterministic-runs
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      重复调用同一输入返回相同结果;完全离线 CPU-only 运行。
+    examples:
+      - "run(x) == run(x)"
+    oracle_nodes:
+      - "test_capability::test_deterministic"
+  - id: seam-unbroken
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      不破坏宿主 seam 包既有行为(health/样例文件/direct 模式语义)。
+    examples:
+      - "health() == 'ok'"
+    oracle_nodes:
+      - "test_regression::test_health"
+      - "test_regression::test_examples_file_intact"
+      - "test_regression::test_direct_mode_declares_not_implemented"

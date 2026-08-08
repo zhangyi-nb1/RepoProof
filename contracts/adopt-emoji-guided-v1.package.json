@@ -1,0 +1,54 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_regression.py"
+  ],
+  "collection_manifest_sha256": "64ad551a95105c5b6d1aed80359b7a60a9c118a3beec938d6e0ecd3d705b4d74",
+  "consumer_fixture_tree_sha256": "75eee2e053307e4d84f45e5f378fb9bccec5e06bdc66c0650a2b9b7400358503",
+  "contract_sha256": "bc037ae773500f3915959f9bdfe8a6565effd2b2995e679f08d26c5bcedf2080",
+  "controls_summary": {
+    "negative_control_NC_empty_adapter": "FAILED_AS_EXPECTED",
+    "positive_control": "PASS"
+  },
+  "environment_constraints": {
+    "emoji": "2.15.0",
+    "machine": "aarch64",
+    "python": "3.12"
+  },
+  "expected_capability_nodes": 7,
+  "expected_regression_nodes": 3,
+  "held_out_fixture_sha256": "69cb2420a629a56acb9a44c96334b675e83ff0e55ee36e7fed32f6f72c1649d6",
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "oracle_tree_sha256": "339918014cccae0c73284d27f25a392dac769d4e17d350d0a47293f4c0064130",
+  "prompt_manifest_sha256": "195de65a16154c3403fad055fa29cba8637ffcbc234ea04703186f783bf7a94d",
+  "public_examples_sha256": "87d6c9626e5ae3a7c179e06f4de9dc6fd4450392641eb1f6dea93582232537b2",
+  "public_fixture_sha256": "7bd6f1c50f6a458601531049cf1eab55b4b0c99ee08f6b7ea73e3fd886ab8827",
+  "public_tests_tree_sha256": "b56dc58c19569876e939f447209ac84c6cfeb72f8e2636798525b591e37a7738",
+  "requirement_spec_sha256": "6bcfed5b62ed47dab8c4e7aaeedeb8bf56f9bbb3a5903432f4c91da3684c86ae",
+  "responsibility_matrix": {
+    "ADAPTER": [
+      "deterministic-runs",
+      "satisfy-user-examples",
+      "seam-unbroken"
+    ]
+  },
+  "root_hash": "49804133b99203e79fc3d85ffd37051602f5284ecc0440ee84082edfe469a115",
+  "source_commit": "d26c675190a6b6c0edee959d7b896721a9c3641d",
+  "source_git_tree_hash": "f277b22dce253bfa00d003035c49999efb01f704",
+  "task_id": "adopt-emoji-guided-v1",
+  "wheelhouse_root": "efec5a1a15412c157f37b9c97913ff04baf904be989ae632433d8189317e56ce",
+  "wheelhouse_wheels": {
+    "emoji-2.15.0-py3-none-any.whl": "a311337692668de12a6c2fbae408877a5cececfa282ca001ccdafb85e8916cb1",
+    "iniconfig-2.3.0-py3-none-any.whl": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12",
+    "packaging-26.3-py3-none-any.whl": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+    "pluggy-1.6.0-py3-none-any.whl": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+    "pygments-2.20.0-py3-none-any.whl": "81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176",
+    "pytest-9.1.1-py3-none-any.whl": "37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c"
+  }
+}

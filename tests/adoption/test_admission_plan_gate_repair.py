@@ -478,3 +478,15 @@ def test_suggestions_generalize_and_guidance_always_exists() -> None:
               "预期输出的字段/格式是什么(能给一个例子最好)?",
               "有没有必须保持不变的现有行为?"):
         assert answer_guidance(q)  # 四类标准问题都有专属格式指导
+
+
+def test_capability_suggestion_never_cuts_mid_sentence() -> None:
+    """用户实测:推荐答案显示"输出把每(依据…"——[:40] 硬截断切在句中。
+    现在引用目标第一小句(到首个分隔符),永不半句。"""
+    from repoproof.adoption.planning.answer_suggestions import suggest_answers
+
+    q = "你想采用的是哪类能力(解析/检索/转换/其他)?"
+    goal = "为我的笔记项目引入 emoji 转文字能力:输入含 emoji 的文本,输出把每个 emoji 替换为 :名称: 形式的纯文本"
+    sug, basis = suggest_answers([q], goal=goal)[q]
+    assert sug == "为我的笔记项目引入 emoji 转文字能力"  # 完整第一句
+    assert "第一句" in basis

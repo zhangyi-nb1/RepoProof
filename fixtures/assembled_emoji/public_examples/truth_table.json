@@ -1,0 +1,25 @@
+{
+ "note": "用户样例(公开子集)。expected 以 contains: 开头为包含断言,否则相等断言。验收强度=用户样例级;另有同语义 held-out 样例用于隐藏验证。",
+ "examples": [
+  {
+   "input": "I ❤️ Python",
+   "expected": "I :red_heart: Python"
+  },
+  {
+   "input": "会议 👍 顺利",
+   "expected": "会议 :thumbs_up: 顺利"
+  },
+  {
+   "input": "no emoji here",
+   "expected": "no emoji here"
+  },
+  {
+   "input": "🚀🚀 launch",
+   "expected": ":rocket::rocket: launch"
+  },
+  {
+   "input": "混合 text 🎉 done",
+   "expected": "混合 text :party_popper: done"
+  }
+ ]
+}

@@ -352,6 +352,19 @@ elif step == 4:
         f"- **独立测试**:用{TERM['held_out_tests']}做{TERM['oracle']},AI 看不到,也改不了\n"
         "- **你**:现在确认成功标准;开始后 AI 只能改解决方案,不能改评分规则"
     )
+    # 样例先填(用户实测:样例原来在页面最底,而必答问题的推荐答案要
+    # 引用样例——用户被迫先滑到底再滑回来。现在样例紧挨其消费者之上)
+    st.subheader("给出验收样例(必填,至少 3 行)")
+    st.caption("每行一组:输入 => 期望。期望以 contains: 开头表示「包含即通过」,否则要求完全相等。"
+               "这些样例就是你的成功标准:大部分给 AI 看并自测,至少 1 组会被留作它看不到的隐藏验证。")
+    ss["wz_examples"] = st.text_area(
+        "样例(输入 => 期望)", value=ss.get("wz_examples",
+        "周合 => contains:周会纪要\n读书 => contains:测试驱动\n咖啡 => contains:购物清单\nkafei => contains:购物清单"),
+        height=140)
+    ok = st.checkbox("我确认:以上成功标准代表我真实想要的结果", value=ss.get("wz_plan_ok", False))
+    ss["wz_plan_ok"] = ok
+    st.divider()
+
     # ---- 正式采用计划(RFC-008 §7):双侧报告都在时,走真实 Plan + Human Gate ----
     _deep = bool(ss.get("wz_host_report") and ss.get("wz_repo_report"))
     if _deep:
@@ -458,15 +471,6 @@ elif step == 4:
                 st.info(f"✅ 采用意向已冻结:接入方式 = {ss['wz_frozen'].get('strategy', '—')}")
         st.divider()
 
-    st.subheader("给出验收样例(必填,至少 3 行)")
-    st.caption("每行一组:输入 => 期望。期望以 contains: 开头表示「包含即通过」,否则要求完全相等。"
-               "这些样例就是你的成功标准:大部分给 AI 看并自测,至少 1 组会被留作它看不到的隐藏验证。")
-    ss["wz_examples"] = st.text_area(
-        "样例(输入 => 期望)", value=ss.get("wz_examples",
-        "周合 => contains:周会纪要\n读书 => contains:测试驱动\n咖啡 => contains:购物清单\nkafei => contains:购物清单"),
-        height=140)
-    ok = st.checkbox("我确认:以上成功标准代表我真实想要的结果", value=ss.get("wz_plan_ok", False))
-    ss["wz_plan_ok"] = ok
     c1, c2, _ = st.columns([1, 1, 3])
     if c1.button("上一步", width="stretch"):
         _goto(3)

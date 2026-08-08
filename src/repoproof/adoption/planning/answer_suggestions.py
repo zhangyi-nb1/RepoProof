@@ -27,6 +27,18 @@ def answer_guidance(question: str) -> str:
     return _GENERIC_GUIDANCE
 
 
+def _first_clause(text: str, limit: int = 60) -> str:
+    """目标原文的第一小句(截到首个分隔符)——硬截断会产出半句话
+    (用户实测:推荐答案显示"输出把每(依据…",[:40] 切在句中)。"""
+    t = (text or "").strip()
+    cut = len(t)
+    for sep in (":", ":", ";", ";", "。", ",", ","):
+        i = t.find(sep)
+        if 0 <= i < cut:
+            cut = i
+    return t[:min(cut, limit)]
+
+
 def suggest_answers(
     questions: list[str],
     *,
@@ -55,7 +67,7 @@ def suggest_answers(
                 if cap2:
                     cap, basis = cap2, "从目标仓库的自述中识别"
             if not cap and (goal or "").strip():
-                cap, basis = (goal or "").strip()[:40], "直接引用你的目标原文(未匹配到已知类别,可改写)"
+                cap, basis = _first_clause(goal), "引用你目标的第一句(未匹配到已知类别,可改写)"
             if cap:
                 out[q] = (cap, basis)
         elif "新增第三方依赖" in q:

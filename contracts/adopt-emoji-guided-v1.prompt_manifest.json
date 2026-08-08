@@ -1,0 +1,13 @@
+{
+  "public_contract_sha256": "bc037ae773500f3915959f9bdfe8a6565effd2b2995e679f08d26c5bcedf2080",
+  "public_examples_sha256": "87d6c9626e5ae3a7c179e06f4de9dc6fd4450392641eb1f6dea93582232537b2",
+  "public_smoke_tests_tree_sha256": "b56dc58c19569876e939f447209ac84c6cfeb72f8e2636798525b591e37a7738",
+  "rendered_prompt_sha256": "a22992ec8c3c7e7d378d68a2ba97c4bec2d996f8e2043843ed33b1675010c6f2",
+  "requirement_ids_rendered": [
+    "satisfy-user-examples",
+    "deterministic-runs",
+    "seam-unbroken"
+  ],
+  "requirement_spec_sha256": "6bcfed5b62ed47dab8c4e7aaeedeb8bf56f9bbb3a5903432f4c91da3684c86ae",
+  "task_id": "adopt-emoji-guided-v1"
+}
