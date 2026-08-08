@@ -37,13 +37,20 @@ def parse_junit_xml(data: bytes | None) -> dict:
         for case in suite.iter("testcase"):
             node_id = f"{case.get('classname', '?')}::{case.get('name', '?')}"
             outcome = "passed"
-            if case.find("failure") is not None:
-                outcome = "failed"
-            elif case.find("error") is not None:
-                outcome = "error"
+            detail = case.find("failure")
+            if detail is None:
+                detail = case.find("error")
+                outcome_if = "error"
+            else:
+                outcome_if = "failed"
+            if detail is not None:
+                outcome = outcome_if
             elif case.find("skipped") is not None:
                 outcome = "skipped"
-            nodes.append({"node_id": node_id, "outcome": outcome})
+            # message = 断言摘要(RFC-008 修复回路的 FailurePacket 输入;
+            # 截断,绝不携带整段日志)
+            message = (detail.get("message") or "")[:400] if detail is not None else ""
+            nodes.append({"node_id": node_id, "outcome": outcome, "message": message})
     return {
         "junit_present": True,
         "junit_parse_error": None,

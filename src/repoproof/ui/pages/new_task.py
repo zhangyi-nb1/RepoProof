@@ -418,8 +418,13 @@ elif step == 5:
         help="只有完成「开始前检查」并冻结的任务才能真实运行;新任务需先完成任务工程。")
     st.caption("说明:这是产品模式运行——结果写入本地 runs/,不进入公开 benchmark,不触碰历史证据。"
                "一次运行会真实调用你配置的模型(消耗额度)。")
+    _guided = st.checkbox(
+        "有界多轮修复(最多 3 轮:AI 先做,按公开测试反馈修,再验收)",
+        value=st.session_state.get("wz_guided", True),
+        help="失败反馈只来自公开样例测试;隐藏验收、干净复测与最终判定与单次运行完全相同。")
+    st.session_state["wz_guided"] = _guided
     if st.button("开始真实运行", type="primary", disabled=not live_run.provider_ready()):
-        out = live_run.start_run(_root, task_sel)
+        out = live_run.start_run(_root, task_sel, guided=_guided)
         if out.get("ok"):
             st.success(out["note"])
             st.markdown("到「运行进度」页可查看状态;完成后在本地 `runs/` 目录与「结果报告」思路一致地复核 "

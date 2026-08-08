@@ -62,8 +62,11 @@ def active_run(root: Path) -> dict | None:
     return info
 
 
-def start_run(root: Path, task_id: str) -> dict:
-    """启动一次真实 agent 运行(后台)。返回状态 dict,绝不抛密钥。"""
+def start_run(root: Path, task_id: str, *, guided: bool = False) -> dict:
+    """启动一次真实 agent 运行(后台)。返回状态 dict,绝不抛密钥。
+
+    guided=True → RFC-008 §11 有界多轮修复(≤3 轮,公开测试反馈,
+    最终仍走隐藏验证 + 干净复测 + 独立判定);False → 单次运行。"""
     if not provider_ready():
         return {"ok": False, "error": "模型连接未配置:请用 scripts/run_ui_live.sh 启动工作台"
                                        "(它会从你已有的本地配置注入连接信息,密钥不落盘)。"}
@@ -74,16 +77,19 @@ def start_run(root: Path, task_id: str) -> dict:
         return {"ok": False, "error": f"任务 {task_id} 未冻结,不能运行。"}
     log = root / "runs" / f"ui_live_{task_id}.log"
     log.parent.mkdir(exist_ok=True)
+    cmd = "guided-run" if guided else "agent-run"
     proc = subprocess.Popen(
         [str(root / ".venv" / "bin" / "python"), "-m", "repoproof.cli",
-         "agent-run", "--contract", str(contract)],
+         cmd, "--contract", str(contract)],
         stdout=log.open("w"), stderr=subprocess.STDOUT,
         cwd=str(root), env=dict(os.environ), start_new_session=True,
     )
     (root / LOCK).write_text(json.dumps(
-        {"pid": proc.pid, "task_id": task_id, "log": str(log)}), encoding="utf-8")
-    return {"ok": True, "pid": proc.pid, "task_id": task_id,
-            "note": "已在后台启动:AI 执行 → 冻结 → 独立验证 → 干净复测 → 最终判定。"
+        {"pid": proc.pid, "task_id": task_id, "log": str(log), "guided": guided}),
+        encoding="utf-8")
+    mode_note = "有界多轮修复(最多 3 轮,每轮按公开测试反馈改进)" if guided else "单次运行"
+    return {"ok": True, "pid": proc.pid, "task_id": task_id, "guided": guided,
+            "note": f"已在后台启动({mode_note}):AI 执行 → 冻结 → 独立验证 → 干净复测 → 最终判定。"
                     "页面刷新不会中断;完成后锁自动视为结束。"}
 
 

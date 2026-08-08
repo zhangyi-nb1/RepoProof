@@ -35,6 +35,11 @@ class RoundResult(BaseModel):
     tokens_used: int = 0
     commands_used: int = 0
     scope_change_request: str | None = None
+    # RFC-008 §11.3 排序输入(默认值 = 与旧行为等价)
+    collected_ok: bool = True        # 测试是否成功收集(崩溃轮不算成功)
+    policy_violations: int = 0       # 本轮策略拒绝数
+    regression_failed: int = 0       # 宿主回归失败数
+    within_budget: bool = True       # 本轮未超 Patch/Token/Command 预算
 
 
 class Checkpoint(BaseModel):
@@ -43,6 +48,22 @@ class Checkpoint(BaseModel):
     passed: int
     failed_nodes: list[str]
     diff_lines: int
+    score: list[float] = []          # score_fn 结果;比较用字典序
+
+
+def full_score(r: RoundResult) -> list[float]:
+    """RFC-008 §11.3 完整排序(高者优):
+    收集成功 → 无策略违规 → 回归未破坏 → (hard=)公开通过数 →
+    公开通过数 → 预算内 → 更小 diff。禁止只按通过数排。"""
+    return [
+        1.0 if r.collected_ok else 0.0,
+        1.0 if r.policy_violations == 0 else 0.0,
+        1.0 if r.regression_failed == 0 else 0.0,
+        float(r.passed),
+        float(r.passed),
+        1.0 if r.within_budget else 0.0,
+        -float(r.diff_lines),
+    ]
 
 
 class RepairOutcome(BaseModel):
@@ -66,9 +87,12 @@ class RepairLoop:
         run_round: Callable[[int, list[FailurePacket], str | None], RoundResult],
         *,
         budget: RepairBudget | None = None,
+        score_fn: Callable[[RoundResult], list[float]] | None = None,
     ) -> None:
         self._run_round = run_round
         self._budget = budget or RepairBudget()
+        # 默认 = 旧行为(只看通过数);产品模式传 full_score(§11.3)
+        self._score = score_fn or (lambda r: [float(r.passed)])
 
     def run(self) -> RepairOutcome:
         budget = self._budget
@@ -94,28 +118,30 @@ class RepairLoop:
                 passed=result.passed,
                 failed_nodes=list(result.failed_nodes),
                 diff_lines=result.diff_lines,
+                score=list(self._score(result)),
             )
             checkpoints.append(cp)
 
             # Scope Change Gate:暂停等用户,绝不自行继续
             if result.scope_change_request:
                 pending_scope = result.scope_change_request
-                if best is None or cp.passed > best.passed:  # F8: 平手保留更早的最佳
+                if best is None or cp.score > best.score:  # F8: 平手保留更早的最佳
                     best = cp
                 stop = STOP_SCOPE_CHANGE
                 break
 
-            # Best state / rollback:劣化则回滚到最佳
-            if best is None or cp.passed > best.passed:
+            # Best state / rollback:劣化则回滚到最佳(§11.3 字典序,非纯通过数)
+            if best is None or cp.score > best.score:
                 best = cp
                 no_improve_streak = 0
             else:
-                if cp.passed < best.passed:
+                if cp.score < best.score:
                     rolled_back.append(cp.round_index)
                 no_improve_streak += 1
 
-            # F2: 空 failed_nodes 不等于全绿——必须真的比历史最佳更好且非零
-            if not result.failed_nodes and cp.passed > 0 and cp.passed >= best.passed:
+            # F2: 空 failed_nodes 不等于全绿——必须收集成功、非零且不劣于历史最佳
+            if (not result.failed_nodes and result.collected_ok
+                    and cp.passed > 0 and cp.score >= best.score):
                 stop = STOP_ALL_PUBLIC_PASS
                 break
 

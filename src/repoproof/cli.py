@@ -102,6 +102,14 @@ def main(argv: list[str] | None = None) -> int:
     p_agent.add_argument("--budget-visibility", action="store_true", help="Gate 4A ablation variable")
     p_agent.add_argument("--coverage-ledger", action="store_true", help="Gate 4B ablation variable")
 
+    p_guided = sub.add_parser(
+        "guided-run",
+        help="RFC-008 §11 GUIDED_ADOPTION: bounded multi-round repair (product mode, "
+        "public-only feedback, final hidden verification; never enters the benchmark)",
+    )
+    p_guided.add_argument("--contract", required=True, type=Path)
+    p_guided.add_argument("--max-rounds", type=int, default=3)
+
     p_bundle = sub.add_parser("verify-bundle", help="verify hash/reference integrity of a run bundle")
     p_bundle.add_argument("--run-dir", required=True, type=Path)
     p_bundle.add_argument("--contract", type=Path, default=None)
@@ -311,6 +319,13 @@ def main(argv: list[str] | None = None) -> int:
             budget_visibility=args.budget_visibility,
             coverage_ledger=args.coverage_ledger,
         )
+        print(json.dumps(out, ensure_ascii=False, indent=2, sort_keys=True, default=str))
+        return 0 if not out.get("blocked") else 3
+
+    if args.cmd == "guided-run":
+        from repoproof.runner.guided_repair import run_guided_cli
+
+        out = run_guided_cli(args.contract, PROJECT_ROOT, max_rounds=args.max_rounds)
         print(json.dumps(out, ensure_ascii=False, indent=2, sort_keys=True, default=str))
         return 0 if not out.get("blocked") else 3
 
