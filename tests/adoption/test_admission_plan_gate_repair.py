@@ -417,3 +417,35 @@ def test_failure_packet_sanitizes_raw_pytest_logs() -> None:
     blob = str(packets[0].to_dict())
     assert "pytest" not in blob and 'File "' not in blob and "line 2" not in blob
     assert "assert got == want" in packets[0].actual
+
+
+def test_suggest_answers_deterministic_with_basis() -> None:
+    """必答问题推荐答案(用户实测:新手不知怎么答)。零 LLM:推荐只来自
+    目标文本/宿主分析/用户样例,且每条必须附依据;无可靠依据的不编造。"""
+    from repoproof.adoption.planning.answer_suggestions import suggest_answers
+
+    qs = [
+        "你想采用的是哪类能力(解析/检索/转换/其他)?",
+        "是否允许为你的项目新增第三方依赖?",
+        "预期输出的字段/格式是什么(能给一个例子最好)?",
+        "有没有必须保持不变的现有行为?",
+    ]
+    blank_host = {"host_mode": {"value": "BLANK_PROJECT"}}
+    out = suggest_answers(
+        qs, goal="为我的项目引入文档元数据解析能力",
+        host_report=blank_host, examples_text="a => 1\nb => 2\nc => 3")
+    assert out[qs[0]][0] == "文档元数据解析"  # 由目标文本确定性识别
+    assert out[qs[1]][0] == "允许" and "空目录" in out[qs[1]][1] or "空白项目" in out[qs[1]][1]
+    assert "a => 1" in out[qs[2]][0] and "样例" in out[qs[2]][1]
+    assert out[qs[3]][0] == "无"
+
+    # 已有项目 + 探测到测试命令:保持不变 → 现有测试全过
+    git_host = {"host_mode": {"value": "GIT_PROJECT"},
+                "test_command": {"value": "pytest -q"}}
+    out2 = suggest_answers(qs, goal="接入检索排序", host_report=git_host)
+    assert "pytest -q" in out2[qs[3]][0]
+    assert "样例" in out2[qs[2]][0]  # 未填样例时给格式指导,不编造具体值
+
+    # 完全没有依据的问题:不返回(绝不编造)
+    out3 = suggest_answers(["这个能力上线后由谁负责运维?"], goal="x")
+    assert out3 == {}
