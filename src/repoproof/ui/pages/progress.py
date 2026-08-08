@@ -99,6 +99,49 @@ if case in _locals:
         else:
             st.error(f"导出失败:{_out_b.get('error')}")
     st.caption("说明:导出只写 runs/ 下的运行目录,不会写入你的项目;隐藏验收样例永远不包含在结果包里。")
+
+    # ---- Gate E:三级安全写入(仅 PASS 结果;fixture 已验证,首次真实使用请先拿不重要的项目试) ----
+    if _bundle_dir.is_dir() and str(_v2).startswith("PASS"):
+        with st.expander("应用到我的项目(三级安全写入:副本 → 预览 → 确认)"):
+            st.caption("流程:先在你项目的临时副本上落位并生成改动清单;你看过清单与改动、"
+                       "逐字确认后才写回;写回可一键回滚。项目在确认前保持只读。")
+            _proj_in = st.text_input("你的项目路径(将先做只读分析与临时副本)",
+                                     key="ap_proj", placeholder="~/my_project 或一个空目录")
+            if st.button("第 1 步:创建临时副本并生成改动清单"):
+                from repoproof.ui.services import apply_service
+                _stg = apply_service.stage(_root2, _proj_in, str(_bundle_dir))
+                if _stg.get("ok"):
+                    st.session_state["ap_state"] = _stg
+                    st.success("已在临时副本落位;下方核对改动。你的项目尚未被修改。")
+                else:
+                    st.error(_stg.get("error"))
+            _aps = st.session_state.get("ap_state")
+            if _aps and _aps.get("ok"):
+                st.markdown(f"**将新增文件**:{_aps['created'] or '无'}  \n"
+                            f"**将修改文件**:{_aps['modified'] or '无'}  \n"
+                            f"**依赖变化**:{_aps['deps'] or '无'}  \n"
+                            f"**将执行的命令**:无(只落文件,依赖安装由你按集成指南执行)  \n"
+                            f"**回滚方式**:逐文件恢复(preimage 备份 + 哈希校验,可反复执行)")
+                st.code(_aps["diff"], language="text")
+                _c1 = st.checkbox("我已查看将写入的文件清单", key="ap_c1")
+                _c2 = st.checkbox("我已查看上方改动预览", key="ap_c2")
+                from repoproof.adoption.delivery.apply import CONFIRM_TOKEN
+                _tok = st.text_input(f"第 2 步:逐字输入确认语——{CONFIRM_TOKEN}", key="ap_tok")
+                if st.button("第 3 步:写入我的项目", type="primary",
+                             disabled=not (_c1 and _c2)):
+                    from repoproof.ui.services import apply_service
+                    _res = apply_service.apply(_root2, _aps, viewed_files=_c1,
+                                               viewed_diff=_c2, token=_tok)
+                    (st.success if _res.get("ok") else st.error)(
+                        _res.get("note") or _res.get("error"))
+                    if _res.get("ok"):
+                        st.session_state["ap_applied"] = _res
+                _apd = st.session_state.get("ap_applied")
+                if _apd and st.button("回滚上次写入(恢复到写入前)"):
+                    from repoproof.ui.services import apply_service
+                    _rb = apply_service.roll_back(_root2, _apd)
+                    (st.success if _rb.get("ok") else st.error)(
+                        _rb.get("note") or _rb.get("error"))
     if is_tech():
         with tech_expander("查看技术详情(report 原始字段)"):
             st.json(_rep)

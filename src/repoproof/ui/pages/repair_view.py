@@ -7,9 +7,12 @@
 
 from __future__ import annotations
 
+import json as _json
+
 import streamlit as st
 
 from repoproof.adoption.repair.repair_loop import RepairLoop, RoundResult
+from repoproof.ui.services.facts import repo_root as _rrx
 from repoproof.ui.services.state import is_tech, mode_toggle_sidebar, tech_expander
 
 st.set_page_config(page_title="修复过程 · RepoProof Studio", layout="wide")
@@ -17,6 +20,32 @@ mode_toggle_sidebar()
 st.title("修复过程")
 st.info("**AI 不是一次生成答案。** 它每轮只做一件事:改代码 → 跑公开测试 → 看哪里错了 → 下一轮修。"
         "轮数有上限(默认 3 轮),变差会回滚,连续不进步会停,越界要问你。")
+
+# ---- 真实多轮运行(Gate D):有 repair/ 账本的本地运行优先展示 ----
+_runs_root = _rrx() / "runs"
+_real = sorted((p for p in _runs_root.glob("*-2*") if (p / "repair" / "summary.json").exists()),
+               reverse=True)
+if _real:
+    _sel = st.selectbox("你的多轮修复运行", [p.name for p in _real])
+    _rd = _runs_root / _sel / "repair"
+    _sm = _json.loads((_rd / "summary.json").read_text(encoding="utf-8"))
+    st.markdown(f"**共 {_sm['rounds_run']} 轮 · 最佳第 {_sm['best_round']} 轮 · "
+                f"停止原因:{_sm['stop_reason']}"
+                + (f" · 回滚轮:{_sm['rolled_back_rounds']}" if _sm.get("rolled_back_rounds") else ""))
+    for _rp in sorted(_rd.glob("round-*/record.json")):
+        _rec = _json.loads(_rp.read_text(encoding="utf-8"))
+        _tag = " ⭐最佳" if _rec.get("selected_as_best") else ""
+        with st.expander(f"第{_rec['round_index']}轮{_tag}:公开测试 "
+                         f"{_rec['public_passed']} 通过 / {_rec['public_failed']} 未过"):
+            st.markdown(f"- 修改文件:{_rec['changed_files'] or '无'}\n"
+                        f"- AI 对话轮数:{_rec['model_calls']} · 执行命令:{_rec['commands']}\n"
+                        f"- 用时:{_rec['wall_time_s']} 秒")
+            if _rec.get("scope_change_request"):
+                st.warning(f"越界请求(等你决定):{_rec['scope_change_request']}")
+            if is_tech():
+                st.json(_rec)
+    st.divider()
+    st.caption("以下为教学演示(脚本化轮次,零模型调用):")
 
 _DEMO_ROUNDS = [
     RoundResult(adapter_snapshot="第1轮适配代码", passed=5,
