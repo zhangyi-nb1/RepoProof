@@ -66,9 +66,18 @@ T1 副本:~/RepoProofBench/offerclaw-t1-fastapi-mcp(--no-hardlinks 重建,
    worktree,副本可弃;
 3. **Host Baseline Gate**:run 前 doctor/verify_pipeline/pytest/
    verify_docs 全绿否则 BLOCKED 零预算;**副本引导**是 Phase 1 首测的
-   产出物:合成 .env 注入策略、测试数据重建/挂载方式、
-   HostBaselineManifest(源 §5 字段:env_names/required_services/
-   test_command/耗时)落盘入任务包;
+   产出物:HostBaselineManifest(源 §5 字段)+ 按下表**资源引导策略**
+   给出 OfferClaw 每类资源的实测答案:
+
+   | 资源类 | 例(OfferClaw 实探) | 模式 L 规矩 |
+   |---|---|---|
+   | A 只读缓存 | HF 模型权重、Playwright 浏览器、wheel 缓存 | **可直接共享**(同 wheelhouse 原则):共享只读+引导期预热+运行期离线开关(HF_HUB_OFFLINE=1),版本入 Manifest |
+   | B 运行态数据 | `chroma_db/`(3538 chunks,项目目录内)、gap_store、memory 文件 | **可用本地的,但必须快照复制进副本**(读主目录合法,护栏只拦写);哈希入 Manifest;**绝对禁止**软链/绝对路径指回主目录 |
+   | C 密钥凭据 | OPENAI_API_KEY / DASHSCOPE_API_KEY(.env.example 实探;conftest 无密钥逻辑→测试大概率不需真钥,Phase 1 实证) | agent 轮次只给**合成密钥**(净化环境);若 baseline 实测必须真钥,只允许进 harness 自跑的基线进程 env,绝不进 agent 轮次、绝不落盘副本 |
+   | D 外部服务 | OfferClaw 无(Chroma 内嵌) | 其他项目:baseline 查服务存活,测试内 fake(fastapi-template 弃用的原因) |
+   | E 私有依赖/LFS | — | 引导期镜像入本地缓存,配置记录 |
+   | F **绝对路径配置** | 配置写死指向主目录的路径 | 引导期扫描改写——防"副本进程写穿主目录"暗通道(护栏拦不住数据层间接写,指纹只能事后发现) |
+   | G 平台绑定件 | 编译 .so / node_modules | 不复制,引导期在副本内重建 |
 4. **既有写回防线**(E2 实测):三级确认+指纹漂移门+preimage+回滚
    账本+崩溃自动回滚;
 5. **数据密钥**:快照排除清单(.env*、*.lock、运行态);**模式 L 进程
