@@ -59,11 +59,13 @@ if st.session_state[W] == 0:
     from repoproof.ui.services.facts import repo_root as _rr0
 
     _root0 = _rr0()
-    _tasks0 = _lr0.frozen_tasks(_root0)
+    _tasks0 = _lr0.frozen_tasks_detailed(_root0)
     if _tasks0:
         st.divider()
         st.subheader("已就绪的任务(装配/冻结过的任务在这里,刷新不丢)")
-        _sel0 = st.selectbox("直接选择并运行,无需重走五步", _tasks0, index=len(_tasks0) - 1)
+        _sel0d = st.selectbox("直接选择并运行,无需重走五步(最新冻结的排最上,已默认选中)",
+                              _tasks0, index=0, format_func=lambda d: d["label"])
+        _sel0 = _sel0d["task_id"]
         _models0 = _lr0.available_models()
         _m0 = st.selectbox("使用模型", _models0, format_func=lambda m: m["label"],
                            key="model_sel_0") if _models0 else None
@@ -441,15 +443,16 @@ elif step == 5:
 
     _root = _rr()
     live_run.clear_lock_if_done(_root)
-    tasks = live_run.frozen_tasks(_root)
+    tasks = live_run.frozen_tasks_detailed(_root)
     st.subheader("真实运行(在你自己的机器上跑一次完整流程)")
     if not live_run.provider_ready():
         st.warning("模型连接未配置。用 `./scripts/run_ui_live.sh` 启动工作台即可开启此入口"
                    "(密钥只进进程环境,不落盘、不显示)。")
-    task_sel = st.selectbox(
-        "选择一个已冻结的任务(合同与验收已封存,AI 只能改解决方案)",
-        tasks, index=len(tasks) - 1 if tasks else 0,
+    task_sel_d = st.selectbox(
+        "选择一个已冻结的任务(合同与验收已封存,AI 只能改解决方案;最新冻结的排最上)",
+        tasks, index=0, format_func=lambda d: d["label"],
         help="只有完成「开始前检查」并冻结的任务才能真实运行;新任务需先完成任务工程。")
+    task_sel = task_sel_d["task_id"] if task_sel_d else ""
     st.caption("说明:这是产品模式运行——结果写入本地 runs/,不进入公开 benchmark,不触碰历史证据。"
                "一次运行会真实调用你配置的模型(消耗额度)。")
     _guided = st.checkbox(

@@ -1,0 +1,29 @@
+{
+ "note": "用户样例(公开子集)。expected 以 contains: 开头为包含断言,否则相等断言。验收强度=用户样例级;另有同语义 held-out 样例用于隐藏验证。",
+ "examples": [
+  {
+   "input": "person",
+   "expected": "people"
+  },
+  {
+   "input": "child",
+   "expected": "children"
+  },
+  {
+   "input": "analysis",
+   "expected": "analyses"
+  },
+  {
+   "input": "tomato",
+   "expected": "tomatoes"
+  },
+  {
+   "input": "bus",
+   "expected": "buses"
+  },
+  {
+   "input": "sheep",
+   "expected": "sheep"
+  }
+ ]
+}

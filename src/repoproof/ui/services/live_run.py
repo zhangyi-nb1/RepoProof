@@ -25,6 +25,32 @@ def frozen_tasks(root: Path) -> list[str]:
     )
 
 
+def frozen_tasks_detailed(root: Path) -> list[dict]:
+    """已冻结任务,按冻结时间最新在前;label 带人话时间,最新标 🆕。
+
+    冻结时间 = *.package.json 的 mtime(freeze --full 最后写它,重新
+    装配会刷新)。用户实测:纯英文 ID 按字母序排列,无法分辨"我刚
+    冻结的是哪个"。"""
+    import datetime as _dt
+
+    items = [
+        {"task_id": p.name.replace(".package.json", ""), "frozen_ts": p.stat().st_mtime}
+        for p in (root / "contracts").glob("*.package.json")
+    ]
+    items.sort(key=lambda d: d["frozen_ts"], reverse=True)
+    today = _dt.date.today()
+    for i, it in enumerate(items):
+        t = _dt.datetime.fromtimestamp(it["frozen_ts"])
+        if t.date() == today:
+            when = f"今天 {t:%H:%M}"
+        elif (today - t.date()).days == 1:
+            when = f"昨天 {t:%H:%M}"
+        else:
+            when = f"{t:%m-%d %H:%M}"
+        it["label"] = f"{'🆕 ' if i == 0 else ''}{it['task_id']} · {when} 冻结"
+    return items
+
+
 def available_models() -> list[dict]:
     """从进程环境枚举可选模型(两组具名配置);密钥永不返回。"""
     out = []

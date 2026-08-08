@@ -138,3 +138,28 @@ def test_wizard_step2_warns_on_swapped_fields() -> None:
     assert "像本机路径" in warns  # 仓库框里是路径
     assert "像一个网址" in warns  # 版本框里是网址
     assert "填错框" in warns
+
+
+def test_frozen_tasks_detailed_newest_first_with_labels(tmp_path) -> None:
+    """用户实测:任务下拉全是相似英文 ID 字母序,分不清哪个是刚冻结的。
+    现在按冻结时间最新在前,label 带时间,最新标 🆕,默认选中第一项。"""
+    import os
+    import time
+
+    from repoproof.ui.services.live_run import frozen_tasks_detailed
+
+    c = tmp_path / "contracts"
+    c.mkdir()
+    old = c / "adopt-aaa-guided-v1.package.json"
+    new = c / "adopt-zzz-guided-v1.package.json"
+    old.write_text("{}", encoding="utf-8")
+    new.write_text("{}", encoding="utf-8")
+    now = time.time()
+    os.utime(old, (now - 86400 * 3, now - 86400 * 3))  # 3 天前冻结
+    os.utime(new, (now, now))  # 刚冻结
+
+    items = frozen_tasks_detailed(tmp_path)
+    assert [it["task_id"] for it in items] == [
+        "adopt-zzz-guided-v1", "adopt-aaa-guided-v1"]  # 时间序压过字母序
+    assert items[0]["label"].startswith("🆕 ") and "今天" in items[0]["label"]
+    assert "🆕" not in items[1]["label"] and "冻结" in items[1]["label"]
