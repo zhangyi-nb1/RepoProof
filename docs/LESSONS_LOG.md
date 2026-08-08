@@ -61,13 +61,18 @@
    调用减半),但 n=1 不构成普遍结论——harness 的价值恰在于:换模型
    零改动,同一把尺子量出差异。
 
-10. **前端 removeChild 红屏:双 UI 进程 + Safari 本地化 DOM 报错**
-    现象:第 1 步输入需求后整页红色 NotFoundError(removeChild)。根因:
-    两个 Streamlit 实例并存(旧实例占 8501,新配置的实例被挤到 8502,
-    浏览器还连着旧实例);错误文本是中文=Safari 本地化 DOMException,
-    Safari/翻译改 React 管理的 DOM 是 removeChild 经典外因。修复:全杀
-    重启唯一实例 + 换 Chrome + 硬刷新。教训:启动脚本应先杀旧实例再起
-    新的;UI 测试一律 Chrome。
+10. **前端 removeChild 红屏(两次复现)= 浏览器翻译改写 React DOM**
+    现象:第 1 步输入需求推进到第 2 步时整页红色 NotFoundError
+    (removeChild),复现两次。定因过程:首次报错文本是**中文**,被误判
+    为 Safari 本地化;第二次在 Chrome 干净加载后报**英文原文**——对照
+    可知首次的中文是 Chrome 翻译把错误文本本身也翻了(地址栏有翻译
+    图标)。真实根因:Google 翻译向 React 管理的 DOM 插 <font> 节点,
+    步骤切换挂载新内容时 React 对账失败(React issue #11538 经典问题)。
+    另发现双 Streamlit 实例并存(旧占 8501、新被挤 8502)属并发诱因。
+    修复:app.py 入口注入 lang=zh-CN + translate=no + notranslate meta,
+    应用级禁翻;重启唯一实例。教训:纯中文应用必须显式声明语言并禁翻,
+    否则 Chrome 会把页面误判为英文并自动翻译;报错文本的语言本身就是
+    证据。
 11. **深度检查 NEED_INFORMATION 是死角:「?」条目无处补齐**
     现象:黄灯(许可证无法识别/未声明 Python 版本)只渲染成文字,
     提示"补齐下方「?」条目"但界面没有任何输入控件;deep_ok 对
