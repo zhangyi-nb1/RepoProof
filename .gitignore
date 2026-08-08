@@ -35,3 +35,4 @@ provider.local.*
 
 # --- OS noise ---
 .DS_Store
+.env

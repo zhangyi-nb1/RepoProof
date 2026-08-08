@@ -1,11 +1,12 @@
 #!/bin/bash
-# 带模型连接的工作台启动(Gate 9B):从本地既有配置注入 REPOPROOF_*,
-# 密钥仅存在于进程环境——不写文件、不进 UI、不进日志。
+# 带模型连接的工作台启动:读取 RepoProof 自己的 .env(私密,已 gitignore)。
+# 密钥仅进进程环境——不写日志、不进 UI、不进任何产物。
 set -e
 cd "$(dirname "$0")/.."
-eval "$(.venv/bin/python /tmp/rp_env.py 2>/dev/null || true)"
-if [ -z "$REPOPROOF_API_KEY" ]; then
-  echo "未找到模型连接配置(REPOPROOF_API_KEY)。请先准备 /tmp/rp_env.py 或手动 export。" >&2
+if [ -f .env ]; then
+  set -a; source .env; set +a
+else
+  echo "缺少 .env(REPOPROOF_API_BASE/KEY/MODEL)。参考 README 或让助手生成。" >&2
 fi
 exec .venv/bin/streamlit run src/repoproof/ui/app.py \
   --server.address 127.0.0.1 --server.headless true \
