@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -116,18 +117,39 @@ def _guide_text(task_id: str, verdict: str, adapter_files: list[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _counts(value) -> tuple[str, str]:
+    """真实 runner 的 report 把验收写成扁平字符串
+    ("passed_checks=5, failed_checks=0, total_checks=5; ...");早期
+    fixture 与未来结构化版本用 dict。两种形态都要能出账。"""
+    if isinstance(value, dict):
+        return str(value.get("passed_checks", "?")), str(value.get("total_checks", "?"))
+    if isinstance(value, str):
+        m_p = re.search(r"passed_checks=(\d+)", value)
+        m_t = re.search(r"total_checks=(\d+)", value)
+        if m_p and m_t:
+            return m_p.group(1), m_t.group(1)
+    return "?", "?"
+
+
+def _policy_status(value) -> str:
+    if isinstance(value, dict):
+        return str(value.get("status", "?"))
+    return str(value) if value else "?"
+
+
 def _report_text(task_id: str, report: dict) -> str:
-    cap = report.get("capability", {})
-    reg = report.get("regression", {})
+    cap_p, cap_t = _counts(report.get("capability"))
+    reg_p, reg_t = _counts(report.get("regression"))
+    agent = report.get("agent") or {}
+    calls = agent.get("model_call_count", agent.get("model_calls", "?"))
     lines = [
         f"# 结果报告 — {task_id}",
         "",
         f"- 最终判定:**{report.get('final_verdict', 'UNKNOWN')}**",
-        f"- 能力验收:{cap.get('passed_checks', '?')}/{cap.get('total_checks', '?')} 通过",
-        f"- 原项目回归:{reg.get('passed_checks', '?')}/{reg.get('total_checks', '?')} 通过",
-        f"- 规则检查:{report.get('policy', {}).get('status', '?')}",
-        f"- AI 结束方式:{report.get('agent', {}).get('exit_status', '?')}"
-        f"(调用 {report.get('agent', {}).get('model_call_count', '?')} 次)",
+        f"- 能力验收:{cap_p}/{cap_t} 通过",
+        f"- 原项目回归:{reg_p}/{reg_t} 通过",
+        f"- 规则检查:{_policy_status(report.get('policy'))}",
+        f"- AI 结束方式:{agent.get('exit_status', '?')}(调用 {calls} 次)",
         "",
         "## 判定依据(逐条)",
     ]

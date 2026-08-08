@@ -307,6 +307,27 @@ def test_direct_oracle_copy_aborts_export(tmp_path: Path) -> None:
     assert not dest.exists()  # 中止即清理,不留半成品
 
 
+def test_real_flat_report_shape_exports(tmp_path: Path) -> None:
+    """反例(真实演练发现):真实 runner 的 report.json 把 capability/
+    regression/policy 写成扁平字符串、调用数键名是 model_calls——
+    fixture 曾只按 dict 形态测,导致真实 PASS 运行导出当场崩溃。"""
+    root = _fake_project_root(tmp_path)
+    run = _fake_run(tmp_path)
+    (run / "report.json").write_text(json.dumps({
+        "task_id": "adopt-demo-guided-v1", "final_verdict": "PASS_ADAPTED",
+        "capability": "passed_checks=5, failed_checks=0, total_checks=5; all frozen nodes ran",
+        "regression": "passed_checks=3, failed_checks=0, total_checks=3",
+        "policy": "oracle/upstream intact; action causality holds",
+        "agent": {"exit_status": "Submitted", "model_calls": 7},
+        "gate_reasons": ["capability PASS"],
+    }), encoding="utf-8")
+    out = export_bundle(root, run)
+    text = (Path(out["bundle_dir"]) / "report.md").read_text(encoding="utf-8")
+    assert "5/5" in text and "3/3" in text
+    assert "Submitted(调用 7 次)" in text
+    assert "oracle/upstream intact" in text
+
+
 def test_fail_run_exports_too(tmp_path: Path) -> None:
     """§十三-9:FAIL/BLOCKED 也必须返回当前产物和报告。"""
     root = _fake_project_root(tmp_path)
