@@ -70,6 +70,16 @@ def main(argv: list[str] | None = None) -> int:
     p_adm.add_argument("--source-report", required=True, type=Path)
     p_adm.add_argument("--json", action="store_true")
 
+    p_export = sub.add_parser(
+        "export-bundle",
+        help="RFC-008 §9.1 EXPORT_ONLY: build integration_bundle/ from a finished run "
+        "(honest FAIL exports too; never touches the user's project; held-out never included)",
+    )
+    p_export.add_argument("--run-dir", required=True, type=Path)
+    p_export.add_argument("--dest", type=Path, default=None,
+                          help="default: <run-dir>/integration_bundle (must be empty/absent)")
+    p_export.add_argument("--json", action="store_true")
+
     p_demo = sub.add_parser("demo", help="no-model evidence demos (Gate 8C): list / verify / replay")
     p_demo.add_argument("demo_cmd", choices=["list", "verify", "replay"])
     p_demo.add_argument("--case", default=None)
@@ -219,6 +229,20 @@ def main(argv: list[str] | None = None) -> int:
         if args.json:
             payload = {"schema_version": 1, "kind": "repository_report", "report": payload}
         print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "export-bundle":
+        from repoproof.adoption.delivery.integration_bundle import BundleError, export_bundle
+
+        try:
+            out = export_bundle(PROJECT_ROOT, args.run_dir, args.dest)
+        except (BundleError, OSError) as exc:
+            payload = {"ok": False, "error": str(exc)}
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+            return 3
+        if args.json:
+            out = {"schema_version": 1, "kind": "integration_bundle", **out}
+        print(json.dumps(out, ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd == "admission":

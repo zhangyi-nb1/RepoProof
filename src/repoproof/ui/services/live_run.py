@@ -91,3 +91,23 @@ def clear_lock_if_done(root: Path) -> None:
     info = active_run(root)
     if info and not info.get("alive"):
         (root / LOCK).unlink(missing_ok=True)
+
+
+def export_bundle_for_run(root: Path, run_name: str) -> dict:
+    """Gate C(RFC-008 §9.1):对一次已完成 run 导出 integration_bundle。
+
+    通过 CLI 子进程执行(argv 列表、无 shell、超时、JSON 输出);
+    EXPORT_ONLY——只写 runs/<id>/integration_bundle/,不碰用户项目。"""
+    run_dir = (root / "runs" / run_name).resolve()
+    if (root / "runs").resolve() not in run_dir.parents:
+        return {"ok": False, "error": "非法 run 名称"}
+    proc = subprocess.run(
+        [str(root / ".venv" / "bin" / "python"), "-m", "repoproof.cli",
+         "export-bundle", "--run-dir", str(run_dir), "--json"],
+        capture_output=True, text=True, timeout=120, check=False, cwd=str(root),
+    )
+    try:
+        out = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return {"ok": False, "error": (proc.stdout + proc.stderr)[-400:]}
+    return out

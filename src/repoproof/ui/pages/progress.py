@@ -87,6 +87,18 @@ if case in _locals:
     st.markdown(f"- 目标功能验收:{_cap if _cap else '—'}\n"
                 f"- AI 对话轮数:{_ag.get('model_calls', '—')} · 执行命令:{_ag.get('commands', '—')}\n"
                 f"- 本地目录:`{_lr_data['dir']}`(适配代码在 adaptation/ 内)")
+    # ---- Gate C:导出可移交的结果包(EXPORT_ONLY,不碰你的项目) ----
+    from pathlib import Path as _P2
+    _bundle_dir = _P2(_lr_data["dir"]) / "integration_bundle"
+    if _bundle_dir.is_dir():
+        st.success(f"📦 结果包已导出:`{_bundle_dir}`(适配代码/公开测试/依赖锁定/集成指南/报告)")
+    elif st.button("导出结果包(适配代码 + 集成指南 + 报告)"):
+        _out_b = _lr.export_bundle_for_run(_root2, case)
+        if _out_b.get("ok"):
+            st.success(f"📦 已导出:`{_out_b['bundle_dir']}`——失败的运行同样导出当前产物与失败报告。")
+        else:
+            st.error(f"导出失败:{_out_b.get('error')}")
+    st.caption("说明:导出只写 runs/ 下的运行目录,不会写入你的项目;隐藏验收样例永远不包含在结果包里。")
     if is_tech():
         with tech_expander("查看技术详情(report 原始字段)"):
             st.json(_rep)
