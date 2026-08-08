@@ -164,7 +164,7 @@ def test_plan_only_builds_and_refuses_non_ready(tmp_path: Path) -> None:
     adm = decide(host, repo)
     intent = parse_intent("把元数据解析能力接入我的项目,输出为 dict")
     plan = build_plan(intent, host, repo, adm)
-    assert plan.recommended.startswith("方案A")
+    assert "PYTHON_ADAPTER" in plan.recommended  # RFC-008:八策略命名,公开 API 存在时推荐薄适配层
     assert plan.questions  # admission/intent 的开放问题必须传导到计划
     assert any("原有测试" in s for s in plan.success_criteria)
     assert validate_plan(plan) == []

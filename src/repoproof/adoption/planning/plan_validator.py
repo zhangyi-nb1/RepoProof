@@ -17,8 +17,12 @@ def validate_plan(plan: AdoptionPlan) -> list[str]:
             gaps.append(f"计划缺少必填内容:{field}")
     if not plan.success_criteria:
         gaps.append("计划缺少成功标准")
-    if not plan.strategies or not plan.recommended:
-        gaps.append("计划缺少候选方案或推荐")
+    if not plan.strategies:
+        gaps.append("计划缺少候选方案")
+    elif not plan.recommended and not plan.requires_user_choice:
+        # 空白项目模式(requires_user_choice)合法地没有系统推荐——
+        # 由用户在确认时选定;其余计划必须有推荐
+        gaps.append("计划缺少推荐方案")
     return gaps
 
 

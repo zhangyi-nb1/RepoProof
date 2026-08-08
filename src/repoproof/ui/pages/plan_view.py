@@ -59,14 +59,16 @@ def _pipeline(goal_text: str, host_p: str, repo_p: str):
     repo = analyze_repository_dir(repo_p, url=Path(repo_p).name)
     adm = decide(host, repo)
     intent = parse_intent(goal_text)
-    accepted = list(adm.risks) if adm.status == "RISK_REVIEW" else None
+    # 计划仅为预览而按「全部风险已接受」构建;真正的接受动作发生在
+    # 下方逐条勾选 + Human Gate(F1),预览不等于放行。
+    preview_accept = list(adm.risks) if adm.status == "RISK_REVIEW" else None
     plan = None
     if adm.status in ("READY", "RISK_REVIEW"):
-        plan = build_plan(intent, host, repo, adm, accepted_risks=accepted)
-    return host, repo, adm, plan, accepted
+        plan = build_plan(intent, host, repo, adm, accepted_risks=preview_accept)
+    return host, repo, adm, plan, intent
 
 
-host, repo, adm, plan, accepted = _pipeline(goal, host_path, repo_path)
+host, repo, adm, plan, intent = _pipeline(goal, host_path, repo_path)
 
 if plan is None:
     _icon = {"NEED_INFORMATION": "🟡 还需要补充一些信息", "UNSUPPORTED": "❌ 当前版本暂不支持"}
@@ -82,15 +84,22 @@ if plan is None:
 
 st.subheader("AI 理解")
 st.markdown(plan.understanding)
-if accepted:
-    st.caption(f"注:适用性检查为「存在风险,需要你确认」;演示中已代为接受 {len(accepted)} 条风险,正式使用需你逐条确认。")
 
 st.subheader("推荐方案")
-st.markdown(f"**{plan.recommended}** —— {plan.rationale}")
+if plan.requires_user_choice:
+    st.markdown(f"**空白项目模式**:{plan.rationale}")
+else:
+    st.markdown(f"**{plan.recommended}** —— {plan.rationale}")
 for s in plan.strategies:
     with st.expander(s.name, expanded=False):
         st.markdown(s.description)
         st.markdown("优点:" + "、".join(s.pros) + " / 代价:" + "、".join(s.cons))
+        if s.verification:
+            st.markdown(f"验证方法:{s.verification}")
+
+_names = [s.name for s in plan.strategies]
+_default = _names.index(plan.recommended) if plan.recommended in _names else 0
+chosen = st.radio("选定接入方式(你有最终决定权;空白项目必须自己选)", _names, index=_default)
 
 st.subheader("预计修改")
 st.markdown(plan.estimated_changes)
@@ -98,6 +107,15 @@ st.markdown(plan.estimated_changes)
 st.subheader("成功标准")
 for c in plan.success_criteria:
     st.markdown(f"- {c}")
+
+if adm.risks:
+    st.subheader("风险(需要你逐条确认接受)")
+    _accepted_now: list[str] = []
+    for i, r in enumerate(adm.risks):
+        if st.checkbox(r, key=f"plan_risk_{i}"):
+            _accepted_now.append(r)
+else:
+    _accepted_now = []
 
 st.subheader("需要确认")
 answers: dict[str, str] = {}
@@ -112,11 +130,14 @@ if c2.button("确认开始", type="primary", width="stretch"):
         frozen = confirm_plan(
             plan, adm, answers=answers, user_ack=ACK_TEXT,
             confirmed_at=datetime.now(UTC).isoformat(),
-            accepted_risks=accepted,
+            accepted_risks=_accepted_now or None,
+            intent_dict=intent.to_dict(), chosen_strategy=chosen,
         )
-        st.success("已确认并冻结采用意向——此后计划与评分规则不可再改,改动会被指纹校验拒绝。")
-        st.info("🟡 本版本为只读演示版:真实 AI 执行(含多轮修复)将在下一版本开放。"
-                "你可以先到「修复过程」页看 AI 将如何逐轮工作。")
+        from repoproof.adoption.delivery.intent_store import save_frozen_intent
+
+        save_frozen_intent(repo_root() / "runs", frozen.to_dict())
+        st.success("已确认并冻结采用意向(已保存)——此后计划与评分规则不可再改,改动会被指纹校验拒绝。")
+        st.info("下一步:到「开始新任务」第 4/5 步给出验收样例并装配冻结,然后由你亲手点「真实运行」。")
         if is_tech():
             with tech_expander("查看冻结意向(技术详情)"):
                 st.json(frozen.to_dict())

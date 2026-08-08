@@ -1,12 +1,17 @@
-"""Host Project Analyzer — Guided Adoption Phase 1(RFC-001)。
+"""Host Project Analyzer — Guided Adoption Phase 1(RFC-001;RFC-008 扩展)。
 
 纯静态分析:不执行项目代码(setup.py 只读文本)、不写文件、不启动
 Docker、不调用 LLM、不联网。每个结论标注 FACT / INFERENCE / UNKNOWN
 并携带 evidence;无法确定的字段如实 UNKNOWN,禁止编造。
+RFC-008 扩展:宿主模式四态(GIT/PLAIN/BLANK/INVALID)、git 指纹与
+树指纹(Drift 检测基线)。git 子命令是我们自己的只读工具调用,
+不属于「执行项目代码」。
 """
 
 from __future__ import annotations
 
+import hashlib
+import os
 import re
 import tomllib
 from pathlib import Path
@@ -16,6 +21,15 @@ from pydantic import BaseModel
 FACT = "FACT"
 INFERENCE = "INFERENCE"
 UNKNOWN = "UNKNOWN"
+
+# 宿主模式(RFC-008 §4)
+GIT_PROJECT = "GIT_PROJECT"
+PLAIN_PROJECT = "PLAIN_PROJECT"
+BLANK_PROJECT = "BLANK_PROJECT"
+INVALID_PATH = "INVALID_PATH"
+
+_IGNORABLE_JUNK = {".DS_Store"}  # 仅 macOS 桌面残留视为可忽略;其余一律算内容
+MAX_FINGERPRINT_FILES = 20_000
 
 MAX_PY_FILES = 400
 MAX_FILE_BYTES = 200_000
@@ -80,9 +94,78 @@ class HostProjectReport(BaseModel):
     protected_paths: list[str] = []
     risks: list[str] = []
     scan_stats: ScanStats = ScanStats()
+    # RFC-008:宿主模式 + Drift 检测基线(默认 UNKNOWN,向后兼容)
+    host_mode: Finding = Finding(value=None, provenance=UNKNOWN, evidence="")
+    git_commit: Finding = Finding(value=None, provenance=UNKNOWN, evidence="")
+    workspace_dirty: Finding = Finding(value=None, provenance=UNKNOWN, evidence="")
+    tree_fingerprint: Finding = Finding(value=None, provenance=UNKNOWN, evidence="")
 
     def to_dict(self) -> dict:
         return self.model_dump()
+
+
+def _first_content(root: Path) -> Path | None:
+    """找到第一个「算内容」的条目(含隐藏文件、符号链接、.git);
+    只用于空目录判定,提前返回,不全量扫描。"""
+    stack = [root]
+    while stack:
+        d = stack.pop()
+        try:
+            entries = sorted(d.iterdir())
+        except OSError:
+            return d  # 不可读目录本身就是内容/风险
+        for p in entries:
+            if p.name in _IGNORABLE_JUNK:
+                continue
+            if p.is_symlink() or p.is_file():
+                return p
+            if p.is_dir():
+                # .git 目录(未说明的)直接算内容
+                if p.name == ".git":
+                    return p
+                stack.append(p)
+    return None
+
+
+def detect_host_mode(project_path: str | Path) -> Finding:
+    """宿主模式四态判定(确定性,只读)。
+
+    BLANK_PROJECT 要求:无普通文件、无隐藏业务文件、无未说明的
+    .git、目录可写(符号链接一律算内容)。"""
+    root = Path(project_path).expanduser().resolve()
+    if not root.is_dir():
+        return Finding.fact(INVALID_PATH, "路径不存在或不是目录")
+    content = _first_content(root)
+    if content is None:
+        if not os.access(root, os.W_OK):
+            return Finding.fact(INVALID_PATH, "目录为空但不可写,无法作为空白项目目标")
+        return Finding.fact(BLANK_PROJECT, "递归扫描无普通/隐藏/链接内容,目录可写")
+    if (root / ".git").is_dir():
+        return Finding.fact(GIT_PROJECT, ".git/ 目录存在")
+    return Finding.fact(PLAIN_PROJECT, f"存在内容(首个条目:{content.relative_to(root)}),非 Git 仓库")
+
+
+def compute_tree_fingerprint(root: Path) -> Finding:
+    """树指纹:排序后的 (相对路径, 大小, mtime_ns) 哈希——Drift 检测
+    基线。不读文件内容(内容级哈希由 ApplyManifest 对受影响文件做)。"""
+    lines: list[str] = []
+    count = 0
+    for p in sorted(root.rglob("*")):
+        rel = p.relative_to(root)
+        if any(part in SKIP_DIRS or part == ".git" for part in rel.parts):
+            continue
+        if p.name in _IGNORABLE_JUNK or not p.is_file():
+            continue
+        count += 1
+        if count > MAX_FINGERPRINT_FILES:
+            return Finding.unknown(f"文件数超过 {MAX_FINGERPRINT_FILES},未生成树指纹")
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        lines.append(f"{rel}\0{st.st_size}\0{st.st_mtime_ns}")
+    digest = hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
+    return Finding.fact(digest, f"sha256 over {count} 个文件的 (路径,大小,mtime)")
 
 
 def _read_text(path: Path) -> str | None:
@@ -122,6 +205,7 @@ def analyze_host_project(project_path: str | Path) -> HostProjectReport:
     """静态分析一个本地 Python 项目;永不修改它。"""
     root = Path(project_path).expanduser().resolve()
     stats = ScanStats()
+    mode = detect_host_mode(root)
     if not root.is_dir():
         return HostProjectReport(
             project_path=str(root),
@@ -131,6 +215,20 @@ def analyze_host_project(project_path: str | Path) -> HostProjectReport:
             test_command=Finding.unknown(),
             risks=["项目路径不存在,无法分析"],
             scan_stats=stats,
+            host_mode=mode,
+        )
+    if mode.value == BLANK_PROJECT:
+        # 空白项目模式(RFC-008 §4.2):没有可分析的代码,但这不是错误;
+        # Host Regression = N/A,三种建站计划由 Plan 阶段给出。
+        return HostProjectReport(
+            project_path=str(root),
+            project_type=Finding.fact("blank", str(mode.evidence)),
+            python_version=Finding.unknown("空目录,无版本声明"),
+            package_manager=Finding.unknown("空目录"),
+            test_command=Finding.unknown("空目录,宿主回归 = N/A"),
+            scan_stats=stats,
+            host_mode=mode,
+            tree_fingerprint=compute_tree_fingerprint(root),
         )
 
     deps: list[str] = []
@@ -301,6 +399,13 @@ def analyze_host_project(project_path: str | Path) -> HostProjectReport:
     if stats.truncated:
         risks.append(f"项目过大,仅扫描前 {MAX_PY_FILES} 个 .py 文件——分析结果不完整")
 
+    git_commit = Finding.unknown("非 Git 仓库")
+    workspace_dirty = Finding.unknown("非 Git 仓库")
+    if mode.value == GIT_PROJECT:
+        from repoproof.adoption.analysis.host_git import git_facts
+
+        git_commit, workspace_dirty = git_facts(root)
+
     return HostProjectReport(
         project_path=str(root),
         project_type=project_type,
@@ -316,4 +421,8 @@ def analyze_host_project(project_path: str | Path) -> HostProjectReport:
         protected_paths=protected,
         risks=risks,
         scan_stats=stats,
+        host_mode=mode,
+        git_commit=git_commit,
+        workspace_dirty=workspace_dirty,
+        tree_fingerprint=compute_tree_fingerprint(root),
     )

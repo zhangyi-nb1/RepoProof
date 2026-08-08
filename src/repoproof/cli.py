@@ -39,6 +39,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Guided Adoption Phase 1: static host-project analysis (read-only, no LLM, no Docker)",
     )
     p_ahost.add_argument("--path", required=True, type=Path)
+    p_ahost.add_argument("--json", action="store_true", help="stable JSON envelope (RFC-008 §5.1)")
 
     p_arepo = sub.add_parser(
         "analyze-repo",
@@ -49,6 +50,25 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--url", help="public GitHub URL (will shallow-clone into upstream-cache/analysis/)")
     g.add_argument("--local-path", type=Path, help="analyze an already-present repo directory (offline)")
     p_arepo.add_argument("--revision", default=None)
+    p_arepo.add_argument("--json", action="store_true", help="stable JSON envelope (RFC-008 §5.1)")
+
+    p_asrc = sub.add_parser(
+        "analyze-source",
+        help="RFC-008 §5.1 stable name for analyze-repo (same core, JSON envelope by default)",
+    )
+    g2 = p_asrc.add_mutually_exclusive_group(required=True)
+    g2.add_argument("--repo", help="public GitHub URL")
+    g2.add_argument("--local-path", type=Path, help="analyze an already-present repo directory (offline)")
+    p_asrc.add_argument("--revision", default=None)
+    p_asrc.add_argument("--json", action="store_true")
+
+    p_adm = sub.add_parser(
+        "admission",
+        help="RFC-008 §六: deterministic four-state admission from two report JSON files",
+    )
+    p_adm.add_argument("--host-report", required=True, type=Path)
+    p_adm.add_argument("--source-report", required=True, type=Path)
+    p_adm.add_argument("--json", action="store_true")
 
     p_demo = sub.add_parser("demo", help="no-model evidence demos (Gate 8C): list / verify / replay")
     p_demo.add_argument("demo_cmd", choices=["list", "verify", "replay"])
@@ -177,21 +197,46 @@ def main(argv: list[str] | None = None) -> int:
         from repoproof.adoption.analysis.host_analyzer import analyze_host_project
 
         report = analyze_host_project(args.path)
-        print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        payload = report.to_dict()
+        if args.json:
+            payload = {"schema_version": 1, "kind": "host_project_report", "report": payload}
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0
 
-    if args.cmd == "analyze-repo":
+    if args.cmd in ("analyze-repo", "analyze-source"):
         from repoproof.adoption.analysis.repository_analyzer import (
             analyze_repository,
             analyze_repository_dir,
         )
 
+        url = getattr(args, "url", None) or getattr(args, "repo", None)
         if args.local_path:
             rep = analyze_repository_dir(args.local_path, requested_revision=args.revision)
         else:
-            rep = analyze_repository(args.url, args.revision,
+            rep = analyze_repository(url, args.revision,
                                      cache_root=PROJECT_ROOT / "upstream-cache")
-        print(json.dumps(rep.to_dict(), ensure_ascii=False, indent=2))
+        payload = rep.to_dict()
+        if args.json:
+            payload = {"schema_version": 1, "kind": "repository_report", "report": payload}
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "admission":
+        from repoproof.adoption.admission.admission_report import decide
+        from repoproof.adoption.analysis.host_analyzer import HostProjectReport
+        from repoproof.adoption.analysis.repository_analyzer import RepositoryReport
+
+        def _load_report(path: Path, key: str) -> dict:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return data.get("report", data) if isinstance(data, dict) else data
+
+        host = HostProjectReport.model_validate(_load_report(args.host_report, "report"))
+        repo = RepositoryReport.model_validate(_load_report(args.source_report, "report"))
+        result = decide(host, repo)
+        payload = result.to_dict()
+        if args.json:
+            payload = {"schema_version": 1, "kind": "admission_report", "report": payload}
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd == "demo":

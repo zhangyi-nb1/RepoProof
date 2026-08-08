@@ -121,12 +121,16 @@ def test_plain_package_detected(tmp_path: Path) -> None:
 # ---- 诚实性:不编造 ----
 
 
-def test_empty_directory_yields_unknowns_not_fabrications(tmp_path: Path) -> None:
+def test_empty_directory_yields_blank_mode_not_fabrications(tmp_path: Path) -> None:
+    """RFC-008 §4.2 修订:真正的空目录不再是一串 UNKNOWN,而是显式
+    BLANK_PROJECT 模式(这本身是事实,不是编造);代码相关字段仍然
+    如实 UNKNOWN,回归标记为 N/A。"""
     r = analyze_host_project(tmp_path)
-    assert r.project_type.provenance == UNKNOWN
+    assert r.host_mode.value == "BLANK_PROJECT" and r.host_mode.provenance == "FACT"
+    assert r.project_type.value == "blank" and r.project_type.provenance == "FACT"
     assert r.python_version.provenance == UNKNOWN
     assert r.package_manager.provenance == UNKNOWN
-    assert r.test_command.provenance == UNKNOWN
+    assert r.test_command.provenance == UNKNOWN and "N/A" in r.test_command.evidence
     assert r.dependencies == [] and r.frameworks == [] and r.schemas == []
     assert r.integration_candidates == []
 
@@ -179,6 +183,19 @@ def test_analyzer_module_has_no_llm_docker_or_write_calls() -> None:
     for banned in ("litellm", "openai", "docker", "subprocess", "write_text(", "write_bytes(",
                    "shutil", "urllib", "requests.", "socket"):
         assert banned not in src, banned
+
+
+def test_host_git_module_is_readonly_queries_only() -> None:
+    """RFC-008:git 只读查询集中在 host_git.py——允许 subprocess,
+    但仅限 rev-parse/status;禁写、禁网络、禁 LLM、禁容器;任何
+    写型 git 子命令不得作为 argv 字面量出现。"""
+    src = (REPO / "src" / "repoproof" / "adoption" / "analysis" / "host_git.py").read_text()
+    for banned in ("litellm", "openai", "write_text(", "write_bytes(",
+                   "shutil", "urllib", "requests.", "socket",
+                   '"checkout"', '"reset"', '"clean"', '"push"', '"commit"',
+                   '"stash"', '"add"', '"merge"', '"rebase"'):
+        assert banned not in src, banned
+    assert "rev-parse" in src and "--porcelain" in src
 
 
 # ---- 扫描边界:大项目诚实降级 ----

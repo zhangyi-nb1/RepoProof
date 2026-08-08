@@ -30,6 +30,12 @@ if report:
         return f"{val}({tag})"
 
     st.subheader("你的项目")
+    _mode = report.get("host_mode", {}).get("value")
+    if _mode == "BLANK_PROJECT":
+        st.info("🈳 空白项目模式:目录为空且可写。可以从三种方式开始(整仓库落地/包装新项目/最小能力提取);"
+                "原项目回归 = 不适用,改为验证安装、启动、能力与依赖锁。")
+    elif _mode == "INVALID_PATH":
+        st.error("路径无效:请提供存在且可写的目录。")
     st.markdown(f"""
 - **Python 版本**:{_f(report["python_version"])}
 - **框架**:{"、".join(str(f["value"]) for f in report["frameworks"]) or "未检出"}

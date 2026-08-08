@@ -32,6 +32,10 @@ class FrozenAdoptionIntent(BaseModel):
     answers: dict[str, str]
     user_ack: str
     confirmed_at: str
+    # RFC-008:意图草稿指纹 + 用户选定的接入方式 + 成功标准独立指纹
+    intent_sha256: str = ""
+    strategy: str = ""
+    success_criteria_sha256: str = ""
 
     def to_dict(self) -> dict:
         return self.model_dump()
@@ -51,9 +55,13 @@ def confirm_plan(
     user_ack: str,
     confirmed_at: str,
     accepted_risks: list[str] | None = None,
+    intent_dict: dict | None = None,
+    chosen_strategy: str = "",
 ) -> FrozenAdoptionIntent:
     """用户确认动作。所有前置不满足都抛 HumanGateError——不静默放行。
-    RISK_REVIEW 状态要求 accepted_risks 覆盖全部风险(F1)。"""
+    RISK_REVIEW 状态要求 accepted_risks 覆盖全部风险(F1)。
+    RFC-008:requires_user_choice 的计划(空白项目三计划)必须显式
+    选定 chosen_strategy;意图草稿与成功标准分别绑定指纹。"""
     if admission.status == RISK_REVIEW:
         missing = [r for r in admission.risks if r not in (accepted_risks or [])]
         if missing:
@@ -63,6 +71,14 @@ def confirm_plan(
     gaps = validate_plan(plan)
     if gaps:
         raise HumanGateError(f"计划不完整,禁止确认:{gaps}")
+    valid_names = {s.name for s in plan.strategies} | {s.kind for s in plan.strategies if s.kind}
+    if plan.requires_user_choice:
+        if not chosen_strategy:
+            raise HumanGateError("空白项目模式:必须先选定一种建站计划,才能确认开始")
+        if chosen_strategy not in valid_names:
+            raise HumanGateError(f"选定的接入方式不在计划候选中:{chosen_strategy!r}")
+    elif chosen_strategy and chosen_strategy not in valid_names:
+        raise HumanGateError(f"选定的接入方式不在计划候选中:{chosen_strategy!r}")
     try:
         require_answers(plan, answers)
     except Exception as exc:
@@ -76,6 +92,9 @@ def confirm_plan(
         answers=dict(answers),
         user_ack=user_ack.strip(),
         confirmed_at=confirmed_at,
+        intent_sha256=_sha(intent_dict) if intent_dict else "",
+        strategy=chosen_strategy or plan.recommended,
+        success_criteria_sha256=_sha({"success_criteria": plan.success_criteria}),
     )
 
 
@@ -83,14 +102,19 @@ def require_confirmed(
     intent: FrozenAdoptionIntent | None,
     plan: AdoptionPlan,
     admission: AdmissionReport,
+    *,
+    intent_dict: dict | None = None,
 ) -> None:
     """TaskPackage 创建 / Agent 启动前的强制门。
 
     未确认(None)→ 拒绝;确认后计划或准入报告被改动(sha 失配)→
-    拒绝。「用户未确认时启动 Agent」由此在结构上不可能。"""
+    拒绝。「用户未确认时启动 Agent」由此在结构上不可能。
+    RFC-008:传入 intent_dict 时同样校验意图草稿指纹。"""
     if intent is None:
         raise HumanGateError("用户尚未确认采用计划,禁止创建任务包或启动 AI")
     if intent.plan_sha256 != _sha(plan.to_dict()):
         raise HumanGateError("计划在确认后被修改(sha 失配)——请重新走确认流程")
     if intent.admission_sha256 != _sha(admission.to_dict()):
         raise HumanGateError("适用性报告在确认后被修改(sha 失配)——请重新走确认流程")
+    if intent_dict is not None and intent.intent_sha256 and intent.intent_sha256 != _sha(intent_dict):
+        raise HumanGateError("意图草稿在确认后被修改(sha 失配)——请重新走确认流程")

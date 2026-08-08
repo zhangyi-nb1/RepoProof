@@ -152,6 +152,54 @@ elif step == 2:
                 "max_patch_files=8  max_patch_lines=400  network_test=false",
                 language="text",
             )
+    st.divider()
+    st.subheader("让系统现在就看一眼(推荐,全程无需终端)")
+    st.caption("双侧静态分析:不执行任何项目代码、不调用 AI;目标仓库只做匿名浅克隆到本地缓存。")
+    ca, cb = st.columns(2)
+    if ca.button("分析我的项目 / 空目录", width="stretch"):
+        from repoproof.adoption.analysis.host_analyzer import analyze_host_project
+
+        if not ss.get("wz_project", "").strip():
+            st.error("请先在上方填写你的项目路径(可以是一个空目录)。")
+        else:
+            ss["wz_host_report"] = analyze_host_project(ss["wz_project"]).to_dict()
+    if cb.button("获取并分析目标仓库", width="stretch"):
+        from repoproof.adoption.analysis.repository_analyzer import analyze_repository
+        from repoproof.ui.services.facts import repo_root as _rr2
+
+        _url2 = (ss.get("wz_repo") or "").strip().rstrip("/").removesuffix(".git")
+        if not _url2:
+            st.error("请先在上方填写目标仓库地址。")
+        else:
+            with st.spinner("正在匿名获取并静态分析目标仓库……"):
+                rep2 = analyze_repository(_url2, ss.get("wz_rev") or None,
+                                          cache_root=_rr2() / "upstream-cache")
+            ss["wz_repo_report"] = rep2.to_dict()
+    hr = ss.get("wz_host_report")
+    if hr:
+        _mode = hr["host_mode"]["value"]
+        _mode_zh = {"BLANK_PROJECT": "🈳 空白项目模式:目录为空且可写。系统将提供三种开始方式,"
+                                     "原项目回归改为「不适用」,改为验证安装/启动/能力/依赖锁/复测。",
+                    "GIT_PROJECT": "✅ 已有项目(Git 管理)。修改只发生在专门的适配区;写回你的项目前必须经你确认。",
+                    "PLAIN_PROJECT": "✅ 已有项目(未用 Git)。写回前系统会先做完整副本与文件指纹备份。",
+                    "INVALID_PATH": "❌ 路径无效:请填写存在且可写的目录。"}.get(str(_mode), str(_mode))
+        st.markdown(f"**你的项目**:{_mode_zh}")
+        if _mode != "BLANK_PROJECT" and hr.get("test_command", {}).get("value"):
+            st.markdown(f"- 测试命令:`{hr['test_command']['value']}`(来源:{hr['test_command']['evidence']})")
+        if is_tech():
+            with tech_expander("宿主分析完整 JSON(技术详情)"):
+                st.json(hr)
+    rr = ss.get("wz_repo_report")
+    if rr:
+        _lic = rr["license"]["value"] or "未识别"
+        _gpu = "需要 GPU ⚠️" if rr["gpu"]["value"] is True else "CPU 即可"
+        _sec = "需要密钥 ⚠️" if rr.get("secrets_required") else "不需要密钥"
+        _api = len(rr.get("public_api", []))
+        st.markdown(f"**目标仓库**:许可证 {_lic} · {_gpu} · {_sec} · 公开入口 {_api} 个 · "
+                    f"版本 {str(rr['commit']['value'])[:12] if rr['commit']['value'] else '未固定'}")
+        if is_tech():
+            with tech_expander("仓库分析完整 JSON(技术详情)"):
+                st.json(rr)
     c1, c2, _ = st.columns([1, 1, 3])
     if c1.button("上一步", width="stretch"):
         _goto(1)
@@ -189,6 +237,39 @@ elif step == 3:
         )
         if ss["wz_risk_ok"]:
             st.rerun()
+
+    # ---- 深度适用性检查(RFC-008 §六):双侧报告都在时才运行,结论更强 ----
+    deep_ok = None
+    if ss.get("wz_host_report") and ss.get("wz_repo_report"):
+        from repoproof.adoption.admission.admission_report import decide
+        from repoproof.adoption.analysis.host_analyzer import HostProjectReport
+        from repoproof.adoption.analysis.repository_analyzer import RepositoryReport
+
+        _adm = decide(HostProjectReport.model_validate(ss["wz_host_report"]),
+                      RepositoryReport.model_validate(ss["wz_repo_report"]))
+        ss["wz_admission"] = _adm.to_dict()
+        st.divider()
+        _meta2 = ADMISSION.get(_adm.status, {"icon": "ℹ️", "title": _adm.status})
+        st.subheader(f"深度检查:{_meta2['icon']} {_meta2['title']}")
+        for f2 in _adm.confirmed_facts:
+            st.markdown(f"- ✅ {f2}")
+        for q2 in _adm.questions:
+            st.markdown(f"- 🟡 {q2}")
+        for b2 in _adm.blockers:
+            st.markdown(f"- ❌ {b2}")
+        if _adm.risks:
+            st.markdown("**需要你逐条确认接受的风险**:")
+            _acc: list[str] = []
+            for i2, r2 in enumerate(_adm.risks):
+                if st.checkbox(r2, key=f"wz_adm_risk_{i2}",
+                               value=r2 in ss.get("wz_accepted_risks", [])):
+                    _acc.append(r2)
+            ss["wz_accepted_risks"] = _acc
+        st.markdown(f"**你的下一步**:{_adm.next_step}")
+        deep_ok = _adm.status == "READY" or (
+            _adm.status == "RISK_REVIEW"
+            and all(r in ss.get("wz_accepted_risks", []) for r in _adm.risks)
+        )
     if is_tech():
         with tech_expander():
             st.markdown(
@@ -199,7 +280,8 @@ elif step == 3:
     c1, c2, _ = st.columns([1, 1, 3])
     if c1.button("上一步", width="stretch"):
         _goto(2)
-    if c2.button("下一步", type="primary", disabled=result.state != "READY", width="stretch"):
+    _next_ok = result.state == "READY" and (deep_ok is None or deep_ok)
+    if c2.button("下一步", type="primary", disabled=not _next_ok, width="stretch"):
         _goto(4)
 
 # ================= Step 4:确认采用计划 =================
@@ -218,6 +300,88 @@ elif step == 4:
         f"- **独立测试**:用{TERM['held_out_tests']}做{TERM['oracle']},AI 看不到,也改不了\n"
         "- **你**:现在确认成功标准;开始后 AI 只能改解决方案,不能改评分规则"
     )
+    # ---- 正式采用计划(RFC-008 §7):双侧报告都在时,走真实 Plan + Human Gate ----
+    _deep = bool(ss.get("wz_host_report") and ss.get("wz_repo_report"))
+    if _deep:
+        from repoproof.adoption.admission.admission_report import decide
+        from repoproof.adoption.analysis.host_analyzer import HostProjectReport
+        from repoproof.adoption.analysis.repository_analyzer import RepositoryReport
+        from repoproof.adoption.intent.intent_parser import parse_intent
+        from repoproof.adoption.planning.adoption_plan import build_plan
+
+        _host_m = HostProjectReport.model_validate(ss["wz_host_report"])
+        _repo_m = RepositoryReport.model_validate(ss["wz_repo_report"])
+        _adm_m = decide(_host_m, _repo_m)
+        _intent_m = parse_intent(ss.get("wz_goal", ""))
+        _accepted = ss.get("wz_accepted_risks", [])
+        st.divider()
+        st.subheader("接入方式(系统比较了可行方案)")
+        try:
+            _plan = build_plan(_intent_m, _host_m, _repo_m, _adm_m,
+                               accepted_risks=_accepted or None)
+        except ValueError as exc:
+            _plan = None
+            st.warning(f"还不能生成正式计划:{exc}")
+        if _plan is not None:
+            _names = [s.name for s in _plan.strategies]
+            if _plan.requires_user_choice:
+                st.markdown("**空白项目模式**:三种开始方式,系统不代替你选。")
+                _default_idx = _names.index(ss["wz_strategy"]) if ss.get("wz_strategy") in _names else 0
+            else:
+                st.markdown(f"**系统推荐**:{_plan.recommended} —— {_plan.rationale}")
+                _default_idx = _names.index(ss.get("wz_strategy", _plan.recommended)) \
+                    if ss.get("wz_strategy", _plan.recommended) in _names else _names.index(_plan.recommended)
+            _sel = st.radio("选定接入方式(你有最终决定权)", _names, index=_default_idx)
+            ss["wz_strategy"] = _sel
+            _sobj = next(s for s in _plan.strategies if s.name == _sel)
+            st.markdown(f"- **做法**:{_sobj.description}\n"
+                        f"- **为什么**:{_sobj.why or _sobj.description}\n"
+                        f"- **预计修改**:{'、'.join(_sobj.est_changed_files) or '见计划'}\n"
+                        f"- **新增依赖**:{'、'.join(_sobj.new_dependencies) or '无'}\n"
+                        f"- **联网**:{'安装阶段需要' if _sobj.needs_network else '不需要'} · "
+                        f"**密钥**:{'需要 ⚠️' if _sobj.needs_secret else '不需要'} · "
+                        f"**改动你的项目**:{'会(经你确认后)' if _sobj.modifies_host else '不会'}\n"
+                        f"- **验证方法**:{_sobj.verification or '见成功标准'}")
+            if _sobj.risks:
+                st.markdown("**该方式的风险**:" + ";".join(_sobj.risks))
+            st.markdown("**成功标准**:")
+            for c_ in _plan.success_criteria:
+                st.markdown(f"- {c_}")
+            _answers: dict[str, str] = {}
+            if _plan.questions:
+                st.markdown("**待确认问题(必答)**:")
+                for i3, q3 in enumerate(_plan.questions):
+                    _answers[q3] = st.text_input(q3, key=f"wz_plan_q_{i3}", placeholder="必填")
+            from repoproof.adoption.planning.human_gate import (
+                ACK_TEXT,
+                HumanGateError,
+                confirm_plan,
+            )
+
+            st.caption(f"确认即表示:{ACK_TEXT}")
+            if st.button("正式确认并冻结采用意向", type="primary"):
+                from datetime import UTC, datetime
+
+                from repoproof.adoption.delivery.intent_store import save_frozen_intent
+                from repoproof.ui.services.facts import repo_root as _rr4
+
+                try:
+                    _frozen = confirm_plan(
+                        _plan, _adm_m, answers=_answers, user_ack=ACK_TEXT,
+                        confirmed_at=datetime.now(UTC).isoformat(),
+                        accepted_risks=_accepted or None,
+                        intent_dict=_intent_m.to_dict(), chosen_strategy=_sel,
+                    )
+                    ss["wz_frozen"] = _frozen.to_dict()
+                    _p = save_frozen_intent(_rr4() / "runs", _frozen.to_dict())
+                    st.success(f"已冻结采用意向(指纹 {_frozen.plan_sha256[:12]}…,已保存)。"
+                               "此后计划与评分规则不可再改,改动会被指纹校验拒绝。")
+                except HumanGateError as exc:
+                    st.error(f"还不能确认:{exc}")
+            if ss.get("wz_frozen"):
+                st.info(f"✅ 采用意向已冻结:接入方式 = {ss['wz_frozen'].get('strategy', '—')}")
+        st.divider()
+
     st.subheader("给出验收样例(必填,至少 3 行)")
     st.caption("每行一组:输入 => 期望。期望以 contains: 开头表示「包含即通过」,否则要求完全相等。"
                "这些样例就是你的成功标准:大部分给 AI 看并自测,至少 1 组会被留作它看不到的隐藏验证。")
@@ -230,7 +394,10 @@ elif step == 4:
     c1, c2, _ = st.columns([1, 1, 3])
     if c1.button("上一步", width="stretch"):
         _goto(3)
-    if c2.button("下一步", type="primary", disabled=not ok, width="stretch"):
+    _gate_next = ok and (not _deep or bool(ss.get("wz_frozen")))
+    if not _gate_next and ok and _deep:
+        st.caption("🟡 你已完成深度分析:请先点击上方「正式确认并冻结采用意向」,再进入下一步。")
+    if c2.button("下一步", type="primary", disabled=not _gate_next, width="stretch"):
         _goto(5)
 
 # ================= Step 5:开始执行(只读版) =================
