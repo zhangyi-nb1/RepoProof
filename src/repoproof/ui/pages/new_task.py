@@ -64,8 +64,13 @@ if st.session_state[W] == 0:
         st.divider()
         st.subheader("已就绪的任务(装配/冻结过的任务在这里,刷新不丢)")
         _sel0 = st.selectbox("直接选择并运行,无需重走五步", _tasks0, index=len(_tasks0) - 1)
+        _models0 = _lr0.available_models()
+        _m0 = st.selectbox("使用模型", _models0, format_func=lambda m: m["label"],
+                           key="model_sel_0") if _models0 else None
         if st.button("直接开始真实运行", disabled=not _lr0.provider_ready()):
-            _out0 = _lr0.start_run(_root0, _sel0)
+            _out0 = _lr0.start_run(_root0, _sel0,
+                                   provider=_m0["provider"] if _m0 else "default",
+                                   model=_m0["model"] if _m0 else None)
             (st.success if _out0.get("ok") else st.error)(_out0.get("note") or _out0.get("error"))
             if _out0.get("ok"):
                 st.markdown("到「运行进度」页查看实时状态与最终结论。")
@@ -423,8 +428,13 @@ elif step == 5:
         value=st.session_state.get("wz_guided", True),
         help="失败反馈只来自公开样例测试;隐藏验收、干净复测与最终判定与单次运行完全相同。")
     st.session_state["wz_guided"] = _guided
+    _models5 = live_run.available_models()
+    _m5 = st.selectbox("使用模型", _models5, format_func=lambda m: m["label"],
+                       key="model_sel_5") if _models5 else None
     if st.button("开始真实运行", type="primary", disabled=not live_run.provider_ready()):
-        out = live_run.start_run(_root, task_sel, guided=_guided)
+        out = live_run.start_run(_root, task_sel, guided=_guided,
+                                 provider=_m5["provider"] if _m5 else "default",
+                                 model=_m5["model"] if _m5 else None)
         if out.get("ok"):
             st.success(out["note"])
             st.markdown("到「运行进度」页可查看状态;完成后在本地 `runs/` 目录与「结果报告」思路一致地复核 "

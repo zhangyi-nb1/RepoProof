@@ -25,6 +25,31 @@ def frozen_tasks(root: Path) -> list[str]:
     )
 
 
+def available_models() -> list[dict]:
+    """从进程环境枚举可选模型(两组具名配置);密钥永不返回。"""
+    out = []
+    for prov in ("openai", "deepseek"):
+        base = os.environ.get(f"REPOPROOF_{prov.upper()}_BASE")
+        key = os.environ.get(f"REPOPROOF_{prov.upper()}_KEY")
+        models = (os.environ.get(f"REPOPROOF_{prov.upper()}_MODELS") or "").split(",")
+        if base and key:
+            for m in [x.strip() for x in models if x.strip()]:
+                out.append({"provider": prov, "model": m, "label": f"{m}({prov})"})
+    if not out and provider_ready():
+        out.append({"provider": "default", "model": os.environ.get("REPOPROOF_MODEL", "?"),
+                    "label": os.environ.get("REPOPROOF_MODEL", "默认")})
+    return out
+
+
+def _env_for(provider: str, model: str) -> dict:
+    env = dict(os.environ)
+    if provider in ("openai", "deepseek"):
+        env["REPOPROOF_API_BASE"] = os.environ[f"REPOPROOF_{provider.upper()}_BASE"]
+        env["REPOPROOF_API_KEY"] = os.environ[f"REPOPROOF_{provider.upper()}_KEY"]
+        env["REPOPROOF_MODEL"] = model
+    return env
+
+
 def provider_ready() -> bool:
     return bool(os.environ.get("REPOPROOF_API_KEY") and os.environ.get("REPOPROOF_API_BASE"))
 
@@ -62,7 +87,8 @@ def active_run(root: Path) -> dict | None:
     return info
 
 
-def start_run(root: Path, task_id: str, *, guided: bool = False) -> dict:
+def start_run(root: Path, task_id: str, *, guided: bool = False,
+              provider: str = "default", model: str | None = None) -> dict:
     """启动一次真实 agent 运行(后台)。返回状态 dict,绝不抛密钥。
 
     guided=True → RFC-008 §11 有界多轮修复(≤3 轮,公开测试反馈,
@@ -82,10 +108,13 @@ def start_run(root: Path, task_id: str, *, guided: bool = False) -> dict:
         [str(root / ".venv" / "bin" / "python"), "-m", "repoproof.cli",
          cmd, "--contract", str(contract)],
         stdout=log.open("w"), stderr=subprocess.STDOUT,
-        cwd=str(root), env=dict(os.environ), start_new_session=True,
+        cwd=str(root),
+        env=_env_for(provider, model) if model else dict(os.environ),
+        start_new_session=True,
     )
     (root / LOCK).write_text(json.dumps(
-        {"pid": proc.pid, "task_id": task_id, "log": str(log), "guided": guided}),
+        {"pid": proc.pid, "task_id": task_id, "log": str(log), "guided": guided,
+         "model": model or os.environ.get("REPOPROOF_MODEL")}),
         encoding="utf-8")
     mode_note = "有界多轮修复(最多 3 轮,每轮按公开测试反馈改进)" if guided else "单次运行"
     return {"ok": True, "pid": proc.pid, "task_id": task_id, "guided": guided,
