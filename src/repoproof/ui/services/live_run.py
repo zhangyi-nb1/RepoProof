@@ -88,12 +88,17 @@ def active_run(root: Path) -> dict | None:
         info = json.loads(lock.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return None
-    # 完成判定优先看产物:最新 run 目录已有 report.json 即完成
+    # 完成判定优先看产物:最新 run 目录已有 report.json 即完成。
+    # 竞态修复(用户实测):点击运行后、预检完成前 run 目录尚未创建,
+    # "最新目录"是上一次已完成的运行——必须要求目录时间戳不早于本次
+    # 启动时刻,否则并发第二次启动会被误放行。
     tid = str(info.get("task_id", ""))
+    started = str(info.get("started_at", ""))
     run_dirs = sorted((root / "runs").glob(f"{tid}-2*"), reverse=True) if tid else []
     latest = run_dirs[0] if run_dirs else None
-    info["latest_run"] = latest.name if latest else None
-    info["report_ready"] = bool(latest and (latest / "report.json").exists())
+    fresh = bool(latest) and (not started or latest.name[-15:] >= started)
+    info["latest_run"] = latest.name if (latest and fresh) else None
+    info["report_ready"] = bool(latest and fresh and (latest / "report.json").exists())
     if info["report_ready"]:
         info["alive"] = False
         try:
@@ -138,9 +143,12 @@ def start_run(root: Path, task_id: str, *, guided: bool = False,
         env=_env_for(provider, model) if model else dict(os.environ),
         start_new_session=True,
     )
+    import time as _time
+
     (root / LOCK).write_text(json.dumps(
         {"pid": proc.pid, "task_id": task_id, "log": str(log), "guided": guided,
-         "model": model or os.environ.get("REPOPROOF_MODEL")}),
+         "model": model or os.environ.get("REPOPROOF_MODEL"),
+         "started_at": _time.strftime("%Y%m%d-%H%M%S")}),
         encoding="utf-8")
     mode_note = "有界多轮修复(最多 3 轮,每轮按公开测试反馈改进)" if guided else "单次运行"
     return {"ok": True, "pid": proc.pid, "task_id": task_id, "guided": guided,

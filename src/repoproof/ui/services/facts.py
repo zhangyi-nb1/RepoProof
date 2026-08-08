@@ -162,6 +162,30 @@ def local_run_verdict(name: str) -> str | None:
         return None
 
 
+def run_mode_zh(mode: str | None) -> str:
+    """report.json 的 mode → 人话运行类型。用户实测:装配基线(无 AI、
+    预期失败)混在「你的运行」里与真实运行无法区分,被误读成
+    "gpt-5.5 失败了"。"""
+    m = str(mode or "")
+    if "no agent" in m or m.startswith("direct-adoption-baseline") or "baseline" in m and "real" not in m:
+        return "装配基线·无AI(预期失败)"
+    if m == "guided-repair":
+        return "多轮修复"
+    if m == "real-agent-baseline":
+        return "单次运行"
+    return m or "—"
+
+
+def local_run_meta(name: str) -> dict:
+    """一次本地运行的轻量元信息(verdict/mode),供列表标注。"""
+    try:
+        r = json.loads((repo_root() / "runs" / name / "report.json")
+                       .read_text(encoding="utf-8"))
+        return {"verdict": r.get("final_verdict"), "mode": r.get("mode")}
+    except (OSError, json.JSONDecodeError):
+        return {"verdict": None, "mode": None}
+
+
 def load_local_run(run_name: str) -> dict:
     root = repo_root() / "runs" / run_name
     rep = json.loads((root / "report.json").read_text(encoding="utf-8"))

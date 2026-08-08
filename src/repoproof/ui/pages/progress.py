@@ -58,9 +58,10 @@ if _locals:
     from repoproof.ui.presenters.glossary import verdict_simple as _vsi0
 
     for _ln in _locals:
-        _v0 = facts.local_run_verdict(_ln)
+        _m0 = facts.local_run_meta(_ln)
         _names[_ln] = (f"你的运行:{_ln} · {facts.run_ts_human(_ln)} · "
-                       f"{_vic0(_v0)}{_vsi0(_v0)}")
+                       f"{facts.run_mode_zh(_m0['mode'])} · "
+                       f"{_vic0(_m0['verdict'])}{_vsi0(_m0['verdict'])}")
 _valid = [*_locals, *list(CASES)]
 _default = st.session_state.get("case") or _valid[0]
 if _default not in _valid:

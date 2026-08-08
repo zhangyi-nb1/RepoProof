@@ -1,0 +1,37 @@
+{
+ "note": "用户样例(公开子集)。expected 以 contains: 开头为包含断言,否则相等断言。验收强度=用户样例级;另有同语义 held-out 样例用于隐藏验证。",
+ "examples": [
+  {
+   "input": "March 5, 2020",
+   "expected": "2020-03-05"
+  },
+  {
+   "input": "20 Dec 2019",
+   "expected": "2019-12-20"
+  },
+  {
+   "input": "05/03/2020",
+   "expected": "2020-05-03"
+  },
+  {
+   "input": "31/12/2021",
+   "expected": "2021-12-31"
+  },
+  {
+   "input": "December 20th, 2019",
+   "expected": "2019-12-20"
+  },
+  {
+   "input": "2020年3月5日",
+   "expected": "2020-03-05"
+  },
+  {
+   "input": "5 mars 2020",
+   "expected": "2020-03-05"
+  },
+  {
+   "input": "2 января 2018",
+   "expected": "2018-01-02"
+  }
+ ]
+}

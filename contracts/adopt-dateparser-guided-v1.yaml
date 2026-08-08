@@ -1,0 +1,46 @@
+task_id: adopt-dateparser-guided-v1
+
+source_repo:
+  url: https://github.com/scrapinghub/dateparser
+  revision: guided
+  resolved_commit: b1f603e9b562156ea97aa6b2da08dd69266bbd47
+  license: 存在但未识别类型
+  distribution: dateparser
+  import_module: dateparser
+
+target_project:
+  kind: consumer_fixture
+  path: fixtures/assembled_dateparser
+  package: user_capability
+  entry_point: run
+
+requirement_spec_file: adopt-dateparser-guided-v1.requirements.yaml
+
+capability:
+  statement: >
+    为我的项目引入多语言日期解析能力:输入各种人类写法的日期字符串(英文、法文、中文、俄文、数字格式等),输出统一的 ISO 日期格式 YYYY-MM-DD;无法解析的输入必须返回 ERROR 交付 /adaptation/adapter.py,暴露 run(value) 单函数,必须调用 pinned dateparser 实现该能力;行为以公开样例为准(例:run('March 5, 2020') -> '2020-03-05'; run('20 Dec 2019') -> '2019-12-20'; run('05/03/2020') -> '2020-05-03');重复调用确定;完全离线 CPU-only。公开样例与可运行公开测试位于 /consumer 下,是本合同的一部分。
+  output_schema: UserExampleOutcome
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [adaptation]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 8
+  max_patch_lines: 400
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "/oracle/test_regression.py"]
+  probe_script: direct_frontmatter_probe_v2.py

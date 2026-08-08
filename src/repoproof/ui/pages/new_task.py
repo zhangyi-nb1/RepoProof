@@ -69,8 +69,11 @@ if st.session_state[W] == 0:
         _models0 = _lr0.available_models()
         _m0 = st.selectbox("使用模型", _models0, format_func=lambda m: m["label"],
                            key="model_sel_0") if _models0 else None
+        _g0 = st.checkbox("有界多轮修复(最多 3 轮,按公开测试反馈迭代;与第 5 步同款开关)",
+                          value=st.session_state.get("wz_guided", True))
+        st.session_state["wz_guided"] = _g0
         if st.button("直接开始真实运行", disabled=not _lr0.provider_ready()):
-            _out0 = _lr0.start_run(_root0, _sel0,
+            _out0 = _lr0.start_run(_root0, _sel0, guided=_g0,
                                    provider=_m0["provider"] if _m0 else "default",
                                    model=_m0["model"] if _m0 else None)
             (st.success if _out0.get("ok") else st.error)(_out0.get("note") or _out0.get("error"))

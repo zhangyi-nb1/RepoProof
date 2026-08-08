@@ -1,0 +1,13 @@
+{
+  "public_contract_sha256": "8bae2e9ee358597202e24688fb0e9cedeec4096e147b7919ea87fdf19234e4f1",
+  "public_examples_sha256": "009cea2adad3af45246c39de0ac3f493d3bf698bfe59dc2a85aefac825848073",
+  "public_smoke_tests_tree_sha256": "fcf9709f6e1dace2f12400dd0ee8fbd87f654a9f760fb588dff219a3c79754fd",
+  "rendered_prompt_sha256": "2756634599c7309d0945b96d296255e1327f5a37aceacd86af934952e24c6a6a",
+  "requirement_ids_rendered": [
+    "satisfy-user-examples",
+    "deterministic-runs",
+    "seam-unbroken"
+  ],
+  "requirement_spec_sha256": "d9fd18bb5c30806bccb8790301b04ef5fd862c51c7d3fd2b157baad591465832",
+  "task_id": "adopt-dateparser-guided-v1"
+}

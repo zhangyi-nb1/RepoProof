@@ -211,3 +211,49 @@ def test_local_runs_sorted_by_time_not_name() -> None:
     stamps = [n[-15:] for n in names]
     assert stamps == sorted(stamps, reverse=True)  # 时间序,不是名字序
     assert run_ts_human("adopt-x-guided-v2-20260808-172420") == "08-08 17:24"
+
+
+def test_lock_race_window_closed_by_started_at(tmp_path, monkeypatch) -> None:
+    """用户实测:预检窗口内 run 目录未创建,"最新目录=上次已完成运行"
+    使产物优先判完成误放行第二次启动(两个 deepseek 运行重叠 18 秒)。
+    修复:锁记录 started_at,产物只在目录时间戳不早于启动时刻才算数。"""
+    import json as _j
+    import os
+
+    from repoproof.ui.services.live_run import LOCK, active_run, start_run
+
+    monkeypatch.setenv("REPOPROOF_API_KEY", "test-key")
+    monkeypatch.setenv("REPOPROOF_API_BASE", "http://127.0.0.1:1")
+
+    runs = tmp_path / "runs"
+    old = runs / "adopt-x-guided-v1-20260101-000000"
+    old.mkdir(parents=True)
+    (old / "report.json").write_text('{"final_verdict": "PASS_ADAPTED"}', encoding="utf-8")
+
+    # 新式锁:启动晚于旧运行,进程存活(用当前测试进程 pid)→ 必须仍视为运行中
+    (tmp_path / LOCK).parent.mkdir(exist_ok=True)
+    (tmp_path / LOCK).write_text(_j.dumps({
+        "pid": os.getpid(), "task_id": "adopt-x-guided-v1",
+        "started_at": "20260102-000000"}), encoding="utf-8")
+    info = active_run(tmp_path)
+    assert not info["report_ready"]  # 旧产物不算本次的完成
+    assert info["alive"]
+    out = start_run(tmp_path, "adopt-x-guided-v1")
+    assert not out["ok"] and "已有任务在运行" in out["error"]  # 并发被拒
+
+    # 旧式锁(无 started_at):保持兼容语义——旧产物即判完成
+    (tmp_path / LOCK).write_text(_j.dumps({
+        "pid": os.getpid(), "task_id": "adopt-x-guided-v1"}), encoding="utf-8")
+    assert active_run(tmp_path)["report_ready"]
+
+
+def test_run_mode_zh_distinguishes_baseline_from_agent_runs() -> None:
+    """用户实测:装配基线(无 AI、预期失败)混在「你的运行」里,被误读成
+    "gpt-5.5 失败"。运行类型必须人话可辨。"""
+    from repoproof.ui.services.facts import run_mode_zh
+
+    assert "无AI" in run_mode_zh("direct-adoption-baseline (scripted, no agent, no LLM)")
+    assert "预期失败" in run_mode_zh("direct-adoption-baseline (scripted, no agent, no LLM)")
+    assert run_mode_zh("real-agent-baseline") == "单次运行"
+    assert run_mode_zh("guided-repair") == "多轮修复"
+    assert run_mode_zh(None) == "—"

@@ -1,0 +1,59 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_regression.py"
+  ],
+  "collection_manifest_sha256": "6cf6d659c83e9856e0e96c12cf7dc7f0b4c40b5b80ee9045bb3d84807b9aa124",
+  "consumer_fixture_tree_sha256": "50b81f27e71671ea6c8e8bd2e1abec523a00d45591c34abd41b6c947be112e20",
+  "contract_sha256": "8bae2e9ee358597202e24688fb0e9cedeec4096e147b7919ea87fdf19234e4f1",
+  "controls_summary": {
+    "negative_control_NC_empty_adapter": "FAILED_AS_EXPECTED",
+    "positive_control": "PASS"
+  },
+  "environment_constraints": {
+    "dateparser": "1.4.2",
+    "machine": "aarch64",
+    "python": "3.12"
+  },
+  "expected_capability_nodes": 11,
+  "expected_regression_nodes": 3,
+  "held_out_fixture_sha256": "0590353bd96616f36c73288a89b0c7a84026431b1ef19757f51f664f2ca5b9ba",
+  "image_digest": "python@sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+  "oracle_tree_sha256": "125cf1929f00aafe085599f89f1816dae97333f141a7a719eb6d111275976439",
+  "prompt_manifest_sha256": "b65abaea1316744e7ac87183f32404bc6f4a2a8f342c6c20771b8b244b7606bf",
+  "public_examples_sha256": "009cea2adad3af45246c39de0ac3f493d3bf698bfe59dc2a85aefac825848073",
+  "public_fixture_sha256": "be94160712df42804a39a2d35c4b783dd8d20d055d1316b9ecdeaccbb7d0ce60",
+  "public_tests_tree_sha256": "fcf9709f6e1dace2f12400dd0ee8fbd87f654a9f760fb588dff219a3c79754fd",
+  "requirement_spec_sha256": "d9fd18bb5c30806bccb8790301b04ef5fd862c51c7d3fd2b157baad591465832",
+  "responsibility_matrix": {
+    "ADAPTER": [
+      "deterministic-runs",
+      "satisfy-user-examples",
+      "seam-unbroken"
+    ]
+  },
+  "root_hash": "450d4176d07a2605a7c59512fd65dd559337715b990070b9ece8d13d383dbeb6",
+  "source_commit": "b1f603e9b562156ea97aa6b2da08dd69266bbd47",
+  "source_git_tree_hash": "eb3e932c0f83c77c57291d03044fd4549e89c728",
+  "task_id": "adopt-dateparser-guided-v1",
+  "wheelhouse_root": "29608871dbcec4e19627ecf0355ce77bee76e22709ac9432d8b2a8461edda37f",
+  "wheelhouse_wheels": {
+    "dateparser-1.4.2-py3-none-any.whl": "75430cd60c22ba269f602e452d82e11aa425ef3cc12c8c54ffe5445a8b01d2fa",
+    "iniconfig-2.3.0-py3-none-any.whl": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12",
+    "packaging-26.3-py3-none-any.whl": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+    "pluggy-1.6.0-py3-none-any.whl": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+    "pygments-2.20.0-py3-none-any.whl": "81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176",
+    "pytest-9.1.1-py3-none-any.whl": "37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c",
+    "python_dateutil-2.9.0.post0-py2.py3-none-any.whl": "a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427",
+    "pytz-2026.3.post1-py2.py3-none-any.whl": "dd95840dd199baea12d9cc096a1d452caa6596a1c1e4b5f3dbd1541855d5e815",
+    "regex-2026.7.19-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl": "93db40c8de0815baab96a06e08a984bac71f989d13bab789e382158c5d426797",
+    "six-1.17.0-py2.py3-none-any.whl": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+    "tzlocal-5.4.4-py3-none-any.whl": "aae09f0126a8a86fa736be266eb4a471380d26a0de3bc14844e7821fee3e2a15"
+  }
+}

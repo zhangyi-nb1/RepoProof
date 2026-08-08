@@ -1,0 +1,1 @@
+{"examples": [{"input": "le 5 janvier 2021", "expected": "2021-01-05"}, {"input": "hello world", "expected": "ERROR"}]}
