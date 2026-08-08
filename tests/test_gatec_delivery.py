@@ -273,6 +273,40 @@ def test_bundle_layout_and_heldout_exclusion(tmp_path: Path) -> None:
         assert hashlib.sha256((b / rel).read_bytes()).hexdigest() == digest
 
 
+def test_symlink_into_oracle_never_leaks(tmp_path: Path) -> None:
+    """独立验证反例:公开测试目录里指向 oracle 的符号链接曾被解引用,
+    把 held-out 内容拷进结果包。现在既不跟随链接,导出后还做内容扫描。"""
+    root = _fake_project_root(tmp_path)
+    run = _fake_run(tmp_path)
+    held = root / "oracle" / "adopt-demo-guided-v1" / "fixtures" / "held_out_documents.json"
+    held.write_text('{"secret_case": "hidden expected value"}', encoding="utf-8")
+    (root / "fixtures" / "assembled_demo" / "public_tests" / "sneaky.json").symlink_to(held)
+    out = export_bundle(root, run)
+    b = Path(out["bundle_dir"])
+    blob = "\n".join(p.read_text(encoding="utf-8", errors="replace")
+                     for p in b.rglob("*") if p.is_file())
+    assert "hidden expected value" not in blob
+    assert (b / "tests" / "public_tests" / "sneaky.json.SKIPPED_SYMLINK.txt").exists()
+
+
+def test_direct_oracle_copy_aborts_export(tmp_path: Path) -> None:
+    """兜底扫描:若某条路径把 oracle 文件真拷进包,导出必须中止并清理。"""
+    import shutil as _sh
+
+    from repoproof.adoption.delivery import integration_bundle as ib
+
+    root = _fake_project_root(tmp_path)
+    run = _fake_run(tmp_path)
+    held = root / "oracle" / "adopt-demo-guided-v1" / "fixtures" / "held_out_documents.json"
+    held.write_text('{"secret_case": "hidden expected value for held-out"}', encoding="utf-8")
+    # 模拟一条被绕过的拷贝路径:adaptation 中混入 oracle 文件副本
+    _sh.copy2(held, run / "adaptation" / "copied_oracle.json")
+    dest = tmp_path / "leaky_bundle"
+    with pytest.raises(ib.BundleError, match="隐藏验收内容"):
+        export_bundle(root, run, dest)
+    assert not dest.exists()  # 中止即清理,不留半成品
+
+
 def test_fail_run_exports_too(tmp_path: Path) -> None:
     """§十三-9:FAIL/BLOCKED 也必须返回当前产物和报告。"""
     root = _fake_project_root(tmp_path)

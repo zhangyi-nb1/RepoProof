@@ -44,8 +44,45 @@ def _sha256_file(p: Path) -> str:
 
 
 def _copy_tree(src: Path, dst: Path) -> None:
-    if src.is_dir():
-        shutil.copytree(src, dst, dirs_exist_ok=False)
+    """拷贝目录树,**不跟随符号链接**。
+
+    独立验证发现:默认 copytree 解引用 symlink——公开测试目录里一个
+    指向 oracle/ 的链接就能把 held-out 内容拷进 bundle。这里跳过链接
+    并留痕,纵深防御。"""
+    if not src.is_dir():
+        return
+    for p in sorted(src.rglob("*")):
+        rel = p.relative_to(src)
+        if p.is_symlink():
+            out = dst / rel
+            out.parent.mkdir(parents=True, exist_ok=True)
+            (out.parent / f"{out.name}.SKIPPED_SYMLINK.txt").write_text(
+                f"跳过符号链接 {rel}(结果包不跟随链接)\n", encoding="utf-8")
+            continue
+        if p.is_file():
+            out = dst / rel
+            out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(p, out)
+
+
+_MIN_LEAK_BYTES = 32  # 空/平凡文件(如 "{}")内容相同不构成泄漏
+
+
+def _scan_for_oracle_leak(bundle: Path, oracle_dir: Path) -> list[str]:
+    """→ bundle 中内容与 oracle 树任一实质文件相同的相对路径(应为空)。"""
+    if not oracle_dir.is_dir():
+        return []
+    oracle_hashes = {
+        _sha256_file(p) for p in oracle_dir.rglob("*")
+        if p.is_file() and not p.is_symlink() and p.stat().st_size >= _MIN_LEAK_BYTES
+    }
+    if not oracle_hashes:
+        return []
+    return [
+        str(p.relative_to(bundle)) for p in sorted(bundle.rglob("*"))
+        if p.is_file() and not p.is_symlink()
+        and p.stat().st_size >= _MIN_LEAK_BYTES and _sha256_file(p) in oracle_hashes
+    ]
 
 
 def _guide_text(task_id: str, verdict: str, adapter_files: list[str]) -> str:
@@ -128,11 +165,12 @@ def export_bundle(project_root: Path, run_dir: Path, dest: Path | None = None) -
     adapter_files: list[str] = []
     if adaptation_src.is_dir():
         for p in sorted(adaptation_src.rglob("*")):
-            if p.is_file():
-                rel = p.relative_to(adaptation_src)
-                (adapter_dir / rel).parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(p, adapter_dir / rel)
-                adapter_files.append(str(rel))
+            if p.is_symlink() or not p.is_file():
+                continue  # 不跟随链接(同 _copy_tree)
+            rel = p.relative_to(adaptation_src)
+            (adapter_dir / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(p, adapter_dir / rel)
+            adapter_files.append(str(rel))
 
     # patches/ ← 适配清单(上游 patch 台账;guided 任务通常为空清单)
     patches_dir = bundle / "patches"
@@ -209,6 +247,13 @@ def export_bundle(project_root: Path, run_dir: Path, dest: Path | None = None) -
     (bundle / "apply_manifest.json").write_text(
         json.dumps(manifest.to_dict(), ensure_ascii=False, indent=2, sort_keys=True),
         encoding="utf-8")
+
+    # 导出后兜底扫描:bundle 中任何文件的内容哈希都不得等于 oracle
+    # 树中任一文件(纵深防御:即使某条拷贝路径被绕过也会在此暴露)
+    leaked = _scan_for_oracle_leak(bundle, oracle_dir)
+    if leaked:
+        shutil.rmtree(bundle, ignore_errors=True)
+        raise BundleError(f"导出中止:检出隐藏验收内容进入结果包 {leaked}")
 
     files = {str(p.relative_to(bundle)): _sha256_file(p)
              for p in sorted(bundle.rglob("*")) if p.is_file()}

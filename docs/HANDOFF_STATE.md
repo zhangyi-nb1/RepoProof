@@ -3,7 +3,24 @@
 > Purpose: the single in-repo status anchor for AI/human handoff.
 > Update ONLY at gate boundaries; history below is append-only.
 
-## Current status (2026-08-07, after Gate 8 — USER-ACCEPTED)
+## Current status (2026-08-08, after RFC-008 Gate A–E)
+
+**Guided Adoption Delivery(RFC-008)A–E 全部落地:普通用户可在中文
+UI 内走完 分析(空目录模式/八策略)→ 计划确认(Human Gate 扩展)→
+装配冻结 → 单次或 ≤3 轮有界修复(公开反馈)→ 独立验证 → Bundle
+导出(EXPORT_ONLY)→ 三级安全写回(fixture 已验证)。**
+
+| Anchor | Value |
+|---|---|
+| Gate A(审计+RFC-008) | `d08e1a2` |
+| Gate B(分析/Plan 接线) | `4452e7e` + 独立验证三反例修复 `113d287` |
+| Gate C(期望草稿/Staging/Bundle) | `91a8858` |
+| Gate D(GUIDED_ADOPTION 多轮) | `edb2504`(真实模型运行:见 PREREG-gateD,首跑留用户) |
+| Gate E(Apply/Rollback) | `bcc8f32`(仅 fixture 验证;真实项目写入 = UI 三步确认停点) |
+| 独立验证 | 每个 Gate 由与实现者不同的 agent 对抗复核(Gate B:12/12 通过) |
+| 铁律不变 | 单自主循环;held-out 零泄漏(测试钉死);循环永不宣布成功;FAIL 也交付 Bundle;UI 结论=Core 结论 |
+
+## Previous status (2026-08-07, after Gate 8 — USER-ACCEPTED)
 
 **v0.1.0 released and user-accepted. MVP frozen; UI phase (Gate 9)
 begins on top, read-only over all frozen history.**

@@ -32,8 +32,17 @@
 
 ## Fake-model E2E(真实模型前的机制彩排)
 
-`REPOPROOF_RUN_GUIDED_E2E=1 .venv/bin/pytest tests/ -k guided_e2e`
-(默认跳过:E2E 会在 runs/ 下创建任务运行目录,与用户正在进行的
-实时会话共用视图,须在空闲时执行。)脚本化 FakeModel:第 1 轮写
-空适配(公开 0/N)→ 第 2 轮写公开样例硬编码映射(公开全绿)→
-终局隐藏验证应在 held-out 上拒绝——同时证明循环机制与防作弊。
+`tests/test_gated_guided_e2e.py`(默认运行,纯内存、零模型、零
+Docker、不写 runs/):FakeModel 驱动两轮——第 1 轮空实现(公开
+0/2)→ 收到 FailurePacket → 第 2 轮写映射(公开 2/2),断言:
+多轮确实按公开失败包迭代、劣化轮被真实回滚且下一轮从最佳状态
+起步、公开全绿只得到 `all_public_green_pending_verification`
+(RepairOutcome 无 verdict 字段——循环永不宣布成功)。
+
+容器级 E2E(真实 Docker + 隐藏验证拒绝硬编码作弊)不预跑:它与
+用户正在进行的实时会话共用 runs/ 与 Docker,留给真实模型首跑时
+一并观察。
+
+> 修订说明(2026-08-08):本节原写为环境变量门控的 `-k guided_e2e`,
+> 但该测试当时并不存在——独立验证 agent 查实后指出,现已按上述
+> 实际实现更正并补齐测试。
