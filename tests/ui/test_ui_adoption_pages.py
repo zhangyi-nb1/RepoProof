@@ -257,3 +257,25 @@ def test_run_mode_zh_distinguishes_baseline_from_agent_runs() -> None:
     assert run_mode_zh("real-agent-baseline") == "单次运行"
     assert run_mode_zh("guided-repair") == "多轮修复"
     assert run_mode_zh(None) == "—"
+
+
+def test_local_run_meta_exposes_model_for_lists(tmp_path) -> None:
+    """用户要求:历史/回顾/修复列表每条运行直观可见具体模型型号。
+    meta 从预检记录取 model;基线/崩溃报告无预检 → None(显示 —)。"""
+    import json as _j
+
+    from repoproof.ui.services.facts import local_run_meta
+
+    run = tmp_path / "runs" / "adopt-x-guided-v1-20260101-000000"
+    run.mkdir(parents=True)
+    (run / "report.json").write_text(_j.dumps({
+        "final_verdict": "PASS_ADAPTED", "mode": "guided-repair",
+        "preflight": {"model_name": "gpt-5.5"}}), encoding="utf-8")
+    m = local_run_meta(run.name, root=tmp_path)
+    assert m == {"verdict": "PASS_ADAPTED", "mode": "guided-repair", "model": "gpt-5.5"}
+
+    (run / "report.json").write_text(_j.dumps({
+        "final_verdict": "FAIL", "mode": "direct-adoption-baseline (scripted, no agent, no LLM)"}),
+        encoding="utf-8")
+    m2 = local_run_meta(run.name, root=tmp_path)
+    assert m2["model"] is None and "no agent" in m2["mode"]

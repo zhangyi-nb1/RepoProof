@@ -22,11 +22,22 @@ st.info("**AI 不是一次生成答案。** 它每轮只做一件事:改代码 �
         "轮数有上限(默认 3 轮),变差会回滚,连续不进步会停,越界要问你。")
 
 # ---- 真实多轮运行(Gate D):有 repair/ 账本的本地运行优先展示 ----
+# 按尾缀时间戳排序,不按目录名字母序(用户实测第三次同坑:thefuzz(t)
+# 恒排最上,刚跑的 dateparser 沉底,用户以为"没有结果")
 _runs_root = _rrx() / "runs"
 _real = sorted((p for p in _runs_root.glob("*-2*") if (p / "repair" / "summary.json").exists()),
-               reverse=True)
+               key=lambda p: p.name[-15:], reverse=True)
 if _real:
-    _sel = st.selectbox("你的多轮修复运行", [p.name for p in _real])
+    from repoproof.ui.presenters.glossary import verdict_icon as _vicR
+    from repoproof.ui.services import facts as _facts
+
+    _lblR = {}
+    for _p in _real:
+        _mR = _facts.local_run_meta(_p.name)
+        _lblR[_p.name] = (f"{_p.name} · {_facts.run_ts_human(_p.name)} · "
+                          f"{_mR.get('model') or '—'} · {_vicR(_mR.get('verdict'))}")
+    _sel = st.selectbox("你的多轮修复运行(最新在前)", [p.name for p in _real],
+                        format_func=lambda n: _lblR[n])
     _rd = _runs_root / _sel / "repair"
     _sm = _json.loads((_rd / "summary.json").read_text(encoding="utf-8"))
     st.markdown(f"**共 {_sm['rounds_run']} 轮 · 最佳第 {_sm['best_round']} 轮 · "

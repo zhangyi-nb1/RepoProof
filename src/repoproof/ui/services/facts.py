@@ -176,14 +176,18 @@ def run_mode_zh(mode: str | None) -> str:
     return m or "—"
 
 
-def local_run_meta(name: str) -> dict:
-    """一次本地运行的轻量元信息(verdict/mode),供列表标注。"""
+def local_run_meta(name: str, root: Path | None = None) -> dict:
+    """一次本地运行的轻量元信息(verdict/mode/model),供列表标注。
+
+    model 取自 preflight 记录(装配基线/崩溃报告无预检 → None)——
+    用户要求每条运行记录直观可见调用的具体模型型号。"""
     try:
-        r = json.loads((repo_root() / "runs" / name / "report.json")
+        r = json.loads((((root or repo_root()) / "runs" / name / "report.json"))
                        .read_text(encoding="utf-8"))
-        return {"verdict": r.get("final_verdict"), "mode": r.get("mode")}
+        return {"verdict": r.get("final_verdict"), "mode": r.get("mode"),
+                "model": (r.get("preflight") or {}).get("model_name")}
     except (OSError, json.JSONDecodeError):
-        return {"verdict": None, "mode": None}
+        return {"verdict": None, "mode": None, "model": None}
 
 
 def load_local_run(run_name: str) -> dict:

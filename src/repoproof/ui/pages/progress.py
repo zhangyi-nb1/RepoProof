@@ -60,7 +60,7 @@ if _locals:
     for _ln in _locals:
         _m0 = facts.local_run_meta(_ln)
         _names[_ln] = (f"你的运行:{_ln} · {facts.run_ts_human(_ln)} · "
-                       f"{facts.run_mode_zh(_m0['mode'])} · "
+                       f"{facts.run_mode_zh(_m0['mode'])} · {_m0.get('model') or '—'} · "
                        f"{_vic0(_m0['verdict'])}{_vsi0(_m0['verdict'])}")
 _valid = [*_locals, *list(CASES)]
 _default = st.session_state.get("case") or _valid[0]

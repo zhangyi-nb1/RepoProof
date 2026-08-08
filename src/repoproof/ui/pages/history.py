@@ -30,6 +30,7 @@ if _locals:
         _rows_local.append({
             "时间": facts.run_ts_human(_rn),
             "类型": facts.run_mode_zh(_rep0.get("mode")),
+            "模型": (_rep0.get("preflight") or {}).get("model_name") or "—",
             "运行": _rn,
             "最终结果": verdict_simple(_rep0.get("final_verdict")),
             "AI 结束方式": _ag0.get("exit_status") or _rep0.get("agent", {}).get("exit_status") or "—",
