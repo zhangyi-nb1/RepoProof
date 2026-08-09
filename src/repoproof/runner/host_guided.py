@@ -1156,8 +1156,9 @@ def run_host_guided_cli(
       "noop"      fake 模型什么都不做直接提交(FAIL 路径冒烟)
       "positive"  fake 模型脚本化注入正控(PASS 路径冒烟;绝不用于正式 run)
     """
-    runner = HostGuidedRunner(contract_path, project_root, wheelhouse=wheelhouse)
     if fake is None:
+        # 预检在 runner 构造(=建 run 目录)之前:preflight 拦截绝不留下
+        # 无 report.json 的隐身 run 目录(LESSONS #12 教训)。
         from repoproof.agents.provider_gate import run_preflight
         from repoproof.runner.agent_run import provider_from_env
 
@@ -1166,9 +1167,11 @@ def run_host_guided_cli(
         if not pf.ready:
             return {"blocked": True, "preflight": pf.summary(),
                     "agent_model_call_count": 0}
+        runner = HostGuidedRunner(contract_path, project_root, wheelhouse=wheelhouse)
         report = runner.run(provider, pf, run_order=run_order, run_index=run_index,
                             keep_session=keep_session)
         return {"blocked": False, "preflight": pf.summary(), "report": report}
+    runner = HostGuidedRunner(contract_path, project_root, wheelhouse=wheelhouse)
 
     from repoproof.agents.fake_model import FakeModel
 

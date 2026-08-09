@@ -156,6 +156,73 @@ def start_run(root: Path, task_id: str, *, guided: bool = False,
                     "页面刷新不会中断;完成后锁自动视为结束。"}
 
 
+# ---- 宿主级 pilot(TESTPLAN-V2 T1)----
+# 预注册顺序的 UI 侧唯一事实;fake 冒烟不计入顺序。
+HOST_PILOT = {
+    "task_id": "t1-offerclaw-fastapi-mcp-v1",
+    "contract": "benchmarks/v2/tasks/t1_fastapi_mcp/contract.yaml",
+    "order": ["deepseek-v4-pro", "gpt-5.5"],  # 冻结,执行时不得调整
+    "prereg": "benchmarks/v2/preregistrations/T1-prereg-20260809.md",
+}
+
+
+def host_pilot_state(root: Path) -> dict:
+    """→ {done, next_model, next_order}。真实模型计数;fake 冒烟不算。"""
+    from repoproof.persistence.bench_records import load_runs
+
+    rows = [r for r in load_runs(root)
+            if r.get("task_id") == HOST_PILOT["task_id"]
+            and not str(r.get("model", "")).startswith("fake")]
+    done = [{"run_id": r.get("run_id"), "model": r.get("model"),
+             "verdict": r.get("verdict")} for r in rows]
+    idx = len(rows)
+    order = HOST_PILOT["order"]
+    return {"done": done, "next_order": idx + 1,
+            "next_model": order[idx] if idx < len(order) else None}
+
+
+def provider_for_model(model: str) -> str | None:
+    for m in available_models():
+        if m["model"] == model:
+            return m["provider"]
+    return None
+
+
+def host_run_argv(root: Path, *, run_order: int, run_index: int = 1) -> list[str]:
+    """host-run 的 argv(纯函数,便于钉死:密钥绝不进 argv)。"""
+    return [str(root / ".venv" / "bin" / "python"), "-m", "repoproof.cli", "host-run",
+            "--contract", str(root / HOST_PILOT["contract"]),
+            "--run-order", str(run_order), "--run-index", str(run_index)]
+
+
+def start_host_run(root: Path, *, model: str, run_order: int, run_index: int = 1) -> dict:
+    """启动宿主级正式 run(后台)。密钥只经进程环境,不落盘不显示。"""
+    provider = provider_for_model(model)
+    if provider is None:
+        return {"ok": False,
+                "error": f"当前工作台环境缺少 {model} 的连接配置(REPOPROOF_*);"
+                         "请用 scripts/run_ui_live.sh 启动工作台。"}
+    if (info := active_run(root)) and info.get("alive"):
+        return {"ok": False, "error": f"已有任务在运行(task={info.get('task_id')}),同时只允许一个。"}
+    log = root / "runs" / f"ui_live_host_{HOST_PILOT['task_id']}.log"
+    log.parent.mkdir(exist_ok=True)
+    proc = subprocess.Popen(
+        host_run_argv(root, run_order=run_order, run_index=run_index),
+        stdout=log.open("w"), stderr=subprocess.STDOUT, cwd=str(root),
+        env=_env_for(provider, model), start_new_session=True,
+    )
+    import time as _time
+
+    (root / LOCK).write_text(json.dumps(
+        {"pid": proc.pid, "task_id": HOST_PILOT["task_id"], "log": str(log),
+         "guided": True, "mode": "host-guided", "model": model,
+         "started_at": _time.strftime("%Y%m%d-%H%M%S")}), encoding="utf-8")
+    return {"ok": True, "pid": proc.pid, "model": model, "run_order": run_order,
+            "note": "已在后台启动宿主级运行:装配 → 环境重建(约 2-3 分钟,这段安静是正常的)"
+                    "→ 基线门禁 → AI 有界多轮修复 → 独立验证 → 干净重放 → 最终判定。"
+                    "页面刷新不中断;完成后到「运行进度/结果报告」看结论。"}
+
+
 def clear_lock_if_done(root: Path) -> None:
     info = active_run(root)
     if info and not info.get("alive"):

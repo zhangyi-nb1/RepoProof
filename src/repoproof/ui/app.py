@@ -36,6 +36,7 @@ nav = st.navigation(
     {
         "工作台": [
             st.Page(str(PAGES / "new_task.py"), title="开始新任务", icon="🚀", default=True),
+            st.Page(str(PAGES / "host_pilot.py"), title="宿主任务 T1", icon="🧪"),
             st.Page(str(PAGES / "analysis.py"), title="项目分析", icon="🔎"),
             st.Page(str(PAGES / "plan_view.py"), title="采用计划", icon="🗺️"),
             st.Page(str(PAGES / "progress.py"), title="运行进度", icon="⏳"),
