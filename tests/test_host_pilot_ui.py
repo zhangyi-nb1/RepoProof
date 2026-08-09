@@ -22,26 +22,24 @@ def _seed(root: Path, models: list[str]) -> None:
                           "verdict": "FAIL"})
 
 
-def test_pilot_order_ignores_fake_and_advances(tmp_path: Path) -> None:
-    # 空账 → 第 1 发 deepseek
+def test_pilot_state_counts_per_model_and_ignores_fake(tmp_path: Path) -> None:
+    """v2:自由选择+重复;fake 不计数;per-model run_index 与全局序号正确。"""
     s0 = host_pilot_state(tmp_path)
-    assert (s0["next_order"], s0["next_model"]) == (1, "deepseek-v4-pro")
-    # fake 冒烟不计入顺序
+    assert s0["next_global_order"] == 1
+    assert s0["by_model"] == {"deepseek-v4-pro": 0, "gpt-5.5": 0, "gpt-5.6": 0}
     _seed(tmp_path, ["fake-scripted", "fake-scripted"])
-    s1 = host_pilot_state(tmp_path)
-    assert (s1["next_order"], s1["next_model"]) == (1, "deepseek-v4-pro")
-    # 第 1 发真实 run 完成 → 第 2 发 gpt-5.5
-    append_run(tmp_path, {"run_id": f"{HOST_PILOT['task_id']}-20260809-111111",
-                          "task_id": HOST_PILOT["task_id"],
-                          "model": "deepseek-v4-pro", "verdict": "PASS_ADAPTED"})
-    s2 = host_pilot_state(tmp_path)
-    assert (s2["next_order"], s2["next_model"]) == (2, "gpt-5.5")
-    assert len(s2["done"]) == 1
-    # 两发齐 → 批完成,不再给出下一发
-    append_run(tmp_path, {"run_id": f"{HOST_PILOT['task_id']}-20260809-222222",
-                          "task_id": HOST_PILOT["task_id"],
-                          "model": "gpt-5.5", "verdict": "PASS_ADAPTED"})
-    assert host_pilot_state(tmp_path)["next_model"] is None
+    assert host_pilot_state(tmp_path)["next_global_order"] == 1  # fake 不计
+    # 同模型重复两发 + 另一模型一发
+    for i, m in enumerate(["deepseek-v4-pro", "deepseek-v4-pro", "gpt-5.6"]):
+        append_run(tmp_path, {"run_id": f"{HOST_PILOT['task_id']}-2026081{i}-111111",
+                              "task_id": HOST_PILOT["task_id"],
+                              "model": m, "verdict": "FAIL"})
+    s = host_pilot_state(tmp_path)
+    assert s["next_global_order"] == 4
+    assert s["by_model"]["deepseek-v4-pro"] == 2
+    assert s["by_model"]["gpt-5.6"] == 1
+    assert s["by_model"]["gpt-5.5"] == 0
+    assert len(s["done"]) == 3
 
 
 def test_host_run_argv_never_carries_secrets(tmp_path: Path) -> None:
@@ -67,12 +65,12 @@ def test_page_renders_without_provider_env(tmp_path: Path, monkeypatch) -> None:
     at = AppTest.from_file(str(PAGE), default_timeout=30)
     at.run()
     assert not [e.value for e in at.exception]
-    assert any("连接配置" in str(e.value) for e in at.error)
+    assert any("REPOPROOF" in str(e.value) for e in at.error)
     assert not at.button
 
 
-def test_page_offers_only_preregistered_next_model(tmp_path: Path, monkeypatch) -> None:
-    """有连接配置:唯一按钮=预注册顺序的下一发,无模型选择器。"""
+def test_page_offers_model_choice_within_pool(tmp_path: Path, monkeypatch) -> None:
+    """v2:有连接配置 → 模型选择器只含池内已配置模型 + 启动按钮。"""
     from streamlit.testing.v1 import AppTest
 
     monkeypatch.setenv("REPOPROOF_DEEPSEEK_BASE", "http://127.0.0.1:9/v1")
@@ -84,6 +82,7 @@ def test_page_offers_only_preregistered_next_model(tmp_path: Path, monkeypatch) 
     at = AppTest.from_file(str(PAGE), default_timeout=30)
     at.run()
     assert not [e.value for e in at.exception]
-    assert len(at.button) == 1
-    assert "deepseek-v4-pro" in at.button[0].label
-    assert not at.selectbox, "不得提供模型选择器(顺序冻结)"
+    assert len(at.selectbox) == 1
+    opts = at.selectbox[0].options  # AppTest 返回 format_func 后的标签
+    assert len(opts) == 1 and opts[0].startswith("deepseek-v4-pro"), "只列池内且已配置的模型"
+    assert len(at.button) == 1 and "第 1 发" in at.button[0].label

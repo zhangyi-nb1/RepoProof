@@ -125,6 +125,11 @@ class HostConstraints(BaseModel):
 
 
 class HostBudgets(BaseModel):
+    """semantics="total":calls/commands/tokens 为全 run 上限(v1);
+    semantics="per_round":上述三类**每轮重置**(2026-08-09 用户决定,
+    动机=总额语义下首轮烧光额度、修复轮空转)。patch/wall 恒为全 run。"""
+
+    semantics: str = "total"
     max_rounds: int
     max_model_calls: int
     max_commands: int
@@ -133,6 +138,10 @@ class HostBudgets(BaseModel):
     max_wall_time_minutes: int
     max_input_tokens_total: int
     max_output_tokens_total: int
+
+    @property
+    def per_round(self) -> bool:
+        return self.semantics == "per_round"
 
     def as_budgets(self) -> Budgets:
         """映射到既有 Budgets 模型(policy/token 复用的公共语言)。"""
@@ -245,9 +254,13 @@ def build_host_prompt(contract: HostContract, *, wheel_note: str) -> str:
         "  requirements.txt + your committed files; undeclared deps will fail there.",
         "HARD RULES\n" + "\n".join(forbidden) + "\n- Do not modify ./public_tests or ../upstream.",
         "BUDGETS\n"
-        f"- model calls: {b.max_model_calls} total; executed commands: {b.max_commands} total; "
-        f"patch budget: {b.max_patch_files} files / {b.max_patch_lines} lines; "
-        f"wall time: {b.max_wall_time_minutes} minutes.\n"
+        + (f"- PER ROUND (reset each round): model calls {b.max_model_calls}, "
+           f"executed commands {b.max_commands}, "
+           f"input/output token allowance {b.max_input_tokens_total}/{b.max_output_tokens_total}; "
+           if b.per_round else
+           f"- model calls: {b.max_model_calls} total; executed commands: {b.max_commands} total; ")
+        + f"patch budget: {b.max_patch_files} files / {b.max_patch_lines} lines (whole run); "
+        f"wall time: {b.max_wall_time_minutes} minutes (whole run).\n"
         "Acceptance is judged AFTER you finish by additional tests you cannot see;\n"
         "there is no partial credit for claims.\n"
         "When done, submit with: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT",
@@ -591,7 +604,9 @@ class HostGuidedRunner:
                 wall_limit_s=b.max_wall_time_minutes * 60,
                 default_cwd="host",
             )
-            token_totals = {"in": 0, "out": 0, "seen": False}
+            token_totals = {"in": 0, "out": 0, "seen": False}   # 累计(记账)
+            round_scope: dict = {"cur": None}                    # 回调同时写当前轮
+            make_budget_model = None
             if model_factory is None:
                 assert provider is not None and preflight is not None
                 _os.environ.setdefault("MSWEA_COST_TRACKING", "ignore_errors")
@@ -607,23 +622,35 @@ class HostGuidedRunner:
                 def _usage_cb(kwargs, completion_response, start_time, end_time):  # noqa: ANN001
                     usage = getattr(completion_response, "usage", None)
                     if usage:
+                        pin = getattr(usage, "prompt_tokens", 0) or 0
+                        pout = getattr(usage, "completion_tokens", 0) or 0
                         token_totals["seen"] = True
-                        token_totals["in"] += getattr(usage, "prompt_tokens", 0) or 0
-                        token_totals["out"] += getattr(usage, "completion_tokens", 0) or 0
+                        token_totals["in"] += pin
+                        token_totals["out"] += pout
+                        cur = round_scope["cur"]
+                        if cur is not None:
+                            cur["seen"] = True
+                            cur["in"] += pin
+                            cur["out"] += pout
 
                 _litellm.success_callback = [_usage_cb]
                 model_cls = (LitellmTextbasedModel
                              if preflight.action_protocol == "textbased" else LitellmModel)
                 mkwargs = {"temperature": 0} if preflight.temperature == "0" else {}
-                model = TokenBudgetedModel(
-                    inner=model_cls(model_name=f"openai/{provider.model_name}",
-                                    model_kwargs=mkwargs),
-                    totals=token_totals,
-                    max_input_tokens=b.max_input_tokens_total,
-                    max_output_tokens=b.max_output_tokens_total,
-                    on_exhausted=lambda payload: ev("budget.exhausted", actor="harness",
-                                                    payload=payload),
-                )
+                inner_model = model_cls(model_name=f"openai/{provider.model_name}",
+                                        model_kwargs=mkwargs)
+
+                def make_budget_model(totals_dict: dict) -> TokenBudgetedModel:
+                    return TokenBudgetedModel(
+                        inner=inner_model,
+                        totals=totals_dict,
+                        max_input_tokens=b.max_input_tokens_total,
+                        max_output_tokens=b.max_output_tokens_total,
+                        on_exhausted=lambda payload: ev("budget.exhausted", actor="harness",
+                                                        payload=payload),
+                    )
+
+                model = make_budget_model(token_totals)   # total 语义:全程一个额度
             else:
                 model = model_factory(token_totals)
 
@@ -636,7 +663,8 @@ class HostGuidedRunner:
             repair_dir = self.store.run_dir / "repair"
             repair_dir.mkdir(exist_ok=True)
             metrics_acc = {"model_calls": 0, "commands": 0, "denied": 0}
-            last_exit: dict = {"status": None}
+            last_exit: dict = {"status": None, "exhausted": None}
+            per_round_usage: list[tuple[int, int]] = []
             expected_reg = _expected_regression_passed(contract.host.regression_baseline)
             t_agent = time.monotonic()
 
@@ -656,14 +684,26 @@ class HostGuidedRunner:
                            payload={"round": idx, "snapshot": best_snapshot[:12]})
                 base_hash = self._git(s, "rev-parse", "HEAD").stdout.decode().strip()
 
-                remaining_calls = b.max_model_calls - metrics_acc["model_calls"]
-                if remaining_calls <= 0:
-                    return RoundResult(
-                        adapter_snapshot=base_hash, passed=0,
-                        failed_nodes=["budget::model_calls"],
-                        failure_details={}, diff_lines=0,
-                        tokens_used=token_totals["in"] + token_totals["out"],
-                        commands_used=0, collected_ok=False, within_budget=False)
+                if b.per_round:
+                    # 每轮重置:calls/commands/tokens 各自满额起步(v2 语义)
+                    round_totals = {"in": 0, "out": 0, "seen": False}
+                    round_scope["cur"] = round_totals
+                    round_model = (make_budget_model(round_totals)
+                                   if make_budget_model else model)
+                    env.commands_used = 0
+                    env.command_budget = b.max_commands
+                    step_limit = b.max_model_calls
+                else:
+                    round_totals = token_totals
+                    round_model = model
+                    step_limit = b.max_model_calls - metrics_acc["model_calls"]
+                    if step_limit <= 0:
+                        return RoundResult(
+                            adapter_snapshot=base_hash, passed=0,
+                            failed_nodes=["budget::model_calls"],
+                            failure_details={}, diff_lines=0,
+                            tokens_used=token_totals["in"] + token_totals["out"],
+                            commands_used=0, collected_ok=False, within_budget=False)
 
                 round_prompt = (
                     base_prompt
@@ -672,15 +712,20 @@ class HostGuidedRunner:
                     + render_packets(packets)
                 )
                 mback = MiniSWEBackend(
-                    model=model, env=env,
-                    step_limit=remaining_calls,
+                    model=round_model, env=env,
+                    step_limit=step_limit,
                     cost_limit=Budgets().monetary_soft_cap_usd,
                     output_path=self.store.run_dir / f"trajectory_round{idx}.json",
                 )
                 result = mback.run_task(round_prompt)
                 last_exit["status"] = result.exit_status
+                last_exit["exhausted"] = getattr(round_model, "exhausted", None)
                 metrics_acc["model_calls"] += result.n_model_calls
-                metrics_acc["commands"] = env.commands_used
+                if b.per_round:
+                    metrics_acc["commands"] += env.commands_used
+                    per_round_usage.append((round_totals["in"], round_totals["out"]))
+                else:
+                    metrics_acc["commands"] = env.commands_used
                 metrics_acc["denied"] = env.denied_count
 
                 self._git(s, "add", "-A")
@@ -712,7 +757,8 @@ class HostGuidedRunner:
                     failed_nodes=failed_nodes,
                     failure_details=details,
                     diff_lines=diff["total_lines"],
-                    tokens_used=token_totals["in"] + token_totals["out"],
+                    tokens_used=(round_totals["in"] + round_totals["out"] if b.per_round
+                                 else token_totals["in"] + token_totals["out"]),
                     commands_used=result.commands_used,
                     scope_change_request=scope_req,
                     collected_ok=collected_ok,
@@ -736,8 +782,8 @@ class HostGuidedRunner:
                     policy_violations=env.denied_count + len(tampered),
                     model_calls=result.n_model_calls,
                     commands=result.commands_used,
-                    tokens_in=token_totals["in"] if token_totals["seen"] else "UNKNOWN",
-                    tokens_out=token_totals["out"] if token_totals["seen"] else "UNKNOWN",
+                    tokens_in=(round_totals["in"] if round_totals["seen"] else "UNKNOWN"),
+                    tokens_out=(round_totals["out"] if round_totals["seen"] else "UNKNOWN"),
                     wall_time_s=round(time.monotonic() - t_round, 1),
                     failure_packets=[p.to_dict() for p in packets_next],
                     scope_change_request=scope_req,
@@ -809,9 +855,14 @@ class HostGuidedRunner:
                 for traj in self.store.run_dir.glob("trajectory_round*.json"):
                     assert provider.api_key.encode() not in traj.read_bytes(), \
                         "API key leaked into trajectory"
-            if getattr(model, "exhausted", None):
-                ex = model.exhausted
-                budget_exhausted = f"{ex['kind']} ({ex['used']} >= {ex['limit']})"
+            # per_round:早先轮次的耗尽会被下一轮满额"复活",只有**终轮**
+            # 耗尽才把整个 run 标为额度收束;total:沿用全程单额度语义。
+            final_ex = (last_exit.get("exhausted") if b.per_round
+                        else getattr(model, "exhausted", None))
+            if final_ex:
+                scope = "final_round" if b.per_round else "total"
+                budget_exhausted = (f"{final_ex['kind']} "
+                                    f"({final_ex['used']} >= {final_ex['limit']}, {scope})")
             ev("agent.end", actor="harness", payload=agent_metrics)
 
             # ---------------- scope change 停点 ----------------
@@ -877,10 +928,18 @@ class HostGuidedRunner:
                        "passed_checks": reg_run["passed_checks"],
                        "failed_tests": reg_run["failed_tests"]})
 
+            # per_round 语义下,受约束的量是"单轮最大用量"而非累计
+            # (累计对比每轮上限会假报违规)。usage 未上报时保持 UNKNOWN。
+            if b.per_round and per_round_usage and token_totals["seen"]:
+                tb_in: int | str = max(u[0] for u in per_round_usage)
+                tb_out: int | str = max(u[1] for u in per_round_usage)
+            else:
+                tb_in = agent_metrics.get("input_tokens")
+                tb_out = agent_metrics.get("output_tokens")
             pol = policy_result(
                 token_budget={
-                    "input_used": agent_metrics.get("input_tokens"),
-                    "output_used": agent_metrics.get("output_tokens"),
+                    "input_used": tb_in,
+                    "output_used": tb_out,
                     "input_limit": b.max_input_tokens_total,
                     "output_limit": b.max_output_tokens_total,
                 },

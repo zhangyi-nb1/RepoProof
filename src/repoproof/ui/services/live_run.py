@@ -156,18 +156,19 @@ def start_run(root: Path, task_id: str, *, guided: bool = False,
                     "页面刷新不会中断;完成后锁自动视为结束。"}
 
 
-# ---- 宿主级 pilot(TESTPLAN-V2 T1)----
-# 预注册顺序的 UI 侧唯一事实;fake 冒烟不计入顺序。
+# ---- 宿主级 pilot(TESTPLAN-V2 T1;预注册 v2 规则)----
+# v2(2026-08-09 用户决定):模型池内自由选择、同模型可重复;每一发
+# 如实入账不挑选;fake 冒烟不计数。
 HOST_PILOT = {
     "task_id": "t1-offerclaw-fastapi-mcp-v1",
     "contract": "benchmarks/v2/tasks/t1_fastapi_mcp/contract.yaml",
-    "order": ["deepseek-v4-pro", "gpt-5.5"],  # 冻结,执行时不得调整
-    "prereg": "benchmarks/v2/preregistrations/T1-prereg-20260809.md",
+    "models": ["deepseek-v4-pro", "gpt-5.5", "gpt-5.6"],
+    "prereg": "benchmarks/v2/preregistrations/T1-prereg-v2-20260809.md",
 }
 
 
 def host_pilot_state(root: Path) -> dict:
-    """→ {done, next_model, next_order}。真实模型计数;fake 冒烟不算。"""
+    """→ {done, by_model, next_global_order}。真实模型计数;fake 不算。"""
     from repoproof.persistence.bench_records import load_runs
 
     rows = [r for r in load_runs(root)
@@ -175,10 +176,10 @@ def host_pilot_state(root: Path) -> dict:
             and not str(r.get("model", "")).startswith("fake")]
     done = [{"run_id": r.get("run_id"), "model": r.get("model"),
              "verdict": r.get("verdict")} for r in rows]
-    idx = len(rows)
-    order = HOST_PILOT["order"]
-    return {"done": done, "next_order": idx + 1,
-            "next_model": order[idx] if idx < len(order) else None}
+    by_model = {m: sum(1 for r in rows if r.get("model") == m)
+                for m in HOST_PILOT["models"]}
+    return {"done": done, "by_model": by_model,
+            "next_global_order": len(rows) + 1}
 
 
 def provider_for_model(model: str) -> str | None:
@@ -218,9 +219,10 @@ def start_host_run(root: Path, *, model: str, run_order: int, run_index: int = 1
          "guided": True, "mode": "host-guided", "model": model,
          "started_at": _time.strftime("%Y%m%d-%H%M%S")}), encoding="utf-8")
     return {"ok": True, "pid": proc.pid, "model": model, "run_order": run_order,
+            "run_index": run_index,
             "note": "已在后台启动宿主级运行:装配 → 环境重建(约 2-3 分钟,这段安静是正常的)"
-                    "→ 基线门禁 → AI 有界多轮修复 → 独立验证 → 干净重放 → 最终判定。"
-                    "页面刷新不中断;完成后到「运行进度/结果报告」看结论。"}
+                    "→ 基线门禁 → AI 有界多轮修复(每轮额度独立)→ 独立验证 → 干净重放 "
+                    "→ 最终判定。页面刷新不中断;完成后到「运行进度/结果报告」看结论。"}
 
 
 def clear_lock_if_done(root: Path) -> None:

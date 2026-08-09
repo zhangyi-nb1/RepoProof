@@ -34,16 +34,18 @@ def _t1() -> HostContract:
 
 
 # ---------------------------------------------------------------- 契约解析
-def test_frozen_t1_contract_parses_with_frozen_budgets() -> None:
+def test_frozen_t1_contract_parses_with_v2_budgets() -> None:
+    """v2 重冻结(2026-08-09 用户决定):每轮语义 30/80/500k/50k。"""
     c = _t1()
     assert c.task_id == "t1-offerclaw-fastapi-mcp-v1"
     assert c.kind == "host_integrated"
     b = c.budgets
-    assert (b.max_rounds, b.max_model_calls, b.max_commands) == (3, 24, 60)
+    assert b.semantics == "per_round" and b.per_round
+    assert (b.max_rounds, b.max_model_calls, b.max_commands) == (3, 30, 80)
     assert (b.max_patch_files, b.max_patch_lines) == (10, 800)
-    assert (b.max_input_tokens_total, b.max_output_tokens_total) == (350_000, 40_000)
+    assert (b.max_input_tokens_total, b.max_output_tokens_total) == (500_000, 50_000)
     mapped = b.as_budgets()
-    assert mapped.max_agent_steps == 24
+    assert mapped.max_agent_steps == 30
     assert mapped.max_patch_lines == 800
 
 
@@ -68,7 +70,8 @@ def test_prompt_contains_requirements_and_budgets_never_oracle() -> None:
     prompt = build_host_prompt(c, wheel_note="wheelhouse test")
     for rid in ("R1-feature-flag", "R4-allowlist", "R8-real-upstream"):
         assert rid in prompt
-    assert "24 total" in prompt and "800 lines" in prompt
+    # v2 每轮语义必须向 agent 如实披露(公平性)
+    assert "PER ROUND" in prompt and "800 lines" in prompt
     low = prompt.lower()
     # 隐藏验收的**存在性**可以说(冻结契约 forbidden 条款自带"oracle"
     # 一词,属公开纪律);但 oracle 的路径/用例名/内部常量绝不进入提示
