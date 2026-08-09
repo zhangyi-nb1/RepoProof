@@ -116,3 +116,26 @@ daily_log 均为 untracked,git 克隆天然不携带 PII,真正通道是 B 类�
 (6255 文件)暴露 `logs` 排除模式误伤 `.git/logs`(reflog)→ 修为
 ".git 整体保留或整体排除,不允许挖洞"。真实副本 PII 扫描 0 命中。
 钉死测试 5 项。④ 宿主级任务包接线 → 下一步;⑤⑥ 未开始。
+
+## 状态条目 · 2026-08-09 · **Phase 0 完成**(下一步:Phase 1 T1 校准)
+
+Phase 0 六件全部落地并测试钉死(全量 442 项绿):
+①主目录护栏+保护目录指纹对账(`harness/host_guard.py`,77dc6a6)
+②LocalWorktree 执行后端——护栏/假 HOME/净化环境含合成密钥/cwd 钉死
+  四条硬约束焊死(`execution/local_worktree_backend.py`,d0846ba)
+③宿主快照排除+合成替身+PII 出口扫描(`harness/host_snapshot.py`,474705b)
+④宿主级会话装配+空转冒烟全链(`harness/host_task.py`,d8f846c)——
+  Phase 0 完成定义的载体:冒烟已实证"替身生效/假 HOME/回归绿/未适配
+  时隐藏验收挂/会话拆净/保护目录零改动/oracle 不进会话与环境"
+⑤Provenance 最小版(`verification/provenance.py`,d8f846c)
+⑥Benchmark V2 记录器(`persistence/bench_records.py`,d8f846c)
+
+**Phase 1 待办(AI 做,用户只在最后跑正式 run)**:
+1. Host Baseline 首测:在 t1 副本上跑 doctor/verify_pipeline/594
+   pytest/verify_docs,记录耗时→定分层回归子集与容差协议;产出
+   HostBaselineManifest + 副本引导手册(§4-3 七类资源实测答案);
+   期间对主目录 untracked 数据(.env.local/chroma_db/gap_store)做
+   一次性备份;
+2. T1 任务工程:公开需求/公开测试/隐藏 oracle/task_shape 评分/
+   正控全过/负控按预期挂/直连基线/冻结/预注册;
+3. 交付用户:GPT-5.5 与 DeepSeek 各 1 次(随机序)的可复制指令。
