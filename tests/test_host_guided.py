@@ -152,3 +152,14 @@ def test_fake_scripts_shape() -> None:
 
 class _RunnerStub:
     task_dir = T1_CONTRACT.parent
+
+
+def test_enforcement_input_cap_inward_for_per_round_only() -> None:
+    """v2 修订(用户决策):per_round 输入执法线内移 50k,政策线不变。"""
+    from repoproof.runner.host_guided import TOKEN_STOP_MARGIN, enforcement_input_cap
+
+    c = _t1()
+    assert c.budgets.per_round
+    assert enforcement_input_cap(c.budgets) == 500_000 - TOKEN_STOP_MARGIN
+    total_style = c.budgets.model_copy(update={"semantics": "total"})
+    assert enforcement_input_cap(total_style) == 500_000

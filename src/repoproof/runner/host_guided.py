@@ -189,6 +189,22 @@ class HostRunError(RuntimeError):
     pass
 
 
+# 用户决策(2026-08-09,预注册 v2 修订):per_round 语义下**输入执法线
+# 内移 50k**。背景:无本地 tokenizer 时输入额度只能"调用后记账、下次
+# 调用前拦",越线发生在最后一次调用上(run -200448 两轮各超 8%/2%),
+# "过/不过"取决于边界运气。内移执法线后单轮峰值几乎不可能突破政策线;
+# **政策判据仍是契约的 500k,一字不动**。输出额度有请求级 max_tokens
+# 硬帽,无此问题,不内移。
+TOKEN_STOP_MARGIN = 50_000
+
+
+def enforcement_input_cap(budgets: "HostBudgets") -> int:
+    """执法用输入停止阈值(政策线=契约值不变;执法线内移防边界随机)。"""
+    if budgets.per_round:
+        return max(1, budgets.max_input_tokens_total - TOKEN_STOP_MARGIN)
+    return budgets.max_input_tokens_total
+
+
 # --------------------------------------------------------------- 工具函数
 def _expected_regression_passed(baseline: str) -> int:
     """'591 passed, 7 skipped, 0 failed' → 591(回归判据=不降于基线)。"""
@@ -644,7 +660,7 @@ class HostGuidedRunner:
                     return TokenBudgetedModel(
                         inner=inner_model,
                         totals=totals_dict,
-                        max_input_tokens=b.max_input_tokens_total,
+                        max_input_tokens=enforcement_input_cap(b),
                         max_output_tokens=b.max_output_tokens_total,
                         on_exhausted=lambda payload: ev("budget.exhausted", actor="harness",
                                                         payload=payload),
