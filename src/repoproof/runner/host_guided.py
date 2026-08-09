@@ -41,7 +41,28 @@ from pydantic import BaseModel, Field
 
 from repoproof.adoption.repair.failure_packet import FailurePacket, build_failure_packets
 from repoproof.adoption.repair.repair_budget import RepairBudget
-from repoproof.adoption.repair.repair_loop import RepairLoop, RoundResult, full_score
+from repoproof.adoption.repair.repair_loop import RepairLoop, RoundResult
+
+
+def host_score(r: RoundResult) -> list[float]:
+    """宿主任务排序:**不含 diff 项**(2026-08-09 用户决策,run -211400
+    实证:"同分取小 diff"把脚手架中间态当退步回滚,销毁两轮进度)。
+    diff 大小只在完全同分时经 RepairLoop 的先到先得(F8)决定最终快照;
+    回滚触发另由 run_round 的硬信号退步判据控制。"""
+    return [
+        1.0 if r.collected_ok else 0.0,
+        1.0 if r.policy_violations == 0 else 0.0,
+        1.0 if r.regression_failed == 0 else 0.0,
+        float(r.passed),
+        float(r.passed),
+        1.0 if r.within_budget else 0.0,
+    ]
+
+
+def hard_signals(*, collected_ok: bool, policy_violations: int,
+                 regression_failed: int, passed: int) -> tuple:
+    """真退步判据的硬信号元组(可比较):收集/策略/回归/通过数。"""
+    return (collected_ok, policy_violations == 0, regression_failed == 0, passed)
 from repoproof.agents.provider_gate import PreflightResult, ProviderConfig
 from repoproof.domain.models import (
     AdaptationManifest,
@@ -684,20 +705,29 @@ class HostGuidedRunner:
             expected_reg = _expected_regression_passed(contract.host.regression_baseline)
             t_agent = time.monotonic()
 
+            best_state = {"hard": None, "commit": None}
+            prev_state = {"hard": None}
+
             def run_round(idx: int, packets: list[FailurePacket],
                           best_snapshot: str | None) -> RoundResult:
                 t_round = time.monotonic()
                 ev("repair.round.start", actor="harness",
                    payload={"round": idx, "packets": len(packets)})
-                # 劣化轮回滚:恢复到最佳提交(venv/chroma 属 gitignore 不回滚,
-                # 依赖状态单调——L 模式已知限制,重放会从声明重建作最终裁决)
-                if best_snapshot:
+                # 恢复策略(v2 修订,用户决策):默认**在上一轮现场继续**
+                # (同分脚手架=平行探索,保留);仅当上一轮硬信号(收集/
+                # 策略/回归/通过数)相对最佳**严格退步**才恢复最佳提交。
+                # RepairLoop 传入的 best_snapshot 不再直接驱动恢复。
+                # venv/chroma 属 gitignore 恒不回滚(L 模式单调,重放兜底)。
+                if (best_state["commit"] and prev_state["hard"] is not None
+                        and best_state["hard"] is not None
+                        and prev_state["hard"] < best_state["hard"]):
                     cur = self._git(s, "rev-parse", "HEAD").stdout.decode().strip()
-                    if cur != best_snapshot:
-                        self._git(s, "reset", "--hard", best_snapshot)
+                    if cur != best_state["commit"]:
+                        self._git(s, "reset", "--hard", best_state["commit"])
                         self._git(s, "clean", "-fd")
                         ev("repair.restored_best", actor="harness",
-                           payload={"round": idx, "snapshot": best_snapshot[:12]})
+                           payload={"round": idx, "snapshot": best_state["commit"][:12],
+                                    "reason": "hard_signal_regression"})
                 base_hash = self._git(s, "rev-parse", "HEAD").stdout.decode().strip()
 
                 if b.per_round:
@@ -783,6 +813,14 @@ class HostGuidedRunner:
                     within_budget=result.exit_status not in
                     ("TokenBudgetExhausted", "LimitsExceeded"),
                 )
+                hard = hard_signals(collected_ok=collected_ok,
+                                    policy_violations=rr.policy_violations,
+                                    regression_failed=reg_failed, passed=passed)
+                prev_state["hard"] = hard
+                if best_state["hard"] is None or hard > best_state["hard"]:
+                    best_state["hard"] = hard
+                    best_state["commit"] = head
+
                 packets_next = build_failure_packets(failed_nodes, details)
                 record = RepairRoundRecord(
                     round_index=idx,
@@ -803,7 +841,7 @@ class HostGuidedRunner:
                     wall_time_s=round(time.monotonic() - t_round, 1),
                     failure_packets=[p.to_dict() for p in packets_next],
                     scope_change_request=scope_req,
-                    score=full_score(rr),
+                    score=host_score(rr),
                 )
                 records.append(record)
                 public_by_round.append(passed)
@@ -833,7 +871,7 @@ class HostGuidedRunner:
                     * b.max_rounds,
                     max_commands=b.max_commands * b.max_rounds,
                     max_diff_lines=b.max_patch_lines),
-                score_fn=full_score,
+                score_fn=host_score,
             )
             outcome = loop.run()
             cur = self._git(s, "rev-parse", "HEAD").stdout.decode().strip()

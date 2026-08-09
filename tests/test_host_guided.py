@@ -163,3 +163,24 @@ def test_enforcement_input_cap_inward_for_per_round_only() -> None:
     assert enforcement_input_cap(c.budgets) == 500_000 - TOKEN_STOP_MARGIN
     total_style = c.budgets.model_copy(update={"semantics": "total"})
     assert enforcement_input_cap(total_style) == 500_000
+
+
+def test_host_score_has_no_diff_term() -> None:
+    """v2 修订(用户决策,run -211400 实证):宿主评分不含 diff 项——
+    同分脚手架是平行探索不是退步,不得因"改动更大"被回滚。"""
+    from repoproof.adoption.repair.repair_loop import RoundResult
+    from repoproof.runner.host_guided import hard_signals, host_score
+
+    small = RoundResult(adapter_snapshot="a", passed=5, diff_lines=0)
+    big = RoundResult(adapter_snapshot="b", passed=5, diff_lines=999)
+    assert host_score(small) == host_score(big), "diff 大小不得影响排序分"
+    better = RoundResult(adapter_snapshot="c", passed=6, diff_lines=999)
+    assert host_score(better) > host_score(big)
+    # 硬信号:通过数下降/回归破坏/策略违规才算真退步
+    h_base = hard_signals(collected_ok=True, policy_violations=0,
+                          regression_failed=0, passed=5)
+    h_tie = hard_signals(collected_ok=True, policy_violations=0,
+                         regression_failed=0, passed=5)
+    h_regress = hard_signals(collected_ok=True, policy_violations=0,
+                             regression_failed=2, passed=5)
+    assert not (h_tie < h_base) and (h_regress < h_base)
