@@ -75,5 +75,20 @@ cd ~/RepoProofBench/<name> && python3 -m venv .venv && .venv/bin/pip install -q 
 
 - [x] Host Baseline 首测 + Manifest + 本手册
 - [x] 主目录 untracked 数据一次性备份(`~/RepoProofBench/_offerclaw_untracked_backup_20260809/`)
-- [ ] T1 任务工程(公开需求/公开测试/隐藏 oracle/task_shape/正负控/直连基线/冻结/预注册)
-- [ ] 交付用户可复制运行指令(GPT-5.5 + DeepSeek 各 1,随机序)
+- [x] T1 任务工程(冻结于 ba0252b;预注册 `benchmarks/v2/preregistrations/T1-prereg-20260809.md`)
+- [x] 运行入口接线:`repoproof host-run`(runner/host_guided.py;fake 冒烟
+      三发:BLOCKED→FAIL→PASS_ADAPTED 全链验证,含 clean replay)
+- [x] 冻结 wheelhouse `~/RepoProofBench/wheelhouse-offerclaw-8e59a18/`
+      (146 wheels;`wheelhouse_manifest.json` 含 env_baseline_hash;
+      mcp 1.29.0 与 2.0.0 双版本入库——依赖冲突语义在离线源下保留)
+- [ ] 用户亲手 pilot(随机序:① deepseek-v4-pro ② gpt-5.5,各 1 次)
+
+## 六、会话内基线与副本基线的已知差异(运行器口径)
+
+- 会话内 pytest = **592 passed**(≥ 副本基线 591,三发冒烟稳定;判据
+  为"不降于 591"不受影响;具体多过项待查,挂起);
+- `verify_docs.py` 在副本与会话内均因 chunks 交叉核对(112 vs 3538)
+  **exit 1**——门禁判据 = "0 处未围栏裸露"不退化(known_deviations
+  语义),不是 exit 0;
+- 嵌入模型经 `MODELSCOPE_CACHE` 指向真实缓存**只读共享**(A 类资源
+  规矩),假 HOME 其余不变。

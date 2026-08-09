@@ -114,6 +114,25 @@ def main(argv: list[str] | None = None) -> int:
     p_bundle.add_argument("--run-dir", required=True, type=Path)
     p_bundle.add_argument("--contract", type=Path, default=None)
 
+    p_host = sub.add_parser(
+        "host-run",
+        help="TESTPLAN-V2 host-integrated guided run (mode L, LocalWorktree backend): "
+        "session assembly + per-run venv rebuild + bounded repair + hidden oracle "
+        "+ clean replay + benchmarks/v2/runs.jsonl record",
+    )
+    p_host.add_argument("--contract", required=True, type=Path,
+                        help="benchmarks/v2/tasks/<task>/contract.yaml (frozen)")
+    p_host.add_argument("--run-order", default="UNKNOWN",
+                        help="preregistered execution order index (1, 2, ...)")
+    p_host.add_argument("--run-index", default="UNKNOWN",
+                        help="per-model run index (1 for pilot)")
+    p_host.add_argument("--wheelhouse", type=Path, default=None,
+                        help="frozen local wheel index (default: ~/RepoProofBench/wheelhouse-offerclaw-<commit7>)")
+    p_host.add_argument("--fake", choices=["noop", "positive"], default=None,
+                        help="smoke only: scripted fake model (never for official runs)")
+    p_host.add_argument("--keep-session", action="store_true",
+                        help="debug: keep the session tree on disk after the run")
+
     args = parser.parse_args(argv)
 
     if args.cmd == "baseline":
@@ -334,6 +353,32 @@ def main(argv: list[str] | None = None) -> int:
             out = run_guided_cli(args.contract, PROJECT_ROOT, max_rounds=args.max_rounds)
         except Exception as exc:
             write_crash_report(PROJECT_ROOT, args.contract.stem, "guided-repair", exc)
+            raise
+        print(json.dumps(out, ensure_ascii=False, indent=2, sort_keys=True, default=str))
+        return 0 if not out.get("blocked") else 3
+
+    if args.cmd == "host-run":
+        from repoproof.runner.agent_run import write_crash_report
+        from repoproof.runner.host_guided import run_host_guided_cli
+
+        try:
+            out = run_host_guided_cli(
+                args.contract,
+                PROJECT_ROOT,
+                fake=args.fake,
+                run_order=args.run_order,
+                run_index=args.run_index,
+                wheelhouse=args.wheelhouse,
+                keep_session=args.keep_session,
+            )
+        except Exception as exc:
+            try:
+                import yaml as _yaml
+
+                task_stem = _yaml.safe_load(args.contract.read_text(encoding="utf-8"))["task_id"]
+            except Exception:  # noqa: BLE001 — 兜底报告不允许二次崩溃
+                task_stem = args.contract.parent.name
+            write_crash_report(PROJECT_ROOT, task_stem, "host-guided-repair", exc)
             raise
         print(json.dumps(out, ensure_ascii=False, indent=2, sort_keys=True, default=str))
         return 0 if not out.get("blocked") else 3

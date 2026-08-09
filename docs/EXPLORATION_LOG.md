@@ -196,3 +196,41 @@ doctor 8 OK·2 WARN·1 ERR(已知预期差异:chunks 口径 112 vs 3538 因
    而非复制;TESTPLAN §5"复制 venv 实例"表述须修正。
 
 **下一步**:交付用户可复制运行指令(随机序:① deepseek-v4-pro ② gpt-5.5)。
+
+## 状态条目 · 2026-08-09 · 宿主级运行驱动接线完成,全链冒烟三发通过(待用户 pilot)
+
+**缺口回填**:冻结时任务包就位但**运行入口不存在**(host_task.py 零调用方,
+per-run venv 未接)。本条目落地 `runner/host_guided.py` + CLI `host-run`:
+会话装配(快照+副本精细替身+PII 0 命中门禁)→ 会话内 git S0 锚 → per-run
+venv 从**冻结 wheelhouse** 重建(146 wheels/325MB,含 mcp 1.29.0+2.0.0
+双版本保留依赖冲突语义;env_baseline_hash=6bc19ab1…)→ Host Baseline
+Gate → RepairLoop guided ≤3 轮(公开+回归每轮全量,git 回滚劣化轮)→
+git diff 冻结适配 → 隐藏 oracle(会话外持有)/回归(≥591)/Policy(三树
+不变+因果链+预算)→ clean replay → Completion Gate → 指纹对账 →
+runs.jsonl 记账。钉死测试 9 项,全量套件绿。
+
+**冒烟实录(runs.jsonl 前三行,全 fake 模型零 API)**:
+| run | 预期 | 实际 | 链条验证点 |
+|---|---|---|---|
+| noop#1 | 走到 agent | **BLOCKED**(gate) | 门禁自身判据过严被抓:verify_docs 因合成语料 chunks 口径 exit 1,而 Manifest 早已记为已知偏差 → 判据改"0 处未围栏裸露不退化" |
+| noop#2 | FAIL | **FAIL**(3 轮停滞,公开 4/8 与直连基线一致) | FAIL 路径+停滞判定+记账 |
+| positive | PASS | **PASS_ADAPTED**(1 轮 8/8→oracle 9/9→回归 592→replay PASS,328s) | PASS 路径+重放语义 |
+
+**五个工程发现(接线期,全部修复并钉死)**:
+1. **pytest 9 的 `-q` 失败态不打总结行** → "N passed" 正则在失败 run 恒取 0
+   (首噪:oracle 计 0/6 而真值 3/9)→ oracle/回归/公开全部改 junitxml
+   结构化计数,正则仅兜底;
+2. **指纹对账集语义**:RepoProof 自身在写护栏黑名单是对的,但**不能进
+   指纹对账集**(run 合法写自己的 runs/)——并发跑全量套件时套件内
+   smoke 测试的指纹当场报警,反向证明机制灵敏;
+3. **会话根不得落在保护目录内**(护栏拒绝)→ 统一 `~/RepoProofBench/_sessions/`;
+4. **replay 依赖语义落地**:venv 状态不随 git 回滚(L 模式单调性),
+   clean replay 从**补丁后的 requirements.txt** 全新重建环境——"未声明
+   的依赖在重放如实失败"把源 §24 Dependency Delta 变成可执行判据;
+   正控声明 `fastapi-mcp` + `mcp<2.0` 后 replay 9/9 实证;提示中如实
+   披露该语义(公平性,钉死测试);
+5. **会话内 592 vs 副本 591**:会话环境多过 1 项(三发冒烟稳定 592,
+   方向为升不触判据;具体测试项待查,挂起不阻塞)。
+
+**下一步**:提交 harness_commit → 用户亲手 pilot(随机序:①
+deepseek-v4-pro ② gpt-5.5,`repoproof host-run` 指令已备)。
