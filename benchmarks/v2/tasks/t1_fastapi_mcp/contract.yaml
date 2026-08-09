@@ -1,0 +1,89 @@
+task_id: t1-offerclaw-fastapi-mcp-v1
+task_version: v1
+kind: host_integrated          # 宿主级集成任务(非样例 seam)
+
+host:
+  repo: zhangyi-nb1/offerclaw
+  commit: 8e59a18f78056113ffa34d27eb1cfb2a64ae2108
+  copy_path: ~/RepoProofBench/offerclaw-t1-fastapi-mcp
+  baseline_manifest: HOST_BASELINE_MANIFEST.json
+  regression_command: ["python", "-m", "pytest", "tests/", "-q", "-p", "no:cacheprovider"]
+  regression_baseline: "591 passed, 7 skipped, 0 failed"
+
+source_repo:
+  url: https://github.com/tadata-org/fastapi_mcp
+  resolved_commit: e5cad13cabfc725bbcb047e526816d887d96da62
+  distribution: fastapi_mcp
+  import_module: fastapi_mcp
+  license: MIT
+
+# ---- 公开需求(agent 可见;源方案 §7.2 全文,冻结后不可改)----
+capability:
+  statement: >
+    在保留 OfferClaw 现有 /mcp 实现和 tools_registry.REGISTRY 行为完全
+    兼容的前提下,引入固定版本 fastapi-mcp,增加一个实验性的 SDK 驱动
+    MCP 接口。
+  requirements:
+    - id: R1-feature-flag
+      text: 新能力使用 Feature Flag,**默认关闭**;关闭时不得改变任何现有行为。
+    - id: R2-legacy-intact
+      text: 现有 POST /mcp 及其当前工具行为不得改变(initialize / tools/list / tools/call / origin 校验)。
+    - id: R3-sdk-endpoint
+      text: 开启 Flag 后暴露一个由 fastapi-mcp SDK 驱动的新 MCP 端点(建议 /mcp-sdk)。
+    - id: R4-allowlist
+      text: >
+        新接口必须通过显式白名单,只允许暴露预登记的**安全只读能力**;
+        禁止暴露 applications 写入、memory 写入、resume 生成、JD discover、
+        内部调试及任何未授权接口。
+    - id: R5-schema-single-source
+      text: MCP Tool 的输入 Schema 必须来自 OfferClaw 当前 FastAPI/Pydantic 定义,不允许手工维护第二份可漂移的 schema。
+    - id: R6-no-duplicate-mount
+      text: 多次初始化或 mount 不得产生重复 Tool。
+    - id: R7-host-regression
+      text: 现有 53 条路由行为、OpenAPI 与全部现有测试必须保持通过。
+    - id: R8-real-upstream
+      text: 必须真实调用 fastapi-mcp,禁止自行重写一个近似 MCP 转换层。
+    - id: R9-tests
+      text: 增加白名单、Schema、重复 mount、旧 MCP 兼容与宿主回归测试。
+
+constraints:
+  editable_zones: ["."]          # 宿主副本内可写(patch 预算约束)
+  forbidden:
+    - 修改或删除 oracle / 公开验收测试的断言
+    - 修改 metrics.json 等事实源以迎合结果
+    - 静默升级宿主既有依赖树的主版本
+  network_at_test_time: false
+
+budgets:                          # 冻结前按正控实测调定,冻结后不改
+  max_rounds: 3
+  max_model_calls: 24
+  max_commands: 60
+  max_patch_files: 10
+  max_patch_lines: 800
+  max_wall_time_minutes: 30
+  max_input_tokens_total: 350000
+  max_output_tokens_total: 40000
+
+acceptance:
+  public_test_command: ["python", "-m", "pytest", "public_tests/", "-q", "-p", "no:cacheprovider"]
+  hidden_oracle_command: ["python", "-m", "pytest", "<ORACLE_ABS>", "-q", "-p", "no:cacheprovider"]
+
+# ---- task_shape 八维评分(源方案 §6;冻结时填写)----
+task_shape:
+  files_and_modules: 1        # 新增模块 + 少量接线
+  integration_points: 1       # 单端点挂载,但需与既有 /mcp 并存
+  state_and_persistence: 0    # 无持久化改动
+  async_and_lifecycle: 2      # Streamable HTTP 需 lifespan / session manager
+  protocol_boundary: 2        # MCP 协议 + JSON-RPC + SSE 语义
+  migration_and_configuration: 1  # Feature Flag + 依赖锁
+  security_semantics: 2       # 白名单 deny-by-default,写接口不得泄漏
+  regression_surface: 1       # 591 测试 + 53 路由 + OpenAPI
+  total: 10                   # → "真实工程集成"档(源 §6 表 9-12)
+
+failure_taxonomy_expected:
+  - DEPENDENCY_CONFLICT           # mcp>=2.0 破坏 Server.__init__(实测)
+  - PROTOCOL_SCHEMA_DRIFT
+  - TOOL_EXPOSURE_LEAK
+  - DUPLICATE_MOUNT
+  - UPSTREAM_CAPABILITY_REIMPLEMENTED
+  - HOST_REGRESSION_FAILURE
