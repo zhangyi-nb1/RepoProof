@@ -63,6 +63,12 @@ def hard_signals(*, collected_ok: bool, policy_violations: int,
                  regression_failed: int, passed: int) -> tuple:
     """真退步判据的硬信号元组(可比较):收集/策略/回归/通过数。"""
     return (collected_ok, policy_violations == 0, regression_failed == 0, passed)
+
+
+def replay_eligible(cap, reg, pol) -> bool:
+    """clean replay 准入 = 能力/回归/策略三绿;额度标记不参与
+    (终轮撞线与成功可共存——耗尽的职责是约束 agent,不是取消验证)。"""
+    return bool(cap and reg and pol and cap.passed and reg.passed and pol.passed)
 from repoproof.agents.provider_gate import PreflightResult, ProviderConfig
 from repoproof.domain.models import (
     AdaptationManifest,
@@ -1031,7 +1037,11 @@ class HostGuidedRunner:
             }
 
             # ---------------- clean replay(全过才有资格)----------------
-            if cap.passed and reg.passed and pol.passed and budget_exhausted is None:
+            # replay 准入 = 静态三绿,**与额度标记无关**(v2 修订③,run
+            # -232629 实证:每轮语义下"终轮撞执法线"与"任务成功"常态共存,
+            # v1 的"耗尽即跳过"会让读入型模型的 PASS 结构性不可达;源方案
+            # §3-14 规定最终 PASS 必须过 clean replay → 三绿必须尝试)。
+            if replay_eligible(cap, reg, pol):
                 if not keep_session:
                     backend.destroy(s.id)
                     s = None

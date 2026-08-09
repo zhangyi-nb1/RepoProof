@@ -184,3 +184,15 @@ def test_host_score_has_no_diff_term() -> None:
     h_regress = hard_signals(collected_ok=True, policy_violations=0,
                              regression_failed=2, passed=5)
     assert not (h_tie < h_base) and (h_regress < h_base)
+
+
+def test_replay_eligibility_ignores_budget_marker() -> None:
+    """v2 修订③:三绿必须尝试 replay,额度标记不阻断(源 §3-14)。"""
+    from repoproof.domain.models import VerificationResult
+    from repoproof.runner.host_guided import replay_eligible
+
+    ok = VerificationResult(verifier="x", passed=True, detail="")
+    bad = VerificationResult(verifier="x", passed=False, detail="")
+    assert replay_eligible(ok, ok, ok)
+    assert not replay_eligible(ok, bad, ok)
+    assert not replay_eligible(None, ok, ok)
