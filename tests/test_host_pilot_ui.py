@@ -86,3 +86,17 @@ def test_page_offers_model_choice_within_pool(tmp_path: Path, monkeypatch) -> No
     opts = at.selectbox[0].options  # AppTest 返回 format_func 后的标签
     assert len(opts) == 1 and opts[0].startswith("deepseek-v4-pro"), "只列池内且已配置的模型"
     assert len(at.button) == 1 and "第 1 发" in at.button[0].label
+
+
+def test_local_runs_include_host_runs_time_sorted() -> None:
+    """用户实测 bug:adopt-* 前缀过滤让宿主级 run 三页集体隐身——钉死修复。"""
+    from repoproof.ui.services.facts import local_runs, local_run_meta, run_mode_zh
+
+    names = local_runs()
+    t1 = [n for n in names if n.startswith("t1-offerclaw")]
+    assert t1, "宿主级运行必须出现在本地运行列表"
+    assert names == sorted(names, key=lambda n: n[-15:], reverse=True), "必须时间序"
+    meta = local_run_meta(t1[0])
+    assert meta["verdict"] is not None
+    assert meta["model"], "宿主级运行必须能标注模型型号(runs.jsonl 反查)"
+    assert run_mode_zh("host-guided-repair") == "宿主级多轮修复"

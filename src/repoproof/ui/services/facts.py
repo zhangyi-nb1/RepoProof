@@ -150,7 +150,11 @@ def local_runs() -> list[str]:
     按尾缀时间戳排序,不按目录名字母序:用户实测里 thefuzz(t)把
     刚跑完的 inflection(i)压到列表深处,新运行被"埋没"。"""
     root = repo_root() / "runs"
-    dirs = [d for d in root.glob("adopt-*-2*") if (d / "report.json").exists()]
+    # 不按任务前缀过滤:曾经的 "adopt-*" 硬编码让宿主级运行(t1-*)在
+    # 运行进度/历史/结果报告三页集体隐身(用户实测 2026-08-09)——
+    # 判据只有两条:目录名带时间戳 + 有 report.json。
+    dirs = [d for d in root.glob("*-2*")
+            if d.is_dir() and (d / "report.json").exists()]
     return [d.name for d in sorted(dirs, key=lambda x: run_ts(x.name), reverse=True)]
 
 
@@ -171,6 +175,8 @@ def run_mode_zh(mode: str | None) -> str:
         return "装配基线·无AI(预期失败)"
     if m == "guided-repair":
         return "多轮修复"
+    if m == "host-guided-repair":
+        return "宿主级多轮修复"
     if m == "real-agent-baseline":
         return "单次运行"
     return m or "—"
@@ -184,8 +190,16 @@ def local_run_meta(name: str, root: Path | None = None) -> dict:
     try:
         r = json.loads((((root or repo_root()) / "runs" / name / "report.json"))
                        .read_text(encoding="utf-8"))
+        model = (r.get("preflight") or {}).get("model_name") or r.get("model")
+        if not model:
+            # 宿主级运行的 report 不含 preflight → 从 benchmarks/v2
+            # runs.jsonl 按 run_id 反查(记录器是这类运行的事实源)
+            from repoproof.persistence.bench_records import load_runs
+
+            model = next((row.get("model") for row in load_runs(root or repo_root())
+                          if row.get("run_id") == name), None)
         return {"verdict": r.get("final_verdict"), "mode": r.get("mode"),
-                "model": (r.get("preflight") or {}).get("model_name")}
+                "model": model}
     except (OSError, json.JSONDecodeError):
         return {"verdict": None, "mode": None, "model": None}
 
@@ -197,4 +211,8 @@ def load_local_run(run_name: str) -> dict:
     mp = root / "run_manifest.json"
     if mp.exists():
         man = json.loads(mp.read_text(encoding="utf-8"))
+    if not man:
+        # 宿主级运行只写 report.json(其字段是 manifest 的超集来源):
+        # 缺 manifest 时用 report 顶替,agent 用量等区块不再显示"—"
+        man = rep
     return {"report": rep, "manifest": man, "dir": str(root)}
