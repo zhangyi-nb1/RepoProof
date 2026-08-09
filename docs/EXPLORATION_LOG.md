@@ -445,3 +445,24 @@ t2 副本引导一次成:替身自 t1 直迁 **602/7/0 三次确定全绿零迭�
 兼容**(源 §8.2-20 的进程内 vs Sidecar 抉择场景)+ 其巨大依赖面
 (azure/tavily/exa/groq/pymupdf…)。下一步:T2 任务工程(契约 21 条/
 H1-H10/NC1-NC5/正控/直连基线/完整 RAG 基线批前)→ 循环计划报审。
+
+## 状态条目 · 2026-08-10 · T2 依赖定性完成:进程内可行,冲突形态=家族撕裂(非解析炸)
+
+兼容性实验场(~/RepoProofBench/_scratch_odr_compat)三步实测:
+1. **导入层无冲突**:ODR@20aaa0d 在宿主 langchain-core 1.5.3/langgraph
+   1.2 下 import+编译 CompiledStateGraph 正常(0.5 时代代码兼容 1.x);
+   自带 search_api='none'(离线 fake 路径现成);
+2. **真冲突=otel 家族撕裂**:ODR 硬依赖 google 系(vertexai/genai 在
+   其 pyproject 主依赖)→ protobuf<7 级联把 otel api/sdk/common/proto
+   降到 1.37,而宿主 otlp-grpc exporter 留在 1.44 → 家族内撕裂 →
+   chromadb 导入链断 → **宿主测试连收集都过不了**(安装成功、宿主暗伤
+   ——比 T1 的"装上即炸"更隐蔽的一档);
+3. **一致性解实测成立**:全家族对齐 1.37(补压两个 exporter)→ 合并
+   环境 602/7/0 全绿;**副产物发现:blockbuster**(langgraph-cli[inmem]
+   传递依赖,阻塞 IO 打桩)使宿主套件 12s→95s(8 倍),卸载即复原
+   8.8s——T2 预算标定按慢路径兜底,参考解含移除策略讨论。
+结论:**进程内集成可行**,§8.2-20 的"进程内 vs Sidecar"对比在 Plan
+层有确定答案;T2 依赖考题=诊断家族撕裂+产出一致性 pin 集+全部声明
+(较 T1"钉一个包"高一档)。变更面:+125 包/7 个宿主既有包改版/
+0 移除。下一步:正控参考实现(异步任务子系统+Fake Provider+Promote
+流)——任务工程最重件。
