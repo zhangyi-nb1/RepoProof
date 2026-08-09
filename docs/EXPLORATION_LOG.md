@@ -338,3 +338,21 @@ replay 被 v1 "耗尽即跳过"条件拦截——**修订③**:replay 准入=静
 回溯,同轨迹重跑即可完整判定。跨模型对照(n=1/形态):gpt-5.5 与
 deepseek 同为"两轮修通",效率差一个量级级别——与 E1/LESSONS #9
 画像一致。
+
+## 状态条目 · 2026-08-10 · **T1 首个完整 PASS_ADAPTED**(gpt-5.5 第 2 发)
+
+**Run(`…-000405`,gpt-5.5,harness e5aa857)= PASS_ADAPTED**:R1(18
+调用,467k)一轮就把三文件写齐、公开 7/8;R2(16 调用,238k)收尾
+8/8,**干净提交(Submitted,34 调用未触任何限)**;capability 9/9 +
+回归 592 + policy 三绿 + **clean_adoption replay PASS**(全新会话、
+从补丁后 requirements 重建环境复验 143.5s);全程 556s;指纹/trace
+全绿。补丁 3 文件 77 行:sdk_mcp.py(白名单+幂等挂载)+ rag_api 两行
+接线 + requirements 钉版本。**这是宿主级形态下"陷阱触发→有界修复→
+独立验证→干净重放→诚实判定"的第一次完整闭环**;整晚 harness 演进
+(每轮额度→执法内移→回滚语义→replay 准入)每一步都由真实 run 证据
+驱动——附录 C 原则的教科书式执行。
+
+**T1 记分板(v2 批,全入账)**:deepseek-v4-pro 3 发 FAIL(烧穿提交/
+差一步 8-8+9-9 峰值超限/脚手架误滚);gpt-5.5 2 发(三绿 READY_FOR_
+REPLAY[修订③前]→ **PASS_ADAPTED**);gpt-5.6 未跑。同模型轨迹方差
+在两家都显著(temp 0 下 R1 从 2/8 到 7/8 都有)。
