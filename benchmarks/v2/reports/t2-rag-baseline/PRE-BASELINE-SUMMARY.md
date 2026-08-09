@@ -46,3 +46,11 @@
 
 `pre_bench_run{1,2}.json`/`.stdout`/`.stderr` · `pre_abstention_run{1,2}.json`
 · `pre_domain_run{1,2}.stdout` · `pre_kb_fingerprint.json` · 本文。
+
+## 终验后对照(2026-08-10,六发完赛后;同 env 重跑)
+
+- **KB 指纹逐字节一致**:count=112,sha256 `74cd21c8…` 与批前完全相同
+  → 六发 run(含各自 oracle 的 Promote 测试)对副本知识库零残留;
+- bench JSON 与批前**逐字节一致**;abstention JSON 逐字节一致;domain
+  判定行一致 → 全部绊线未动;
+- 终验后门:**PASS(零污染零漂移)**。产物 `post_*` 同目录。

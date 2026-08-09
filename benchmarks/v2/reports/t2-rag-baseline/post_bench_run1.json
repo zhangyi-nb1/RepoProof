@@ -1,0 +1,778 @@
+{
+  "top_k": 5,
+  "overall": {
+    "n": 100,
+    "recall@1": 0.0,
+    "recall@3": 0.0,
+    "recall@5": 0.0,
+    "mrr": 0.0
+  },
+  "by_domain": {
+    "llm_app": {
+      "n": 45,
+      "recall@1": 0.0,
+      "recall@3": 0.0,
+      "recall@5": 0.0,
+      "mrr": 0.0
+    },
+    "backend": {
+      "n": 27,
+      "recall@1": 0.0,
+      "recall@3": 0.0,
+      "recall@5": 0.0,
+      "mrr": 0.0
+    },
+    "algorithm": {
+      "n": 17,
+      "recall@1": 0.0,
+      "recall@3": 0.0,
+      "recall@5": 0.0,
+      "mrr": 0.0
+    },
+    "career": {
+      "n": 11,
+      "recall@1": 0.0,
+      "recall@3": 0.0,
+      "recall@5": 0.0,
+      "mrr": 0.0
+    }
+  },
+  "hard": {
+    "n": 15,
+    "recall@1": 0.0,
+    "recall@3": 0.0,
+    "recall@5": 0.0,
+    "mrr": 0.0
+  },
+  "easy": {
+    "n": 85,
+    "recall@1": 0.0,
+    "recall@3": 0.0,
+    "recall@5": 0.0,
+    "mrr": 0.0
+  },
+  "gate": {
+    "neg_reject": "12/12",
+    "pos_hit": "0/12",
+    "neg_acc": 1.0,
+    "pos_acc": 0.0
+  },
+  "rows": [
+    {
+      "id": "rag01",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "RAG 检索增强生成的完整链路包括哪些环节"
+    },
+    {
+      "id": "rag02",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "RAG 出现的原因是什么，解决了大模型哪些问题"
+    },
+    {
+      "id": "rag03",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "朴素 RAG、高级 RAG、模块化 RAG 三个阶段有什么区别"
+    },
+    {
+      "id": "rag04",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "文本分块 chunking 有哪些策略，固定大小和语义分块的取舍"
+    },
+    {
+      "id": "rag05",
+      "domain": "llm_app",
+      "hard": true,
+      "rank": 0,
+      "q": "HyDE 假设性文档嵌入是怎么工作的"
+    },
+    {
+      "id": "rag06",
+      "domain": "llm_app",
+      "hard": true,
+      "rank": 0,
+      "q": "Multi-Query 多查询和 RAG-Fusion RRF 融合策略"
+    },
+    {
+      "id": "rag07",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "重排序 rerank 为什么需要，怎么实现"
+    },
+    {
+      "id": "rag08",
+      "domain": "llm_app",
+      "hard": true,
+      "rank": 0,
+      "q": "父文档检索、句子窗口检索、自动合并怎么解决块太小丢上下文"
+    },
+    {
+      "id": "rag09",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "混合检索 hybrid search，稀疏检索和密集检索结合"
+    },
+    {
+      "id": "rag10",
+      "domain": "llm_app",
+      "hard": true,
+      "rank": 0,
+      "q": "CRAG 和 Self-RAG 这两种 RAG 变体的核心思想"
+    },
+    {
+      "id": "rag11",
+      "domain": "llm_app",
+      "hard": true,
+      "rank": 0,
+      "q": "HNSW 近似最近邻算法是怎么加速向量检索的"
+    },
+    {
+      "id": "rag12",
+      "domain": "llm_app",
+      "hard": true,
+      "rank": 0,
+      "q": "上下文压缩 context compression 在 RAG 里的作用"
+    },
+    {
+      "id": "agt01",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "什么是 ReAct 推理加行动的智能体框架"
+    },
+    {
+      "id": "agt02",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "Function Calling 工具调用是怎么实现的"
+    },
+    {
+      "id": "agt03",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "大模型 Agent 的 Planner 规划能力分哪些层级"
+    },
+    {
+      "id": "agt04",
+      "domain": "llm_app",
+      "hard": true,
+      "rank": 0,
+      "q": "线性规划和反应式规划 reactive planner 的区别"
+    },
+    {
+      "id": "agt05",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "Agent Skills 技能机制是什么"
+    },
+    {
+      "id": "agt06",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "Harness Engineering 大模型工程是干什么的"
+    },
+    {
+      "id": "alg01",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "Transformer 的自注意力机制原理"
+    },
+    {
+      "id": "alg02",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "GPT、BERT、T5 三类模型架构的区别"
+    },
+    {
+      "id": "alg03",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "模型压缩里的蒸馏、剪枝、量化分别是什么"
+    },
+    {
+      "id": "alg04",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "LoRA 低秩微调是怎么省显存的"
+    },
+    {
+      "id": "alg05",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "大模型训练的完整过程包括哪几个阶段"
+    },
+    {
+      "id": "alg06",
+      "domain": "algorithm",
+      "hard": true,
+      "rank": 0,
+      "q": "为什么大模型会涌现智能，智能涌现的前因后果"
+    },
+    {
+      "id": "be01",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "MySQL 的 MVCC 多版本并发控制是怎么实现的"
+    },
+    {
+      "id": "be02",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "MySQL 索引为什么用 B+ 树而不是 B 树或红黑树"
+    },
+    {
+      "id": "be03",
+      "domain": "backend",
+      "hard": true,
+      "rank": 0,
+      "q": "MySQL 最左前缀原则是什么"
+    },
+    {
+      "id": "be04",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "数据库事务的隔离级别和 ACID"
+    },
+    {
+      "id": "be05",
+      "domain": "backend",
+      "hard": true,
+      "rank": 0,
+      "q": "Redis 为什么单线程还这么快"
+    },
+    {
+      "id": "be06",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "Redis 缓存穿透、缓存击穿、缓存雪崩怎么解决"
+    },
+    {
+      "id": "be07",
+      "domain": "backend",
+      "hard": true,
+      "rank": 0,
+      "q": "Redis 跳表 skiplist 在 zset 里怎么用"
+    },
+    {
+      "id": "be08",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "Redis 的 RDB 和 AOF 持久化机制"
+    },
+    {
+      "id": "be09",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "TCP 三次握手四次挥手"
+    },
+    {
+      "id": "be10",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "进程和线程的区别，上下文切换"
+    },
+    {
+      "id": "be11",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "消息队列 MQ 解决什么问题，削峰解耦"
+    },
+    {
+      "id": "ca01",
+      "domain": "career",
+      "hard": false,
+      "rank": 0,
+      "q": "零基础怎么入门大模型应用开发"
+    },
+    {
+      "id": "ca02",
+      "domain": "career",
+      "hard": false,
+      "rank": 0,
+      "q": "后端工程师怎么转型大模型应用方向"
+    },
+    {
+      "id": "ca03",
+      "domain": "career",
+      "hard": false,
+      "rank": 0,
+      "q": "算法岗怎么转大模型应用开发"
+    },
+    {
+      "id": "ca04",
+      "domain": "career",
+      "hard": false,
+      "rank": 0,
+      "q": "大模型应用开发岗位主要做什么"
+    },
+    {
+      "id": "be12",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "MySQL MVCC 多版本并发控制的原理"
+    },
+    {
+      "id": "be13",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "Redis 持久化 RDB 和 AOF 的区别"
+    },
+    {
+      "id": "be14",
+      "domain": "backend",
+      "hard": true,
+      "rank": 0,
+      "q": "Redis 集群 cluster 和哨兵 sentinel 的区别"
+    },
+    {
+      "id": "be15",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "TCP 三次握手和四次挥手的过程"
+    },
+    {
+      "id": "be16",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "单例模式工厂模式等设计模式"
+    },
+    {
+      "id": "alg07",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "模型压缩 蒸馏 剪枝 量化技术"
+    },
+    {
+      "id": "alg08",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "GPT BERT T5 三种预训练模型的区别"
+    },
+    {
+      "id": "alg09",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "大模型训练全过程 预训练 SFT RLHF"
+    },
+    {
+      "id": "alg10",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "大模型涌现能力 为什么突然这么火"
+    },
+    {
+      "id": "agt07",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "Agent 的技能 skills 机制是什么"
+    },
+    {
+      "id": "agt08",
+      "domain": "llm_app",
+      "hard": true,
+      "rank": 0,
+      "q": "Harness 核心工作流是怎么编排的"
+    },
+    {
+      "id": "rag13",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "RAG 文本分块 chunking 有哪些策略"
+    },
+    {
+      "id": "rag14",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "向量数据库 Milvus 怎么用"
+    },
+    {
+      "id": "rag15",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "图 RAG GraphRAG 知识图谱检索"
+    },
+    {
+      "id": "rag16",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "RAG 智能查询路由 query routing"
+    },
+    {
+      "id": "agt09",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "智能体通信协议 MCP 和 A2A"
+    },
+    {
+      "id": "agt10",
+      "domain": "llm_app",
+      "hard": true,
+      "rank": 0,
+      "q": "上下文工程 context engineering 是什么"
+    },
+    {
+      "id": "ca05",
+      "domain": "career",
+      "hard": true,
+      "rank": 0,
+      "q": "大模型应用开发的学习路径怎么规划"
+    },
+    {
+      "id": "ca06",
+      "domain": "career",
+      "hard": false,
+      "rank": 0,
+      "q": "入门大模型应用开发的常见疑问"
+    },
+    {
+      "id": "b9ll01",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "按照 Yunfan Gao 等人的 RAG 综述,RAG 范式分为哪三个发展阶段?高级 RAG 相比朴素 RAG 新增了哪两个过程?这三种范式之间是什么关系?"
+    },
+    {
+      "id": "b9ll02",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "HyDE(Hypothetical Document Embeddings,假设性文档嵌入)的核心思想是什么?该文档指出 HyDE 可能出现哪两个失败场景?请结合“What is Bel?”这个例子说明其中一个。"
+    },
+    {
+      "id": "b9ll03",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "LLM+P 框架的完整工作流程分哪几步?PDDL 在其中扮演什么角色?为什么说它的 Planning Step 是'外包'出去的,前提条件是什么?"
+    },
+    {
+      "id": "b9ll04",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "MCP 传输层演进中,2025-06-18 协议修订版为什么用 Streamable HTTP 取代 2024-11-05 版本的 HTTP+SSE 传输?请说出旧模式的两个独立端点各自的用途、新模式的统一端点形态,以及服务端如何通过 Content-Type 区分一次性 JSON 响应与流式响应。"
+    },
+    {
+      "id": "b9ll05",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "在 Agent 系统设计中,LLM、Agent、Planner 三者经常被混用。请从功能职责角度区分三者各自负责什么,并解释为什么\"Planner 的能力往往由 LLM 来承担\"并不意味着两者概念等价。"
+    },
+    {
+      "id": "b9ll06",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "梳理 Harness Engineering 在 2026 年上半年走红的时间线:Mitchell Hashimoto 在《My AI Adoption Journey》第五步\"Engineer the Harness\"提出了什么核心判断?OpenAI《Harness engineering: leveraging Codex in an agent-first world》复盘的内部实践给出了哪些量化数据(开发周期、手写代码量、代码规模、初始团队人数、合并 PR 数)?Ethan Mollick 提出了哪个三层结构来理解 AI 产品差异?"
+    },
+    {
+      "id": "b9ll07",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "Context Engineering、Harness Engineering、Agent Infra 三个层次分别解决什么问题?这份笔记用哪三句话概括三者的分工?三者之间是并列替代关系还是别的什么关系?"
+    },
+    {
+      "id": "b9ll08",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "HelloAgents 记忆系统的记忆类型层包含哪四种记忆?请分别说明各自的存储方案——哪种是纯内存+TTL 自动清理,哪种是 SQLite+Qdrant 混合存储,哪种需要用到 Neo4j 图存储?"
+    },
+    {
+      "id": "b9ll09",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "LocalFlow 的 AgentServer 采用什么鉴权机制?token 如何生成、用什么函数比较以避免时序侧信道?为什么文档强调这只是一个 soft boundary,真正的隔离靠什么?"
+    },
+    {
+      "id": "b9ll10",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "Agent Skills 规范中,SKILL.md frontmatter 的 name 和 description 两个必填字段各有哪些硬性约束?请具体说明长度上限、字符集规则、与所在目录的关系,以及 description 的内容与人称要求。"
+    },
+    {
+      "id": "b9ll11",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "Adaptive-RAG 用什么模型作为 query 复杂度分类器?在没有现成 query-complexity pairs 数据集的情况下,论文通过哪两个过程构建分类器的训练数据?"
+    },
+    {
+      "id": "b9ll12",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "RAG 检索优化中的\"自动合并\"(auto-merging)策略是如何工作的?文中三层树状切割示例里各层块大小分别是多少,满足什么条件时会把父节点作为结果返回?"
+    },
+    {
+      "id": "b9ll13",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "RAG 路由优化中,Logical routing 与 Semantic routing 各自路由/选择的对象分别是什么?文档提到可以利用大模型的什么机制来完成这类路由分类并产出结构化输出?"
+    },
+    {
+      "id": "b9ll14",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "Step Back 问答回退策略中,“后退问题”相比原始问题有什么特点?该策略在构成上包括哪两个步骤?得到后退问题及其答案之后,检索和生成阶段是如何同时利用原始问题与后退问题的?"
+    },
+    {
+      "id": "b9ll15",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "Reflexion 框架中,启发式函数用来判断轨迹何时应当停止,其中'效率低下的规划'和'幻觉'分别是如何定义的?它采用了什么样的奖励设置?"
+    },
+    {
+      "id": "b9ll16",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "GoT(Graph of Thoughts)支持哪些在 CoT 和 ToT 中无法表达的思考转换操作?它把复杂问题建模成什么结构、由谁来执行?"
+    },
+    {
+      "id": "b9ll17",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "按 MCP 标准工作流程,客户端与服务器在「建立连接」阶段依次要完成哪三步?其中 initialize 请求的响应里会返回哪个关键会话字段?"
+    },
+    {
+      "id": "b9ll18",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "MCP 客户端-服务器架构中,Client、Server、Transport 三者各自承担什么职责?文档用了哪三个身体部位来比喻它们?传输层的 stdio、SSE、Streamable HTTP 三种通信模式分别适用于什么场景?"
+    },
+    {
+      "id": "b9ll19",
+      "domain": "llm_app",
+      "hard": false,
+      "rank": 0,
+      "q": "按《Empowering Real-World: A Survey on the Technology, Practice, and Evaluation of LLM-driven Industry Agents》综述的划分,Agent 规划能力分为 L1–L5 哪五个层级?各层级的核心特征和代表方法各举一例,并说明文中对 L4/L5 当前成熟度的判断。"
+    },
+    {
+      "id": "b9ba01",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "MySQL 中的事务是什么？它对其中包含的一系列 SQL 语句提供了怎样的执行保证？"
+    },
+    {
+      "id": "b9ba02",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "MySQL 按 SQL 语句类型对锁的使用做了怎样的划分?请分别说出 DQL、DML、DDL 的英文全称,以及这三类语句执行时通常各使用哪种锁。"
+    },
+    {
+      "id": "b9ba03",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "面试官较真:『B-树』和『B树』是同一种东西吗?名字里那个『-』该怎么理解?它的正式全称又是什么?"
+    },
+    {
+      "id": "b9ba04",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "缓存穿透的定义为什么强调\"请求的键在数据库中也不存在\"?采用缓存空值方案时,为什么要给空对象设置较短的过期时间?"
+    },
+    {
+      "id": "b9ba05",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "Redis 官方提供了哪几种持久化机制?请分别用一句话概括每种机制的基本做法。"
+    },
+    {
+      "id": "b9ba06",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "Redis Cluster 是在哪个版本中引入的?它主要用于解决 Redis 的什么问题?文中将其类比为 MySQL 的哪种机制?"
+    },
+    {
+      "id": "b9ba07",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "TCP 三次握手过程中,客户端发送 SYN 报文之后就宕机了,后续会发生什么?"
+    },
+    {
+      "id": "b9ba08",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "操作系统中的 PCB(进程控制块)和 TCB(线程控制块)分别保存什么内容?为什么说它们分别是进程和线程存在的唯一标志?PCB 驻留在哪里?"
+    },
+    {
+      "id": "b9ba09",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "消息队列的工作流程可以分为哪五个步骤?其中在消息存储环节,内存存储和磁盘存储各有什么权衡?"
+    },
+    {
+      "id": "b9ba10",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "23 种设计模式按目的划分为哪三大类?在这份概要介绍里,创建型和结构型各自有哪些模式被归入“不常用模式”?"
+    },
+    {
+      "id": "b9ba11",
+      "domain": "backend",
+      "hard": false,
+      "rank": 0,
+      "q": "请解释事务 ACID 特性中的原子性（Atomicity）：如果事务执行过程中发生错误，已执行的操作会被如何处理，数据会恢复到什么状态？"
+    },
+    {
+      "id": "b9al01",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "Transformer 解码器中的编码器-解码器注意力(Encoder-Decoder Attention)与自注意力机制有哪两点区别?其中 Query、Key、Value 分别来自哪里?"
+    },
+    {
+      "id": "b9al02",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "T5 的 Span Corruption 预训练任务与 BERT 的 MLM 在遮蔽方式、遮蔽标记、预测目标上分别有什么差异?为什么说 Span Corruption 更适合生成类任务?"
+    },
+    {
+      "id": "b9al03",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "LoRA 中低秩矩阵的秩 r 应如何根据任务复杂度选取?请给出小型、中型、复杂任务各自的经验取值范围,并说明选择较小的 r 对防止过拟合有什么作用。"
+    },
+    {
+      "id": "b9al04",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "知识蒸馏训练学生模型时,总损失如何由硬标签损失与软标签损失加权组合(写出公式并说明各项含义)?软标签蒸馏损失采用什么散度度量,其公式中乘以 T² 因子的作用是什么?"
+    },
+    {
+      "id": "b9al05",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "在大模型的对齐(Alignment)阶段,整个流程分为哪三个主要步骤?其中 PPO 和 DPO 各是什么角色、有何区别?"
+    },
+    {
+      "id": "b9al06",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "串联起\"大模型崛起\"完整逻辑链的是哪四篇关键论文?按\"起点:规模驱动性能→优化:算力最优平衡→现象:智能涌现→反思:涌现是幻觉\"四个阶段,每篇论文想说明的核心分别是什么?"
+    },
+    {
+      "id": "b9al07",
+      "domain": "algorithm",
+      "hard": false,
+      "rank": 0,
+      "q": "Transformer 的训练流程和推理流程在解码器输入与损失计算上分别有何不同?训练时的\"强制教学\"(teacher forcing)指什么?推理时从什么符号开始生成、满足什么条件终止?"
+    },
+    {
+      "id": "b9ca01",
+      "domain": "career",
+      "hard": false,
+      "rank": 0,
+      "q": "在《大模型应用开发岗学习路线》这份路线总览中,三条细分学习路线之间是什么关系?学习者需要把三条路线全部看完吗?为什么?"
+    },
+    {
+      "id": "b9ca02",
+      "domain": "career",
+      "hard": false,
+      "rank": 0,
+      "q": "零基础转大模型应用工程师时,文档建议按什么先后顺序学习\"大模型应用开发/后端开发/算法岗\"三块技术栈?给出的两条理由分别是什么(其中\"田忌赛马\"策略具体指什么)?"
+    },
+    {
+      "id": "b9ca03",
+      "domain": "career",
+      "hard": false,
+      "rank": 0,
+      "q": "这篇岗位梳理给出的'技术栈关系式'是什么?即大模型应用开发岗的技术栈由哪三大块相加组成,每一块括号里分别标注了什么代表性内容?"
+    },
+    {
+      "id": "b9ca04",
+      "domain": "career",
+      "hard": false,
+      "rank": 0,
+      "q": "《后端开发转大模型应用开发》这份路线文档把大模型应用开发定位成后端体系里的什么角色?据此它对后端转型难度给出了什么判断,并给出了怎样的整体学习顺序?"
+    },
+    {
+      "id": "b9ca05",
+      "domain": "career",
+      "hard": false,
+      "rank": 0,
+      "q": "该学习路线总览的「适用基础」部分中,'零基础'是如何界定的(只会一门编程语言但没系统学过计算机技术栈的人算哪类)?文档给'有算法岗基础'人群转向大模型应用给出的动机是什么?"
+    }
+  ],
+  "_meta": {
+    "label": "",
+    "k": 5,
+    "index_fingerprint": {
+      "git_commit": "85278e6",
+      "collection": "offerclaw_local_baai_bge_base_zh_v1_5_768",
+      "collection_count": 112,
+      "embedding_provider": "",
+      "embedding_model": "",
+      "embedding_dimensions": "",
+      "embed_max_seq": "",
+      "rerank_model": "BAAI/bge-reranker-base",
+      "rerank_on": "1",
+      "generated_at": "2026-08-10T06:06:45"
+    }
+  }
+}
