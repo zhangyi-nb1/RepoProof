@@ -92,3 +92,18 @@ cd ~/RepoProofBench/<name> && python3 -m venv .venv && .venv/bin/pip install -q 
   语义),不是 exit 0;
 - 嵌入模型经 `MODELSCOPE_CACHE` 指向真实缓存**只读共享**(A 类资源
   规矩),假 HOME 其余不变。
+
+## 七、T2 基线重冻结(2026-08-10,用户决定"用最新进度")
+
+- 新基线:OfferClaw @ **85278e6**(较 8e59a18 +6 提交:PDF 路由/
+  Versioned Upsert/Index Fingerprint/论文域 e5 回退路由;605 测试声称);
+- 副本 `~/RepoProofBench/offerclaw-t2-odr`(--no-hardlinks,零共享
+  inode,origin 已移除);**替身自 t1 副本直迁,602/7/0 一次全绿零迭代**
+  (引导缺陷修正:替身在主仓属 gitignored,枚举必须 `--ignored`);
+- 基线:**602 passed / 7 skipped / 0 failed · ~12.3s · 3 次确定**;
+  verify_pipeline 6/6;verify_docs 0 裸露(chunks 已知偏差同 T1);
+  doctor 已知 WARN/ERR 同 T1;PII 0 命中;
+- requirements 与 8e59a18 逐字节相同 → wheelhouse CoW 克隆挂新名
+  `wheelhouse-offerclaw-85278e6`,**env_baseline_hash 不变**(6bc19ab1…,
+  跨基线环境连续性);
+- T1 副本与旧基线全部原样保留(历史可复现)。
