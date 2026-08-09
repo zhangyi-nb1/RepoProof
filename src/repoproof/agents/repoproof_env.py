@@ -34,6 +34,27 @@ from repoproof.persistence.run_store import FileRunStore
 MARKER = "COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"
 
 
+def clip_observation(output: str, cap: int | None) -> str:
+    """观察限流(TESTPLAN v2 修订④,2026-08-10):单条观察超过 cap 字符
+    则头尾截断并附定向读取提示。
+
+    动机:DefaultAgent 每次调用重发全部历史,一次整文件 cat(~80k 字符)
+    会在其后每次调用重复计费——读入量随调用数平方放大(deepseek 三发
+    每轮 460-540k 的主因;E1 时代跨任务同画像)。全模型统一生效、预算
+    不变;trace/artifact 仍存完整输出,只有给模型的观察被限流。
+    首行永不截断(submit 标记检测依赖首行)。"""
+    if not cap or len(output) <= cap:
+        return output
+    head = output[: int(cap * 0.7)]
+    tail = output[-int(cap * 0.25):]
+    omitted = len(output) - len(head) - len(tail)
+    return (head
+            + f"\n[...RepoProof obs-cap: {omitted} of {len(output)} chars omitted. "
+            "Use targeted reads instead of dumping whole files: "
+            "sed -n 'START,ENDp' FILE / grep -n PATTERN FILE ...]\n"
+            + tail)
+
+
 @dataclass
 class RepoProofEnvironment:
     backend: DockerExecutionBackend
@@ -66,6 +87,9 @@ class RepoProofEnvironment:
     ledger_enabled: bool = False
     ledger_requirements: list[dict] = field(default_factory=list)
     ledger_path: str = "/tmp/coverage_ledger.json"
+    obs_char_cap: int | None = None
+    """观察限流阈值(字符)。None=关闭——样例管线默认行为零改变;
+    宿主级 runner 显式传入(修订④)。"""
     injected_chars: int = 0
     """Cumulative characters the harness appended to observations
     (budget + ledger lines) — the measured harness token overhead."""
@@ -155,6 +179,7 @@ class RepoProofEnvironment:
         stdout = res.stdout.decode("utf-8", errors="replace")
         stderr = res.stderr.decode("utf-8", errors="replace")
         output = stdout if not stderr else f"{stdout}\n[stderr]\n{stderr}"
+        output = clip_observation(output, self.obs_char_cap)
         typed_failure = None
         if res.timed_out:
             typed_failure = "COMMAND_TIMEOUT"

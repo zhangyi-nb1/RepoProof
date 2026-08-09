@@ -65,6 +65,22 @@ def hard_signals(*, collected_ok: bool, policy_violations: int,
     return (collected_ok, policy_violations == 0, regression_failed == 0, passed)
 
 
+def obs_cap() -> int | None:
+    """观察限流阈值(修订④,2026-08-10):默认 8000 字符(~2k tokens)。
+
+    证据:deepseek 三发每轮 460-540k 读入的主因是整文件观察随全历史
+    重发平方放大(E1 跨任务同画像,满足 §38.2 重复证据);gpt-5.6 定向
+    读取 19 调用 451k 即通,证明该难度下限流不构成信息瓶颈。全模型
+    统一、预算不变。消融/调参:REPOPROOF_OBS_CAP(0=关闭)。"""
+    import os
+
+    raw = os.environ.get("REPOPROOF_OBS_CAP", "").strip()
+    if raw:
+        v = int(raw)
+        return v if v > 0 else None
+    return 8000
+
+
 def replay_eligible(cap, reg, pol) -> bool:
     """clean replay 准入 = 能力/回归/策略三绿;额度标记不参与
     (终轮撞线与成功可共存——耗尽的职责是约束 agent,不是取消验证)。"""
@@ -294,7 +310,11 @@ def build_host_prompt(contract: HostContract, *, wheel_note: str) -> str:
         "  dependency conflict yourself (diagnose, then pin what you need).\n"
         "- DECLARE new dependencies in requirements.txt with working version pins:\n"
         "  final acceptance rebuilds a CLEAN environment strictly from\n"
-        "  requirements.txt + your committed files; undeclared deps will fail there.",
+        "  requirements.txt + your committed files; undeclared deps will fail there.\n"
+        "- Command outputs beyond ~8000 chars are TRUNCATED (head+tail) with a notice.\n"
+        "  Read files in targeted ranges (sed -n '120,180p' FILE, grep -n PATTERN FILE)\n"
+        "  instead of dumping whole files — every char you read is re-sent on every\n"
+        "  later call and burns your per-round token allowance quadratically.",
         "HARD RULES\n" + "\n".join(forbidden) + "\n- Do not modify ./public_tests or ../upstream.",
         "BUDGETS\n"
         + (f"- PER ROUND (reset each round): model calls {b.max_model_calls}, "
@@ -646,6 +666,7 @@ class HostGuidedRunner:
                 model_call_limit=b.max_model_calls,
                 wall_limit_s=b.max_wall_time_minutes * 60,
                 default_cwd="host",
+                obs_char_cap=obs_cap(),                 # 修订④:观察限流
             )
             token_totals = {"in": 0, "out": 0, "seen": False}   # 累计(记账)
             round_scope: dict = {"cur": None}                    # 回调同时写当前轮

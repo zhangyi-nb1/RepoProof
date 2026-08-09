@@ -196,3 +196,31 @@ def test_replay_eligibility_ignores_budget_marker() -> None:
     assert replay_eligible(ok, ok, ok)
     assert not replay_eligible(ok, bad, ok)
     assert not replay_eligible(None, ok, ok)
+
+
+def test_obs_cap_clips_but_preserves_first_line(monkeypatch) -> None:
+    """修订④:观察限流——首行(submit 标记)永不截断,提示定向读取,
+    trace 侧完整产物不受影响(限流只作用于给模型的观察)。"""
+    from repoproof.agents.repoproof_env import MARKER, clip_observation
+    from repoproof.runner.host_guided import obs_cap
+
+    long_out = MARKER + "\n" + ("x" * 50_000)
+    clipped = clip_observation(long_out, 8000)
+    assert clipped.splitlines()[0] == MARKER, "首行必须原样保留"
+    assert "obs-cap" in clipped and "sed -n" in clipped
+    assert len(clipped) < 12_000
+    assert clip_observation("short", 8000) == "short"
+    assert clip_observation(long_out, None) == long_out, "None=关闭(样例管线默认)"
+    # 默认 8000;REPOPROOF_OBS_CAP 可调参/关闭(消融开关)
+    monkeypatch.delenv("REPOPROOF_OBS_CAP", raising=False)
+    assert obs_cap() == 8000
+    monkeypatch.setenv("REPOPROOF_OBS_CAP", "0")
+    assert obs_cap() is None
+    monkeypatch.setenv("REPOPROOF_OBS_CAP", "20000")
+    assert obs_cap() == 20000
+
+
+def test_prompt_discloses_obs_cap() -> None:
+    """限流必须向 agent 如实披露(公平性:规则可见才可优化)。"""
+    prompt = build_host_prompt(_t1(), wheel_note="w")
+    assert "TRUNCATED" in prompt and "sed -n" in prompt
