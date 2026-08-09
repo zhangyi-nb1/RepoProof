@@ -31,6 +31,10 @@ DEFAULT_EXCLUDES = (
     "daily_log.md", "gap_store.json",
 )
 
+# 扫描跳过目录(第三方源码里的作者邮箱会淹没真实信号)
+_SCAN_SKIP_DIRS = frozenset({".venv", "venv", "node_modules", "__pycache__",
+                             ".git", ".pytest_cache", ".ruff_cache", ".mypy_cache"})
+
 # 合成替身:宿主代码/测试可能读取,但真实内容不得外泄
 DEFAULT_SUBSTITUTES: dict[str, str] = {
     "user_profile.md": (
@@ -117,13 +121,19 @@ def prepare_host_snapshot(
 
 
 def scan_for_pii(root: str | Path, *, max_hits: int = 20) -> list[dict]:
-    """出口扫描:→ [{path, kind, sample}]。空列表 = 未检出明显 PII。"""
+    """出口扫描:→ [{path, kind, sample}]。空列表 = 未检出明显 PII。
+
+    必须跳过 _EXCLUDE_DIRS(venv/缓存等):第三方库源码里的作者邮箱
+    会淹没真实信号——Phase 1 首测在真实副本上实测到 20 条全来自
+    `.venv/site-packages`,而副本自身零命中。"""
     rootp = Path(root).expanduser().resolve()
     hits: list[dict] = []
     for p in sorted(rootp.rglob("*")):
         if len(hits) >= max_hits:
             break
         if not p.is_file() or p.is_symlink() or p.suffix.lower() not in _SCAN_SUFFIXES:
+            continue
+        if any(part in _SCAN_SKIP_DIRS for part in p.relative_to(rootp).parts):
             continue
         try:
             if p.stat().st_size > _MAX_SCAN_BYTES:

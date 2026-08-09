@@ -101,3 +101,22 @@ def test_git_dir_is_all_or_nothing(tmp_path: Path) -> None:
 
     prepare_host_snapshot(src, tmp_path / "drop", extra_excludes=(".git",))
     assert not (tmp_path / "drop" / ".git").exists()  # 显式排除则整体不进
+
+
+def test_pii_scan_skips_dependency_dirs(tmp_path) -> None:
+    """Phase 1 首测实测:真实副本 20 条 PII 命中全来自 .venv 里第三方库
+    作者邮箱,副本自身零命中——扫描器必须跳过依赖/缓存目录,否则真实
+    信号被淹没(出口扫描形同虚设)。"""
+    from repoproof.harness.host_snapshot import scan_for_pii
+
+    (tmp_path / ".venv" / "lib").mkdir(parents=True)
+    (tmp_path / ".venv" / "lib" / "vendor.py").write_text(
+        "# author: jerry@example.com\n", encoding="utf-8")
+    (tmp_path / "node_modules").mkdir()
+    (tmp_path / "node_modules" / "pkg.js").write_text(
+        "// maintainer: kevin@example.com\n", encoding="utf-8")
+    assert scan_for_pii(tmp_path) == []                      # 依赖目录不计
+
+    (tmp_path / "profile.md").write_text("联系:13800138000\n", encoding="utf-8")
+    hits = scan_for_pii(tmp_path)                            # 真实信号仍被抓
+    assert len(hits) == 1 and hits[0]["path"] == "profile.md"

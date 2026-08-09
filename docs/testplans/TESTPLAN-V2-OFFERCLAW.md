@@ -35,12 +35,18 @@ EXPLORATION_LOG 追加一条状态条目(含 Phase 0 ①-⑥ 勾选进度)——
 |---|---|---|---|
 | 1 | "UI 填了就能跑" | 先做 Phase 0 前提工程 | 现有流水线是样例 seam,无法执行宿主级任务 |
 | 2 | 阶段 A 全量前置事务图/Rollback Gate | 最小集;T1/T2 出证据后按源 §38.2 触发 | problem-first |
-| 3 | 每轮 594 全量测试 | 分层回归:每轮受影响子集+冒烟,终验全量;划定依 Host Baseline 实测 | 耗时未测 |
+| 3 | ~~每轮分层回归~~ | **撤销**:Phase 1 首测实测全量套件仅 **12.5 秒**(591 passed,3 次完全一致)→ **每轮跑全量**,无需子集 | 实测推翻假设 |
 | 4 | T3 与 T1/T2 并列 | T3 远期(嵌套 agent+mock 站是独立工程) | 复杂度被低估 |
 | 5 | 执行环境未指明 | 模式 L 默认 + 证据分级;D=对外声称复验等级 | RFC-009 §6.5 |
 | 6 | §5 HostBaselineManifest / §5.2 完整基线 | **保留采用**:Manifest 并入 Phase 1 首测;完整基线(RAG 100 题/realworld 52/拒答)T2 批前+终验后各一次 | T2 写 Chroma,594 pytest 不度量检索质量 |
 | 7 | §6 task_shape 八维评分 | 保留:每任务冻结时填写入任务包 | 难度声称的依据 |
 | 8 | §30 第三模型 | 点名 gpt-5.4-mini(以 provider /models 实际为准) | 消歧 |
+
+**Host Baseline 实测基线(Phase 1 产出,详见 `HOST-BOOTSTRAP-OFFERCLAW.md`)**:
+591 passed / 7 skipped / 0 failed · 12.5s · 完全确定性(容差=不允许下降);
+verify_pipeline 6/6;verify_docs 0 裸露;doctor 8 OK·2 WARN·1 ERR
+(**已知预期差异**:chunks 口径 112 vs 3538 因合成语料重建;WARN 为合成
+密钥政策的预期表现)。**判据 = 相对本基线不退化,而非绝对全绿。**
 
 ## 3. 固定基线(全部已核实)
 
