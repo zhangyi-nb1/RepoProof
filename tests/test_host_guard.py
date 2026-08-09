@@ -114,3 +114,39 @@ def test_fingerprint_ignores_noise_dirs(tmp_path: Path) -> None:
     (real / ".venv").mkdir()
     (real / ".venv" / "lib.py").write_text("x", encoding="utf-8")
     assert dir_fingerprint(real)["tree"] == before["tree"]  # 噪声目录不误报
+
+
+# ---------------- bench 根环境卫生门(T2 批 1 实证教训) ----------------
+
+def test_bench_hygiene_clean_root_passes(tmp_path: Path) -> None:
+    from repoproof.harness.host_guard import bench_root_strays
+    for name in ("offerclaw-t2-odr", "wheelhouse-offerclaw-85278e6", "_sessions"):
+        (tmp_path / name).mkdir()
+    (tmp_path / ".DS_Store").write_text("")
+    assert bench_root_strays(tmp_path) == []
+
+
+def test_bench_hygiene_stray_workspace_detected(tmp_path: Path) -> None:
+    """批 1 实录形态:正控工作区/兼容实验场/真实数据备份必须全部报警。"""
+    from repoproof.harness.host_guard import bench_root_strays
+    (tmp_path / "offerclaw-t2-odr").mkdir()
+    for stray in ("_scratch_t2_positive", "_scratch_odr_compat",
+                  "_offerclaw_untracked_backup_20260809", "notes.txt"):
+        p = tmp_path / stray
+        (p.mkdir() if not stray.endswith(".txt") else p.write_text("x"))
+    assert bench_root_strays(tmp_path) == [
+        "_offerclaw_untracked_backup_20260809", "_scratch_odr_compat",
+        "_scratch_t2_positive", "notes.txt"]
+
+
+def test_bench_hygiene_env_extra_prefix_allowed(tmp_path: Path, monkeypatch) -> None:
+    from repoproof.harness.host_guard import bench_root_strays
+    (tmp_path / "localflow-t9-copy").mkdir()
+    assert bench_root_strays(tmp_path) == ["localflow-t9-copy"]
+    monkeypatch.setenv("REPOPROOF_BENCH_ALLOWED", "localflow-")
+    assert bench_root_strays(tmp_path) == []
+
+
+def test_bench_hygiene_missing_root_is_clean(tmp_path: Path) -> None:
+    from repoproof.harness.host_guard import bench_root_strays
+    assert bench_root_strays(tmp_path / "nope") == []

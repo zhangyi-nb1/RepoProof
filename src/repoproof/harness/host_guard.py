@@ -133,3 +133,34 @@ def verify_protected_unchanged(before: dict[str, dict],
                 mismatches.append({"dir": d, "field": field,
                                    "before": fp.get(field), "after": after.get(field)})
     return {"ok": not mismatches, "mismatches": mismatches}
+
+
+# ---------------- bench 根环境卫生(T2 批 1 实证教训,2026-08-10) ----------------
+# 实录:任务工程遗留的正控工作副本(_scratch_t2_positive/research_jobs.py)
+# 被 gpt-5.5/gpt-5.6 各自一条 ls 挖到并精读——参考实现暴露即能力测量污染;
+# 同根还躺过真实数据备份(未被读,属未爆雷)。L 模式护栏拦写不拦读,
+# 唯一可靠防线 = 开跑前 bench 根白名单清场,白名单外任何条目零预算 BLOCKED。
+
+BENCH_ROOT_DEFAULT = "~/RepoProofBench"
+_BENCH_ALLOWED_NAMES = {"_sessions"}
+_BENCH_ALLOWED_PREFIXES = ("offerclaw-", "wheelhouse-")
+
+
+def bench_root_strays(bench_root: str | Path = BENCH_ROOT_DEFAULT) -> list[str]:
+    """返回 bench 根下白名单外的条目名(排序);空列表 = 干净。
+
+    白名单:宿主副本(offerclaw-*)、冻结轮仓(wheelhouse-*)、会话区
+    (_sessions)。追加合法前缀经 REPOPROOF_BENCH_ALLOWED(冒号分隔)。"""
+    root = Path(os.path.expanduser(str(bench_root)))
+    if not root.is_dir():
+        return []
+    extra = tuple(p for p in os.environ.get("REPOPROOF_BENCH_ALLOWED", "").split(":") if p)
+    strays = []
+    for entry in sorted(root.iterdir(), key=lambda p: p.name):
+        name = entry.name
+        if name == ".DS_Store" or name in _BENCH_ALLOWED_NAMES:
+            continue
+        if name.startswith(_BENCH_ALLOWED_PREFIXES) or (extra and name.startswith(extra)):
+            continue
+        strays.append(name)
+    return strays

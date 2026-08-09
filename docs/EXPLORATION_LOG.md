@@ -515,3 +515,23 @@ run 内 H7/H8/H9。realworld 52 = 已知不可覆盖(私有真实集不进副本
 (RAG_PAPER_ROUTE=0 + OFFERCLAW_TORCH_DEVICE=cpu,终验后同 env),
 OfferClaw 侧改进(加载缓存/集合短路)已挂独立芯片不在本阶段动。
 下一步:依预注册顺序开跑 ①deepseek-v4-pro。
+
+## 状态条目 · 2026-08-10 · T2 批 1 完赛(3 FAIL)→ 环境污染发现 → 停修(卫生门)→ 预注册批 2
+
+三发完赛全入账:deepseek 0→3→3(直连地板,1.71M 读入单文件 192 行,
+干净测量);gpt-5.5 R1 即 9/10+隐藏 10/10 但补丁 2398>1800 → policy
+FAIL(设计语义:补丁预算 run 级无复活);gpt-5.6 R2 10/10+10/10+policy
+PASS → replay 死于 langchain-mcp-adapters==0.3.2(wheelhouse/宿主
+requirements 均无此包)。**取证反转**:该 pin 系从任务工程遗留
+`_scratch_odr_compat` venv 搬运 site-packages 所得;进一步发现两个
+gpt run 都 ls 到并精读了遗留正控工作区 `_scratch_t2_positive/
+research_jobs.py`(答案卷)→ gpt 两发能力证据判污染(verdict 不改,
+不得引用为模型能力)。红线全保:False Pass=0(两近通被独立门拒——
+机制价值最强实证)、oracle 零泄漏(不在遗留物中+trace 零接触)、
+真实数据备份零接触(纯运气,已迁出)、主指纹 3/3 ok。停修:遗留物
+全量隔离 + bench 根白名单卫生门(BLOCKED 零预算,钉死 4 例,391 全
+绿)。批 2 预注册 `T2-prereg-v2-20260810.md`:任务包原封、同预算同
+顺序 run_index=2,3+3=6 发恰在用户已批封套内。连带记 LESSONS #14
+(冻结环境=冻结整个 agent 可达文件宇宙)。附:批前基线阶段另发现
+e5 路由引导缺口(已单列状态条目);gpt-5.5 存在 `--dry-run` 探测被
+禁装 token 名单拦截的过宽案例(非致败,批后议)。

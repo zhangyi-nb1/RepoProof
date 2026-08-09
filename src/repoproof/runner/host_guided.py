@@ -96,6 +96,7 @@ from repoproof.domain.models import (
 from repoproof.execution.local_worktree_backend import LocalWorktreeBackend
 from repoproof.harness.host_guard import (
     HostGuardError,
+    bench_root_strays,
     is_protected,
     snapshot_protected,
     verify_protected_unchanged,
@@ -634,6 +635,14 @@ class HostGuidedRunner:
         public_before: dict = {}
 
         try:
+            # 环境卫生门(批 1 教训):bench 根白名单外条目 → 零预算 BLOCKED。
+            strays = bench_root_strays()
+            ev("host.bench_hygiene", actor="harness",
+               payload={"ok": not strays, "strays": strays[:10]})
+            if strays:
+                missing_external.append(f"BENCH_ROOT_CONTAMINATED:{strays[:5]}")
+                raise _BenchContaminated(strays)
+
             s = self._assemble(backend, "agent")
             upstream_before = hash_tree(s.root / "upstream")
             public_before = hash_tree(s.root / "host" / "public_tests")
@@ -1082,6 +1091,17 @@ class HostGuidedRunner:
                         extra={"mode": REPLAY_MODE_CLEAN})
                 self.timings["replay_s"] = round(time.monotonic() - t_replay, 1)
 
+        except _BenchContaminated as exc:
+            verdict_record = {"verdict": "BLOCKED", "state": "BENCH_ROOT_CONTAMINATED",
+                              "strays": exc.strays}
+            return self._finish(
+                verdict_record, integrity_before, backend, s, keep_session,
+                agent_metrics=agent_metrics, repair_summary={}, records=[],
+                public_by_round=[], regression_by_round=[],
+                run_order=run_order, run_index=run_index, model_name=model_name,
+                preflight=preflight, budget_exhausted=None,
+                gate_reasons=[f"BENCH_ROOT_CONTAMINATED:{exc.strays[:5]}(零预算清场后重跑)"],
+                t0=t0)
         except _BaselineUnhealthy as exc:
             verdict_record = {"verdict": "BLOCKED", "state": "HOST_BASELINE_UNHEALTHY",
                               "baseline_report": exc.report}
@@ -1280,6 +1300,14 @@ class _BaselineUnhealthy(Exception):
     def __init__(self, report: dict) -> None:
         super().__init__("HOST_BASELINE_UNHEALTHY")
         self.report = report
+
+
+class _BenchContaminated(Exception):
+    """bench 根白名单外条目(T2 批 1 实证:遗留正控工作区被 agent 挖到)。"""
+
+    def __init__(self, strays: list[str]) -> None:
+        super().__init__("BENCH_ROOT_CONTAMINATED")
+        self.strays = strays
 
 
 # ------------------------------------------------------------------ CLI 入口
