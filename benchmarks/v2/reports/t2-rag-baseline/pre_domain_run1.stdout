@@ -1,0 +1,58 @@
+=== RAG 分域诊断 (K=5, DB=112 chunks) ===
+
+ID   域         命中   本域纯度     查询
+2026-08-10 03:56:20,548 | INFO    | modelscope_hub.download | Found legacy cache at /Users/zhangronglei/.cache/modelscope/hub/models/BAAI/bge-base-zh-v1___5, reusing.
+2026-08-10 03:56:21,828 | INFO    | modelscope_hub.download | Downloading 13 files from BAAI/bge-base-zh-v1.5@master
+Downloading:   0%|          | 0/13 [00:00<?, ?file/s]Downloading: 100%|██████████| 13/13 [00:00<00:00, 68.84file/s]Downloading: 100%|██████████| 13/13 [00:00<00:00, 68.78file/s]
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 48845.18it/s]
+la1  llm_app   ✗        0%   RAG 全链路包括哪些环节
+la2  llm_app   ✗        0%   什么是 ReAct 推理行动框架
+la3  llm_app   ✗        0%   大模型 Agent 的 Planner 规划是什么
+la4  llm_app   ✗        0%   Function Calling 工具调用怎么实现
+la5  llm_app   ✗        0%   Agent Skills 是什么
+la6  llm_app   ✗        0%   Harness Engineering 是什么
+be1  backend   ✗        0%   MySQL 的 MVCC 多版本并发控制是什么
+be2  backend   ✗        0%   Redis 持久化有哪些方式
+be3  backend   ✗        0%   MySQL 的 B+ 树索引原理
+be4  backend   ✗        0%   TCP 三次握手过程
+be5  backend   ✗        0%   Redis 缓存穿透怎么解决
+be6  backend   ✗        0%   消息队列 MQ 有什么作用
+al1  algorithm ✗        0%   Transformer 的结构是怎样的
+al2  algorithm ✗        0%   LoRA 微调的原理
+al3  algorithm ✗        0%   模型蒸馏剪枝量化是什么
+al4  algorithm ✗        0%   GPT BERT T5 的区别
+al5  algorithm ✗        0%   大模型训练全过程有哪些阶段
+ca1  career    ✗        0%   零基础怎么学大模型应用开发
+ca2  career    ✗        0%   后端开发怎么转大模型应用开发
+ca3  career    ✗        0%   大模型应用开发岗位需要学哪些技术栈
+ca4  career    ✗        0%   大模型应用开发面试难度怎么样
+
+--- 分域汇总 ---
+域             N  Recall@5  平均本域纯度    
+llm_app       6  0.00%     0%        
+backend       6  0.00%     0%        
+algorithm     5  0.00%     0%        
+career        4  0.00%     0%        
+总体           21  0.00%     0%        
+
+--- in_kb 门槛准确率 ---
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/jieba.cache
+Loading model cost 0.280 seconds.
+Prefix dict has been built successfully.
+2026-08-10 03:56:23,576 | INFO    | modelscope_hub.download | Found legacy cache at /Users/zhangronglei/.cache/modelscope/hub/models/BAAI/bge-reranker-base, reusing.
+2026-08-10 03:56:23,868 | INFO    | modelscope_hub.download | Downloading 7 files from BAAI/bge-reranker-base@master
+Downloading:   0%|          | 0/7 [00:00<?, ?file/s]Downloading: 100%|██████████| 7/7 [00:00<00:00, 12.61file/s]Downloading: 100%|██████████| 7/7 [00:00<00:00, 12.60file/s]
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 66179.06it/s]
+  [负] ✓ 什么是 Vue3 前端框架  (dist=0.9048)
+  [负] ✓ Spring Boot 怎么用  (dist=0.9621)
+  [负] ✓ 怎么做红烧肉  (dist=1.3889)
+  [负] ✓ 今天天气怎么样  (dist=1.3352)
+  [负] ✓ 推荐几部好看的电影  (dist=1.3331)
+  [正] ✗ 漏判 什么是 RAG  (in_kb=False, by=None)
+  [正] ✗ 漏判 什么是 react  (in_kb=False, by=None)
+  [正] ✗ 漏判 MySQL 索引  (in_kb=False, by=None)
+  [正] ✗ 漏判 LoRA 是什么  (in_kb=False, by=None)
+  [正] ✗ 漏判 零基础学大模型应用  (in_kb=False, by=None)
+
+门槛：负样本拒答 5/5 · 正样本命中 0/5

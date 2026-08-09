@@ -1,0 +1,15 @@
+  拒答评测 1/12 [adv01]   2026-08-10 03:55:44,577 | INFO    | modelscope_hub.download | Found legacy cache at /Users/zhangronglei/.cache/modelscope/hub/models/BAAI/bge-base-zh-v1___5, reusing.
+2026-08-10 03:55:45,119 | INFO    | modelscope_hub.download | Downloading 13 files from BAAI/bge-base-zh-v1.5@master
+Downloading:   0%|          | 0/13 [00:00<?, ?file/s]Downloading: 100%|██████████| 13/13 [00:00<00:00, 68.74file/s]Downloading: 100%|██████████| 13/13 [00:00<00:00, 68.59file/s]
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 62325.75it/s]
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/jieba.cache
+Loading model cost 0.271 seconds.
+Prefix dict has been built successfully.
+2026-08-10 03:55:46,133 | INFO    | modelscope_hub.download | Found legacy cache at /Users/zhangronglei/.cache/modelscope/hub/models/BAAI/bge-reranker-base, reusing.
+2026-08-10 03:55:46,499 | INFO    | modelscope_hub.download | Downloading 7 files from BAAI/bge-reranker-base@master
+Downloading:   0%|          | 0/7 [00:00<?, ?file/s]Downloading: 100%|██████████| 7/7 [00:00<00:00, 12.81file/s]Downloading: 100%|██████████| 7/7 [00:00<00:00, 12.81file/s]
+Loading weights:   0%|          | 0/201 [00:00<?, ?it/s]Loading weights: 100%|██████████| 201/201 [00:00<00:00, 82177.12it/s]
+  拒答评测 2/12 [adv02]     拒答评测 3/12 [adv03]     拒答评测 4/12 [adv04]     拒答评测 5/12 [adv05]     拒答评测 6/12 [adv06]     拒答评测 7/12 [adv07]     拒答评测 8/12 [adv08]     拒答评测 9/12 [adv09]     拒答评测 10/12 [adv10]     拒答评测 11/12 [adv11]     拒答评测 12/12 [adv12]   
+近似负样本拒答: 12/12
+[已存] /Users/zhangronglei/Desktop/XIANGMU/RepoProof/benchmarks/v2/reports/t2-rag-baseline/pre_abstention_run2.json

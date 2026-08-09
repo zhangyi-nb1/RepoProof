@@ -1,0 +1,87 @@
+{
+  "set": "tests/rag_gate_adversarial_negatives.json",
+  "n": 12,
+  "rejected": 12,
+  "acc": 1.0,
+  "flags": {
+    "RAG_RERANK": null,
+    "RAG_BM25": null,
+    "RAG_ROUTE": null,
+    "RAG_DOC2QUERY": null,
+    "RAG_QUERY_REWRITE": null
+  },
+  "rows": [
+    {
+      "id": "adv01",
+      "rejected": true,
+      "mode": "general_fallback",
+      "best_distance": 0.7917
+    },
+    {
+      "id": "adv02",
+      "rejected": true,
+      "mode": "general_fallback",
+      "best_distance": 1.1142
+    },
+    {
+      "id": "adv03",
+      "rejected": true,
+      "mode": "general_fallback",
+      "best_distance": 0.8077
+    },
+    {
+      "id": "adv04",
+      "rejected": true,
+      "mode": "general_fallback",
+      "best_distance": 0.9367
+    },
+    {
+      "id": "adv05",
+      "rejected": true,
+      "mode": "general_fallback",
+      "best_distance": 0.7915
+    },
+    {
+      "id": "adv06",
+      "rejected": true,
+      "mode": "general_fallback",
+      "best_distance": 0.8043
+    },
+    {
+      "id": "adv07",
+      "rejected": true,
+      "mode": "general_fallback",
+      "best_distance": 1.1313
+    },
+    {
+      "id": "adv08",
+      "rejected": true,
+      "mode": "general_fallback",
+      "best_distance": 0.8983
+    },
+    {
+      "id": "adv09",
+      "rejected": true,
+      "mode": "general_fallback",
+      "best_distance": 0.8252
+    },
+    {
+      "id": "adv10",
+      "rejected": true,
+      "mode": "general_fallback",
+      "best_distance": 0.985
+    },
+    {
+      "id": "adv11",
+      "rejected": true,
+      "mode": "general_fallback",
+      "best_distance": 0.7308
+    },
+    {
+      "id": "adv12",
+      "rejected": true,
+      "mode": "general_fallback",
+      "best_distance": 0.9601
+    }
+  ]
+}
