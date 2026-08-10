@@ -215,18 +215,13 @@ def _parse_form(raw: bytes, ctype: str) -> tuple[dict, dict | None]:
         head, _, body = part.partition(b"\r\n\r\n")
         body = body.rstrip(b"\r\n-")
         head_s = head.decode("utf-8", "replace")
-        name = ""
-        for tok in head_s.split(";"):
-            tok = tok.strip()
-            if tok.startswith('name="'):
-                name = tok[6:-1]
-            if tok.startswith('filename="'):
-                fname = tok[10:-1]
-                if fname:
-                    upload = {"filename": fname, "bytes": len(body)}
-                name = ""
-        if name:
-            fields[name] = body.decode("utf-8", "replace")
+        import re as _re
+        m_name = _re.search(r'name="([^"]*)"', head_s)
+        m_file = _re.search(r'filename="([^"]*)"', head_s)
+        if m_file and m_file.group(1):
+            upload = {"filename": m_file.group(1), "bytes": len(body)}
+        elif m_name and m_name.group(1):
+            fields[m_name.group(1)] = body.decode("utf-8", "replace")
     return fields, upload
 
 

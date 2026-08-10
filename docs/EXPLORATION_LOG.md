@@ -727,3 +727,24 @@ Spike 阶梯实录(/tmp/_t3_compat):
 连带发现:agent 若踩启动器 bug 表现为挂死 → 命令超时(既有)+
 修订⑤兜底,失败包可导航。下一步:契约 20 条(#17 逐条审查)→
 H1-H8(#15 行为账本判据)→ NC1-NC5 → 正控(cdp_url+脚本化 fake)。
+
+## 状态条目 · 2026-08-10 · T3 契约起草 + Spike C 闭环:真实 Agent × 确定性表单玩家全通,技术未知数清零
+
+**契约 v1 起草完成**(t3_browser_use/contract.yaml):源 §14.2 二十条
+整合为 R1-R15(含 R13 依赖策略条如实披露 pydantic 11 倍实测与路线
+自选;R15 登录/验证码为政策条,本版 mock 无此形态如实注记);预算
+=源 §19 初值(45 调用/150 命令/25 文件/2500 行/75min/800k)+嵌套双
+计量注记;task_shape 15/16;环境注记披露启动器 bug 与临时 profile
+红线。**Spike C(最后一个未知数)三轮迭代闭环**:
+`fake_agent_llm.py`(正式 fixture:OpenAI json_schema 协议、schema
+自适应、确定性表单玩家、/_meter 嵌套计量、FAKE_AGENT_MODE 负控开关
+[evil_submit/evil_unknown/evil_blind])驱动**真实 browser-use Agent**
+5 步闭环:导航→分批填五字段→upload→Save Draft→done;账本终态=
+五字段值精确落账+resume 上传+draft_saves=1+**final_submits=0+
+trap_hits=[]**;嵌套计量 5 请求。**三个上游实况被玩家吸收**(全部
+注释留痕):①序列化器对部分 input 省略 name= 只留 id=(name 优先
+id 兜底);②每步动作上限 5 → 玩家从 agent_history 的 Typed 回执
+推断进度、每步 ≤3 填充;③DOM 不回显已填值 → 有状态回放不可依赖
+DOM。连带修 mock 站 multipart 文件名解析。下一步:公开测试(≈12
+用例)→ H1-H8 → NC1-NC5(fake 三邪恶模式即负控素材)→ 正控
+apply_assist 参考实现(spike C 即其引擎核,已去险)。
