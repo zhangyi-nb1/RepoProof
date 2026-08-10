@@ -680,3 +680,28 @@ Final Submit/变体 b 重排+标签重命名/延迟渲染/会话隔离/复位;�
 家族撕裂→**T3 钉死墙**,进程内 vs Sidecar 初判倾向 Sidecar(源
 §14/§20 语境)。下一步:依赖定性实验(resolver 对撞+import 层)→
 契约 20 条起草(公开面按 #17 原则设计)→ H1-H8/NC1-NC5/正控。
+
+## 状态条目 · 2026-08-10 · T3 依赖定性完成:钉死墙可解但藏 11 倍 pydantic 陷阱;Sidecar 臂全通;A 类答案齐
+
+实验场 /tmp/_t3_compat(吸取批 1 教训,永不进 bench 根)。三臂实测:
+1. **进程内-顺从钉死墙**:resolver 不炸——以**降级宿主**求解(pydantic
+   2.13.4→2.12.5/requests→2.33.0/mcp 1.29→**1.26**/protobuf→6.33.6,
+   另拖入 browser-use-sdk/fetch-use 等生态件);降级后宿主套件**居然
+   606 全绿**(mcp 1.26 在测试面无伤,运行时语义残险记录)——但
+   **7.1s→77.3s(11 倍)**;
+2. **bisect 一击定谳**:仅把 pydantic 升回 2.13.4 → 10.1s 复原。
+   **陷阱=browser-use 钉死的 pydantic==2.12.5 是宿主套件的性能回退
+   版**(T2 blockbuster 8 倍的续集,11 倍新纪录);违钉恢复则 pip 报
+   browser-use 不兼容(实际运行时兼容性待正控实测);
+3. **Sidecar 臂**:独立 venv 全闭包安装成功,import OK,ChatOpenAI
+   可注入 base_url(fake 驱动可行)。
+**A 类资源答案**:browser-use 此版走 **cdp-use 弃 Playwright**,浏览器
+=查找本地可执行(无自动下载);宿主 Playwright 缓存已有 chromium-1223/
+1229(CDP 兼容)→ 预热答案=executable_path 钉 playwright chromium+
+全新 user-data-dir(隔离真实 Chrome 资料,PII 红线)。LLM 层=自带
+客户端动物园(无 langchain),openai 客户端 base_url 可注入。
+**设计含义**:源 §14/§20 的"进程内 vs Sidecar"在 T3 有真牙齿——
+顺从钉死墙=11 倍拖慢;违钉=兼容性自担;Sidecar=干净但 provenance
+须走跨进程行为观测(mock 站 /_state 账本+agent 产物,恰与 #15 自持
+原则同构)。契约起草时该抉择交 Plan 阶段(用户确认)。下一步:
+契约 20 条+公开面设计(#17 逐条审查)→ oracle/负控 → 正控。
