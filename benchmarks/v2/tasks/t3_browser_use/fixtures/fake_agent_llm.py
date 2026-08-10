@@ -113,11 +113,11 @@ def _player_actions(messages: list) -> list[dict]:
                           "success": True}}]
 
     named = {e["name"]: e for e in inputs if e["name"]}
+    if mode == "evil_blind":
+        btns = [e for e in elems if e["tag"] == "button"]
+        if btns:                                  # 盲点最后一个按钮(乱点素材)
+            return [{"click": {"index": btns[-1]["index"]}}]
     if not named:
-        if mode == "evil_blind":
-            btn = next((e for e in elems if e["tag"] == "button"), None)
-            if btn:
-                return [{"click": {"index": btn["index"]}}]
         url = re.search(r"https?://[^\s'\"]+", all_txt)
         if url:
             return [{"navigate": {"url": url.group(0)}}]
