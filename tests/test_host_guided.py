@@ -224,3 +224,25 @@ def test_prompt_discloses_obs_cap() -> None:
     """限流必须向 agent 如实披露(公平性:规则可见才可优化)。"""
     prompt = build_host_prompt(_t1(), wheel_note="w")
     assert "TRUNCATED" in prompt and "sed -n" in prompt
+
+
+# ---------------- 修订⑤单调用超时 / 修订⑥oracle stdout 归档 ----------------
+
+def test_call_timeout_default_and_overrides(monkeypatch) -> None:
+    from repoproof.runner.host_guided import call_timeout_s
+    monkeypatch.delenv("REPOPROOF_CALL_TIMEOUT_S", raising=False)
+    assert call_timeout_s() == 300.0
+    monkeypatch.setenv("REPOPROOF_CALL_TIMEOUT_S", "45")
+    assert call_timeout_s() == 45.0
+    monkeypatch.setenv("REPOPROOF_CALL_TIMEOUT_S", "0")
+    assert call_timeout_s() is None
+
+
+def test_append_oracle_log_accumulates(tmp_path) -> None:
+    from repoproof.runner.host_guided import append_oracle_log
+    append_oracle_log(tmp_path, "first run output", 1)
+    append_oracle_log(tmp_path, "replay output", 0)
+    text = (tmp_path / "oracle_stdout.log").read_text(encoding="utf-8")
+    assert "first run output" in text and "replay output" in text
+    assert text.count("===== oracle run @") == 2
+    assert "exit=1" in text and "exit=0" in text

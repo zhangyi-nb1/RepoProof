@@ -81,6 +81,33 @@ def obs_cap() -> int | None:
     return 8000
 
 
+def call_timeout_s() -> float | None:
+    """单模型调用超时(修订⑤,2026-08-10):默认 300s。
+
+    证据:T2v2 order-13——provider 降速时段一次不返回的 API 调用把
+    runner 冻结 20+ 分钟,wall 预算只在调用间隙有检查点 → 被单点挂死
+    架空,只能人工终止(INFRA_ABORTED)。litellm 超时异常走既有重试/
+    崩溃报告路径,挂死变快败。消融/调参:REPOPROOF_CALL_TIMEOUT_S
+    ("0"/空 = 关闭)。全模型统一,预算不变。"""
+    import os
+
+    raw = os.environ.get("REPOPROOF_CALL_TIMEOUT_S", "300").strip()
+    if not raw or raw == "0":
+        return None
+    return float(raw)
+
+
+def append_oracle_log(run_dir: Path, stdout: str, exit_code: int) -> None:
+    """oracle stdout 全文归档(修订⑥,2026-08-10):追加式单日志。
+
+    证据:T2 的 h5/h1 断言层取证两次被迫用 bundle diff 现场重建——
+    bundle 只存 junit 计数不存 stdout,失败断言原文无处可查。capability
+    与 replay 两次调用共用一个日志,哨兵密钥为合成值无泄漏面。"""
+    with (run_dir / "oracle_stdout.log").open("a", encoding="utf-8") as f:
+        f.write(f"\n===== oracle run @{time.strftime('%Y-%m-%dT%H:%M:%S')} "
+                f"exit={exit_code} =====\n{stdout}\n")
+
+
 def replay_eligible(cap, reg, pol) -> bool:
     """clean replay 准入 = 能力/回归/策略三绿;额度标记不参与
     (终轮撞线与成功可共存——耗尽的职责是约束 agent,不是取消验证)。"""
@@ -528,6 +555,7 @@ class HostGuidedRunner:
             env={"PYTHONPATH": str(s.root / "host"),
                  "OFFERCLAW_HOST_ROOT": str(s.root / "host")})
         stdout = res.stdout.decode(errors="replace")
+        append_oracle_log(self.store.run_dir, stdout, res.exit_code)   # 修订⑥
         return {"exit_code": res.exit_code, "stdout": stdout,
                 **self._pytest_counts(s, xml_name, stdout)}
 
@@ -710,6 +738,9 @@ class HostGuidedRunner:
                 model_cls = (LitellmTextbasedModel
                              if preflight.action_protocol == "textbased" else LitellmModel)
                 mkwargs = {"temperature": 0} if preflight.temperature == "0" else {}
+                _cto = call_timeout_s()          # 修订⑤:单调用超时
+                if _cto is not None:
+                    mkwargs["timeout"] = _cto
                 inner_model = model_cls(model_name=f"openai/{provider.model_name}",
                                         model_kwargs=mkwargs)
 
