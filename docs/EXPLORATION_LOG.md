@@ -658,3 +658,25 @@ mock_recruitment_site(最重件)/嵌套 agent 双计量/不可逆动作门与
 PII 白名单 oracle(须过自持审查)/浏览器生命周期×超时交互/T3 预算
 标定;决策点=T3 宿主基线(沿用 vs 届时最新)与 T3 开工时点,候
 用户令。t2 副本/任务包 v1-v4/全部 bundle 原样冻结留证。
+
+## 状态条目 · 2026-08-10 · **Phase 3(T3)开工**:基线 5b2d00e(用户定)+副本一次全绿+mock 站自测绿+依赖面第一眼="钉死墙"
+
+**OfferClaw 复查**:用户 e5 修复会话已落提交 **5b2d00e**(e5 进程内
+缓存+集合缺失短路——正是任务芯片建议的两处,pytest 609,工作树净);
+requirements 逐字节未变。**用户定基线=5b2d00e**(延续"用最新"先例,
+且该修复根治副本 e5 陷阱)。**t3 副本引导一次全绿**:
+`offerclaw-t3-browser-use`(--no-hardlinks/去 origin/零共享 inode)
++替身直迁 **606/7/0 ×3 完全确定**(直迁三连胜 591→602→606,PII 0)
++verify 三件套已知偏差画像吻合+chunks 112+wheelhouse-5b2d00e(147 轮
+CoW,env_baseline_hash 连续)+Manifest 落盘。**browser-use@3260188
+上游钉住**(upstream-cache)。**mock_recruitment_site v1 完成并自测
+5/5 绿**(§45 全要素:三未知字段/双陷阱按钮/Save Draft/Continue/
+Final Submit/变体 b 重排+标签重命名/延迟渲染/会话隔离/复位;设计
+遵 #15 自持——站点自带行为账本+/_state 观测端点,验收只看服务器侧
+行为)。**依赖面第一眼(定性实验前初判)**:browser-use 依赖**全部
+精确钉死**(==)——mcp==1.26.0 撞宿主 1.29.0、pydantic/httpx/openai
+全钉、google 全家桶(otel 级联候选)、**cdp-use 取代 Playwright**
+(宿主 Playwright 复用假设作废)。第三种冲突形态:T1 装上即炸→T2
+家族撕裂→**T3 钉死墙**,进程内 vs Sidecar 初判倾向 Sidecar(源
+§14/§20 语境)。下一步:依赖定性实验(resolver 对撞+import 层)→
+契约 20 条起草(公开面按 #17 原则设计)→ H1-H8/NC1-NC5/正控。
