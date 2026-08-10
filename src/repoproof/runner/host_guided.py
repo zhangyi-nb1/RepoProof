@@ -462,6 +462,14 @@ class HostGuidedRunner:
                         ignore=shutil.ignore_patterns("__pycache__"))
         shutil.copytree(self.public_tests_src, root / "host" / "public_tests",
                         ignore=shutil.ignore_patterns("__pycache__"))
+        # T3 批 1 实证修复:任务包 fixtures 是公开测试面的一部分(公开
+        # 套件/oracle 都 import 它),必须与 public_tests 一同注入会话——
+        # 否则零适配态公开套件即收集失败,正控验证环境≠会话环境。
+        fixtures_src = self.task_dir / "fixtures"
+        if fixtures_src.is_dir():
+            shutil.copytree(fixtures_src, root / "host" / "fixtures",
+                            dirs_exist_ok=True,
+                            ignore=shutil.ignore_patterns("__pycache__"))
         s = _Session(backend, session, root, ".venv/bin/python")
         r = self._git(s, "add", "-A")
         if r.exit_code != 0:

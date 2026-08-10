@@ -246,3 +246,27 @@ def test_append_oracle_log_accumulates(tmp_path) -> None:
     assert "first run output" in text and "replay output" in text
     assert text.count("===== oracle run @") == 2
     assert "exit=1" in text and "exit=0" in text
+
+
+def test_task_fixtures_injected_into_session_host(tmp_path, monkeypatch):
+    """T3 批 1 实证教训:fixtures 与 public_tests 必须一同进会话。"""
+    import shutil
+    task = tmp_path / "taskpkg"
+    (task / "fixtures").mkdir(parents=True)
+    (task / "fixtures" / "fake_agent_llm.py").write_text("X = 1", encoding="utf-8")
+    (task / "public_tests").mkdir()
+    root = tmp_path / "session_root"
+    (root / "host").mkdir(parents=True)
+    # 复刻 _assemble 的注入逻辑(同源片段,防回归锚点)
+    shutil.copytree(task / "public_tests", root / "host" / "public_tests",
+                    ignore=shutil.ignore_patterns("__pycache__"))
+    fixtures_src = task / "fixtures"
+    if fixtures_src.is_dir():
+        shutil.copytree(fixtures_src, root / "host" / "fixtures",
+                        dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("__pycache__"))
+    assert (root / "host" / "fixtures" / "fake_agent_llm.py").read_text(
+        encoding="utf-8") == "X = 1"
+    src = (Path(__file__).resolve().parents[1] / "src" / "repoproof" / "runner"
+           / "host_guided.py").read_text(encoding="utf-8")
+    assert 'root / "host" / "fixtures"' in src, "装配代码丢失 fixtures 注入"
