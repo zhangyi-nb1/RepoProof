@@ -1,0 +1,107 @@
+task_id: t2-offerclaw-open-deep-research-v4
+task_version: v4
+kind: host_integrated
+
+host:
+  repo: zhangyi-nb1/offerclaw
+  commit: 85278e680f4edd7138df93536052d18ba3030f6f
+  copy_path: ~/RepoProofBench/offerclaw-t2-odr
+  baseline_manifest: HOST_BASELINE_MANIFEST.json
+  regression_command: ["python", "-m", "pytest", "tests/", "-q", "-p", "no:cacheprovider"]
+  regression_baseline: "602 passed, 7 skipped, 0 failed"
+
+source_repo:
+  url: https://github.com/langchain-ai/open_deep_research
+  resolved_commit: 20aaa0d422bd290c83f93574810ef1244e8d5955
+  distribution: open_deep_research
+  import_module: open_deep_research
+  license: MIT
+
+# ---- 公开需求(agent 可见;源方案 §8.2 全文,冻结后不可改)----
+capability:
+  statement: >
+    为 OfferClaw 增加"公司与岗位深度研究"能力,使用固定版本 Open Deep
+    Research 作为研究引擎:异步作业、可追溯、经用户显式确认后才入知识库。
+  requirements:
+    - id: R1-async-create
+      text: 用户可基于 JD/公司名称/招聘页面创建 Deep Research 任务;创建请求必须快速返回,不得等待完整研究结束。
+    - id: R2-state-machine
+      text: 至少支持 queued / running / succeeded / failed / cancelled 状态,状态迁移明确。
+    - id: R3-cancel
+      text: 用户可以取消尚未完成的任务;已进入终态的作业不得被翻转。
+    - id: R4-result-fields
+      text: 研究结果必须包含最终报告、引用来源、研究问题、创建/完成时间和研究任务 ID。
+    - id: R5-real-upstream
+      text: 必须真实使用固定版本 Open Deep Research 的 Research Graph,禁止自行重写搜索 + summarize 流程代替。
+    - id: R6-secret-isolation
+      text: 模型与搜索 Provider 复用 OfferClaw 配置体系;API Key 不得进入数据库、报告、Trace 或接口响应。
+    - id: R7-fake-providers
+      text: 测试必须支持 Fake Model + Fake Search/MCP,且测试阶段不访问公网(fixtures/ 下已提供可用的本地假模型服务)。
+    - id: R8-duplicate-policy
+      text: 相同 JD/Company + 相同配置重复提交时,必须具备明确的幂等或去重策略。
+    - id: R9-failure-persistence
+      text: 失败任务必须保存明确 failure 状态和原因。
+    - id: R10-restart-semantics
+      text: OfferClaw 重启后遗留的 running 任务不得永久停在 running。
+    - id: R11-explicit-promote
+      text: 成功报告只有在用户显式确认(Promote)后才能加入知识库;未确认前当前 Chroma 知识库不得被污染。
+    - id: R12-source-type
+      text: Promote 后必须使用独立 source_type=research_report,不得混入 paper 域或排期推荐域,并保存 research_job_id 与引用来源。
+    - id: R13-host-regression
+      text: 不得破坏当前 RAG、CareerFlow、Memory、MCP、JD Discovery、Resume 等功能;现有宿主测试必须保持通过。
+    - id: R14-dependency-strategy
+      text: >
+        如果 Open Deep Research 与当前 LangGraph/LangChain 依赖存在不可兼容冲突,
+        必须在实施前比较进程内集成与本地 Sidecar 两种方案并说明选择理由;
+        禁止静默升级整个宿主依赖树。所有新增/变更依赖必须在 requirements.txt 中声明并钉版本。
+
+constraints:
+  editable_zones: ["."]
+  forbidden:
+    - 修改或删除 oracle / 公开验收测试的断言
+    - 修改 metrics.json 等事实源以迎合结果
+    - 静默升级宿主既有依赖树的主版本
+    - 测试阶段访问公网
+  network_at_test_time: false
+
+budgets:
+  # 语义同 T1 v2(每轮重置);数值按 T2 复杂度上调(21 条需求/多文件子系统)。
+  # 回归耗时按慢路径兜底:blockbuster(langgraph-cli[inmem] 传递依赖)会把
+  # 宿主套件 12s 拖到 95s(任务工程实测),故墙钟给到 45 分钟。
+  semantics: per_round
+  max_rounds: 3
+  max_model_calls: 36
+  max_commands: 120
+  max_patch_files: 20
+  max_patch_lines: 1800
+  max_wall_time_minutes: 45
+  max_input_tokens_total: 600000
+  max_output_tokens_total: 60000
+
+acceptance:
+  public_test_command: ["python", "-m", "pytest", "public_tests/", "-q", "-p", "no:cacheprovider"]
+  hidden_oracle_command: ["python", "-m", "pytest", "<ORACLE_ABS>", "-q", "-p", "no:cacheprovider"]
+
+# ---- task_shape 八维评分(源方案 §6;冻结时填写)----
+task_shape:
+  files_and_modules: 2        # 新增作业子系统 + 存储 + API 接线
+  integration_points: 2       # FastAPI 路由 + Chroma KB + 宿主配置体系
+  state_and_persistence: 2    # 作业状态机 + 崩溃恢复 + KB 写入
+  async_and_lifecycle: 2      # 异步任务/取消/重启语义
+  protocol_boundary: 1        # HTTP API(无新协议),但需 Fake Provider 契约
+  migration_and_configuration: 2  # 大依赖面 + 版本一致性 + Flag
+  security_semantics: 2       # 密钥零泄漏 + KB 污染防线 + 显式确认
+  regression_surface: 2       # 602 测试 + RAG/MCP/CareerFlow 全功能面
+  total: 15                   # → "高难 Project-to-Project" 档(源 §6 表 13-16)
+
+failure_taxonomy_expected:
+  - DEPENDENCY_CONFLICT            # otel 家族撕裂(实测)
+  - UPSTREAM_CAPABILITY_REIMPLEMENTED
+  - BLOCKING_REQUEST
+  - JOB_STATE_LOSS
+  - CANCELLATION_FAILURE
+  - DUPLICATE_JOB
+  - SECRET_LEAK
+  - RAG_SOURCE_CONTAMINATION
+  - SOURCE_TYPE_VIOLATION
+  - HOST_REGRESSION_FAILURE
