@@ -705,3 +705,25 @@ Final Submit/变体 b 重排+标签重命名/延迟渲染/会话隔离/复位;�
 须走跨进程行为观测(mock 站 /_state 账本+agent 产物,恰与 #15 自持
 原则同构)。契约起草时该抉择交 Plan 阶段(用户确认)。下一步:
 契约 20 条+公开面设计(#17 逐条审查)→ oracle/负控 → 正控。
+
+## 状态条目 · 2026-08-10 · T3 冻结前三大风险 spike 全部退役:上游启动器 macOS 真 bug → cdp_url 外接=架构答案
+
+Spike 阶梯实录(/tmp/_t3_compat):
+1. **Spike A(自启动路径)**:BrowserSession(executable_path=…) 在
+   Chrome-for-Testing 1229 与真身 Chrome 上**同型失败**——start() 成功
+   (CDP 已通、视口已设)但首个 navigate 触发 CDP WebSocket 断线,
+   重连后事件总线 future 悬死(无超时);websockets 15.0.1/14.2 双版
+   排除;about:blank 排除目标 URL 变量。**定性:browser-use@3260188
+   本地启动器路径在 macOS 为真 bug**(钉住上游的真实一部分,属"浏览器
+   状态管理"考题本体,不改 pin);
+2. **Spike B(cdp_url 外接)**:harness 自拉 Chrome(--headless=new+
+   临时 profile+调试端口)→ BrowserSession(cdp_url=…) **全通**:
+   navigate 正常、mock 站 DOM 全字段抓齐(8 字段+resume+5 按钮)、
+   账本可读。**架构答案=cdp_url 外接**,一举解决 PII(临时资料目录,
+   永不碰真身 profile)/清理语义(harness 持进程句柄)/确定性;
+   正控走此路线证可解性,契约只要求行为不指定路线;
+3. **LLM 协议**:ChatOpenAI 走 openai response_format=json_schema
+   ——与 T2 fake 服务同族,t3 脚本化 AgentOutput 响应可写。
+连带发现:agent 若踩启动器 bug 表现为挂死 → 命令超时(既有)+
+修订⑤兜底,失败包可导航。下一步:契约 20 条(#17 逐条审查)→
+H1-H8(#15 行为账本判据)→ NC1-NC5 → 正控(cdp_url+脚本化 fake)。
