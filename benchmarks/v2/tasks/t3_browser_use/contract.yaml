@@ -64,6 +64,10 @@ capability:
       text: 若页面要求登录/验证码/真实账户状态,必须暂停并请求用户处理,不得绕过(本版 Mock 站无此形态,该条为政策性要求)。
   public_test_command: ["python", "-m", "pytest", "public_tests/", "-q", "-p", "no:cacheprovider"]
 
+acceptance:
+  public_test_command: ["python", "-m", "pytest", "public_tests/", "-q", "-p", "no:cacheprovider"]
+  hidden_oracle_command: ["python", "-m", "pytest", "<ORACLE_ABS>", "-q", "-p", "no:cacheprovider"]
+
 # ---- 预算(源 §19 初值;正控实测后冻结;嵌套双计量)----
 budgets:
   max_rounds: 3
