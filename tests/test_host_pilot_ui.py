@@ -1,14 +1,21 @@
-"""宿主任务 T1 UI 入口的钉死测试(用户正式 run 都在 UI 进行)。"""
+"""宿主任务 T1–T4 UI 入口的钉死测试(用户正式 run 都在 UI 进行)。"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from repoproof.persistence.bench_records import append_run
+import pytest
+
+from repoproof.persistence.bench_records import append_adjudication, append_run
 from repoproof.ui.services.live_run import (
     HOST_PILOT,
+    HOST_TASKS,
     host_pilot_state,
     host_run_argv,
+    host_task_state,
+    next_run_index,
+    start_host_run,
+    variance_summary,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -88,9 +95,119 @@ def test_page_offers_model_choice_within_pool(tmp_path: Path, monkeypatch) -> No
     assert len(at.button) == 1 and "第 1 发" in at.button[0].label
 
 
+# ---- T1–T4 泛化(2026-08-11:用户要在 UI 里对各阶段重复发以观察方差)----
+
+
+def test_registry_points_at_real_frozen_surfaces() -> None:
+    """注册表指向的契约/预注册必须真实存在,且 task_id 与契约逐字一致。
+
+    UI 是用户发射正式 run 的唯一入口——指错契约 = 整批数据废掉,
+    所以这里对磁盘实物核验,不接受"看起来对"。"""
+    import yaml
+
+    for key, t in HOST_TASKS.items():
+        assert t["key"] == key
+        assert (ROOT / t["prereg"]).exists(), f"{key} 预注册缺失:{t['prereg']}"
+        if t["runnable"]:
+            cpath = ROOT / t["contract"]
+            assert cpath.exists(), f"{key} 契约缺失:{t['contract']}"
+            got = yaml.safe_load(cpath.read_text(encoding="utf-8"))["task_id"]
+            assert got == t["task_id"], f"{key} task_id 与契约不符:{got}"
+            assert t["models"], f"{key} 可发射却没有模型池"
+        else:
+            assert (ROOT / t["ledger"]).exists()
+            assert (ROOT / t["pin_suite"]).exists()
+            assert t["why_not_runnable"], "不可发射必须写明理由(UI 要展示)"
+
+
+def test_t4_cannot_be_launched_from_ui(tmp_path: Path) -> None:
+    """T4 是零模型调用的确定性专项,无方差可观察 → 两层都必须拒绝。"""
+    with pytest.raises(ValueError, match="T4"):
+        host_run_argv(tmp_path, run_order=1, task_key="T4")
+    out = start_host_run(tmp_path, model="gpt-5.6", run_order=1, task_key="T4")
+    assert out["ok"] is False and "T4" in out["error"]
+
+
+def test_argv_carries_that_stage_own_contract(tmp_path: Path) -> None:
+    for key in ("T1", "T2", "T3"):
+        joined = " ".join(host_run_argv(tmp_path, run_order=7, run_index=2,
+                                        task_key=key))
+        assert HOST_TASKS[key]["contract"] in joined
+        assert "--run-order 7" in joined and "--run-index 2" in joined
+        for other in set("T1 T2 T3".split()) - {key}:
+            assert HOST_TASKS[other]["contract"] not in joined, "串台 = 整批作废"
+        for secret_marker in ("KEY", "sk-", "BASE"):
+            assert secret_marker not in joined
+
+
+def test_per_task_counts_are_independent(tmp_path: Path) -> None:
+    """同一模型在 T1/T2 各自计数;全局序号跨任务单调(TESTPLAN §9)。"""
+    for key in ("T1", "T2", "T2"):
+        append_run(tmp_path, {"run_id": f"{HOST_TASKS[key]['task_id']}-x{key}"
+                              f"-{next_run_index(tmp_path, key, 'gpt-5.6')}",
+                              "task_id": HOST_TASKS[key]["task_id"],
+                              "model": "gpt-5.6", "verdict": "FAIL"})
+    assert next_run_index(tmp_path, "T1", "gpt-5.6") == 2
+    assert next_run_index(tmp_path, "T2", "gpt-5.6") == 3
+    assert next_run_index(tmp_path, "T3", "gpt-5.6") == 1
+    assert next_run_index(tmp_path, "T1", "gpt-5.5") == 1
+    assert host_task_state(tmp_path, "T2")["next_global_order"] == 4  # 全局
+
+
+def test_variance_counts_effective_verdict_not_system(tmp_path: Path) -> None:
+    """被人工判无效的假 PASS 不得进方差面板的通过计数;n<3 明确标注。"""
+    tid = HOST_TASKS["T3"]["task_id"]
+    for i, v in enumerate(["PASS_ADAPTED", "FAIL", "PASS_ADAPTED"]):
+        append_run(tmp_path, {"run_id": f"{tid}-2026081{i}-000000", "task_id": tid,
+                              "model": "gpt-5.6", "verdict": v,
+                              "input_tokens": 100 + i * 50, "rounds_used": 1 + i})
+    append_run(tmp_path, {"run_id": f"{tid}-fake", "task_id": tid,
+                          "model": "fake-scripted", "verdict": "PASS"})
+    append_adjudication(tmp_path, {
+        "run_id": f"{tid}-20260810-000000", "system_verdict": "PASS_ADAPTED",
+        "effective_verdict": "INVALIDATED_FALSE_PASS", "counts_as_pass": False,
+        "adjudicated_at": "2026-08-11T00:00:00Z", "adjudicated_by": "test",
+        "basis": "钉死用", "evidence_refs": ["tests/test_host_pilot_ui.py"]})
+
+    var = variance_summary(tmp_path, "T3")
+    assert [v["model"] for v in var] == ["gpt-5.6"], "fake 不进方差面板"
+    v = var[0]
+    assert v["n"] == 3 and v["enough_for_variance"] is True
+    assert v["passes"] == 1, "系统判 2 个 PASS_ADAPTED,人工作废 1 个 → 有效 1"
+    assert v["verdicts"] == {"PASS_ADAPTED": 1, "FAIL": 1,
+                             "INVALIDATED_FALSE_PASS": 1}
+    assert v["stats"]["读入"] == {"n": 3, "min": 100, "max": 200,
+                                  "mean": 150.0, "spread": 100}
+    # n<3 必须自报不足以谈方差(项目纪律:n<3 不排名)
+    append_run(tmp_path, {"run_id": f"{tid}-20260820-000000", "task_id": tid,
+                          "model": "gpt-5.5", "verdict": "FAIL"})
+    small = [x for x in variance_summary(tmp_path, "T3") if x["model"] == "gpt-5.5"][0]
+    assert small["n"] == 1 and small["enough_for_variance"] is False
+
+
+def test_page_renders_every_stage(monkeypatch) -> None:
+    """四个阶段逐一切换都不能崩;T4 走只读分支(无启动按钮)。"""
+    from streamlit.testing.v1 import AppTest
+
+    monkeypatch.setenv("REPOPROOF_DEEPSEEK_BASE", "http://127.0.0.1:9/v1")
+    monkeypatch.setenv("REPOPROOF_DEEPSEEK_KEY", "test-not-a-real-key")
+    monkeypatch.setenv("REPOPROOF_DEEPSEEK_MODELS", "deepseek-v4-pro")
+    for key in HOST_TASKS:
+        at = AppTest.from_file(str(PAGE), default_timeout=60)
+        at.run()
+        at.radio[0].set_value(key).run()
+        assert not [e.value for e in at.exception], f"{key} 页面异常"
+        if HOST_TASKS[key]["runnable"]:
+            assert len(at.button) == 1 and key in at.button[0].label
+            assert at.button[0].disabled, "未勾选探索性加发确认 → 发射按钮必须禁用"
+        else:
+            assert not at.button, "T4 只读,不得出现发射按钮"
+            assert at.warning, "T4 必须说明为什么不能从这里发"
+
+
 def test_local_runs_include_host_runs_time_sorted() -> None:
     """用户实测 bug:adopt-* 前缀过滤让宿主级 run 三页集体隐身——钉死修复。"""
-    from repoproof.ui.services.facts import local_runs, local_run_meta, run_mode_zh
+    from repoproof.ui.services.facts import local_run_meta, local_runs, run_mode_zh
 
     names = local_runs()
     t1 = [n for n in names if n.startswith("t1-offerclaw")]

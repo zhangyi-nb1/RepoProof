@@ -156,30 +156,142 @@ def start_run(root: Path, task_id: str, *, guided: bool = False,
                     "页面刷新不会中断;完成后锁自动视为结束。"}
 
 
-# ---- 宿主级 pilot(TESTPLAN-V2 T1;预注册 v2 规则)----
+# ---- 宿主级正式任务 T1–T4(TESTPLAN-V2)----
 # v2(2026-08-09 用户决定):模型池内自由选择、同模型可重复;每一发
 # 如实入账不挑选;fake 冒烟不计数。
-HOST_PILOT = {
-    "task_id": "t1-offerclaw-fastapi-mcp-v1",
-    "contract": "benchmarks/v2/tasks/t1_fastapi_mcp/contract.yaml",
-    "models": ["deepseek-v4-pro", "gpt-5.5", "gpt-5.6"],
-    "prereg": "benchmarks/v2/preregistrations/T1-prereg-v2-20260809.md",
+# 2026-08-11:由 T1 单任务泛化为 T1–T4 注册表(用户要在 UI 里对各阶段
+# 重复发以观察方差)。每项指向该阶段**当前冻结版**的契约与预注册。
+MODEL_POOL = ["deepseek-v4-pro", "gpt-5.5", "gpt-5.6"]
+
+HOST_TASKS: dict[str, dict] = {
+    "T1": {
+        "key": "T1", "task_id": "t1-offerclaw-fastapi-mcp-v1",
+        "title": "T1 · OfferClaw × fastapi-mcp(复杂度校准)",
+        "contract": "benchmarks/v2/tasks/t1_fastapi_mcp/contract.yaml",
+        "prereg": "benchmarks/v2/preregistrations/T1-prereg-v2-20260809.md",
+        "models": MODEL_POOL, "runnable": True,
+    },
+    "T2": {
+        "key": "T2", "task_id": "t2-offerclaw-open-deep-research-v4",
+        "title": "T2 · OfferClaw × Open Deep Research(v4 冻结版)",
+        "contract": "benchmarks/v2/tasks/t2_open_deep_research_v4/contract.yaml",
+        "prereg": "benchmarks/v2/preregistrations/T2v4-prereg-20260810.md",
+        "models": MODEL_POOL, "runnable": True,
+    },
+    "T3": {
+        "key": "T3", "task_id": "t3-offerclaw-browser-use-v5",
+        "title": "T3 · OfferClaw × Browser Use(v5 冻结版)",
+        "contract": "benchmarks/v2/tasks/t3_browser_use_v5/contract.yaml",
+        "prereg": "benchmarks/v2/preregistrations/T3v5-prereg-20260811.md",
+        "models": MODEL_POOL, "runnable": True,
+    },
+    # T4 = Sequential Feature Rollback 专项:**零模型调用的确定性工程实验**,
+    # 被测对象是 RepoProof 自身,台账走 rollback_experiments.jsonl(不入
+    # runs.jsonl)。真栈 R-A..R-E 是一次性作业,无参数化 runner ⇒ UI 只读。
+    "T4": {
+        "key": "T4", "task_id": "t4-feature-rollback-v1",
+        "title": "T4 · Sequential Feature Rollback(确定性专项)",
+        "contract": None,
+        "prereg": "benchmarks/v2/preregistrations/T4v1-prereg-20260811.md",
+        "models": [], "runnable": False,
+        "ledger": "benchmarks/v2/rollback_experiments.jsonl",
+        "pin_suite": "tests/test_t4_feature_stack.py",
+        "why_not_runnable":
+            "零模型调用的确定性实验,**没有方差可观察**;真栈 R-A..R-E 为一次性"
+            "工程作业(建 S0→S3 栈后逐实验执行),未参数化为可重跑 runner。"
+            "此处只读台账;可复跑 22 项机器钉死测试验证机器本身未退化。",
+    },
 }
+
+# 向后兼容:旧代码/测试仍以 T1 为 HOST_PILOT
+HOST_PILOT = HOST_TASKS["T1"]
+
+
+def host_task(key: str) -> dict:
+    if key not in HOST_TASKS:
+        raise KeyError(f"未知宿主任务:{key}(可选 {sorted(HOST_TASKS)})")
+    return HOST_TASKS[key]
+
+
+def _real_rows(root: Path, task_id: str) -> list[dict]:
+    """该任务的真实模型发次(fake 冒烟不计),已连接人工再分类。"""
+    from repoproof.persistence.bench_records import adjudicated_runs
+
+    return [r for r in adjudicated_runs(root)
+            if r.get("task_id") == task_id
+            and not str(r.get("model", "")).startswith("fake")]
+
+
+def host_task_state(root: Path, key: str = "T1") -> dict:
+    """→ {done, by_model, next_global_order}。真实模型计数;fake 不算。
+
+    `next_global_order` 是**全台账**的下一个执行序(跨任务全局单调),与
+    TESTPLAN §9 的 run_order 语义一致——不是本任务内的计数。
+    """
+    from repoproof.persistence.bench_records import load_runs
+
+    t = host_task(key)
+    rows = _real_rows(root, t["task_id"])
+    done = [{"run_id": r.get("run_id"), "model": r.get("model"),
+             "verdict": r.get("verdict"),
+             "effective_verdict": r.get("effective_verdict"),
+             "invalidated": r.get("adjudication") is not None} for r in rows]
+    by_model = {m: sum(1 for r in rows if r.get("model") == m) for m in t["models"]}
+    all_real = [r for r in load_runs(root)
+                if not str(r.get("model", "")).startswith("fake")]
+    return {"done": done, "by_model": by_model,
+            "next_global_order": len(all_real) + 1}
 
 
 def host_pilot_state(root: Path) -> dict:
-    """→ {done, by_model, next_global_order}。真实模型计数;fake 不算。"""
-    from repoproof.persistence.bench_records import load_runs
+    """向后兼容别名(T1)。新代码用 host_task_state(root, key)。"""
+    return host_task_state(root, "T1")
 
-    rows = [r for r in load_runs(root)
-            if r.get("task_id") == HOST_PILOT["task_id"]
-            and not str(r.get("model", "")).startswith("fake")]
-    done = [{"run_id": r.get("run_id"), "model": r.get("model"),
-             "verdict": r.get("verdict")} for r in rows]
-    by_model = {m: sum(1 for r in rows if r.get("model") == m)
-                for m in HOST_PILOT["models"]}
-    return {"done": done, "by_model": by_model,
-            "next_global_order": len(rows) + 1}
+
+def next_run_index(root: Path, key: str, model: str) -> int:
+    """该 (任务, 模型) 的下一个重复序号——观察方差时的第 n 发。"""
+    rows = _real_rows(root, host_task(key)["task_id"])
+    return sum(1 for r in rows if r.get("model") == model) + 1
+
+
+def variance_summary(root: Path, key: str) -> list[dict]:
+    """按模型汇总重复发的离散度(观察方差用)。
+
+    判决计数走 `effective_verdict`(已连接 adjudications),**已判无效的
+    假 PASS 不计入通过**;数值指标给 n/min/max/均值,n<3 时明确标注
+    "不足以谈方差"(项目纪律:n<3 不排名)。
+    """
+    from repoproof.persistence.bench_records import PASS_VERDICTS
+
+    METRICS = (("input_tokens", "读入"), ("output_tokens", "产出"),
+               ("model_calls", "调用"), ("rounds_used", "轮数"),
+               ("wall_time", "墙钟秒"))
+    out: list[dict] = []
+    for model in host_task(key)["models"]:
+        rows = [r for r in _real_rows(root, host_task(key)["task_id"])
+                if r.get("model") == model]
+        if not rows:
+            continue
+        verdicts: dict[str, int] = {}
+        for r in rows:
+            v = str(r.get("effective_verdict"))
+            verdicts[v] = verdicts.get(v, 0) + 1
+        stats = {}
+        for field, label in METRICS:
+            vals = [r[field] for r in rows
+                    if isinstance(r.get(field), (int, float))]
+            if vals:
+                stats[label] = {"n": len(vals), "min": min(vals), "max": max(vals),
+                                "mean": round(sum(vals) / len(vals), 1),
+                                "spread": round(max(vals) - min(vals), 1)}
+        out.append({
+            "model": model, "n": len(rows), "verdicts": verdicts,
+            "passes": sum(1 for r in rows
+                          if r.get("effective_verdict") in PASS_VERDICTS),
+            "stats": stats,
+            "enough_for_variance": len(rows) >= 3,
+        })
+    return out
 
 
 def provider_for_model(model: str) -> str | None:
@@ -189,15 +301,23 @@ def provider_for_model(model: str) -> str | None:
     return None
 
 
-def host_run_argv(root: Path, *, run_order: int, run_index: int = 1) -> list[str]:
+def host_run_argv(root: Path, *, run_order: int, run_index: int = 1,
+                  task_key: str = "T1") -> list[str]:
     """host-run 的 argv(纯函数,便于钉死:密钥绝不进 argv)。"""
+    t = host_task(task_key)
+    if not t["runnable"]:
+        raise ValueError(f"{task_key} 不可经 UI 发起:{t['why_not_runnable']}")
     return [str(root / ".venv" / "bin" / "python"), "-m", "repoproof.cli", "host-run",
-            "--contract", str(root / HOST_PILOT["contract"]),
+            "--contract", str(root / t["contract"]),
             "--run-order", str(run_order), "--run-index", str(run_index)]
 
 
-def start_host_run(root: Path, *, model: str, run_order: int, run_index: int = 1) -> dict:
+def start_host_run(root: Path, *, model: str, run_order: int, run_index: int = 1,
+                   task_key: str = "T1") -> dict:
     """启动宿主级正式 run(后台)。密钥只经进程环境,不落盘不显示。"""
+    t = host_task(task_key)
+    if not t["runnable"]:
+        return {"ok": False, "error": f"{task_key} 不可经 UI 发起:{t['why_not_runnable']}"}
     provider = provider_for_model(model)
     if provider is None:
         return {"ok": False,
@@ -205,21 +325,22 @@ def start_host_run(root: Path, *, model: str, run_order: int, run_index: int = 1
                          "请用 scripts/run_ui_live.sh 启动工作台。"}
     if (info := active_run(root)) and info.get("alive"):
         return {"ok": False, "error": f"已有任务在运行(task={info.get('task_id')}),同时只允许一个。"}
-    log = root / "runs" / f"ui_live_host_{HOST_PILOT['task_id']}.log"
+    log = root / "runs" / f"ui_live_host_{t['task_id']}.log"
     log.parent.mkdir(exist_ok=True)
     proc = subprocess.Popen(
-        host_run_argv(root, run_order=run_order, run_index=run_index),
+        host_run_argv(root, run_order=run_order, run_index=run_index, task_key=task_key),
         stdout=log.open("w"), stderr=subprocess.STDOUT, cwd=str(root),
         env=_env_for(provider, model), start_new_session=True,
     )
     import time as _time
 
     (root / LOCK).write_text(json.dumps(
-        {"pid": proc.pid, "task_id": HOST_PILOT["task_id"], "log": str(log),
+        {"pid": proc.pid, "task_id": t["task_id"], "log": str(log),
          "guided": True, "mode": "host-guided", "model": model,
+         "task_key": task_key,
          "started_at": _time.strftime("%Y%m%d-%H%M%S")}), encoding="utf-8")
     return {"ok": True, "pid": proc.pid, "model": model, "run_order": run_order,
-            "run_index": run_index,
+            "run_index": run_index, "task_key": task_key,
             "note": "已在后台启动宿主级运行:装配 → 环境重建(约 2-3 分钟,这段安静是正常的)"
                     "→ 基线门禁 → AI 有界多轮修复(每轮额度独立)→ 独立验证 → 干净重放 "
                     "→ 最终判定。页面刷新不中断;完成后到「运行进度/结果报告」看结论。"}
