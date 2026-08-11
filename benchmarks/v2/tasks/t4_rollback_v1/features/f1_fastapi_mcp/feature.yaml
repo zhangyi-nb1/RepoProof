@@ -1,0 +1,23 @@
+feature_id: f1_fastapi_mcp
+feature_name: FastAPI-MCP experimental endpoint (T1)
+origin_run_id: t1-offerclaw-fastapi-mcp-v1-20260810-002354
+origin_model: gpt-5.6
+origin_verdict: PASS_ADAPTED
+origin_patch_sha256: 38ec38eb8c41e678c0a5e503569f98a4b42dc55694cde8d43b1d9c2fbb6f8049
+source_repo: https://github.com/tadata-org/fastapi_mcp
+source_commit: e5cad13cabfc725bbcb047e526816d887d96da62
+host_commit: 5b2d00e72ece656b76fc55c004b3c6e7d95bffdf
+files_created:
+- sdk_mcp.py
+- tests/test_sdk_mcp.py
+files_modified:
+- rag_api.py
+- requirements.txt
+requires_features: []
+dependency_delta:
+- fastapi-mcp==0.4.0
+- mcp==1.29.0
+rollback_classes:
+- PURE_FILE
+- DEPENDENCY_LOCK
+notes: ''

@@ -100,6 +100,36 @@ def test_rollback_success_idempotent_and_scoped(tmp_path: Path) -> None:
     assert (proj / "unrelated.txt").exists()
 
 
+def test_apply_and_rollback_preserve_executable_bit(tmp_path: Path) -> None:
+    """T4 真发现 #1:_atomic_write 曾丢 755 → git 树 100755≠100644。
+
+    可执行脚本经 apply 落地必须仍可执行;回滚必须连权限位一起复原。
+    """
+    proj = tmp_path / "userproj"
+    proj.mkdir()
+    (proj / "tool.sh").write_text("#!/bin/sh\necho v1\n", encoding="utf-8")
+    os.chmod(proj / "tool.sh", 0o644)          # 原本不可执行
+    staged = tmp_path / "staged"
+    staged.mkdir()
+    (staged / "tool.sh").write_text("#!/bin/sh\necho v2\n", encoding="utf-8")
+    os.chmod(staged / "tool.sh", 0o755)        # 改后变为可执行
+    (staged / "scripts").mkdir()
+    (staged / "scripts" / "run.sh").write_text("#!/bin/sh\necho new\n", encoding="utf-8")
+    os.chmod(staged / "scripts" / "run.sh", 0o755)  # 新建即可执行
+    m = build_apply_manifest(proj, staged, base_git_commit="")
+    fp = str(compute_tree_fingerprint(proj).value)
+    backups = tmp_path / "bk"
+
+    apply_confirmed(proj, staged, m, **_ok_kwargs(fp, backups))
+    assert os.stat(proj / "tool.sh").st_mode & 0o777 == 0o755
+    assert os.stat(proj / "scripts" / "run.sh").st_mode & 0o777 == 0o755
+
+    rollback(proj, m, backup_dir=backups)
+    assert (proj / "tool.sh").read_text(encoding="utf-8") == "#!/bin/sh\necho v1\n"
+    assert os.stat(proj / "tool.sh").st_mode & 0o777 == 0o644  # 权限位一并复原
+    assert not (proj / "scripts" / "run.sh").exists()
+
+
 def test_rollback_refuses_corrupt_preimage(tmp_path: Path) -> None:
     proj, staged, m, fp = _fixture(tmp_path)
     backups = tmp_path / "bk"

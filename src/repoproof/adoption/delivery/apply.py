@@ -70,10 +70,13 @@ def _safe_target(project_root: Path, rel: str) -> Path:
     return target
 
 
-def _atomic_write(target: Path, data: bytes) -> None:
+def _atomic_write(target: Path, data: bytes, *, mode_from: Path | None = None) -> None:
+    """原子写;mode_from 给定时同步其权限位(可执行脚本落地必须仍可执行)。"""
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.parent / f".rp_tmp_{target.name}"
     tmp.write_bytes(data)
+    if mode_from is not None and mode_from.exists():
+        shutil.copymode(mode_from, tmp)
     os.replace(tmp, target)
 
 
@@ -146,7 +149,7 @@ def apply_confirmed(
             data = src.read_bytes()
             if hashlib.sha256(data).hexdigest() != manifest.after_hashes.get(rel, ""):
                 raise ApplyError(f"staging 文件 {rel} 与账本 after_hash 不符,拒绝")
-            _atomic_write(targets[rel], data)
+            _atomic_write(targets[rel], data, mode_from=src)
             written.append(rel)
     except Exception:
         # 中途失败:自动回滚已写部分——项目回到 apply 前状态
@@ -172,7 +175,7 @@ def _rollback_written(project: Path, manifest: ApplyManifest,
         else:
             pre = backups / rel
             if pre.exists():
-                _atomic_write(target, pre.read_bytes())
+                _atomic_write(target, pre.read_bytes(), mode_from=pre)
 
 
 def rollback(
@@ -197,7 +200,7 @@ def rollback(
                 raise ApplyError(f"缺少 preimage 备份,无法恢复:{action.path}")
             if _sha256_file(pre) != action.preimage_sha256:
                 raise ApplyError(f"preimage 校验失败,拒绝恢复:{action.path}")
-            _atomic_write(target, pre.read_bytes())
+            _atomic_write(target, pre.read_bytes(), mode_from=pre)
         else:  # 结构上不存在第三种动作;防御性拒绝
             raise ApplyError(f"未知回滚动作:{action.kind}")
     manifest.result_state = RESULT_ROLLED_BACK

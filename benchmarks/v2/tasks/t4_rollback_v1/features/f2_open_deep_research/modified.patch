@@ -1,0 +1,67 @@
+diff --git a/rag_api.py b/rag_api.py
+index d3b40d0..1ed787e 100644
+--- a/rag_api.py
++++ b/rag_api.py
+@@ -71,6 +71,51 @@ from tenancy import current_tenant, tenant_middleware  # noqa: E402
+ 
+ app.middleware("http")(tenant_middleware)
+ 
++# =====================================================
++# Deep Research API (feature-flagged)
++# =====================================================
++if os.environ.get("OFFERCLAW_DEEP_RESEARCH", "").strip().lower() in ("1", "true", "yes", "on"):
++    from research_jobs import create_job as _research_create_job, get_job as _research_get_job, cancel_job as _research_cancel_job, promote_job as _research_promote_job
++
++    class ResearchCreateRequest(BaseModel):
++        input_text: str = ""
++        jd_text: str = ""
++        company_name: str = ""
++        page_url: str = ""
++        model: str = ""
++        search_api: str = "none"
++
++    @app.post("/api/research")
++    async def create_research(req: ResearchCreateRequest):
++        try:
++            return _research_create_job(req.model_dump())
++        except ValueError as e:
++            raise HTTPException(status_code=400, detail=str(e)) from e
++
++    @app.get("/api/research/{job_id}")
++    async def get_research(job_id: str):
++        job = _research_get_job(job_id)
++        if not job:
++            raise HTTPException(status_code=404, detail="research job not found")
++        return job
++
++    @app.post("/api/research/{job_id}/cancel")
++    async def cancel_research(job_id: str):
++        job = _research_cancel_job(job_id)
++        if not job:
++            raise HTTPException(status_code=404, detail="research job not found")
++        return job
++
++    @app.post("/api/research/{job_id}/promote")
++    async def promote_research(job_id: str):
++        try:
++            out = _research_promote_job(job_id)
++        except ValueError as e:
++            raise HTTPException(status_code=409, detail=str(e)) from e
++        if not out:
++            raise HTTPException(status_code=404, detail="research job not found")
++        return out
++
+ _log = get_logger("offerclaw.api")
+ 
+ # 延迟加载 RAG Agent（避免启动时阻塞）
+diff --git a/requirements.txt b/requirements.txt
+index 7e972ed..2f75317 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -36,3 +36,6 @@ pypdf>=4.0
+ python-docx>=1.1
+ reportlab>=4.0   # 入库 Golden Set 评测:确定性生成测试 PDF(eval/test 用)
+ # docling>=2.0   # 第2层评测/可选结构化解析器(A/B 已跑、未默认接线;安装后可用 eval_pdf_parser_ab.py 复现)
++
++# Deep Research integration: pinned upstream source is vendored at runtime from ../upstream (20aaa0d422bd).
++# No host dependency tree upgrade: optional ODR provider deps are shimmed for offline fake-provider tests.

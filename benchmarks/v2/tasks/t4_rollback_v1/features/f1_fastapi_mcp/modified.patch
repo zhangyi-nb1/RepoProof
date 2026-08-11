@@ -1,0 +1,34 @@
+diff --git a/rag_api.py b/rag_api.py
+index b743e7e..fb23845 100644
+--- a/rag_api.py
++++ b/rag_api.py
+@@ -1892,6 +1892,16 @@ async def flow_run_traced(req: FlowRunRequest):
+         raise HTTPException(status_code=500, detail=str(e))
+ 
+ 
++# Experimental SDK-backed MCP is opt-in.  Mount only after every API route has
++# been declared, because fastapi-mcp derives tools and schemas from OpenAPI at
++# construction time.  Disabled is the default and performs no SDK import or
++# route mutation.
++if os.getenv("OFFERCLAW_SDK_MCP", "").strip().lower() in {"1", "true", "yes", "on"}:
++    from sdk_mcp import mount_sdk_mcp
++
++    mount_sdk_mcp(app)
++
++
+ # =====================================================
+ # 启动入口
+ # =====================================================
+diff --git a/requirements.txt b/requirements.txt
+index 7e972ed..4f51e41 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -36,3 +36,8 @@ pypdf>=4.0
+ python-docx>=1.1
+ reportlab>=4.0   # 入库 Golden Set 评测:确定性生成测试 PDF(eval/test 用)
+ # docling>=2.0   # 第2层评测/可选结构化解析器(A/B 已跑、未默认接线;安装后可用 eval_pdf_parser_ab.py 复现)
++
++# 实验性 SDK MCP(固定到审计的 upstream e5cad13cabfc / release 0.4.0)
++fastapi-mcp==0.4.0
++# fastapi-mcp 0.4.0 uses the pre-2.0 low-level Server constructor/API
++mcp==1.29.0

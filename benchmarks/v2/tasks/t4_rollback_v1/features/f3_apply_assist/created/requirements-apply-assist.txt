@@ -1,0 +1,2 @@
+# Isolated browser engine lock, built outside the host tree.
+browser-use[core]==0.13.7

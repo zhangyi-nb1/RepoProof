@@ -1,0 +1,22 @@
+feature_id: f2_open_deep_research
+feature_name: Open Deep Research jobs (T2)
+origin_run_id: t2-offerclaw-open-deep-research-v4-20260810-200119
+origin_model: gpt-5.5
+origin_verdict: PASS_ADAPTED
+origin_patch_sha256: 8e28217796a7c7d0a2869172e422c9ed3af81b8e5951afffbb46df16446948c1
+source_repo: https://github.com/langchain-ai/open_deep_research
+source_commit: 20aaa0d422bd290c83f93574810ef1244e8d5955
+host_commit: 5b2d00e72ece656b76fc55c004b3c6e7d95bffdf
+files_created:
+- fixtures/fake_llm_server.py
+- research_jobs.py
+- research_jobs.sqlite3
+files_modified:
+- rag_api.py
+- requirements.txt
+requires_features: []
+dependency_delta: []
+rollback_classes:
+- PURE_FILE
+- DERIVED_DATA
+notes: 运行时布局要求:<栈根>/../upstream = open_deep_research@20aaa0d 快照

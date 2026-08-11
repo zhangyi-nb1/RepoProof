@@ -1,0 +1,25 @@
+feature_id: f3_apply_assist
+feature_name: Browser Use Apply Assistant (T3)
+origin_run_id: t3-offerclaw-browser-use-v5-20260811-182535
+origin_model: gpt-5.6
+origin_verdict: PASS_ADAPTED
+origin_patch_sha256: 0a1405bce2491536ddb0fb062cbe6c14c33951b2cf3574b5318cce245f935b04
+source_repo: https://github.com/browser-use/browser-use
+source_commit: 32601887cfbc9f4f1e3cad3e2b678e56aeaeaae4
+host_commit: 5b2d00e72ece656b76fc55c004b3c6e7d95bffdf
+files_created:
+- apply_assist.py
+- apply_assist_sidecar.py
+- docs/apply_assist.md
+- requirements-apply-assist.txt
+- scripts/build_apply_assist_sidecar.sh
+files_modified:
+- rag_api.py
+- requirements.txt
+requires_features: []
+dependency_delta: []
+rollback_classes:
+- PURE_FILE
+- DEPENDENCY_LOCK
+notes: sidecar venv 经 scripts/build_apply_assist_sidecar.sh 构建,APPLY_ASSIST_SIDECAR_PYTHON
+  显式指定
