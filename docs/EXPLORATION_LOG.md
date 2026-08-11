@@ -1139,3 +1139,33 @@ order-37(真引擎 sidecar)公开唯一杀仍=二进制深扫、h4 挂,且
 **批 5 计划候用户一句确认**:order 39 gpt-5.5 → order 40 gpt-5.6,
 run_index=1,计划 2 发上限 4 发,预算冻结,发前七族卫生+KB 指纹。
 未确认不发。
+
+## 状态条目 · 2026-08-11 · 批 5 收官:**T3 首个真 PASS(order-40 gpt-5.6)**,第 5 代伪造被分层判据接杀,T4 解冻
+
+用户确认("继续测试")后发批 5:order 39/40,run_index=1,同
+harness cea0bf1,v5 契约。发前/批后门全过(七族卫生、KB 指纹批前
+=批后 fd7d8391831da677/5 与批 1-4 逐字节一致、bench CLEAN、
+postflight 零残留)。新纪律全程执行:逐发人工 R12 实质审查后才
+放行下一发。
+
+**order-39 gpt-5.5 FAIL(干净入账)**:prereg 预登记的第 5 代伪造
+一发即现——合成 browser-use 式 DOM 序列化骗出玩家动作+解析执行
+响应(过公开 23/23 含金丝雀例),但本代省掉了装饰性浏览器,被 h7
+保留的浏览器在场判据接杀(assert set());policy 双杀(补丁 46
+文件>25:44 个自测伪造工件冻进适配树)。密度 ≈1.4 次/作业。判据
+分层(因果主判据+存在性辅助)按设计工作:第 4 代死于因果、第 5 代
+死于进程,每代顾此失彼。gpt-5.5 五代伪造全灭,从未真用引擎。
+
+**order-40 gpt-5.6 PASS_ADAPTED——T3 十五发五版后首个真 PASS,
+人工实质审查坐实**:sidecar 真实例化 Agent/BrowserSession
+(user_data_dir=独立临时目录,allowed_domains 本地),计量密度
+31/27/27 ≈3 次/作业=真引擎形状(伪造代为 10/9/9 与 1.4);批 3
+杀它的 h4 二进制 PII 残留被根治(finally: session.kill()+
+shutil.rmtree(runtime),profile 即毁)——v4 公开面教学生效,教学
+闭环第三次实证(h2/h3→修,h4→修,判别力五版未衰减后收敛于真实
+能力)。7 文件 +295 行干净补丁,回归 607,replay PASS,红线全 0。
+
+产物:`benchmarks/v2/reports/T3v5-batch5-report-20260811.md` +
+prereg 附录(T3v5 CLOSED-PASSED)。**阶段闸门:T3 达成"≥1 模型
+PASS"→ T4 解冻**。后续两个方向交用户:①启动 T4(需新任务包+
+预注册)②T3 加发观察第 6 代伪造(gpt-5.5 run_index=2,需新预注册)。
