@@ -377,7 +377,9 @@ def build_host_prompt(contract: HostContract, *, wheel_note: str) -> str:
            f"executed commands {b.max_commands}, "
            f"input/output token allowance {b.max_input_tokens_total}/{b.max_output_tokens_total}; "
            if b.per_round else
-           f"- model calls: {b.max_model_calls} total; executed commands: {b.max_commands} total; ")
+           f"- WHOLE RUN (single pool, no per-round reset): model calls {b.max_model_calls}, "
+           f"executed commands {b.max_commands}, "
+           f"input/output token allowance {b.max_input_tokens_total}/{b.max_output_tokens_total}; ")
         + f"patch budget: {b.max_patch_files} files / {b.max_patch_lines} lines (whole run); "
         f"wall time: {b.max_wall_time_minutes} minutes (whole run).\n"
         "Acceptance is judged AFTER you finish by additional tests you cannot see;\n"

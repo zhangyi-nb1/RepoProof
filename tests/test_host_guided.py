@@ -89,6 +89,23 @@ def test_prompt_discloses_replay_dependency_semantics() -> None:
     assert "CLEAN environment" in prompt
 
 
+def test_prompt_discloses_token_allowance_under_total_semantics(tmp_path: Path) -> None:
+    """D3 修复钉死(2026-08-11):total 语义下 token 额度同样必须向 agent
+    如实披露——此前 total 分支静默省略 in/out 额度,agent 无从预算。"""
+    mod = tmp_path / "c.yaml"
+    mod.write_text(
+        T1_CONTRACT.read_text(encoding="utf-8").replace(
+            "semantics: per_round", "semantics: total"),
+        encoding="utf-8")
+    c, _sha = HostContract.load(mod)
+    assert not c.budgets.per_round
+    prompt = build_host_prompt(c, wheel_note="w")
+    assert "WHOLE RUN (single pool, no per-round reset)" in prompt
+    assert "PER ROUND" not in prompt
+    assert (f"{c.budgets.max_input_tokens_total}/"
+            f"{c.budgets.max_output_tokens_total}") in prompt
+
+
 # ---------------------------------------------------------------- 护栏
 def test_runner_rejects_protected_host_copy(tmp_path: Path, monkeypatch) -> None:
     fake_main = tmp_path / "fake_offerclaw_main"
