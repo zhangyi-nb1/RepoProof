@@ -228,7 +228,10 @@ Phase 3+ T3(远期)/ T4 回滚专项(源 §42-43 R-A..R-E)
 PASS(含 PASS_ADAPTED)**,才可考虑进入下一阶段。语义=判定保证的
 **存在性证明**——证明该阶段任务"可判且可过"(排除任务不可能/判据
 失真两类系统性风险),与成功率指标无关(成功率后置,§1);唯一
-评估源=`benchmarks/v2/runs.jsonl` 的 verdict。未达闸门的处方路径
+评估源=`benchmarks/v2/runs.jsonl` **⋈ `adjudications.jsonl`** 后的
+`effective_verdict`(2026-08-11 修订,见 §9;取数走
+`bench_records.count_passes()`,**不得直接数 runs.jsonl 的 verdict**
+——那样会把已判无效的假 PASS 计入)。未达闸门的处方路径
 =阶段内**任务版本迭代**(vN→v(N+1),每版依 §7 重走五对象验收并
 重预注册;T2 v1→v4 为先例),**不是**降低判据或放宽预算。闸门只
 约束"进入下一阶段",不限制阶段内的批次数与版本数。追溯审计
@@ -278,6 +281,22 @@ PASS(含 PASS_ADAPTED)**,才可考虑进入下一阶段。语义=判定保证的
   scope_change_count stagnation final_capability final_regression policy
   replay verdict failure_types execution_backend env_baseline_hash
   main_dir_integrity trace_sha256 bundle_path`(未知写 UNKNOWN 不写 0)。
+- **`benchmarks/v2/adjudications.jsonl`(2026-08-11 增补,LESSONS #26)**:
+  人工再分类**旁挂**,按 `run_id` 连接。设立缘由=系统 verdict 与人工取证
+  判定可能相左(首例 order-38:系统 `PASS_ADAPTED`,人工判 FALSE PASS),
+  而 runs.jsonl 是 **append-only 永不改写**的事实源——若只把裁定写进批报,
+  台账自身就成了失真的单一事实源(照 verdict 直接数会得出 T3 有 2 个 PASS,
+  实际 1 个)。字段:`run_id system_verdict effective_verdict counts_as_pass
+  adjudicated_at adjudicated_by basis evidence evidence_refs batch_outcome
+  note`;写入校验=run 必须在台账中存在、`system_verdict` 必须与台账逐字
+  一致(防写错行)、`evidence_refs` 必填(裁定不得无出处)、同 run 不得重复裁定。
+- **闸门与任何 PASS 统计的唯一入口 = `bench_records.count_passes()` /
+  `adjudicated_runs()`(runs ⋈ adjudications 后取 `effective_verdict`)**,
+  §6 闸门条文"唯一评估源=runs.jsonl 的 verdict"据此更新为"runs.jsonl
+  ⋈ adjudications.jsonl 的 effective_verdict"。判 PASS 用显式集合
+  `PASS_VERDICTS={PASS, PASS_ADAPTED}`,**禁止 `"PASS" in verdict` 子串法**
+  ——`INVALIDATED_FALSE_PASS` 含子串 `PASS`,子串法会把假 PASS 数成通过
+  (已钉死 `test_false_pass_not_counted_by_substring`)。
 
 ## 10. 结果解释边界
 

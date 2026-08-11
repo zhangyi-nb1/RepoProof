@@ -314,6 +314,42 @@
     暗通道)的台架再中招,再犯说明"坑记录"不如"坑硬检查"——已升级为
     venv 建完即毒性自检。
 
+26. **裁定写在报告里、台账里没有 ⇒ 单一事实源自己失真**(2026-08-11,
+    四阶段收官核对时自查发现)。order-38 经人工取证判 FALSE PASS、批 4
+    作废,但这个裁定只落在批报与 prereg 附录;`runs.jsonl` 第 46 行仍是
+    干净的 `PASS_ADAPTED`,而 §6 闸门条文明写"唯一评估源=runs.jsonl 的
+    verdict"。**照台账直接数,T3 是 2 个 PASS;实际只有 1 个。**append-only
+    不改写是对的(改写=篡改证据),错在**只有不可改的事实源、没有可连接的
+    裁定层**——真话被写在了机器读不到的地方。
+    修法:新增旁挂 `benchmarks/v2/adjudications.jsonl`(按 run_id 连接,
+    亦 append-only),原文件逐字节不动;闸门与统计改走
+    `bench_records.count_passes()` / `adjudicated_runs()`,取
+    `effective_verdict`(无裁定则沿用系统判)。写入四道闸:run 必须存在于
+    台账、`system_verdict` 必须与台账逐字一致(防写错行)、`evidence_refs`
+    必填(裁定不得无出处)、同 run 不得重复裁定。五个钉死,其中
+    `test_adjudication_never_touches_runs_jsonl` 直接比对写入前后的
+    `read_bytes()`。
+    **顺带钉死一个真会咬人的坑**:`"INVALIDATED_FALSE_PASS"` **含子串
+    `"PASS"`**——用 `"PASS" in verdict` 数通过数会把假 PASS 数成真 PASS,
+    正好把这次修复反向抵消。故判 PASS 一律用显式集合
+    `PASS_VERDICTS={PASS, PASS_ADAPTED}`,并为此单立一测。
+    **通用教训**:不可变事实源解决的是"证据不被篡改",解决不了"结论演进"。
+    两者要分层——**事实层 append-only,裁定层旁挂可连接**;凡是"人工复核
+    可能推翻机器判决"的系统(风控、审核、标注、CI 判绿),都要问一句:
+    **复核结论回得到统计口径里吗?** 回不去,复核就只是自我安慰。与本项目
+    #17(公开面=目标函数 / 隐藏面=防伪层)同构:判定与记账必须能对上。
+
+    **同轮操作面教训(自伤一次)**:本次改动的全量回归首跑报 1 FAIL
+    ——`test_smoke_chain_end_to_end` 的 `main_dir_integrity` 前后指纹
+    不一致。单跑却过。真因不是产品缺陷:`host_guard.DEFAULT_PROTECTED`
+    **含 RepoProof 自身**且指纹**含 untracked**,而我把套件挂后台跑的
+    同时正在往 `docs/` 里写 TESTPLAN 修订与本条 LESSONS ——**测试期间
+    我自己在改被保护的树**,冒烟对账当场抓获。正是 host_guard docstring
+    预告的"run 期间自改主目录属违纪",只不过违纪的是操作员。停手重跑:
+    424 passed / 20 skipped / 树零污染。教训:**自护栏项目的回归不能与
+    编辑并发**;看到红线类断言先问"是被测系统破防,还是我在跑的时候动了
+    它",别急着改产品代码——这类假警报的修法是重跑,不是加豁免。
+
 ## 更早关键坑(索引)
 
 - 全角冒号紧贴 `**` 的 markdown 粗体不闭合(两次踩)→ 全局正则清扫

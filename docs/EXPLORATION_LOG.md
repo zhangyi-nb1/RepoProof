@@ -1207,3 +1207,34 @@ rollback_experiments.jsonl / LESSONS #25。红线全 0(零模型调用、
 **方法论**:内容寻址树等价断言层层布防 = 免费全域网(E1/E4/R-D
 栈层全是它自曝);合成 fixture 钉死 ≠ 真台架安全(E4 盲区 = 纯函数
 verify);判据外发现照收(E5 出自"复位到可用态"收尾)。
+
+## 状态条目 · 2026-08-11 · 人工再分类旁挂入库:补 order-38 作废标记,闸门取数改走 effective_verdict
+
+四阶段收官核对时自查发现**单一事实源失真**:order-38 经人工取证判
+FALSE PASS、批 4 作废,但裁定只落在批报与 prereg 附录;`runs.jsonl`
+第 46 行仍是干净的 `PASS_ADAPTED`,而 §6 闸门条文明写"唯一评估源=
+runs.jsonl 的 verdict"→ **照台账直接数 T3 有 2 个 PASS,实际 1 个**。
+append-only 不改写是对的(改写=篡改证据),错在只有不可改的事实源、
+**没有可连接的裁定层**——真话写在了机器读不到的地方。
+
+**修法(用户定调:补作废标记、旁挂、别动原文件)**:新增
+`benchmarks/v2/adjudications.jsonl`(按 run_id 连接,亦 append-only),
+`runs.jsonl` **逐字节不动**(`git diff` 空,已由测试比对 `read_bytes()`
+钉死)。记录器新增 `append_adjudication` / `load_adjudications` /
+`adjudicated_runs`(runs ⋈ adjudications,附 `effective_verdict`,原
+verdict 字段原样保留)/ `count_passes`(闸门取数入口)。写入四道闸:
+run 须存在于台账、`system_verdict` 须与台账逐字一致(防写错行)、
+`evidence_refs` 必填(裁定不得无出处)、同 run 不得重复裁定。
+
+**顺带钉死一个会反向抵消本修复的坑**:`"INVALIDATED_FALSE_PASS"` 含
+子串 `"PASS"`,`"PASS" in verdict` 会把假 PASS 数成真 PASS → 判 PASS
+一律用显式集合 `PASS_VERDICTS={PASS, PASS_ADAPTED}`,单立一测。
+
+**连接后闸门重算**:T1 11 发 / 有效 PASS 3 ✓;T2 21 发 / 2 ✓;
+T3 16 发 / **有效 PASS 1、已判无效 1** ✓;T4 走
+`rollback_experiments.jsonl`(零模型调用,不入 runs.jsonl)。四阶段
+闸门仍全部达成,但 T3 的数字从虚高的 2 修正为诚实的 1。
+
+产物:`adjudications.jsonl`(1 行)+ 记录器四函数 + 5 钉死 +
+TESTPLAN §6/§9 修订(闸门取数口径改为 runs ⋈ adjudications 的
+`effective_verdict`)+ LESSONS #26。
