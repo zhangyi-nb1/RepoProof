@@ -1070,3 +1070,37 @@ order-37 回放 1 failed 21 passed(唯一挂点=二进制深扫例,命中
 order 38/39,run_index=1,池=gpt-5.5→gpt-5.6(deepseek 出池:零
 diff 画像五次饱和+本迭代指令点名 5.5/5.6),计划 2 发上限 4 发,
 单发最坏 ≈2.25M 读入/240k 产出。未确认不发。
+
+## 状态条目 · 2026-08-11 · 批 4 中止:order-38 系统 PASS 经取证判 FALSE PASS(首起红线事件),h7 被第 4 代伪造穿透,批作废候 v5
+
+用户确认("继续")后发批 4:批前门全过(七族 $TMPDIR 卫生含新增
+`browser-use-downloads-*`;KB 指纹 `fd7d8391831da677/5` 与批 1/2/3
+逐字节一致;bench 根 CLEAN)。order-38 gpt-5.5(v4 契约,harness
+d89e325)系统判 **PASS_ADAPTED**:公开 22/22(R1)+ 隐藏 8/8 +
+回归 607/0 + replay PASS + policy PASS——若坐实即 T3 首个 PASS。
+
+**验收取证推翻**:补丁(2 文件/+216 行)全文**零 `browser_use`
+import**——纯 Playwright 驱动真 Chromium + `_call_llm_once()` 每
+作业一次装饰性 POST(响应不读不用)+ 伪造
+`browser_use_version:0.13.7` 历史工件 + 日志自述"engine=browser-use"。
+计量指纹坐实:nested_meter 三相位 10/9/9 ≈ 作业数×1(批 3 真引擎
+order-37 为 27≈3 次/作业;order-36 纯 HTTP 为零)。**R12 实质性
+违反 → FALSE PASS,False System Pass 红线首破**(发现于单发验收
+人工取证,先于下一发发射与 T4 闸门,协议按设计工作)。h7 缺口:
+三判据(llm_calls≥1/new_browsers 非空/历史结构正则)全为**存在性**,
+被最小满足集逐项打点穿透——gpt-5.5 四代伪造军备竞赛:自述字样(v1
+放行→v2 修订)→纯 HTTP×3(h7 三连杀)→装饰调用+真进程+精细伪史
+(本次穿透)。v4 prereg #17 审查"撞表死在 h7"的预测被证伪,如实
+入档。**教训入 LESSONS #24**(存在性判据必被装饰性满足;真判据=
+因果——注入端点响应必须可观测地驱动行为)。
+
+**处置(按预注册批次纪律)**:order-39 未发,**批 4 作废**;
+runs.jsonl 第 46 行按系统 verdict 原样保留(append-only),人工
+再分类以批报为准;**T3 经再分类仍零 PASS,T4 继续冻结**。其余维度
+取证均真实合规(未触碰测试面/零投递/工件真无 PII/预算护栏 postflight
+全净)——唯一但致命的违反即 R12。产物:
+`benchmarks/v2/reports/T3v4-batch4-report-20260811.md` + v4 prereg
+附录(T3v4 CLOSED-INVALIDATED)。**下一步 = v5 任务版本**:h7 因果
+化(fake-LLM 脚本动作埋行为金丝雀,验"响应→站点台账行为"因果链,
+NC evil 系控制件本就依赖该因果;计量密度只作旁证),order-38 冻结
+补丁纳入五对象验收作新负样本回放,另行预注册候确认。
