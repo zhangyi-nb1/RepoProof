@@ -643,11 +643,14 @@ class FeatureStack:
             self._git(*_GIT_IDENT, "commit", "-q", "-m",
                       f"rebuild: {t.feature_id}", cwd=scratch)
 
+        # 树哈希必须在 verify 之前取:全量验证允许向 scratch 注入测试
+        # 基建(有副作用),确定性比对的对象是"构建时内容"而非验证残留
+        # (T4 R-C 首跑实证:后取会把注入物算进树,真栈重演后误报不确定)。
+        scratch_sha = self._tree_sha_of(scratch)
         if not verify_fn(scratch):
             raise SelectiveRemovalNotSafe(
                 f"SELECTIVE_REMOVAL_NOT_SAFE:无 {remove_feature_id} 的重建未通过"
                 f"全量验证(scratch 留存取证:{scratch});真栈零改动")
-        scratch_sha = self._tree_sha_of(scratch)
 
         # scratch 已证明 → 真栈等价变换:LIFO 退到基态,再重施独立特性
         for fid in plan["cascade_order"]:
@@ -673,6 +676,12 @@ class FeatureStack:
         manifest = ApplyManifest.model_validate_json(
             (self.ledger_dir / j["manifest_file"]).read_text(encoding="utf-8"))
         backups = self.ledger_dir / j["backup_dir"]
+        # 死事务的 staging 残留一并收殓(进程内异常有 finally 清;进程
+        # 被 kill 则无——T4 R-E(b) 实证:残留会挡死复活后的同特性重试。
+        # 只清 journal 点名事务的 staging;其他 staged-* 残留仍守卫拒覆盖。
+        dead_feature = j["transaction_id"].rsplit("-", 1)[0]
+        shutil.rmtree(self.ledger_dir / "work" / f"staged-{dead_feature}",
+                      ignore_errors=True)
         if j["phase"] == PHASE_APPLYING:
             # 中断的 apply 一律作废:新建删除、修改复原、临时件清扫
             for rel in manifest.files_created:

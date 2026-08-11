@@ -184,24 +184,65 @@ def rollback(
     *,
     backup_dir: str | Path,
 ) -> ApplyManifest:
-    """按账本回滚:只动 manifest 列出的文件;幂等;绝不递归删除。"""
+    """按账本回滚:只动 manifest 列出的文件;幂等;绝不递归删除。
+
+    两阶段三态检查(T4 R-D 实证后钉死):先把每个目标与账本比对完毕
+    才动第一笔——当前内容 == after_hash → 可回滚;== 回滚后应有状态
+    (created 缺席 / modified 等于 preimage)→ 幂等跳过;其余一律视为
+    用户在 apply 后又改过 → PROJECT_DRIFT_DETECTED 整体零写拒绝。
+    修复前旧行为:不看当前内容直接删/覆盖,静默毁掉用户手改。
+    """
     from repoproof.harness.host_guard import assert_writable_target
 
     assert_writable_target(project_root, purpose="对该项目执行回滚写入")
     project = Path(project_root).expanduser().resolve()
     backups = Path(backup_dir).expanduser().resolve()
+
+    # 阶段一:全量核对,零写。decisions: (action, target, 执行与否)
+    decisions: list[tuple] = []
+    drifted: list[str] = []
     for action in manifest.rollback_actions:
         target = _safe_target(project, action.path)
+        after = manifest.after_hashes.get(action.path, "")
         if action.kind == "delete_created":
-            target.unlink(missing_ok=True)  # 幂等:不存在即跳过
+            if not target.exists():
+                decisions.append((action, target, False))   # 已删,幂等
+            elif after and _sha256_file(target) == after:
+                decisions.append((action, target, True))
+            else:
+                drifted.append(action.path)
         elif action.kind == "restore_preimage":
             pre = backups / action.path
             if not pre.exists():
                 raise ApplyError(f"缺少 preimage 备份,无法恢复:{action.path}")
             if _sha256_file(pre) != action.preimage_sha256:
                 raise ApplyError(f"preimage 校验失败,拒绝恢复:{action.path}")
-            _atomic_write(target, pre.read_bytes(), mode_from=pre)
+            if not target.exists():
+                drifted.append(action.path)                 # 用户删了它:不猜
+            else:
+                cur = _sha256_file(target)
+                if cur == action.preimage_sha256:
+                    decisions.append((action, target, False))  # 已复原,幂等
+                elif after and cur == after:
+                    decisions.append((action, target, True))
+                else:
+                    drifted.append(action.path)
         else:  # 结构上不存在第三种动作;防御性拒绝
             raise ApplyError(f"未知回滚动作:{action.kind}")
+    if drifted:
+        raise DriftDetected(
+            "PROJECT_DRIFT_DETECTED:以下文件在 apply 之后被改动过,回滚将"
+            f"毁掉你的修改,已整体拒绝(零写):{sorted(drifted)}——请人工处理"
+            "这些文件后重试")
+
+    # 阶段二:执行(此时每一笔都已证明安全)
+    for action, target, execute in decisions:
+        if not execute:
+            continue
+        if action.kind == "delete_created":
+            target.unlink(missing_ok=True)
+        else:
+            pre = backups / action.path
+            _atomic_write(target, pre.read_bytes(), mode_from=pre)
     manifest.result_state = RESULT_ROLLED_BACK
     return manifest

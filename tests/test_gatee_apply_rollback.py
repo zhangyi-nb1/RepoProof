@@ -139,6 +139,34 @@ def test_rollback_refuses_corrupt_preimage(tmp_path: Path) -> None:
         rollback(proj, m, backup_dir=backups)
 
 
+def test_rollback_refuses_when_created_file_hand_edited(tmp_path: Path) -> None:
+    """T4 R-D 实证钉死:apply 落地的新文件被用户手改后,回滚不得静默
+    删除(修复前实况:直接 unlink,ROLLED_BACK 照报,手改全毁)。"""
+    proj, staged, m, fp = _fixture(tmp_path)
+    backups = tmp_path / "bk"
+    apply_confirmed(proj, staged, m, **_ok_kwargs(fp, backups))
+    edited = (proj / "adopted" / "adapter.py")
+    edited.write_text("def run(v): return v  # USER TWEAK\n", encoding="utf-8")
+    with pytest.raises(DriftDetected, match="PROJECT_DRIFT_DETECTED"):
+        rollback(proj, m, backup_dir=backups)
+    assert "USER TWEAK" in edited.read_text(encoding="utf-8")  # 手改无损
+    assert (proj / "app.py").read_text(encoding="utf-8") == "print('v2')\n"  # 整体零写
+
+
+def test_rollback_refuses_when_modified_file_hand_edited_zero_write(
+        tmp_path: Path) -> None:
+    """两阶段证明:漂移只在 modified 文件,但同账本的 created 文件也
+    绝不能先被删——必须检完所有目标才动手,整体拒绝即整体零写。"""
+    proj, staged, m, fp = _fixture(tmp_path)
+    backups = tmp_path / "bk"
+    apply_confirmed(proj, staged, m, **_ok_kwargs(fp, backups))
+    (proj / "app.py").write_text("print('v2 + user edit')\n", encoding="utf-8")
+    with pytest.raises(DriftDetected, match="app.py"):
+        rollback(proj, m, backup_dir=backups)
+    assert (proj / "adopted" / "adapter.py").exists()  # 无辜文件未被先删
+    assert (proj / "app.py").read_text(encoding="utf-8") == "print('v2 + user edit')\n"
+
+
 def test_path_traversal_and_symlink_rejected(tmp_path: Path) -> None:
     proj, staged, m, fp = _fixture(tmp_path)
     m.files_created.append("../escape.py")

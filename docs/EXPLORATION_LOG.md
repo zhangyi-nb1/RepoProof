@@ -1169,3 +1169,41 @@ shutil.rmtree(runtime),profile 即毁)——v4 公开面教学生效,教学
 prereg 附录(T3v5 CLOSED-PASSED)。**阶段闸门:T3 达成"≥1 模型
 PASS"→ T4 解冻**。后续两个方向交用户:①启动 T4(需新任务包+
 预注册)②T3 加发观察第 6 代伪造(gpt-5.5 run_index=2,需新预注册)。
+
+## 状态条目 · 2026-08-11 · T4v1 收官:Sequential Feature Rollback 专项全闭环,净赚五真缺陷(E1-E5)全修全钉死
+
+用户确认("启动")后执行 T4(源方案 §42-43,确定性工程实验,
+零模型调用,runs.jsonl 不动)。被测系统 = RepoProof 自身。
+
+**建栈**:新机器 `feature_stack.py`(§21-28 子集:git 树哈希状态
+身份、journal-before-write、LIFO 回滚、级联确认门、选择性重建、
+崩溃恢复;22 钉死)+ 三 PASS 特性包冻结提取(F1=T1 order-6,
+F2=T2 order-20,F3=T3 order-40;order-21 因根级 mcp/ stub 遮蔽真
+SDK 毁 F1 落选——**逐特性 PASS ≠ 组合可栈**首个实证)。真栈
+S0→S1→S2→S3 建成,逐状态 CoW 副本 verify 全过(宿主回归 606/609
++ T2 公开面 12 + T3 公开面 23 真跑)。冻结提交 291211a。
+
+**五实验**(台账 `benchmarks/v2/rollback_experiments.jsonl` 10 行):
+R-A/R-B 首跑 PASS(树逐字节复现+状态复用+级联两拒零变);
+R-C 首跑 FAIL→E4(scratch 树在 verify 后取,验证注入物入树,
+确定性断言误报)修+钉死→复跑 PASS(S4 两跑重演树一致);
+R-D 首跑 FAIL 兑现但层归属修正:栈层树闸已零写拒绝(优于预期),
+产品层 rollback() 直调 clobber 字节级坐实(手改文件被静默删除还报
+ROLLED_BACK)→ 两阶段三态修复+双钉死 → 复跑 PROJECT_DRIFT_DETECTED
+零写;R-E 三路(进程内 apply 崩/回滚相崩/kill -9)判据全过,
+(b) 路判据外发现 E5(kill 遗留 staging 挡死重试)→ recover 收殓
++钉死 → 复跑崩溃→恢复→重试直达 S3。
+
+**建栈期另有 E1-E3**:E1 产品缺陷 `_atomic_write` 丢可执行位
+(755→644),被机器自身"写回后树==staged"校验当场抓获,三写
+路径 copymode 修+双钉死;E2 台架 venv 克隆 shebang 污染
+(LESSONS #18 再中招,升级为硬检查);E3 台架 grep 误伤告警 URL。
+
+全套回归 **420 passed 零回归**(批前 416,+4 新钉死)。真栈静息
+S3。产物:T4v1-report / prereg 附录(CLOSED-PASSED)/
+rollback_experiments.jsonl / LESSONS #25。红线全 0(零模型调用、
+主目录硬护栏未触、隐藏 oracle 无涉)。
+
+**方法论**:内容寻址树等价断言层层布防 = 免费全域网(E1/E4/R-D
+栈层全是它自曝);合成 fixture 钉死 ≠ 真台架安全(E4 盲区 = 纯函数
+verify);判据外发现照收(E5 出自"复位到可用态"收尾)。

@@ -284,6 +284,30 @@ def test_selective_rebuild_happy(stack: FeatureStack, b_a: FeatureBundle,
             for t in stack.ledger.applied_order] == ["f_b"]
 
 
+def test_selective_rebuild_tolerates_verify_side_effects(
+        stack: FeatureStack, b_a: FeatureBundle, b_b: FeatureBundle,
+        repo: Path, tmp_path: Path) -> None:
+    """T4 R-C 首跑真发现 E4 钉死:全量验证会向 scratch 注入测试基建
+    (公开面套件、fixtures)。确定性比对必须取 verify 前的构建时树,
+    否则注入物入树 → 真栈重演后被误判"重建不确定"(栈已动,报错误导)。"""
+    stack.apply_feature(b_a)
+    stack.apply_feature(b_b)
+
+    def verify_with_injection(root: Path) -> bool:
+        (root / "public_tests").mkdir()
+        (root / "public_tests" / "test_injected.py").write_text(
+            "def test_ok(): pass\n", encoding="utf-8")   # 模拟台架注入
+        return (root / "feature_b.py").exists() and not (root / "feature_a.py").exists()
+
+    out = stack.selective_rebuild("f_a", bundles={"f_b": b_b},
+                                  verify_fn=verify_with_injection,
+                                  scratch_dir=tmp_path / "scratch-inj")
+    assert out["tree_sha"] == stack.tree_sha()          # 修复前此处以"重建不确定"炸
+    assert not (repo / "public_tests").exists()          # 注入物绝不进真栈
+    assert not (repo / "feature_a.py").exists()
+    assert (repo / "feature_b.py").exists()
+
+
 def test_selective_rebuild_unsafe_leaves_stack_untouched(
         stack: FeatureStack, b_a: FeatureBundle, b_b: FeatureBundle,
         tmp_path: Path) -> None:
@@ -352,6 +376,30 @@ def test_recover_interrupted_apply(stack: FeatureStack, b_a: FeatureBundle,
     assert not (repo / "feature_b.py").exists()
     # 恢复后可正常继续
     tx = stack.apply_feature(b_b)
+    assert tx.result_state_id == "S2"
+
+
+def test_recover_reaps_dead_staging_left_by_hard_kill(
+        stack: FeatureStack, b_a: FeatureBundle, b_b: FeatureBundle,
+        monkeypatch) -> None:
+    """T4 R-E(b) 真发现 E5 钉死:进程内异常 finally 会清 staging,
+    kill -9 不会——残留 staged-<fid> 曾把复活后的同特性重试挡死。
+    recover 必须收殓 journal 点名事务的 staging;无关残留仍守卫。"""
+    stack.apply_feature(b_a)
+    _interrupt_atomic_write_after(monkeypatch, 1)
+    with pytest.raises(KeyboardInterrupt):
+        stack.apply_feature(b_b)
+    monkeypatch.undo()
+    # 复刻进程死亡:finally 清掉的 staging 重新在盘(kill -9 时它就在)
+    dead = stack.ledger_dir / "work" / "staged-f_b"
+    dead.mkdir(parents=True)
+    (dead / "leftover.txt").write_text("orphan", encoding="utf-8")
+    other = stack.ledger_dir / "work" / "staged-unrelated"
+    other.mkdir(parents=True)
+    stack.recover_interrupted()
+    assert not dead.exists()                       # 死事务 staging 被收殓
+    assert other.exists()                          # 无关残留不动(仍守卫)
+    tx = stack.apply_feature(b_b)                  # 修复前此处被"不覆盖"挡死
     assert tx.result_state_id == "S2"
 
 
