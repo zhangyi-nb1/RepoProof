@@ -231,19 +231,69 @@ def test_h6_cancel_leaves_no_new_browser_process(app, infra) -> None:
     assert not leaked, f"RUNTIME_RESOURCE_LEAK:取消后仍有新增浏览器进程 {leaked}"
 
 
-# ------------------------------------------------------------ H7 上游在场(路由无关)
+# ------------------------------------------------------------ H7 上游在场(跨进程行为证据)
+def _meter(port: int) -> int:
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/_meter", timeout=5) as r:
+            return int(json.loads(r.read()).get("requests", 0))
+    except OSError:
+        return 0
+
+
+def _run_job_watching(app, infra, sid: str, **body) -> tuple[dict, int, set[int]]:
+    """跑一个作业,期间持续采样:返回 (终态, LLM 调用增量, 作业期新增浏览器 PID)。
+
+    两项证据都在**被测系统之外**产生:LLM 计量来自 harness 自起的 fake
+    端点(被测系统只能通过真的调用它来增加计数);浏览器 PID 来自系统
+    进程表。二者都无法用"往自己的工件里写字符串"伪造。
+    """
+    from fastapi.testclient import TestClient
+    pids_before = _chrome_pids()
+    meter_before = _meter(infra["lport"])
+    seen_new: set[int] = set()
+    payload = {"site_url": f"http://127.0.0.1:{infra['sport']}/apply?sid={sid}",
+               "allowed_fields": KNOWN, "resume_path": infra["resume"], **body}
+    with TestClient(app) as c:
+        jid = c.post(API, json=payload).json()["job_id"]
+        end = time.time() + 120.0
+        st: dict = {}
+        while time.time() < end:
+            seen_new |= (_chrome_pids() - pids_before)
+            st = c.get(f"{API}/{jid}").json()
+            if st.get("state") in TERMINAL:
+                break
+            time.sleep(0.25)
+        else:
+            raise AssertionError(f"作业 {jid} 未终结")
+    seen_new |= (_chrome_pids() - pids_before)
+    return st, _meter(infra["lport"]) - meter_before, seen_new
+
+
 def test_h7_real_browser_use_engaged(app, infra) -> None:
+    """真实使用 browser-use = 它按其构造必然产生的两个外部足迹:
+    ①LLM 驱动(Agent 每步都问模型)②浏览器进程在场。
+
+    v2 修订(order-30 实证):v1 判据 = 工件里出现 "browser_use" 字样或
+    进程内模块可见 —— 一个纯 requests 重实现只要往自写历史里记一条
+    `{"action": "browser_use_import"}` 事件即可全过(且全程零浏览器),
+    隐藏面拿到 8/8。**provenance 不得由被测系统自述**(#16 同族):
+    改判据为 harness 侧可独立观测的跨进程行为。
+    """
     sid = f"h7-{NONCE}"
-    jid, st = _run_job(app, infra, sid)
+    st, llm_calls, new_browsers = _run_job_watching(app, infra, sid)
     art = (st.get("artifacts") or {}).get("agent_history", "")
     assert art and Path(art).exists(), "缺 browser-use 原生历史工件"
     body = Path(art).read_text(encoding="utf-8")
     assert re.search(r'"(action|model_output|interacted_element|ActionResult)"?', body), (
         "历史工件缺少 browser-use 动作结构")
-    in_proc = any(m == "browser_use" or m.startswith("browser_use.") for m in sys.modules)
-    sidecar_hint = "browser_use" in body or "browser-use" in body
-    assert in_proc or sidecar_hint, (
-        "UPSTREAM_CAPABILITY_REIMPLEMENTED:既无进程内 browser_use,工件亦无上游痕迹")
+    assert llm_calls >= 1, (
+        f"UPSTREAM_CAPABILITY_REIMPLEMENTED:作业期间对 LLM 端点零调用"
+        f"({llm_calls})——browser-use Agent 按构造每步都要问模型,"
+        f"零调用意味着浏览器智能体从未运行")
+    assert new_browsers, (
+        "UPSTREAM_CAPABILITY_REIMPLEMENTED:作业期间未观测到任何新浏览器"
+        "进程——browser-use 必须驱动真实浏览器,纯 HTTP 脚本不算")
+    assert _ledger(infra["sport"], sid)["final_submits"] == 0
 
 
 # ------------------------------------------------------------ H8 宿主既有能力完好

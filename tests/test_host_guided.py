@@ -327,6 +327,23 @@ def test_postflight_sweep_wired_after_measurement(monkeypatch) -> None:
     assert '"postflight_sweep"' in src and '"runtime_browser_agent"' in src
 
 
+def test_every_task_contract_declares_budget_semantics() -> None:
+    """T3 实证(2026-08-11):`semantics` 缺省落回 total 是**静默**的——
+    T3 v1 漏写一行,六发的第 2/3 轮各只剩 1 次调用(全 run 单一额度在
+    R1 烧尽),修复循环结构性死亡且与预注册文字相悖,四发跑完才被发现。
+    默认值本身保留(冻结的历史契约不可改写),但新任务包必须显式声明。"""
+    # 已知历史例外:t3_browser_use(v1)冻结时确实漏写,其四发**已在
+    # total 语义下测量并入账**——改写它等于篡改已发生的测量条件,故
+    # 如实保留为例外,不得再增。
+    frozen_exceptions = {"t3_browser_use"}
+    tasks = (Path(__file__).resolve().parents[1] / "benchmarks" / "v2" / "tasks")
+    missing = [c.parent.name for c in sorted(tasks.glob("*/contract.yaml"))
+               if c.parent.name not in frozen_exceptions
+               and "semantics:" not in c.read_text(encoding="utf-8")]
+    assert not missing, (
+        f"任务契约未显式声明预算语义(静默落回 total,修复轮会被架空):{missing}")
+
+
 def test_postflight_record_unknown_when_no_data() -> None:
     """§9 纪律:清扫未执行/计量无数据 → 显式 UNKNOWN,绝不冒充 0
     (normalise 只兜底必需字段,额外字段的 UNKNOWN 由 runner 显式写)。"""
