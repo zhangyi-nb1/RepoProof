@@ -269,6 +269,11 @@ PASS(含 PASS_ADAPTED)**,才可考虑进入下一阶段。语义=判定保证的
   task-v2,v1 保留不改写、不入排名;不因单模型一次失败升复杂度(源 §46);
 - 硬红线:False System Pass=0、Hidden Oracle Leakage=0、Unapproved
   Real Apply=0;弱模型不单独加预算;n<3 不排名;不同 harness_commit 不互比。
+- **预注册之外的加发(2026-08-12)**:UI 允许随时加发以观察方差,但这类
+  发次不受预注册保护(模型/发数/停点未事先冻结 → 可停在好看处)。纪律=
+  如实入账 + **写入时打 `batch=EXPLORATORY_UNPREREGISTERED`**(§9),闸门
+  不计、不入正式结论;要转正必须补预注册后重跑。UI 侧以"未勾选确认则
+  发射按钮禁用"落实,便利性不得成为绕过预注册的后门。
 
 ## 9. 记录制度
 
@@ -281,6 +286,14 @@ PASS(含 PASS_ADAPTED)**,才可考虑进入下一阶段。语义=判定保证的
   scope_change_count stagnation final_capability final_regression policy
   replay verdict failure_types execution_backend env_baseline_hash
   main_dir_integrity trace_sha256 bundle_path`(未知写 UNKNOWN 不写 0)。
+- **`batch` 批次归属(2026-08-12 增补)**:UI 泛化到 T1–T4 后用户可随时
+  加发观察方差,而 §8 要求正式批次先预注册。若台账里探索性加发与预注册
+  批次长得一样,日后重算闸门会把探索性 PASS 一并数进去——与 order-38
+  同类(真话写在机器读不到的地方),且 append-only 事后只能再挂裁定补救。
+  故:**探索性发次在写入时打 `batch=EXPLORATORY_UNPREREGISTERED`**
+  (UI 发射路径强制打标,CLI 用 `--batch`),`count_passes()` 将其排除在
+  `passes` 之外并单列 `exploratory` / `exploratory_passes`;`total` 仍含
+  全部发次(如实入账不挑选)。历史行无 `batch` 字段 → 视为预注册批次。
 - **`benchmarks/v2/adjudications.jsonl`(2026-08-11 增补,LESSONS #26)**:
   人工再分类**旁挂**,按 `run_id` 连接。设立缘由=系统 verdict 与人工取证
   判定可能相左(首例 order-38:系统 `PASS_ADAPTED`,人工判 FALSE PASS),

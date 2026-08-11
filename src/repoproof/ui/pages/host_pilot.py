@@ -79,7 +79,9 @@ st.error(
     "⚠️ **批次纪律**:加发属于新批次,TESTPLAN §8 要求**先写预注册**"
     "(冻结模型/发数/停点/判据)再发射。上面那份预注册覆盖的是历史批次;"
     "现在直接发,这些发次在方法学上不受预注册保护——只能作探索性观察,"
-    "不能写进正式结论。"
+    "不能写进正式结论。\n\n"
+    "从本页发出的每一发都会在台账里打 `batch=EXPLORATORY_UNPREREGISTERED`,"
+    "`count_passes()` **不把它计入阶段闸门**(如实入账、但不充数)。"
 )
 ack = st.checkbox("我知道这是预注册之外的探索性加发,结果只作观察、不入正式结论")
 
@@ -91,6 +93,8 @@ if not var:
 for v in var:
     st.markdown(
         f"**{v['model']}** · n={v['n']} · 有效 PASS={v['passes']}"
+        + (f" · 其中探索性加发 {v['exploratory']} 发(闸门不计)"
+           if v["exploratory"] else "")
         + ("" if v["enough_for_variance"] else " · ⚠️ n<3,不足以谈方差")
     )
     st.caption("判决分布(已连接人工再分类):"
@@ -142,6 +146,7 @@ if state["done"]:
     st.dataframe(
         [{"run_id": d["run_id"], "模型": d["model"], "系统判决": d["verdict"],
           "有效判决": d["effective_verdict"],
+          "批次": "探索性(闸门不计)" if d["exploratory"] else "预注册",
           "人工作废": "是" if d["invalidated"] else ""}
          for d in state["done"]],
         use_container_width=True, hide_index=True)

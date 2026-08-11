@@ -661,6 +661,7 @@ class HostGuidedRunner:
         model_factory: Callable[[dict], object] | None = None,
         run_order: int | str = "UNKNOWN",
         run_index: int | str = "UNKNOWN",
+        batch: str = "UNKNOWN",
         keep_session: bool = False,
     ) -> dict:
         import os as _os
@@ -1047,7 +1048,7 @@ class HostGuidedRunner:
                     agent_metrics=agent_metrics, repair_summary=repair_summary,
                     records=records, public_by_round=public_by_round,
                     regression_by_round=regression_by_round,
-                    run_order=run_order, run_index=run_index, model_name=model_name,
+                    run_order=run_order, run_index=run_index, batch=batch, model_name=model_name,
                     preflight=preflight, budget_exhausted=budget_exhausted,
                     gate_reasons=["AI 请求范围变更,已暂停等待用户决定:"
                                   + str(repair_summary["pending_scope_change"])],
@@ -1180,7 +1181,7 @@ class HostGuidedRunner:
                 verdict_record, integrity_before, backend, s, keep_session,
                 agent_metrics=agent_metrics, repair_summary={}, records=[],
                 public_by_round=[], regression_by_round=[],
-                run_order=run_order, run_index=run_index, model_name=model_name,
+                run_order=run_order, run_index=run_index, batch=batch, model_name=model_name,
                 preflight=preflight, budget_exhausted=None,
                 gate_reasons=[f"BENCH_ROOT_CONTAMINATED:{exc.strays[:5]}(零预算清场后重跑)"],
                 t0=t0)
@@ -1191,7 +1192,7 @@ class HostGuidedRunner:
                 verdict_record, integrity_before, backend, s, keep_session,
                 agent_metrics=agent_metrics, repair_summary={}, records=[],
                 public_by_round=[], regression_by_round=[],
-                run_order=run_order, run_index=run_index, model_name=model_name,
+                run_order=run_order, run_index=run_index, batch=batch, model_name=model_name,
                 preflight=preflight, budget_exhausted=None,
                 gate_reasons=["HOST_BASELINE_UNHEALTHY:宿主基线不达标,未消耗任何模型预算"],
                 t0=t0)
@@ -1222,7 +1223,7 @@ class HostGuidedRunner:
             agent_metrics=agent_metrics, repair_summary=repair_summary,
             records=records, public_by_round=public_by_round,
             regression_by_round=regression_by_round,
-            run_order=run_order, run_index=run_index, model_name=model_name,
+            run_order=run_order, run_index=run_index, batch=batch, model_name=model_name,
             preflight=preflight, budget_exhausted=budget_exhausted,
             gate_reasons=gate.reasons, t0=t0,
             adaptation_manifest=adaptation_manifest,
@@ -1275,7 +1276,8 @@ class HostGuidedRunner:
         backend: LocalWorktreeBackend, s: _Session | None, keep_session: bool,
         *, agent_metrics: dict, repair_summary: dict,
         records: list[RepairRoundRecord], public_by_round: list[int],
-        regression_by_round: list[int], run_order, run_index, model_name: str,
+        regression_by_round: list[int], run_order, run_index, batch: str,
+        model_name: str,
         preflight: PreflightResult | None, budget_exhausted: str | None,
         gate_reasons: list[str], t0: float,
         adaptation_manifest: AdaptationManifest | None = None,
@@ -1365,6 +1367,9 @@ class HostGuidedRunner:
                                      if preflight else "UNKNOWN"),
             "run_index": run_index,
             "run_order": run_order,
+            # 批次归属:探索性加发打 EXPLORATORY_UNPREREGISTERED,闸门不计
+            # (TESTPLAN §8/§9)。缺省 UNKNOWN,历史行无此字段=预注册批次。
+            "batch": batch,
             "guided": True,
             "max_rounds": self.contract.budgets.max_rounds,
             "rounds_used": rounds_used,
@@ -1430,6 +1435,7 @@ def run_host_guided_cli(
     fake: str | None = None,
     run_order: int | str = "UNKNOWN",
     run_index: int | str = "UNKNOWN",
+    batch: str = "UNKNOWN",
     wheelhouse: Path | None = None,
     keep_session: bool = False,
 ) -> dict:
@@ -1453,7 +1459,7 @@ def run_host_guided_cli(
                     "agent_model_call_count": 0}
         runner = HostGuidedRunner(contract_path, project_root, wheelhouse=wheelhouse)
         report = runner.run(provider, pf, run_order=run_order, run_index=run_index,
-                            keep_session=keep_session)
+                            batch=batch, keep_session=keep_session)
         return {"blocked": False, "preflight": pf.summary(), "report": report}
     runner = HostGuidedRunner(contract_path, project_root, wheelhouse=wheelhouse)
 
@@ -1463,7 +1469,7 @@ def run_host_guided_cli(
         return FakeModel(script=_fake_script(fake, runner))
 
     report = runner.run(None, None, model_factory=factory,
-                        run_order=run_order, run_index=run_index,
+                        run_order=run_order, run_index=run_index, batch=batch,
                         keep_session=keep_session)
     return {"blocked": False, "preflight": None, "report": report}
 

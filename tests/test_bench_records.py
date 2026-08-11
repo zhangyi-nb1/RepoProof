@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from repoproof.persistence.bench_records import (
+    EXPLORATORY_BATCH,
     PASS_VERDICTS,
     REQUIRED_FIELDS,
     UNKNOWN,
@@ -113,3 +114,32 @@ def test_adjudication_guards(tmp_path: Path) -> None:
     with pytest.raises(BenchRecordError, match="append-only"):
         append_adjudication(tmp_path, _adj("r1"))              # 同 run 不得重复裁定
     assert len(load_adjudications(tmp_path)) == 1              # 拒绝不留半行
+
+
+def test_exploratory_batch_never_counts_toward_gate(tmp_path: Path) -> None:
+    """UI 加发是预注册外的探索性发次:如实入账、但不得充阶段闸门。
+
+    没有这道扣除,`count_passes` 会把随手加发的 PASS 与预注册批次混为一谈
+    —— 与 order-38 同类(真话写在机器读不到的地方),且台账 append-only,
+    事后只能再挂一层裁定去补救。
+    """
+    append_run(tmp_path, {"run_id": "t9-pre", "task_id": "t9-x",
+                          "verdict": "PASS_ADAPTED"})                  # 预注册批次
+    append_run(tmp_path, {"run_id": "t9-explore", "task_id": "t9-x",
+                          "verdict": "PASS_ADAPTED", "batch": EXPLORATORY_BATCH})
+    append_run(tmp_path, {"run_id": "t9-explore-fail", "task_id": "t9-x",
+                          "verdict": "FAIL", "batch": EXPLORATORY_BATCH})
+
+    c = count_passes(tmp_path, task_prefix="t9-")
+    assert c["total"] == 3, "如实计数不挑选:探索性发次照样进 total"
+    assert c["passes"] == 1 and c["pass_run_ids"] == ["t9-pre"], "闸门只认预注册批次"
+    assert c["exploratory"] == 2 and c["exploratory_passes"] == 1
+    assert c["exploratory_run_ids"] == ["t9-explore", "t9-explore-fail"]
+
+
+def test_historical_rows_without_batch_are_preregistered(tmp_path: Path) -> None:
+    """历史行无 batch 字段 → 视为预注册(它们确实是),不得因新字段被误扣。"""
+    append_run(tmp_path, {"run_id": "old", "task_id": "t1-x", "verdict": "PASS"})
+    assert "batch" not in load_runs(tmp_path)[0], "记录器不给历史语义补写默认值"
+    c = count_passes(tmp_path, task_prefix="t1-")
+    assert c["passes"] == 1 and c["exploratory"] == 0

@@ -44,6 +44,13 @@ UNKNOWN = "UNKNOWN"
 # "FALSE_PASS" 含 "PASS",子串法会把已判无效的假 PASS 数成通过。
 PASS_VERDICTS = frozenset({"PASS", "PASS_ADAPTED"})
 
+# 批次归属(2026-08-12 增补)。UI 泛化到 T1–T4 后用户可随时加发观察方差,
+# 而 TESTPLAN §8 要求正式批次先预注册。若台账里两者长得一样,日后重算闸门
+# 会把探索性 PASS 一并数进去——与 order-38 同类:真话写在机器读不到的地方。
+# 故:探索性发次**在写入时**打此标,`count_passes` 不计入闸门。
+# 历史行无 batch 字段 → 视为预注册批次(它们确实是)。
+EXPLORATORY_BATCH = "EXPLORATORY_UNPREREGISTERED"
+
 # 再分类记录的最少字段;evidence_refs 必填 = 裁定不得无出处
 ADJUDICATION_REQUIRED_FIELDS = (
     "run_id", "system_verdict", "effective_verdict",
@@ -171,13 +178,18 @@ def adjudicated_runs(project_root: str | Path) -> list[dict]:
 def count_passes(project_root: str | Path, task_prefix: str | None = None) -> dict:
     """按 effective_verdict 统计 PASS(闸门判据)。
 
-    task_prefix 形如 "t3-" 时只统计该阶段。返回 total/passes/invalidated,
-    其中 invalidated = 系统判 PASS 但人工裁定不计入的条数。
+    task_prefix 形如 "t3-" 时只统计该阶段。**两道扣除**:
+    1. 人工裁定不计入的假 PASS(invalidated);
+    2. `batch == EXPLORATORY_BATCH` 的探索性加发(exploratory)——未经预注册
+       (TESTPLAN §8),只能作观察,不得充闸门。
+    `total` 仍是全部发次(如实计数不挑选),`passes` 是**可充闸门**的通过数。
     """
     rows = adjudicated_runs(project_root)
     if task_prefix:
         rows = [r for r in rows if str(r.get("task_id", "")).startswith(task_prefix)]
-    passes = [r for r in rows if r["effective_verdict"] in PASS_VERDICTS]
+    exploratory = [r for r in rows if r.get("batch") == EXPLORATORY_BATCH]
+    gateable = [r for r in rows if r.get("batch") != EXPLORATORY_BATCH]
+    passes = [r for r in gateable if r["effective_verdict"] in PASS_VERDICTS]
     invalidated = [
         r for r in rows
         if r.get("verdict") in PASS_VERDICTS and r["effective_verdict"] not in PASS_VERDICTS
@@ -186,6 +198,10 @@ def count_passes(project_root: str | Path, task_prefix: str | None = None) -> di
         "total": len(rows),
         "passes": len(passes),
         "invalidated": len(invalidated),
+        "exploratory": len(exploratory),
+        "exploratory_passes": sum(
+            1 for r in exploratory if r["effective_verdict"] in PASS_VERDICTS),
         "pass_run_ids": [r.get("run_id") for r in passes],
         "invalidated_run_ids": [r.get("run_id") for r in invalidated],
+        "exploratory_run_ids": [r.get("run_id") for r in exploratory],
     }

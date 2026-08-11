@@ -6,7 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from repoproof.persistence.bench_records import append_adjudication, append_run
+from repoproof.persistence.bench_records import (
+    EXPLORATORY_BATCH,
+    append_adjudication,
+    append_run,
+)
 from repoproof.ui.services.live_run import (
     HOST_PILOT,
     HOST_TASKS,
@@ -134,6 +138,9 @@ def test_argv_carries_that_stage_own_contract(tmp_path: Path) -> None:
                                         task_key=key))
         assert HOST_TASKS[key]["contract"] in joined
         assert "--run-order 7" in joined and "--run-index 2" in joined
+        # UI 加发一律是预注册之外的探索性发次 → 必须在**写入时**打标,
+        # 否则台账里与预注册批次无从分辨(append-only,事后补不回来)。
+        assert f"--batch {EXPLORATORY_BATCH}" in joined
         for other in set("T1 T2 T3".split()) - {key}:
             assert HOST_TASKS[other]["contract"] not in joined, "串台 = 整批作废"
         for secret_marker in ("KEY", "sk-", "BASE"):

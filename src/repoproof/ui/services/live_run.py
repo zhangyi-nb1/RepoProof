@@ -15,6 +15,8 @@ import os
 import subprocess
 from pathlib import Path
 
+from repoproof.persistence.bench_records import EXPLORATORY_BATCH
+
 LOCK = "runs/.ui_live.lock"
 
 
@@ -235,6 +237,7 @@ def host_task_state(root: Path, key: str = "T1") -> dict:
     done = [{"run_id": r.get("run_id"), "model": r.get("model"),
              "verdict": r.get("verdict"),
              "effective_verdict": r.get("effective_verdict"),
+             "exploratory": r.get("batch") == EXPLORATORY_BATCH,
              "invalidated": r.get("adjudication") is not None} for r in rows]
     by_model = {m: sum(1 for r in rows if r.get("model") == m) for m in t["models"]}
     all_real = [r for r in load_runs(root)
@@ -288,6 +291,9 @@ def variance_summary(root: Path, key: str) -> list[dict]:
             "model": model, "n": len(rows), "verdicts": verdicts,
             "passes": sum(1 for r in rows
                           if r.get("effective_verdict") in PASS_VERDICTS),
+            # 其中多少发是预注册之外的探索性加发(闸门不计,但方差要看)
+            "exploratory": sum(1 for r in rows
+                               if r.get("batch") == EXPLORATORY_BATCH),
             "stats": stats,
             "enough_for_variance": len(rows) >= 3,
         })
@@ -302,14 +308,21 @@ def provider_for_model(model: str) -> str | None:
 
 
 def host_run_argv(root: Path, *, run_order: int, run_index: int = 1,
-                  task_key: str = "T1") -> list[str]:
-    """host-run 的 argv(纯函数,便于钉死:密钥绝不进 argv)。"""
+                  task_key: str = "T1",
+                  batch: str = EXPLORATORY_BATCH) -> list[str]:
+    """host-run 的 argv(纯函数,便于钉死:密钥绝不进 argv)。
+
+    `batch` 默认 EXPLORATORY_UNPREREGISTERED:**从 UI 发起的加发一律是预注册
+    之外的探索性发次**(TESTPLAN §8 要求正式批次先冻结再发射),打标后闸门
+    不计——不打标就会与预注册批次在台账里混为一谈。
+    """
     t = host_task(task_key)
     if not t["runnable"]:
         raise ValueError(f"{task_key} 不可经 UI 发起:{t['why_not_runnable']}")
     return [str(root / ".venv" / "bin" / "python"), "-m", "repoproof.cli", "host-run",
             "--contract", str(root / t["contract"]),
-            "--run-order", str(run_order), "--run-index", str(run_index)]
+            "--run-order", str(run_order), "--run-index", str(run_index),
+            "--batch", batch]
 
 
 def start_host_run(root: Path, *, model: str, run_order: int, run_index: int = 1,

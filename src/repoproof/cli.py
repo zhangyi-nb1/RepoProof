@@ -126,6 +126,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="preregistered execution order index (1, 2, ...)")
     p_host.add_argument("--run-index", default="UNKNOWN",
                         help="per-model run index (1 for pilot)")
+    p_host.add_argument("--batch", default="UNKNOWN",
+                        help="batch attribution written to runs.jsonl; pass "
+                             "EXPLORATORY_UNPREREGISTERED for ad-hoc runs outside a "
+                             "preregistration (excluded from stage-gate pass counts)")
     p_host.add_argument("--wheelhouse", type=Path, default=None,
                         help="frozen local wheel index (default: ~/RepoProofBench/wheelhouse-offerclaw-<commit7>)")
     p_host.add_argument("--fake", choices=["noop", "positive"], default=None,
@@ -368,6 +372,7 @@ def main(argv: list[str] | None = None) -> int:
                 fake=args.fake,
                 run_order=args.run_order,
                 run_index=args.run_index,
+                batch=args.batch,
                 wheelhouse=args.wheelhouse,
                 keep_session=args.keep_session,
             )
