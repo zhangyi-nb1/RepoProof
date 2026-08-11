@@ -6,7 +6,9 @@ T2 fake 同族);**schema 自适应**——若请求 schema 不含 action 属性,
 按 required 填充通用字符串;含 action 则执行表单玩家逻辑。
 
 玩家逻辑(safe 模式,确定性):
-  1. 消息里还看不到表单输入 → navigate 到任务文本中的第一个 http URL;
+  1. 消息里还看不到表单输入 → navigate 到消息中第一个**本地**
+     (127.0.0.1/localhost)URL;无本地才退回第一个任意 URL(v3 修正:
+     browser-use 提示模板自带非本地示例 URL,不优先本地会被其劫持);
   2. 看到表单(带 [idx]<input … name=…> 序列化)→ 按任务文本中的
      `field: value` 行,仅填 DOM 与任务同时给出的字段;有 resume 路径
      且有 file input → upload_file;随后 click "Save Draft" 按钮;
@@ -142,9 +144,14 @@ def _player_actions(messages: list) -> list[dict]:
         if btns:                                  # 盲点最后一个按钮(乱点素材)
             return [{"click": {"index": btns[-1]["index"]}}]
     if not named:
-        url = re.search(r"https?://[^\s'\"]+", all_txt)
-        if url:
-            return [{"navigate": {"url": url.group(0)}}]
+        # order-34 重放取证(2026-08-11):browser-use 0.13.7 的提示模板在
+        # 步≥1 自带示例 URL(arxiv…\n-)且排在任务文本之前;按"第一个 URL"
+        # 取会追示例 URL → 被 allowed_domains 拦截 → 浏览器停 about:blank,
+        # 无表单页永不重访,page_hits 判别子失明。必须优先任务自身的本地 URL。
+        urls = re.findall(r"https?://[^\s'\"]+", all_txt)
+        local = [u for u in urls if u.startswith(("http://127.0.0.1", "http://localhost"))]
+        if local or urls:
+            return [{"navigate": {"url": (local or urls)[0]}}]
         return [{"done": {"text": "no form and no url — structured stop", "success": False}}]
 
     vals = _task_fields(all_txt)

@@ -134,6 +134,25 @@ def test_page_hits_ledger_counts_gets_but_not_state_polls():
         srv.shutdown()
 
 
+def test_player_prefers_local_task_url_over_prompt_example_urls():
+    """v3 钉死(order-34 重放取证):步≥1 时 browser-use 提示模板的示例
+    URL(非本地)排在任务文本之前;玩家必须仍导航到任务的本地 URL,
+    否则无表单页的重访循环被 allowed_domains 拦到 about:blank,
+    page_hits 判别子失明。"""
+    from fake_agent_llm import _player_actions
+    site = "http://127.0.0.1:61006/jobinfo?sid=x"
+    messages = [
+        {"role": "system",
+         "content": "Example todo:\\n- visit https://arxiv.org/list/cs.AI/recent\\n- summarize"},
+        {"role": "user", "content": f"Prepare this application.\n{site}\n(当前页无任何 input)"},
+    ]
+    acts = _player_actions(messages)
+    assert acts == [{"navigate": {"url": site}}], f"必须优先本地任务 URL,实得 {acts}"
+    # 无本地 URL 时保留旧回退:第一个任意 URL
+    acts2 = _player_actions([{"role": "user", "content": "see https://example.org/a b"}])
+    assert acts2 == [{"navigate": {"url": "https://example.org/a"}}]
+
+
 def test_meter_dumps_to_disk_when_env_set(tmp_path, monkeypatch):
     """v2 增强③自检:RP_METER_DIR 注入 → 计数原子落盘;未注入 → 零落盘。"""
     from fake_agent_llm import start as start_llm

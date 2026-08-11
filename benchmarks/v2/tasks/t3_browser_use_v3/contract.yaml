@@ -6,7 +6,11 @@
 #   page_hits≤2 确定性判别子)+ 病态页不拖垮并发作业测试(120s 窗)
 #   ③mock 站新增 GET /jobinfo 路由与 page_hits 台账(纯增量)④公开/
 #   oracle 的 _chrome_pids 按 LESSONS #20 收窄为可执行体识别(ps 版,
-#   消除报告面污染;h1-h8 断言体逐字节不变)。预算逐字节不变。
+#   消除报告面污染;h1-h8 断言体逐字节不变)⑤玩家 fixture 修正:无表单
+#   navigate 分支优先本地(127.0.0.1/localhost)URL——重放取证实证
+#   browser-use 0.13.7 提示模板自带非本地示例 URL 且步≥1 排在任务文本前,
+#   旧"第一个 URL"逻辑被其劫持致 about:blank 死循环、page_hits 判别子
+#   失明(order-34 冻结重放曾借此假过 Test A)。预算逐字节不变。
 task_id: t3-offerclaw-browser-use-v3
 task_version: v3
 kind: host_integrated
