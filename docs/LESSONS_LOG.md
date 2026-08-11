@@ -181,6 +181,28 @@
     根因遗留)。harness 侧早已按"per-run venv 重建"设防,这次中招的
     是工程操作面——纪律对人(AI 操作员)同样生效。
 
+19. **日志取证要打结构,不要打字符串——三轮误判同一个故障的方法论根因**
+    现象:"Fable 降级"连续三轮定性,前两轮全错(①配额耗尽 ②用户级
+    settings 默认值),第三轮才锁死真因(安全分类器旗标 → 静默换模 →
+    降级态写回配置的棘轮,见 CASEBOOK 案例 2)。**三轮的差别不在思考
+    深度,在证据类型**:前两轮是"读一个配置文件 + 推理",第三轮是
+    "对 transcript 的结构化字段做统计"。对照实验就在同一次排查里——
+    `grep -c fallback *.jsonl` 得 306 次命中,**全是噪声**(我自己写
+    进对话的中文文档正文里的"fallback/降级/capacity");换成
+    `jq 'select(.type=="system") | select(.content|contains("safeguards"))'`
+    一次命中 **19 条真事件**,附时间戳、目标模型、措辞变体。教训:
+    **正文 grep 在"日志里混有讨论该日志的文本"时必然自污染**(本项目
+    尤甚:我们整天在对话里讨论降级),而 `type`/`stop_reason`/内容块
+    `type:"fallback"` 这些**结构位是被测系统写的,不是被讨论出来的**。
+    留档三条可复用取证式(RepoProof transcript 通用):
+    ①模型切换点+上下文规模 `select(.type=="assistant")|[.timestamp,
+    .message.model,(usage 三项求和)]`;②旗标事件 `select(.type==
+    "system")|contains("safeguards")`;③停止原因分布 `.message.
+    stop_reason` 按模型 group(本次由此发现 2 条 `refusal`=旗标的
+    硬失败变体)。连带纪律:**用"我方是否写过这个词"来判断一个 grep
+    命中是否可信**——这与 oracle 自持(LESSONS #15/16)同构:探子必须
+    挂在被测系统实际写出的结构上,不能挂在双方共享的字符串上。
+
 ## 更早关键坑(索引)
 
 - 全角冒号紧贴 `**` 的 markdown 粗体不闭合(两次踩)→ 全局正则清扫
