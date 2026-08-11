@@ -161,6 +161,22 @@ def test_per_task_counts_are_independent(tmp_path: Path) -> None:
     assert host_task_state(tmp_path, "T2")["next_global_order"] == 4  # 全局
 
 
+def test_older_task_versions_are_disclosed_not_silently_dropped(tmp_path: Path) -> None:
+    """旧版发次不进面板(版本不可互比),但**条数必须明示**——静默少显示会让
+    人以为发次丢了,而"少报"正是本项目最忌讳的失真方向。"""
+    append_run(tmp_path, {"run_id": "t3-old-1", "task_id": "t3-offerclaw-browser-use-v4",
+                          "model": "gpt-5.6", "verdict": "FAIL"})
+    append_run(tmp_path, {"run_id": "t3-old-2", "task_id": "t3-offerclaw-browser-use",
+                          "model": "gpt-5.5", "verdict": "FAIL"})
+    append_run(tmp_path, {"run_id": "t3-cur", "task_id": HOST_TASKS["T3"]["task_id"],
+                          "model": "gpt-5.6", "verdict": "PASS_ADAPTED"})
+    s = host_task_state(tmp_path, "T3")
+    assert len(s["done"]) == 1, "面板只含当前冻结版"
+    assert s["older_versions"] == {"t3-offerclaw-browser-use-v4": 1,
+                                   "t3-offerclaw-browser-use": 1}
+    assert host_task_state(tmp_path, "T1")["older_versions"] == {}
+
+
 def test_variance_counts_effective_verdict_not_system(tmp_path: Path) -> None:
     """被人工判无效的假 PASS 不得进方差面板的通过计数;n<3 明确标注。"""
     tid = HOST_TASKS["T3"]["task_id"]

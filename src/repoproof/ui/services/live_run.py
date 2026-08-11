@@ -242,7 +242,14 @@ def host_task_state(root: Path, key: str = "T1") -> dict:
     by_model = {m: sum(1 for r in rows if r.get("model") == m) for m in t["models"]}
     all_real = [r for r in load_runs(root)
                 if not str(r.get("model", "")).startswith("fake")]
-    return {"done": done, "by_model": by_model,
+    # 本阶段更早任务版本的发次:**不进本面板**(不同 task_version 不可互比,
+    # TESTPLAN §8),但必须明示条数——否则用户看到 n=1 会以为发次丢了。
+    older: dict[str, int] = {}
+    for r in all_real:
+        tid = str(r.get("task_id", ""))
+        if tid.startswith(f"{key.lower()}-") and tid != t["task_id"]:
+            older[tid] = older.get(tid, 0) + 1
+    return {"done": done, "by_model": by_model, "older_versions": older,
             "next_global_order": len(all_real) + 1}
 
 

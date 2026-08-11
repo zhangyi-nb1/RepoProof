@@ -87,6 +87,14 @@ ack = st.checkbox("我知道这是预注册之外的探索性加发,结果只作
 
 # ---- 方差面板 ----
 st.subheader("重复发与方差")
+st.caption(f"只统计当前冻结版 `{T['task_id']}` 的发次。")
+if state["older_versions"]:
+    _older = " / ".join(f"`{k}` {n} 发" for k, n in
+                        sorted(state["older_versions"].items()))
+    st.caption(f"⚠️ 本阶段另有更早任务版本的 "
+               f"{sum(state['older_versions'].values())} 发({_older})"
+               f"**不在此面板**——不同 task_version 不可互比(TESTPLAN §8),"
+               "它们没丢,在「结果报告」页与台账里。")
 var = _lr.variance_summary(root, sel)
 if not var:
     st.caption("该阶段尚无真实模型发次。")
