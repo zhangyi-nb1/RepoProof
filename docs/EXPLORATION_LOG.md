@@ -830,3 +830,18 @@ pip——shebang 绝对路径写穿回副本 venv(冻结材料零污染,git 树�
 同线程底层换会话,用户已在桌面 App/VS Code 双端实证该机制);
 ③退化自诊二分法(配额窗口 vs 容量波动)。已同步 TESTPLAN §1.2 +
 长期记忆两条。注:AI 无工具主动触发压缩,如实声明边界。
+
+## 状态条目 · 2026-08-11 · 降级根因更正:是配置默认值,不是配额(方法论教训)
+
+用户追问"写进记忆为何还要发指令"→ 查盘发现真因:用户级
+`~/.claude/settings.json` 的 `"model": "opus[1m]"` 使**每个新会话
+(含压缩后新会话)默认启动为 Opus**,`/model` 仅当前会话生效——
+此前"配额/容量"推断被推翻(那是我在没查配置文件的情况下的推理)。
+**教训(本日第三次同类)**:环境/进度问题一律先查盘;**记忆与方案
+只能改 AI 行为,harness 行为必须改 settings**——这正是用户那句
+"写进记忆为什么还要发指令"的精确答案。已落地项目级
+`.claude/settings.local.json`:`model=claude-fable-5`(免 `/model`)
++ `autoCompactWindow=150000`(schema 确认 100k-1M;压缩自动在 15 万
+tokens 触发=**换壳自动化,免 `/compact`**)。配方入 TESTPLAN §1.2.1
+(该文件被全局 gitignore)。旁路开关待用户定:`switchModelsOnFlag`
+(静默换模 vs 暂停)、`fallbackModel`。
