@@ -845,3 +845,20 @@ pip——shebang 绝对路径写穿回副本 venv(冻结材料零污染,git 树�
 tokens 触发=**换壳自动化,免 `/compact`**)。配方入 TESTPLAN §1.2.1
 (该文件被全局 gitignore)。旁路开关待用户定:`switchModelsOnFlag`
 (静默换模 vs 暂停)、`fallbackModel`。
+
+## 状态条目 · 2026-08-11 · 降级治理定案:棘轮更正 + 四键配置 + 冷启动钩子
+
+**用户更正我的根因判断**:settings 里的 `opus[1m]` 是**降级的产物**
+而非起点——降级后默认值被写回,形成"降一次→此后每个新会话都生于
+Opus"的**棘轮**。据此定案:项目级 pin 掐断**传播**,换壳治**根因**
+(消耗),二者不可互替。**四键落地**(项目级 settings.local.json):
+model=claude-fable-5 / fallbackModel=[fable](过载不改道)/
+switchModelsOnFlag=false(安全审查命中时暂停而非静默换模,布尔量)/
+autoCompactWindow=150000 + autoCompactEnabled + precomputeCompaction
+(换壳自动化且不卡顿)。**冷启动钩子**(.claude/settings.json 已提交):
+SessionStart → `.claude/hooks/session-brief.sh` 注入磁盘简报(近 3
+提交/runs 末发/最新预注册/最新状态条目,~370 tokens),补上换壳最后
+短板——**压缩摘要会失真,进度事实永远来自磁盘**。钩子自测当场验证
+有效性:简报读出 runs.jsonl 41 行、末发 t3v2 gpt-5.5(本会话上下文
+里只有 39 行),即另一会话的实时前沿。诚实边界:若降级由服务端在配置
+层之上强制,配置拦不住——判据=新会话仍生于 Opus。

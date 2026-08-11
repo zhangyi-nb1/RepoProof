@@ -77,10 +77,38 @@ EXPLORATION_LOG 追加一条状态条目(含 Phase 0 ①-⑥ 勾选进度)——
   自动触发,而非贴近百万窗口才压——**"里程碑换壳"由此自动化,不必
   手敲 `/compact`**;副作用:放弃 `[1m]` 大窗口,而小窗口正是省钱的
   关键(每轮重发的上下文更小)。
-- 待用户定的两个旁路开关(schema 存在,本次未改):
-  `switchModelsOnFlag`(安全审查命中时**静默换模**,设 false 则改为
-  暂停会话——可让隐性换模显形)、`fallbackModel`(主模型过载时的
-  回退序列)。
+**用户更正(重要)**:settings 里的 opus 值**本身是降级的产物**——降级
+发生后默认值被写回 Opus,于是"降一次 → 之后每个新会话都生于 Opus"
+形成**棘轮**。故:项目级 pin 掐断的是**传播**,换壳治的是**根因**
+(消耗),两者都需要,不可互相替代。
+
+**最终配置(项目级 `.claude/settings.local.json`,gitignore 故留档)**:
+
+```json
+{
+  "model": "claude-fable-5",
+  "fallbackModel": ["claude-fable-5"],
+  "switchModelsOnFlag": false,
+  "autoCompactEnabled": true,
+  "autoCompactWindow": 150000,
+  "precomputeCompactionEnabled": true
+}
+```
+
+- `fallbackModel` 只列 Fable:过载时不静默改道别家模型;
+- `switchModelsOnFlag: false`:安全审查命中时**暂停会话**而非静默换模
+  ——把隐性换模变成可见事件(该键是布尔量,不接受模型名);
+- `precomputeCompactionEnabled`:后台预算摘要,换壳不卡顿。
+
+**冷启动自动化(`.claude/settings.json`,已提交)**:SessionStart 钩子
+`.claude/hooks/session-brief.sh` 在**每个新会话(含压缩后自动新建的
+会话)**注入磁盘简报(近 3 提交 / runs.jsonl 末发 / 最新预注册 / 最新
+状态条目,约 370 tokens)。这补上了换壳的最后一块短板:**压缩摘要会
+失真,但进度事实永远来自磁盘**。
+
+**诚实边界**:若降级由服务端在配置层之上强制执行,则任何配置都拦不住
+——判据:新会话若仍生于 Opus,即属该情形,此时唯一有效的仍是"降低
+消耗"(换壳/更小窗口)。
 
 ## 2. 对源方案的修正与取舍(冲突以本节为准)
 
