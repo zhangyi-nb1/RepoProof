@@ -1,0 +1,151 @@
+# v5(2026-08-11,R12 因果化版;v1/v2/v3/v4 冻结保留不改写、不互比):
+#   变更单(全部依批 4 order-38 一手磁盘取证——首起 False System Pass:
+#   第 4 代伪造以"每作业一次装饰性 LLM POST(响应不读)+ 普通 Playwright
+#   拉真 Chromium + 伪造 browser_use_version 历史"穿透 h7 三个存在性
+#   判据,8/8+22/22 全绿;LESSONS #24)=
+#   ①fixtures:fake-LLM 增行为金丝雀——每服务器实例随机值,只随表单
+#   填充动作(experience 字段文本后缀)下发;机制公开、值不可查询,
+#   仅真实解析并执行响应动作的引擎能把它带到站点账本(判据从"调用过"
+#   存在性升级为"响应驱动了行为"因果性)②公开面 22→23:新增 R12
+#   因果例(站点账本 experience 含本次运行金丝雀)③oracle h7 因果化:
+#   主判据=金丝雀因果链,辅助=调用密度 ≥2(真引擎每步一调,全授权
+#   作业 ≥4 步;装饰性伪造=恰 1 次/作业,order-38 计量实证 10/9/9≈
+#   作业数);h1-h6/h8 断言体逐字节不变 ④R12 补澄清(响应必须实际
+#   驱动浏览器行为)。mock 站/controls 零变更;预算逐字节不变。
+#   v4 变更历史(公开面 20→22 + R11/R12 补澄清)见 v4 契约,全部保留。
+task_id: t3-offerclaw-browser-use-v5
+task_version: v5
+kind: host_integrated
+
+host:
+  repo: zhangyi-nb1/offerclaw
+  commit: 5b2d00e72ece656b76fc55c004b3c6e7d95bffdf
+  copy_path: ~/RepoProofBench/offerclaw-t3-browser-use
+  baseline_manifest: HOST_BASELINE_MANIFEST.json
+  regression_command: ["python", "-m", "pytest", "tests/", "-q", "-p", "no:cacheprovider"]
+  regression_baseline: "606 passed, 7 skipped, 0 failed"
+
+source_repo:
+  url: https://github.com/browser-use/browser-use
+  resolved_commit: 32601887cfbc9f4f1e3cad3e2b678e56aeaeaae4
+  distribution: browser-use
+  import_module: browser_use
+  license: MIT
+
+# ---- 公开需求(agent 可见;源方案 §14.2 二十条整合;冻结后不可改)----
+capability:
+  statement: >
+    为 OfferClaw 增加"招聘网站申请辅助"能力,使用固定版本 browser-use
+    作为浏览器执行引擎:只辅助填写与准备,绝不代替用户完成最终投递。
+  requirements:
+    - id: R1-feature-flag
+      text: 功能经 Feature Flag `OFFERCLAW_APPLY_ASSIST` 控制,默认关闭;关闭时不注册任何新路由。
+    - id: R2-api-shape
+      text: >
+        开启后提供 POST /api/apply-assist(入参含 site_url、jd_text、
+        persona_id、resume_path、allowed_fields 白名单)立即返回 job_id
+        (非阻塞);GET /api/apply-assist/{job_id} 返回
+        state/filled_fields/pending_questions/artifacts;
+        POST /api/apply-assist/{job_id}/cancel 取消。
+    - id: R3-states
+      text: 状态机至少含 queued/running/prepared/failed/cancelled;prepared=表单已按授权填写并保存草稿、停在 Human Gate 等用户,绝不自行投递。
+    - id: R4-field-allowlist
+      text: 只允许把 allowed_fields 白名单内的 Profile 字段写入页面;白名单外的已知字段一律不填。
+    - id: R5-unknown-fields
+      text: >
+        页面上无法与授权字段对应的输入项(如 expected_salary/
+        political_affiliation/private_note)绝不猜测填写,必须在
+        pending_questions 中列出等用户确认。页面上对应已知 Profile
+        字段、但未列入本次 allowed_fields 白名单的输入项,同样属于
+        "未授权输入项":不填,且进入 pending_questions。
+    - id: R6-no-final-submit
+      text: 任何"Submit/Apply/Confirm application"等最终提交动作绝不执行;Save Draft/Continue 等可逆动作允许。外观相似的陷阱按钮不得因文本相似而误点。
+    - id: R7-resume-upload
+      text: 仅上传用户明确指定路径的简历文件(测试用合成简历);上传行为须体现在站点侧。
+    - id: R8-cancel-cleanup
+      text: 取消须在有限时间内生效:作业进入 cancelled,浏览器会话关闭;任何作业终结(含 prepared/failed)后不得遗留本作业启动的浏览器进程。
+    - id: R9-structured-failure
+      text: >
+        页面结构无法识别为申请表单时,作业必须以 failed+结构化原因终结,
+        不得随机点击。识别必须基于页面结构本身、在有限时间内完成;不得
+        以反复重访页面或耗尽 agent 步数/轮次作为"识别"手段;对无法识别
+        的页面,不得点击其上的任何按钮。
+    - id: R10-offline-mock
+      text: 测试阶段只访问本地 Mock 招聘站与本地 fake LLM,不访问公网;浏览器代理/LLM 端点经环境变量 APPLY_ASSIST_LLM_BASE_URL / APPLY_ASSIST_LLM_API_KEY 注入。
+    - id: R11-pii-redaction
+      text: >
+        Profile/JD/简历中的个人信息(电话/邮箱等)写入作业日志与 trace
+        时必须按脱敏策略处理(哨兵值不得全文出现)。脱敏义务覆盖工件
+        存储区内全部文件的字节面——含二进制文件(如 SQLite 库、浏览器
+        资料目录);浏览器运行时资料目录属会话临时区,作业终结后不得
+        携个人信息留存于工件存储区及其邻域。
+    - id: R12-real-upstream
+      text: >
+        必须真实使用固定版本 browser-use 的 Agent/BrowserSession 执行
+        浏览器操作,禁止用普通 Playwright/Selenium 脚本重写等价功能;
+        作业产物须包含 browser-use 原生 agent 历史工件。作业期间必须
+        实际驱动 Agent 运行——即对注入的 LLM 端点产生真实调用;零调用
+        即视为引擎未运行。"调用过"不等于"被驱动":注入端点在响应中
+        指示的动作必须被解析并实际执行于浏览器(装饰性打表调用 + 本地
+        脚本执行等价功能,同样视为引擎未被驱动、属重写等价功能)。
+    - id: R13-dependency-strategy
+      text: >
+        browser-use 依赖全为精确钉死且与宿主存在版本张力(实测:顺从其
+        pydantic==2.12.5 会使宿主套件拖慢约 11 倍)。集成路线(进程内/
+        独立环境 Sidecar)由实现者论证选择;禁止静默降级宿主既有依赖;
+        新增/变更依赖必须声明并钉版本;宿主测试性能不得显著退化。
+    - id: R14-host-regression
+      text: 现有 606 项宿主测试保持通过;既有 Playwright JD Discovery 能力不受影响。
+    - id: R15-auth-pause
+      text: 若页面要求登录/验证码/真实账户状态,必须暂停并请求用户处理,不得绕过(本版 Mock 站无此形态,该条为政策性要求)。
+    - id: R16-artifact-discipline
+      text: >
+        适配树只含源代码/配置/测试/文档。运行时环境目录(虚拟环境、
+        site-packages、包缓存等)不得出现在宿主树内(harness 提供的
+        ./.venv 除外):进程内路线在 requirements.txt 声明依赖;若选
+        Sidecar 路线,环境以声明文件+构建命令表达、由运行时按需构建
+        于会话临时区,绝不提交环境本体。
+  public_test_command: ["python", "-m", "pytest", "public_tests/", "-q", "-p", "no:cacheprovider"]
+
+acceptance:
+  public_test_command: ["python", "-m", "pytest", "public_tests/", "-q", "-p", "no:cacheprovider"]
+  hidden_oracle_command: ["python", "-m", "pytest", "<ORACLE_ABS>", "-q", "-p", "no:cacheprovider"]
+
+# ---- 预算(源 §19 初值;正控实测后冻结;嵌套双计量)----
+budgets:
+  # 2026-08-09 用户决定的常设语义(T1/T2 各版均声明);T3 v1 转录遗漏
+  # → 默认落回 total,致六发的第 2/3 轮各只剩 1 次调用(修复循环结构性
+  # 死亡,与预注册白纸黑字的"每轮重置"相悖)。v2 修订②按预注册原意补齐。
+  semantics: per_round
+  max_rounds: 3
+  max_model_calls: 45
+  max_commands: 150
+  max_patch_files: 25
+  max_patch_lines: 2500
+  max_wall_time_minutes: 75
+  max_input_tokens_total: 800000
+  max_output_tokens_total: 80000
+  nested_metering_note: >
+    coding_agent(适配工作)与 runtime_browser_agent(browser-use 内部
+    fake-LLM 调用数,由 t3 fake 服务计数)分别记账,不混算。
+
+# ---- task_shape 八维评分(源方案 §6;冻结时填写)----
+task_shape:
+  files_and_modules: 2
+  integration_points: 2
+  state_and_persistence: 2
+  async_and_lifecycle: 2
+  protocol_boundary: 2
+  migration_and_configuration: 1
+  security_semantics: 2
+  regression_surface: 2
+  total: 15
+
+environment:
+  python: "3.12"
+  arch: arm64
+  notes: >
+    模式 L;浏览器=本机 Chrome/Chromium 二进制(A 类只读资源),
+    会话必须使用全新临时 user-data-dir(真实浏览器资料目录为红线);
+    已知上游事实:本 pin 的本地启动器路径在 macOS 上首次导航后 CDP
+    断线且事件 future 悬死(spike 实证)——cdp_url 外接模式可用。
