@@ -165,6 +165,22 @@
     的依赖路线是"零新 pip"(运行时 vendor/shim+注释说明),四种声明
     败形的对偶解——最好的声明是不需要声明。
 
+18. **复制带 venv 的目录再跑其工具 = 写穿原目录(shebang 绝对路径暗通道,F 类风险活案例)**
+    现象:T3v2 工程搭台架,CoW 复制 bench 副本(内含 v1 工程遗留的
+    `.venv`)到 /tmp 后直呼 `.venv/bin/pip install …`——pip 脚本
+    shebang 是**绝对路径**,指回 bench 副本原位置 → 三条安装命令全部
+    打进原副本的 venv;/tmp 侧 python(经 pyvenv.cfg 就地解析)则
+    看到空环境,`import browser_use` 失败才暴露。取证:副本 git 树净
+    (.venv 在 gitignore)、快照排除表含 .venv → 冻结材料与会话链路
+    零污染;损害仅限工程遗留 venv 可能的传递依赖漂移(非承重件)。
+    教训:**venv 不可复制不止是"复制后不可用",更是"复制后仍可用但
+    用的是原环境"——脚本 shebang 是指回原目录的写通道**,与 TESTPLAN
+    F 类"绝对路径配置"同族;修法:①复制目录前先剔除/复制后立即重建
+    venv;②一律 `<新路径>/bin/python -m pip`,绝不直呼复制来的脚本;
+    ③工程台架用完即清,不把 merged venv 留在 bench 副本里(本次的
+    根因遗留)。harness 侧早已按"per-run venv 重建"设防,这次中招的
+    是工程操作面——纪律对人(AI 操作员)同样生效。
+
 ## 更早关键坑(索引)
 
 - 全角冒号紧贴 `**` 的 markdown 粗体不闭合(两次踩)→ 全局正则清扫

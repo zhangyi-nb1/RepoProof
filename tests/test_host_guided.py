@@ -270,3 +270,69 @@ def test_task_fixtures_injected_into_session_host(tmp_path, monkeypatch):
     src = (Path(__file__).resolve().parents[1] / "src" / "repoproof" / "runner"
            / "host_guided.py").read_text(encoding="utf-8")
     assert 'root / "host" / "fixtures"' in src, "装配代码丢失 fixtures 注入"
+
+
+# ---------------- 增强①postflight 清扫 / 增强③嵌套计量落盘(2026-08-11) ----------------
+
+def _runner_src() -> str:
+    return (Path(__file__).resolve().parents[1] / "src" / "repoproof" / "runner"
+            / "host_guided.py").read_text(encoding="utf-8")
+
+
+def test_collect_nested_meter_aggregates_by_tag(tmp_path) -> None:
+    """增强③:按 tag 聚合;无数据必须 None(入账 UNKNOWN,绝不写 0)。"""
+    import json as _json
+
+    from repoproof.runner.host_guided import collect_nested_meter
+
+    assert collect_nested_meter(tmp_path) is None, "无目录 → None"
+    d = tmp_path / "nested_meter"
+    d.mkdir()
+    assert collect_nested_meter(tmp_path) is None, "空目录 → None"
+    (d / "a.json").write_text(_json.dumps(
+        {"tag": "public_round1", "requests": 5}), encoding="utf-8")
+    (d / "b.json").write_text(_json.dumps(
+        {"tag": "public_round1", "requests": 2}), encoding="utf-8")
+    (d / "c.json").write_text(_json.dumps(
+        {"tag": "oracle_capability", "requests": 7}), encoding="utf-8")
+    (d / "junk.json").write_text("not-json", encoding="utf-8")
+    out = collect_nested_meter(tmp_path)
+    assert out == {"total_requests": 14,
+                   "by_phase": {"public_round1": 7, "oracle_capability": 7}}
+
+
+def test_meter_env_injected_only_by_harness_calls() -> None:
+    """增强③接线:harness 自己发起的公开面/oracle/replay 注入 RP_METER_DIR;
+    agent 环境(RepoProofEnvironment)绝不注入——自跑套件不计入。"""
+    src = _runner_src()
+    assert "def _meter_env" in src and "RP_METER_DIR" in src
+    assert 'meter_tag=f"public_round{idx}"' in src, "每轮公开面必须带轮次 tag"
+    assert 'meter_tag="oracle_replay"' in src, "replay oracle 必须与首验分列"
+    assert '"oracle_capability"' in src
+    env_src = (Path(__file__).resolve().parents[1] / "src" / "repoproof" / "agents"
+               / "repoproof_env.py").read_text(encoding="utf-8")
+    assert "RP_METER_DIR" not in env_src, "agent 命令通道不得注入计量环境"
+
+
+def test_postflight_sweep_wired_after_measurement(monkeypatch) -> None:
+    """增强①接线:快照在 run 起点,清扫在 _finish(会话销毁后、测量全毕);
+    keep_session 不清扫;记录进 report 与 runs.jsonl 摘要。"""
+    src = _runner_src()
+    assert "postflight.browser_pids()" in src, "run 起点必须拍浏览器 PID 快照"
+    finish_part = src.split("def _finish", 1)[1]
+    assert "postflight.sweep(" in finish_part, "清扫必须在 _finish 收尾阶段"
+    run_part = src.split("def run(", 1)[1].split("def _clean_replay", 1)[0]
+    assert "postflight.sweep(" not in run_part, "run 主流程(测量期)禁止清扫"
+    assert "not keep_session and postflight.enabled()" in finish_part
+    assert '"postflight_sweep"' in src and '"runtime_browser_agent"' in src
+
+
+def test_postflight_record_unknown_when_no_data() -> None:
+    """§9 纪律:清扫未执行/计量无数据 → 显式 UNKNOWN,绝不冒充 0
+    (normalise 只兜底必需字段,额外字段的 UNKNOWN 由 runner 显式写)。"""
+    src = _runner_src()
+    assert src.count('nested_meter or "UNKNOWN"') >= 2, "report 与 record 都要兜底"
+    assert '"UNKNOWN" if sweep_report is None' in src
+    from repoproof.persistence.bench_records import normalise_record
+    rec = normalise_record({"run_id": "x", "runtime_browser_agent": "UNKNOWN"})
+    assert rec["runtime_browser_agent"] == "UNKNOWN", "额外字段必须如实入行"

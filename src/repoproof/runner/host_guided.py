@@ -97,6 +97,33 @@ def call_timeout_s() -> float | None:
     return float(raw)
 
 
+def collect_nested_meter(run_dir: Path) -> dict | None:
+    """嵌套 runtime_browser_agent 计量汇总(增强③,2026-08-11 用户批准)。
+
+    证据:T3 首轮预注册承诺"嵌套双计量分列入账"(源 §19),但 fake
+    `/_meter` 计数器活在会话进程内,run 结束随会话销毁,四发全部缺数。
+    机制:harness 对**自己发起**的公开面/oracle/replay pytest 注入
+    RP_METER_DIR/RP_METER_TAG,任务包 fixture(T3v2 起)把计数原子落盘
+    到 run_dir/nested_meter/,此处按 tag 聚合;agent 自跑的套件不注入、
+    不计入。无文件 → None(入账 UNKNOWN,绝不写 0 冒充——§9 纪律)。
+    """
+    d = run_dir / "nested_meter"
+    if not d.is_dir():
+        return None
+    by_phase: dict[str, int] = {}
+    for f in sorted(d.glob("*.json")):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            by_phase[str(data.get("tag", "untagged"))] = (
+                by_phase.get(str(data.get("tag", "untagged")), 0)
+                + int(data.get("requests", 0)))
+        except (OSError, ValueError):
+            continue
+    if not by_phase:
+        return None
+    return {"total_requests": sum(by_phase.values()), "by_phase": by_phase}
+
+
 def append_oracle_log(run_dir: Path, stdout: str, exit_code: int) -> None:
     """oracle stdout 全文归档(修订⑥,2026-08-10):追加式单日志。
 
@@ -128,6 +155,7 @@ from repoproof.harness.host_guard import (
     snapshot_protected,
     verify_protected_unchanged,
 )
+from repoproof.harness import postflight
 from repoproof.harness.host_snapshot import prepare_host_snapshot, scan_for_pii
 from repoproof.harness.oracle_guard import hash_tree, make_read_only, trees_equal
 from repoproof.harness.trace import verify_chain
@@ -409,6 +437,7 @@ class HostGuidedRunner:
         self.store = FileRunStore((runs_root or self.project_root / "runs") / self.run_id)
         self.budgets = self.contract.budgets.as_budgets()
         self.timings: dict[str, float] = {}
+        self._browser_pids_before: set[int] | None = None   # 增强①:run 起点快照
         self._verify_static_resources()
 
     # ------------------------------------------------------------ 静态核验
@@ -537,7 +566,13 @@ class HostGuidedRunner:
         return {"exit_code": res.exit_code, "stdout": stdout,
                 **self._pytest_counts(s, xml_name, stdout)}
 
-    def _run_public(self, s: _Session, *, timeout_s: int = 600) -> dict:
+    def _meter_env(self, tag: str) -> dict[str, str]:
+        """嵌套计量注入(增强③):只对 harness 自己发起的套件生效。"""
+        return {"RP_METER_DIR": str(self.store.run_dir / "nested_meter"),
+                "RP_METER_TAG": tag}
+
+    def _run_public(self, s: _Session, *, timeout_s: int = 600,
+                    meter_tag: str = "public") -> dict:
         xml_path = s.root / "rp_public.xml"
         if xml_path.exists():
             xml_path.unlink()
@@ -545,13 +580,14 @@ class HostGuidedRunner:
             s.id,
             [s.venv_py, "-m", "pytest", "public_tests/", "-q", "-p", "no:cacheprovider",
              "--junitxml", "../rp_public.xml"],
-            timeout_s=timeout_s, workdir="host")
+            timeout_s=timeout_s, workdir="host", env=self._meter_env(meter_tag))
         junit = parse_junit_xml(xml_path.read_bytes() if xml_path.exists() else None)
         junit["pytest_exit"] = res.exit_code
         junit["stdout_tail"] = res.stdout.decode(errors="replace")[-600:]
         return junit
 
-    def _run_oracle(self, s: _Session, oracle_snap: Path, *, timeout_s: int = 600) -> dict:
+    def _run_oracle(self, s: _Session, oracle_snap: Path, *, timeout_s: int = 600,
+                    meter_tag: str = "oracle_capability") -> dict:
         """隐藏验收:oracle 目录在会话外(run_dir 下),路径只在 harness 手里。"""
         xml_name = "rp_oracle.xml"
         (s.root / xml_name).unlink(missing_ok=True)
@@ -561,7 +597,8 @@ class HostGuidedRunner:
              "--junitxml", f"../{xml_name}"],
             timeout_s=timeout_s, workdir="host",
             env={"PYTHONPATH": str(s.root / "host"),
-                 "OFFERCLAW_HOST_ROOT": str(s.root / "host")})
+                 "OFFERCLAW_HOST_ROOT": str(s.root / "host"),
+                 **self._meter_env(meter_tag)})
         stdout = res.stdout.decode(errors="replace")
         append_oracle_log(self.store.run_dir, stdout, res.exit_code)   # 修订⑥
         return {"exit_code": res.exit_code, "stdout": stdout,
@@ -628,6 +665,10 @@ class HostGuidedRunner:
 
         ev = self.store.append_event
         t0 = time.monotonic()
+        try:  # 增强①:run 起点浏览器 PID 快照(收尾清扫的差集基准)
+            self._browser_pids_before = postflight.browser_pids()
+        except Exception:  # noqa: BLE001 — 快照失败只关闭清扫,不阻断 run
+            self._browser_pids_before = None
         contract = self.contract
         b = contract.budgets
         model_name = provider.model_name if provider else "fake-scripted"
@@ -855,7 +896,7 @@ class HostGuidedRunner:
                 diff = self._diff_stats(s, s.base_commit, head)  # type: ignore[attr-defined]
                 tampered = [p for p in diff["files"] if p.startswith("public_tests/")]
 
-                junit = self._run_public(s)
+                junit = self._run_public(s, meter_tag=f"public_round{idx}")
                 nodes = junit.get("nodes", [])
                 collected_ok = bool(junit.get("junit_present")) and not junit.get("junit_parse_error")
                 failed_nodes = [n["node_id"] for n in nodes if n["outcome"] != "passed"]
@@ -1206,7 +1247,7 @@ class HostGuidedRunner:
             self._git(s, "add", "-A")
             self._git(s, "commit", "-q", "--allow-empty", "-m", "rp-host replay apply")
             self._build_env_in_session(s)
-            cap_run = self._run_oracle(s, oracle_snap)
+            cap_run = self._run_oracle(s, oracle_snap, meter_tag="oracle_replay")
             reg_run = self._run_regression(s)
             outcome = {
                 "capability_exit": cap_run["exit_code"],
@@ -1248,6 +1289,24 @@ class HostGuidedRunner:
         if not keep_session:
             backend.destroy_all()
             shutil.rmtree(backend.sessions_root, ignore_errors=True)
+        # 增强①(T3 批 1,4/4 发 Chrome 残留证据):postflight 进程清扫。
+        # 时序钉死:在会话销毁之后、一切测量(oracle h6 PID 差集/replay)
+        # 完成之后;keep_session 调试模式不清扫。判别与安全边界见
+        # harness/postflight.py。清扫失败如实入账,不改判定。
+        sweep_report: dict | None = None
+        if (not keep_session and postflight.enabled()
+                and self._browser_pids_before is not None):
+            try:
+                sweep_report = postflight.sweep(self._browser_pids_before)
+                ev("postflight.process_sweep", actor="harness", payload={
+                    "killed": len(sweep_report["killed"]),
+                    "skipped_new": len(sweep_report["skipped_new"]),
+                    "leftover_new_pids": sweep_report["leftover_new_pids"]})
+            except Exception as exc:  # noqa: BLE001
+                sweep_report = {"error": str(exc)}
+                ev("postflight.process_sweep", actor="harness",
+                   payload={"error": str(exc)})
+        nested_meter = collect_nested_meter(self.store.run_dir)   # 增强③
         integrity = verify_protected_unchanged(integrity_before)
         if not integrity["ok"]:
             ev("integrity.MISMATCH", actor="harness", payload=integrity)
@@ -1282,6 +1341,8 @@ class HostGuidedRunner:
             "trace_chain_error": chain_err,
             "timings": self.timings,
             "first_outcome": first_outcome or {},
+            "postflight_sweep": sweep_report or "UNKNOWN",
+            "runtime_browser_agent": nested_meter or "UNKNOWN",
         }
         self.store.save_json("report.json", report)
 
@@ -1329,6 +1390,16 @@ class HostGuidedRunner:
             "main_dir_integrity": "ok" if integrity["ok"] else "MISMATCH",
             "trace_sha256": trace_sha,
             "bundle_path": str(self.store.run_dir),
+            # 增强③:嵌套双计量(源 §19);无数据一律 UNKNOWN 不写 0
+            "runtime_browser_agent": nested_meter or "UNKNOWN",
+            # 增强①:postflight 清扫摘要(详情在 report.json/trace)
+            "postflight_sweep": (
+                "UNKNOWN" if sweep_report is None
+                else {"killed": len(sweep_report.get("killed", [])),
+                      "skipped_new": len(sweep_report.get("skipped_new", [])),
+                      "leftover_new_pids": sweep_report.get("leftover_new_pids", []),
+                      **({"error": sweep_report["error"]}
+                         if "error" in sweep_report else {})}),
         }
         append_run(self.project_root, record)
         ev("bench.recorded", actor="harness", payload={"runs_jsonl": "benchmarks/v2/runs.jsonl"})
