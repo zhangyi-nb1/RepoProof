@@ -1,8 +1,14 @@
 """T4 事务栈操作 CLI(feature_stack 的实验驱动面;全部操作可审计)。
 
-默认栈/台账位置指向 RepoProofBench;实验在副本上跑时用 --stack/--ledger
+默认栈/台账位置指向 `~/RepoProofT4`;实验在副本上跑时用 --stack/--ledger
 显式改道。selective-rebuild 的全量验证经 --verify-cmd 外接(拿 scratch
 路径作最后一个参数,exit 0 = 通过)。
+
+**2026-08-12 迁址**:原址在 `~/RepoProofBench` 下,但栈里装的是 T1/T2/T3
+的三份 PASS 解,而 bench 根是 agent 一条 `ls ..` 就能读到的地方
+(LESSONS #14)——等于把答案卷放进了测试环境。整栈(含 F2 运行时要求的
+兄弟目录 `upstream`)迁至 `~/RepoProofT4`,相对布局 `<栈根>/../upstream`
+不变;台账里的 `stack_root` 是溯源记录(load 用传入路径),未改写。
 """
 
 from __future__ import annotations
@@ -21,8 +27,8 @@ from repoproof.adoption.delivery.feature_stack import (  # noqa: E402
     FeatureStack,
 )
 
-DEFAULT_STACK = Path.home() / "RepoProofBench/offerclaw-transaction-stack"
-DEFAULT_LEDGER = Path.home() / "RepoProofBench/offerclaw-transaction-stack-ledger"
+DEFAULT_STACK = Path.home() / "RepoProofT4/offerclaw-transaction-stack"
+DEFAULT_LEDGER = Path.home() / "RepoProofT4/offerclaw-transaction-stack-ledger"
 
 
 def _stack(args) -> FeatureStack:

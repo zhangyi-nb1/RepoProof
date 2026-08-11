@@ -1278,3 +1278,36 @@ UI 却硬编码在 T1。同时希望多方 AI 直接审查整个项目以提高�
 页面重写 + 6 项钉死(含"注册表对磁盘实物核验:契约存在且 task_id 与
 契约逐字一致"——指错契约=整批数据废掉)。回归 430 passed / 20 skipped,
 零回归。
+
+## 状态条目 · 2026-08-12 · T3 加发三连 BLOCKED 查因:闸门拦住无害的、放行了答案卷
+
+**现象**:用户在新 UI 上加发 T3(02:43/02:45/02:45,gpt-5.5×2 + gpt-5.6),
+三发全 `BLOCKED`,UI 显示"缺少条件,暂时无法继续"。逐发核 report.json:
+同一确定性根因 `BENCH_ROOT_CONTAMINATED:['upstream']`,墙钟 8–9.6 秒,
+`model_calls=0`、token 全 UNKNOWN ⇒ **零预算**。批次标
+`EXPLORATORY_UNPREREGISTERED` 已按新规则正确落盘。
+
+**根因链**:T4 建栈(8/11 19:54)按 F2 运行时布局要求把
+open_deep_research@20aaa0d 快照放在 `<栈根>/../upstream`,而栈根在 bench
+根下 ⇒ 产生 `~/RepoProofBench/upstream`。bench 根白名单是
+`{_sessions} + 前缀(offerclaw-, wheelhouse-)`,`upstream` 不匹配 → stray →
+零预算 BLOCKED。上一发宿主 run 在 18:25(早于 19:54),所以今晚是 T4 之后
+第一次宿主 run,一撞就中。
+
+**查因中翻出的真问题(比阻塞严重)**:同批留下的
+`offerclaw-transaction-stack/` 因前缀匹配**被放行**,里面是 T1/T2/T3 的
+三份已验证 PASS 解 + ledger 12 份备份。按 LESSONS #14(L 模式拦写不拦读,
+agent 一条 `ls ..` 到 bench 根),这等于把答案卷摆在测试环境里,而用户
+要跑的正是 T3。**闸门方向是反的:拦无害、放答案。** 反过来说,`upstream`
+这个"误拦"恰好挡下了一批本会不可解释的 T3 发次。
+
+**处置**(用户选"迁出 + 收紧"):三目录整体迁 `~/RepoProofT4/`,相对布局
+`<栈根>/../upstream` 与各状态 tree sha 均不变;`stack_ops.py` 两个默认值
+与 `drive_t4.sh` 两处改址;prereg 加**附录二**记迁址(正文与冻结 tree sha
+不动);白名单由前缀改精确名单(三个具名宿主副本),逃生门保留但明写
+不得写进启动脚本。台账 `stack_root` 是溯源记录非查找键,未改写;22 项
+T4 钉死只用合成夹具,不受影响。
+
+产物:host_guard 白名单收紧 + 钉死 2 例(前缀不是通行证、vendored
+upstream 亦报警)+ LESSONS #29 + prereg 附录二。真盘核验
+`bench_root_strays()` 返回空。

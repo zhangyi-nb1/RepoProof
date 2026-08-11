@@ -35,11 +35,11 @@ case "${1:?phase}" in
     for name in venv_s0 venv_s1p; do rm -rf "$E/$name"; done
     python3 -m venv "$E/venv_s0"
     "$E/venv_s0/bin/pip" install -q --no-index --find-links "$WHEEL" \
-        -r "$HOME/RepoProofBench/offerclaw-transaction-stack/requirements.txt" \
+        -r "$HOME/RepoProofT4/offerclaw-transaction-stack/requirements.txt" \
         || { echo "venv_s0 FAILED"; exit 1; }
     python3 -m venv "$E/venv_s1p"
     "$E/venv_s1p/bin/pip" install -q --no-index --find-links "$WHEEL" \
-        -r "$HOME/RepoProofBench/offerclaw-transaction-stack/requirements.txt" \
+        -r "$HOME/RepoProofT4/offerclaw-transaction-stack/requirements.txt" \
         "fastapi-mcp==0.4.0" "mcp==1.29.0" \
         || { echo "venv_s1p FAILED"; exit 1; }
     "$E/venv_s0/bin/python" -c "import fastapi_mcp" 2>/dev/null \

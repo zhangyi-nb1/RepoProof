@@ -141,16 +141,30 @@ def verify_protected_unchanged(before: dict[str, dict],
 # 同根还躺过真实数据备份(未被读,属未爆雷)。L 模式护栏拦写不拦读,
 # 唯一可靠防线 = 开跑前 bench 根白名单清场,白名单外任何条目零预算 BLOCKED。
 
+# 2026-08-12 收紧(LESSONS #29):原白名单用**前缀** `offerclaw-`,于是 T4
+# 建的事务栈 `offerclaw-transaction-stack/`(内含 T1/T2/T3 三份已验证 PASS
+# 解:sdk_mcp.py / research_jobs.py / apply_assist.py)与其 ledger 备份全部
+# **被放行**,而无害的 `upstream/` 反被拦。闸门拦住了无害的、放行了答案卷。
+# 根因:前缀是"看起来像宿主副本"的近似,而闸门要判的是"这就是那三个宿主
+# 副本"。改为**精确名单**——新增宿主副本必须显式登记,登记是一次有意识的
+# 动作,而不是命名巧合。
 BENCH_ROOT_DEFAULT = "~/RepoProofBench"
-_BENCH_ALLOWED_NAMES = {"_sessions"}
-_BENCH_ALLOWED_PREFIXES = ("offerclaw-", "wheelhouse-")
+_BENCH_ALLOWED_NAMES = frozenset({
+    "_sessions",                     # 会话区(每 run 一个子目录,跑完销毁)
+    "offerclaw-t1-fastapi-mcp",      # T1 宿主副本
+    "offerclaw-t2-odr",              # T2 宿主副本
+    "offerclaw-t3-browser-use",      # T3 宿主副本
+})
+_BENCH_ALLOWED_PREFIXES = ("wheelhouse-",)   # 冻结轮仓(commit 尾号命名)
 
 
 def bench_root_strays(bench_root: str | Path = BENCH_ROOT_DEFAULT) -> list[str]:
     """返回 bench 根下白名单外的条目名(排序);空列表 = 干净。
 
-    白名单:宿主副本(offerclaw-*)、冻结轮仓(wheelhouse-*)、会话区
-    (_sessions)。追加合法前缀经 REPOPROOF_BENCH_ALLOWED(冒号分隔)。"""
+    白名单:三个**具名**宿主副本 + 会话区 `_sessions` + 冻结轮仓
+    `wheelhouse-*`。追加合法前缀经 REPOPROOF_BENCH_ALLOWED(冒号分隔)——
+    该逃生门只应用于一次性排障,**不要写进启动脚本**:写进去=对所有后续
+    run 静默放宽,而闸门的价值全在"没人能顺手绕过"。"""
     root = Path(os.path.expanduser(str(bench_root)))
     if not root.is_dir():
         return []

@@ -150,3 +150,39 @@ def test_bench_hygiene_env_extra_prefix_allowed(tmp_path: Path, monkeypatch) -> 
 def test_bench_hygiene_missing_root_is_clean(tmp_path: Path) -> None:
     from repoproof.harness.host_guard import bench_root_strays
     assert bench_root_strays(tmp_path / "nope") == []
+
+
+def test_bench_hygiene_offerclaw_prefix_is_not_a_free_pass(tmp_path: Path) -> None:
+    """2026-08-12 实录(LESSONS #29):前缀白名单把 T4 事务栈放行了。
+
+    `offerclaw-transaction-stack/` 里装的是 T1/T2/T3 三份**已验证 PASS 解**,
+    只因名字以 `offerclaw-` 开头就被当成宿主副本放行——而 agent 一条
+    `ls ..` 就能读到 bench 根。名单必须精确到"就是那三个宿主副本"。
+    """
+    from repoproof.harness.host_guard import bench_root_strays
+    for name in ("offerclaw-t1-fastapi-mcp", "offerclaw-t2-odr",
+                 "offerclaw-t3-browser-use", "_sessions"):
+        (tmp_path / name).mkdir()
+    assert bench_root_strays(tmp_path) == [], "三个具名宿主副本必须放行"
+
+    for name in ("offerclaw-transaction-stack",
+                 "offerclaw-transaction-stack-ledger",
+                 "offerclaw-t9-not-registered"):
+        (tmp_path / name).mkdir()
+    assert bench_root_strays(tmp_path) == [
+        "offerclaw-t9-not-registered",
+        "offerclaw-transaction-stack",
+        "offerclaw-transaction-stack-ledger",
+    ], "带 offerclaw- 前缀不等于是登记过的宿主副本"
+
+
+def test_bench_hygiene_flags_vendored_upstream(tmp_path: Path) -> None:
+    """T4 栈的兄弟目录 `upstream/`(F2 运行时 vendor)也不得留在 bench 根。
+
+    它本身无害(干净上游快照),但它的存在意味着整个 T4 栈就在隔壁——
+    真正该迁走的是那一整套,不是给它开个口子。
+    """
+    from repoproof.harness.host_guard import bench_root_strays
+    (tmp_path / "offerclaw-t3-browser-use").mkdir()
+    (tmp_path / "upstream").mkdir()
+    assert bench_root_strays(tmp_path) == ["upstream"]
