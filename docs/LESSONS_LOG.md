@@ -203,6 +203,26 @@
     命中是否可信**——这与 oracle 自持(LESSONS #15/16)同构:探子必须
     挂在被测系统实际写出的结构上,不能挂在双方共享的字符串上。
 
+20. **进程身份判别只看可执行体段——命令行参数是"别人说的话",不是身份**
+    现象(order-34 一手实证):postflight 清扫的 `BROWSER_PATTERN` 对
+    **全命令行**大小写不敏感匹配 `chrome|chromium`,把 4 个用户 Claude
+    Code 会话进程计入浏览器族——它们的**参数**里带
+    `--allowedTools mcp__claude-in-chrome__…` 工具名。杀伤决策被第二道
+    标记门保住(killed=0,零误杀=防御纵深生效),但 skipped_new/
+    leftover_new_pids 作为测量报告失真。修复:判别面收窄到
+    `executable_portion`(命令行到第一个 ` -` 参数边界;macOS 浏览器
+    路径含空格故不能按空格切;截短方向=宁漏报不误报,与"绝不触碰用户
+    进程"同向)。**这是 #19 的进程版**:参数串是进程"讨论到"的字符串
+    (工具名、URL、日志路径都可能含 chrome 字样),可执行体段才是
+    系统赋予的结构位。潜伏项:oracle 侧 h6/h7 的
+    `pgrep -f "Chrome|chromium"` 同样是全命令行匹配,本次靠大小写敏感
+    +差集窗口幸免,v3 统一收窄。连带测试工程陷阱(白拿会咬人):
+    **macOS framework 构建的 python 启动即 re-exec 并把 argv[0] 改写为
+    `Python.app/…/MacOS/Python`**——用"符号链接改名 python"造假进程名
+    在 ps 里根本不出现;可靠做法是 sh 包装脚本(ps 显示
+    `/bin/sh <脚本路径> <参数>`,nonce 落在可执行体段,与真实浏览器
+    形态同构)。
+
 ## 更早关键坑(索引)
 
 - 全角冒号紧贴 `**` 的 markdown 粗体不闭合(两次踩)→ 全局正则清扫

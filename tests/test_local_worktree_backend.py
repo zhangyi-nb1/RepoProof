@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -109,6 +110,38 @@ def test_timeout_kills_process_group(backend: LocalWorktreeBackend) -> None:
     res = backend.exec(s, [PY, "-c", "import time;time.sleep(30)"], timeout_s=2)
     assert res.timed_out and res.exit_code == 124
     assert res.duration_ms < 15_000  # 真的被杀,不是等满 30s
+
+
+def test_darwin_fake_home_seeds_login_keychain(backend: LocalWorktreeBackend) -> None:
+    """外部副作用治理钉死(T3 实证:净化 HOME 下 Chrome 找不到钥匙串,
+    向用户屏幕弹 SecurityAgent 框)。darwin 会话假 HOME 预置空密码
+    钥匙串,文件在会话内、随会话销毁;探针已证 Chrome 借此静默入库。"""
+    if sys.platform != "darwin" or not shutil.which("security"):
+        pytest.skip("darwin-only 副作用治理")
+    s = backend.start(name_prefix="rp")
+    root = backend.session_root(s)
+    kc = root / ".rp_home" / "Library" / "Keychains" / "login.keychain-db"
+    assert kc.is_file() and kc.stat().st_size > 0
+    assert root in kc.parents  # 会话生命周期内,不落用户目录
+    backend.destroy(s)
+    assert not kc.exists()
+
+
+def test_seed_keychain_failure_never_blocks_session(
+        backend: LocalWorktreeBackend, monkeypatch) -> None:
+    """装饰性修复只降级:security 缺席时会话照常建立(假 HOME 完好)。"""
+    import repoproof.execution.local_worktree_backend as m
+    monkeypatch.setattr(m.shutil, "which", lambda _cmd: None)
+    s = backend.start(name_prefix="rp")
+    assert (backend.session_root(s) / ".rp_home").is_dir()
+
+
+def test_seed_keychain_toggle_off(monkeypatch, tmp_path: Path) -> None:
+    """消融开关:REPOPROOF_SEED_KEYCHAIN=0 → 不建钥匙串,不碰 security。"""
+    from repoproof.execution.local_worktree_backend import _seed_login_keychain
+    monkeypatch.setenv("REPOPROOF_SEED_KEYCHAIN", "0")
+    assert _seed_login_keychain(tmp_path / "h") is False
+    assert not (tmp_path / "h" / "Library").exists()
 
 
 def test_same_shape_as_docker_backend_and_destroy_cleans(

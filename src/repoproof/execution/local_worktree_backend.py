@@ -25,6 +25,7 @@ import os
 import shutil
 import signal
 import subprocess
+import sys
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -59,6 +60,42 @@ class LocalBackendError(RuntimeError):
     pass
 
 
+def _seed_login_keychain(home: Path) -> bool:
+    """darwin:在假 HOME 预置空密码 login 钥匙串(外部副作用治理)。
+
+    T3 批内实证:净化 HOME 下 Chrome 的 OSCrypt 找不到可存 Safe
+    Storage 密钥的钥匙串,向**用户屏幕**弹 SecurityAgent 对话框
+    ("找不到用于储存 Chrome 的钥匙串"),批内曾靠有界看门狗临时
+    压制。预置空密码钥匙串后 Chrome 静默入库(2026-08-11 探针:
+    dump-keychain 出现 "Chrome Safe Storage" 条目,观察窗零弹窗)。
+    三条 `security` 都以假 HOME 运行:钥匙串文件在会话目录内、随
+    会话销毁;不动用户真钥匙串,也不写搜索列表(create-keychain
+    本就不改 search list,探针以真 plist 哈希哨兵复核)。装饰性
+    修复:任何失败只降级返回 False,绝不影响会话建立。
+    消融:REPOPROOF_SEED_KEYCHAIN=0。
+    """
+    if sys.platform != "darwin" or os.environ.get(
+            "REPOPROOF_SEED_KEYCHAIN", "").strip() == "0":
+        return False
+    security = shutil.which("security")
+    if not security:
+        return False
+    kc = home / "Library" / "Keychains" / "login.keychain-db"
+    kc.parent.mkdir(parents=True, exist_ok=True)
+    env = {"HOME": str(home), "PATH": os.environ.get("PATH", "/usr/bin")}
+    for argv in ([security, "create-keychain", "-p", "", str(kc)],
+                 [security, "unlock-keychain", "-p", "", str(kc)],
+                 [security, "set-keychain-settings", str(kc)]):
+        try:
+            r = subprocess.run(  # noqa: S603 — 固定 argv,假 HOME env
+                argv, env=env, capture_output=True, timeout=15, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        if r.returncode != 0:
+            return False
+    return True
+
+
 @dataclass
 class LocalWorktreeBackend:
     """会话 = 一个隔离的执行根 + 假 HOME + 净化环境。
@@ -91,6 +128,7 @@ class LocalWorktreeBackend:
         root = (self.sessions_root / session).resolve()
         assert_writable_target(root, purpose="建立本地执行会话根")
         (root / ".rp_home").mkdir(parents=True)
+        _seed_login_keychain(root / ".rp_home")  # darwin:压 Chrome 钥匙串弹窗
         for m in mounts or []:
             src = Path(m.host).expanduser().resolve()
             dst = root / str(m.container).lstrip("/")

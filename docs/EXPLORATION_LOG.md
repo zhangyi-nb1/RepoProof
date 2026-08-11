@@ -900,3 +900,26 @@ SessionStart → `.claude/hooks/session-brief.sh` 注入磁盘简报(近 3
 **日志取证打结构不打字符串**;与 oracle 自持(#15/16)同构:探子要
 挂在被测系统实际写出的结构上。案例入 ENGINEERING_CASEBOOK 案例 2
 (静默故障转移 + 配置棘轮),含业界对照表与可证伪指标。
+
+## 状态条目 · 2026-08-11 · T3v2 批 2 收官:三发全 FAIL 入账,D1/D2 修复一手验证,批报+prereg 附录落盘
+
+批 2(order 32/33/34,run_index=2,同 harness_commit 7ab7be5)按预注册
+修订①执行完毕,停点达成,**T3v2 保持 OPEN(零 PASS)**。判死点三分:
+deepseek 零 diff 第 4 次复现(D2 排除没油解释后属模型构建性边界);
+gpt-5.5 重演纯 HTTP 重实现、被新 h7 跨进程证据**直接**拦下(D1 修复
+在野验证,不再靠无关违规兜底);gpt-5.6 距 PASS 最近——公开 18/18
+含 R2 实修(D2 实效),真实 browser-use 链路(嵌套计量③首次取数
+64 次调用),但 h2/h3 两个"有限时间结构化终结"的隐藏变体挂死超窗:
+R1 公开面同族失败它修的是**那张页**,不是**那类行为**(#17 新形态:
+隐藏面抓浅泛化,非仅抓盲维)。红线三发全 0;回归 607×3 零破坏。
+批报 `benchmarks/v2/reports/T3v2-batch2-report-20260811.md`,prereg
+附录已附结果表与判据核对。
+
+批后 harness 双修(带钉死,不触任务包/oracle):①postflight 判别面
+收窄到可执行体段(order-34 报告面被用户 Claude 会话污染,LESSONS
+#20,oracle 侧同缺陷记 v3 潜伏);②钥匙串外部副作用永久修复——
+会话装配 `_seed_login_keychain` 预置空密码钥匙串,探针证 Chrome
+静默入库零弹窗、真用户面零接触,消融键 REPOPROOF_SEED_KEYCHAIN=0
+(批内临时看门狗已拆)。全量套件绿。下一步候选:gpt-5.6 加发
+(新批次需预注册)/ v3 潜伏项清单(oracle PID 判别面、total 语义
+披露)。

@@ -28,6 +28,20 @@ from dataclasses import dataclass
 
 BROWSER_PATTERN = re.compile(r"chrome|chromium", re.IGNORECASE)
 
+
+def executable_portion(command: str) -> str:
+    """命令行的可执行体段(到第一个 ` -` 参数边界为止)。
+
+    浏览器判别只看这一段:Claude Code 会话的**参数**里含
+    ``mcp__claude-in-chrome__…`` 工具名,按全命令行匹配会把用户会话
+    误计入浏览器族(order-34 实证:skipped_new/leftover 报告面被 4 个
+    用户进程污染;杀伤决策由标记门保住,零误杀)。macOS 浏览器路径
+    含空格(``Google Chrome.app``),故按参数边界而非空格切;路径
+    本身含 " -" 的极端情形只会把匹配段截短——宁漏报不误报,与
+    "绝不触碰用户进程"同向保守。
+    """
+    return command.split(" -", 1)[0]
+
 # 调试标记 = 本项目 cdp_url 外接架构(及一切自动化启动)的命令行特征;
 # 用户手开的 Chrome 不带这些参数。
 DEBUG_MARKERS = (
@@ -68,9 +82,9 @@ def parse_ps(text: str) -> list[ProcInfo]:
 
 def browser_pids(procs: list[ProcInfo] | None = None,
                  pattern: re.Pattern = BROWSER_PATTERN) -> set[int]:
-    """浏览器族 PID 集(与 T3 oracle 的 pgrep 口径同族,实现无关)。"""
+    """浏览器族 PID 集:模式只对**可执行体段**判别(实现无关)。"""
     return {p.pid for p in (procs if procs is not None else list_procs())
-            if pattern.search(p.command)}
+            if pattern.search(executable_portion(p.command))}
 
 
 def plan_sweep(
@@ -88,8 +102,8 @@ def plan_sweep(
     """
     me = os.getpid()
     candidates = [p for p in procs
-                  if pattern.search(p.command) and p.pid not in before
-                  and p.pid > 1 and p.pid != me]
+                  if pattern.search(executable_portion(p.command))
+                  and p.pid not in before and p.pid > 1 and p.pid != me]
     kill_ids = {p.pid for p in candidates
                 if any(m in p.command for m in markers)}
     changed = True
