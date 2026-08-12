@@ -1,0 +1,45 @@
+fix commit : 20ebc30ee31bb4940b0a59d01b10786b18768ca9
+base commit: 3a9eaed38518f798408455fdd38c66e376caa0b6
+nodes      : 3
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_ranking_counts_only_what_the_final_gate_kills: failed
+  test_denied_round_can_still_win_on_pass_count: passed
+  test_failed_construction_leaves_no_run_dir: passed
+F..                                                                      [100%]
+=================================== FAILURES ===================================
+______________ test_ranking_counts_only_what_the_final_gate_kills ______________
+
+    def test_ranking_counts_only_what_the_final_gate_kills() -> None:
+        """LESSONS #35:排序只对齐终局判据。tampered 计入(终局以
+        PUBLIC_TESTS_TAMPERED 树哈希击杀),denied 不计入(终局
+        policy_result 根本不数它)——但两者都要成包教学。
+        反例:order-53 round-3 公开 21/23 仅因一条零执行的 `sh -c` 调试命令
+        被拦而整轮回滚,最终交付 round-2 的 3/23;060126 同因弃掉 12/12。"""
+        from repoproof.runner.host_guided import round_violation_report
+    
+        packets, fatal, pol = round_violation_report(
+            denied_delta=2, tampered=["public_tests/test_x.py"], patch_files=1,
+            patch_lines=10, max_patch_files=20, max_patch_lines=1800,
+            unresolvable_dists=[])
+>       assert pol == 1, "只有 tampered 计入排序"
+E       AssertionError: 只有 tampered 计入排序
+E       assert 3 == 1
+
+tests/test_constraint_feedback.py:87: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_constraint_feedback.py::test_ranking_counts_only_what_the_final_gate_kills
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_ranking_counts_only_what_the_final_gate_kills: passed
+  test_denied_round_can_still_win_on_pass_count: passed
+  test_failed_construction_leaves_no_run_dir: passed
+...                                                                      [100%]
+
+
+VERDICT: INVALID
+  ✗ test_denied_round_can_still_win_on_pass_count: 在 base 上是 passed —— 没有红,钉不住缺陷
+  ✗ test_failed_construction_leaves_no_run_dir: 在 base 上是 passed —— 没有红,钉不住缺陷

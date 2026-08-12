@@ -141,23 +141,22 @@ def test_runner_requires_upstream_and_wheelhouse(tmp_path: Path) -> None:
 
 
 
-def test_failed_construction_leaves_no_run_dir(tmp_path: Path, monkeypatch) -> None:
-    """LESSONS #35 · F3:先核验后建店。被护栏拒绝的构造不得留下
-    runs/<task>-<ts>/ 空壳——它混在真实证据里像一发夭折的官方 run,
-    跑测试套件时更会直接污染证据树(批 6 期间实证两例)。"""
-    fake_main = tmp_path / "fake_main"
-    fake_main.mkdir()
-    monkeypatch.setenv("REPOPROOF_PROTECTED_DIRS", str(fake_main))
+def test_failed_construction_leaves_no_run_dir(tmp_path: Path) -> None:
+    """LESSONS #35 · F3:先核验后建店。走**静态资源核验**失败路径——
+    受保护目录那道护栏原本就排在建店之前,拿它当反例的钉死在未修复的
+    树上也绿(红绿工具首咬,已实证)。"""
+    host_copy = tmp_path / "host_copy"
+    host_copy.mkdir()
     contract_dir = tmp_path / "task"
     (contract_dir / "oracle").mkdir(parents=True)
     (contract_dir / "public_tests").mkdir()
     c = contract_dir / "contract.yaml"
     c.write_text(T1_CONTRACT.read_text(encoding="utf-8").replace(
         "copy_path: ~/RepoProofBench/offerclaw-t1-fastapi-mcp",
-        f"copy_path: {fake_main}"), encoding="utf-8")
-    with pytest.raises(HostGuardError):
+        f"copy_path: {host_copy}"), encoding="utf-8")
+    with pytest.raises(HostRunError, match="上游固定快照缺失"):
         HostGuidedRunner(c, tmp_path)
-    assert not (tmp_path / "runs").exists(), "护栏拒绝后仍建了证据目录"
+    assert not (tmp_path / "runs").exists(), "核验失败后仍建了证据目录"
 
 # ---------------------------------------------------------------- 指纹对账集
 def test_integrity_scope_excludes_repoproof_itself(tmp_path: Path, monkeypatch) -> None:

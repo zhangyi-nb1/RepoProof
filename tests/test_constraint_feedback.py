@@ -103,14 +103,22 @@ def test_ranking_counts_only_what_the_final_gate_kills() -> None:
 
 
 def test_denied_round_can_still_win_on_pass_count() -> None:
-    """循环层后果:一条被拒命令不再让高分轮输给低分干净轮。
+    """端到端语义:一条被拒命令不再让高分轮输给低分干净轮。
+    **policy_violations 必须由真判据引擎算出**——手填 0 等于把结论写进
+    前提,那样的钉死在未修复的树上也绿(红绿工具首咬,已实证)。
     反例(order-53 实录):[3, 3, 21] 的第 3 轮因 denied=1 被回滚,
     best 落回 3/23。"""
-    rounds = [
-        RoundResult(adapter_snapshot="r1", passed=3, failed_nodes=["t::x"]),
-        RoundResult(adapter_snapshot="r2", passed=21, failed_nodes=["t::y"],
-                    policy_violations=0),   # 判据引擎已不把 denied 计入
-    ]
+    from repoproof.runner.host_guided import round_violation_report
+
+    def _round(snapshot: str, passed: int, denied: int) -> RoundResult:
+        packets, fatal, pol = round_violation_report(
+            denied_delta=denied, tampered=[], patch_files=1, patch_lines=10,
+            max_patch_files=20, max_patch_lines=1800, unresolvable_dists=[])
+        return RoundResult(adapter_snapshot=snapshot, passed=passed,
+                           failed_nodes=["t::x"], policy_violations=pol,
+                           violation_packets=packets, fatal_violations=fatal)
+
+    rounds = [_round("r1", 3, 0), _round("r2", 21, 1)]
 
     def run_round(idx, packets, best_snapshot):
         return rounds[idx - 1]
@@ -119,6 +127,8 @@ def test_denied_round_can_still_win_on_pass_count() -> None:
                      score_fn=full_score).run()
     assert out.best_round == 2 and out.best_passed == 21
     assert out.rolled_back_rounds == []
+    # 教学面仍在:被拒命令照样成包
+    assert any(p.type == "POLICY_VIOLATION" for p in rounds[1].violation_packets)
 
 
 # ---------- H3:fatal 在场不许全绿停轮 ----------
