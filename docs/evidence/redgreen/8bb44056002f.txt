@@ -1,0 +1,53 @@
+fix commit : 8bb44056002f441a70d584d479082624450c0ddd
+base commit: 3a9eaed38518f798408455fdd38c66e376caa0b6
+nodes      : 3
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_ranking_counts_only_what_the_final_gate_kills: failed
+  test_denied_round_can_still_win_on_pass_count: failed
+  test_failed_construction_leaves_no_run_dir: failed
+ounds_run=2, best_round=1, best_passed=3, final_adapter='r1', stop_reason='max_rounds', rolled_back_rou...带违规的轮在排序上永远输给干净轮,可能被回滚', owner='AGENT_ADAPTER')])], pending_scope_change=None, note='循环不产生最终结论;必须继续走冻结+独立验证+干净重放+最终判定').best_round
+
+tests/test_constraint_feedback.py:128: AssertionError
+__________________ test_failed_construction_leaves_no_run_dir __________________
+
+tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-52/test_failed_construction_leave0')
+
+    def test_failed_construction_leaves_no_run_dir(tmp_path: Path) -> None:
+        """LESSONS #35 · F3:先核验后建店。走**静态资源核验**失败路径——
+        受保护目录那道护栏原本就排在建店之前,拿它当反例的钉死在未修复的
+        树上也绿(红绿工具首咬,已实证)。"""
+        host_copy = tmp_path / "host_copy"
+        host_copy.mkdir()
+        contract_dir = tmp_path / "task"
+        (contract_dir / "oracle").mkdir(parents=True)
+        (contract_dir / "public_tests").mkdir()
+        c = contract_dir / "contract.yaml"
+        c.write_text(T1_CONTRACT.read_text(encoding="utf-8").replace(
+            "copy_path: ~/RepoProofBench/offerclaw-t1-fastapi-mcp",
+            f"copy_path: {host_copy}"), encoding="utf-8")
+        with pytest.raises(HostRunError, match="上游固定快照缺失"):
+            HostGuidedRunner(c, tmp_path)
+>       assert not (tmp_path / "runs").exists(), "核验失败后仍建了证据目录"
+E       AssertionError: 核验失败后仍建了证据目录
+E       assert not True
+E        +  where True = exists()
+E        +    where exists = (PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-52/test_failed_construction_leave0') / 'runs').exists
+
+tests/test_host_guided.py:159: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_constraint_feedback.py::test_ranking_counts_only_what_the_final_gate_kills
+FAILED tests/test_constraint_feedback.py::test_denied_round_can_still_win_on_pass_count
+FAILED tests/test_host_guided.py::test_failed_construction_leaves_no_run_dir
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_ranking_counts_only_what_the_final_gate_kills: passed
+  test_denied_round_can_still_win_on_pass_count: passed
+  test_failed_construction_leaves_no_run_dir: passed
+...                                                                      [100%]
+
+
+VERDICT: VALID
