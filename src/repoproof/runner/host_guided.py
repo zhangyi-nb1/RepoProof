@@ -46,16 +46,29 @@ from repoproof.adoption.repair.repair_loop import RepairLoop, RoundResult
 
 
 def host_score(r: RoundResult) -> list[float]:
-    """宿主任务排序:**不含 diff 项**(2026-08-09 用户决策,run -211400
+    """宿主任务排序:**不含连续 diff 项**(2026-08-09 用户决策,run -211400
     实证:"同分取小 diff"把脚手架中间态当退步回滚,销毁两轮进度)。
     diff 大小只在完全同分时经 RepairLoop 的先到先得(F8)决定最终快照;
-    回滚触发另由 run_round 的硬信号退步判据控制。"""
+    回滚触发另由 run_round 的硬信号退步判据控制。
+
+    2026-08-13(LESSONS #37)补一位**二元合规**项:`fatal_violations` 为空
+    (即 patch 未超限、无不可解析钉版)。位置刻意排在通过数**之后**——
+    它只做平局裁决,不许拿合规去换测试进度(那正是 -211400 的老病)。
+
+    不补这一位就会自相矛盾:#33 的 H3 逼着循环为"修剪超限 patch"多跑一轮,
+    而修剪轮与超重轮通过数相同、score 逐位相等 → 判平局 → "先到先得"
+    选中超重的那轮 → 终局政策闸以同一个数字击杀。实录 order-57:
+    round-2 12/12 但 2682 行、round-3 12/12 且 325 行,best 选了 round-2,
+    盖棺 `adaptation lines 2682 > max_patch_lines 1800`。**循环做完了修剪,
+    又把成果扔了。**
+    """
     return [
         1.0 if r.collected_ok else 0.0,
         1.0 if r.policy_violations == 0 else 0.0,
         1.0 if r.regression_failed == 0 else 0.0,
         float(r.passed),
         float(r.passed),
+        1.0 if not r.fatal_violations else 0.0,
         1.0 if r.within_budget else 0.0,
     ]
 

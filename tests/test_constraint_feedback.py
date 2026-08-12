@@ -257,3 +257,52 @@ def test_round_header_discloses_violation_feedback() -> None:
     回滚说明,轮头承诺文本必须一致,不得再写 "only"。"""
     assert "policy/budget/dependency violations" in _ROUND_HEADER
     assert "ROLLBACK" in _ROUND_HEADER
+
+
+# ---------- LESSONS #37:修剪轮必须能赢下超重轮 ----------
+
+def test_trimmed_round_beats_oversized_round_on_equal_passes() -> None:
+    """H3 的闭环:同样 12/12,一个 2682 行超限、一个 325 行合规 →
+    best 必须是合规那轮。反例(order-57 实录):两轮 score 逐位相等
+    判平局,"先到先得"选中超重轮,终局以
+    `adaptation lines 2682 > max_patch_lines 1800` 击杀——循环做完了
+    修剪又把成果扔了。"""
+    from repoproof.runner.host_guided import host_score
+
+    fat = RoundResult(adapter_snapshot="r2", passed=12, failed_nodes=[],
+                      diff_lines=2682, fatal_violations=["patch_lines"])
+    trim = RoundResult(adapter_snapshot="r3", passed=12, failed_nodes=[],
+                       diff_lines=325, fatal_violations=[])
+    assert host_score(trim) > host_score(fat)
+
+    seq = [fat, trim]
+
+    def run_round(idx, packets, best_snapshot):
+        return seq[idx - 1]
+
+    out = RepairLoop(run_round,
+                     budget=RepairBudget(max_rounds=2, max_diff_lines=5400),
+                     score_fn=host_score).run()
+    assert out.best_round == 2 and out.final_adapter == "r3"
+
+
+def test_compliance_never_outranks_test_progress() -> None:
+    """合规位排在通过数**之后**:不许拿"少改点"去换测试进度。
+    这正是 2026-08-09 run -211400 的老病(同分取小 diff 把脚手架
+    中间态当退步),不得因 #37 复发。"""
+    from repoproof.runner.host_guided import host_score
+
+    clean_but_weak = RoundResult(adapter_snapshot="a", passed=3,
+                                 diff_lines=50, fatal_violations=[])
+    strong_but_fat = RoundResult(adapter_snapshot="b", passed=11,
+                                 diff_lines=2600, fatal_violations=["patch_lines"])
+    assert host_score(strong_but_fat) > host_score(clean_but_weak)
+
+
+def test_equal_rounds_without_fatal_keep_first_come_first_served() -> None:
+    """无 fatal 时行为不变:逐位相等 → 先到先得(F8 语义不回退)。"""
+    from repoproof.runner.host_guided import host_score
+
+    a = RoundResult(adapter_snapshot="a", passed=9, diff_lines=100)
+    b = RoundResult(adapter_snapshot="b", passed=9, diff_lines=40)
+    assert host_score(a) == host_score(b), "diff 不得重新进入连续排序"
