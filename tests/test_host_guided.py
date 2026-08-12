@@ -141,15 +141,29 @@ def test_runner_requires_upstream_and_wheelhouse(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------- 指纹对账集
-def test_integrity_scope_excludes_repoproof_itself() -> None:
-    root = Path(__file__).resolve().parents[1]
-    scope = integrity_scope(root)
+def test_integrity_scope_excludes_repoproof_itself(tmp_path: Path, monkeypatch) -> None:
+    """语义:传入的 RepoProof 根不进对账集(run 合法写自己的 runs/),
+    其余保护目录一个不少。
+
+    2026-08-12 改写为位置无关:旧版用 `__file__` 找"自己",在 git worktree
+    副本里(变异闸门的隔离环境)"自己"不再是保护目录,断言崩——钉死不得
+    假设自己住在真仓库里。语义本身用注入的保护目录验证,真实配置的覆盖
+    由 test_default_protected_covers_real_dev_dirs 把守。
+    """
     import os
 
-    norm = os.path.realpath(str(root)).lower().rstrip("/")
-    assert norm not in scope
-    assert all("offerclaw" in d or "localflow" in d or "repoproof" not in d
-               for d in scope)
+    a = tmp_path / "fake_repoproof"
+    b = tmp_path / "fake_offerclaw"
+    a.mkdir()
+    b.mkdir()
+    monkeypatch.setenv("REPOPROOF_PROTECTED_DIRS", f"{a}:{b}")
+    scope = integrity_scope(a)
+    norm_a = os.path.realpath(str(a)).lower().rstrip("/")
+    norm_b = os.path.realpath(str(b)).lower().rstrip("/")
+    assert norm_a not in scope, "自身必须被排除(对自己拍指纹必然自误报)"
+    assert norm_b in scope, "其余保护目录一个不能少"
+    # 传入非保护路径时,保护集完整保留(worktree 场景)
+    assert norm_b in integrity_scope(tmp_path / "elsewhere")
 
 
 # ---------------------------------------------------------------- 冒烟脚本
