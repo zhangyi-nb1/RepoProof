@@ -30,6 +30,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import time
@@ -288,6 +289,60 @@ class HostRunError(RuntimeError):
     pass
 
 
+# 依赖可复现性(2026-08-12,LESSONS #31)。冻结环境里 pip 只从本地轮仓解析,
+# 而**最终验收从 requirements.txt 干净重建**——这两条都写在给 agent 的提示里。
+# 适配若声明了轮仓解析不到的钉版(典型:`browser-use==0.13.7` 指向 PyPI,而
+# 它只以源码形式躺在 ../upstream),会话内能跑、重建装不上 = 经典"在我机器上
+# 能跑"。此前这类失败被一律标成 `replay infrastructure failure(wheelhouse
+# 不全?)`——**harness 替模型认领了错**,使真实的模型缺陷看起来像机器故障。
+_UNRESOLVED_DIST_RE = re.compile(
+    r"(?:No matching distribution found for|"
+    r"Could not find a version that satisfies the requirement)\s+"
+    r"([A-Za-z0-9][A-Za-z0-9._-]*)")
+
+DEPENDENCY_NOT_REPRODUCIBLE = "DEPENDENCY_NOT_REPRODUCIBLE"
+
+
+def _norm_dist(name: str) -> str:
+    """PEP 503 归一:大小写与 -_. 等价(`Browser_Use` == `browser-use`)。"""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def parse_requirement_dists(text: str) -> frozenset[str]:
+    """requirements.txt → 分发名集合(PEP 503 归一);跳过注释与 `-e`/`-r` 行。"""
+    names = set()
+    for line in text.splitlines():
+        line = line.split("#", 1)[0].strip()
+        if not line or line.startswith("-"):
+            continue
+        m = re.match(r"^([A-Za-z0-9][A-Za-z0-9._-]*)", line)
+        if m:
+            names.add(_norm_dist(m.group(1)))
+    return frozenset(names)
+
+
+def added_unresolvable_dists(pip_output: str, baseline: frozenset[str]) -> list[str]:
+    """pip 报错里解析不到、**且不在基线里**的分发名(排序)。
+
+    空列表有两种含义,调用方都当作"非 agent 缺陷":①没解析失败;②失败的
+    分发本来就在基线 requirements.txt 里 —— 那是轮仓不全,harness 自己的锅。
+    """
+    unresolved = {_norm_dist(d) for d in _UNRESOLVED_DIST_RE.findall(pip_output)}
+    return sorted(d for d in unresolved if d not in baseline)
+
+
+class DependencyNotReproducible(HostRunError):
+    """适配声明了在冻结离线环境中解析不到的依赖 —— **归因于 agent,不是 harness**。
+
+    与之相对:若解析不到的分发本来就在基线 requirements.txt 里,那才是轮仓
+    确实不全(harness 侧),仍抛 HostRunError。
+    """
+
+    def __init__(self, dists: list[str], detail: str) -> None:
+        self.dists = dists
+        super().__init__(detail)
+
+
 # 用户决策(2026-08-09,预注册 v2 修订):per_round 语义下**输入执法线
 # 内移 50k**。背景:无本地 tokenizer 时输入额度只能"调用后记账、下次
 # 调用前拦",越线发生在最后一次调用上(run -200448 两轮各超 8%/2%),
@@ -519,6 +574,18 @@ class HostGuidedRunner:
         })
         return s
 
+    def _baseline_dists(self) -> frozenset[str]:
+        """**未适配**宿主副本 requirements.txt 里的分发名(PEP 503 归一)。
+
+        归因基准:在这份名单里的解析失败 = 轮仓不全(harness);不在的 =
+        适配自己加的钉版(agent)。读的是宿主副本原件,不是会话里被改过的那份。
+        """
+        if getattr(self, "_baseline_dists_cache", None) is None:
+            req = self.host_copy / "requirements.txt"
+            self._baseline_dists_cache = parse_requirement_dists(
+                req.read_text(encoding="utf-8", errors="replace") if req.is_file() else "")
+        return self._baseline_dists_cache
+
     def _build_env_in_session(self, s: _Session, *, timeout_s: int = 900) -> dict:
         """per-run venv 重建(预注册教训:绝不复制)+ 合成语料建索引。"""
         t0 = time.monotonic()
@@ -530,9 +597,20 @@ class HostGuidedRunner:
             s.id, [".venv/bin/pip", "install", "-q", "-r", "requirements.txt"],
             timeout_s=timeout_s, workdir="host")
         if r2.exit_code != 0:
-            raise HostRunError(
-                "宿主依赖安装失败(wheelhouse 不全?):"
-                + (r2.stdout + r2.stderr).decode(errors="replace")[-500:])
+            full = (r2.stdout + r2.stderr).decode(errors="replace")
+            tail = full[-500:]
+            # 归因:解析不到的分发是**适配新增的**(agent 侧缺陷),还是本来就在
+            # 基线里(轮仓确实不全,harness 侧)?两者判然不同,不许混为一谈。
+            # 判据读**全文**不读尾巴——截断会把归因变成"报错够不够靠后"。
+            added = added_unresolvable_dists(full, self._baseline_dists())
+            if added:
+                raise DependencyNotReproducible(
+                    added,
+                    f"适配声明了冻结环境解析不到的依赖:{', '.join(added)}"
+                    f"(轮仓 {self.wheelhouse.name} 无此分发,且不在基线 "
+                    f"requirements.txt 中)。会话内可用不等于可复现——最终验收"
+                    f"从 requirements.txt 干净重建。原始 pip 输出:{tail}")
+            raise HostRunError("宿主依赖安装失败(wheelhouse 不全?):" + tail)
         venv_s = round(time.monotonic() - t0, 1)
         t1 = time.monotonic()
         r3 = s.backend.exec(s.id, [".venv/bin/python", "rag_ingest.py"],
@@ -1167,11 +1245,22 @@ class HostGuidedRunner:
                                         evidence=[first_outcome["probe_normalized_sha"]])
                     rep.extra["replay_model_calls"] = 0
                     rep.extra["replay_agent_commands"] = 0
+                except DependencyNotReproducible as exc:
+                    # 归因于 agent:适配自己声明了装不回来的钉版。**不是**
+                    # 基础设施故障——这正是干净重放要抓的"在我机器上能跑"。
+                    rep = VerificationResult(
+                        verifier="ReplayVerifier", passed=False,
+                        detail=f"{DEPENDENCY_NOT_REPRODUCIBLE}: {exc}",
+                        extra={"mode": REPLAY_MODE_CLEAN,
+                               "attribution": "agent",
+                               "failure_type": DEPENDENCY_NOT_REPRODUCIBLE,
+                               "unresolvable_dists": exc.dists})
                 except Exception as exc:  # noqa: BLE001
                     rep = VerificationResult(
                         verifier="ReplayVerifier", passed=False,
                         detail=f"replay infrastructure failure: {exc}",
-                        extra={"mode": REPLAY_MODE_CLEAN})
+                        extra={"mode": REPLAY_MODE_CLEAN,
+                               "attribution": "harness"})
                 self.timings["replay_s"] = round(time.monotonic() - t_replay, 1)
 
         except _BenchContaminated as exc:
@@ -1323,7 +1412,14 @@ class HostGuidedRunner:
         chain_ok, n_events, chain_err = verify_chain(self.store.trace_path)
         trace_sha = sha256_file(self.store.trace_path)
         failure_types = sorted({
-            p["type"] for r in records for p in (r.failure_packets or [])})
+            p["type"] for r in records for p in (r.failure_packets or [])}
+            # 修复轮的失败包之外,**验证器归因**也必须进 failure_types——
+            # 否则重放期暴露的模型缺陷在台账里只留一个 UNKNOWN(2026-08-12
+            # 实录:两发 T3 因声明装不回来的钉版挂在重放,台账 failure_types
+            # 分别是 UNKNOWN 与 SCHEMA_ERROR/TEST_FAILURE,都没说中死因)。
+            | {vr.extra["failure_type"]
+               for vr in (capability_vr, regression_vr, policy_vr, replay_vr)
+               if vr is not None and vr.extra.get("failure_type")})
         report = {
             "run_id": self.run_id,
             "task_id": self.contract.task_id,

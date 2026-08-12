@@ -361,6 +361,99 @@ def test_every_task_contract_declares_budget_semantics() -> None:
         f"任务契约未显式声明预算语义(静默落回 total,修复轮会被架空):{missing}")
 
 
+# ---------------- 依赖可复现性归因(2026-08-12,LESSONS #31) ----------------
+#
+# 实录:两发 T3(030156/054108)公开面与 oracle 全绿,只挂在干净重放——
+# 适配把 `browser-use==0.13.7` / `openai==2.16.0` 写进 requirements.txt,而
+# 冻结轮仓里没有这两个分发。台账把它记成
+# `replay infrastructure failure: 宿主依赖安装失败(wheelhouse 不全?)`,
+# failure_types 分别是 UNKNOWN 和 SCHEMA_ERROR/TEST_FAILURE——**都没说中死因,
+# 而且方向反了**:harness 替模型认领了错。
+
+# run t3-...-054108 的 pip 输出原文(逐字,含两种措辞)
+_REAL_PIP_TAIL = (
+    "ERROR: Could not find a version that satisfies the requirement "
+    "browser-use==0.13.7 (from versions: none)\n"
+    "ERROR: No matching distribution found for browser-use==0.13.7\n"
+)
+
+
+def test_unresolved_dist_regex_matches_real_pip_output() -> None:
+    from repoproof.runner.host_guided import added_unresolvable_dists
+
+    assert added_unresolvable_dists(_REAL_PIP_TAIL, frozenset()) == ["browser-use"]
+    # 同一段报错,若该分发本来就在基线里 → 轮仓不全,不得记到 agent 头上
+    assert added_unresolvable_dists(_REAL_PIP_TAIL, frozenset({"browser-use"})) == []
+    # 无解析失败的普通报错(编译挂了之类)→ 不是这一类
+    assert added_unresolvable_dists("error: command 'clang' failed", frozenset()) == []
+
+
+def test_dist_names_are_pep503_normalised() -> None:
+    """`Browser_Use` 与 `browser-use` 是同一个分发——否则基线比对形同虚设。"""
+    from repoproof.runner.host_guided import added_unresolvable_dists, parse_requirement_dists
+
+    base = parse_requirement_dists(
+        "# comment\nFastAPI>=0.110\nRuamel.YAML==0.18\n-e .\n-r dev.txt\n\nBrowser_Use==0.13.7\n")
+    assert base == frozenset({"fastapi", "ruamel-yaml", "browser-use"})
+    assert added_unresolvable_dists(_REAL_PIP_TAIL, base) == []
+
+
+def test_baseline_read_from_pristine_host_copy_not_session(tmp_path: Path) -> None:
+    """基准必须取**未适配**的宿主副本;取会话里那份 = 让被测者自定义基准。"""
+    from repoproof.runner.host_guided import HostGuidedRunner
+
+    class _Stub:
+        host_copy = tmp_path
+        _baseline_dists_cache = None
+        _baseline_dists = HostGuidedRunner._baseline_dists
+
+    (tmp_path / "requirements.txt").write_text("fastapi>=0.110\n", encoding="utf-8")
+    assert _Stub()._baseline_dists() == frozenset({"fastapi"})
+    src = _runner_src()
+    assert 'req = self.host_copy / "requirements.txt"' in src, "基准不得取会话内副本"
+
+
+def test_dependency_failure_attributed_to_agent_not_harness() -> None:
+    """接线钉死:两条分支必须分开归因,且判据读 pip **全文**不读截断尾巴。"""
+    src = _runner_src()
+    assert "added_unresolvable_dists(full, self._baseline_dists())" in src
+    assert "raise DependencyNotReproducible(" in src
+    assert '"attribution": "agent"' in src and '"attribution": "harness"' in src
+    # DependencyNotReproducible 的 except 必须排在**同一 try 的**兜底之前,
+    # 否则永远轮不到它(Python 按书写顺序匹配)。
+    specific = src.index("except DependencyNotReproducible")
+    fallback = src.index("except Exception", specific)
+    assert src[specific:fallback].count("try:") == 0, "两个 except 必须属于同一个 try"
+    assert '"attribution": "agent"' in src[specific:fallback], "专用分支必须归因 agent"
+
+
+def test_verifier_attribution_reaches_failure_types() -> None:
+    """归因只写进 report 不写进 failure_types = 台账里仍然查不到死因。"""
+    from repoproof.domain.models import VerificationResult
+    from repoproof.runner.host_guided import DEPENDENCY_NOT_REPRODUCIBLE
+
+    src = _runner_src()
+    finish = src.split("def _finish", 1)[1]
+    assert "vr.extra.get(\"failure_type\")" in finish
+    assert "for vr in (capability_vr, regression_vr, policy_vr, replay_vr)" in finish
+    # 复刻并集语义(同源片段,防回归锚点)
+    rep = VerificationResult(
+        verifier="ReplayVerifier", passed=False, detail="x",
+        extra={"failure_type": DEPENDENCY_NOT_REPRODUCIBLE, "attribution": "agent"})
+    plain = VerificationResult(verifier="PolicyVerifier", passed=True, detail="")
+    types = sorted({"TEST_FAILURE"} | {v.extra["failure_type"] for v in (rep, plain)
+                                       if v.extra.get("failure_type")})
+    assert types == [DEPENDENCY_NOT_REPRODUCIBLE, "TEST_FAILURE"]
+
+
+def test_dependency_error_is_still_a_hostrunerror() -> None:
+    """新异常必须是 HostRunError 子类——否则上游各处兜底捕获会漏。"""
+    from repoproof.runner.host_guided import DependencyNotReproducible
+
+    exc = DependencyNotReproducible(["browser-use"], "detail")
+    assert isinstance(exc, HostRunError) and exc.dists == ["browser-use"]
+
+
 def test_postflight_record_unknown_when_no_data() -> None:
     """§9 纪律:清扫未执行/计量无数据 → 显式 UNKNOWN,绝不冒充 0
     (normalise 只兜底必需字段,额外字段的 UNKNOWN 由 runner 显式写)。"""
