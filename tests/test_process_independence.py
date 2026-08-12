@@ -202,30 +202,68 @@ def test_evidence_json_records_capture_rate() -> None:
 
 # --------------------------------------------------- 批次判据核对器(自身负控)
 
-def test_batch_criteria_detects_the_prefix_defects() -> None:
-    """检查器必须能**查出缺陷**,不只是盖章:把批 6(修复前 harness
-    d42e8a38 跑出的数据)喂进去,#35 针对的三条必须报红,批 6 确实
-    满足的三条必须报绿。这是判定器自己的红绿留痕。"""
+def _fake_batch(tmp_path, *, denied: int, policy_violations: int, batch="B"):
+    """造一份最小批次证据(台账 + trace + record),用于位置无关地验判定逻辑。"""
+    import json
+    (tmp_path / "benchmarks" / "v2").mkdir(parents=True)
+    (tmp_path / "benchmarks" / "v2" / "runs.jsonl").write_text(json.dumps(
+        {"run_id": "r-1", "run_order": "1", "task_id": "t", "model": "m",
+         "verdict": "FAIL", "batch": batch, "rollback_count": 0}) + "\n", encoding="utf-8")
+    rd = tmp_path / "runs" / "r-1"
+    (rd / "repair" / "round-1").mkdir(parents=True)
+    (rd / "trace.jsonl").write_text(json.dumps(
+        {"event": "repair.round.end",
+         "payload": {"round": 1, "public_passed": 21, "fatal_violations": [],
+                     "denied_this_round": denied}}) + "\n", encoding="utf-8")
+    (rd / "repair" / "round-1" / "record.json").write_text(json.dumps(
+        {"public_passed": 21, "public_failed": 2, "regression_failed": 0,
+         "policy_violations": policy_violations, "changed_files": ["adapter.py"],
+         "diff_lines": 10, "failure_packets": [
+             {"type": "POLICY_VIOLATION",
+              "summary": f"{denied} command(s) were DENIED by the policy guard"}]}),
+        encoding="utf-8")
+    (rd / "report.json").write_text(json.dumps(
+        {"repair": {"best_round": 1, "rolled_back_rounds": []}}), encoding="utf-8")
+    return batch
+
+
+def test_batch_criteria_detects_the_prefix_defects(tmp_path, monkeypatch) -> None:
+    """检查器必须能**查出缺陷**,不只是盖章:同一份证据,只把
+    policy_violations 从 0 改成 1(=修复前语义),Q1 必须由通过翻成未通过。
+
+    **位置无关**(LESSONS #32):证据由本测注入,不读真仓库的 runs/——
+    否则在 worktree/CI/别人的 clone 里必然假红(变异闸门基线守卫实测抓到)。"""
     bc = _load("batch_criteria.py")
-    out = bc.adjudicate("T2v4-T3v5-RERUN-20260812")
-    assert out["runs"] == 4
-    c = out["criteria"]
-    assert c["Q1 denied 不计入排序"]["verdict"] == bc.FAIL
-    assert c["Q2 无仅因 denied 的回滚冤案"]["verdict"] == bc.FAIL
-    assert c["Q3 denied 的最优轮必须当选"]["verdict"] == bc.FAIL
-    for name in ("P2 违规包携带真值", "P3 denied 不跨轮继承", "P4 回滚必被说明"):
-        assert c[name]["verdict"] == bc.PASS, name
-    assert out["overall"] == bc.FAIL
+    monkeypatch.setattr(bc, "REPO", tmp_path)
+    monkeypatch.setattr(bc, "LEDGER", tmp_path / "benchmarks" / "v2" / "runs.jsonl")
+
+    _fake_batch(tmp_path, denied=1, policy_violations=1)      # 修复前
+    bad = bc.adjudicate("B")
+    assert bad["criteria"]["Q1 denied 不计入排序"]["verdict"] == bc.FAIL
+    assert bad["overall"] == bc.FAIL
+
+    import shutil
+    shutil.rmtree(tmp_path / "runs")
+    shutil.rmtree(tmp_path / "benchmarks")
+    _fake_batch(tmp_path, denied=1, policy_violations=0)      # 修复后
+    good = bc.adjudicate("B")
+    assert good["criteria"]["Q1 denied 不计入排序"]["verdict"] == bc.PASS
+    assert good["criteria"]["P2 违规包携带真值"]["verdict"] == bc.PASS
+    assert good["overall"] == bc.PASS
 
 
-def test_batch_criteria_marks_untriggered_as_vacuous() -> None:
+def test_batch_criteria_marks_untriggered_as_vacuous(tmp_path, monkeypatch) -> None:
     """未触发的判据必须记「未被检验」,既不算通过也不算失败——
-    "不许拿没发生的事当成功"(批 6 P1 先例)。批 6 无一轮改过公开测试,
-    故 Q4 必须是 vacuous 而非 PASS。"""
+    "不许拿没发生的事当成功"(批 6 P1 先例)。零 denied 的批次里
+    Q1 必须是 vacuous 而非 PASS。"""
     bc = _load("batch_criteria.py")
-    out = bc.adjudicate("T2v4-T3v5-RERUN-20260812")
+    monkeypatch.setattr(bc, "REPO", tmp_path)
+    monkeypatch.setattr(bc, "LEDGER", tmp_path / "benchmarks" / "v2" / "runs.jsonl")
+    _fake_batch(tmp_path, denied=0, policy_violations=0)
+    out = bc.adjudicate("B")
+    assert out["criteria"]["Q1 denied 不计入排序"]["verdict"] == bc.VACUOUS
     assert out["criteria"]["Q4 tampered 仍计入排序"]["verdict"] == bc.VACUOUS
-    assert bc.VACUOUS not in (bc.PASS, bc.FAIL)
+    assert out["overall"] == bc.PASS, "vacuous 不使整体失败,但也不算通过"
 
 
 def test_batch_criteria_unknown_batch_is_empty_not_green() -> None:
