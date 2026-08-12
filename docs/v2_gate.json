@@ -1,0 +1,128 @@
+{
+  "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
+  "all_runs": {
+    "exploratory": 7,
+    "exploratory_passes": 0,
+    "exploratory_run_ids": [
+      "t3-offerclaw-browser-use-v5-20260812-024353",
+      "t3-offerclaw-browser-use-v5-20260812-024503",
+      "t3-offerclaw-browser-use-v5-20260812-024551",
+      "t3-offerclaw-browser-use-v5-20260812-030156",
+      "t3-offerclaw-browser-use-v5-20260812-054108",
+      "t2-offerclaw-open-deep-research-v4-20260812-060126",
+      "t2-offerclaw-open-deep-research-v4-20260812-061522"
+    ],
+    "invalidated": 1,
+    "invalidated_run_ids": [
+      "t3-offerclaw-browser-use-v4-20260811-172615"
+    ],
+    "pass_run_ids": [
+      "t1-offerclaw-fastapi-mcp-v1-20260810-000405",
+      "t1-offerclaw-fastapi-mcp-v1-20260810-002354",
+      "t2-offerclaw-open-deep-research-v4-20260810-200119",
+      "t2-offerclaw-open-deep-research-v4-20260810-202614",
+      "t3-offerclaw-browser-use-v5-20260811-182535"
+    ],
+    "passes": 5,
+    "smoke": 5,
+    "smoke_passes": 1,
+    "smoke_run_ids": [
+      "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
+      "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
+      "t1-offerclaw-fastapi-mcp-v1-20260809-182942",
+      "t1-offerclaw-fastapi-mcp-v1-20260809-183548",
+      "t3-offerclaw-browser-use-v2-20260811-091744"
+    ],
+    "total": 55
+  },
+  "gate_met": {
+    "T1": true,
+    "T2": true,
+    "T3": true,
+    "T4": false
+  },
+  "inputs": {
+    "adjudications_jsonl_sha256": "ee8713501e4731f8da56cb04617f6cbb0f6ee2969711f1f470f8ab20b8ce904b",
+    "runs_jsonl_sha256": "cf27d5be371228ff72b51ce924770aa14e660273ade98c306ae1c8c6f3cf5ad6"
+  },
+  "stages": {
+    "T1": {
+      "exploratory": 0,
+      "exploratory_passes": 0,
+      "exploratory_run_ids": [],
+      "invalidated": 0,
+      "invalidated_run_ids": [],
+      "pass_run_ids": [
+        "t1-offerclaw-fastapi-mcp-v1-20260810-000405",
+        "t1-offerclaw-fastapi-mcp-v1-20260810-002354"
+      ],
+      "passes": 2,
+      "smoke": 4,
+      "smoke_passes": 1,
+      "smoke_run_ids": [
+        "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
+        "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
+        "t1-offerclaw-fastapi-mcp-v1-20260809-182942",
+        "t1-offerclaw-fastapi-mcp-v1-20260809-183548"
+      ],
+      "total": 11
+    },
+    "T2": {
+      "exploratory": 2,
+      "exploratory_passes": 0,
+      "exploratory_run_ids": [
+        "t2-offerclaw-open-deep-research-v4-20260812-060126",
+        "t2-offerclaw-open-deep-research-v4-20260812-061522"
+      ],
+      "invalidated": 0,
+      "invalidated_run_ids": [],
+      "pass_run_ids": [
+        "t2-offerclaw-open-deep-research-v4-20260810-200119",
+        "t2-offerclaw-open-deep-research-v4-20260810-202614"
+      ],
+      "passes": 2,
+      "smoke": 0,
+      "smoke_passes": 0,
+      "smoke_run_ids": [],
+      "total": 23
+    },
+    "T3": {
+      "exploratory": 5,
+      "exploratory_passes": 0,
+      "exploratory_run_ids": [
+        "t3-offerclaw-browser-use-v5-20260812-024353",
+        "t3-offerclaw-browser-use-v5-20260812-024503",
+        "t3-offerclaw-browser-use-v5-20260812-024551",
+        "t3-offerclaw-browser-use-v5-20260812-030156",
+        "t3-offerclaw-browser-use-v5-20260812-054108"
+      ],
+      "invalidated": 1,
+      "invalidated_run_ids": [
+        "t3-offerclaw-browser-use-v4-20260811-172615"
+      ],
+      "pass_run_ids": [
+        "t3-offerclaw-browser-use-v5-20260811-182535"
+      ],
+      "passes": 1,
+      "smoke": 1,
+      "smoke_passes": 0,
+      "smoke_run_ids": [
+        "t3-offerclaw-browser-use-v2-20260811-091744"
+      ],
+      "total": 21
+    },
+    "T4": {
+      "exploratory": 0,
+      "exploratory_passes": 0,
+      "exploratory_run_ids": [],
+      "invalidated": 0,
+      "invalidated_run_ids": [],
+      "pass_run_ids": [],
+      "passes": 0,
+      "smoke": 0,
+      "smoke_passes": 0,
+      "smoke_run_ids": [],
+      "total": 0
+    }
+  }
+}

@@ -1,0 +1,53 @@
+fix commit : 6c305dcfecd1571d57158f5560a7fcfbf1432620
+base commit: ddfc3218b42482a5fd62db2cad5886fd9f43d989
+nodes      : 6
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_unresolved_dist_regex_matches_real_pip_output: failed
+  test_dist_names_are_pep503_normalised: failed
+  test_baseline_read_from_pristine_host_copy_not_session: failed
+  test_dependency_failure_attributed_to_agent_not_harness: failed
+  test_verifier_attribution_reaches_failure_types: failed
+  test_dependency_error_is_still_a_hostrunerror: failed
+STPLAN-V2 Phase 1,T1+ 形态;RFC-009 §六)。\n\n样例管线(guided_repair.py,Docker+adaptation 区)不动;本模块是宿主级\n形...txt"}]},\n        {"actions": [{"command": "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]},\n    ]\n    return steps\n'
+
+tests/test_host_guided.py:419: AssertionError
+_______________ test_verifier_attribution_reaches_failure_types ________________
+
+    def test_verifier_attribution_reaches_failure_types() -> None:
+        """归因只写进 report 不写进 failure_types = 台账里仍然查不到死因。"""
+        from repoproof.domain.models import VerificationResult
+>       from repoproof.runner.host_guided import DEPENDENCY_NOT_REPRODUCIBLE
+E       ImportError: cannot import name 'DEPENDENCY_NOT_REPRODUCIBLE' from 'repoproof.runner.host_guided' (/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_9k3lv45p/tree/src/repoproof/runner/host_guided.py)
+
+tests/test_host_guided.py:433: ImportError
+________________ test_dependency_error_is_still_a_hostrunerror _________________
+
+    def test_dependency_error_is_still_a_hostrunerror() -> None:
+        """新异常必须是 HostRunError 子类——否则上游各处兜底捕获会漏。"""
+>       from repoproof.runner.host_guided import DependencyNotReproducible
+E       ImportError: cannot import name 'DependencyNotReproducible' from 'repoproof.runner.host_guided' (/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_9k3lv45p/tree/src/repoproof/runner/host_guided.py)
+
+tests/test_host_guided.py:451: ImportError
+=========================== short test summary info ============================
+FAILED tests/test_host_guided.py::test_unresolved_dist_regex_matches_real_pip_output
+FAILED tests/test_host_guided.py::test_dist_names_are_pep503_normalised - Imp...
+FAILED tests/test_host_guided.py::test_baseline_read_from_pristine_host_copy_not_session
+FAILED tests/test_host_guided.py::test_dependency_failure_attributed_to_agent_not_harness
+FAILED tests/test_host_guided.py::test_verifier_attribution_reaches_failure_types
+FAILED tests/test_host_guided.py::test_dependency_error_is_still_a_hostrunerror
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_unresolved_dist_regex_matches_real_pip_output: passed
+  test_dist_names_are_pep503_normalised: passed
+  test_baseline_read_from_pristine_host_copy_not_session: passed
+  test_dependency_failure_attributed_to_agent_not_harness: passed
+  test_verifier_attribution_reaches_failure_types: passed
+  test_dependency_error_is_still_a_hostrunerror: passed
+......                                                                   [100%]
+
+
+VERDICT: VALID

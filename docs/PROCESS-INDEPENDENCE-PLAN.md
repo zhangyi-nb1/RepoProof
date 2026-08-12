@@ -109,35 +109,44 @@ V2 宿主闸门的数字根本不在它的事实源里:`docs/benchmark_summary.j
 
 ### P0 · 本周,零额外模型开销
 
-1. **`scripts/gate_report.py` → `docs/v2_gate.json`**
+1. **`scripts/gate_report.py` → `docs/v2_gate.json`** ✅ **已落地(2026-08-12)**
    闸门数字**只能由脚本产出**(读 `runs.jsonl` ⋈ `adjudications.jsonl`,
    走 `count_passes()`),含每阶段 total/passes/smoke/exploratory/invalidated
-   与对应 run_id 清单。
-   *判据*:任何人跑一次,得到与文档一致的数字。
-2. **扩 `check_public_claims.py` 覆盖 V2**
-   文档中出现的 T1–T4 通过数必须与 `v2_gate.json` 一致,否则非零退出。
-   *判据*:把 LESSONS #30 修复前的"T1 3 个 PASS"写回文档,检查必须变红。
-   (这条直接堵住"数字写在散文里没人对"的整个缺陷家族。)
-3. **红-绿留痕 `scripts/redgreen.sh <test_node_id>`**
-   新钉死必须先在**未修复的源码**上跑出 FAIL,再在工作树上跑出 PASS,
-   两段输出存 `docs/evidence/redgreen/<commit>.txt`。
-   *现状坦白*:今天新加的 6 个钉死,**一个都没做过这件事**——没有证据
-   表明它们能抓到修复前的那个缺陷。
-   *判据*:CI 拒绝"只有绿、没有红"的钉死。
-4. **判据前置(commit message 第一节)**
-   改 harness 之前先写下「什么现象算修好了 + 一条反例」,该段落冻结,
-   事后不得改措辞。
-   *判据*:提交里判据段的 diff 必须为空(只能新增,不能重写)。
+   与对应 run_id 清单;输出确定性并携带两个事实源文件的 sha256。
+   `--check` 比对已提交文件,台账动了没再生成即非零;
+   `tests/test_process_independence.py::test_committed_v2_gate_json_is_fresh`
+   把这道棘轮拉进每次回归。当前产出:T1 2 / T2 2 / T3 1 / T4 0。
+2. **扩 `check_public_claims.py` 覆盖 V2** ✅ **已落地(2026-08-12)**
+   当前态文档中出现的 T1–T4 通过数必须与 `v2_gate.json` 一致(连排
+   `T1 n / T2 n / T3 n` 与单条 `T1 n 个 PASS` 两种写法均锁),历史日志
+   (LESSONS/EXPLORATION)豁免——强迫历史匹配现值等于要求改写历史。
+   *验收已过*:LESSONS #30 修复前的错数字(T1 写成 3——连排与"n 个
+   PASS"两种写法)均触红,干扰句("T3 v5 oracle 8/8 PASS")不误伤
+   (`test_wrong_gate_numbers_in_prose_go_red` 钉死)。
+   *首咬实录*:本文档纳入受检名单后,检查器立刻抓了上一段**逐字引用**
+   的错数字示例——"提及"与"声明"它分不清,也不该教它分(引用豁免=
+   绕过面)。处置:受检文档里引用反例一律改写措辞,不复现声明格式。
+3. **红-绿留痕 `scripts/redgreen.py`** ✅ **已落地(2026-08-12)**
+   对给定修复 commit:base 树 × fix 测试必须全红,fix 树全绿,junitxml
+   逐节点判定(不信退出码孤证——节点名写错的 exit 4 会冒充红),证据存
+   `docs/evidence/redgreen/<fix12>.txt`,任一节点无红即 INVALID 非零退出。
+   *补做完成*:归因修复(6c305dc)的 6 个钉死 base 全 failed / fix 全
+   passed,VERDICT: VALID;证据在场由钉死看护。CI 强制待 P2。
+4. **判据前置(commit message 第一节)** —— 行为纪律,已写入常设记忆;
+   机器强制(判据段 diff 为空)待 P2 CI。
 
 ### P1 · 下周,需要第二个模型,成本可控
 
-5. **变异语料 `scripts/mutation_gate.py`**
-   把 #24/#26/#27/#29/#30/#31 每一条变成一个可注入变异体:白名单精确名单
-   改回前缀、删掉 smoke 排除、把 `failure_types` 并集改回单集、把归因基准
-   改成读会话内副本、把 `PASS in verdict` 子串判断放回来……注入 → 跑套件 →
-   **要求 100% 被抓**,漏一个即红,并把漏掉的那条补成钉死。
-   *这是整个规划里性价比最高的一项*:它是唯一能回答"我的钉死到底护住了
-   什么"的东西,且完全机械、无需 LLM。
+5. **变异语料 `scripts/mutation_gate.py`** ✅ **已落地并首跑(2026-08-12,提前)**
+   13 条变异 = 6 条历史事故原案(#26/#27/#29/#30/#31/护栏红线)+ 7 条
+   近似变体(前缀大小写、子串判定、答案卷登记、丢 PEP 503…)。注入走
+   临时 worktree + PYTHONPATH 隔离;**金丝雀先行自证**(掏空 PASS_VERDICTS
+   若未被抓 = 在测主树而非变异体,闸门自宣无效)。三种结局:CAUGHT /
+   ESCAPED(当场补钉死)/ STALE(登记簿过期,维护)。
+   **首跑结果:13/13 CAUGHT**,证据 `docs/evidence/mutation_gate/<head12>.json`,
+   由钉死要求最近一次必须 100%。登记簿只增不减(≥13 由钉死看护)。
+   *额外收获*:首次基线运行即抓到套件里一个位置敏感钉死(LESSONS #32)。
+   一键入口:`bash scripts/verify_integrity.sh`(闸门一致性+声明一致性+变异闸门)。
 6. **对抗复核 agent `docs/reviews/<commit>.json`**
    异构模型(gpt-5.6 或另一 Claude 实例),干净上下文,输入只有:diff +
    我的声明 + 冻结判据,**提示词要求证伪而非评价**。未消解的反对意见
@@ -186,3 +195,10 @@ V2 宿主闸门的数字根本不在它的事实源里:`docs/benchmark_summary.j
 **判据**:三个月后若"用户发现"仍稳居前二,说明流程没起作用,推倒重来。
 当前基线(§2.3):自查 3 / 偶然 1 / 用户 1,变异捕获率**未测**,
 红-绿留痕覆盖率 **0%**。
+
+**2026-08-12 更新(P0-1/2/3 与 P1-5 落地当日)**:变异捕获率 **13/13**
+(首跑,含金丝雀自证);红-绿留痕覆盖率:归因修复的 6 个钉死已补做
+(base 全红 / fix 全绿),**此前所有历史钉死仍无红证据**——只对新修复
+强制,不给历史伪造证据。缺陷发现渠道新增一例:**流程门 1**(变异闸门
+基线运行抓到位置敏感钉死,LESSONS #32)——这是"流程门"渠道的第一次
+开张,正是本规划要把发现渠道从"偶然/用户"搬过来的方向。

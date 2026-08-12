@@ -1,0 +1,154 @@
+{
+  "head_commit": "7e1b0216b15fe398fd92028a1ad1c4765de3dd02",
+  "mutations": 13,
+  "caught": 13,
+  "escaped": [],
+  "stale": [],
+  "capture_rate": "13/13",
+  "wall_seconds": 5.0,
+  "results": [
+    {
+      "id": "M30a-smoke-not-excluded",
+      "lesson": "#30 fake 冒烟发被当成模型 PASS(在闸门里躺了 3 天)",
+      "file": "src/repoproof/persistence/bench_records.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_bench_records.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M30b-smoke-prefix-case-variant",
+      "lesson": "#30 变体:前缀大小写错配,fake-scripted 漏网",
+      "file": "src/repoproof/persistence/bench_records.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_bench_records.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M27-exploratory-counts",
+      "lesson": "#27 探索性加发充闸门(真话写在机器读不到的地方)",
+      "file": "src/repoproof/persistence/bench_records.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_bench_records.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M26-verdict-not-effective",
+      "lesson": "#26 闸门数原始 verdict 而非 effective_verdict(order-38 假 PASS 复活)",
+      "file": "src/repoproof/persistence/bench_records.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_bench_records.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M26b-substring-pass-variant",
+      "lesson": "#26 变体:\"PASS\" in verdict 子串判定(FALSE_PASS 含 PASS)",
+      "file": "src/repoproof/persistence/bench_records.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_bench_records.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M29a-prefix-free-pass",
+      "lesson": "#29 前缀白名单放行了装着 PASS 解的 T4 栈",
+      "file": "src/repoproof/harness/host_guard.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guard.py"
+      ],
+      "seconds": 0.4
+    },
+    {
+      "id": "M29b-upstream-whitelisted",
+      "lesson": "#29 变体:给无害兄弟目录 upstream 开口子(该迁走的是整套栈)",
+      "file": "src/repoproof/harness/host_guard.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guard.py"
+      ],
+      "seconds": 0.4
+    },
+    {
+      "id": "M29c-answer-key-registered",
+      "lesson": "#29 变体:把答案卷目录本身登记进白名单",
+      "file": "src/repoproof/harness/host_guard.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guard.py"
+      ],
+      "seconds": 0.4
+    },
+    {
+      "id": "MGuard-case-sensitive",
+      "lesson": "护栏红线变体:路径比较丢大小写归一(APFS 大小写不敏感可绕)",
+      "file": "src/repoproof/harness/host_guard.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guard.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M31a-attribution-neutered",
+      "lesson": "#31 归因分支被掏空(一切依赖失败重新都算 harness)",
+      "file": "src/repoproof/runner/host_guided.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guided.py"
+      ],
+      "seconds": 0.4
+    },
+    {
+      "id": "M31b-attribution-flipped",
+      "lesson": "#31 变体:归因标签写反(agent 缺陷标成 harness)",
+      "file": "src/repoproof/runner/host_guided.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guided.py"
+      ],
+      "seconds": 0.4
+    },
+    {
+      "id": "M31c-failure-types-union-dropped",
+      "lesson": "#31 验证器归因进不了台账 failure_types(只活在 report.json)",
+      "file": "src/repoproof/runner/host_guided.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guided.py"
+      ],
+      "seconds": 0.3
+    },
+    {
+      "id": "M31d-pep503-dropped",
+      "lesson": "#31 变体:丢 PEP 503 归一(Browser_Use ≠ browser-use,基线比对失效)",
+      "file": "src/repoproof/runner/host_guided.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guided.py"
+      ],
+      "seconds": 0.4
+    }
+  ]
+}
