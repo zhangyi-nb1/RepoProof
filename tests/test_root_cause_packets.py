@@ -17,11 +17,11 @@ SCHEMA_ERROR;15 条建议统一写"阅读该项公开测试的断言语义"—�
 
 from __future__ import annotations
 
-from repoproof.adoption.repair.failure_packet import (
-    SHARED_ROOT_CAUSE,
-    TIMEOUT,
-    build_failure_packets,
-)
+from repoproof.adoption.repair.failure_packet import build_failure_packets
+
+# 新类型常量刻意**不在模块级导入**:模块级导入会让修复前的树整文件收集
+# 失败,红绿证据退化成"文件级红"(LESSONS #34:红的粒度必须与钉死的
+# 粒度一致)。下沉到函数内,base 上就是逐节点红。
 
 _TIMEOUT_MSG = ('failed on setup with "AssertionError: '
                 '作业 {jid} 未在 120.0s 内终结"')
@@ -47,6 +47,8 @@ def _order55_like(n: int = 15) -> tuple[list[str], dict[str, str]]:
 
 def test_shared_root_cause_collapses_into_one_packet() -> None:
     """H6-a:15 项同根因 → 恰 1 枚包(反例:order-55 收到 15 枚)。"""
+    from repoproof.adoption.repair.failure_packet import SHARED_ROOT_CAUSE
+
     nodes, details = _order55_like()
     packets = build_failure_packets(nodes, details)
     assert len(packets) == 1, f"应折叠成 1 枚,实得 {len(packets)}"
@@ -58,6 +60,8 @@ def test_shared_root_cause_collapses_into_one_packet() -> None:
 def test_timeout_is_typed_and_advised_as_timeout() -> None:
     """H6-b:超时自成类型;建议谈终结时间,不得再说"阅读断言语义"。
     反例:order-55 的 13 枚 TEST_FAILURE + 2 枚 SCHEMA_ERROR。"""
+    from repoproof.adoption.repair.failure_packet import TIMEOUT
+
     node = "public_tests/t.py::test_authorized_fields_filled_on_site"
     packets = build_failure_packets([node], {node: _TIMEOUT_MSG.format(jid="ab12cd34ef")})
     assert packets[0].type == TIMEOUT, "名里带「字段」不得压过超时根因"
@@ -82,6 +86,8 @@ def test_no_information_is_silently_dropped() -> None:
 
 def test_distinct_root_causes_are_not_merged() -> None:
     """H6-d:不同根因各自成包;同根因不足 3 项也不折叠(2 条不值得抽象)。"""
+    from repoproof.adoption.repair.failure_packet import SHARED_ROOT_CAUSE
+
     nodes = [f"t.py::test_a{i}" for i in range(3)] + [f"t.py::test_b{i}" for i in range(2)]
     details = {n: (_TIMEOUT_MSG.format(jid="aa11bb22cc") if n.startswith("t.py::test_a")
                    else "AssertionError: 授权字段 email 应照常填写")
@@ -94,6 +100,8 @@ def test_distinct_root_causes_are_not_merged() -> None:
 
 def test_packets_without_details_keep_old_shape() -> None:
     """无 details 时行为不回退(旧钉死语义保持):逐项成包,不误折叠。"""
+    from repoproof.adoption.repair.failure_packet import SHARED_ROOT_CAUSE
+
     nodes = [f"t.py::test_x{i}" for i in range(4)]
     packets = build_failure_packets(nodes)
     assert len(packets) == 4

@@ -1,0 +1,49 @@
+fix commit : 6283ed90b1ba6e6949eefbae134348695dfabc01
+base commit: 068468e31d94e231b7626ee176d4c43e9fcc8907
+nodes      : 5
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=4
+  test_shared_root_cause_collapses_into_one_packet: error-at-collection
+  test_timeout_is_typed_and_advised_as_timeout: error-at-collection
+  test_no_information_is_silently_dropped: error-at-collection
+  test_distinct_root_causes_are_not_merged: error-at-collection
+  test_packets_without_details_keep_old_shape: error-at-collection
+
+-- base 段收集错误(按文件重跑取证)--
+  [tests.test_root_cause_packets] E   ImportError: cannot import name 'SHARED_ROOT_CAUSE' from 'repoproof.adoption.repair.failure_packet' (/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_ep6rq0bm/tree/src/repoproof/adopti
+______ ERROR collecting tests/test_root_cause_packets.py _______________
+ImportError while importing test module '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_ep6rq0bm/tree/tests/test_root_cause_packets.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.12/3.12.5/Frameworks/Python.framework/Versions/3.12/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_root_cause_packets.py:20: in <module>
+    from repoproof.adoption.repair.failure_packet import (
+E   ImportError: cannot import name 'SHARED_ROOT_CAUSE' from 'repoproof.adoption.repair.failure_packet' (/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_ep6rq0bm/tree/src/repoproof/adoption/repair/failure_packet.py)
+=========================== short test summary info ============================
+ERROR tests/test_root_cause_packets.py
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_ep6rq0bm/tree/tests/test_root_cause_packets.py::test_shared_root_cause_collapses_into_one_packet
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_ep6rq0bm/tree/tests/test_root_cause_packets.py::test_timeout_is_typed_and_advised_as_timeout
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_ep6rq0bm/tree/tests/test_root_cause_packets.py::test_no_information_is_silently_dropped
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_ep6rq0bm/tree/tests/test_root_cause_packets.py::test_distinct_root_causes_are_not_merged
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_ep6rq0bm/tree/tests/test_root_cause_packets.py::test_packets_without_details_keep_old_shape
+
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_shared_root_cause_collapses_into_one_packet: passed
+  test_timeout_is_typed_and_advised_as_timeout: passed
+  test_no_information_is_silently_dropped: passed
+  test_distinct_root_causes_are_not_merged: passed
+  test_packets_without_details_keep_old_shape: passed
+.....                                                                    [100%]
+
+
+VERDICT: VALID
