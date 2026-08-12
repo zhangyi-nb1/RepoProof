@@ -216,8 +216,8 @@ MUTATIONS: list[dict] = [
         "id": "M33e-patch-overage-poisons-ranking",
         "lesson": "#33 变体:patch 超限计进 policy_violations(超重全绿轮被回滚,逼重做)",
         "file": _HD,
-        "old": "    return packets, fatal, denied_delta + len(tampered)",
-        "new": "    return packets, fatal, denied_delta + len(tampered) + len(fatal)",
+        "old": "    return packets, fatal, len(tampered)",
+        "new": "    return packets, fatal, len(tampered) + len(fatal)",
         "catchers": _T_CF,
     },
     # ---- LESSONS #34:红绿守卫两义性 ----
@@ -236,6 +236,27 @@ MUTATIONS: list[dict] = [
         "old": "    if red_exit == 4:",
         "new": "    if False:",
         "catchers": _T_PI,
+    },
+    # ---- LESSONS #35:排序只对齐终局判据 ----
+    {
+        "id": "M35a-denied-poisons-ranking-again",
+        "lesson": "#35 denied 退回排序(21/23 的轮因一条零执行的调试命令被弃)",
+        "file": _HD,
+        "old": "    return packets, fatal, len(tampered)",
+        "new": "    return packets, fatal, len(tampered) + denied_delta",
+        "catchers": _T_CF,
+    },
+    {
+        "id": "M35b-store-before-guard",
+        "lesson": "#35 F3:先建证据目录后过护栏(被拒的构造也留空壳污染证据树)",
+        "file": _HD,
+        "old": ('        self._verify_static_resources()\n'
+                '        self.store = FileRunStore('
+                '(runs_root or self.project_root / "runs") / self.run_id)'),
+        "new": ('        self.store = FileRunStore('
+                '(runs_root or self.project_root / "runs") / self.run_id)\n'
+                '        self._verify_static_resources()'),
+        "catchers": _T_HD,
     },
 ]
 

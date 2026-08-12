@@ -368,13 +368,19 @@ def round_violation_report(
 ) -> tuple[list[FailurePacket], list[str], int]:
     """本轮违规 → (结构化失败包, 致命违规名单, 计入排序的违规数)。
 
-    排序语义保持冻结(RFC-008 §11.3):policy_violations 仍只数
-    denied+tampered(对抗性动作,回滚有理),且 denied 必须是**本轮增量**
-    ——跨轮累计会让一轮的违规永久拖累后续所有轮(060126 实录:round-3
-    自身零违规却背着 round-2 的 1,结构性翻不了盘)。
-    patch 超限/依赖不可解析**不计入排序**:全绿超重轮是最有价值的修剪
-    底座,滚掉等于逼 agent 重做;它们进 fatal 名单——阻止"全绿即停",
-    把剩余轮次留给修剪,因为最终闸门会以同一判据击杀。
+    **排序只对齐终局判据,其余一律教**(LESSONS #35,批 6 实证):
+    - `tampered`(改公开测试)计入排序 —— 终局 PolicyVerifier 以
+      `PUBLIC_TESTS_TAMPERED` 树哈希比对直接击杀,排序必须同向;
+    - `denied`(命令被拦下、**零执行**)**不计入排序** —— 终局
+      `policy_result` 根本不数它。旧写法让循环拿着一把比终局更严的尺子,
+      把终局本会接受的最好一轮扔掉:order-53 round-3 公开 21/23 仅因一条
+      `xargs … sh -c` 调试命令被拦,整轮回滚,最终交付 round-2 的 3/23;
+      060126 round-2 的 12/12 同因被弃(n=2)。它改走教学面(违规包)。
+    - patch 超限/依赖不可解析同样不计入排序,改进 fatal 名单 —— 全绿
+      超重轮是最有价值的修剪底座,滚掉等于逼 agent 重做;fatal 阻止
+      "全绿即停",把剩余轮次留给修剪,因为终局会以同一判据击杀。
+    denied 仍取**本轮增量**:跨轮累计会让一轮违规永久拖累后续所有轮
+    (060126 实录:round-3 自身零违规却背着 round-2 的 1)。
     """
     packets: list[FailurePacket] = []
     fatal: list[str] = []
@@ -384,8 +390,8 @@ def round_violation_report(
             summary=f"{denied_delta} command(s) were DENIED by the policy guard this round",
             expected="only commands inside the allowed workspace and toolset",
             actual=f"{denied_delta} denied command(s); this round ranks below any clean round",
-            suggestion="被拒的命令不会执行——回到允许的路径与工具内解决;"
-                       "带违规的轮在排序上永远输给干净轮,可能被回滚"))
+            suggestion="被拒的命令不会执行、也不会拖累本轮排序,但白白吃掉命令"
+                       "预算——换成允许的等价做法(避开 sh -c 等被拦的构造)"))
     if tampered:
         packets.append(FailurePacket(
             type="SCOPE_EXCEEDED",
@@ -422,7 +428,7 @@ def round_violation_report(
             actual=f"unresolvable: {', '.join(unresolvable_dists)}",
             suggestion="最终验收会从 requirements.txt 离线重建环境并以同样方式失败"
                        "——移除该钉版,或改成轮仓/../upstream 快照真实可装的形态"))
-    return packets, fatal, denied_delta + len(tampered)
+    return packets, fatal, len(tampered)
 
 
 # 用户决策(2026-08-09,预注册 v2 修订):per_round 语义下**输入执法线
@@ -573,11 +579,14 @@ class HostGuidedRunner:
             / f"wheelhouse-offerclaw-{self.contract.host.commit[:7]}"
         ).expanduser().resolve()
         self.run_id = f"{self.contract.task_id}-{time.strftime('%Y%m%d-%H%M%S')}"
-        self.store = FileRunStore((runs_root or self.project_root / "runs") / self.run_id)
         self.budgets = self.contract.budgets.as_budgets()
         self.timings: dict[str, float] = {}
         self._browser_pids_before: set[int] | None = None   # 增强①:run 起点快照
+        # 先核验后建店(LESSONS #35 · F3,批 6 期间实证):建店在护栏之前
+        # 会给**被拒绝的**调用也留下 runs/<task>-<ts>/ 空壳,混在真实证据里
+        # 像一发夭折的官方 run;跑测试套件时更会直接污染证据树。
         self._verify_static_resources()
+        self.store = FileRunStore((runs_root or self.project_root / "runs") / self.run_id)
 
     # ------------------------------------------------------------ 静态核验
     def _verify_static_resources(self) -> None:

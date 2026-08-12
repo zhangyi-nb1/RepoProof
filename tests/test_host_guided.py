@@ -120,7 +120,7 @@ def test_runner_rejects_protected_host_copy(tmp_path: Path, monkeypatch) -> None
     c = contract_dir / "contract.yaml"
     c.write_text(text, encoding="utf-8")
     with pytest.raises(HostGuardError):
-        HostGuidedRunner(c, Path(__file__).resolve().parents[1])
+        HostGuidedRunner(c, tmp_path)   # 项目根用 tmp:不得污染真实证据树
 
 
 def test_runner_requires_upstream_and_wheelhouse(tmp_path: Path) -> None:
@@ -137,8 +137,27 @@ def test_runner_requires_upstream_and_wheelhouse(tmp_path: Path) -> None:
     c = contract_dir / "contract.yaml"
     c.write_text(text, encoding="utf-8")
     with pytest.raises(HostRunError, match="上游固定快照缺失"):
-        HostGuidedRunner(c, Path(__file__).resolve().parents[1])
+        HostGuidedRunner(c, tmp_path)   # 项目根用 tmp:不得污染真实证据树
 
+
+
+def test_failed_construction_leaves_no_run_dir(tmp_path: Path, monkeypatch) -> None:
+    """LESSONS #35 · F3:先核验后建店。被护栏拒绝的构造不得留下
+    runs/<task>-<ts>/ 空壳——它混在真实证据里像一发夭折的官方 run,
+    跑测试套件时更会直接污染证据树(批 6 期间实证两例)。"""
+    fake_main = tmp_path / "fake_main"
+    fake_main.mkdir()
+    monkeypatch.setenv("REPOPROOF_PROTECTED_DIRS", str(fake_main))
+    contract_dir = tmp_path / "task"
+    (contract_dir / "oracle").mkdir(parents=True)
+    (contract_dir / "public_tests").mkdir()
+    c = contract_dir / "contract.yaml"
+    c.write_text(T1_CONTRACT.read_text(encoding="utf-8").replace(
+        "copy_path: ~/RepoProofBench/offerclaw-t1-fastapi-mcp",
+        f"copy_path: {fake_main}"), encoding="utf-8")
+    with pytest.raises(HostGuardError):
+        HostGuidedRunner(c, tmp_path)
+    assert not (tmp_path / "runs").exists(), "护栏拒绝后仍建了证据目录"
 
 # ---------------------------------------------------------------- 指纹对账集
 def test_integrity_scope_excludes_repoproof_itself(tmp_path: Path, monkeypatch) -> None:

@@ -72,22 +72,53 @@ def test_dependency_pin_packet_names_the_dist_and_is_fatal() -> None:
     assert pol == 0
 
 
-def test_denied_and_tampered_count_for_ranking_but_not_fatal() -> None:
-    """排序语义冻结(§11.3):denied+tampered 计入 policy_violations
-    (对抗性动作,回滚有理),但不列 fatal;干净轮三元组全空。"""
+def test_ranking_counts_only_what_the_final_gate_kills() -> None:
+    """LESSONS #35:排序只对齐终局判据。tampered 计入(终局以
+    PUBLIC_TESTS_TAMPERED 树哈希击杀),denied 不计入(终局
+    policy_result 根本不数它)——但两者都要成包教学。
+    反例:order-53 round-3 公开 21/23 仅因一条零执行的 `sh -c` 调试命令
+    被拦而整轮回滚,最终交付 round-2 的 3/23;060126 同因弃掉 12/12。"""
     from repoproof.runner.host_guided import round_violation_report
 
     packets, fatal, pol = round_violation_report(
         denied_delta=2, tampered=["public_tests/test_x.py"], patch_files=1,
         patch_lines=10, max_patch_files=20, max_patch_lines=1800,
         unresolvable_dists=[])
-    assert pol == 3
+    assert pol == 1, "只有 tampered 计入排序"
     assert fatal == []
     assert {p.type for p in packets} == {"POLICY_VIOLATION", "SCOPE_EXCEEDED"}
+
+    # 纯 denied 轮:成包教学,但排序不受损(否则好轮被无害拦截毁掉)
+    dpackets, dfatal, dpol = round_violation_report(
+        denied_delta=3, tampered=[], patch_files=1, patch_lines=10,
+        max_patch_files=20, max_patch_lines=1800, unresolvable_dists=[])
+    assert dpol == 0 and dfatal == []
+    assert [p.type for p in dpackets] == ["POLICY_VIOLATION"]
+    assert "3" in dpackets[0].summary
+
     assert round_violation_report(
         denied_delta=0, tampered=[], patch_files=1, patch_lines=10,
         max_patch_files=20, max_patch_lines=1800,
         unresolvable_dists=[]) == ([], [], 0)
+
+
+def test_denied_round_can_still_win_on_pass_count() -> None:
+    """循环层后果:一条被拒命令不再让高分轮输给低分干净轮。
+    反例(order-53 实录):[3, 3, 21] 的第 3 轮因 denied=1 被回滚,
+    best 落回 3/23。"""
+    rounds = [
+        RoundResult(adapter_snapshot="r1", passed=3, failed_nodes=["t::x"]),
+        RoundResult(adapter_snapshot="r2", passed=21, failed_nodes=["t::y"],
+                    policy_violations=0),   # 判据引擎已不把 denied 计入
+    ]
+
+    def run_round(idx, packets, best_snapshot):
+        return rounds[idx - 1]
+
+    out = RepairLoop(run_round, budget=RepairBudget(max_rounds=2),
+                     score_fn=full_score).run()
+    assert out.best_round == 2 and out.best_passed == 21
+    assert out.rolled_back_rounds == []
 
 
 # ---------- H3:fatal 在场不许全绿停轮 ----------
