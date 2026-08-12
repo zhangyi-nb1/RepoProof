@@ -115,7 +115,8 @@ V2 宿主闸门的数字根本不在它的事实源里:`docs/benchmark_summary.j
    与对应 run_id 清单;输出确定性并携带两个事实源文件的 sha256。
    `--check` 比对已提交文件,台账动了没再生成即非零;
    `tests/test_process_independence.py::test_committed_v2_gate_json_is_fresh`
-   把这道棘轮拉进每次回归。当前产出:T1 2 / T2 2 / T3 1 / T4 0。
+   把这道棘轮拉进每次回归。当前产出以 docs/v2_gate.json 为准(散文不复述数字——复述过的
+   都会过期,本行 2026-08-13 批 6 落账后即被检查器咬中一次)。
 2. **扩 `check_public_claims.py` 覆盖 V2** ✅ **已落地(2026-08-12)**
    当前态文档中出现的 T1–T4 通过数必须与 `v2_gate.json` 一致(连排
    `T1 n / T2 n / T3 n` 与单条 `T1 n 个 PASS` 两种写法均锁),历史日志
