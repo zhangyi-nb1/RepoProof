@@ -1311,3 +1311,31 @@ T4 钉死只用合成夹具,不受影响。
 产物:host_guard 白名单收紧 + 钉死 2 例(前缀不是通行证、vendored
 upstream 亦报警)+ LESSONS #29 + prereg 附录二。真盘核验
 `bench_root_strays()` 返回空。
+
+## 状态条目 · 2026-08-12 · 归因修复(#31)与"谁在评判谁"的取证式自查
+
+**修复**:两发 T3(030156/054108)公开面 23/23、oracle 8/8、回归 607(基线
+606)、政策 PASS,只挂干净重放——适配把 `openai==2.16.0` /
+`browser-use==0.13.7` 写进 requirements.txt,冻结轮仓无此分发。台账却记成
+`replay infrastructure failure(wheelhouse 不全?)`,`failure_types` 是
+UNKNOWN / SCHEMA_ERROR。**harness 替模型认领了错**,偏差方向恰是最容易自我
+安慰的那个。修法三段:归因判据带对照基准(未适配宿主副本的 requirements.txt,
+读 pip 全文不读截断尾巴)/ `DependencyNotReproducible` 分型且专用 except 前置 /
+`failure_types` 收编验证器归因。+6 钉死,442 passed 20 skipped,提交 6c305dc。
+两发 verdict 仍 FAIL,台账行不重写;更正读数落 FAILURE_TAXONOMY 新行。
+
+**自查(用户提问触发)**:"测试修改、效果评判、结果声明是不是同一个 agent?"
+分层核对结论——L1 被测层已结构性隔离(沙箱 + 确定性 oracle,5 发 PASS 不是我
+判的);**L2 harness/任务/归因层七个角色我占六个**;**L3 对用户的结论声明
+无任何拦截**。硬证据三条:①144 次提交中 69 次同一 commit 里既改 `src/` 又改
+`tests/`(判据与被判对象同一时刻同一人写出);②最近 5 起完整性缺陷的发现
+渠道 = 自查 3 / **偶然 1**(#29 查阻塞时撞见)/ **用户 1**(#30 存活 3 天);
+③`scripts/check_public_claims.py` 这套"散文必须对齐机器事实源"的机制**今天
+仍全绿**,因为 V2 闸门数字不在它的事实源里(`benchmark_summary.json` 零
+`offerclaw`)——范式不缺,缺的是铺到 L2/L3。
+
+**产物**:`docs/PROCESS-INDEPENDENCE-PLAN.md`——四道独立性来源(事前冻结的
+机器判据 / 变异语料 / 异构模型证伪复核 / 用户与外部审查),P0–P2 路线,
+六步环路(测设-红-改-绿-复核-签收)与**机器可判的终止条件**,以及对流程本身
+的四项月度度量。当前基线:变异捕获率未测,红-绿留痕覆盖率 **0%**(今天新加的
+6 个钉死也没有红证据)。
