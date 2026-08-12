@@ -51,6 +51,13 @@ PASS_VERDICTS = frozenset({"PASS", "PASS_ADAPTED"})
 # 历史行无 batch 字段 → 视为预注册批次(它们确实是)。
 EXPLORATORY_BATCH = "EXPLORATORY_UNPREREGISTERED"
 
+# 冒烟模型前缀(2026-08-12 增补)。`--fake positive` 由 harness **把正控
+# 脚本化塞进适配树**——它必定 PASS,那是机器自检,不是模型做到的。此前
+# `count_passes` 未排除 fake,于是 T1 的闸门数字是 3,而真实模型 PASS 只有
+# 2(第 3 个是 `fake-scripted`)。与 order-38、探索性加发同一个病:台账把
+# 不该算的算进了通过数。
+SMOKE_MODEL_PREFIX = "fake"
+
 # 再分类记录的最少字段;evidence_refs 必填 = 裁定不得无出处
 ADJUDICATION_REQUIRED_FIELDS = (
     "run_id", "system_verdict", "effective_verdict",
@@ -178,17 +185,23 @@ def adjudicated_runs(project_root: str | Path) -> list[dict]:
 def count_passes(project_root: str | Path, task_prefix: str | None = None) -> dict:
     """按 effective_verdict 统计 PASS(闸门判据)。
 
-    task_prefix 形如 "t3-" 时只统计该阶段。**两道扣除**:
+    task_prefix 形如 "t3-" 时只统计该阶段。**三道扣除**:
     1. 人工裁定不计入的假 PASS(invalidated);
     2. `batch == EXPLORATORY_BATCH` 的探索性加发(exploratory)——未经预注册
-       (TESTPLAN §8),只能作观察,不得充闸门。
+       (TESTPLAN §8),只能作观察,不得充闸门;
+    3. `model` 以 `fake` 开头的冒烟发(smoke)——`--fake positive` 是 harness
+       自己把正控塞进适配树,必定 PASS,那是机器自检不是模型能力。
     `total` 仍是全部发次(如实计数不挑选),`passes` 是**可充闸门**的通过数。
     """
     rows = adjudicated_runs(project_root)
     if task_prefix:
         rows = [r for r in rows if str(r.get("task_id", "")).startswith(task_prefix)]
-    exploratory = [r for r in rows if r.get("batch") == EXPLORATORY_BATCH]
-    gateable = [r for r in rows if r.get("batch") != EXPLORATORY_BATCH]
+    smoke = [r for r in rows
+             if str(r.get("model", "")).startswith(SMOKE_MODEL_PREFIX)]
+    real = [r for r in rows
+            if not str(r.get("model", "")).startswith(SMOKE_MODEL_PREFIX)]
+    exploratory = [r for r in real if r.get("batch") == EXPLORATORY_BATCH]
+    gateable = [r for r in real if r.get("batch") != EXPLORATORY_BATCH]
     passes = [r for r in gateable if r["effective_verdict"] in PASS_VERDICTS]
     invalidated = [
         r for r in rows
@@ -201,7 +214,11 @@ def count_passes(project_root: str | Path, task_prefix: str | None = None) -> di
         "exploratory": len(exploratory),
         "exploratory_passes": sum(
             1 for r in exploratory if r["effective_verdict"] in PASS_VERDICTS),
+        "smoke": len(smoke),
+        "smoke_passes": sum(
+            1 for r in smoke if r["effective_verdict"] in PASS_VERDICTS),
         "pass_run_ids": [r.get("run_id") for r in passes],
         "invalidated_run_ids": [r.get("run_id") for r in invalidated],
         "exploratory_run_ids": [r.get("run_id") for r in exploratory],
+        "smoke_run_ids": [r.get("run_id") for r in smoke],
     }

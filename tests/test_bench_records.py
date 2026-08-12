@@ -143,3 +143,21 @@ def test_historical_rows_without_batch_are_preregistered(tmp_path: Path) -> None
     assert "batch" not in load_runs(tmp_path)[0], "记录器不给历史语义补写默认值"
     c = count_passes(tmp_path, task_prefix="t1-")
     assert c["passes"] == 1 and c["exploratory"] == 0
+
+
+def test_fake_smoke_pass_never_counts_toward_gate(tmp_path: Path) -> None:
+    """`--fake positive` 是 harness 自己把正控塞进适配树,必定 PASS。
+
+    实录(2026-08-12 用户质疑"成功案例是不是你辅助的"时自查发现):T1 闸门
+    显示 3 个 PASS,其中 `t1-...-20260809-182942` 的 model 是 `fake-scripted`
+    —— 机器自检被当成了模型能力。真实模型 PASS 是 2。
+    """
+    append_run(tmp_path, {"run_id": "t1-real", "task_id": "t1-x",
+                          "model": "gpt-5.6", "verdict": "PASS_ADAPTED"})
+    append_run(tmp_path, {"run_id": "t1-smoke", "task_id": "t1-x",
+                          "model": "fake-scripted", "verdict": "PASS_ADAPTED"})
+    c = count_passes(tmp_path, task_prefix="t1-")
+    assert c["passes"] == 1 and c["pass_run_ids"] == ["t1-real"]
+    assert c["smoke"] == 1 and c["smoke_passes"] == 1
+    assert c["smoke_run_ids"] == ["t1-smoke"]
+    assert c["total"] == 2, "如实计数:冒烟发照样进 total,只是不充闸门"
