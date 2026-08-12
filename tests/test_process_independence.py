@@ -198,3 +198,39 @@ def test_evidence_json_records_capture_rate() -> None:
     assert latest["escaped"] == [] and latest["stale"] == [], (
         f"最近一次变异闸门未达 100%:{latest['escaped']} {latest['stale']}")
     assert latest["caught"] == latest["mutations"]
+
+
+# --------------------------------------------------- 批次判据核对器(自身负控)
+
+def test_batch_criteria_detects_the_prefix_defects() -> None:
+    """检查器必须能**查出缺陷**,不只是盖章:把批 6(修复前 harness
+    d42e8a38 跑出的数据)喂进去,#35 针对的三条必须报红,批 6 确实
+    满足的三条必须报绿。这是判定器自己的红绿留痕。"""
+    bc = _load("batch_criteria.py")
+    out = bc.adjudicate("T2v4-T3v5-RERUN-20260812")
+    assert out["runs"] == 4
+    c = out["criteria"]
+    assert c["Q1 denied 不计入排序"]["verdict"] == bc.FAIL
+    assert c["Q2 无仅因 denied 的回滚冤案"]["verdict"] == bc.FAIL
+    assert c["Q3 denied 的最优轮必须当选"]["verdict"] == bc.FAIL
+    for name in ("P2 违规包携带真值", "P3 denied 不跨轮继承", "P4 回滚必被说明"):
+        assert c[name]["verdict"] == bc.PASS, name
+    assert out["overall"] == bc.FAIL
+
+
+def test_batch_criteria_marks_untriggered_as_vacuous() -> None:
+    """未触发的判据必须记「未被检验」,既不算通过也不算失败——
+    "不许拿没发生的事当成功"(批 6 P1 先例)。批 6 无一轮改过公开测试,
+    故 Q4 必须是 vacuous 而非 PASS。"""
+    bc = _load("batch_criteria.py")
+    out = bc.adjudicate("T2v4-T3v5-RERUN-20260812")
+    assert out["criteria"]["Q4 tampered 仍计入排序"]["verdict"] == bc.VACUOUS
+    assert bc.VACUOUS not in (bc.PASS, bc.FAIL)
+
+
+def test_batch_criteria_unknown_batch_is_empty_not_green() -> None:
+    """不存在的批次不得静默返回全绿(否则打错批次名=自动通过)。"""
+    bc = _load("batch_criteria.py")
+    out = bc.adjudicate("NO-SUCH-BATCH")
+    assert out["runs"] == 0
+    assert all(c["verdict"] == bc.VACUOUS for c in out["criteria"].values())

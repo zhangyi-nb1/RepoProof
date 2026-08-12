@@ -1463,3 +1463,32 @@ import 容错。**系统 verdict 不作放行依据,这两条是人工核的。*
 
 **下一步**:F1 处方(denied 退出排序、只走教学包;tampered/动 oracle 保持
 毒化)需**重预注册**后另批验证——排序语义是本批的冻结项,不得追改。
+
+## 状态条目 · 2026-08-13 · 批 7:#35 现场兑现一半,T3 阶段闸门到 2
+
+**批报**:`benchmarks/v2/reports/batch7-ranking-report-20260813.md`
+(预注册 `T3v5-ranking-prereg-20260813.md`;台账记 harness `3851f60`,
+与预注册声明的 `a573bc9` 在 src/scripts 上逐字节相同,差的只是那份文档)。
+
+| order | 模型 | 公开逐轮 | denied | 隐藏 | verdict |
+|---|---|---|---|---|---|
+| 55 | gpt-5.5 | [3, 6, 8] | 0 | 2/8 | FAIL |
+| 56 | gpt-5.6 | [7, **23**] | 1(r1) | **8/8** | **PASS_ADAPTED** |
+
+**判据(机器判,scripts/batch_criteria.py)**:Q1 通过(order-56 r1
+`denied=1 → policy_violations=0`,score 第 2 位保持 1.0;批 6 同型是
+1 / 0.0)、P2 通过、P3 通过 5/5;**Q2/Q3/Q4/P4 未被检验**——本批零回滚、
+无"denied 且严格最优"的轮、无人改公开测试。合议通过,但**强度只到一半**:
+"不再扣分"已现场兑现,"因此最好的轮能当选"仍缺现场实例。另有预注册前
+就做完的确定性推演:批 6 的 order-53 在新排序下交付 21/23 而非 3/23。
+
+**闸门**:T1 2 / T2 4 / **T3 2** / T4 0;gate_met 现 T1/T2/T3 全 True。
+
+**人工取证(order-56 PASS 坐实)**:真 `browser_use.Agent/BrowserSession`
+在场;**nested_meter 27 requests**(capability 与 replay 一致),与批 3
+order-37 真引擎的 27 同量级——伪造型 order-38 是 10/9/9(每作业恰一次)、
+纯 HTTP 型是 0;oracle 8/8 含 h7 因果金丝雀;干净重放 PASS。
+
+**新流程件**:`scripts/batch_criteria.py`。判定不再由我手打片段现算
+(批 6 就错过一次)。**自身负控已钉死**:喂修复前的批 6 数据,Q1/Q2/Q3
+必须报红、P2/P3/P4 必须报绿——检查器先证明自己查得出缺陷,才有资格发绿。
