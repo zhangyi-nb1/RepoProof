@@ -347,6 +347,37 @@ def added_unresolvable_dists(pip_output: str, baseline: frozenset[str]) -> list[
     return sorted(d for d in unresolved if d not in baseline)
 
 
+# pip 的**第二种**离线死法(2026-08-13,LESSONS #38):版本冲突。
+# 与"找不到分发"完全不同的措辞,order-59 实录:
+#   Cannot install requests==2.32.5 and requests>=2.31.0 because these
+#   package versions have conflicting dependencies. / ResolutionImpossible
+_CONFLICT_RE = re.compile(
+    r"Cannot install (.+?) because these package versions have conflicting",
+    re.IGNORECASE | re.DOTALL)
+
+
+def conflicting_dists(pip_output: str) -> list[str]:
+    """从 pip 冲突报告里剥出参与冲突的分发名(PEP 503 归一,去重保序)。"""
+    out: list[str] = []
+    for m in _CONFLICT_RE.finditer(pip_output):
+        for tok in re.split(r"\s+and\s+|,", m.group(1)):
+            name = re.split(r"[=<>!~\[ ]", tok.strip(), 1)[0].strip()
+            if name:
+                out.append(_norm_dist(name))
+    return list(dict.fromkeys(out))
+
+
+def added_problem_dists(pip_output: str, baseline: frozenset[str]) -> list[str]:
+    """两种死法合一:解析不到 + 版本冲突,均只报**适配新增**的分发。
+
+    基线里本就有的分发出问题 = 轮仓/宿主自身的事(harness);新增的 = agent。
+    """
+    dists = added_unresolvable_dists(pip_output, baseline)
+    if dists:
+        return dists
+    return [d for d in conflicting_dists(pip_output) if d not in baseline]
+
+
 class DependencyNotReproducible(HostRunError):
     """适配声明了在冻结离线环境中解析不到的依赖 —— **归因于 agent,不是 harness**。
 
@@ -378,6 +409,8 @@ def round_violation_report(
     max_patch_files: int,
     max_patch_lines: int,
     unresolvable_dists: list[str],
+    dependency_probe_failed: bool = False,
+    dependency_detail: str = "",
 ) -> tuple[list[FailurePacket], list[str], int]:
     """本轮违规 → (结构化失败包, 致命违规名单, 计入排序的违规数)。
 
@@ -431,16 +464,25 @@ def round_violation_report(
             actual=f"{patch_lines} diff lines",
             suggestion="最终政策闸会以同一数字拒绝——精简 diff:删掉调试残留、"
                        "重复代码与无关重排,保住已通过的测试"))
-    if unresolvable_dists:
+    # 探针只要失败就必须成包 —— **哪怕认不出错误形状**(LESSONS #38)。
+    # 反例 order-59:探针 exit_code=1 但归因正则只认"找不到分发"、认不出
+    # ResolutionImpossible,于是吐出空清单 → 该轮被当成干净 → 全绿即停 →
+    # 干净重放以同一条冲突击杀。**沉默比误报危险得多。**
+    if unresolvable_dists or dependency_probe_failed:
         fatal.append("dependency")
+        named = ", ".join(unresolvable_dists)
         packets.append(FailurePacket(
             type=DEPENDENCY_NOT_REPRODUCIBLE,
-            summary="requirements.txt declares pins the OFFLINE wheel index cannot "
-                    f"resolve: {', '.join(unresolvable_dists)}",
-            expected="every added requirements.txt pin resolves from the local wheelhouse",
-            actual=f"unresolvable: {', '.join(unresolvable_dists)}",
+            summary=(f"requirements.txt 在离线轮仓里装不起来:{named}" if named
+                     else "requirements.txt 在离线轮仓里装不起来(pip 离线 dry-run 失败,"
+                          "具体分发名无法从输出中判定)"),
+            expected="every requirements.txt pin installs from the local wheelhouse",
+            actual=(f"unresolvable/conflicting: {named}" if named
+                    else (dependency_detail or "pip 非零退出,原文未捕获")),
             suggestion="最终验收会从 requirements.txt 离线重建环境并以同样方式失败"
-                       "——移除该钉版,或改成轮仓/../upstream 快照真实可装的形态"))
+                       "——移除或放宽冲突的钉版,或改用轮仓/../upstream 快照里"
+                       "真实可装的形态;可自己跑 `pip install --dry-run -r "
+                       "requirements.txt` 复现"))
     return packets, fatal, len(tampered)
 
 
@@ -706,11 +748,14 @@ class HostGuidedRunner:
             # 归因:解析不到的分发是**适配新增的**(agent 侧缺陷),还是本来就在
             # 基线里(轮仓确实不全,harness 侧)?两者判然不同,不许混为一谈。
             # 判据读**全文**不读尾巴——截断会把归因变成"报错够不够靠后"。
-            added = added_unresolvable_dists(full, self._baseline_dists())
+            # 两种死法都归因(#38):找不到分发 + 版本冲突。order-59 实录:
+            # 冲突里的 requests==2.32.5 是适配自己加的,旧写法认不出这条
+            # 措辞,于是又一次由 harness 替模型认领(#31 换皮复发)。
+            added = added_problem_dists(full, self._baseline_dists())
             if added:
                 raise DependencyNotReproducible(
                     added,
-                    f"适配声明了冻结环境解析不到的依赖:{', '.join(added)}"
+                    f"适配声明了冻结环境装不起来的依赖:{', '.join(added)}"
                     f"(轮仓 {self.wheelhouse.name} 无此分发,且不在基线 "
                     f"requirements.txt 中)。会话内可用不等于可复现——最终验收"
                     f"从 requirements.txt 干净重建。原始 pip 输出:{tail}")
@@ -1089,6 +1134,8 @@ class HostGuidedRunner:
                 # 会话内离线 dry-run 一次——会话 env 自带 PIP_NO_INDEX +
                 # PIP_FIND_LINKS,练的就是干净重放最终要用的那台解析器。
                 unresolvable: list[str] = []
+                probe_failed = False
+                probe_detail = ""
                 if "requirements.txt" in diff["files"]:
                     probe = s.backend.exec(
                         s.id, [s.venv_py, "-m", "pip", "install", "--dry-run",
@@ -1097,11 +1144,15 @@ class HostGuidedRunner:
                     if probe.exit_code != 0:
                         probe_out = (probe.stdout.decode(errors="replace")
                                      + probe.stderr.decode(errors="replace"))
-                        unresolvable = added_unresolvable_dists(
+                        # 两种死法都认;认不出也照样报(#38:沉默最危险)
+                        unresolvable = added_problem_dists(
                             probe_out, self._baseline_dists())
+                        probe_failed = True
+                        probe_detail = " ".join(probe_out.split())[-300:]
                     ev("repair.dependency_probe", actor="harness", payload={
                         "round": idx, "exit_code": probe.exit_code,
-                        "unresolvable_dists": unresolvable})
+                        "unresolvable_dists": unresolvable,
+                        "probe_failed": probe_failed})
 
                 junit = self._run_public(s, meter_tag=f"public_round{idx}")
                 nodes = junit.get("nodes", [])
@@ -1128,6 +1179,8 @@ class HostGuidedRunner:
                     max_patch_files=b.max_patch_files,
                     max_patch_lines=b.max_patch_lines,
                     unresolvable_dists=unresolvable,
+                    dependency_probe_failed=probe_failed,
+                    dependency_detail=probe_detail,
                 )
                 rr = RoundResult(
                     adapter_snapshot=head,

@@ -448,7 +448,7 @@ def test_baseline_read_from_pristine_host_copy_not_session(tmp_path: Path) -> No
 def test_dependency_failure_attributed_to_agent_not_harness() -> None:
     """接线钉死:两条分支必须分开归因,且判据读 pip **全文**不读截断尾巴。"""
     src = _runner_src()
-    assert "added_unresolvable_dists(full, self._baseline_dists())" in src
+    assert "added_problem_dists(full, self._baseline_dists())" in src  # #38 改名(两种死法合一);语义不变:重放侧按基线归因
     assert "raise DependencyNotReproducible(" in src
     assert '"attribution": "agent"' in src and '"attribution": "harness"' in src
     # DependencyNotReproducible 的 except 必须排在**同一 try 的**兜底之前,

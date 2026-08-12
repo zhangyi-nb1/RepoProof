@@ -239,11 +239,15 @@ def test_run_round_uses_per_round_denied_delta() -> None:
 
 def test_run_round_probes_requirements_against_offline_resolver() -> None:
     """H2(依赖面):动过 requirements.txt 的轮在会话内离线 dry-run,
-    失败按基线归因剥出 agent 新增钉版并留痕。基线树只有 2 处
-    added_unresolvable_dists(定义+重放);探针使之 >=3。"""
+    失败按基线归因剥出 agent 新增钉版并留痕。
+
+    2026-08-13 判据升级(#38):原判据是"added_unresolvable_dists 出现
+    ≥3 次"——一个**代理量**。归因函数改名换代后它就假红,而真正要钉的是
+    "探针在跑、结果进 trace、归因走基线比对"这三件事,故改为直接断言。"""
     assert '"--dry-run"' in HOST_GUIDED_SRC
-    assert HOST_GUIDED_SRC.count("added_unresolvable_dists(") >= 3
     assert '"repair.dependency_probe"' in HOST_GUIDED_SRC
+    assert "self._baseline_dists()" in HOST_GUIDED_SRC
+    assert 'workdir="host")' in HOST_GUIDED_SRC
 
 
 def test_round_record_ledger_carries_violation_packets() -> None:
@@ -306,3 +310,55 @@ def test_equal_rounds_without_fatal_keep_first_come_first_served() -> None:
     a = RoundResult(adapter_snapshot="a", passed=9, diff_lines=100)
     b = RoundResult(adapter_snapshot="b", passed=9, diff_lines=40)
     assert host_score(a) == host_score(b), "diff 不得重新进入连续排序"
+
+
+# ---------- LESSONS #38:探针失败不得沉默;冲突也是一种死法 ----------
+
+_CONFLICT_TAIL = (
+    "ERROR: Cannot install requests==2.32.5 and requests>=2.31.0 because these "
+    "package versions have conflicting dependencies.\n"
+    "ERROR: ResolutionImpossible: for help visit https://pip.pypa.io/...\n")
+
+
+def test_version_conflict_is_recognised_and_attributed_to_adder() -> None:
+    """#38:`ResolutionImpossible` 与"找不到分发"是两种措辞,都要认;
+    且只报**适配新增**的分发(基线里本就有的算轮仓/宿主的事)。
+    反例 order-59:冲突里的 requests 是 agent 自己加的,旧正则认不出,
+    harness 又一次替模型认领(attribution: harness)。"""
+    from repoproof.runner.host_guided import added_problem_dists, conflicting_dists
+
+    assert conflicting_dists(_CONFLICT_TAIL) == ["requests"]
+    assert added_problem_dists(_CONFLICT_TAIL, frozenset()) == ["requests"]
+    # 基线里本就有 requests → 不算适配的锅
+    assert added_problem_dists(_CONFLICT_TAIL, frozenset({"requests"})) == []
+
+
+def test_probe_failure_always_produces_a_fatal_packet() -> None:
+    """#38 核心:探针非零退出**必须**成包并进 fatal,哪怕一个分发名都认不出。
+    反例 order-59:exit_code=1 + 空清单 → 该轮被当成干净 → 全绿即停 →
+    干净重放以同一条冲突击杀。沉默比误报危险得多。"""
+    from repoproof.runner.host_guided import round_violation_report
+
+    packets, fatal, pol = round_violation_report(
+        denied_delta=0, tampered=[], patch_files=1, patch_lines=10,
+        max_patch_files=20, max_patch_lines=1800,
+        unresolvable_dists=[],                    # 认不出任何名字
+        dependency_probe_failed=True,
+        dependency_detail="ERROR: ResolutionImpossible")
+    assert "dependency" in fatal, "认不出名字也必须致命,不得放行"
+    assert len(packets) == 1 and packets[0].type == "DEPENDENCY_NOT_REPRODUCIBLE"
+    assert "ResolutionImpossible" in packets[0].actual, "原文要带给 agent"
+    assert pol == 0
+
+    # 探针没失败 → 一切照旧,不得凭空造包
+    assert round_violation_report(
+        denied_delta=0, tampered=[], patch_files=1, patch_lines=10,
+        max_patch_files=20, max_patch_lines=1800,
+        unresolvable_dists=[]) == ([], [], 0)
+
+
+def test_probe_wiring_reports_failure_not_just_names() -> None:
+    """接线钉死:run_round 必须把"探针失败"这一事实传下去,而不是只传名字。"""
+    assert "probe_failed = True" in HOST_GUIDED_SRC
+    assert "dependency_probe_failed=probe_failed" in HOST_GUIDED_SRC
+    assert "added_problem_dists(" in HOST_GUIDED_SRC

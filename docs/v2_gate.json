@@ -36,7 +36,7 @@
       "t1-offerclaw-fastapi-mcp-v1-20260809-183548",
       "t3-offerclaw-browser-use-v2-20260811-091744"
     ],
-    "total": 62
+    "total": 64
   },
   "gate_met": {
     "T1": true,
@@ -46,7 +46,7 @@
   },
   "inputs": {
     "adjudications_jsonl_sha256": "ee8713501e4731f8da56cb04617f6cbb0f6ee2969711f1f470f8ab20b8ce904b",
-    "runs_jsonl_sha256": "feaff6c61ba320a1ae627c99faa9ceeb33456f7cba735632ff8fc4476f4ce9c0"
+    "runs_jsonl_sha256": "3793dbc6512f7cd58697bdc53771e74f149a4f4563e279363248eba9c6e9873d"
   },
   "stages": {
     "T1": {
@@ -89,7 +89,7 @@
       "smoke": 0,
       "smoke_passes": 0,
       "smoke_run_ids": [],
-      "total": 26
+      "total": 28
     },
     "T3": {
       "exploratory": 5,

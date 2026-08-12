@@ -150,7 +150,7 @@ MUTATIONS: list[dict] = [
         "id": "M31a-attribution-neutered",
         "lesson": "#31 归因分支被掏空(一切依赖失败重新都算 harness)",
         "file": _HD,
-        "old": "            added = added_unresolvable_dists(full, self._baseline_dists())",
+        "old": "            added = added_problem_dists(full, self._baseline_dists())",
         "new": "            added = []",
         "catchers": _T_HD,
     },
@@ -310,6 +310,23 @@ MUTATIONS: list[dict] = [
                 "        1.0 if not r.fatal_violations else 0.0,"),
         "new": ("        1.0 if not r.fatal_violations else 0.0,\n"
                 "        float(r.passed),\n        float(r.passed),"),
+        "catchers": _T_CF,
+    },
+    # ---- LESSONS #38:探针失败不得沉默;冲突也是一种死法 ----
+    {
+        "id": "M38a-probe-failure-swallowed",
+        "lesson": "#38 探针非零退出但认不出名字就放行(order-59:全绿即停→重放击杀)",
+        "file": _HD,
+        "old": "    if unresolvable_dists or dependency_probe_failed:",
+        "new": "    if unresolvable_dists:",
+        "catchers": _T_CF,
+    },
+    {
+        "id": "M38b-conflict-pattern-dropped",
+        "lesson": "#38 只认「找不到分发」不认 ResolutionImpossible(harness 替模型认领)",
+        "file": _HD,
+        "old": "    return [d for d in conflicting_dists(pip_output) if d not in baseline]",
+        "new": "    return []",
         "catchers": _T_CF,
     },
 ]
