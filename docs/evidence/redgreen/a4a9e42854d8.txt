@@ -1,0 +1,52 @@
+fix commit : a4a9e42854d83b0ed3d95c733d8bdf1787b3b9e5
+base commit: 2c40c51cba40e6491fac881c2f34d3d2c3a094bd
+nodes      : 3
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_version_conflict_is_recognised_and_attributed_to_adder: failed
+  test_probe_failure_always_produces_a_fatal_packet: failed
+  test_probe_wiring_reports_failure_not_just_names: failed
+r/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_vyz6_jwh/tree/src/repoproof/runner/host_guided.py)
+
+tests/test_constraint_feedback.py:328: ImportError
+______________ test_probe_failure_always_produces_a_fatal_packet _______________
+
+    def test_probe_failure_always_produces_a_fatal_packet() -> None:
+        """#38 核心:探针非零退出**必须**成包并进 fatal,哪怕一个分发名都认不出。
+        反例 order-59:exit_code=1 + 空清单 → 该轮被当成干净 → 全绿即停 →
+        干净重放以同一条冲突击杀。沉默比误报危险得多。"""
+        from repoproof.runner.host_guided import round_violation_report
+    
+>       packets, fatal, pol = round_violation_report(
+            denied_delta=0, tampered=[], patch_files=1, patch_lines=10,
+            max_patch_files=20, max_patch_lines=1800,
+            unresolvable_dists=[],                    # 认不出任何名字
+            dependency_probe_failed=True,
+            dependency_detail="ERROR: ResolutionImpossible")
+E       TypeError: round_violation_report() got an unexpected keyword argument 'dependency_probe_failed'
+
+tests/test_constraint_feedback.py:342: TypeError
+_______________ test_probe_wiring_reports_failure_not_just_names _______________
+
+    def test_probe_wiring_reports_failure_not_just_names() -> None:
+        """接线钉死:run_round 必须把"探针失败"这一事实传下去,而不是只传名字。"""
+>       assert "probe_failed = True" in HOST_GUIDED_SRC
+E       assert 'probe_failed = True' in '"""宿主级 GUIDED 运行驱动(TESTPLAN-V2 Phase 1,T1+ 形态;RFC-009 §六)。\n\n样例管线(guided_repair.py,Docker+adaptation 区)不动;本模块是宿主级\n形...txt"}]},\n        {"actions": [{"command": "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]},\n    ]\n    return steps\n'
+
+tests/test_constraint_feedback.py:362: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_constraint_feedback.py::test_version_conflict_is_recognised_and_attributed_to_adder
+FAILED tests/test_constraint_feedback.py::test_probe_failure_always_produces_a_fatal_packet
+FAILED tests/test_constraint_feedback.py::test_probe_wiring_reports_failure_not_just_names
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_version_conflict_is_recognised_and_attributed_to_adder: passed
+  test_probe_failure_always_produces_a_fatal_packet: passed
+  test_probe_wiring_reports_failure_not_just_names: passed
+...                                                                      [100%]
+
+
+VERDICT: VALID

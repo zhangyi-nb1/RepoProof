@@ -61,3 +61,28 @@ TIMEOUT),建议谈作业终结时间。未出现则记未被检验。
 
 `batch` = `T2v4-T3v5-STABILITY-B9-20260813`;harness 冻结 = `9ba3d86`
 (变异 28/28,红绿逐节点 VALID,501 tests / 0 failures)。
+
+---
+
+## 【作废】批 9 于 order-59 后停批(2026-08-13)
+
+**触发**:R3 第二次被违反 —— order-59 公开 12/12、隐藏 oracle **10/10**、
+政策 PASS,却被干净重放以 `ResolutionImpossible`(requests 版本冲突)击杀。
+**order-60/61 未发射。**
+
+**根因**(LESSONS #38,已修于 `a4a9e42`):轮内探针确实跑了、确实非零退出,
+但归因正则只认"找不到分发",认不出 pip 的第二种离线死法(版本冲突),
+于是吐空清单 → 该轮被当成干净 → 全绿即停 → 重放以同一条冲突击杀。
+修法:探针非零退出必成包 + 进 fatal(哪怕认不出名字,带 pip 原文);
+新增冲突识别并按基线归因(order-59 的 requests 是适配自己加的)。
+
+**入账**:order-58(FAIL,隐藏 h2 并发串扰,干净失败)与 order-59 保留,
+归属作废批次,不参与稳定性结论。
+
+**另记一条不属于 harness 的发现**:order-58 栽在隐藏判据
+`h2_concurrent_jobs_do_not_cross`,而"作业间隔离"这条需求**在 agent 可见的
+任何面上都没有定义**——契约 R1–R14 无一提及、12 项公开测试零并发、任务
+README 零命中;为此建的 `ContractAdequacyGate` 对 V2 宿主任务不适用
+(两个任务包都无 `requirement_spec_file`,宿主级 run 也从不调用它)。
+属 CONTRACT_UNDERSPECIFICATION(任务作者侧),需 T2v5 另行预注册处理,
+**不在本批修**。
