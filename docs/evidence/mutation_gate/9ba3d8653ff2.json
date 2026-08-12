@@ -1,0 +1,319 @@
+{
+  "head_commit": "9ba3d8653ff21fce6ceb76a6333290519a820d7a",
+  "mutations": 28,
+  "caught": 28,
+  "escaped": [],
+  "stale": [],
+  "capture_rate": "28/28",
+  "wall_seconds": 10.0,
+  "results": [
+    {
+      "id": "M30a-smoke-not-excluded",
+      "lesson": "#30 fake 冒烟发被当成模型 PASS(在闸门里躺了 3 天)",
+      "file": "src/repoproof/persistence/bench_records.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_bench_records.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M30b-smoke-prefix-case-variant",
+      "lesson": "#30 变体:前缀大小写错配,fake-scripted 漏网",
+      "file": "src/repoproof/persistence/bench_records.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_bench_records.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M27-exploratory-counts",
+      "lesson": "#27 探索性加发充闸门(真话写在机器读不到的地方)",
+      "file": "src/repoproof/persistence/bench_records.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_bench_records.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M26-verdict-not-effective",
+      "lesson": "#26 闸门数原始 verdict 而非 effective_verdict(order-38 假 PASS 复活)",
+      "file": "src/repoproof/persistence/bench_records.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_bench_records.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M26b-substring-pass-variant",
+      "lesson": "#26 变体:\"PASS\" in verdict 子串判定(FALSE_PASS 含 PASS)",
+      "file": "src/repoproof/persistence/bench_records.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_bench_records.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M29a-prefix-free-pass",
+      "lesson": "#29 前缀白名单放行了装着 PASS 解的 T4 栈",
+      "file": "src/repoproof/harness/host_guard.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guard.py"
+      ],
+      "seconds": 0.4
+    },
+    {
+      "id": "M29b-upstream-whitelisted",
+      "lesson": "#29 变体:给无害兄弟目录 upstream 开口子(该迁走的是整套栈)",
+      "file": "src/repoproof/harness/host_guard.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guard.py"
+      ],
+      "seconds": 0.4
+    },
+    {
+      "id": "M29c-answer-key-registered",
+      "lesson": "#29 变体:把答案卷目录本身登记进白名单",
+      "file": "src/repoproof/harness/host_guard.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guard.py"
+      ],
+      "seconds": 0.4
+    },
+    {
+      "id": "MGuard-case-sensitive",
+      "lesson": "护栏红线变体:路径比较丢大小写归一(APFS 大小写不敏感可绕)",
+      "file": "src/repoproof/harness/host_guard.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guard.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M31a-attribution-neutered",
+      "lesson": "#31 归因分支被掏空(一切依赖失败重新都算 harness)",
+      "file": "src/repoproof/runner/host_guided.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guided.py"
+      ],
+      "seconds": 0.4
+    },
+    {
+      "id": "M31b-attribution-flipped",
+      "lesson": "#31 变体:归因标签写反(agent 缺陷标成 harness)",
+      "file": "src/repoproof/runner/host_guided.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guided.py"
+      ],
+      "seconds": 0.4
+    },
+    {
+      "id": "M31c-failure-types-union-dropped",
+      "lesson": "#31 验证器归因进不了台账 failure_types(只活在 report.json)",
+      "file": "src/repoproof/runner/host_guided.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guided.py"
+      ],
+      "seconds": 0.4
+    },
+    {
+      "id": "M31d-pep503-dropped",
+      "lesson": "#31 变体:丢 PEP 503 归一(Browser_Use ≠ browser-use,基线比对失效)",
+      "file": "src/repoproof/runner/host_guided.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guided.py"
+      ],
+      "seconds": 0.4
+    },
+    {
+      "id": "M33a-denied-cumulative-restored",
+      "lesson": "#33 denied 退回会话累计(一轮违规永久拖累后续所有轮)",
+      "file": "src/repoproof/runner/host_guided.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_constraint_feedback.py"
+      ],
+      "seconds": 0.3
+    },
+    {
+      "id": "M33b-green-stop-ignores-fatal",
+      "lesson": "#33 全绿即停无视 fatal 违规(剩余轮次全弃,盖棺被击杀)",
+      "file": "src/repoproof/adoption/repair/repair_loop.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_constraint_feedback.py"
+      ],
+      "seconds": 0.3
+    },
+    {
+      "id": "M33c-rollback-detail-mismatch",
+      "lesson": "#33 回滚后失败包配错细节(best 的节点 × 劣化轮的 details)",
+      "file": "src/repoproof/adoption/repair/repair_loop.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_constraint_feedback.py"
+      ],
+      "seconds": 0.3
+    },
+    {
+      "id": "M33d-violation-packets-dropped",
+      "lesson": "#33 变体:违规判据引擎在,但包不进下一轮提示(agent 仍瞎)",
+      "file": "src/repoproof/runner/host_guided.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_constraint_feedback.py"
+      ],
+      "seconds": 0.3
+    },
+    {
+      "id": "M33e-patch-overage-poisons-ranking",
+      "lesson": "#33 变体:patch 超限计进 policy_violations(超重全绿轮被回滚,逼重做)",
+      "file": "src/repoproof/runner/host_guided.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_constraint_feedback.py"
+      ],
+      "seconds": 0.3
+    },
+    {
+      "id": "M34a-exit4-blanket-reject",
+      "lesson": "#34 exit 4 一律否掉(ImportError 型最强的红被判假阴性)",
+      "file": "scripts/redgreen.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_process_independence.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M34b-exit4-blanket-accept",
+      "lesson": "#34 反向:exit 4 一律算红(守卫被拆,名字打错也能冒充红)",
+      "file": "scripts/redgreen.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_process_independence.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M35a-denied-poisons-ranking-again",
+      "lesson": "#35 denied 退回排序(21/23 的轮因一条零执行的调试命令被弃)",
+      "file": "src/repoproof/runner/host_guided.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_constraint_feedback.py"
+      ],
+      "seconds": 0.3
+    },
+    {
+      "id": "M35b-store-before-guard",
+      "lesson": "#35 F3:先建证据目录后过护栏(被拒的构造也留空壳污染证据树)",
+      "file": "src/repoproof/runner/host_guided.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_host_guided.py"
+      ],
+      "seconds": 0.3
+    },
+    {
+      "id": "M36a-collapse-disabled",
+      "lesson": "#36 同根因不再折叠(15 项同话包重回,信息 1 句噪声 60 行)",
+      "file": "src/repoproof/adoption/repair/failure_packet.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_root_cause_packets.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M36b-timeout-rule-dropped",
+      "lesson": "#36 超时规则被摘(超时按测试名误判成 SCHEMA_ERROR)",
+      "file": "src/repoproof/adoption/repair/failure_packet.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_root_cause_packets.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M36c-victim-list-truncated",
+      "lesson": "#36 折叠包截断受害者名单(静默丢信息,开发中真犯过)",
+      "file": "src/repoproof/adoption/repair/failure_packet.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_root_cause_packets.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M36d-collapse-too-eager",
+      "lesson": "#36 变体:阈值降到 1,单条失败也被抽象成'根因',旧形态回退",
+      "file": "src/repoproof/adoption/repair/failure_packet.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_root_cause_packets.py"
+      ],
+      "seconds": 0.2
+    },
+    {
+      "id": "M37a-compliance-term-removed",
+      "lesson": "#37 排序丢掉二元合规位(修剪轮与超重轮同分,先到先得选中超重的)",
+      "file": "src/repoproof/runner/host_guided.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_constraint_feedback.py"
+      ],
+      "seconds": 0.3
+    },
+    {
+      "id": "M37b-compliance-outranks-progress",
+      "lesson": "#37 变体:合规位前移到通过数之前(拿少改点换测试进度,-211400 老病)",
+      "file": "src/repoproof/runner/host_guided.py",
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
+      "catchers": [
+        "tests/test_constraint_feedback.py"
+      ],
+      "seconds": 0.3
+    }
+  ]
+}
