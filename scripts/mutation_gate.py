@@ -45,11 +45,13 @@ _HG = "src/repoproof/harness/host_guard.py"
 _HD = "src/repoproof/runner/host_guided.py"
 _RL = "src/repoproof/adoption/repair/repair_loop.py"
 _RG = "scripts/redgreen.py"
+_FP = "src/repoproof/adoption/repair/failure_packet.py"
 _T_BR = ["tests/test_bench_records.py"]
 _T_HG = ["tests/test_host_guard.py"]
 _T_HD = ["tests/test_host_guided.py"]
 _T_CF = ["tests/test_constraint_feedback.py"]
 _T_PI = ["tests/test_process_independence.py"]
+_T_RC = ["tests/test_root_cause_packets.py"]
 
 CANARY = {
     "id": "C0-plumbing-canary",
@@ -257,6 +259,39 @@ MUTATIONS: list[dict] = [
                 '(runs_root or self.project_root / "runs") / self.run_id)\n'
                 '        self._verify_static_resources()'),
         "catchers": _T_HD,
+    },
+    # ---- LESSONS #36:反馈量足够、形状错误 ----
+    {
+        "id": "M36a-collapse-disabled",
+        "lesson": "#36 同根因不再折叠(15 项同话包重回,信息 1 句噪声 60 行)",
+        "file": _FP,
+        "old": "COLLAPSE_MIN = 3   # 同签名达此数量才合并;2 条不值得抽象",
+        "new": "COLLAPSE_MIN = 9999",
+        "catchers": _T_RC,
+    },
+    {
+        "id": "M36b-timeout-rule-dropped",
+        "lesson": "#36 超时规则被摘(超时按测试名误判成 SCHEMA_ERROR)",
+        "file": _FP,
+        "old": '    (TIMEOUT, ("未在", "内终结", "timed out", "timeout", "timeouterror")),',
+        "new": "",
+        "catchers": _T_RC,
+    },
+    {
+        "id": "M36c-victim-list-truncated",
+        "lesson": "#36 折叠包截断受害者名单(静默丢信息,开发中真犯过)",
+        "file": _FP,
+        "old": '                         f"(判定类型 {cause}):" + "、".join(names)),',
+        "new": '                         f"(判定类型 {cause}):" + "、".join(names[:6])),',
+        "catchers": _T_RC,
+    },
+    {
+        "id": "M36d-collapse-too-eager",
+        "lesson": "#36 变体:阈值降到 1,单条失败也被抽象成'根因',旧形态回退",
+        "file": _FP,
+        "old": "    collapsed = {n for sig, ns in groups.items() if len(ns) >= COLLAPSE_MIN for n in ns}",
+        "new": "    collapsed = {n for sig, ns in groups.items() if len(ns) >= 1 for n in ns}",
+        "catchers": _T_RC,
     },
 ]
 

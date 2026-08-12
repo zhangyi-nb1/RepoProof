@@ -1,0 +1,49 @@
+fix commit : b06556586613dc125949012c9807c20981e80056
+base commit: 068468e31d94e231b7626ee176d4c43e9fcc8907
+nodes      : 3
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_shared_root_cause_collapses_into_one_packet: failed
+  test_timeout_is_typed_and_advised_as_timeout: failed
+  test_distinct_root_causes_are_not_merged: failed
+et _______________
+
+    def test_shared_root_cause_collapses_into_one_packet() -> None:
+        """H6-a:15 项同根因 → 恰 1 枚包(反例:order-55 收到 15 枚)。"""
+>       from repoproof.adoption.repair.failure_packet import SHARED_ROOT_CAUSE
+E       ImportError: cannot import name 'SHARED_ROOT_CAUSE' from 'repoproof.adoption.repair.failure_packet' (/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_l5vzmgkl/tree/src/repoproof/adoption/repair/failure_packet.py)
+
+tests/test_root_cause_packets.py:50: ImportError
+_________________ test_timeout_is_typed_and_advised_as_timeout _________________
+
+    def test_timeout_is_typed_and_advised_as_timeout() -> None:
+        """H6-b:超时自成类型;建议谈终结时间,不得再说"阅读断言语义"。
+        反例:order-55 的 13 枚 TEST_FAILURE + 2 枚 SCHEMA_ERROR。"""
+>       from repoproof.adoption.repair.failure_packet import TIMEOUT
+E       ImportError: cannot import name 'TIMEOUT' from 'repoproof.adoption.repair.failure_packet' (/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_l5vzmgkl/tree/src/repoproof/adoption/repair/failure_packet.py)
+
+tests/test_root_cause_packets.py:63: ImportError
+___________________ test_distinct_root_causes_are_not_merged ___________________
+
+    def test_distinct_root_causes_are_not_merged() -> None:
+        """H6-d:不同根因各自成包;同根因不足 3 项也不折叠(2 条不值得抽象)。"""
+>       from repoproof.adoption.repair.failure_packet import SHARED_ROOT_CAUSE
+E       ImportError: cannot import name 'SHARED_ROOT_CAUSE' from 'repoproof.adoption.repair.failure_packet' (/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_l5vzmgkl/tree/src/repoproof/adoption/repair/failure_packet.py)
+
+tests/test_root_cause_packets.py:89: ImportError
+=========================== short test summary info ============================
+FAILED tests/test_root_cause_packets.py::test_shared_root_cause_collapses_into_one_packet
+FAILED tests/test_root_cause_packets.py::test_timeout_is_typed_and_advised_as_timeout
+FAILED tests/test_root_cause_packets.py::test_distinct_root_causes_are_not_merged
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_shared_root_cause_collapses_into_one_packet: passed
+  test_timeout_is_typed_and_advised_as_timeout: passed
+  test_distinct_root_causes_are_not_merged: passed
+...                                                                      [100%]
+
+
+VERDICT: VALID
