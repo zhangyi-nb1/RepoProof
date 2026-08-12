@@ -43,9 +43,13 @@ EVIDENCE_DIR = REPO / "docs" / "evidence" / "mutation_gate"
 _BR = "src/repoproof/persistence/bench_records.py"
 _HG = "src/repoproof/harness/host_guard.py"
 _HD = "src/repoproof/runner/host_guided.py"
+_RL = "src/repoproof/adoption/repair/repair_loop.py"
+_RG = "scripts/redgreen.py"
 _T_BR = ["tests/test_bench_records.py"]
 _T_HG = ["tests/test_host_guard.py"]
 _T_HD = ["tests/test_host_guided.py"]
+_T_CF = ["tests/test_constraint_feedback.py"]
+_T_PI = ["tests/test_process_independence.py"]
 
 CANARY = {
     "id": "C0-plumbing-canary",
@@ -173,6 +177,65 @@ MUTATIONS: list[dict] = [
         "old": '    return re.sub(r"[-_.]+", "-", name).lower()',
         "new": "    return name.lower()",
         "catchers": _T_HD,
+    },
+    # ---- LESSONS #33:轮内约束不反馈,终局才伏击 ----
+    {
+        "id": "M33a-denied-cumulative-restored",
+        "lesson": "#33 denied 退回会话累计(一轮违规永久拖累后续所有轮)",
+        "file": _HD,
+        "old": "                denied_round = env.denied_count - denied_before",
+        "new": "                denied_round = env.denied_count",
+        "catchers": _T_CF,
+    },
+    {
+        "id": "M33b-green-stop-ignores-fatal",
+        "lesson": "#33 全绿即停无视 fatal 违规(剩余轮次全弃,盖棺被击杀)",
+        "file": _RL,
+        "old": "                    and not result.fatal_violations):",
+        "new": "                    ):",
+        "catchers": _T_CF,
+    },
+    {
+        "id": "M33c-rollback-detail-mismatch",
+        "lesson": "#33 回滚后失败包配错细节(best 的节点 × 劣化轮的 details)",
+        "file": _RL,
+        "old": "            packets = build_failure_packets(src_cp.failed_nodes, src_cp.failure_details)",
+        "new": "            packets = build_failure_packets(src_cp.failed_nodes, result.failure_details)",
+        "catchers": _T_CF,
+    },
+    {
+        "id": "M33d-violation-packets-dropped",
+        "lesson": "#33 变体:违规判据引擎在,但包不进下一轮提示(agent 仍瞎)",
+        "file": _HD,
+        "old": ("                    failure_packets=[p.to_dict()\n"
+                "                                     for p in (*packets_next, *violation_packets)],"),
+        "new": "                    failure_packets=[p.to_dict() for p in packets_next],",
+        "catchers": _T_CF,
+    },
+    {
+        "id": "M33e-patch-overage-poisons-ranking",
+        "lesson": "#33 变体:patch 超限计进 policy_violations(超重全绿轮被回滚,逼重做)",
+        "file": _HD,
+        "old": "    return packets, fatal, denied_delta + len(tampered)",
+        "new": "    return packets, fatal, denied_delta + len(tampered) + len(fatal)",
+        "catchers": _T_CF,
+    },
+    # ---- LESSONS #34:红绿守卫两义性 ----
+    {
+        "id": "M34a-exit4-blanket-reject",
+        "lesson": "#34 exit 4 一律否掉(ImportError 型最强的红被判假阴性)",
+        "file": _RG,
+        "old": "        if not genuine:",
+        "new": "        if True:",
+        "catchers": _T_PI,
+    },
+    {
+        "id": "M34b-exit4-blanket-accept",
+        "lesson": "#34 反向:exit 4 一律算红(守卫被拆,名字打错也能冒充红)",
+        "file": _RG,
+        "old": "    if red_exit == 4:",
+        "new": "    if False:",
+        "catchers": _T_PI,
     },
 ]
 

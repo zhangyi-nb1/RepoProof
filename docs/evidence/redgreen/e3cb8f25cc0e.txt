@@ -1,0 +1,57 @@
+fix commit : e3cb8f25cc0e3c8868a233b7d9cb382ac83ddb49
+base commit: 1d40dd0432b0d5bc7b79825fa5c05d157be05591
+nodes      : 10
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_patch_overage_packet_carries_gate_numbers_and_is_fatal: failed
+  test_dependency_pin_packet_names_the_dist_and_is_fatal: failed
+  test_denied_and_tampered_count_for_ranking_but_not_fatal: failed
+  test_green_round_with_fatal_violation_keeps_looping: failed
+  test_loop_diff_backstop_leaves_room_for_trimming: failed
+  test_green_with_fatal_on_last_round_stops_at_max_rounds: failed
+  test_rollback_is_explained_and_details_come_from_restored_round: failed
+  test_run_round_uses_per_round_denied_delta: failed
+  test_run_round_probes_requirements_against_offline_resolver: failed
+  test_round_header_discloses_violation_feedback: failed
+行驱动(TESTPLAN-V2 Phase 1,T1+ 形态;RFC-009 §六)。\n\n样例管线(guided_repair.py,Docker+adaptation 区)不动;本模块是宿主级\n形...txt"}]},\n        {"actions": [{"command": "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]},\n    ]\n    return steps\n'
+
+tests/test_constraint_feedback.py:203: AssertionError
+________________ test_round_header_discloses_violation_feedback ________________
+
+    def test_round_header_discloses_violation_feedback() -> None:
+        """公开面=目标函数(LESSONS #17):包内容扩到政策/预算/依赖违规与
+        回滚说明,轮头承诺文本必须一致,不得再写 "only"。"""
+>       assert "policy/budget/dependency violations" in _ROUND_HEADER
+E       AssertionError: assert 'policy/budget/dependency violations' in '\n\n==== GUIDED REPAIR ROUND {idx}/{max_rounds} ====\nThis is a bounded repair round on the SAME host working tree (t...en paths), print one line\nstarting with `{marker}` followed by the reason, then submit.\nNever invent test results.\n'
+
+tests/test_constraint_feedback.py:211: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_constraint_feedback.py::test_patch_overage_packet_carries_gate_numbers_and_is_fatal
+FAILED tests/test_constraint_feedback.py::test_dependency_pin_packet_names_the_dist_and_is_fatal
+FAILED tests/test_constraint_feedback.py::test_denied_and_tampered_count_for_ranking_but_not_fatal
+FAILED tests/test_constraint_feedback.py::test_green_round_with_fatal_violation_keeps_looping
+FAILED tests/test_constraint_feedback.py::test_loop_diff_backstop_leaves_room_for_trimming
+FAILED tests/test_constraint_feedback.py::test_green_with_fatal_on_last_round_stops_at_max_rounds
+FAILED tests/test_constraint_feedback.py::test_rollback_is_explained_and_details_come_from_restored_round
+FAILED tests/test_constraint_feedback.py::test_run_round_uses_per_round_denied_delta
+FAILED tests/test_constraint_feedback.py::test_run_round_probes_requirements_against_offline_resolver
+FAILED tests/test_constraint_feedback.py::test_round_header_discloses_violation_feedback
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_patch_overage_packet_carries_gate_numbers_and_is_fatal: passed
+  test_dependency_pin_packet_names_the_dist_and_is_fatal: passed
+  test_denied_and_tampered_count_for_ranking_but_not_fatal: passed
+  test_green_round_with_fatal_violation_keeps_looping: passed
+  test_loop_diff_backstop_leaves_room_for_trimming: passed
+  test_green_with_fatal_on_last_round_stops_at_max_rounds: passed
+  test_rollback_is_explained_and_details_come_from_restored_round: passed
+  test_run_round_uses_per_round_denied_delta: passed
+  test_run_round_probes_requirements_against_offline_resolver: passed
+  test_round_header_discloses_violation_feedback: passed
+..........                                                               [100%]
+
+
+VERDICT: VALID

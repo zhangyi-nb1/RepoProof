@@ -205,6 +205,12 @@ def test_run_round_probes_requirements_against_offline_resolver() -> None:
     assert '"repair.dependency_probe"' in HOST_GUIDED_SRC
 
 
+def test_round_record_ledger_carries_violation_packets() -> None:
+    """违规包必须同时进**轮次账本**:agent 看得到(提示),我事后复核也
+    看得到(record.json)。只进提示不进账本 = 无从取证。"""
+    assert "for p in (*packets_next, *violation_packets)" in HOST_GUIDED_SRC
+
+
 def test_round_header_discloses_violation_feedback() -> None:
     """公开面=目标函数(LESSONS #17):包内容扩到政策/预算/依赖违规与
     回滚说明,轮头承诺文本必须一致,不得再写 "only"。"""
