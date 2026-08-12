@@ -293,6 +293,25 @@ MUTATIONS: list[dict] = [
         "new": "    collapsed = {n for sig, ns in groups.items() if len(ns) >= 1 for n in ns}",
         "catchers": _T_RC,
     },
+    # ---- LESSONS #37:修剪轮不能白干 ----
+    {
+        "id": "M37a-compliance-term-removed",
+        "lesson": "#37 排序丢掉二元合规位(修剪轮与超重轮同分,先到先得选中超重的)",
+        "file": _HD,
+        "old": "        1.0 if not r.fatal_violations else 0.0,\n        1.0 if r.within_budget else 0.0,",
+        "new": "        1.0 if r.within_budget else 0.0,",
+        "catchers": _T_CF,
+    },
+    {
+        "id": "M37b-compliance-outranks-progress",
+        "lesson": "#37 变体:合规位前移到通过数之前(拿少改点换测试进度,-211400 老病)",
+        "file": _HD,
+        "old": ("        float(r.passed),\n        float(r.passed),\n"
+                "        1.0 if not r.fatal_violations else 0.0,"),
+        "new": ("        1.0 if not r.fatal_violations else 0.0,\n"
+                "        float(r.passed),\n        float(r.passed),"),
+        "catchers": _T_CF,
+    },
 ]
 
 

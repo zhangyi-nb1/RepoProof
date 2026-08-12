@@ -1,0 +1,40 @@
+fix commit : f1c349287c48ff9937788db061423b1139c7b52d
+base commit: a864d103e50a377feefa5378b4b8fb7597f761f6
+nodes      : 1
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_trimmed_round_beats_oversized_round_on_equal_passes: failed
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_trimmed_round_beats_oversized_round_on_equal_passes ___________
+
+    def test_trimmed_round_beats_oversized_round_on_equal_passes() -> None:
+        """H3 的闭环:同样 12/12,一个 2682 行超限、一个 325 行合规 →
+        best 必须是合规那轮。反例(order-57 实录):两轮 score 逐位相等
+        判平局,"先到先得"选中超重轮,终局以
+        `adaptation lines 2682 > max_patch_lines 1800` 击杀——循环做完了
+        修剪又把成果扔了。"""
+        from repoproof.runner.host_guided import host_score
+    
+        fat = RoundResult(adapter_snapshot="r2", passed=12, failed_nodes=[],
+                          diff_lines=2682, fatal_violations=["patch_lines"])
+        trim = RoundResult(adapter_snapshot="r3", passed=12, failed_nodes=[],
+                           diff_lines=325, fatal_violations=[])
+>       assert host_score(trim) > host_score(fat)
+E       AssertionError: assert [1.0, 1.0, 1.0, 12.0, 12.0, 1.0] > [1.0, 1.0, 1.0, 12.0, 12.0, 1.0]
+E        +  where [1.0, 1.0, 1.0, 12.0, 12.0, 1.0] = <function host_score at 0x107724400>(RoundResult(adapter_snapshot='r3', passed=12, failed_nodes=[], failure_details={}, diff_lines=325, tokens_used=0, comm...ected_ok=True, policy_violations=0, regression_failed=0, within_budget=True, violation_packets=[], fatal_violations=[]))
+E        +  and   [1.0, 1.0, 1.0, 12.0, 12.0, 1.0] = <function host_score at 0x107724400>(RoundResult(adapter_snapshot='r2', passed=12, failed_nodes=[], failure_details={}, diff_lines=2682, tokens_used=0, com..., policy_violations=0, regression_failed=0, within_budget=True, violation_packets=[], fatal_violations=['patch_lines']))
+
+tests/test_constraint_feedback.py:276: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_constraint_feedback.py::test_trimmed_round_beats_oversized_round_on_equal_passes
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_trimmed_round_beats_oversized_round_on_equal_passes: passed
+.                                                                        [100%]
+
+
+VERDICT: VALID
