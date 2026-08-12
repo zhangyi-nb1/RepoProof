@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from repoproof.adoption.repair.failure_packet import ROLLBACK, FailurePacket
+from repoproof.adoption.repair.failure_packet import FailurePacket
 from repoproof.adoption.repair.repair_budget import RepairBudget
 from repoproof.adoption.repair.repair_loop import (
     STOP_ALL_PUBLIC_PASS,
@@ -30,7 +30,12 @@ from repoproof.adoption.repair.repair_loop import (
     RoundResult,
     full_score,
 )
-from repoproof.runner.host_guided import _ROUND_HEADER, round_violation_report
+from repoproof.runner.host_guided import _ROUND_HEADER
+
+# 本修复新增的符号(round_violation_report / ROLLBACK)刻意**不在模块级
+# 导入**:模块级导入会让修复前的树整文件收集失败,红绿证据退化成"文件级
+# 红"——那只证明特性缺席,证不明每条钉死各自抓住了自己那个缺陷。下沉到
+# 函数内,base 上就是逐节点红(LESSONS #34)。
 
 REPO = Path(__file__).resolve().parent.parent
 HOST_GUIDED_SRC = (REPO / "src" / "repoproof" / "runner" / "host_guided.py").read_text(
@@ -42,6 +47,8 @@ HOST_GUIDED_SRC = (REPO / "src" / "repoproof" / "runner" / "host_guided.py").rea
 def test_patch_overage_packet_carries_gate_numbers_and_is_fatal() -> None:
     """超限包必须带终局闸门将使用的同一对数字,且列为 fatal(H3 输入)。
     反例:061522 全绿 2630 行,包列表为空,盖棺时才见 2630 与 1800。"""
+    from repoproof.runner.host_guided import round_violation_report
+
     packets, fatal, pol = round_violation_report(
         denied_delta=0, tampered=[], patch_files=10, patch_lines=2630,
         max_patch_files=20, max_patch_lines=1800, unresolvable_dists=[])
@@ -53,6 +60,8 @@ def test_patch_overage_packet_carries_gate_numbers_and_is_fatal() -> None:
 
 def test_dependency_pin_packet_names_the_dist_and_is_fatal() -> None:
     """反例:030156/054108 声明离线解析不到的钉版,三轮零警告,重放击杀。"""
+    from repoproof.runner.host_guided import round_violation_report
+
     packets, fatal, pol = round_violation_report(
         denied_delta=0, tampered=[], patch_files=1, patch_lines=10,
         max_patch_files=20, max_patch_lines=1800,
@@ -66,6 +75,8 @@ def test_dependency_pin_packet_names_the_dist_and_is_fatal() -> None:
 def test_denied_and_tampered_count_for_ranking_but_not_fatal() -> None:
     """排序语义冻结(§11.3):denied+tampered 计入 policy_violations
     (对抗性动作,回滚有理),但不列 fatal;干净轮三元组全空。"""
+    from repoproof.runner.host_guided import round_violation_report
+
     packets, fatal, pol = round_violation_report(
         denied_delta=2, tampered=["public_tests/test_x.py"], patch_files=1,
         patch_lines=10, max_patch_files=20, max_patch_lines=1800,
@@ -142,6 +153,8 @@ def test_rollback_is_explained_and_details_come_from_restored_round() -> None:
     """回滚后下一轮必有 ROLLBACK 包(哪轮、为何、恢复到哪),失败包配
     恢复快照**自己**的断言细节。反例:060126 round-3 收到 round-1 的
     failed_nodes × round-2 的空 details,无一字提及回滚。"""
+    from repoproof.adoption.repair.failure_packet import ROLLBACK
+
     denied = FailurePacket(
         type="POLICY_VIOLATION",
         summary="1 command(s) were DENIED by the policy guard this round",

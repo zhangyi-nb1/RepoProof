@@ -1,0 +1,57 @@
+fix commit : 0a33e1d31469f10046aa5ace01fbe5ed58ec9d7c
+base commit: 1d40dd0432b0d5bc7b79825fa5c05d157be05591
+nodes      : 10
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=4
+  test_patch_overage_packet_carries_gate_numbers_and_is_fatal: error-at-collection
+  test_dependency_pin_packet_names_the_dist_and_is_fatal: error-at-collection
+  test_denied_and_tampered_count_for_ranking_but_not_fatal: error-at-collection
+  test_green_round_with_fatal_violation_keeps_looping: error-at-collection
+  test_loop_diff_backstop_leaves_room_for_trimming: error-at-collection
+  test_green_with_fatal_on_last_round_stops_at_max_rounds: error-at-collection
+  test_rollback_is_explained_and_details_come_from_restored_round: error-at-collection
+  test_run_round_uses_per_round_denied_delta: error-at-collection
+  test_run_round_probes_requirements_against_offline_resolver: error-at-collection
+  test_round_header_discloses_violation_feedback: error-at-collection
+
+-- base 段收集错误(按文件重跑取证)--
+  [tests.test_constraint_feedback] E   ImportError: cannot import name 'ROLLBACK' from 'repoproof.adoption.repair.failure_packet' (/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_q4sdn4i3/tree/src/repoproof/adoption/repair
+/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_q4sdn4i3/tree/tests/test_constraint_feedback.py::test_patch_overage_packet_carries_gate_numbers_and_is_fatal
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_q4sdn4i3/tree/tests/test_constraint_feedback.py::test_dependency_pin_packet_names_the_dist_and_is_fatal
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_q4sdn4i3/tree/tests/test_constraint_feedback.py::test_denied_and_tampered_count_for_ranking_but_not_fatal
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_q4sdn4i3/tree/tests/test_constraint_feedback.py::test_green_round_with_fatal_violation_keeps_looping
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_q4sdn4i3/tree/tests/test_constraint_feedback.py::test_loop_diff_backstop_leaves_room_for_trimming
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_q4sdn4i3/tree/tests/test_constraint_feedback.py::test_green_with_fatal_on_last_round_stops_at_max_rounds
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_q4sdn4i3/tree/tests/test_constraint_feedback.py::test_rollback_is_explained_and_details_come_from_restored_round
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_q4sdn4i3/tree/tests/test_constraint_feedback.py::test_run_round_uses_per_round_denied_delta
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_q4sdn4i3/tree/tests/test_constraint_feedback.py::test_run_round_probes_requirements_against_offline_resolver
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_q4sdn4i3/tree/tests/test_constraint_feedback.py::test_round_header_discloses_violation_feedback
+
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_patch_overage_packet_carries_gate_numbers_and_is_fatal: passed
+  test_dependency_pin_packet_names_the_dist_and_is_fatal: passed
+  test_denied_and_tampered_count_for_ranking_but_not_fatal: passed
+  test_green_round_with_fatal_violation_keeps_looping: passed
+  test_loop_diff_backstop_leaves_room_for_trimming: passed
+  test_green_with_fatal_on_last_round_stops_at_max_rounds: passed
+  test_rollback_is_explained_and_details_come_from_restored_round: passed
+  test_run_round_uses_per_round_denied_delta: passed
+  test_run_round_probes_requirements_against_offline_resolver: passed
+  test_round_header_discloses_violation_feedback: passed
+..........                                                               [100%]
+
+
+VERDICT: VALID

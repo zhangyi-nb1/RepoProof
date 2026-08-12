@@ -134,6 +134,53 @@ def test_redgreen_evidence_for_attribution_fix_is_valid() -> None:
     assert text.count(": passed") >= 6, "GREEN 段必须逐节点 passed"
 
 
+# exit 4 两义性(LESSONS #34 首咬):红绿工具首次遇到"新文件 import 新符号"
+# 型修复就判假阴性 —— base 上 ImportError(最强的红)与节点名打错同为 exit 4。
+# 判定抽成纯函数 judge(),四条边界直接钉死;放宽必须是"两条机器条件"而
+# 不是"exit 4 一律算红"(后者等于把守卫拆了)。
+_IMPORT_ERR = [("tests.test_x", "ImportError: cannot import name 'ROLLBACK'")]
+
+
+def _judge(**kw):
+    rg = _load("redgreen.py")
+    base = dict(names=["test_a"], red_exit=4, red_results={},
+                green_results={"test_a": "passed"}, red_collect=_IMPORT_ERR,
+                files=["tests/test_x.py"])
+    base.update(kw)
+    return rg.judge(**base)
+
+
+def test_import_error_collection_counts_as_red() -> None:
+    """特性不存在→模块 import 不进去,是最强的红,不得判 INVALID。"""
+    assert _judge() == []
+
+
+def test_typo_node_name_still_cannot_fake_red() -> None:
+    """守卫本意保住:名字打错时绿段查无此名 → 仍判不是红。"""
+    problems = _judge(green_results={})
+    assert any("没有绿" in p for p in problems)
+    assert any("exit=4" in p for p in problems)
+
+
+def test_unrelated_collection_crash_is_not_red() -> None:
+    """收集错误不是符号缺失类(如 conftest 语法错)→ 不算红,环境坏了
+    不等于缺陷被抓住。"""
+    problems = _judge(red_collect=[("tests.test_x", "SyntaxError: invalid syntax")])
+    assert any("exit=4" in p for p in problems)
+
+
+def test_collection_error_must_belong_to_the_tested_file() -> None:
+    """别的文件收集炸了不能替本文件作证。"""
+    problems = _judge(red_collect=[("tests.test_other", "ImportError: boom")])
+    assert any("exit=4" in p for p in problems)
+
+
+def test_base_pass_is_never_red() -> None:
+    """base 上 passed = 钉死抓不住任何东西(与 exit 4 无关)。"""
+    problems = _judge(red_exit=0, red_results={"test_a": "passed"}, red_collect=[])
+    assert any("没有红" in p for p in problems)
+
+
 def test_verify_integrity_entrypoint_exists() -> None:
     sh = REPO / "scripts" / "verify_integrity.sh"
     assert sh.exists()
