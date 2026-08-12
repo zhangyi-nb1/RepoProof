@@ -361,7 +361,7 @@ def conflicting_dists(pip_output: str) -> list[str]:
     out: list[str] = []
     for m in _CONFLICT_RE.finditer(pip_output):
         for tok in re.split(r"\s+and\s+|,", m.group(1)):
-            name = re.split(r"[=<>!~\[ ]", tok.strip(), 1)[0].strip()
+            name = re.split(r"[=<>!~\[ ]", tok.strip(), maxsplit=1)[0].strip()
             if name:
                 out.append(_norm_dist(name))
     return list(dict.fromkeys(out))
@@ -411,6 +411,7 @@ def round_violation_report(
     unresolvable_dists: list[str],
     dependency_probe_failed: bool = False,
     dependency_detail: str = "",
+    upstream_touched: list[str] | None = None,
 ) -> tuple[list[FailurePacket], list[str], int]:
     """本轮违规 → (结构化失败包, 致命违规名单, 计入排序的违规数)。
 
@@ -464,6 +465,20 @@ def round_violation_report(
             actual=f"{patch_lines} diff lines",
             suggestion="最终政策闸会以同一数字拒绝——精简 diff:删掉调试残留、"
                        "重复代码与无关重排,保住已通过的测试"))
+    touched = list(upstream_touched or [])
+    if touched:
+        fatal.append("upstream")
+        packets.append(FailurePacket(
+            type="SCOPE_EXCEEDED",
+            summary=f"pinned upstream tree modified: {', '.join(touched[:5])}"
+                    + (f" (+{len(touched) - 5} more)" if len(touched) > 5 else ""),
+            affected_files=touched,
+            expected="../upstream stays byte-identical to the pinned snapshot",
+            actual=f"{len(touched)} path(s) differ from the pinned snapshot",
+            suggestion="终局 PolicyVerifier 以树哈希比对直接击杀——把改动移出"
+                       "上游快照,改在宿主适配区内解决(需要上游行为不同时,"
+                       "在适配层包一层,别改钉版源码)"))
+
     # 探针只要失败就必须成包 —— **哪怕认不出错误形状**(LESSONS #38)。
     # 反例 order-59:探针 exit_code=1 但归因正则只认"找不到分发"、认不出
     # ResolutionImpossible,于是吐出空清单 → 该轮被当成干净 → 全绿即停 →
@@ -483,7 +498,7 @@ def round_violation_report(
                        "——移除或放宽冲突的钉版,或改用轮仓/../upstream 快照里"
                        "真实可装的形态;可自己跑 `pip install --dry-run -r "
                        "requirements.txt` 复现"))
-    return packets, fatal, len(tampered)
+    return packets, fatal, len(tampered) + len(touched)
 
 
 # 用户决策(2026-08-09,预注册 v2 修订):per_round 语义下**输入执法线
@@ -1133,6 +1148,15 @@ class HostGuidedRunner:
                 # H2 依赖探针(LESSONS #33):适配动过 requirements.txt 就在
                 # 会话内离线 dry-run 一次——会话 env 自带 PIP_NO_INDEX +
                 # PIP_FIND_LINKS,练的就是干净重放最终要用的那台解析器。
+                # 终局 PolicyVerifier 会比对 upstream 树哈希;轮内同样比一次,
+                # 否则这条判据又是一个"只在盖棺时开口"的伏击(#33 的枚举收口)。
+                upstream_touched: list[str] = []
+                if upstream_before:
+                    now = hash_tree(s.root / "upstream")
+                    upstream_touched = sorted(
+                        p for p in (now.keys() | upstream_before.keys())
+                        if now.get(p) != upstream_before.get(p))
+
                 unresolvable: list[str] = []
                 probe_failed = False
                 probe_detail = ""
@@ -1181,6 +1205,7 @@ class HostGuidedRunner:
                     unresolvable_dists=unresolvable,
                     dependency_probe_failed=probe_failed,
                     dependency_detail=probe_detail,
+                    upstream_touched=upstream_touched,
                 )
                 rr = RoundResult(
                     adapter_snapshot=head,

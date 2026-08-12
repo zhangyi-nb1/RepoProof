@@ -362,3 +362,24 @@ def test_probe_wiring_reports_failure_not_just_names() -> None:
     assert "probe_failed = True" in HOST_GUIDED_SRC
     assert "dependency_probe_failed=probe_failed" in HOST_GUIDED_SRC
     assert "added_problem_dists(" in HOST_GUIDED_SRC
+
+
+def test_upstream_modification_is_fed_in_round_and_ranked() -> None:
+    """枚举收口:终局 PolicyVerifier 比对 upstream 树哈希,轮内必须同样
+    比一次并成包。它与改公开测试同级——终局都直接击杀,故也计入排序。"""
+    from repoproof.runner.host_guided import round_violation_report
+
+    packets, fatal, pol = round_violation_report(
+        denied_delta=0, tampered=[], patch_files=1, patch_lines=10,
+        max_patch_files=20, max_patch_lines=1800, unresolvable_dists=[],
+        upstream_touched=["src/open_deep_research/utils.py"])
+    assert "upstream" in fatal
+    assert pol == 1, "改钉版上游与改公开测试同级,必须计入排序"
+    assert packets[0].type == "SCOPE_EXCEEDED"
+    assert "utils.py" in packets[0].summary
+
+
+def test_round_compares_upstream_tree_each_round() -> None:
+    """接线钉死:轮内真的算了 upstream 树哈希并传下去。"""
+    assert "upstream_touched" in HOST_GUIDED_SRC
+    assert 'hash_tree(s.root / "upstream")' in HOST_GUIDED_SRC
