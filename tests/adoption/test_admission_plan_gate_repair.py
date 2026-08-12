@@ -391,7 +391,12 @@ def test_repair_restore_passes_best_snapshot_and_packets_from_best() -> None:
     assert calls["best_seen"][0] is None and calls["best_seen"][1] == "v5"
     assert calls["best_seen"][2] == "v5"  # 劣化轮后仍从最佳继续
     round3_packets = calls["packets_seen"][2]
-    assert [p.summary for p in round3_packets] == ["检查项「best fail」未通过"]
+    summaries = [p.summary for p in round3_packets]
+    assert "检查项「best fail」未通过" in summaries
+    assert not any("bad1" in s or "bad2" in s for s in summaries)  # 不来自劣化轮
+    # H4(LESSONS #33):回滚不再静默——恰好多出一枚 ROLLBACK 说明包
+    rollback = [p for p in round3_packets if p.type == "ROLLBACK"]
+    assert len(rollback) == 1 and len(round3_packets) == 2
 
 
 def test_repair_token_and_command_budgets() -> None:

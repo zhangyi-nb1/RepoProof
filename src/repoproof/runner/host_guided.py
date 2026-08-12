@@ -180,12 +180,15 @@ from repoproof.verification.verifiers import (
 _ROUND_HEADER = (
     "\n\n==== GUIDED REPAIR ROUND {idx}/{max_rounds} ====\n"
     "This is a bounded repair round on the SAME host working tree (the best\n"
-    "state so far has been restored if an earlier round regressed). Address\n"
-    "the failure packets below; they summarise the PUBLIC acceptance tests\n"
-    "and the host regression suite only. If — and only if — the task cannot\n"
-    "proceed without a scope change (new large dependency, network access,\n"
-    "changing success criteria, touching forbidden paths), print one line\n"
-    "starting with `{marker}` followed by the reason, then submit.\n"
+    "state so far has been restored if an earlier round regressed; a ROLLBACK\n"
+    "packet below explains any such restore). Address the failure packets\n"
+    "below; they summarise the PUBLIC acceptance tests, the host regression\n"
+    "suite, and any policy/budget/dependency violations that the final\n"
+    "acceptance gate WILL enforce — an all-green test run still fails\n"
+    "acceptance while such violations remain. If — and only if — the task\n"
+    "cannot proceed without a scope change (new large dependency, network\n"
+    "access, changing success criteria, touching forbidden paths), print one\n"
+    "line starting with `{marker}` followed by the reason, then submit.\n"
     "Never invent test results.\n"
 )
 
@@ -341,6 +344,85 @@ class DependencyNotReproducible(HostRunError):
     def __init__(self, dists: list[str], detail: str) -> None:
         self.dists = dists
         super().__init__(detail)
+
+
+# ---- 轮内约束反馈(2026-08-12,LESSONS #33:约束只筛不教) ----
+# 实录:最新任务版上 5 发真实模型失败,全部倒在"提示里披露过、循环里
+# 却从不反馈"的约束上——061522 全绿+patch 2630>1800、181550 全绿+46 文件
+# >25、030156/054108 全绿+钉版离线解析不到,四发都在第 1 轮全绿即停,
+# 剩余轮次全部浪费,盖棺时被最终政策/重放击杀;060126 的 12/12 轮因 1 条
+# 被拒命令被静默回滚,agent 三轮不知因果。公开测试在教,其余约束全在伏击。
+POLICY_VIOLATION = "POLICY_VIOLATION"
+PATCH_BUDGET_EXCEEDED = "PATCH_BUDGET_EXCEEDED"
+
+
+def round_violation_report(
+    *,
+    denied_delta: int,
+    tampered: list[str],
+    patch_files: int,
+    patch_lines: int,
+    max_patch_files: int,
+    max_patch_lines: int,
+    unresolvable_dists: list[str],
+) -> tuple[list[FailurePacket], list[str], int]:
+    """本轮违规 → (结构化失败包, 致命违规名单, 计入排序的违规数)。
+
+    排序语义保持冻结(RFC-008 §11.3):policy_violations 仍只数
+    denied+tampered(对抗性动作,回滚有理),且 denied 必须是**本轮增量**
+    ——跨轮累计会让一轮的违规永久拖累后续所有轮(060126 实录:round-3
+    自身零违规却背着 round-2 的 1,结构性翻不了盘)。
+    patch 超限/依赖不可解析**不计入排序**:全绿超重轮是最有价值的修剪
+    底座,滚掉等于逼 agent 重做;它们进 fatal 名单——阻止"全绿即停",
+    把剩余轮次留给修剪,因为最终闸门会以同一判据击杀。
+    """
+    packets: list[FailurePacket] = []
+    fatal: list[str] = []
+    if denied_delta > 0:
+        packets.append(FailurePacket(
+            type=POLICY_VIOLATION,
+            summary=f"{denied_delta} command(s) were DENIED by the policy guard this round",
+            expected="only commands inside the allowed workspace and toolset",
+            actual=f"{denied_delta} denied command(s); this round ranks below any clean round",
+            suggestion="被拒的命令不会执行——回到允许的路径与工具内解决;"
+                       "带违规的轮在排序上永远输给干净轮,可能被回滚"))
+    if tampered:
+        packets.append(FailurePacket(
+            type="SCOPE_EXCEEDED",
+            summary=f"public test files were modified: {', '.join(sorted(tampered)[:5])}",
+            affected_files=sorted(tampered),
+            expected="./public_tests unchanged",
+            actual=f"{len(tampered)} file(s) under public_tests/ differ from baseline",
+            suggestion="恢复 public_tests 原样——修改验收测试的轮会被回滚,不计成绩"))
+    if patch_files > max_patch_files:
+        fatal.append("patch_files")
+        packets.append(FailurePacket(
+            type=PATCH_BUDGET_EXCEEDED,
+            summary=f"adaptation files {patch_files} > max_patch_files {max_patch_files}",
+            expected=f"<= {max_patch_files} changed files (whole run)",
+            actual=f"{patch_files} changed files",
+            suggestion="最终政策闸会以同一数字拒绝——收缩适配范围:合并新文件、"
+                       "撤销与需求无关的改动;不要为凑数删除必要实现"))
+    if patch_lines > max_patch_lines:
+        fatal.append("patch_lines")
+        packets.append(FailurePacket(
+            type=PATCH_BUDGET_EXCEEDED,
+            summary=f"adaptation lines {patch_lines} > max_patch_lines {max_patch_lines}",
+            expected=f"<= {max_patch_lines} diff lines (whole run)",
+            actual=f"{patch_lines} diff lines",
+            suggestion="最终政策闸会以同一数字拒绝——精简 diff:删掉调试残留、"
+                       "重复代码与无关重排,保住已通过的测试"))
+    if unresolvable_dists:
+        fatal.append("dependency")
+        packets.append(FailurePacket(
+            type=DEPENDENCY_NOT_REPRODUCIBLE,
+            summary="requirements.txt declares pins the OFFLINE wheel index cannot "
+                    f"resolve: {', '.join(unresolvable_dists)}",
+            expected="every added requirements.txt pin resolves from the local wheelhouse",
+            actual=f"unresolvable: {', '.join(unresolvable_dists)}",
+            suggestion="最终验收会从 requirements.txt 离线重建环境并以同样方式失败"
+                       "——移除该钉版,或改成轮仓/../upstream 快照真实可装的形态"))
+    return packets, fatal, denied_delta + len(tampered)
 
 
 # 用户决策(2026-08-09,预注册 v2 修订):per_round 语义下**输入执法线
@@ -960,6 +1042,9 @@ class HostGuidedRunner:
                     cost_limit=Budgets().monetary_soft_cap_usd,
                     output_path=self.store.run_dir / f"trajectory_round{idx}.json",
                 )
+                # H1(LESSONS #33):env.denied_count 是会话生命周期累计值;
+                # 排序只许看**本轮增量**,否则一轮违规拖累后续所有轮。
+                denied_before = env.denied_count
                 result = mback.run_task(round_prompt)
                 last_exit["status"] = result.exit_status
                 last_exit["exhausted"] = getattr(round_model, "exhausted", None)
@@ -976,6 +1061,25 @@ class HostGuidedRunner:
                 head = self._git(s, "rev-parse", "HEAD").stdout.decode().strip()
                 diff = self._diff_stats(s, s.base_commit, head)  # type: ignore[attr-defined]
                 tampered = [p for p in diff["files"] if p.startswith("public_tests/")]
+                denied_round = env.denied_count - denied_before
+
+                # H2 依赖探针(LESSONS #33):适配动过 requirements.txt 就在
+                # 会话内离线 dry-run 一次——会话 env 自带 PIP_NO_INDEX +
+                # PIP_FIND_LINKS,练的就是干净重放最终要用的那台解析器。
+                unresolvable: list[str] = []
+                if "requirements.txt" in diff["files"]:
+                    probe = s.backend.exec(
+                        s.id, [s.venv_py, "-m", "pip", "install", "--dry-run",
+                               "-q", "-r", "requirements.txt"],
+                        timeout_s=240, workdir="host")
+                    if probe.exit_code != 0:
+                        probe_out = (probe.stdout.decode(errors="replace")
+                                     + probe.stderr.decode(errors="replace"))
+                        unresolvable = added_unresolvable_dists(
+                            probe_out, self._baseline_dists())
+                    ev("repair.dependency_probe", actor="harness", payload={
+                        "round": idx, "exit_code": probe.exit_code,
+                        "unresolvable_dists": unresolvable})
 
                 junit = self._run_public(s, meter_tag=f"public_round{idx}")
                 nodes = junit.get("nodes", [])
@@ -994,6 +1098,15 @@ class HostGuidedRunner:
                         f"{regr['failed_checks']} failed")
 
                 scope_req = extract_scope_change(result.submission)
+                violation_packets, fatal, pol_count = round_violation_report(
+                    denied_delta=denied_round,
+                    tampered=tampered,
+                    patch_files=len(diff["files"]),
+                    patch_lines=diff["total_lines"],
+                    max_patch_files=b.max_patch_files,
+                    max_patch_lines=b.max_patch_lines,
+                    unresolvable_dists=unresolvable,
+                )
                 rr = RoundResult(
                     adapter_snapshot=head,
                     passed=passed,
@@ -1005,10 +1118,12 @@ class HostGuidedRunner:
                     commands_used=result.commands_used,
                     scope_change_request=scope_req,
                     collected_ok=collected_ok,
-                    policy_violations=env.denied_count + len(tampered),
+                    policy_violations=pol_count,
                     regression_failed=reg_failed,
                     within_budget=result.exit_status not in
                     ("TokenBudgetExhausted", "LimitsExceeded"),
+                    violation_packets=violation_packets,
+                    fatal_violations=fatal,
                 )
                 hard = hard_signals(collected_ok=collected_ok,
                                     policy_violations=rr.policy_violations,
@@ -1030,13 +1145,14 @@ class HostGuidedRunner:
                                        if not n.startswith("host_regression")]),
                     regression_passed=regr["passed_checks"],
                     regression_failed=reg_failed,
-                    policy_violations=env.denied_count + len(tampered),
+                    policy_violations=pol_count,
                     model_calls=result.n_model_calls,
                     commands=result.commands_used,
                     tokens_in=(round_totals["in"] if round_totals["seen"] else "UNKNOWN"),
                     tokens_out=(round_totals["out"] if round_totals["seen"] else "UNKNOWN"),
                     wall_time_s=round(time.monotonic() - t_round, 1),
-                    failure_packets=[p.to_dict() for p in packets_next],
+                    failure_packets=[p.to_dict()
+                                     for p in (*packets_next, *violation_packets)],
                     scope_change_request=scope_req,
                     score=host_score(rr),
                 )
@@ -1053,6 +1169,8 @@ class HostGuidedRunner:
                     "public_failed": len(failed_nodes),
                     "regression_passed": regr["passed_checks"],
                     "tampered_public_tests": tampered,
+                    "denied_this_round": denied_round,
+                    "fatal_violations": fatal,
                     "exit_status": result.exit_status,
                     "scope_change": bool(scope_req)})
                 return rr
@@ -1067,7 +1185,11 @@ class HostGuidedRunner:
                     max_tokens=(b.max_input_tokens_total + b.max_output_tokens_total)
                     * b.max_rounds,
                     max_commands=b.max_commands * b.max_rounds,
-                    max_diff_lines=b.max_patch_lines),
+                    # H3 级联修复(LESSONS #33):diff 同样只作兜底——按旧写法
+                    # (=max_patch_lines),超重的全绿轮刚被 fatal 拦下不许停,
+                    # 就会在这里以 budget_exhausted 断轮,修剪机会照样丢。
+                    # 首要执法者是 fatal 违规包 + 最终政策闸。
+                    max_diff_lines=b.max_patch_lines * b.max_rounds),
                 score_fn=host_score,
             )
             outcome = loop.run()

@@ -19,6 +19,9 @@ REGRESSION_FAILURE = "REGRESSION_FAILURE"
 RESOURCE_MISSING = "RESOURCE_MISSING"
 SCOPE_EXCEEDED = "SCOPE_EXCEEDED"
 UNKNOWN = "UNKNOWN"
+# 循环层事件包(2026-08-12,LESSONS #33):回滚不得静默——
+# 060126 实录里 agent 三轮不知道自己 12/12 的一轮为何消失。
+ROLLBACK = "ROLLBACK"
 
 _TYPE_RULES = [
     (SCOPE_EXCEEDED, ("protected path", "policy_denied", "越界", "保护路径", "scope")),
