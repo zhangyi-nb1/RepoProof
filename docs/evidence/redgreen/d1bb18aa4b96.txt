@@ -1,0 +1,53 @@
+fix commit : d1bb18aa4b96b393ab8b7afeca583ca9c25cf368
+base commit: 4cfb6a13294d0e6bfed63ea7997b644ec0ee56f7
+nodes      : 5
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_fixtures_count_as_public_surface_tampering: failed
+  test_public_surface_fingerprint_covers_both_trees: failed
+  test_missing_fixtures_dir_is_not_an_error: failed
+  test_both_call_sites_use_the_merged_surface: failed
+  test_prompt_forbids_touching_fixtures: failed
+_before = hash_public_surface(" in src, "开跑前的基线指纹"
+E       AssertionError: 开跑前的基线指纹
+E       assert 'public_before = hash_public_surface(' in '"""宿主级 GUIDED 运行驱动(TESTPLAN-V2 Phase 1,T1+ 形态;RFC-009 §六)。\n\n样例管线(guided_repair.py,Docker+adaptation 区)不动;本模块是宿主级\n形...txt"}]},\n        {"actions": [{"command": "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]},\n    ]\n    return steps\n'
+
+tests/test_public_surface_integrity.py:81: AssertionError
+____________________ test_prompt_forbids_touching_fixtures _____________________
+
+    def test_prompt_forbids_touching_fixtures() -> None:
+        """H8-c(#33 闸门要杀的先教):终局会以篡改击杀,提示就必须先说。
+    
+        反例:此前 HARD RULES 只写 public_tests 与 upstream,fixtures 只字未提
+        —— agent 改了 19 轮,一次也没被告知那是量具。"""
+        from repoproof.runner.host_guided import HostContract, build_host_prompt
+    
+        contract, _ = HostContract.load(
+            __import__("pathlib").Path("benchmarks/v2/tasks/t2_open_deep_research_v4/contract.yaml"))
+        prompt = build_host_prompt(contract, wheel_note="wheelhouse-test")
+        rules = prompt.split("HARD RULES", 1)[1].split("BUDGETS", 1)[0]
+>       assert "./fixtures" in rules, "HARD RULES 必须点名 fixtures"
+E       AssertionError: HARD RULES 必须点名 fixtures
+E       assert './fixtures' in '\n- 修改或删除 oracle / 公开验收测试的断言\n- 修改 metrics.json 等事实源以迎合结果\n- 静默升级宿主既有依赖树的主版本\n- 测试阶段访问公网\n- Do not modify ./public_tests or ../upstream.\n\n'
+
+tests/test_public_surface_integrity.py:99: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_public_surface_integrity.py::test_fixtures_count_as_public_surface_tampering
+FAILED tests/test_public_surface_integrity.py::test_public_surface_fingerprint_covers_both_trees
+FAILED tests/test_public_surface_integrity.py::test_missing_fixtures_dir_is_not_an_error
+FAILED tests/test_public_surface_integrity.py::test_both_call_sites_use_the_merged_surface
+FAILED tests/test_public_surface_integrity.py::test_prompt_forbids_touching_fixtures
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_fixtures_count_as_public_surface_tampering: passed
+  test_public_surface_fingerprint_covers_both_trees: passed
+  test_missing_fixtures_dir_is_not_an_error: passed
+  test_both_call_sites_use_the_merged_surface: passed
+  test_prompt_forbids_touching_fixtures: passed
+.....                                                                    [100%]
+
+
+VERDICT: VALID
