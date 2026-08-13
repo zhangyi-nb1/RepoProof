@@ -442,11 +442,14 @@ def round_violation_report(
     if tampered:
         packets.append(FailurePacket(
             type="SCOPE_EXCEEDED",
-            summary=f"public test files were modified: {', '.join(sorted(tampered)[:5])}",
+            summary=f"public acceptance surface was modified: {', '.join(sorted(tampered)[:5])}",
             affected_files=sorted(tampered),
-            expected="./public_tests unchanged",
-            actual=f"{len(tampered)} file(s) under public_tests/ differ from baseline",
-            suggestion="恢复 public_tests 原样——修改验收测试的轮会被回滚,不计成绩"))
+            expected="./public_tests and ./fixtures unchanged",
+            actual=f"{len(tampered)} file(s) under public_tests/ or fixtures/ "
+                   "differ from baseline",
+            suggestion="恢复原样——公开测试与 fixtures 都是验收量具(隐藏验收也"
+                       "import fixtures),改动的轮会被回滚、不计成绩;需要不同的"
+                       "假模型行为请走 scope-change 请求,别改量具"))
     if patch_files > max_patch_files:
         fatal.append("patch_files")
         packets.append(FailurePacket(
@@ -516,6 +519,31 @@ def enforcement_input_cap(budgets: "HostBudgets") -> int:
     额度。**政策判据仍是契约值,一字不动。**
     """
     return budgets.max_input_tokens_total
+
+
+# 公开验收面 = 公开测试 + fixtures(LESSONS #40)。fixtures 不是实现面,
+# 是**量具**:公开套件 import 它,**隐藏 oracle 也 import 它**。此前只有
+# public_tests 有树哈希对账,fixtures 落在 agent 可写树里、提示里也没说过
+# 不许改——量具由被测者提供,结论就不独立。
+PROTECTED_PUBLIC_DIRS = ("public_tests", "fixtures")
+
+
+def tampered_public_surface(changed_files: object) -> list[str]:
+    """改动清单 → 落在公开验收面里的那些(排序与终局同向计入)。"""
+    prefixes = tuple(f"{d}/" for d in PROTECTED_PUBLIC_DIRS)
+    return sorted(p for p in (changed_files or []) if str(p).startswith(prefixes))
+
+
+def hash_public_surface(host_root: Path) -> dict[str, str]:
+    """公开验收面的合并指纹(键名带目录前缀,免得两树同名文件互相遮蔽)。
+
+    缺目录不是错误——T1 就没有 fixtures。"""
+    out: dict[str, str] = {}
+    for name in PROTECTED_PUBLIC_DIRS:
+        d = Path(host_root) / name
+        if d.is_dir():
+            out.update({f"{name}/{rel}": h for rel, h in hash_tree(d).items()})
+    return out
 
 
 def round_usage(model: object, bucket: dict) -> tuple[int, int]:
@@ -604,7 +632,10 @@ def build_host_prompt(contract: HostContract, *, wheel_note: str) -> str:
         "  Read files in targeted ranges (sed -n '120,180p' FILE, grep -n PATTERN FILE)\n"
         "  instead of dumping whole files — every char you read is re-sent on every\n"
         "  later call and burns your per-round token allowance quadratically.",
-        "HARD RULES\n" + "\n".join(forbidden) + "\n- Do not modify ./public_tests or ../upstream.",
+        "HARD RULES\n" + "\n".join(forbidden)
+        + "\n- Do not modify ./public_tests, ./fixtures or ../upstream. The fixtures\n"
+          "  are the acceptance instruments (the hidden acceptance imports them too);\n"
+          "  changing them is treated exactly like changing the public tests.",
         "BUDGETS\n"
         + (f"- PER ROUND (reset each round): model calls {b.max_model_calls}, "
            f"executed commands {b.max_commands}, "
@@ -987,7 +1018,7 @@ class HostGuidedRunner:
 
             s = self._assemble(backend, "agent")
             upstream_before = hash_tree(s.root / "upstream")
-            public_before = hash_tree(s.root / "host" / "public_tests")
+            public_before = hash_public_surface(s.root / "host")
             self.timings["env_build"] = 0.0
             t_env = time.monotonic()
             env_report = self._build_env_in_session(s)
@@ -1164,7 +1195,7 @@ class HostGuidedRunner:
                 self._git(s, "commit", "-q", "--allow-empty", "-m", f"rp-host round {idx}")
                 head = self._git(s, "rev-parse", "HEAD").stdout.decode().strip()
                 diff = self._diff_stats(s, s.base_commit, head)  # type: ignore[attr-defined]
-                tampered = [p for p in diff["files"] if p.startswith("public_tests/")]
+                tampered = tampered_public_surface(diff["files"])
                 denied_round = env.denied_count - denied_before
 
                 # H2 依赖探针(LESSONS #33):适配动过 requirements.txt 就在
@@ -1450,12 +1481,14 @@ class HostGuidedRunner:
                 adaptation_recheck_detail="session HEAD == frozen best commit",
                 budgets=self.budgets,
                 evidence=[])
+            # 公开验收面 = public_tests + fixtures(LESSONS #40):隐藏 oracle
+            # 的假模型量具就在 fixtures 里,被测者改得动它,结论就不独立。
             pub_ok, pub_diff = trees_equal(
-                public_before, hash_tree(s.root / "host" / "public_tests"))
+                public_before, hash_public_surface(s.root / "host"))
             if not pub_ok:
                 pol = VerificationResult(
                     verifier="PolicyVerifier", passed=False,
-                    detail=pol.detail + f"; PUBLIC_TESTS_TAMPERED: {pub_diff[:5]}",
+                    detail=pol.detail + f"; PUBLIC_SURFACE_TAMPERED: {pub_diff[:5]}",
                     evidence=pol.evidence,
                     extra={**pol.extra, "public_tests_tampered": pub_diff[:10]})
             self.timings["verification_s"] = round(time.monotonic() - t_verify, 1)

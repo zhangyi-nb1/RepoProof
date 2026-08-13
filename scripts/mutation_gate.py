@@ -54,6 +54,7 @@ _T_CF = ["tests/test_constraint_feedback.py"]
 _T_PI = ["tests/test_process_independence.py"]
 _T_RC = ["tests/test_root_cause_packets.py"]
 _T_TE = ["tests/test_token_enforcement.py"]
+_T_PS = ["tests/test_public_surface_integrity.py"]
 
 CANARY = {
     "id": "C0-plumbing-canary",
@@ -379,6 +380,31 @@ MUTATIONS: list[dict] = [
         "old": "    return budgets.max_input_tokens_total",
         "new": "    return max(1, budgets.max_input_tokens_total - 50_000)",
         "catchers": _T_HD,
+    },
+    # ---- LESSONS #40:fixtures 是量具,不是实现面 ----
+    {
+        "id": "M40a-fixtures-out-of-public-surface",
+        "lesson": "#40 公开面只认 public_tests(order-20/21:oracle 拿被测者写的假模型当量具)",
+        "file": _HD,
+        "old": 'PROTECTED_PUBLIC_DIRS = ("public_tests", "fixtures")',
+        "new": 'PROTECTED_PUBLIC_DIRS = ("public_tests",)',
+        "catchers": _T_PS,
+    },
+    {
+        "id": "M40b-final-check-back-to-public-tests-only",
+        "lesson": "#40 终局对账退回只哈希 public_tests(改 fixtures 盖棺时查不出)",
+        "file": _HD,
+        "old": "                public_before, hash_public_surface(s.root / \"host\"))",
+        "new": "                public_before, hash_tree(s.root / \"host\" / \"public_tests\"))",
+        "catchers": _T_PS,
+    },
+    {
+        "id": "M40c-prompt-drops-the-fixtures-rule",
+        "lesson": "#40 终局会杀却不在提示里教(#33 的老病:agent 改了 19 轮没人告诉过它)",
+        "file": _HD,
+        "old": '        + "\\n- Do not modify ./public_tests, ./fixtures or ../upstream. The fixtures\\n"',
+        "new": '        + "\\n- Do not modify ./public_tests or ../upstream.\\n"',
+        "catchers": _T_PS,
     },
 ]
 
