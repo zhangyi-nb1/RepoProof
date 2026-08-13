@@ -1,0 +1,39 @@
+fix commit : eb555b4e8c4b5e85236da0a6529b87756c75aad6
+base commit: cdc145ee05ff3311bd0ff866d7823c5faf973f35
+nodes      : 1
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_trash_is_a_scan_root_so_residue_cannot_be_hidden_there: failed
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_trash_is_a_scan_root_so_residue_cannot_be_hidden_there __________
+
+    def test_trash_is_a_scan_root_so_residue_cannot_be_hidden_there() -> None:
+        """H9-a:废纸篓也是可达路径,`mv` 进去不算清零。
+    
+        反例是**助手自己**(2026-08-13):用户要求"把 7 棵树移出本机",第一反应
+        是 `mv` 进 `~/.Trash` —— 若扫描根不含它,`reachable_answer_keys()` 立刻
+        返回空、preflight 放行,而答案原封不动躺在
+        `~/.Trash/_scratch_t2_positive/research_jobs.py` 上。那不是清零,是靠挪
+        位置让检测器闭嘴。删到废纸篓不解除拒开,倒空废纸篓才解除。
+        """
+        from repoproof.runner.host_guided import ANSWER_KEY_SCAN_ROOTS
+    
+>       assert "~/.Trash" in ANSWER_KEY_SCAN_ROOTS, (
+            "废纸篓不在扫描根里 —— 把残留 mv 进去就能骗过 H9-a")
+E       AssertionError: 废纸篓不在扫描根里 —— 把残留 mv 进去就能骗过 H9-a
+E       assert '~/.Trash' in ('~/RepoProofBench', '~/RepoProofBench-quarantine', '/tmp')
+
+tests/test_workspace_containment.py:259: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_workspace_containment.py::test_trash_is_a_scan_root_so_residue_cannot_be_hidden_there
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_trash_is_a_scan_root_so_residue_cannot_be_hidden_there: passed
+.                                                                        [100%]
+
+
+VERDICT: VALID
