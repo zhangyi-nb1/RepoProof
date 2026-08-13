@@ -1,0 +1,67 @@
+fix commit : 1382d80f8ec51d6f7fa32b83020e52b09352c947
+base commit: bf135e981750e4e06f46ce6b5b51be29868ab075
+nodes      : 11
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_must_fail_all_green_means_the_requirement_is_only_text: failed
+  test_expected_reds_actually_red_is_a_pass: failed
+  test_collateral_red_destroys_discrimination: failed
+  test_positive_control_any_red_is_a_contradiction: failed
+  test_nothing_collected_is_never_a_pass: failed
+  test_must_fail_case_that_never_ran_is_not_a_pass: failed
+  test_parametrized_outcomes_merge_and_a_single_red_wins: failed
+  test_error_counts_as_red_not_as_green: failed
+  test_a_suite_that_ran_nothing_voids_the_verdict: failed
+  test_pytest_internal_exit_codes_void_the_run: failed
+  test_both_suites_healthy_raises_no_problem: failed
+^^^^^^^
+
+tests/test_control_validation_matrix.py:179: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_control_validation_matrix.py:46: in _load
+    spec.loader.exec_module(mod)
+<frozen importlib._bootstrap_external>:991: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1128: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x1074dc980>
+path = '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_0a1gcmz9/tree/scripts/validate_controls.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_0a1gcmz9/tree/scripts/validate_controls.py'
+
+<frozen importlib._bootstrap_external>:1186: FileNotFoundError
+=========================== short test summary info ============================
+FAILED tests/test_control_validation_matrix.py::test_must_fail_all_green_means_the_requirement_is_only_text
+FAILED tests/test_control_validation_matrix.py::test_expected_reds_actually_red_is_a_pass
+FAILED tests/test_control_validation_matrix.py::test_collateral_red_destroys_discrimination
+FAILED tests/test_control_validation_matrix.py::test_positive_control_any_red_is_a_contradiction
+FAILED tests/test_control_validation_matrix.py::test_nothing_collected_is_never_a_pass
+FAILED tests/test_control_validation_matrix.py::test_must_fail_case_that_never_ran_is_not_a_pass
+FAILED tests/test_control_validation_matrix.py::test_parametrized_outcomes_merge_and_a_single_red_wins
+FAILED tests/test_control_validation_matrix.py::test_error_counts_as_red_not_as_green
+FAILED tests/test_control_validation_matrix.py::test_a_suite_that_ran_nothing_voids_the_verdict
+FAILED tests/test_control_validation_matrix.py::test_pytest_internal_exit_codes_void_the_run
+FAILED tests/test_control_validation_matrix.py::test_both_suites_healthy_raises_no_problem
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_must_fail_all_green_means_the_requirement_is_only_text: passed
+  test_expected_reds_actually_red_is_a_pass: passed
+  test_collateral_red_destroys_discrimination: passed
+  test_positive_control_any_red_is_a_contradiction: passed
+  test_nothing_collected_is_never_a_pass: passed
+  test_must_fail_case_that_never_ran_is_not_a_pass: passed
+  test_parametrized_outcomes_merge_and_a_single_red_wins: passed
+  test_error_counts_as_red_not_as_green: passed
+  test_a_suite_that_ran_nothing_voids_the_verdict: passed
+  test_pytest_internal_exit_codes_void_the_run: passed
+  test_both_suites_healthy_raises_no_problem: passed
+...........                                                              [100%]
+
+
+VERDICT: VALID
