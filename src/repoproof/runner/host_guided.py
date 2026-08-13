@@ -567,17 +567,25 @@ def hash_public_surface(host_root: Path) -> dict[str, str]:
 # order-21 三步拿到答案:`find /` 发现 → `sed` 通读 → `cp` 整文件。
 # H9-a 管"答案不在盘上",H9-b 管"引用即杀",H9-c 管"先教"。
 
-ANSWER_KEY_SCAN_ROOTS = ("~/RepoProofBench", "~/RepoProofBench-quarantine", "/tmp", "~/.Trash")
-"""H9-a 扫描根。前三处都是实录里真的出现过残留的地方:
+ANSWER_KEY_SCAN_ROOTS = ("~/RepoProofBench", "~/RepoProofBench-quarantine", "/tmp")
+"""H9-a 扫描根。三处都是实录里真的出现过残留的地方:
 `~/RepoProofBench/_scratch_t2_positive`(T2 v1 期)、
 `~/RepoProofBench-quarantine/_scratch_t2_positive`(order-21 抄的那棵)、
 `/private/tmp/t2v4_direct/fixtures`(任务工程期)。
 
-`~/.Trash` 是 2026-08-13 补的,反例是**我自己**:被要求"把 7 棵树移出本机"
-时,我的第一反应是 `mv` 进废纸篓 —— 那会让本函数立刻返回空、preflight 放行,
-而答案原封不动躺在 `~/.Trash/_scratch_t2_positive/research_jobs.py` 上。
-判据原文是"运行主机的**可达路径**",废纸篓是可达路径;靠挪位置让检测器
-闭嘴不叫清零。删到废纸篓不解除拒开,倒空废纸篓才解除。"""
+**`~/.Trash` 刻意不在这里**(2026-08-13 实测定的,详见 LESSONS #42)。
+当天先加过、又撤了 —— 撤的依据是三条实测,不是嫌麻烦:
+
+  ls ~/.Trash            -> Operation not permitted   (macOS TCC,非沙箱)
+  find ~/.Trash          -> Operation not permitted
+  head ~/.Trash/<确切名>/research_jobs.py  -> 正常打印出正控正文
+
+即:废纸篓**不可枚举、却可按确切路径读**。做扫描根等于零覆盖(枚举不了
+就什么也发现不了),同时因为"列不动"而永久判 `ANSWER_KEY_SCAN_BLIND` ——
+一道在本平台上**不可满足**的闸门,最后一定是被人整条关掉,比明写限制更糟。
+
+于是划成与 H9-b 同型的诚实边界:**残留不得停放在废纸篓,这条靠规程,
+H9-a 执法不到**。真要清零就删到不存在,别删到"看不见"。"""
 
 PROTECTED_TASK_DIRS = ("controls", "oracle", "fixtures", "public_tests")
 _SESSION_DIR = "_sessions"

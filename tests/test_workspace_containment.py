@@ -245,19 +245,27 @@ def test_prompt_states_the_workspace_boundary() -> None:
     assert "./fixtures" in rules and "../upstream" in rules, "#40 的两条不得丢"
 
 
-def test_trash_is_a_scan_root_so_residue_cannot_be_hidden_there() -> None:
-    """H9-a:废纸篓也是可达路径,`mv` 进去不算清零。
+def test_trash_is_deliberately_not_a_scan_root() -> None:
+    """H9-a:废纸篓**刻意**不做扫描根 —— 加进去是一道不可满足的闸门。
 
-    反例是**助手自己**(2026-08-13):用户要求"把 7 棵树移出本机",第一反应
-    是 `mv` 进 `~/.Trash` —— 若扫描根不含它,`reachable_answer_keys()` 立刻
-    返回空、preflight 放行,而答案原封不动躺在
-    `~/.Trash/_scratch_t2_positive/research_jobs.py` 上。那不是清零,是靠挪
-    位置让检测器闭嘴。删到废纸篓不解除拒开,倒空废纸篓才解除。
+    2026-08-13 当天先加过、又撤了。撤的依据是三条实测,不是嫌麻烦:
+
+        ls ~/.Trash    -> Operation not permitted   (macOS TCC,不是沙箱)
+        find ~/.Trash  -> Operation not permitted
+        head ~/.Trash/<确切名>/research_jobs.py -> 正常打印出正控正文
+
+    废纸篓**不可枚举、却可按确切路径读**。做扫描根等于零覆盖(枚举不了就
+    发现不了任何东西),同时因"列不动"而永久判 ANSWER_KEY_SCAN_BLIND ——
+    在本平台上不可满足的闸门最后一定被整条关掉,比明写限制更糟。
+
+    钉死的是"别再手滑加回来"。真正的规矩写在 LESSONS #42:残留不得停放在
+    废纸篓,删到不存在,别删到"看不见";这条靠规程,H9-a 执法不到,与 H9-b
+    "是检测器不是牢笼"同型。
     """
     from repoproof.runner.host_guided import ANSWER_KEY_SCAN_ROOTS
 
-    assert "~/.Trash" in ANSWER_KEY_SCAN_ROOTS, (
-        "废纸篓不在扫描根里 —— 把残留 mv 进去就能骗过 H9-a")
+    assert "~/.Trash" not in ANSWER_KEY_SCAN_ROOTS, (
+        "废纸篓被加回扫描根 —— 它列不动,会让每一发都判 ANSWER_KEY_SCAN_BLIND")
 
 
 def test_unlistable_dir_is_reported_as_blind_not_as_clean(tmp_path) -> None:

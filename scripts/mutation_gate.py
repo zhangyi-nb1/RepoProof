@@ -524,11 +524,11 @@ MUTATIONS: list[dict] = [
         "catchers": _T_WC,
     },
     {
-        "id": "M42f-trash-is-not-a-scan-root",
-        "lesson": "#41 H9-a:废纸篓不在扫描根 → 把残留 mv 进去就骗过拒开(反例是助手自己)",
+        "id": "M42f-trash-added-back-as-a-scan-root",
+        "lesson": "#42 H9-a:废纸篓加回扫描根 → 它列不动,每一发都判 SCAN_BLIND(不可满足的闸门必被关掉)",
         "file": _HD,
-        "old": 'ANSWER_KEY_SCAN_ROOTS = ("~/RepoProofBench", "~/RepoProofBench-quarantine", "/tmp", "~/.Trash")',
-        "new": 'ANSWER_KEY_SCAN_ROOTS = ("~/RepoProofBench", "~/RepoProofBench-quarantine", "/tmp")',
+        "old": 'ANSWER_KEY_SCAN_ROOTS = ("~/RepoProofBench", "~/RepoProofBench-quarantine", "/tmp")',
+        "new": 'ANSWER_KEY_SCAN_ROOTS = ("~/RepoProofBench", "~/RepoProofBench-quarantine", "/tmp", "~/.Trash")',
         "catchers": _T_WC,
     },
     {
