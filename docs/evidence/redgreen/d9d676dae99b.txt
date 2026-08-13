@@ -1,0 +1,65 @@
+fix commit : d9d676dae99b83d9d064092bab55006fe5de3c5a
+base commit: 98f98f7361d37a0abf9a2cde8507dc7994f43786
+nodes      : 7
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_enforcement_does_not_rely_on_the_async_usage_hook: failed
+  test_no_single_call_can_cross_the_hard_cap: failed
+  test_projection_floor_is_the_largest_observed_call: failed
+  test_local_estimate_catches_a_prompt_that_suddenly_grows: failed
+  test_estimator_never_undercounts_cjk: failed
+  test_round_bucket_prefers_synchronous_accounting: failed
+  test_never_reports_below_the_hook_and_never_fabricates_zero: failed
+/tree/src/repoproof/runner/host_guided.py)
+
+tests/test_token_enforcement.py:154: ImportError
+_________ test_never_reports_below_the_hook_and_never_fabricates_zero __________
+
+    def test_never_reports_below_the_hook_and_never_fabricates_zero() -> None:
+        """H7-e:钩子写了、返回体没带 usage 时,执法用的是钩子的数;
+        两边都沉默时保持 UNKNOWN,不许写成 0。"""
+        from repoproof.agents.token_budget import TokenBudgetedModel
+    
+        class HookOnlyInner:
+            def __init__(self, totals):
+                self.totals, self.calls = totals, 0
+    
+            def query(self, messages, **kwargs):  # noqa: ANN001, ARG002
+                self.calls += 1
+                self.totals["seen"] = True
+                self.totals["in"] += 1_000
+                return {"role": "assistant", "content": "ok", "extra": {"actions": []}}
+    
+        totals = {"in": 0, "out": 0, "seen": False}
+        model = TokenBudgetedModel(inner=HookOnlyInner(totals), totals=totals,
+                                   max_input_tokens=2_500, max_output_tokens=10_000)
+        model.query(_msgs(20))
+>       assert model.used_in == 1_000, "同步记账为 0 时不得低于钩子读数"
+               ^^^^^^^^^^^^^
+E       AttributeError: 'TokenBudgetedModel' object has no attribute 'used_in'
+
+tests/test_token_enforcement.py:189: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_token_enforcement.py::test_enforcement_does_not_rely_on_the_async_usage_hook
+FAILED tests/test_token_enforcement.py::test_no_single_call_can_cross_the_hard_cap
+FAILED tests/test_token_enforcement.py::test_projection_floor_is_the_largest_observed_call
+FAILED tests/test_token_enforcement.py::test_local_estimate_catches_a_prompt_that_suddenly_grows
+FAILED tests/test_token_enforcement.py::test_estimator_never_undercounts_cjk
+FAILED tests/test_token_enforcement.py::test_round_bucket_prefers_synchronous_accounting
+FAILED tests/test_token_enforcement.py::test_never_reports_below_the_hook_and_never_fabricates_zero
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_enforcement_does_not_rely_on_the_async_usage_hook: passed
+  test_no_single_call_can_cross_the_hard_cap: passed
+  test_projection_floor_is_the_largest_observed_call: passed
+  test_local_estimate_catches_a_prompt_that_suddenly_grows: passed
+  test_estimator_never_undercounts_cjk: passed
+  test_round_bucket_prefers_synchronous_accounting: passed
+  test_never_reports_below_the_hook_and_never_fabricates_zero: passed
+.......                                                                  [100%]
+
+
+VERDICT: VALID
