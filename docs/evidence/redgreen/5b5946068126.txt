@@ -1,0 +1,64 @@
+fix commit : 5b5946068126a8d997895b293f674833986e24b1
+base commit: f69a7d05c000dabda1b8a9f185fa0deb6d9a7029
+nodes      : 11
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_scratch_tree_is_residue: failed
+  test_stray_copy_is_matched_by_content_not_by_name: failed
+  test_session_workspace_is_not_residue: failed
+  test_order21_command_chain_is_denied: failed
+  test_root_sweep_is_denied_but_does_not_kill: failed
+  test_root_sweep_detection_does_not_fire_on_plain_paths: failed
+  test_heredoc_body_is_file_content_not_a_command: failed
+  test_answer_key_hits_are_fatal_and_counted: failed
+  test_denial_reasons_are_recorded_not_just_counted: failed
+  test_both_call_sites_are_wired: failed
+  test_prompt_states_the_workspace_boundary: failed
+s_the_workspace_boundary ___________________
+
+    def test_prompt_states_the_workspace_boundary() -> None:
+        """H9-c(#33 闸门要杀的先教):终局会击杀,提示就必须先说。
+    
+        反例:那 27 发越界里,**没有一发**被告知过工作区边界。"""
+        from repoproof.runner.host_guided import HostContract, build_host_prompt
+    
+        contract, _ = HostContract.load(
+            Path("benchmarks/v2/tasks/t2_open_deep_research_v4/contract.yaml"))
+        rules = build_host_prompt(contract, wheel_note="wheelhouse-test").split(
+            "HARD RULES", 1)[1].split("BUDGETS", 1)[0]
+>       assert "STAY INSIDE THE WORKSPACE" in rules
+E       AssertionError: assert 'STAY INSIDE THE WORKSPACE' in '\n- 修改或删除 oracle / 公开验收测试的断言\n- 修改 metrics.json 等事实源以迎合结果\n- 静默升级宿主既有依赖树的主版本\n- 测试阶段访问公网\n- Do not modify ./public_te...ents (the hidden acceptance imports them too);\n  changing them is treated exactly like changing the public tests.\n\n'
+
+tests/test_workspace_containment.py:242: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_workspace_containment.py::test_scratch_tree_is_residue - Im...
+FAILED tests/test_workspace_containment.py::test_stray_copy_is_matched_by_content_not_by_name
+FAILED tests/test_workspace_containment.py::test_session_workspace_is_not_residue
+FAILED tests/test_workspace_containment.py::test_order21_command_chain_is_denied
+FAILED tests/test_workspace_containment.py::test_root_sweep_is_denied_but_does_not_kill
+FAILED tests/test_workspace_containment.py::test_root_sweep_detection_does_not_fire_on_plain_paths
+FAILED tests/test_workspace_containment.py::test_heredoc_body_is_file_content_not_a_command
+FAILED tests/test_workspace_containment.py::test_answer_key_hits_are_fatal_and_counted
+FAILED tests/test_workspace_containment.py::test_denial_reasons_are_recorded_not_just_counted
+FAILED tests/test_workspace_containment.py::test_both_call_sites_are_wired - ...
+FAILED tests/test_workspace_containment.py::test_prompt_states_the_workspace_boundary
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_scratch_tree_is_residue: passed
+  test_stray_copy_is_matched_by_content_not_by_name: passed
+  test_session_workspace_is_not_residue: passed
+  test_order21_command_chain_is_denied: passed
+  test_root_sweep_is_denied_but_does_not_kill: passed
+  test_root_sweep_detection_does_not_fire_on_plain_paths: passed
+  test_heredoc_body_is_file_content_not_a_command: passed
+  test_answer_key_hits_are_fatal_and_counted: passed
+  test_denial_reasons_are_recorded_not_just_counted: passed
+  test_both_call_sites_are_wired: passed
+  test_prompt_states_the_workspace_boundary: passed
+...........                                                              [100%]
+
+
+VERDICT: VALID
