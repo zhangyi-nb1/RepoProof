@@ -1,0 +1,84 @@
+fix commit : 3e972d91a46002fcd3966d13b3f433df9e19fcd6
+base commit: bf135e981750e4e06f46ce6b5b51be29868ab075
+nodes      : 1
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  tests/test_control_tree_recipe.py: error-at-collection
+      """C1/C3:自检要真能报错 —— 装错了当场知道,不是等五物验证出结论才发现。"""
+>       from scripts.build_control_tree import verify
+E       ModuleNotFoundError: No module named 'scripts'
+
+tests/test_control_tree_recipe.py:114: ModuleNotFoundError
+________________ test_existing_dest_is_refused_not_overwritten _________________
+
+tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-370/test_existing_dest_is_refused_0')
+
+    def test_existing_dest_is_refused_not_overwritten(tmp_path):
+        """C4 的另一面:不能默默盖掉别人的目录。"""
+>       from scripts.build_control_tree import build
+E       ModuleNotFoundError: No module named 'scripts'
+
+tests/test_control_tree_recipe.py:130: ModuleNotFoundError
+_________________ test_default_is_teardown_and_keep_is_opt_in __________________
+
+tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-370/test_default_is_teardown_and_k0')
+
+    def test_default_is_teardown_and_keep_is_opt_in(tmp_path):
+        """C4:残留必须是显式选择的结果,不能是默认行为。"""
+>       from scripts.build_control_tree import main
+E       ModuleNotFoundError: No module named 'scripts'
+
+tests/test_control_tree_recipe.py:142: ModuleNotFoundError
+=========================== short test summary info ============================
+FAILED tests/test_control_tree_recipe.py::test_recipe_materializes_all_four_sources
+FAILED tests/test_control_tree_recipe.py::test_control_body_is_byte_identical_to_the_repo_original
+FAILED tests/test_control_tree_recipe.py::test_venv_and_git_and_pycache_are_excluded
+FAILED tests/test_control_tree_recipe.py::test_mount_is_appended_exactly_once
+FAILED tests/test_control_tree_recipe.py::test_mount_not_duplicated_when_upstream_already_mounts
+FAILED tests/test_control_tree_recipe.py::test_selfcheck_catches_a_botched_assembly
+FAILED tests/test_control_tree_recipe.py::test_existing_dest_is_refused_not_overwritten
+FAILED tests/test_control_tree_recipe.py::test_default_is_teardown_and_keep_is_opt_in
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=1
+  tests/test_control_tree_recipe.py: missing
+      """C1/C3:自检要真能报错 —— 装错了当场知道,不是等五物验证出结论才发现。"""
+>       from scripts.build_control_tree import verify
+E       ModuleNotFoundError: No module named 'scripts'
+
+tests/test_control_tree_recipe.py:114: ModuleNotFoundError
+________________ test_existing_dest_is_refused_not_overwritten _________________
+
+tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-372/test_existing_dest_is_refused_0')
+
+    def test_existing_dest_is_refused_not_overwritten(tmp_path):
+        """C4 的另一面:不能默默盖掉别人的目录。"""
+>       from scripts.build_control_tree import build
+E       ModuleNotFoundError: No module named 'scripts'
+
+tests/test_control_tree_recipe.py:130: ModuleNotFoundError
+_________________ test_default_is_teardown_and_keep_is_opt_in __________________
+
+tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-372/test_default_is_teardown_and_k0')
+
+    def test_default_is_teardown_and_keep_is_opt_in(tmp_path):
+        """C4:残留必须是显式选择的结果,不能是默认行为。"""
+>       from scripts.build_control_tree import main
+E       ModuleNotFoundError: No module named 'scripts'
+
+tests/test_control_tree_recipe.py:142: ModuleNotFoundError
+=========================== short test summary info ============================
+FAILED tests/test_control_tree_recipe.py::test_recipe_materializes_all_four_sources
+FAILED tests/test_control_tree_recipe.py::test_control_body_is_byte_identical_to_the_repo_original
+FAILED tests/test_control_tree_recipe.py::test_venv_and_git_and_pycache_are_excluded
+FAILED tests/test_control_tree_recipe.py::test_mount_is_appended_exactly_once
+FAILED tests/test_control_tree_recipe.py::test_mount_not_duplicated_when_upstream_already_mounts
+FAILED tests/test_control_tree_recipe.py::test_selfcheck_catches_a_botched_assembly
+FAILED tests/test_control_tree_recipe.py::test_existing_dest_is_refused_not_overwritten
+FAILED tests/test_control_tree_recipe.py::test_default_is_teardown_and_keep_is_opt_in
+
+
+VERDICT: INVALID
+  ✗ tests/test_control_tree_recipe.py: 在 fix 上是 missing —— 没有绿

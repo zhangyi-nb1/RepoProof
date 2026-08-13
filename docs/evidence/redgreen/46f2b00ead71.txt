@@ -1,0 +1,65 @@
+fix commit : 46f2b00ead711115c9f2ce508fcd3ce77a1528c2
+base commit: bf135e981750e4e06f46ce6b5b51be29868ab075
+nodes      : 8
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_recipe_materializes_all_four_sources: failed
+  test_control_body_is_byte_identical_to_the_repo_original: failed
+  test_venv_and_git_and_pycache_are_excluded: failed
+  test_mount_is_appended_exactly_once: failed
+  test_mount_not_duplicated_when_upstream_already_mounts: failed
+  test_selfcheck_catches_a_botched_assembly: failed
+  test_existing_dest_is_refused_not_overwritten: failed
+  test_default_is_teardown_and_keep_is_opt_in: failed
+________
+
+tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-377/test_default_is_teardown_and_k0')
+
+    def test_default_is_teardown_and_keep_is_opt_in(tmp_path):
+        """C4:残留必须是显式选择的结果,不能是默认行为。"""
+>       main = _load("build_control_tree.py").main
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_control_tree_recipe.py:156: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_control_tree_recipe.py:37: in _load
+    spec.loader.exec_module(mod)
+<frozen importlib._bootstrap_external>:991: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1128: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x10710b890>
+path = '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_brmukh19/tree/scripts/build_control_tree.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_brmukh19/tree/scripts/build_control_tree.py'
+
+<frozen importlib._bootstrap_external>:1186: FileNotFoundError
+=========================== short test summary info ============================
+FAILED tests/test_control_tree_recipe.py::test_recipe_materializes_all_four_sources
+FAILED tests/test_control_tree_recipe.py::test_control_body_is_byte_identical_to_the_repo_original
+FAILED tests/test_control_tree_recipe.py::test_venv_and_git_and_pycache_are_excluded
+FAILED tests/test_control_tree_recipe.py::test_mount_is_appended_exactly_once
+FAILED tests/test_control_tree_recipe.py::test_mount_not_duplicated_when_upstream_already_mounts
+FAILED tests/test_control_tree_recipe.py::test_selfcheck_catches_a_botched_assembly
+FAILED tests/test_control_tree_recipe.py::test_existing_dest_is_refused_not_overwritten
+FAILED tests/test_control_tree_recipe.py::test_default_is_teardown_and_keep_is_opt_in
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_recipe_materializes_all_four_sources: passed
+  test_control_body_is_byte_identical_to_the_repo_original: passed
+  test_venv_and_git_and_pycache_are_excluded: passed
+  test_mount_is_appended_exactly_once: passed
+  test_mount_not_duplicated_when_upstream_already_mounts: passed
+  test_selfcheck_catches_a_botched_assembly: passed
+  test_existing_dest_is_refused_not_overwritten: passed
+  test_default_is_teardown_and_keep_is_opt_in: passed
+........                                                                 [100%]
+
+
+VERDICT: VALID
