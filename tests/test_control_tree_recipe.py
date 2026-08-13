@@ -18,6 +18,12 @@
   是重复挂载。上游若已自带挂载,不得再追加。
 - C4 默认即拆:不给 `--keep` 就必须删干净。反例:手搓树的默认是"留着",
   于是每验证一次五物就多 7 棵残留 —— 残留是默认行为的产物,不是疏忽。
+- C5 挂载符号由控制组正文**发现**,不由装配器写死。反例(2026-08-13 实测):
+  装配器写死了 T2 的 `mount_research_api`,于是 T3 的控制组
+  (`apply_assist.mount_apply_assist`)装出来的树**根本起不来** —— 而自检
+  还会报"挂载恰好一次",因为它比对的是自己刚写进去的那一行。写死一个符号
+  = 装配器只服务一个任务,且**自检跟着一起假绿**。找不到 `def mount_*(app)`
+  必须停,不许猜。
 
 判据只管装配器本身;控制组各自的**语义**(nc1 真的没接 ODR 等)由五物验证
 执法,不在这里。
@@ -153,6 +159,31 @@ def test_existing_dest_is_refused_not_overwritten(tmp_path):
 
     with pytest.raises(SystemExit):
         build(task, "nc1_no_odr", dest, up)
+
+
+def test_mount_symbol_is_discovered_from_the_control_body(tmp_path):
+    """C5:控制组叫什么,装配器就挂什么 —— 不是写死 T2 那个名字。"""
+    build = _load("build_control_tree.py").build
+
+    up = _mini_upstream(tmp_path)
+    task = _mini_task(tmp_path,
+                      control_body="def mount_apply_assist(app):\n    return app\n")
+    dest = build(task, "nc1_no_odr", tmp_path / "out", up)
+
+    rag = (dest / "rag_api.py").read_text()
+    assert "mount_apply_assist(app)" in rag, "没挂上控制组自己的挂载函数"
+    assert "mount_research_api" not in rag, "把 T2 的挂载名写死了"
+
+
+def test_control_without_a_mount_function_is_refused(tmp_path):
+    """C5:找不到 `def mount_*(app)` 必须停 —— 猜一个名字装出来的树是哑的。"""
+    build = _load("build_control_tree.py").build
+
+    up = _mini_upstream(tmp_path)
+    task = _mini_task(tmp_path, control_body="VALUE = 1\n")
+
+    with pytest.raises(SystemExit):
+        build(task, "nc1_no_odr", tmp_path / "out", up)
 
 
 def test_default_is_teardown_and_keep_is_opt_in(tmp_path):

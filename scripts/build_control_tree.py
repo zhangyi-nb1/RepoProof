@@ -28,6 +28,7 @@ H9-a 会因此拒开下一发真实运行(这是设计,不是故障)。
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
@@ -41,8 +42,22 @@ COPIED_TASK_DIRS = ("fixtures", "public_tests")
 
 # 追加到 rag_api.py 末尾。正控那棵手搓树在 import 前多一行中文注释,纯装饰,
 # 这里统一用不带注释的形式 —— 没有任何检查器逐字节比对 rag_api.py。
-MOUNT_BLOCK = "\nfrom research_jobs import mount_research_api  # noqa: E402\nmount_research_api(app)\n"
-MOUNT_MARKER = "mount_research_api(app)"
+#
+# 挂载符号**从控制组正文里发现**,不写死(2026-08-13,见 C5)。写死意味着
+# 装配器只服务一个任务:T2 是 `research_jobs.mount_research_api`,T3 是
+# `apply_assist.mount_apply_assist`。更糟的是自检也会跟着假绿 —— 它比对的
+# 是自己刚写进去的那一行,写错了照样报"挂载恰好一次"。
+_MOUNT_DEF = re.compile(r"^def\s+(mount_\w+)\s*\(", re.MULTILINE)
+
+
+def mount_of(src_control: Path) -> tuple[str, str, str]:
+    """从控制组正文发现 (模块名, 函数名, 追加块)。找不到就停,不猜。"""
+    for f in sorted(src_control.glob("*.py")):
+        m = _MOUNT_DEF.search(f.read_text(encoding="utf-8"))
+        if m:
+            fn = m.group(1)
+            return f.stem, fn, f"\nfrom {f.stem} import {fn}  # noqa: E402\n{fn}(app)\n"
+    raise SystemExit(f"控制组里找不到 `def mount_*(app)`,装不出能跑的树:{src_control}")
 
 
 def _ignore(_dir: str, names: list[str]) -> set[str]:
@@ -68,10 +83,12 @@ def build(task_dir: Path, control: str, dest: Path, upstream: Path) -> Path:
     for f in sorted(src_control.glob("*.py")):
         shutil.copy2(f, dest / f.name)
 
+    _mod, fn, block = mount_of(src_control)
+    marker = f"{fn}(app)"
     rag = dest / "rag_api.py"
     text = rag.read_text()
-    if MOUNT_MARKER not in text:
-        rag.write_text(text + MOUNT_BLOCK)
+    if marker not in text:
+        rag.write_text(text + block)
 
     verify(dest, src_control)
     return dest
@@ -85,10 +102,11 @@ def verify(dest: Path, src_control: Path) -> None:
             raise SystemExit(f"自检失败:控制组文件没落地 {f.name}")
         if got.read_bytes() != f.read_bytes():
             raise SystemExit(f"自检失败:{f.name} 与 controls/ 下的原件不一致")
+    _mod, fn, _block = mount_of(src_control)
     text = (dest / "rag_api.py").read_text()
-    n = text.count(MOUNT_MARKER)
+    n = text.count(f"{fn}(app)")
     if n != 1:
-        raise SystemExit(f"自检失败:rag_api.py 里挂载出现 {n} 次(应为 1)")
+        raise SystemExit(f"自检失败:rag_api.py 里 {fn}(app) 出现 {n} 次(应为 1)")
 
 
 def main(argv: list[str] | None = None) -> int:
