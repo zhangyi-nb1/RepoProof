@@ -1,0 +1,58 @@
+fix commit : a2599bb22b9810572b10dd38fc14025131bf32e1
+base commit: e122133a3e6d89c9c211078f9519132c5500a154
+nodes      : 2
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_unlistable_dir_is_reported_as_blind_not_as_clean: failed
+  test_blind_scan_blocks_the_run_with_its_own_reason: failed
+   于是返回 **0 处命中**,而同一时刻 `test -d` 证明答案就在那儿 —— 检测器
+        看不见时朝**放行**的方向失败。H9-b 可绕,不可绕的那一半全押在 H9-a;
+        它失明即等于整道封闭失效。
+        """
+        import os
+    
+        from repoproof.runner.host_guided import reachable_answer_keys
+    
+        task = tmp_path / "task"
+        (task / "controls" / "positive").mkdir(parents=True)
+        (task / "controls" / "positive" / "research_jobs.py").write_text("x = 1\n")
+    
+        root = tmp_path / "bench"
+        locked = root / "locked"
+        locked.mkdir(parents=True)
+        (locked / "research_jobs.py").write_text("x = 1\n")   # 里面真有答案
+        os.chmod(locked, 0o000)
+        try:
+            blind: list[str] = []
+>           found = reachable_answer_keys(task, roots=(str(root),), blind=blind)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: reachable_answer_keys() got an unexpected keyword argument 'blind'
+
+tests/test_workspace_containment.py:287: TypeError
+______________ test_blind_scan_blocks_the_run_with_its_own_reason ______________
+
+    def test_blind_scan_blocks_the_run_with_its_own_reason() -> None:
+        """H9-a:盲区要拒开,且理由与'查到残留'分开 —— 两者的补救动作不同。"""
+        from pathlib import Path as _P
+    
+        src = _P("src/repoproof/runner/host_guided.py").read_text()
+    
+>       assert "        if blind:\n" in src, "盲区没有独立的拒开分支"
+E       AssertionError: 盲区没有独立的拒开分支
+E       assert '        if blind:\n' in '"""宿主级 GUIDED 运行驱动(TESTPLAN-V2 Phase 1,T1+ 形态;RFC-009 §六)。\n\n样例管线(guided_repair.py,Docker+adaptation 区)不动;本模块是宿主级\n形...txt"}]},\n        {"actions": [{"command": "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]},\n    ]\n    return steps\n'
+
+tests/test_workspace_containment.py:302: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_workspace_containment.py::test_unlistable_dir_is_reported_as_blind_not_as_clean
+FAILED tests/test_workspace_containment.py::test_blind_scan_blocks_the_run_with_its_own_reason
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_unlistable_dir_is_reported_as_blind_not_as_clean: passed
+  test_blind_scan_blocks_the_run_with_its_own_reason: passed
+..                                                                       [100%]
+
+
+VERDICT: VALID
