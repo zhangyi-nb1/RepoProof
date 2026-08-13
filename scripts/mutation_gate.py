@@ -55,6 +55,9 @@ _T_PI = ["tests/test_process_independence.py"]
 _T_RC = ["tests/test_root_cause_packets.py"]
 _T_TE = ["tests/test_token_enforcement.py"]
 _T_PS = ["tests/test_public_surface_integrity.py"]
+_PO = "src/repoproof/harness/policy.py"
+_EV = "src/repoproof/agents/repoproof_env.py"
+_T_WC = ["tests/test_workspace_containment.py"]
 
 CANARY = {
     "id": "C0-plumbing-canary",
@@ -405,6 +408,94 @@ MUTATIONS: list[dict] = [
         "old": '        + "\\n- Do not modify ./public_tests, ./fixtures or ../upstream. The fixtures\\n"',
         "new": '        + "\\n- Do not modify ./public_tests or ../upstream.\\n"',
         "catchers": _T_PS,
+    },
+    {
+        "id": "M41a-answer-key-markers-gone",
+        "lesson": "#41 政策不认答案树路径(order-21:cp 正控 research_jobs.py 进工作区)",
+        "file": _PO,
+        "old": '    "_scratch_t",                 # 正控/负控安装树(order-21 抄的就是它)',
+        "new": '    "__never_matches_anything__",',
+        "catchers": _T_WC,
+    },
+    {
+        "id": "M41b-root-sweep-not-detected",
+        "lesson": "#41 根扫描放行(发现答案的第一步:find / -name fake_llm_server.py)",
+        "file": _PO,
+        "old": "    if root_sweeping(lowered):",
+        "new": "    if False:",
+        "catchers": _T_WC,
+    },
+    {
+        "id": "M41c-sweep-detector-ignores-separators",
+        "lesson": "#41 变体:根检测不在分隔符处复位 → `find . -name x ; cp a /` 被误伤",
+        "file": _PO,
+        "old": "        if tok in _SEPARATORS:\n            active = False\n            continue",
+        "new": "        if tok in _SEPARATORS:\n            continue",
+        "catchers": _T_WC,
+    },
+    {
+        "id": "M41d-root-sweep-promoted-to-a-kill",
+        "lesson": "#41 变体:把根扫描也判死 —— 27 发越界里 24 发只是在找 wheelhouse(#35 反面)",
+        "file": _PO,
+        "old": "        reasons.append(ROOT_SWEEP)",
+        "new": "        reasons.append(f\"{OUT_OF_WORKSPACE}:{ROOT_SWEEP}\")",
+        "catchers": _T_WC,
+    },
+    {
+        "id": "M41d2-heredoc-body-scanned-as-a-command",
+        "lesson": "#41 变体:heredoc 正文当命令扫 → 写文件被误判成全盘扫描(误伤毁一轮)",
+        "file": _PO,
+        "old": "    for tok in strip_heredocs(command).split():",
+        "new": "    for tok in command.split():",
+        "catchers": _T_WC,
+    },
+    {
+        "id": "M41e-denial-reasons-only-counted",
+        "lesson": "#41 只记 denied_count 不记原因 → 越界与预算耗尽分不出来",
+        "file": _EV,
+        "old": "            self.policy_denials.extend(decision.reasons)",
+        "new": "            pass",
+        "catchers": _T_WC,
+    },
+    {
+        "id": "M41f-residue-scan-skips-scratch-trees",
+        "lesson": "#41 H9-a 不认 _scratch_t* 安装树(order-21 抄的那棵就在其中)",
+        "file": _HD,
+        "old": '                    if e.name.startswith("_scratch_t"):',
+        "new": '                    if False:',
+        "catchers": _T_WC,
+    },
+    {
+        "id": "M41g-residue-scan-flags-the-live-session",
+        "lesson": "#41 变体:H9-a 不跳过 _sessions → 每一发都拒开自己(过度封锁)",
+        "file": _HD,
+        "old": '                if e.name == _SESSION_DIR:\n                    continue',
+        "new": '                if False:\n                    continue',
+        "catchers": _T_WC,
+    },
+    {
+        "id": "M41h-residue-is-a-warning-not-a-block",
+        "lesson": "#41 H9-a 查到残留只告警不拒开(判据原文:拒开,不是告警)",
+        "file": _HD,
+        "old": "        residue = reachable_answer_keys(Path(contract_path).parent)\n        if residue:",
+        "new": "        residue = reachable_answer_keys(Path(contract_path).parent)\n        if False:",
+        "catchers": _T_WC,
+    },
+    {
+        "id": "M41i-out-of-workspace-not-fatal",
+        "lesson": "#41 越界不进 fatal/排序 → 终局要杀,循环既不防也不报(#33/#35 老病)",
+        "file": _HD,
+        "old": '        fatal.append("out_of_workspace")',
+        "new": '        pass',
+        "catchers": _T_WC,
+    },
+    {
+        "id": "M41j-prompt-drops-the-workspace-boundary",
+        "lesson": "#41 H9-c:终局以 OUT_OF_WORKSPACE_ACCESS 击杀却不在提示里教(27 发无一被告知)",
+        "file": _HD,
+        "old": '        + "\\n- STAY INSIDE THE WORKSPACE. Everything you need is here: ./ and the\\n"',
+        "new": '        + "\\n- Prefer to work inside the workspace.\\n"',
+        "catchers": _T_WC,
     },
 ]
 

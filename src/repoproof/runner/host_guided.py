@@ -172,6 +172,7 @@ from repoproof.harness.host_guard import (
 from repoproof.harness import postflight
 from repoproof.harness.host_snapshot import prepare_host_snapshot, scan_for_pii
 from repoproof.harness.oracle_guard import hash_tree, make_read_only, trees_equal
+from repoproof.harness.policy import OUT_OF_WORKSPACE
 from repoproof.harness.trace import verify_chain
 from repoproof.persistence.bench_records import append_run
 from repoproof.persistence.run_store import FileRunStore
@@ -412,6 +413,7 @@ def round_violation_report(
     dependency_probe_failed: bool = False,
     dependency_detail: str = "",
     upstream_touched: list[str] | None = None,
+    answer_key_hits: list[str] | None = None,
 ) -> tuple[list[FailurePacket], list[str], int]:
     """本轮违规 → (结构化失败包, 致命违规名单, 计入排序的违规数)。
 
@@ -468,6 +470,20 @@ def round_violation_report(
             actual=f"{patch_lines} diff lines",
             suggestion="最终政策闸会以同一数字拒绝——精简 diff:删掉调试残留、"
                        "重复代码与无关重排,保住已通过的测试"))
+    keys = list(answer_key_hits or [])
+    if keys:
+        fatal.append("out_of_workspace")
+        packets.append(FailurePacket(
+            type="OUT_OF_WORKSPACE_ACCESS",
+            summary=f"referenced protected benchmark material outside the workspace: "
+                    f"{', '.join(keys[:5])}",
+            expected="every path you touch stays inside the host workspace "
+                     "(./ and the read-only ../upstream)",
+            actual=f"{len(keys)} denied reference(s) to the benchmark tree, "
+                   "reference solutions, or hidden acceptance material",
+            suggestion="这些命令**没有执行**,但终局会以 OUT_OF_WORKSPACE_ACCESS "
+                       "直接击杀这一发——答案树、负控、隐藏验收都不是你的工作面。"
+                       "只用 ./ 与只读的 ../upstream 解题"))
     touched = list(upstream_touched or [])
     if touched:
         fatal.append("upstream")
@@ -501,7 +517,7 @@ def round_violation_report(
                        "——移除或放宽冲突的钉版,或改用轮仓/../upstream 快照里"
                        "真实可装的形态;可自己跑 `pip install --dry-run -r "
                        "requirements.txt` 复现"))
-    return packets, fatal, len(tampered) + len(touched)
+    return packets, fatal, len(tampered) + len(touched) + len(keys)
 
 
 def enforcement_input_cap(budgets: "HostBudgets") -> int:
@@ -544,6 +560,74 @@ def hash_public_surface(host_root: Path) -> dict[str, str]:
         if d.is_dir():
             out.update({f"{name}/{rel}": h for rel, h in hash_tree(d).items()})
     return out
+
+
+# ------------------------------------------------ H9(LESSONS #41)工作区封闭
+# order-21 三步拿到答案:`find /` 发现 → `sed` 通读 → `cp` 整文件。
+# H9-a 管"答案不在盘上",H9-b 管"引用即杀",H9-c 管"先教"。
+
+ANSWER_KEY_SCAN_ROOTS = ("~/RepoProofBench", "~/RepoProofBench-quarantine", "/tmp")
+"""H9-a 扫描根。三处都是实录里真的出现过残留的地方:
+`~/RepoProofBench/_scratch_t2_positive`(T2 v1 期)、
+`~/RepoProofBench-quarantine/_scratch_t2_positive`(order-21 抄的那棵)、
+`/private/tmp/t2v4_direct/fixtures`(任务工程期)。"""
+
+PROTECTED_TASK_DIRS = ("controls", "oracle", "fixtures", "public_tests")
+_SESSION_DIR = "_sessions"
+
+
+def reachable_answer_keys(
+    task_dir: Path, roots: tuple[str, ...] = ANSWER_KEY_SCAN_ROOTS, max_depth: int = 3,
+) -> list[str]:
+    """H9-a:开跑前列出运行主机上**可达的答案残留**(查到即拒开)。
+
+    残留 = 工作区之外的、任务包受保护材料(controls/oracle/fixtures/
+    public_tests)的同名副本,或任务工程期的 `_scratch_t*` 安装树。
+    会话工作区自身(`_sessions/<run_id>/host/fixtures/…`)是**合法注入**,
+    显式跳过——否则每一发都会拒开自己。
+
+    这是 H9 里**不可绕过的那一半**:H9-b 的路径检测可以被拼接/编码绕过,
+    但答案不在盘上就抄不到。
+    """
+    protected: set[str] = set()
+    for name in PROTECTED_TASK_DIRS:
+        d = Path(task_dir) / name
+        if d.is_dir():
+            protected.update(p.name for p in d.rglob("*") if p.is_file())
+    found: list[str] = []
+    for root in roots:
+        base = Path(root).expanduser()
+        if not base.is_dir():
+            continue
+        stack = [(base, 0)]
+        while stack:
+            cur, depth = stack.pop()
+            try:
+                entries = list(cur.iterdir())
+            except OSError:          # 权限/竞态:扫不到就跳过,不是残留证据
+                continue
+            for e in entries:
+                if e.name == _SESSION_DIR:
+                    continue
+                if e.is_dir():
+                    if e.name.startswith("_scratch_t"):
+                        found.append(str(e))
+                        continue     # 整棵树已判残留,不必逐文件再报
+                    if depth + 1 <= max_depth:
+                        stack.append((e, depth + 1))
+                elif e.name in protected:
+                    found.append(str(e))
+    return sorted(set(found))
+
+
+def answer_key_access(denial_reasons: object) -> list[str]:
+    """政策拒绝原因 → **引用受保护基准物路径**的那些(H9-b 击杀依据)。
+
+    根扫描(`filesystem_root_sweep`)刻意不在此列:它只教不杀。历史 27 发
+    越界里 24 发只是在找 wheelhouse,把它们判死是 #35 的反面错误。
+    """
+    pref = f"{OUT_OF_WORKSPACE}:"
+    return sorted({str(r) for r in (denial_reasons or []) if str(r).startswith(pref)})
 
 
 def round_usage(model: object, bucket: dict) -> tuple[int, int]:
@@ -635,7 +719,14 @@ def build_host_prompt(contract: HostContract, *, wheel_note: str) -> str:
         "HARD RULES\n" + "\n".join(forbidden)
         + "\n- Do not modify ./public_tests, ./fixtures or ../upstream. The fixtures\n"
           "  are the acceptance instruments (the hidden acceptance imports them too);\n"
-          "  changing them is treated exactly like changing the public tests.",
+          "  changing them is treated exactly like changing the public tests."
+        # H9-c(#33 闸门要杀的先教):终局会以 OUT_OF_WORKSPACE_ACCESS 击杀,
+        # 提示就必须先说边界。历史上 27 发越界,一发也没被告知过。
+        + "\n- STAY INSIDE THE WORKSPACE. Everything you need is here: ./ and the\n"
+          "  read-only ../upstream. Do NOT read anything else on this machine —\n"
+          "  no filesystem-wide sweeps (find / ...), and never touch the benchmark\n"
+          "  tree, reference solutions or hidden acceptance material. Such commands\n"
+          "  are DENIED, and referencing that material ends the run.",
         "BUDGETS\n"
         + (f"- PER ROUND (reset each round): model calls {b.max_model_calls}, "
            f"executed commands {b.max_commands}, "
@@ -1006,6 +1097,9 @@ class HostGuidedRunner:
         s: _Session | None = None
         upstream_before: dict = {}
         public_before: dict = {}
+        # H9-b(LESSONS #41):全会话累计的越界引用。一轮碰过答案树,后续
+        # 轮次也洗不白 —— 这一发整体不再是干净测量。
+        out_of_workspace: set[str] = set()
 
         try:
             # 环境卫生门(批 1 教训):bench 根白名单外条目 → 零预算 BLOCKED。
@@ -1197,6 +1291,12 @@ class HostGuidedRunner:
                 diff = self._diff_stats(s, s.base_commit, head)  # type: ignore[attr-defined]
                 tampered = tampered_public_surface(diff["files"])
                 denied_round = env.denied_count - denied_before
+                # H9-b(LESSONS #41):引用受保护基准物路径 —— 命令已被政策
+                # 拦下(零执行),但**这一发不再是干净测量**,终局据此击杀。
+                # 取全会话累计:一轮碰过,后续轮次也洗不白。
+                answer_keys = answer_key_access(getattr(env, "policy_denials", []))
+                if answer_keys:
+                    out_of_workspace.update(answer_keys)
 
                 # H2 依赖探针(LESSONS #33):适配动过 requirements.txt 就在
                 # 会话内离线 dry-run 一次——会话 env 自带 PIP_NO_INDEX +
@@ -1259,6 +1359,7 @@ class HostGuidedRunner:
                     dependency_probe_failed=probe_failed,
                     dependency_detail=probe_detail,
                     upstream_touched=upstream_touched,
+                    answer_key_hits=answer_keys,
                 )
                 rr = RoundResult(
                     adapter_snapshot=head,
@@ -1491,6 +1592,16 @@ class HostGuidedRunner:
                     detail=pol.detail + f"; PUBLIC_SURFACE_TAMPERED: {pub_diff[:5]}",
                     evidence=pol.evidence,
                     extra={**pol.extra, "public_tests_tampered": pub_diff[:10]})
+            # H9-b:引用受保护基准物路径 → 击杀。命令确实被拦下了(零执行),
+            # 但检测器不是牢笼(#41 诚实边界):既然这一发伸过手,就不能再
+            # 把它当作对模型能力的干净测量。反例是 order-21 —— 它伸手成功了。
+            if out_of_workspace:
+                hits = sorted(out_of_workspace)
+                pol = VerificationResult(
+                    verifier="PolicyVerifier", passed=False,
+                    detail=pol.detail + f"; OUT_OF_WORKSPACE_ACCESS: {hits[:5]}",
+                    evidence=pol.evidence,
+                    extra={**pol.extra, "out_of_workspace_access": hits[:10]})
             self.timings["verification_s"] = round(time.monotonic() - t_verify, 1)
 
             first_outcome = {
@@ -1824,6 +1935,18 @@ def run_host_guided_cli(
         # 无 report.json 的隐身 run 目录(LESSONS #12 教训)。
         from repoproof.agents.provider_gate import run_preflight
         from repoproof.runner.agent_run import provider_from_env
+
+        # H9-a(LESSONS #41):答案残留在盘上就**拒开**,不是告警。
+        # 反例 order-21:`~/RepoProofBench-quarantine/_scratch_t2_positive/
+        # research_jobs.py` 被整文件 cp 进工作区,交付 344 行里 295 行与正控
+        # 逐字相同。H9-b 的路径检测能被绕过,这一条不能 —— 答案不在盘上。
+        residue = reachable_answer_keys(Path(contract_path).parent)
+        if residue:
+            return {"blocked": True, "agent_model_call_count": 0,
+                    "preflight": {"ready": False, "reason": "ANSWER_KEY_REACHABLE"},
+                    "answer_key_residue": residue[:20],
+                    "remediation": "运行主机上仍可达到正控/负控/任务工程期残留;"
+                                   "清掉或移出本机后再开跑(它们在 run 期间没有用途)"}
 
         provider = provider_from_env()
         pf = run_preflight(provider)

@@ -8,6 +8,7 @@ NOT a security boundary against malicious code.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -92,6 +93,75 @@ _AGENT_COMMAND_DENY = (
 )
 
 
+# ---------------------------------------------------- H9-b(LESSONS #41)
+# order-21 用三步拿到了答案:`find /` 发现 → `sed` 通读 → `cp` 整文件。
+# 这里同时掐掉第一步和第二步。**这是检测器不是牢笼**:路径可以拼接、
+# 编码、走 python 一行流绕过;不可绕过的那一半是 H9-a(答案不在盘上)。
+
+OUT_OF_WORKSPACE = "out_of_workspace_access"
+"""**引用受保护基准物路径**的原因前缀 —— 终局据此判
+`OUT_OF_WORKSPACE_ACCESS` 击杀该发(H9-b 冻结判据原文)。"""
+
+ROOT_SWEEP = "filesystem_root_sweep"
+"""根扫描的原因。**只拦不杀**:它是"发现答案"的那一步,拦下就够了;
+历史 27 发越界里 24 发只是在找 wheelhouse,把它们判死属于
+"闸门不杀的不许暗中判死"(#35)的反面错误。"""
+
+# 受保护基准物的路径指纹(小写比对)。刻意不含裸 "repoproofbench" ——
+# 会话工作区本身就在 ~/RepoProofBench/_sessions/ 下,那是合法的。
+_BENCH_SECRET_MARKERS = (
+    "_scratch_t",                 # 正控/负控安装树(order-21 抄的就是它)
+    "repoproofbench-quarantine",  # 隔离区
+    "/benchmarks/v2/",            # 基准仓任务包:oracle + controls + 正版 fixtures
+    "controls/positive",
+    "controls/nc",
+    "test_hidden_",               # 隐藏 oracle 文件名
+    "xiangmu/repoproof",          # 基准仓本体
+)
+
+# 以文件系统根为起点的扫描 —— 发现答案树的那一步。
+_SWEEP_CMDS = ("find", "grep", "rg", "fd", "ag", "du", "ls")
+_INDEX_SEARCH_CMDS = ("mdfind", "locate")
+_SEPARATORS = (";", "&&", "||", "|", "&")
+
+
+_HEREDOC = re.compile(r"<<-?\s*'?\"?([A-Za-z_][A-Za-z0-9_]*)'?\"?\n.*?\n\1", re.S)
+
+
+def strip_heredocs(command: str) -> str:
+    """去掉 heredoc 正文 —— 那是**文件内容**,不是命令。
+
+    agent 写文件用的就是 `cat > x.py <<'EOF' … EOF`。正文里出现一个
+    `find` 和一个孤立的 `/`(python 里 `a / b` 很常见)就误判成全盘扫描,
+    会把一次完全正当的写文件拦下来。误伤比漏检更贵:漏检还有 H9-a 兜底,
+    误伤直接毁掉一轮。**路径指纹不走这条**——正文里引用答案树同样算数。
+    """
+    return _HEREDOC.sub("", command)
+
+
+def root_sweeping(command: str) -> bool:
+    """命令里是否有以 `/` 为起点的扫描(含 macOS 的 /System/Volumes/Data 别名)。
+
+    只在扫描类命令之后认根参数:`cd /` 或 `cp a /tmp/b` 不算,
+    `find / -name x`、`grep -r pat /` 算。分隔符处复位,免得一条
+    复合命令里前半段的 `find` 把后半段的 `/` 也算上。
+    """
+    active = False
+    for tok in strip_heredocs(command).split():
+        if tok in _SEPARATORS:
+            active = False
+            continue
+        base = tok.rsplit("/", 1)[-1]
+        if base in _INDEX_SEARCH_CMDS:
+            return True
+        if base in _SWEEP_CMDS:
+            active = True
+            continue
+        if active and (tok == "/" or tok.rstrip("/") == "/System/Volumes/Data"):
+            return True
+    return False
+
+
 def evaluate_agent_command(command: str) -> PolicyDecision:
     reasons: list[str] = []
     lowered = command.strip()
@@ -102,6 +172,12 @@ def evaluate_agent_command(command: str) -> PolicyDecision:
         for tok in _FORBIDDEN_INSTALL_TOKENS:
             if tok in lowered:
                 reasons.append(f"forbidden_install_extra:{tok}")
+    folded = lowered.lower()
+    for marker in _BENCH_SECRET_MARKERS:
+        if marker in folded:
+            reasons.append(f"{OUT_OF_WORKSPACE}:{marker}")
+    if root_sweeping(lowered):
+        reasons.append(ROOT_SWEEP)
     if reasons:
         return PolicyDecision(False, reasons)
     return PolicyDecision(True, ["ok"])

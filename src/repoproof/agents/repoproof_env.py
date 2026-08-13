@@ -68,6 +68,9 @@ class RepoProofEnvironment:
     default_cwd: str = "/adaptation"
     commands_used: int = 0
     denied_count: int = 0
+    policy_denials: list[str] = field(default_factory=list)
+    """每次 deny 的原因原文(H9-b/LESSONS #41)。终局要按**原因**分类
+    —— 越界访问和预算耗尽都会让 denied_count 加一,只看计数分不出来。"""
     _action_seq: int = 0
     template_vars: dict[str, Any] = field(default_factory=dict)
     # ---- Gate 4A: budget visibility (the ONE ablation variable) ----
@@ -121,6 +124,7 @@ class RepoProofEnvironment:
         )
         if not decision.allowed:
             self.denied_count += 1
+            self.policy_denials.extend(decision.reasons)
             self.store.append_event(
                 "action.denied",
                 actor="harness",
