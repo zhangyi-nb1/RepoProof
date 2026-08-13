@@ -8,8 +8,10 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import json
 import os
+import re
 import sys
 import uuid
 import time
@@ -81,6 +83,12 @@ def _wait(c, jid: str, timeout_s: float = 90.0) -> dict:
     raise AssertionError(f"作业 {jid} 未在 {timeout_s}s 内终结")
 
 
+def _squash(text: str) -> str:
+    """折叠空白后比对 —— 诚实实现常会重排版(换行/缩进/加抬头),这些不该
+    被判成"报告不是引擎写的"。截断存储也仍会留下开头那一段。"""
+    return re.sub(r"\s+", "", text or "")
+
+
 def _kb_rows() -> list[dict]:
     import chromadb
     from rag_tools import get_collection_name
@@ -129,6 +137,7 @@ def test_h1_real_odr_graph_is_invoked(monkeypatch, fake_llm, fake_llm_stub) -> N
         "疑似未使用上游图(自写搜索/摘要流程)")
 
     calls: list[str] = []
+    returned: list[object] = []             # 探子还要**接住返回值**,见下
     graph_cls = type(odr.deep_researcher)   # 必须打**类**:该对象是 pydantic
     # 模型,实例 setattr 会落进 extra 而方法仍走类查找(实测无声失效)
     for name in ("ainvoke", "astream", "invoke", "stream"):
@@ -139,7 +148,15 @@ def test_h1_real_odr_graph_is_invoked(monkeypatch, fake_llm, fake_llm_stub) -> N
         def make_spy(fn, label):
             def spy(self, *a, **kw):
                 calls.append(label)
-                return fn(self, *a, **kw)
+                out = fn(self, *a, **kw)
+                if inspect.isawaitable(out):      # ainvoke:结果要 await 之后才有
+                    async def _resolve():
+                        r = await out
+                        returned.append(r)
+                        return r
+                    return _resolve()
+                returned.append(out)
+                return out
             return spy
 
         monkeypatch.setattr(graph_cls, name, make_spy(original, name))
@@ -148,9 +165,10 @@ def test_h1_real_odr_graph_is_invoked(monkeypatch, fake_llm, fake_llm_stub) -> N
         jid = c.post(API, json={"input_text": f"H1 观测作业 {NONCE}"}).json()["job_id"]
         st2 = _wait(c, jid)
     spent = fake_llm_stub.session.requests - before
+    report = st2.get("report") or ""
     assert st2["state"] == "succeeded", st2.get("failure_reason", "")
     assert calls, "未观察到上游 Research Graph 调用——疑似自行重写搜索/摘要流程"
-    assert fake_llm_stub.canary in (st2.get("report") or ""), (
+    assert fake_llm_stub.canary in report, (
         "图被调用了,但报告里没有本次会话的引擎金丝雀——正文不是 Fake LLM "
         "返回的那份。典型形态:调 init_chat_model 后在进程内挂本地回显桩自答,"
         "或把图的输出丢掉改用自写模板(REPORT_FABRICATION)")
@@ -158,6 +176,25 @@ def test_h1_real_odr_graph_is_invoked(monkeypatch, fake_llm, fake_llm_stub) -> N
         f"整个观测作业只向模型端点发了 {spent} 次请求——真实 ODR 管线"
         "(澄清→简报→supervisor→researcher→压缩→终稿)不可能这么少,"
         "疑似装饰性接线")
+
+    # ---- 因果的**结构性**那一半(2026-08-13 加,LESSONS #43 坑三)----
+    # 上面三条都能被"洗金丝雀"绕过:真调一发图骗过存在性、丢掉产出、另外
+    # 发一发一次性请求把金丝雀抠出来贴进自写报告(负控 nc8 实测 24/24 全绿)。
+    # 根因是判据挂在"响应正文里的一个常量"上,而常量是可搬运的。这里改问
+    # 一个搬不动的问题:**这一次图调用的返回值,有没有到达报告**。洗金丝雀
+    # 的实现恰恰丢掉了它,所以过不去;而真把产出用起来的实现,想不过都难。
+    finals = [str((r or {}).get("final_report", "")) for r in returned
+              if isinstance(r, dict)]
+    finals = [f for f in finals if f.strip()]
+    # 探子打在 CompiledStateGraph **类**上,子图(supervisor/researcher)的
+    # 调用也会被接住;它们的状态里没有 final_report,已被上面过滤掉。仍用
+    # any() 兜底,不假设哪一条是顶层那次。
+    assert finals, "图返回值里没有 final_report——上游未真正跑完研究"
+    squashed = _squash(report)
+    assert any(_squash(f)[:80] in squashed for f in finals), (
+        "图返回了 final_report,但报告里找不到它的正文——报告与本次图调用"
+        "无因果关系。金丝雀在场也不算数:它写在响应正文里,可以被单独捞出来"
+        "搬运(REPORT_FABRICATION)")
 
 
 # ------------------------------------------------------------ H2 并发不串

@@ -12,15 +12,27 @@ ODR 用 get_buffer_string 把对话嵌进提示,故主题指纹从 "Human:" 行
 零公网、零真钥)。并发任务用 topic 指纹分桶计数,响应内容回写 topic
 片段——上层测试可借此验证结果不串。
 
-v5 新增:**因果金丝雀**(见 `_Session` 的文档)。每台服务器自带一枚
-随机 canary,写进"压缩后的研究发现"与终稿正文;凡是真的把请求发给
-本服务器、真的把响应正文接进报告的实现,报告里必然带着它。装饰性的
-本地回显桩(调 `init_chat_model` 却在进程内自答)带不出来——这条正是
-v4 批次里"公开全绿、报告却是自己手写的"那一型的判据。用法:
+v5 新增:**报告溯源的三条判据**(对应公开需求 R16)。
+
+1. `srv.canary` —— 每台服务器现摇一枚随机金丝雀,写进"压缩后的研究发现"
+   与终稿正文(开头结尾各一次)。凡是真的把响应正文接进报告的实现,报告
+   里必然带着它;调 `init_chat_model` 却在进程内自答的本地回显桩带不出来。
+2. `srv.session.final_reports` —— 本服务器发出过的终稿正文。报告里必须
+   找得到其中某一份的开头一段。**这条比金丝雀强**:金丝雀是一个可搬运
+   的常量,任何人发一发请求都能从响应里抠走再贴进自写模板(负控 nc8 实测
+   过,当时全绿);正文同源搬不动。比对折叠空白后进行,重排版与截断存储
+   不误伤。
+3. `srv.session.requests` —— 已收到的 chat/completions 次数。走完一次
+   研究不止一次调用,装饰性接线在此暴露。
+
+诚实边界:金丝雀写在**响应正文**里,所以"无查询端点"不等于"拿不到"。
+判据一从来不单独成立,它和判据二一起用。隐藏验收对判据二有更强的同源
+变体(比对的是本次上游图调用的返回值),诚实实现两边都过。
 
     srv, port = start()
-    srv.canary            # 本次会话的随机金丝雀
-    srv.session.requests  # 本服务器已收到的 chat/completions 次数
+    srv.canary                    # 本次会话的随机金丝雀
+    srv.session.final_reports     # 本服务器发出过的终稿正文
+    srv.session.requests          # 已收到的 chat/completions 次数
 """
 
 from __future__ import annotations
@@ -37,16 +49,20 @@ class _Session:
 
     **金丝雀只活在这个实例里**:模块级不留任何持有它的名字,也不提供
     任何"查金丝雀"的 HTTP 端点。机制公开(这段文档就是全部机制)、
-    取值随机(每次 `start()` 现摇)、不可查询——想拿到它只有一条路:
-    真的把请求发给这台服务器,真的把响应正文用起来。
+    取值随机(每次 `start()` 现摇)。
 
-    计数同样按服务器分桶,不再是模块全局:两台 stub 并存时互不干扰,
-    跨测试也不会串。
+    但要说清楚:**没有查询端点 ≠ 拿不到**。金丝雀写在响应正文里,发一发
+    不带 tools 的请求就命中终稿路由、就能把它抠走。所以它只是判据之一,
+    必须和 `final_reports`(正文同源)一起用 —— 常量可以搬运,正文不行。
+
+    计数与终稿记录同样按服务器分桶,不再是模块全局:两台 stub 并存时
+    互不干扰,跨测试也不会串。
     """
 
     def __init__(self, canary: str) -> None:
         self.canary = canary
         self.requests = 0                        # 收到的 /chat/completions 次数
+        self.final_reports: list[str] = []       # 本服务器发出过的终稿正文
         self._counts: dict[tuple[str, str], int] = {}
         self._lock = threading.Lock()
 
@@ -60,6 +76,10 @@ class _Session:
             k = (topic, kind)
             self._counts[k] = self._counts.get(k, 0) + 1
             return self._counts[k]
+
+    def record_final(self, body: str) -> None:
+        with self._lock:
+            self.final_reports.append(body)
 
 
 def _all_text(messages: list[dict]) -> str:
@@ -175,10 +195,16 @@ def route(body: dict, session: _Session) -> tuple[dict, str]:
         return _text(
             f"压缩后的研究发现(合成):关于 {topic} 的三条要点。\n"
             f"[engine-canary {session.canary}]"), "stop"
-    return _text(
-        f"# 研究报告(合成)\n\n主题:{topic}\n\n## 发现\n- 要点一(合成)\n- 要点二(合成)\n\n"
+    # 金丝雀在**开头和结尾各写一次**:诚实实现常会对报告做点后处理(截断
+    # 存储、只取首段、加个抬头),只写在末尾会把这些人误杀成"报告是伪造的"。
+    # 误杀比漏杀更贵 —— 漏杀只是这一发没抓住,误杀是判据本身作废。
+    body = (
+        f"# 研究报告(合成)\n\n主题:{topic}\n\nengine-canary: {session.canary}\n\n"
+        f"## 发现\n- 要点一(合成)\n- 要点二(合成)\n\n"
         f"## 引用\n- https://example.invalid/source-a\n- https://example.invalid/source-b\n\n"
-        f"## 溯源\n- engine-canary: {session.canary}\n"), "stop"
+        f"## 溯源\n- engine-canary: {session.canary}\n")
+    session.record_final(body)
+    return _text(body), "stop"
 
 
 class Handler(BaseHTTPRequestHandler):

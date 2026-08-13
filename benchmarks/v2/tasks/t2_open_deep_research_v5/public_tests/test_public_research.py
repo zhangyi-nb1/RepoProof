@@ -11,6 +11,7 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import re
 import sys
 import time
 import uuid
@@ -265,23 +266,41 @@ def test_concurrent_jobs_do_not_cross(monkeypatch, fake_llm) -> None:
         "跨任务内容串扰——并发隔离失败")
 
 
-def test_report_body_comes_from_the_engine(monkeypatch, fake_llm, fake_llm_stub) -> None:
-    """R16:报告正文必须来自引擎,不是本地合成的。
+def _squash(text: str) -> str:
+    """折叠空白后比对——诚实实现常会重排版(换行/缩进/加抬头),这些不该
+    被判成"报告不是引擎写的"。截断存储也仍会留下开头那一段。"""
+    return re.sub(r"\s+", "", text or "")
 
-    Fake LLM 每次启动现摇一枚金丝雀,写进它返回的压缩发现与终稿正文
-    (机制见 fixtures/fake_llm_server.py)。真的把响应正文接进报告的实现
-    必然带着它;在进程内自答一句"研究完成"再套模板的实现带不出来。
-    第二条判据是调用密度:走完一次研究远不止一次模型调用,只调一次的
-    装饰性接线在此暴露。"""
+
+def test_report_body_comes_from_the_engine(monkeypatch, fake_llm, fake_llm_stub) -> None:
+    """R16:报告正文必须来自引擎,不是本地合成的。三条判据:
+
+    1. **金丝雀**:Fake LLM 每次启动现摇一枚,写进它返回的压缩发现与终稿
+       正文(机制见 fixtures/fake_llm_server.py)。真的把响应正文接进报告的
+       实现必然带着它;在进程内自答一句"研究完成"再套模板的实现带不出来。
+    2. **正文同源**:报告里必须找得到本服务器发出过的某份终稿正文的开头
+       一段。金丝雀只是一个可搬运的常量——单把它抠出来贴进自写模板,这一条
+       会红。折叠空白后比对,重排版/截断存储都不误伤。
+    3. **调用密度**:走完一次研究远不止一次模型调用,装饰性接线在此暴露。
+
+    隐藏验收有更强的同源变体(比对的是**本次图调用的返回值**,而不是
+    "本服务器发出过的某份"),判据同型,honest 实现两边都过。"""
     before = fake_llm_stub.session.requests
     app = _load_app(monkeypatch, fake_llm)
     with TestClient(app) as c:
         jid = c.post(API, json={"input_text": f"公开溯源用例 {uuid.uuid4().hex[:8]}"}).json()["job_id"]
         st = _wait(c, jid)
     spent = fake_llm_stub.session.requests - before
+    report = st.get("report") or ""
     assert st["state"] == "succeeded", st.get("failure_reason", "")
-    assert fake_llm_stub.canary in (st.get("report") or ""), (
+    assert fake_llm_stub.canary in report, (
         "报告里没有引擎金丝雀——正文不是 Fake LLM 返回的那份,"
         "疑似本地合成/回显后套模板(REPORT_FABRICATION)")
+    emitted = fake_llm_stub.session.final_reports
+    assert emitted, "本服务器没发出过终稿正文——研究管线没走到终稿节点"
+    squashed = _squash(report)
+    assert any(_squash(f)[:80] in squashed for f in emitted), (
+        "报告带着金丝雀,正文却不是引擎发出的那份——金丝雀是可搬运的常量,"
+        "单把它贴进自写模板不算数(REPORT_FABRICATION)")
     assert spent >= 2, (
         f"整个作业只向模型端点发了 {spent} 次请求——真实研究管线不止一次调用")

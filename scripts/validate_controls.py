@@ -42,6 +42,9 @@ _H1 = "test_h1_real_odr_graph_is_invoked"
 
 EXPECT: dict[str, dict] = {
     "positive": {"must_fail": set(), "must_pass": "ALL"},
+    # 第二正控:诚实但对报告做了后处理(只存前 300 字符)。防金丝雀**误杀** ——
+    # 误杀比漏杀贵:漏杀只是这一发没抓住,误杀是判据本身作废。
+    "positive_trunc": {"must_fail": set(), "must_pass": "ALL"},
     "nc1_no_odr": {"must_fail": {_H1}},
     "nc2_blocking": {"must_fail": {"test_create_is_non_blocking_and_returns_job_id"}},
     "nc3_secret_leak": {"must_fail": {"test_h6_api_key_never_leaks_anywhere"}},
@@ -52,6 +55,12 @@ EXPECT: dict[str, dict] = {
     # 否则证明不了"是 R16 抓住的它"。
     "nc6_local_report": {"must_fail": {_H1, "test_report_body_comes_from_the_engine"},
                          "must_pass": "REST"},
+    # nc8 比 nc6 更进一步:真调图骗过存在性判据、丢掉产出、另外发一次性请求
+    # 把金丝雀抠出来贴进自写报告。**首测 24/24 全绿** —— 金丝雀是可搬运的
+    # 常量,单靠它挡不住有意规避。加了"正文同源"判据后才红(公开面比对
+    # 服务器发出过的终稿,隐藏面比对本次图调用的返回值)。
+    "nc8_canary_launder": {"must_fail": {_H1, "test_report_body_comes_from_the_engine"},
+                           "must_pass": "REST"},
 }
 
 # pytest 的退出码:0 全过、1 有失败(都算这一跑作数);其余一律不作数。
@@ -203,7 +212,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n完整结果 → {args.json}")
 
     bad = [r["control"] for r in results if not r["ok"]]
-    print(f"\n{'六物验证通过' if not bad else '六物验证未通过:' + ', '.join(bad)}")
+    print(f"\n{len(results)} 个控制组"
+          + ("全部符合预期" if not bad else "未通过:" + ", ".join(bad)))
     return 0 if not bad else 1
 
 
