@@ -171,7 +171,7 @@ def test_heredoc_body_is_file_content_not_a_command() -> None:
 
     # 正文里必须真的有裸 `find` 和裸 `/` —— 否则不剥 heredoc 也能过,
     # 这条钉死就抓不住"把正文当命令扫"的缺陷(变异 M41d2 实测逃逸)。
-    body = "CMDS = [\n    'find',\n    '/',\n]\n"
+    body = "# helper used to find a ratio\nratio = hits / total\n"
     ok = evaluate_agent_command(f"cat > util.py <<'RP_EOF'\n{body}\nRP_EOF")
     assert ok.allowed, "heredoc 正文不是命令"
 
