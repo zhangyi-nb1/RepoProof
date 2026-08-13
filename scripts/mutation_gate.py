@@ -58,6 +58,8 @@ _T_PS = ["tests/test_public_surface_integrity.py"]
 _PO = "src/repoproof/harness/policy.py"
 _EV = "src/repoproof/agents/repoproof_env.py"
 _T_WC = ["tests/test_workspace_containment.py"]
+_BC = "scripts/build_control_tree.py"
+_T_CT = ["tests/test_control_tree_recipe.py"]
 
 CANARY = {
     "id": "C0-plumbing-canary",
@@ -496,6 +498,46 @@ MUTATIONS: list[dict] = [
         "old": '        + "\\n- STAY INSIDE THE WORKSPACE. Everything you need is here: ./ and the\\n"',
         "new": '        + "\\n- Prefer to work inside the workspace.\\n"',
         "catchers": _T_WC,
+    },
+    {
+        "id": "M42a-control-tree-missing-the-mount",
+        "lesson": "#41 C1:装配漏掉挂载 → 控制组装不起来,五物验证得到的是假阴性",
+        "file": _BC,
+        "old": "    if MOUNT_MARKER not in text:\n        rag.write_text(text + MOUNT_BLOCK)",
+        "new": "    if False:\n        rag.write_text(text + MOUNT_BLOCK)",
+        "catchers": _T_CT,
+    },
+    {
+        "id": "M42b-control-tree-drags-venv-and-git",
+        "lesson": "#41 C2:不排除 .venv/.git → 7 棵手搓树 618MB 里 610MB 是 venv,.git 更把上游历史复制进可达树",
+        "file": _BC,
+        "old": "    return {n for n in names if n in SKIP_DIRS}",
+        "new": "    return set()",
+        "catchers": _T_CT,
+    },
+    {
+        "id": "M42c-control-tree-mounts-twice",
+        "lesson": "#41 C3 反面:无条件追加 → 上游自带挂载时重复挂载(另一种装错)",
+        "file": _BC,
+        "old": "    if MOUNT_MARKER not in text:\n        rag.write_text(text + MOUNT_BLOCK)",
+        "new": "    if True:\n        rag.write_text(text + MOUNT_BLOCK)",
+        "catchers": _T_CT,
+    },
+    {
+        "id": "M42d-control-tree-defaults-to-residue",
+        "lesson": "#41 C4:默认留树 → 每验证一次五物就多 7 棵残留(这正是 7 棵手搓树的来历)",
+        "file": _BC,
+        "old": "        if args.keep:",
+        "new": "        if True:",
+        "catchers": _T_CT,
+    },
+    {
+        "id": "M42e-control-tree-selfcheck-is-decorative",
+        "lesson": "#41 C1:自检不逐字节比对 → 装错了要等五物验证出结论才发现(只写文字不执法)",
+        "file": _BC,
+        "old": "        if got.read_bytes() != f.read_bytes():",
+        "new": "        if False:",
+        "catchers": _T_CT,
     },
 ]
 
