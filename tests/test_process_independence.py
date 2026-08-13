@@ -115,7 +115,7 @@ def test_mutation_registry_shape() -> None:
     mg = _load("mutation_gate.py")
     ids = [m["id"] for m in mg.MUTATIONS]
     assert len(ids) == len(set(ids)), "变异 id 不得重复"
-    assert len(mg.MUTATIONS) >= 58, "登记簿只增不减:历史缺陷的变异体不得静默移除"
+    assert len(mg.MUTATIONS) >= 65, "登记簿只增不减:历史缺陷的变异体不得静默移除"
     for m in mg.MUTATIONS:
         assert m["lesson"].strip(), f"{m['id']} 必须注明对应教训"
         assert m["old"] != m["new"], f"{m['id']} 旧串新串相同 = 没变异"

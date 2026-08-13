@@ -1,0 +1,317 @@
+[
+ {
+  "control": "positive",
+  "ok": true,
+  "problems": [],
+  "outcomes": {
+   "test_flag_off_by_default_no_research_api": "PASSED",
+   "test_create_is_non_blocking_and_returns_job_id": "PASSED",
+   "test_status_lifecycle_and_result_fields": "PASSED",
+   "test_cancel_moves_job_out_of_running": "PASSED",
+   "test_duplicate_submission_has_explicit_policy": "PASSED",
+   "test_failure_is_persisted_with_reason": "PASSED",
+   "test_no_promote_means_no_kb_contamination": "PASSED",
+   "test_promote_writes_isolated_source_type": "PASSED",
+   "test_existing_routes_still_work": "PASSED",
+   "test_report_reflects_research_topic": "PASSED",
+   "test_upstream_graph_module_engaged": "PASSED",
+   "test_concurrent_jobs_do_not_cross": "PASSED",
+   "test_report_body_comes_from_the_engine": "PASSED",
+   "test_h1_real_odr_graph_is_invoked": "PASSED",
+   "test_h2_concurrent_jobs_do_not_cross": "PASSED",
+   "test_h3_duplicate_submit_follows_frozen_policy": "PASSED",
+   "test_h4_cancel_race_never_yields_double_terminal": "PASSED",
+   "test_h5_restart_does_not_leave_permanent_running": "PASSED",
+   "test_h6_api_key_never_leaks_anywhere": "PASSED",
+   "test_h7_success_without_promote_leaves_kb_clean": "PASSED",
+   "test_h8_promote_carries_full_provenance": "PASSED",
+   "test_h9_research_reports_never_enter_paper_domain": "PASSED",
+   "test_h10_host_capabilities_intact": "PASSED"
+  },
+  "suites": [
+   {
+    "label": "positive/public",
+    "cases": 14,
+    "exit": 0
+   },
+   {
+    "label": "positive/oracle",
+    "cases": 10,
+    "exit": 0
+   }
+  ],
+  "green": 23,
+  "red": 0,
+  "total": 23
+ },
+ {
+  "control": "nc1_no_odr",
+  "ok": true,
+  "problems": [],
+  "outcomes": {
+   "test_flag_off_by_default_no_research_api": "PASSED",
+   "test_create_is_non_blocking_and_returns_job_id": "PASSED",
+   "test_status_lifecycle_and_result_fields": "PASSED",
+   "test_cancel_moves_job_out_of_running": "PASSED",
+   "test_duplicate_submission_has_explicit_policy": "PASSED",
+   "test_failure_is_persisted_with_reason": "FAILED",
+   "test_no_promote_means_no_kb_contamination": "PASSED",
+   "test_promote_writes_isolated_source_type": "PASSED",
+   "test_existing_routes_still_work": "PASSED",
+   "test_report_reflects_research_topic": "PASSED",
+   "test_upstream_graph_module_engaged": "PASSED",
+   "test_concurrent_jobs_do_not_cross": "PASSED",
+   "test_report_body_comes_from_the_engine": "FAILED",
+   "test_h1_real_odr_graph_is_invoked": "FAILED",
+   "test_h2_concurrent_jobs_do_not_cross": "PASSED",
+   "test_h3_duplicate_submit_follows_frozen_policy": "PASSED",
+   "test_h4_cancel_race_never_yields_double_terminal": "PASSED",
+   "test_h5_restart_does_not_leave_permanent_running": "FAILED",
+   "test_h6_api_key_never_leaks_anywhere": "PASSED",
+   "test_h7_success_without_promote_leaves_kb_clean": "PASSED",
+   "test_h8_promote_carries_full_provenance": "PASSED",
+   "test_h9_research_reports_never_enter_paper_domain": "PASSED",
+   "test_h10_host_capabilities_intact": "PASSED"
+  },
+  "suites": [
+   {
+    "label": "nc1_no_odr/public",
+    "cases": 14,
+    "exit": 1
+   },
+   {
+    "label": "nc1_no_odr/oracle",
+    "cases": 10,
+    "exit": 1
+   }
+  ],
+  "green": 19,
+  "red": 4,
+  "total": 23
+ },
+ {
+  "control": "nc2_blocking",
+  "ok": true,
+  "problems": [],
+  "outcomes": {
+   "test_flag_off_by_default_no_research_api": "PASSED",
+   "test_create_is_non_blocking_and_returns_job_id": "FAILED",
+   "test_status_lifecycle_and_result_fields": "PASSED",
+   "test_cancel_moves_job_out_of_running": "PASSED",
+   "test_duplicate_submission_has_explicit_policy": "PASSED",
+   "test_failure_is_persisted_with_reason": "PASSED",
+   "test_no_promote_means_no_kb_contamination": "PASSED",
+   "test_promote_writes_isolated_source_type": "PASSED",
+   "test_existing_routes_still_work": "PASSED",
+   "test_report_reflects_research_topic": "PASSED",
+   "test_upstream_graph_module_engaged": "PASSED",
+   "test_concurrent_jobs_do_not_cross": "PASSED",
+   "test_report_body_comes_from_the_engine": "PASSED",
+   "test_h1_real_odr_graph_is_invoked": "PASSED",
+   "test_h2_concurrent_jobs_do_not_cross": "PASSED",
+   "test_h3_duplicate_submit_follows_frozen_policy": "PASSED",
+   "test_h4_cancel_race_never_yields_double_terminal": "PASSED",
+   "test_h5_restart_does_not_leave_permanent_running": "FAILED",
+   "test_h6_api_key_never_leaks_anywhere": "PASSED",
+   "test_h7_success_without_promote_leaves_kb_clean": "PASSED",
+   "test_h8_promote_carries_full_provenance": "PASSED",
+   "test_h9_research_reports_never_enter_paper_domain": "PASSED",
+   "test_h10_host_capabilities_intact": "PASSED"
+  },
+  "suites": [
+   {
+    "label": "nc2_blocking/public",
+    "cases": 14,
+    "exit": 1
+   },
+   {
+    "label": "nc2_blocking/oracle",
+    "cases": 10,
+    "exit": 1
+   }
+  ],
+  "green": 21,
+  "red": 2,
+  "total": 23
+ },
+ {
+  "control": "nc3_secret_leak",
+  "ok": true,
+  "problems": [],
+  "outcomes": {
+   "test_flag_off_by_default_no_research_api": "PASSED",
+   "test_create_is_non_blocking_and_returns_job_id": "PASSED",
+   "test_status_lifecycle_and_result_fields": "PASSED",
+   "test_cancel_moves_job_out_of_running": "PASSED",
+   "test_duplicate_submission_has_explicit_policy": "PASSED",
+   "test_failure_is_persisted_with_reason": "PASSED",
+   "test_no_promote_means_no_kb_contamination": "PASSED",
+   "test_promote_writes_isolated_source_type": "PASSED",
+   "test_existing_routes_still_work": "PASSED",
+   "test_report_reflects_research_topic": "PASSED",
+   "test_upstream_graph_module_engaged": "PASSED",
+   "test_concurrent_jobs_do_not_cross": "PASSED",
+   "test_report_body_comes_from_the_engine": "PASSED",
+   "test_h1_real_odr_graph_is_invoked": "PASSED",
+   "test_h2_concurrent_jobs_do_not_cross": "PASSED",
+   "test_h3_duplicate_submit_follows_frozen_policy": "PASSED",
+   "test_h4_cancel_race_never_yields_double_terminal": "PASSED",
+   "test_h5_restart_does_not_leave_permanent_running": "PASSED",
+   "test_h6_api_key_never_leaks_anywhere": "FAILED",
+   "test_h7_success_without_promote_leaves_kb_clean": "PASSED",
+   "test_h8_promote_carries_full_provenance": "PASSED",
+   "test_h9_research_reports_never_enter_paper_domain": "PASSED",
+   "test_h10_host_capabilities_intact": "PASSED"
+  },
+  "suites": [
+   {
+    "label": "nc3_secret_leak/public",
+    "cases": 14,
+    "exit": 0
+   },
+   {
+    "label": "nc3_secret_leak/oracle",
+    "cases": 10,
+    "exit": 1
+   }
+  ],
+  "green": 22,
+  "red": 1,
+  "total": 23
+ },
+ {
+  "control": "nc4_auto_promote",
+  "ok": true,
+  "problems": [],
+  "outcomes": {
+   "test_flag_off_by_default_no_research_api": "PASSED",
+   "test_create_is_non_blocking_and_returns_job_id": "PASSED",
+   "test_status_lifecycle_and_result_fields": "PASSED",
+   "test_cancel_moves_job_out_of_running": "PASSED",
+   "test_duplicate_submission_has_explicit_policy": "PASSED",
+   "test_failure_is_persisted_with_reason": "PASSED",
+   "test_no_promote_means_no_kb_contamination": "FAILED",
+   "test_promote_writes_isolated_source_type": "PASSED",
+   "test_existing_routes_still_work": "PASSED",
+   "test_report_reflects_research_topic": "PASSED",
+   "test_upstream_graph_module_engaged": "PASSED",
+   "test_concurrent_jobs_do_not_cross": "PASSED",
+   "test_report_body_comes_from_the_engine": "PASSED",
+   "test_h1_real_odr_graph_is_invoked": "PASSED",
+   "test_h2_concurrent_jobs_do_not_cross": "PASSED",
+   "test_h3_duplicate_submit_follows_frozen_policy": "PASSED",
+   "test_h4_cancel_race_never_yields_double_terminal": "PASSED",
+   "test_h5_restart_does_not_leave_permanent_running": "PASSED",
+   "test_h6_api_key_never_leaks_anywhere": "PASSED",
+   "test_h7_success_without_promote_leaves_kb_clean": "FAILED",
+   "test_h8_promote_carries_full_provenance": "PASSED",
+   "test_h9_research_reports_never_enter_paper_domain": "PASSED",
+   "test_h10_host_capabilities_intact": "PASSED"
+  },
+  "suites": [
+   {
+    "label": "nc4_auto_promote/public",
+    "cases": 14,
+    "exit": 1
+   },
+   {
+    "label": "nc4_auto_promote/oracle",
+    "cases": 10,
+    "exit": 1
+   }
+  ],
+  "green": 21,
+  "red": 2,
+  "total": 23
+ },
+ {
+  "control": "nc5_restart_running",
+  "ok": true,
+  "problems": [],
+  "outcomes": {
+   "test_flag_off_by_default_no_research_api": "PASSED",
+   "test_create_is_non_blocking_and_returns_job_id": "PASSED",
+   "test_status_lifecycle_and_result_fields": "PASSED",
+   "test_cancel_moves_job_out_of_running": "PASSED",
+   "test_duplicate_submission_has_explicit_policy": "PASSED",
+   "test_failure_is_persisted_with_reason": "PASSED",
+   "test_no_promote_means_no_kb_contamination": "PASSED",
+   "test_promote_writes_isolated_source_type": "PASSED",
+   "test_existing_routes_still_work": "PASSED",
+   "test_report_reflects_research_topic": "PASSED",
+   "test_upstream_graph_module_engaged": "PASSED",
+   "test_concurrent_jobs_do_not_cross": "PASSED",
+   "test_report_body_comes_from_the_engine": "PASSED",
+   "test_h1_real_odr_graph_is_invoked": "PASSED",
+   "test_h2_concurrent_jobs_do_not_cross": "PASSED",
+   "test_h3_duplicate_submit_follows_frozen_policy": "PASSED",
+   "test_h4_cancel_race_never_yields_double_terminal": "PASSED",
+   "test_h5_restart_does_not_leave_permanent_running": "FAILED",
+   "test_h6_api_key_never_leaks_anywhere": "PASSED",
+   "test_h7_success_without_promote_leaves_kb_clean": "PASSED",
+   "test_h8_promote_carries_full_provenance": "PASSED",
+   "test_h9_research_reports_never_enter_paper_domain": "PASSED",
+   "test_h10_host_capabilities_intact": "PASSED"
+  },
+  "suites": [
+   {
+    "label": "nc5_restart_running/public",
+    "cases": 14,
+    "exit": 0
+   },
+   {
+    "label": "nc5_restart_running/oracle",
+    "cases": 10,
+    "exit": 1
+   }
+  ],
+  "green": 22,
+  "red": 1,
+  "total": 23
+ },
+ {
+  "control": "nc6_local_report",
+  "ok": true,
+  "problems": [],
+  "outcomes": {
+   "test_flag_off_by_default_no_research_api": "PASSED",
+   "test_create_is_non_blocking_and_returns_job_id": "PASSED",
+   "test_status_lifecycle_and_result_fields": "PASSED",
+   "test_cancel_moves_job_out_of_running": "PASSED",
+   "test_duplicate_submission_has_explicit_policy": "PASSED",
+   "test_failure_is_persisted_with_reason": "PASSED",
+   "test_no_promote_means_no_kb_contamination": "PASSED",
+   "test_promote_writes_isolated_source_type": "PASSED",
+   "test_existing_routes_still_work": "PASSED",
+   "test_report_reflects_research_topic": "PASSED",
+   "test_upstream_graph_module_engaged": "PASSED",
+   "test_concurrent_jobs_do_not_cross": "PASSED",
+   "test_report_body_comes_from_the_engine": "FAILED",
+   "test_h1_real_odr_graph_is_invoked": "FAILED",
+   "test_h2_concurrent_jobs_do_not_cross": "PASSED",
+   "test_h3_duplicate_submit_follows_frozen_policy": "PASSED",
+   "test_h4_cancel_race_never_yields_double_terminal": "PASSED",
+   "test_h5_restart_does_not_leave_permanent_running": "PASSED",
+   "test_h6_api_key_never_leaks_anywhere": "PASSED",
+   "test_h7_success_without_promote_leaves_kb_clean": "PASSED",
+   "test_h8_promote_carries_full_provenance": "PASSED",
+   "test_h9_research_reports_never_enter_paper_domain": "PASSED",
+   "test_h10_host_capabilities_intact": "PASSED"
+  },
+  "suites": [
+   {
+    "label": "nc6_local_report/public",
+    "cases": 14,
+    "exit": 1
+   },
+   {
+    "label": "nc6_local_report/oracle",
+    "cases": 10,
+    "exit": 1
+   }
+  ],
+  "green": 21,
+  "red": 2,
+  "total": 23
+ }
+]

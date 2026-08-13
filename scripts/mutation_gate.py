@@ -60,6 +60,8 @@ _EV = "src/repoproof/agents/repoproof_env.py"
 _T_WC = ["tests/test_workspace_containment.py"]
 _BC = "scripts/build_control_tree.py"
 _T_CT = ["tests/test_control_tree_recipe.py"]
+_VC = "scripts/validate_controls.py"
+_T_VM = ["tests/test_control_validation_matrix.py"]
 
 CANARY = {
     "id": "C0-plumbing-canary",
@@ -541,7 +543,8 @@ MUTATIONS: list[dict] = [
     },
     {
         "id": "M42b-control-tree-drags-venv-and-git",
-        "lesson": "#41 C2:不排除 .venv/.git → 7 棵手搓树 618MB 里 610MB 是 venv,.git 更把上游历史复制进可达树",
+        "lesson": "#41 C2:不排除 .venv/.git → 7 棵手搓树各 78MB 的 .git(上游完整历史)被复制进可达树,"
+                  ".venv 那条软链更直接指向隔离区",
         "file": _BC,
         "old": "    return {n for n in names if n in SKIP_DIRS}",
         "new": "    return set()",
@@ -570,6 +573,62 @@ MUTATIONS: list[dict] = [
         "old": "        if got.read_bytes() != f.read_bytes():",
         "new": "        if False:",
         "catchers": _T_CT,
+    },
+    {
+        "id": "M43a-must-fail-all-green-still-passes",
+        "lesson": "#43 V1:该红的全绿也判通过 → 需求只有文字没有执法,而验证发绿",
+        "file": _VC,
+        "old": "        elif name not in red:",
+        "new": "        elif False:",
+        "catchers": _T_VM,
+    },
+    {
+        "id": "M43b-nothing-collected-counts-as-pass",
+        "lesson": "#43 V3:一条都没跑起来时正控 must_fail 为空 → 把'什么都没跑'判成'全绿'",
+        "file": _VC,
+        "old": "    if not outcomes:\n        return False,",
+        "new": "    if False:\n        return False,",
+        "catchers": _T_VM,
+    },
+    {
+        "id": "M43c-collateral-damage-ignored",
+        "lesson": "#43 V2:不查波及 → nc6 把半套用例打红也算数,证明不了是哪条判据抓住的它",
+        "file": _VC,
+        "old": "        for name in sorted(red & should_be_green):",
+        "new": "        for name in sorted(set()):",
+        "catchers": _T_VM,
+    },
+    {
+        "id": "M43d-green-overwrites-red-in-parametrized",
+        "lesson": "#43 V4:参数化用例被后续绿覆盖 → 3 个参数红 1 个也算整体绿",
+        "file": _VC,
+        "old": "        if out.get(name) == \"FAILED\":       # 已经红了就不被后续绿覆盖",
+        "new": "        if False:       # 已经红了就不被后续绿覆盖",
+        "catchers": _T_VM,
+    },
+    {
+        "id": "M43f-empty-suite-is-not-noticed",
+        "lesson": "#43 V5:套件整跑丢失不报 → 实测中 oracle 那 10 条一条没跑,正控仍判'符合预期'",
+        "file": _VC,
+        "old": "        elif n == 0:",
+        "new": "        elif False:",
+        "catchers": _T_VM,
+    },
+    {
+        "id": "M43g-void-exit-codes-accepted",
+        "lesson": "#43 V5:pytest 内部错误/用法错误的那一跑也拿来下结论",
+        "file": _VC,
+        "old": "        if rc in VOID_EXITS:",
+        "new": "        if False:",
+        "catchers": _T_VM,
+    },
+    {
+        "id": "M43e-never-ran-counts-as-red",
+        "lesson": "#43 V3 近亲:该红的那条根本没被收集到时直接跳过 → 没跑当成红了",
+        "file": _VC,
+        "old": "        if name not in outcomes:\n            problems.append(f\"{name}:预期必红,但它根本没跑\")",
+        "new": "        if name not in outcomes:\n            continue",
+        "catchers": _T_VM,
     },
 ]
 
