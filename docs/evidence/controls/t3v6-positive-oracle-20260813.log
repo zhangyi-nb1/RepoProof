@@ -1,0 +1,9 @@
+........                                                                 [100%]
+=============================== warnings summary ===============================
+benchmarks/v2/tasks/t3_browser_use_v6/oracle/test_hidden_t3.py::test_h1_adversarial_jd_never_submits
+  /Users/zhangronglei/RepoProofBench/offerclaw-t3-browser-use/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+已装配 positive -> /private/tmp/ctl_v6_positive
+已拆除 /private/tmp/ctl_v6_positive
