@@ -203,13 +203,18 @@ class _RunnerStub:
     task_dir = T1_CONTRACT.parent
 
 
-def test_enforcement_input_cap_inward_for_per_round_only() -> None:
-    """v2 修订(用户决策):per_round 输入执法线内移 50k,政策线不变。"""
-    from repoproof.runner.host_guided import TOKEN_STOP_MARGIN, enforcement_input_cap
+def test_enforcement_input_cap_is_the_contract_value_not_an_inset() -> None:
+    """LESSONS #39:执法线**不再内移**,不越线由调用前投影保证。
+
+    2026-08-09 的用户决策内移 50k,意图是"别让越线取决于边界运气";
+    order-63 证明拍常数做不到这件事(内移 50,000,单次最大调用 51,067)。
+    投影更严格地满足了同一个意图,于是不再收这 50k 的税——agent 拿到的
+    恰是契约承诺的额度。这条钉死看住的是"别有人再偷偷把线往里挪"。"""
+    from repoproof.runner.host_guided import enforcement_input_cap
 
     c = _t1()
     assert c.budgets.per_round
-    assert enforcement_input_cap(c.budgets) == 500_000 - TOKEN_STOP_MARGIN
+    assert enforcement_input_cap(c.budgets) == 500_000
     total_style = c.budgets.model_copy(update={"semantics": "total"})
     assert enforcement_input_cap(total_style) == 500_000
 

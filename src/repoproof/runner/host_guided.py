@@ -501,20 +501,40 @@ def round_violation_report(
     return packets, fatal, len(tampered) + len(touched)
 
 
-# 用户决策(2026-08-09,预注册 v2 修订):per_round 语义下**输入执法线
-# 内移 50k**。背景:无本地 tokenizer 时输入额度只能"调用后记账、下次
-# 调用前拦",越线发生在最后一次调用上(run -200448 两轮各超 8%/2%),
-# "过/不过"取决于边界运气。内移执法线后单轮峰值几乎不可能突破政策线;
-# **政策判据仍是契约的 500k,一字不动**。输出额度有请求级 max_tokens
-# 硬帽,无此问题,不内移。
-TOKEN_STOP_MARGIN = 50_000
-
-
 def enforcement_input_cap(budgets: "HostBudgets") -> int:
-    """执法用输入停止阈值(政策线=契约值不变;执法线内移防边界随机)。"""
-    if budgets.per_round:
-        return max(1, budgets.max_input_tokens_total - TOKEN_STOP_MARGIN)
+    """执法用输入上限 = 契约值本身,**不再内移**(LESSONS #39)。
+
+    沿革:2026-08-09 的用户决策把 per_round 的执法线内移 50k,因为当时
+    只能"调用后记账、下次调用前拦",越线发生在最后一次调用上,过与不过
+    取决于边界运气(run -200448 两轮各超 8%/2%)。那个决策的**意图**是
+    "别让越线取决于运气",内移只是当时能想到的手段。
+
+    order-63 证明这个手段不成立:内移 50,000,而该轮单次最大调用 51,067
+    —— 拍出来的常数总会遇到比它大的调用。现在由
+    `TokenBudgetedModel` 的**调用前投影**保证不越线(见该模块文档),
+    意图被更严格地满足,于是这里不再收税:agent 拿到的恰是契约承诺的
+    额度。**政策判据仍是契约值,一字不动。**
+    """
     return budgets.max_input_tokens_total
+
+
+def round_usage(model: object, bucket: dict) -> tuple[int, int]:
+    """轮内用量以**同步记账**为准(LESSONS #39 H7-d)。
+
+    litellm 用线程池派发 success_callback,回调落地时下一轮可能已经开始
+    ——上一轮末次调用的 token 会被记进下一轮的桶。而 per_round 语义下,
+    终局政策比的正是"单轮最大用量":串了账就会拿别人的 token 杀这一轮,
+    与 order-63 同型的伏击。
+
+    同步记账拿不到用量时(注入的假模型、provider 沉默)才回落到桶,
+    以免"我没记到"被写成 0(H7-e:不许假零、不许少报)。
+    """
+    if getattr(model, "seen", False):
+        used_in = getattr(model, "used_in", None)
+        used_out = getattr(model, "used_out", None)
+        if used_in is not None and used_out is not None:
+            return int(used_in), int(used_out)
+    return int(bucket.get("in", 0) or 0), int(bucket.get("out", 0) or 0)
 
 
 # --------------------------------------------------------------- 工具函数
@@ -1000,7 +1020,6 @@ class HostGuidedRunner:
                 obs_char_cap=obs_cap(),                 # 修订④:观察限流
             )
             token_totals = {"in": 0, "out": 0, "seen": False}   # 累计(记账)
-            round_scope: dict = {"cur": None}                    # 回调同时写当前轮
             make_budget_model = None
             if model_factory is None:
                 assert provider is not None and preflight is not None
@@ -1014,19 +1033,16 @@ class HostGuidedRunner:
 
                 from repoproof.agents.token_budget import TokenBudgetedModel
 
+                # 这个钩子是**异步**的(litellm 用 executor.submit 派发),
+                # 只用于 run 级汇总。轮桶不再由它写:回调落地时下一轮可能
+                # 已经开始,会把上一轮的 token 记到下一轮头上(LESSONS #39
+                # H7-d)。执法与轮桶都走 TokenBudgetedModel 的同步记账。
                 def _usage_cb(kwargs, completion_response, start_time, end_time):  # noqa: ANN001
                     usage = getattr(completion_response, "usage", None)
                     if usage:
-                        pin = getattr(usage, "prompt_tokens", 0) or 0
-                        pout = getattr(usage, "completion_tokens", 0) or 0
                         token_totals["seen"] = True
-                        token_totals["in"] += pin
-                        token_totals["out"] += pout
-                        cur = round_scope["cur"]
-                        if cur is not None:
-                            cur["seen"] = True
-                            cur["in"] += pin
-                            cur["out"] += pout
+                        token_totals["in"] += getattr(usage, "prompt_tokens", 0) or 0
+                        token_totals["out"] += getattr(usage, "completion_tokens", 0) or 0
 
                 _litellm.success_callback = [_usage_cb]
                 model_cls = (LitellmTextbasedModel
@@ -1094,7 +1110,6 @@ class HostGuidedRunner:
                 if b.per_round:
                     # 每轮重置:calls/commands/tokens 各自满额起步(v2 语义)
                     round_totals = {"in": 0, "out": 0, "seen": False}
-                    round_scope["cur"] = round_totals
                     round_model = (make_budget_model(round_totals)
                                    if make_budget_model else model)
                     env.commands_used = 0
@@ -1133,7 +1148,14 @@ class HostGuidedRunner:
                 metrics_acc["model_calls"] += result.n_model_calls
                 if b.per_round:
                     metrics_acc["commands"] += env.commands_used
-                    per_round_usage.append((round_totals["in"], round_totals["out"]))
+                    # 轮桶归同步记账所有(LESSONS #39 H7-d),落回桶里让
+                    # record.json 与终局政策共用同一份数,不再各读各的。
+                    r_in, r_out = round_usage(round_model, round_totals)
+                    round_totals.update(
+                        {"in": r_in, "out": r_out,
+                         "seen": bool(round_totals["seen"]
+                                      or getattr(round_model, "seen", False))})
+                    per_round_usage.append((r_in, r_out))
                 else:
                     metrics_acc["commands"] = env.commands_used
                 metrics_acc["denied"] = env.denied_count

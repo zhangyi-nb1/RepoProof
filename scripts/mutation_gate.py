@@ -46,12 +46,14 @@ _HD = "src/repoproof/runner/host_guided.py"
 _RL = "src/repoproof/adoption/repair/repair_loop.py"
 _RG = "scripts/redgreen.py"
 _FP = "src/repoproof/adoption/repair/failure_packet.py"
+_TB = "src/repoproof/agents/token_budget.py"
 _T_BR = ["tests/test_bench_records.py"]
 _T_HG = ["tests/test_host_guard.py"]
 _T_HD = ["tests/test_host_guided.py"]
 _T_CF = ["tests/test_constraint_feedback.py"]
 _T_PI = ["tests/test_process_independence.py"]
 _T_RC = ["tests/test_root_cause_packets.py"]
+_T_TE = ["tests/test_token_enforcement.py"]
 
 CANARY = {
     "id": "C0-plumbing-canary",
@@ -328,6 +330,55 @@ MUTATIONS: list[dict] = [
         "old": "    return [d for d in conflicting_dists(pip_output) if d not in baseline]",
         "new": "    return []",
         "catchers": _T_CF,
+    },
+    # ---- LESSONS #39:执法读到陈旧总量 + 固定内移是猜的 ----
+    {
+        "id": "M39a-enforcement-back-to-async-hook",
+        "lesson": "#39 执法只信异步钩子(order-63:读到落后一次调用的 703,172 就放行)",
+        "file": _TB,
+        "old": '        return max(self.sync_in, int(self.totals.get("in", 0) or 0))',
+        "new": '        return int(self.totals.get("in", 0) or 0)',
+        "catchers": _T_TE,
+    },
+    {
+        "id": "M39b-pre-call-projection-disabled",
+        "lesson": "#39 调用前不投影,只在越线后才拦(803,310 > 800,000 的直接成因)",
+        "file": _TB,
+        "old": "            if used_in + projected > self.max_input_tokens:",
+        "new": "            if used_in + projected > self.max_input_tokens * 100:",
+        "catchers": _T_TE,
+    },
+    {
+        "id": "M39c-observed-max-floor-dropped",
+        "lesson": "#39 投影只剩估算一条腿(估算失准时又变成拍脑袋)",
+        "file": _TB,
+        "old": "        return max(math.ceil(est * self.ratio * SAFETY_FACTOR), self.max_call_in)",
+        "new": "        return math.ceil(est * self.ratio * SAFETY_FACTOR)",
+        "catchers": _T_TE,
+    },
+    {
+        "id": "M39d-round-bucket-back-to-hook",
+        "lesson": "#39 轮桶回到异步钩子(上一轮末次调用被记进下一轮,拿别人的 token 杀这一轮)",
+        "file": _HD,
+        "old": '    if getattr(model, "seen", False):',
+        "new": '    if not getattr(model, "seen", False):',
+        "catchers": _T_TE,
+    },
+    {
+        "id": "M39e-estimator-ignores-cjk",
+        "lesson": "#39 估算照搬 chars/4(order-63 实测低估 33%,投影跟着塌)",
+        "file": _TB,
+        "old": "    cjk = len(_CJK.findall(text))",
+        "new": "    cjk = 0",
+        "catchers": _T_TE,
+    },
+    {
+        "id": "M39f-enforcement-line-inset-again",
+        "lesson": "#39 有人又把执法线往里挪(拍常数替代投影,单次调用比常数大就翻车)",
+        "file": _HD,
+        "old": "    return budgets.max_input_tokens_total",
+        "new": "    return max(1, budgets.max_input_tokens_total - 50_000)",
+        "catchers": _T_HD,
     },
 ]
 

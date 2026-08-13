@@ -65,14 +65,19 @@ def test_under_limit_continues_and_passes_remaining_max_tokens() -> None:
 
 
 def test_over_input_limit_blocks_next_call() -> None:
+    """LESSONS #39 改写:判据从"越线后停"变成"**不许越线**"。
+
+    旧版断言 inner.calls == 3 —— 即累计跑到 3000 > 上限 2500 才拦,
+    那正是 order-63 的缺陷形状(803,310 > 800,000)。上限 2500、每次
+    1000,能放行的最多两次;第三次会越线,必须在发出前就被挡下。"""
     totals = {"in": 0, "out": 0, "seen": False}
     model, inner, events = _budgeted(totals, max_in=2500)
     model.query([])
     model.query([])
-    model.query([])  # in=3000 accumulated AFTER this call
     with pytest.raises(LimitsExceeded) as ei:
         model.query([])  # pre-call check must fire; inner never called
-    assert inner.calls == 3
+    assert inner.calls == 2
+    assert totals["in"] == 2000 <= 2500, "执法过的额度不许被越过"
     assert events and events[0]["kind"] == "max_input_tokens_total"
     assert ei.value.messages[0]["extra"]["exit_status"] == "TokenBudgetExhausted"
     assert "provider_reported_post_call" in ENFORCEMENT["input"]
@@ -110,9 +115,12 @@ def test_default_agent_terminates_cleanly_on_budget() -> None:
     extra = agent.run("t")
     assert extra["exit_status"] == "TokenBudgetExhausted"
     # mswea increments n_calls BEFORE model.query; the blocked attempt
-    # bumps the agent counter but the REAL network call never happens:
-    assert model.inner.calls == 2
-    assert agent.n_calls == 3
+    # bumps the agent counter but the REAL network call never happens.
+    # 上限 1500、每次 1000:第二次就会越线,所以只放行一次(#39 之前是
+    # 放行两次、累计 2000 > 1500 才停)。
+    assert model.inner.calls == 1
+    assert agent.n_calls == 2
+    assert totals["in"] == 1000 <= 1500
 
 
 def _vr(name, passed=True):
