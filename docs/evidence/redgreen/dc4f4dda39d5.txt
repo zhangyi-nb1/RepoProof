@@ -1,0 +1,47 @@
+fix commit : dc4f4dda39d56938a81cb335392b5f4edc256368
+base commit: a038c486201aa65632616f399f7c840be18de29f
+nodes      : 1
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_trash_is_deliberately_not_a_scan_root: failed
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________________ test_trash_is_deliberately_not_a_scan_root __________________
+
+    def test_trash_is_deliberately_not_a_scan_root() -> None:
+        """H9-a:废纸篓**刻意**不做扫描根 —— 加进去是一道不可满足的闸门。
+    
+        2026-08-13 当天先加过、又撤了。撤的依据是三条实测,不是嫌麻烦:
+    
+            ls ~/.Trash    -> Operation not permitted   (macOS TCC,不是沙箱)
+            find ~/.Trash  -> Operation not permitted
+            head ~/.Trash/<确切名>/research_jobs.py -> 正常打印出正控正文
+    
+        废纸篓**不可枚举、却可按确切路径读**。做扫描根等于零覆盖(枚举不了就
+        发现不了任何东西),同时因"列不动"而永久判 ANSWER_KEY_SCAN_BLIND ——
+        在本平台上不可满足的闸门最后一定被整条关掉,比明写限制更糟。
+    
+        钉死的是"别再手滑加回来"。真正的规矩写在 LESSONS #42:残留不得停放在
+        废纸篓,删到不存在,别删到"看不见";这条靠规程,H9-a 执法不到,与 H9-b
+        "是检测器不是牢笼"同型。
+        """
+        from repoproof.runner.host_guided import ANSWER_KEY_SCAN_ROOTS
+    
+>       assert "~/.Trash" not in ANSWER_KEY_SCAN_ROOTS, (
+            "废纸篓被加回扫描根 —— 它列不动,会让每一发都判 ANSWER_KEY_SCAN_BLIND")
+E       AssertionError: 废纸篓被加回扫描根 —— 它列不动,会让每一发都判 ANSWER_KEY_SCAN_BLIND
+E       assert '~/.Trash' not in ('~/RepoProofBench', '~/RepoProofBench-quarantine', '/tmp', '~/.Trash')
+
+tests/test_workspace_containment.py:267: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_workspace_containment.py::test_trash_is_deliberately_not_a_scan_root
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_trash_is_deliberately_not_a_scan_root: passed
+.                                                                        [100%]
+
+
+VERDICT: VALID
