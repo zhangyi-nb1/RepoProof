@@ -972,8 +972,49 @@ headless Chromium**(终态 kill)。实测:
 在执法的那条**。而 `new_browsers` 是一道**单点**判据 —— 加四行 subprocess
 就能满足,nc8 就是这么做的。
 
+### 坑五:我把判据教给了模型,模型照着判据造了个假引擎
+
+坑四的修复(T3v6)是:热身发后对 `sys.modules` 里的 `browser_use.Agent`
+打类桩,要求 `Agent.run` 被调用、**其返回历史带着本次金丝雀**、该历史
+到达工件。五物验证 positive 24/24 + 8/8、nc8 两面都只在该红处红,看着很干净。
+
+然后跑了一批,两发**都在照判据造形状**:
+
+- **order-68(gpt-5.5)**:交付里自带 `browser_use/__init__.py`(含自写
+  `class Agent`)+ `vendor/browser-use-adapter/` + `packages=["browser_use"]`
+  的 setup.py。补丁里留着它自己的注释:
+  `# import here so tests can observe browser_use in sys.modules and monkeypatch Agent.run`。
+  它只是忘了起浏览器,被 `new_browsers` 抓住 → FAIL。
+- **order-69(gpt-5.6)**:同样自带 `browser_use` 包 —— `__init__.py` 11 行,
+  从**它自己的** `.runtime` 导出 Agent/BrowserSession,写死
+  `__version__ = "0.13.7"` 与 `UPSTREAM_COMMIT = "32601887cfbc"`;
+  `runtime.py` 用 playwright + requests 自行实现,全补丁**无一处 import 真上游**。
+  它真开了浏览器,于是 v6 的三条新判据**全部满足且全部无效**:模块在场
+  (它自己的)、`Agent.run` 被调用(它自己的)、返回历史带金丝雀(它自己填的)。
+  系统判 PASS_ADAPTED → **裁定 INVALIDATED_FALSE_PASS**(R12:禁止用普通
+  Playwright 脚本重写等价功能),T3 闸门减 1。
+
+**根因**:进程内打桩把判据绑在了**被测系统可以提供的东西**上。探子打的
+是"名字叫 browser_use 的那个模块里的 Agent" —— 而那个模块由被测者交付。
+T2v5 的 h1 同族暴露(`open_deep_research` 也能自带),只是还没有人这么做。
+
+**#33 的代价要如实记**:公开面新增的 `test_artifact_comes_from_the_agent_run`
+把判据写清楚了,order-68 的注释证明它照着读了。教了就是给蓝图 —— 但结论
+**不是"别教"**,而是:**一条能被"交付一个同名模块"满足的判据,本来就不该
+存在**,教不教都一样。#33 没有错,错的是我拿一条可伪造的判据去教。
+
+**另一条独立的 #33 违规(顺手查出来的)**:`new_browsers` 已经杀了 gpt-5.5
+四次(order-39/62/66/68),而公开面**从来没有要求过浏览器进程出现** ——
+公开套件里 `_chrome_pids` 只用在"取消后不许残留"这一个反方向的判据上。
+纯 HTTP 实现拿满 24/24 公开分,再被一条从未公开的判据击杀。这条得补。
+
 ### 判据(冻结)
 
+- **判据不得绑在被测系统可提供的名字上**。进程内打桩、模块在场、类方法
+  被调用 —— 只要"那个模块/那个类"能由交付物提供,判据就等于零。可信的
+  锚只有两类:(a) harness 自己起的、被测系统只能通过真实交互影响的东西
+  (计量端点、站点账本、进程表);(b) 被测系统**做不到**的能力(不是
+  "没做",是"做不了")。
 - **因果金丝雀 > 存在性**:凡是"上游/引擎真的在干活"这类需求,判据必须
   是"它的产出到达了交付物",不能是"它被调用过"。金丝雀取值随机、无接口
   可查、无指定入口。
