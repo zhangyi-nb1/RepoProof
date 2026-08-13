@@ -49,28 +49,36 @@ def test_scratch_tree_is_residue(tmp_path) -> None:
         "整棵树报一次即可,不必逐文件刷屏")
 
 
-def test_stray_copy_of_protected_material_is_residue(tmp_path) -> None:
-    """H9-a:任务工程期散落的量具副本同样算残留。
+def test_stray_copy_is_matched_by_content_not_by_name(tmp_path) -> None:
+    """H9-a:量具副本按**内容**认,同名不同容的无辜文件不得误报。
 
     反例即 order-21 的 [51]:`cp /private/tmp/t2v4_direct/fixtures/
-    fake_llm_server.py fixtures/` —— 那份是任务包正版的逐字节副本。"""
+    fake_llm_server.py fixtures/` —— 那份是任务包正版的逐字节副本。
+    反向反例:任务包里有 `README.md`,宿主快照
+    `~/RepoProofBench/offerclaw-t1-fastapi-mcp/README.md` 也有 ——
+    只看名字就会天天报假,这道闸门会立刻被当噪声关掉。"""
     from repoproof.runner.host_guided import reachable_answer_keys
 
     task = tmp_path / "task"
     (task / "fixtures").mkdir(parents=True)
     (task / "fixtures" / "fake_llm_server.py").write_text("def start(): ...\n")
+    (task / "fixtures" / "README.md").write_text("量具说明\n")
 
     root = tmp_path / "tmp"
     (root / "t2v4_direct" / "fixtures").mkdir(parents=True)
     stray = root / "t2v4_direct" / "fixtures" / "fake_llm_server.py"
-    stray.write_text("def start(): ...\n")
+    stray.write_text("def start(): ...\n")                    # 逐字节副本 → 残留
+    (root / "t2v4_direct" / "README.md").write_text("宿主自己的说明\n")  # 同名异容
     (root / "t2v4_direct" / "unrelated.py").write_text("y = 2\n")
 
     assert reachable_answer_keys(task, roots=(str(root),)) == [str(stray)]
 
 
 def test_session_workspace_is_not_residue(tmp_path) -> None:
-    """会话工作区里的 fixtures 是**合法注入**,不能把每一发都拒开。"""
+    """会话工作区里的 fixtures 是**合法注入**,不能把每一发都拒开。
+
+    路径刻意放在深度限制**够得着**的地方 —— 否则挡住它的是 max_depth
+    而不是 `_sessions` 跳过,这条钉死就成了摆设(变异 M41g 实测逃逸)。"""
     from repoproof.runner.host_guided import reachable_answer_keys
 
     task = tmp_path / "task"
@@ -78,11 +86,17 @@ def test_session_workspace_is_not_residue(tmp_path) -> None:
     (task / "fixtures" / "fake_llm_server.py").write_text("def start(): ...\n")
 
     root = tmp_path / "bench"
-    live = root / "_sessions" / "t2-run-1" / "host" / "fixtures"
+    live = root / "_sessions" / "t2-run-1" / "fixtures"
     live.mkdir(parents=True)
     (live / "fake_llm_server.py").write_text("def start(): ...\n")
+    # 同深度的对照:不在 _sessions 下的同一份副本必须被查出 ——
+    # 证明"没报"是跳过起的作用,不是深度限制。
+    twin = root / "leftover" / "t2-run-1" / "fixtures"
+    twin.mkdir(parents=True)
+    (twin / "fake_llm_server.py").write_text("def start(): ...\n")
 
-    assert reachable_answer_keys(task, roots=(str(root),)) == []
+    assert reachable_answer_keys(task, roots=(str(root),)) == [
+        str(twin / "fake_llm_server.py")]
 
 
 # ------------------------------------------------------------ H9-b 越界即杀
@@ -155,7 +169,9 @@ def test_heredoc_body_is_file_content_not_a_command() -> None:
     正文里写着答案树路径,说明已经看过了。"""
     from repoproof.harness.policy import evaluate_agent_command
 
-    body = "def find(x):\n    return x / 2\n"
+    # 正文里必须真的有裸 `find` 和裸 `/` —— 否则不剥 heredoc 也能过,
+    # 这条钉死就抓不住"把正文当命令扫"的缺陷(变异 M41d2 实测逃逸)。
+    body = "CMDS = [\n    'find',\n    '/',\n]\n"
     ok = evaluate_agent_command(f"cat > util.py <<'RP_EOF'\n{body}\nRP_EOF")
     assert ok.allowed, "heredoc 正文不是命令"
 
@@ -204,9 +220,11 @@ def test_both_call_sites_are_wired() -> None:
     src = inspect.getsource(host_guided)
     assert "out_of_workspace.update(answer_keys)" in src, "轮内累计"
     assert "OUT_OF_WORKSPACE_ACCESS: " in src, "终局以此击杀"
-    assert "residue = reachable_answer_keys(" in src, "H9-a 开跑前拒开"
-    assert '"blocked": True' in src and "ANSWER_KEY_REACHABLE" in src, (
-        "H9-a 是拒开不是告警")
+    assert "residue = reachable_answer_keys(" in src, "H9-a 开跑前扫描"
+    # 判据原文是"查到即拒开(不是告警)"——必须钉住那个分支本身,
+    # 光看 "blocked": True 在不在源里,`if False:` 一改就逃(变异 M41h)。
+    assert "        if residue:\n" in src, "H9-a 是拒开不是告警"
+    assert "ANSWER_KEY_REACHABLE" in src
 
 
 # --------------------------------------------------------------- H9-c 先教

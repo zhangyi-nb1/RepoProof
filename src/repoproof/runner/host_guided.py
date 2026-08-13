@@ -29,6 +29,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -582,18 +583,27 @@ def reachable_answer_keys(
     """H9-a:开跑前列出运行主机上**可达的答案残留**(查到即拒开)。
 
     残留 = 工作区之外的、任务包受保护材料(controls/oracle/fixtures/
-    public_tests)的同名副本,或任务工程期的 `_scratch_t*` 安装树。
-    会话工作区自身(`_sessions/<run_id>/host/fixtures/…`)是**合法注入**,
-    显式跳过——否则每一发都会拒开自己。
+    public_tests)的**内容副本**,或任务工程期的 `_scratch_t*` 安装树。
+    会话工作区自身(`_sessions/<run_id>/…`)是**合法注入**,显式跳过 ——
+    否则每一发都会拒开自己。
+
+    **按内容比对,不按文件名**:任务包里有 `README.md`,宿主快照里也有,
+    只看名字会把 `~/RepoProofBench/offerclaw-t1-fastapi-mcp/README.md`
+    这类完全无辜的文件报成残留 —— 那样这道闸门会立刻被当噪声关掉。
+    先比大小、撞了才哈希,免去几乎全部读盘。
 
     这是 H9 里**不可绕过的那一半**:H9-b 的路径检测可以被拼接/编码绕过,
     但答案不在盘上就抄不到。
     """
-    protected: set[str] = set()
+    by_size: dict[int, set[str]] = {}
     for name in PROTECTED_TASK_DIRS:
         d = Path(task_dir) / name
-        if d.is_dir():
-            protected.update(p.name for p in d.rglob("*") if p.is_file())
+        if not d.is_dir():
+            continue
+        for p in d.rglob("*"):
+            if p.is_file():
+                raw = p.read_bytes()
+                by_size.setdefault(len(raw), set()).add(hashlib.sha256(raw).hexdigest())
     found: list[str] = []
     for root in roots:
         base = Path(root).expanduser()
@@ -615,8 +625,13 @@ def reachable_answer_keys(
                         continue     # 整棵树已判残留,不必逐文件再报
                     if depth + 1 <= max_depth:
                         stack.append((e, depth + 1))
-                elif e.name in protected:
-                    found.append(str(e))
+                    continue
+                try:
+                    digests = by_size.get(e.stat().st_size)
+                    if digests and hashlib.sha256(e.read_bytes()).hexdigest() in digests:
+                        found.append(str(e))
+                except OSError:          # 同上:读不到不算证据
+                    continue
     return sorted(set(found))
 
 
