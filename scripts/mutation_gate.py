@@ -479,8 +479,8 @@ MUTATIONS: list[dict] = [
         "id": "M41h-residue-is-a-warning-not-a-block",
         "lesson": "#41 H9-a 查到残留只告警不拒开(判据原文:拒开,不是告警)",
         "file": _HD,
-        "old": "        residue = reachable_answer_keys(Path(contract_path).parent)\n        if residue:",
-        "new": "        residue = reachable_answer_keys(Path(contract_path).parent)\n        if False:",
+        "old": "        residue = reachable_answer_keys(Path(contract_path).parent, blind=blind)\n        if residue:",
+        "new": "        residue = reachable_answer_keys(Path(contract_path).parent, blind=blind)\n        if False:",
         "catchers": _T_WC,
     },
     {
@@ -497,6 +497,30 @@ MUTATIONS: list[dict] = [
         "file": _HD,
         "old": '        + "\\n- STAY INSIDE THE WORKSPACE. Everything you need is here: ./ and the\\n"',
         "new": '        + "\\n- Prefer to work inside the workspace.\\n"',
+        "catchers": _T_WC,
+    },
+    {
+        "id": "M42g-scan-blindness-fails-open",
+        "lesson": "#41 H9-a:列不动的目录当干净 → mv 进 ~/.Trash 后实测报 0 命中(检测器失明即放行)",
+        "file": _HD,
+        "old": "            except OSError:          # 列不动:不是残留证据,但也**不是**清白证据\n"
+               "                if blind is not None:\n"
+               "                    blind.append(str(cur))",
+        "new": "            except OSError:          # 列不动:不是残留证据,但也**不是**清白证据\n"
+               "                if False:\n"
+               "                    blind.append(str(cur))",
+        "catchers": _T_WC,
+    },
+    {
+        "id": "M42h-blind-scan-does-not-block",
+        "lesson": "#41 H9-a:查到盲区只记不拒开 —— 与 M41h 同型,只是这次拦的是'无法确立'",
+        "file": _HD,
+        "old": '        if blind:\n'
+               '            return {"blocked": True, "agent_model_call_count": 0,\n'
+               '                    "preflight": {"ready": False, "reason": "ANSWER_KEY_SCAN_BLIND"},',
+        "new": '        if False:\n'
+               '            return {"blocked": True, "agent_model_call_count": 0,\n'
+               '                    "preflight": {"ready": False, "reason": "ANSWER_KEY_SCAN_BLIND"},',
         "catchers": _T_WC,
     },
     {

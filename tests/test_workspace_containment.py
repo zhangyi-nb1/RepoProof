@@ -258,3 +258,47 @@ def test_trash_is_a_scan_root_so_residue_cannot_be_hidden_there() -> None:
 
     assert "~/.Trash" in ANSWER_KEY_SCAN_ROOTS, (
         "废纸篓不在扫描根里 —— 把残留 mv 进去就能骗过 H9-a")
+
+
+def test_unlistable_dir_is_reported_as_blind_not_as_clean(tmp_path) -> None:
+    """H9-a:列不动的目录必须记进 blind —— 看不见不等于干净。
+
+    反例(2026-08-13 实测):7 棵残留树 `mv` 进 `~/.Trash` 后,macOS TCC 让
+    `iterdir()` 抛 `Operation not permitted`,老代码 `except OSError: continue`
+    于是返回 **0 处命中**,而同一时刻 `test -d` 证明答案就在那儿 —— 检测器
+    看不见时朝**放行**的方向失败。H9-b 可绕,不可绕的那一半全押在 H9-a;
+    它失明即等于整道封闭失效。
+    """
+    import os
+
+    from repoproof.runner.host_guided import reachable_answer_keys
+
+    task = tmp_path / "task"
+    (task / "controls" / "positive").mkdir(parents=True)
+    (task / "controls" / "positive" / "research_jobs.py").write_text("x = 1\n")
+
+    root = tmp_path / "bench"
+    locked = root / "locked"
+    locked.mkdir(parents=True)
+    (locked / "research_jobs.py").write_text("x = 1\n")   # 里面真有答案
+    os.chmod(locked, 0o000)
+    try:
+        blind: list[str] = []
+        found = reachable_answer_keys(task, roots=(str(root),), blind=blind)
+    finally:
+        os.chmod(locked, 0o755)
+
+    assert found == [], "前提:列不动就发现不了里面的答案(这正是危险所在)"
+    assert blind == [str(locked)], (
+        "列不动的目录没被记为盲区 —— 于是 preflight 会把'看不见'当成'干净'放行")
+
+
+def test_blind_scan_blocks_the_run_with_its_own_reason() -> None:
+    """H9-a:盲区要拒开,且理由与'查到残留'分开 —— 两者的补救动作不同。"""
+    from pathlib import Path as _P
+
+    src = _P("src/repoproof/runner/host_guided.py").read_text()
+
+    assert "        if blind:\n" in src, "盲区没有独立的拒开分支"
+    assert '"reason": "ANSWER_KEY_SCAN_BLIND"' in src, "盲区没有独立的拒开理由"
+    assert "blind=blind" in src, "preflight 根本没把 blind 收集起来"

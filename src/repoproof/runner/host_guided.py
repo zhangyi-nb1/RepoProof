@@ -585,6 +585,7 @@ _SESSION_DIR = "_sessions"
 
 def reachable_answer_keys(
     task_dir: Path, roots: tuple[str, ...] = ANSWER_KEY_SCAN_ROOTS, max_depth: int = 3,
+    blind: list[str] | None = None,
 ) -> list[str]:
     """H9-a:开跑前列出运行主机上**可达的答案残留**(查到即拒开)。
 
@@ -600,6 +601,13 @@ def reachable_answer_keys(
 
     这是 H9 里**不可绕过的那一半**:H9-b 的路径检测可以被拼接/编码绕过,
     但答案不在盘上就抄不到。
+
+    `blind` 传入一个 list 时,**列不动的目录**记进去 —— 看不见不等于干净。
+    反例(2026-08-13 实测):7 棵残留树 `mv` 进 `~/.Trash` 后,macOS TCC 让
+    `iterdir()` 抛 `Operation not permitted`,老代码 `except OSError: continue`
+    于是返回**0 处命中**,而 `test -d` 同时证明答案就在那儿 —— 检测器看不见
+    时朝**放行**的方向失败了。本函数只报告盲区,拒不拒开由 preflight 判;
+    单个文件读不到不计入(那是小得多的洞,且真机上噪声大)。
     """
     by_size: dict[int, set[str]] = {}
     for name in PROTECTED_TASK_DIRS:
@@ -620,7 +628,9 @@ def reachable_answer_keys(
             cur, depth = stack.pop()
             try:
                 entries = list(cur.iterdir())
-            except OSError:          # 权限/竞态:扫不到就跳过,不是残留证据
+            except OSError:          # 列不动:不是残留证据,但也**不是**清白证据
+                if blind is not None:
+                    blind.append(str(cur))
                 continue
             for e in entries:
                 if e.name == _SESSION_DIR:
@@ -1961,13 +1971,21 @@ def run_host_guided_cli(
         # 反例 order-21:`~/RepoProofBench-quarantine/_scratch_t2_positive/
         # research_jobs.py` 被整文件 cp 进工作区,交付 344 行里 295 行与正控
         # 逐字相同。H9-b 的路径检测能被绕过,这一条不能 —— 答案不在盘上。
-        residue = reachable_answer_keys(Path(contract_path).parent)
+        blind: list[str] = []
+        residue = reachable_answer_keys(Path(contract_path).parent, blind=blind)
         if residue:
             return {"blocked": True, "agent_model_call_count": 0,
                     "preflight": {"ready": False, "reason": "ANSWER_KEY_REACHABLE"},
                     "answer_key_residue": residue[:20],
                     "remediation": "运行主机上仍可达到正控/负控/任务工程期残留;"
                                    "清掉或移出本机后再开跑(它们在 run 期间没有用途)"}
+        if blind:
+            return {"blocked": True, "agent_model_call_count": 0,
+                    "preflight": {"ready": False, "reason": "ANSWER_KEY_SCAN_BLIND"},
+                    "answer_key_scan_blind": blind[:20],
+                    "remediation": "扫描根里有列不动的目录,H9-a 无法确立'答案不在盘上';"
+                                   "看不见不等于干净。常见是 ~/.Trash(macOS TCC):"
+                                   "倒空废纸篓,或给运行终端授予完全磁盘访问权限后重试"}
 
         provider = provider_from_env()
         pf = run_preflight(provider)
