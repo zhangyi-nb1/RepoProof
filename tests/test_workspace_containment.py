@@ -243,3 +243,18 @@ def test_prompt_states_the_workspace_boundary() -> None:
     assert "find /" in rules, "点名根扫描——那是发现答案的第一步"
     assert "ends the run" in rules, "必须说清后果,否则不算先教"
     assert "./fixtures" in rules and "../upstream" in rules, "#40 的两条不得丢"
+
+
+def test_trash_is_a_scan_root_so_residue_cannot_be_hidden_there() -> None:
+    """H9-a:废纸篓也是可达路径,`mv` 进去不算清零。
+
+    反例是**助手自己**(2026-08-13):用户要求"把 7 棵树移出本机",第一反应
+    是 `mv` 进 `~/.Trash` —— 若扫描根不含它,`reachable_answer_keys()` 立刻
+    返回空、preflight 放行,而答案原封不动躺在
+    `~/.Trash/_scratch_t2_positive/research_jobs.py` 上。那不是清零,是靠挪
+    位置让检测器闭嘴。删到废纸篓不解除拒开,倒空废纸篓才解除。
+    """
+    from repoproof.runner.host_guided import ANSWER_KEY_SCAN_ROOTS
+
+    assert "~/.Trash" in ANSWER_KEY_SCAN_ROOTS, (
+        "废纸篓不在扫描根里 —— 把残留 mv 进去就能骗过 H9-a")

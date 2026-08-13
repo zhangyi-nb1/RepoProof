@@ -567,11 +567,17 @@ def hash_public_surface(host_root: Path) -> dict[str, str]:
 # order-21 三步拿到答案:`find /` 发现 → `sed` 通读 → `cp` 整文件。
 # H9-a 管"答案不在盘上",H9-b 管"引用即杀",H9-c 管"先教"。
 
-ANSWER_KEY_SCAN_ROOTS = ("~/RepoProofBench", "~/RepoProofBench-quarantine", "/tmp")
-"""H9-a 扫描根。三处都是实录里真的出现过残留的地方:
+ANSWER_KEY_SCAN_ROOTS = ("~/RepoProofBench", "~/RepoProofBench-quarantine", "/tmp", "~/.Trash")
+"""H9-a 扫描根。前三处都是实录里真的出现过残留的地方:
 `~/RepoProofBench/_scratch_t2_positive`(T2 v1 期)、
 `~/RepoProofBench-quarantine/_scratch_t2_positive`(order-21 抄的那棵)、
-`/private/tmp/t2v4_direct/fixtures`(任务工程期)。"""
+`/private/tmp/t2v4_direct/fixtures`(任务工程期)。
+
+`~/.Trash` 是 2026-08-13 补的,反例是**我自己**:被要求"把 7 棵树移出本机"
+时,我的第一反应是 `mv` 进废纸篓 —— 那会让本函数立刻返回空、preflight 放行,
+而答案原封不动躺在 `~/.Trash/_scratch_t2_positive/research_jobs.py` 上。
+判据原文是"运行主机的**可达路径**",废纸篓是可达路径;靠挪位置让检测器
+闭嘴不叫清零。删到废纸篓不解除拒开,倒空废纸篓才解除。"""
 
 PROTECTED_TASK_DIRS = ("controls", "oracle", "fixtures", "public_tests")
 _SESSION_DIR = "_sessions"
