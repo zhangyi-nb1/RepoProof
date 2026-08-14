@@ -217,18 +217,16 @@ def test_fake_positive_works_for_every_task_not_just_t1() -> None:
       - 允许的失败 = ValueError,且带得出任务包给的诊断;
       - 不允许的失败 = FileNotFoundError / KeyError 这类"实现漏了这个任务"。
     """
-    from repoproof.runner.host_guided import HostGuidedRunner
-
     repo = Path(__file__).resolve().parents[1]
     want = {"t1_fastapi_mcp": "mount_sdk_mcp",
             "t2_open_deep_research_v5": "mount_research_api",
             "t3_browser_use_v6": "mount_apply_assist"}
     for task, mount in want.items():
-        contract = repo / "benchmarks" / "v2" / "tasks" / task / "contract.yaml"
-        if not contract.exists():
+        task_dir = repo / "benchmarks" / "v2" / "tasks" / task
+        if not (task_dir / "contract.yaml").exists():
             continue
         try:
-            steps = _fake_script("positive", HostGuidedRunner(contract, repo))
+            steps = _fake_script("positive", _stub_for(task_dir))
         except ValueError as e:
             assert "不可满足" in str(e), (
                 f"{task} 拒跑了,但理由不是任务包声明的阻断:{e}")
@@ -248,8 +246,6 @@ def test_missing_controls_fails_loudly_not_silently(tmp_path) -> None:
     "空跑不算通过"、validate_controls 的 V3 同源。"""
     import shutil
 
-    from repoproof.runner.host_guided import HostGuidedRunner
-
     repo = Path(__file__).resolve().parents[1]
     src = repo / "benchmarks" / "v2" / "tasks" / "t2_open_deep_research_v5"
     if not src.exists():
@@ -259,7 +255,7 @@ def test_missing_controls_fails_loudly_not_silently(tmp_path) -> None:
     shutil.rmtree(dst / "controls" / "positive")
 
     with pytest.raises(ValueError, match="正控"):
-        _fake_script("positive", HostGuidedRunner(dst / "contract.yaml", repo))
+        _fake_script("positive", _stub_for(dst))
 
 
 # ------------------------------------------------ 正控环境清单(smoke_setup)
@@ -289,12 +285,18 @@ def test_missing_controls_fails_loudly_not_silently(tmp_path) -> None:
 #   复现。
 
 
-def _pos_cmds(task: str) -> list[str]:
-    from repoproof.runner.host_guided import HostGuidedRunner
+def _stub_for(task_dir: Path):
+    """只带 task_dir 的 stub —— `_fake_script` 用到的就只有它。
 
+    不构造真 `HostGuidedRunner`:那会核验 `upstream-cache/`,而该目录
+    gitignore,变异闸门的隔离 worktree 里根本没有。钉死要考的是脚本
+    生成逻辑,不是上游快照在不在。"""
+    return type("_S", (), {"task_dir": task_dir})()
+
+
+def _pos_cmds(task: str) -> list[str]:
     repo = Path(__file__).resolve().parents[1]
-    runner = HostGuidedRunner(
-        repo / "benchmarks" / "v2" / "tasks" / task / "contract.yaml", repo)
+    runner = _stub_for(repo / "benchmarks" / "v2" / "tasks" / task)
     return [a["command"] for step in _fake_script("positive", runner)
             for a in step["actions"]]
 
@@ -303,8 +305,6 @@ def test_missing_setup_manifest_fails_loudly(tmp_path) -> None:
     """N1:缺环境清单显式失败,不静默跳过依赖步骤。"""
     import shutil
 
-    from repoproof.runner.host_guided import HostGuidedRunner
-
     repo = Path(__file__).resolve().parents[1]
     src = repo / "benchmarks" / "v2" / "tasks" / "t1_fastapi_mcp"
     dst = tmp_path / "task"
@@ -312,14 +312,12 @@ def test_missing_setup_manifest_fails_loudly(tmp_path) -> None:
     (dst / "controls" / "positive" / "smoke_setup.txt").unlink()
 
     with pytest.raises(ValueError, match="环境清单"):
-        _fake_script("positive", HostGuidedRunner(dst / "contract.yaml", repo))
+        _fake_script("positive", _stub_for(dst))
 
 
 def test_blocked_directive_refuses_with_the_reason(tmp_path) -> None:
     """N2:`#!BLOCKED:` 拒跑,且把理由原样带出来。"""
     import shutil
-
-    from repoproof.runner.host_guided import HostGuidedRunner
 
     repo = Path(__file__).resolve().parents[1]
     src = repo / "benchmarks" / "v2" / "tasks" / "t1_fastapi_mcp"
@@ -330,7 +328,7 @@ def test_blocked_directive_refuses_with_the_reason(tmp_path) -> None:
         ".venv/bin/pip install -q foo\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match="缺 bubus"):
-        _fake_script("positive", HostGuidedRunner(dst / "contract.yaml", repo))
+        _fake_script("positive", _stub_for(dst))
 
 
 def test_multiline_block_is_delivered_whole(tmp_path) -> None:
@@ -339,8 +337,6 @@ def test_multiline_block_is_delivered_whole(tmp_path) -> None:
     反例(按行拆):每条命令各自 rc=0,垫片文件却只写出半截,
     失败要到 oracle 才现形。"""
     import shutil
-
-    from repoproof.runner.host_guided import HostGuidedRunner
 
     repo = Path(__file__).resolve().parents[1]
     src = repo / "benchmarks" / "v2" / "tasks" / "t1_fastapi_mcp"
@@ -353,7 +349,7 @@ def test_multiline_block_is_delivered_whole(tmp_path) -> None:
         "echo second\n", encoding="utf-8")
 
     cmds = [a["command"]
-            for step in _fake_script("positive", HostGuidedRunner(dst / "contract.yaml", repo))
+            for step in _fake_script("positive", _stub_for(dst))
             for a in step["actions"]]
     whole = [c for c in cmds if c.startswith("cat > shim.py")]
     assert len(whole) == 1, f"heredoc 被拆碎了:{cmds[:3]}"
@@ -367,8 +363,6 @@ def test_smoke_lands_every_control_py_not_just_the_mount_module(tmp_path) -> Non
     """N5:落地控制组全部 .py —— 与 build_control_tree.build() 同口径。"""
     import shutil
 
-    from repoproof.runner.host_guided import HostGuidedRunner
-
     repo = Path(__file__).resolve().parents[1]
     src = repo / "benchmarks" / "v2" / "tasks" / "t1_fastapi_mcp"
     dst = tmp_path / "task"
@@ -377,7 +371,7 @@ def test_smoke_lands_every_control_py_not_just_the_mount_module(tmp_path) -> Non
         "SIDE = 1\n", encoding="utf-8")
 
     cmds = [a["command"]
-            for step in _fake_script("positive", HostGuidedRunner(dst / "contract.yaml", repo))
+            for step in _fake_script("positive", _stub_for(dst))
             for a in step["actions"]]
     joined = "\n".join(cmds)
     assert "cat > helper_side.py" in joined, (
