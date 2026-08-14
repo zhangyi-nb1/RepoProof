@@ -220,3 +220,57 @@ Count` · `Replay Success` · `Rollback Success` · `Profile Drift` ·
 5. 让执行后端(含未来的 DSH bridge)直接拿到 oracle 路径 / Docker socket /
    宿主密钥 —— 它只能**提出**工具动作,真实执行必须走本仓 policy 环境;
 6. 首版就开 cheap-first escalation 或 AI 决定的模型路由。
+
+
+---
+
+## §7 Profile 晋级判据(2026-08-14 落地)
+
+判据冻结在 `src/repoproof/execution/profile_promotion.py`(G1–G8),
+判定与留痕走 `scripts/promote_profile.py`。
+
+**每一级问的是不同的问题**,这是整份设计的骨架:
+
+| 目标级 | 问的是 | 判据 | 谁能判 |
+|---|---|---|---|
+| → candidate | **机制自己站不站得住?** | G1 拓扑成立 · G2 假阳侧不误杀 · G3 负控各红各位 · G4 每族谓词红过也绿过 · G5 变异全捕且守护条目在场 | **零模型可判** |
+| → qualified | **真模型跑得动吗?** | G6 ≥2 个模型 profile 且 ≥1 发诚实通过 · G7 无未决假通过 | **必须有真实发次** |
+| → default | **该不该成为默认?** | G8 —— 这是取舍(成本、语义、对既有发次的影响),不是测量 | **机器判不了** |
+
+三条纪律:
+
+1. **证据缺失一律拒绝,不假设。** 一个查不到证据就默认放行的闸门,与没有
+   闸门的区别只在于它会让人误以为有闸门。
+2. **判不了 = 不通过**,不是"暂且通过"。凑几个数就自动设默认,等于把一个
+   取舍伪装成一个测量。
+3. **晋级必须留痕**(`docs/evidence/profile_lifecycle/promotions.jsonl`):
+   凭什么、依据哪份证据、哪几条判据过了。直接改 lifecycle 字段自封,等于
+   把"凭什么"整个抹掉 —— 由 `tests/test_profile_promotion.py::P6` 钉死。
+
+### 变异证据的有效期(踩了三次才定下来)
+
+G5 要一份"对当前代码仍然成立"的变异证据。前两种写法都错:
+
+- **按 mtime 取最新** —— 变异闸门在临时 git worktree 里跑,checkout 出来的
+  文件 mtime 全一样,"最新"其实是随机取;
+- **只认 HEAD 那一份** —— 严格是对的,但会死锁:证据按 HEAD 命名,而**提交
+  证据本身又产生新的 HEAD**,于是 HEAD 上永远没有证据,G5 永远过不了。
+  一道永远过不了的判据不是严格,是墙。
+
+现在的语义:**证据在它守护的文件没变期间仍然有效**。守护集直接从证据自己
+里读(每条变异都记了 `file` 与 `catchers`),所以证据是自足的,不必去 import
+登记簿。这与语义指纹那套是同一个想法 —— 不相干的改动不该让证据作废,相干
+的改动必须让它作废。
+
+### 现状
+
+| profile | 拓扑 | 生命周期 | 依据 |
+|---|---|---|---|
+| `rt-inprocess-v1` | in_process | **default** | 既有全部发次的行为,先于本机制存在 |
+| `rt-sidecar-canary-v1` | sidecar | **candidate** | G1–G5 全过(2026-08-14),留痕在案 |
+| `rt-sidecar-markdown-it-v1` | sidecar | experimental | 控制矩阵专用,未申请晋级 |
+
+canary 到 candidate 的含义要划清:**机制站得住**(拓扑成立、诚实实现不被
+误杀、八条攻击各红各位、变异全捕);**不含**"真模型跑得动" —— 我们的
+adapter 是照着判据写的,那叫出题人自己会做,不叫题目可解。要往 qualified
+走,得等 T3-SIDECAR v1 上的真实发次。

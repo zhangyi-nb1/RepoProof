@@ -92,33 +92,71 @@ def _read_json(p: Path) -> dict | None:
         return None
 
 
-def _mutation_evidence_at_head(repo: Path) -> tuple[dict | None, str]:
-    """取**当前 HEAD 那一次**的变异证据。返回 (证据, 说明)。
+def _mutation_evidence_for_head(repo: Path) -> tuple[dict | None, str]:
+    """取一份**对当前 HEAD 仍然有效**的变异证据。返回 (证据, 说明)。
 
-    两处曾经想当然、都被现场打脸:
+    三次修正,每次都是被现场打脸的:
 
-    1. **不按 mtime 取"最新"**。变异闸门在临时 git worktree 里跑,checkout
-       出来的文件 mtime 全都一样 —— "最新"其实是随机取。
-    2. **不接受别的 commit 的证据**。证据文件按 HEAD 命名正是为了这个:
-       上一个 commit 跑绿了,不代表这个 commit 还绿。拿旧证据给新代码背书,
-       与"改完不重跑"没有区别。
+    1. **按 mtime 取"最新"** —— 变异闸门在临时 git worktree 里跑,checkout
+       出来的文件 mtime 全一样,"最新"其实是随机取。
+    2. **只认 HEAD 那一份** —— 严格是对的,但会死锁:证据文件按 HEAD 命名,
+       而**提交证据本身又产生新的 HEAD**,于是 HEAD 上永远没有证据,G5 永远
+       过不了。一道永远过不了的判据不是严格,是墙(LESSONS #44)。
+    3. **现在的做法**:证据在**它守护的文件没变**期间仍然有效。这与语义指纹
+       那套是同一个想法 —— 不相干的改动不该让证据作废,相干的改动必须让它
+       作废。守护集直接从证据自己里读(每条变异都记了 `file` 与 `catchers`),
+       不必去 import 登记簿,证据因此是自足的。
     """
     import subprocess
+
+    def _git(*a: str) -> str:
+        return subprocess.run(                               # noqa: S603 固定 argv
+            ["git", "-C", str(repo), *a],
+            capture_output=True, text=True, check=False).stdout.strip()
 
     d = repo / "docs" / "evidence" / "mutation_gate"
     if not d.is_dir():
         return None, "没有变异证据目录"
-    head = subprocess.run(                                   # noqa: S603 固定 argv
-        ["git", "-C", str(repo), "rev-parse", "HEAD"],
-        capture_output=True, text=True, check=False).stdout.strip()
+    head = _git("rev-parse", "HEAD")
     if not head:
         return None, "取不到 HEAD —— 无从判断证据是不是这份代码的"
-    f = d / f"{head[:12]}.json"
-    if not f.is_file():
-        return None, (f"HEAD {head[:12]} 上没有变异证据 —— 先跑 "
-                      "scripts/mutation_gate.py。上一个 commit 跑绿了不代表"
-                      "这个 commit 还绿")
-    return _read_json(f), f"HEAD {head[:12]}"
+
+    # 候选:head_commit 是 HEAD 的祖先或就是 HEAD(未来分支上的证据不算数)
+    cands: list[tuple[int, dict, str]] = []
+    for f in d.glob("*.json"):
+        ev = _read_json(f)
+        c = (ev or {}).get("head_commit") or ""
+        if not c:
+            continue
+        anc = subprocess.run(                                # noqa: S603 固定 argv
+            ["git", "-C", str(repo), "merge-base", "--is-ancestor", c, head],
+            capture_output=True, check=False).returncode
+        if anc != 0:
+            continue
+        # 距 HEAD 几个提交 —— 越小越新
+        n = _git("rev-list", "--count", f"{c}..{head}")
+        cands.append((int(n or 10**9), ev, c))
+    if not cands:
+        return None, "没有一份变异证据的 head_commit 是当前 HEAD 的祖先"
+
+    dist, ev, commit = min(cands, key=lambda x: x[0])
+    if dist == 0:
+        return ev, f"HEAD {commit[:12]}"
+
+    # 守护集 = 证据里每条变异碰的源文件 + 它的 catcher 测试
+    guarded = set()
+    for r in ev.get("results") or []:
+        if r.get("file"):
+            guarded.add(r["file"])
+        guarded.update(r.get("catchers") or [])
+    changed = set(_git("diff", "--name-only", f"{commit}..{head}").splitlines())
+    hit = sorted(guarded & changed)
+    if hit:
+        return None, (f"最近一份证据在 {commit[:12]}(距今 {dist} 个提交),"
+                      f"但它守护的文件此后改过:{hit[:4]} —— 重跑 "
+                      "scripts/mutation_gate.py")
+    return ev, (f"{commit[:12]}(距今 {dist} 个提交;此后改动未触及它守护的 "
+                f"{len(guarded)} 个文件)")
 
 
 # ------------------------------------------------------------------ 判据
@@ -171,7 +209,7 @@ def _check_mutations(repo: Path, *, evidence: dict | None = None) -> Check:
     """
     why = "显式传入"
     if evidence is None:
-        evidence, why = _mutation_evidence_at_head(repo)
+        evidence, why = _mutation_evidence_for_head(repo)
     ev = evidence
     if ev is None:
         return Check("G5.mutation", False, f"拿不到变异证据({why})—— 查不到就拒绝晋级")

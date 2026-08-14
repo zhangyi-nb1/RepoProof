@@ -182,24 +182,52 @@ def test_canary_is_candidate_and_still_earns_g1_to_g4():
     assert all(c.ok for c in live.values()), [c.detail for c in live.values() if not c.ok]
 
 
-def test_g5_refuses_evidence_from_another_commit(tmp_path):
-    """G5 的严格性:**别的 commit 的变异证据不算数**。
-
-    反例:按 mtime 取"最新"一份 —— 变异闸门在 git worktree 里跑,checkout
-    出来的文件 mtime 全一样,"最新"其实是随机取;而且上一个 commit 跑绿了
-    不代表这个 commit 还绿,拿旧证据背书与"改完不重跑"没区别。"""
+def test_g5_needs_a_git_head_to_judge_evidence(tmp_path):
+    """G5:不是 git 仓 → 判不过(而不是"目录里只有一份就用那份")。"""
     from repoproof.execution.profile_promotion import _check_mutations
 
     d = tmp_path / "docs" / "evidence" / "mutation_gate"
     d.mkdir(parents=True)
     (d / "deadbeefcafe.json").write_text(json.dumps(
-        {"escaped": [], "stale": [],
+        {"head_commit": "deadbeefcafe", "escaped": [], "stale": [],
          "results": [{"id": "M49a"}, {"id": "M50a"}, {"id": "M52a"}]}),
         encoding="utf-8")
-    # tmp_path 不是 git 仓 → 取不到 HEAD → 判不过(而不是"就用这唯一一份")
     c = _check_mutations(tmp_path)
     assert not c.ok
-    assert "HEAD" in c.detail or "变异证据目录" in c.detail
+
+
+def test_g5_evidence_expires_when_a_guarded_file_changes():
+    """G5 的核心语义:证据在**它守护的文件改动后失效**。
+
+    三次修正的落点(每次都被现场打脸):
+      按 mtime 取最新 → worktree 里 mtime 全一样,等于随机取;
+      只认 HEAD 那一份 → 死锁(提交证据本身产生新 HEAD),G5 永远过不了 ——
+        一道永远过不了的判据不是严格,是墙;
+      现在:不相干的改动不让证据作废,相干的改动必须让它作废。
+
+    这条直接考"相干的改动必须让它作废"。"""
+    import subprocess
+
+    from repoproof.execution.profile_promotion import _mutation_evidence_for_head
+
+    ev, why = _mutation_evidence_for_head(REPO)
+    assert ev is not None, f"真仓里应当有一份有效证据:{why}"
+
+    guarded = set()
+    for r in ev.get("results") or []:
+        if r.get("file"):
+            guarded.add(r["file"])
+        guarded.update(r.get("catchers") or [])
+    assert guarded, "证据里读不出守护集 —— 那这条判据无从判定失效"
+
+    commit = ev["head_commit"]
+    head = subprocess.run(["git", "-C", str(REPO), "rev-parse", "HEAD"],
+                          capture_output=True, text=True, check=False).stdout.strip()
+    changed = set(subprocess.run(
+        ["git", "-C", str(REPO), "diff", "--name-only", f"{commit}..{head}"],
+        capture_output=True, text=True, check=False).stdout.split())
+    assert not (guarded & changed), (
+        f"守护的文件改过却仍在用这份证据:{sorted(guarded & changed)}")
 
 
 def test_lifecycle_order_is_frozen():
