@@ -70,6 +70,7 @@ def _load(path: Path, name: str | None = None):
 
 
 _PROFILE_MOD = None
+_TOPOLOGY = None
 
 
 def _suite_profile():
@@ -83,6 +84,16 @@ def _suite_profile():
     if _PROFILE_MOD is None:
         _PROFILE_MOD = _load(SUITE / "profile.py", "bconf_profile")
     return _PROFILE_MOD
+
+
+def _suite_topology():
+    """同样只加载一次,且**做成可替换的函数** —— 钉死要能喂给它一份"别的
+    suite 的拓扑报告",直接考那道守卫认不认得出(变异 M54a 的教训:钉死只读
+    落盘证据时,把守卫整个掏掉也没人看得见)。"""
+    global _TOPOLOGY
+    if _TOPOLOGY is None:
+        _TOPOLOGY = _load(SUITE / "topology.py", "bconf_topology").check_topology
+    return _TOPOLOGY
 
 
 def _jobs(url: str) -> list[dict]:
@@ -190,7 +201,7 @@ def main() -> int:
     from sidecar_conformance import find_problems  # 判定只有一份
 
     P = _suite_profile()
-    check_topology = _load(SUITE / "topology.py", "bconf_topology").check_topology
+    check_topology = _suite_topology()
 
     ok, why = P.available()
     if not ok:

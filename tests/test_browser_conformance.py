@@ -129,17 +129,49 @@ def test_offline_flags_are_present():
     assert "--proxy-bypass-list=127.0.0.1;localhost;<local>" in src
 
 
+_SCRIPT = None
+
+
+def _script():
+    """**只加载一次**:重载会让 suite profile 跟着重建,而
+    `register_profile` 的"同 id 不同内容"守卫会当场报警(dispatch 里是函数
+    对象,新旧不相等)。守卫是对的,该改的是重复加载。"""
+    global _SCRIPT
+    if _SCRIPT is None:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "browser_conformance", REPO / "scripts" / "browser_conformance.py")
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = mod
+        spec.loader.exec_module(mod)
+        _SCRIPT = mod
+    return _SCRIPT
+
+
+def test_b1b_a_foreign_suites_topology_is_refused(monkeypatch, capsys):
+    """B1 的行为面:喂一份**别的 suite 的**拓扑报告,必须当场拒绝出数。
+
+    变异闸门 M54a 抓到的逃逸:原钉死只读落盘证据里的拓扑,而现实里那份一直
+    是对的 —— 把守卫整个掏掉也没人看得见。与 M50a/M52b 同型:**检查器必须先
+    证明自己查得出**,证明的办法是喂合成缺陷,不是等现实里出问题。
+
+    合成的是 canary 的形状(没有 T5.seal_intact),正是实测发生过的那次。"""
+    mod = _script()
+    monkeypatch.setattr(mod, "_suite_topology", lambda: (lambda: {
+        "ok": True, "findings": [
+            {"check": "T1.not_in_wheelhouse", "ok": True, "detail": "canary 的"},
+            {"check": "T2.not_importable_cleanly", "ok": True,
+             "detail": "No module named 'canary_upstream'"}]}))
+    rc = mod.main()
+    assert rc == 2, f"别的 suite 的拓扑竟然被接受了(返回 {rc})"
+    assert "不是本 suite" in capsys.readouterr().err
+
+
 @pytest.mark.slow
 def test_matrix_is_fresh():
     """真重跑一遍(~36s),结论必须与落盘证据逐条相同。**默认就跑。**"""
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(
-        "browser_conformance", REPO / "scripts" / "browser_conformance.py")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = mod
-    spec.loader.exec_module(mod)
     before = {r["adapter"]: r["actual_red"] for r in _m()["rows"]}
-    assert mod.main() == 0
+    assert _script().main() == 0
     fresh = json.loads(MATRIX.read_text(encoding="utf-8"))
     assert {r["adapter"]: r["actual_red"] for r in fresh["rows"]} == before
