@@ -58,6 +58,26 @@ MIN_HONEST_PASSES = 1
 # "只要捕获率 100%",是因为一个空登记簿的捕获率也是 100%。
 REQUIRED_MUTATION_PREFIXES = ("M49", "M50", "M52")
 
+# G5 的**守护集下界**(用户 2026-08-14 指令)。
+#
+# 证据可以自报它守护哪些文件,但验证方必须另有一个最低必守集合,并要求
+#
+#     REQUIRED_GUARD_SET ⊆ evidence.guard_set
+#
+# 否则一份错误证据理论上可以靠**少声明几个需要守护的文件**让自己长期有效
+# —— 那与"分母由被测方提供"是同一个病(U3 的教训:分母不能来自被测方)。
+#
+# 收进来的是"改了它,前面所有结论都得重算"的那几样:
+REQUIRED_GUARD_SET = frozenset({
+    "src/repoproof/execution/runtime_profiles.py",    # profile 清单与拓扑语义
+    "src/repoproof/execution/profile_promotion.py",   # 晋级判据本身(自指,但必须在)
+    "src/repoproof/execution/upstream_sidecar.py",    # sidecar 执行与回执写入
+    "src/repoproof/receipts/model.py",                # 回执数据模型与签名
+    "src/repoproof/receipts/ledger.py",               # 台账链与追加纪律
+    "src/repoproof/receipts/verify.py",               # 四道谓词
+    "scripts/mutation_gate.py",                       # 变异登记簿与证据格式
+})
+
 
 @dataclass
 class Check:
@@ -90,6 +110,24 @@ def _read_json(p: Path) -> dict | None:
         return json.loads(p.read_text(encoding="utf-8"))
     except Exception:                                        # noqa: BLE001
         return None
+
+
+def _guard_set_of(ev: dict) -> set[str]:
+    """证据守护哪些文件。优先读它自己声明的 `guard_set`;旧格式从 results 反推。
+
+    反推只为兼容旧证据 —— 它推不出登记簿自身(`scripts/mutation_gate.py`
+    不是任何一条变异的 `file`),所以旧证据必然过不了下界检查。那是**对的**:
+    旧证据本来就不该在新规则下继续背书。
+    """
+    declared = ev.get("guard_set")
+    if isinstance(declared, list) and declared:
+        return set(declared)
+    out: set[str] = set()
+    for r in ev.get("results") or []:
+        if r.get("file"):
+            out.add(r["file"])
+        out.update(r.get("catchers") or [])
+    return out
 
 
 def _mutation_evidence_for_head(repo: Path) -> tuple[dict | None, str]:
@@ -140,15 +178,15 @@ def _mutation_evidence_for_head(repo: Path) -> tuple[dict | None, str]:
         return None, "没有一份变异证据的 head_commit 是当前 HEAD 的祖先"
 
     dist, ev, commit = min(cands, key=lambda x: x[0])
+
+    guarded = _guard_set_of(ev)
+    short = REQUIRED_GUARD_SET - guarded
+    if short:
+        return None, (f"证据自报的守护集缺了下界里的 {sorted(short)} —— "
+                      "少声明几个守护文件就能让自己长期有效,那与'分母由被测方"
+                      "提供'是同一个病。重跑 scripts/mutation_gate.py")
     if dist == 0:
         return ev, f"HEAD {commit[:12]}"
-
-    # 守护集 = 证据里每条变异碰的源文件 + 它的 catcher 测试
-    guarded = set()
-    for r in ev.get("results") or []:
-        if r.get("file"):
-            guarded.add(r["file"])
-        guarded.update(r.get("catchers") or [])
     changed = set(_git("diff", "--name-only", f"{commit}..{head}").splitlines())
     hit = sorted(guarded & changed)
     if hit:

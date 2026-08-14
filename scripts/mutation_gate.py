@@ -1108,9 +1108,18 @@ def run_gate() -> int:
 
     caught = sum(1 for r in results if r["outcome"] == "CAUGHT")
     bad = [r for r in results if r["outcome"] != "CAUGHT"]
+    # 显式声明**这份证据守护哪些文件** —— 这些文件一变,证据就该作废。
+    # 含登记簿自身:改了登记簿(加条目、改 old/new、改 catcher),旧证据当然
+    # 不再代表现在这套变异。派生自 MUTATIONS 而非从 results 反推,是为了
+    # 让 STALE/ESCAPED 的条目也算数(它们守护的文件同样相干)。
+    guard_set = sorted(
+        {m["file"] for m in MUTATIONS if m.get("file")}
+        | {c for m in MUTATIONS for c in (m.get("catchers") or [])}
+        | {"scripts/mutation_gate.py"})
     report = {
         "head_commit": head,
         "mutations": len(MUTATIONS),
+        "guard_set": guard_set,
         "caught": caught,
         "escaped": [r["id"] for r in results if r["outcome"] == "ESCAPED"],
         "stale": [r["id"] for r in results if r["outcome"] == "STALE"],
