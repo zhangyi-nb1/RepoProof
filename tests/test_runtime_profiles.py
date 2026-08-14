@@ -209,10 +209,22 @@ def test_p6_unknown_symbol_is_refused_before_execution(tmp_path):
         with pytest.raises(urllib.error.HTTPError) as e:
             urllib.request.urlopen(req, timeout=10)
         assert e.value.code == 400
+        body = json.loads(e.value.read().decode("utf-8"))
     finally:
         h.shutdown()
 
     assert called == [], "白名单外的符号竟然被执行了"
+    # **拒绝必须是显式的,不能是"碰巧崩了"**。
+    #
+    # 变异闸门 M51d 抓到的逃逸:把白名单判断掏掉之后,`fn` 是 None,调用它
+    # 抛 TypeError 被兜底捕获,照样返回 400 —— 状态码一模一样,而防护其实
+    # 已经没了。碰巧崩了很脆:换个 `dispatch.get(symbol, default)`、或者
+    # `fn` 恰好是个可调用对象,这份"保护"就当场消失。
+    #
+    # 所以钉的是**它说不说得出理由**,而不是它有没有失败。
+    assert "未支持的符号" in body.get("error", ""), (
+        f"拒绝了,但说不出是因为符号不在白名单里 —— 那是碰巧崩了,"
+        f"不是白名单在拦:{body}")
     from repoproof.receipts.ledger import read_ledger
 
     assert read_ledger(h.ledger_path) == [], "被拒的调用不该留下回执"
