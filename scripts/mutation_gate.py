@@ -57,6 +57,9 @@ _RC_L = "src/repoproof/receipts/ledger.py"
 _T_UR = ["tests/test_upstream_receipt.py"]
 _RCS = "scripts/verify_receipt_controls.py"
 _T_RCS = ["tests/test_receipt_controls.py"]
+_RTP = "src/repoproof/execution/runtime_profiles.py"
+_USC = "src/repoproof/execution/upstream_sidecar.py"
+_T_RTP = ["tests/test_runtime_profiles.py"]
 _T_CF = ["tests/test_constraint_feedback.py"]
 _T_PI = ["tests/test_process_independence.py"]
 _T_RC = ["tests/test_root_cause_packets.py"]
@@ -760,6 +763,44 @@ MUTATIONS: list[dict] = [
         "old": '    for f in sorted(src_control.glob("*.py")):',
         "new": '    for f in sorted(src_control.glob(f"{module}.py")):',
         "catchers": _T_HD,
+    },
+    # ---- M51:Runtime Profile(A1,第 7 步)。sidecar 不是换实现细节,
+    # 是换了一道题 —— 下面四条各拆掉一处"两道题被当成一道"的防线。
+    {
+        "id": "M51a-sidecar-not-in-generation",
+        "lesson": "拓扑不进代际 → in-process 与 sidecar 的发次被悄悄合池,"
+                  "等于把开卷和闭卷的成绩加起来平均",
+        "file": _PR,
+        "old": '    if runtime_profile and runtime_profile != "rt-inprocess-v1":',
+        "new": "    if False:",
+        "catchers": _T_RTP,
+    },
+    {
+        "id": "M51b-required-symbols-may-be-empty",
+        "lesson": "sidecar 不要求符号集 → U2 判的'调的是不是契约要的能力'"
+                  "失去分母,这道判据等于不存在",
+        "file": _RTP,
+        "old": "            if not self.required_symbols:",
+        "new": "            if False:",
+        "catchers": _T_RTP,
+    },
+    {
+        "id": "M51c-profile-id-can-be-redefined",
+        "lesson": "同 id 可改语义 → 台账里一个 profile_id 底下混着两种行为,"
+                  "回执的 runtime.profile_id 从此不可信",
+        "file": _RTP,
+        "old": "    if p.id in _REGISTRY and _REGISTRY[p.id] != p:",
+        "new": "    if False:",
+        "catchers": _T_RTP,
+    },
+    {
+        "id": "M51d-symbol-allowlist-not-enforced",
+        "lesson": "白名单不在执行前拦 → sidecar 替被测方执行了契约之外的东西;"
+                  "U2 只判已发生的执行对不对,拦不住不该发生的执行",
+        "file": _USC,
+        "old": "        if fn is None:",
+        "new": "        if fn is None and False:",
+        "catchers": _T_RTP,
     },
     # ---- M50:回执正负控矩阵(第 6 步)。矩阵本身也是个检查器,同样要先
     # 证明自己查得出 —— 否则"八个负控全被抓住"可能只是脚本在读自己的期望值。

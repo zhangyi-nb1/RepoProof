@@ -74,7 +74,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-pq8sxzbr/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-l14opndj/upstream_receipts.jsonl"
     },
     {
       "control": "nc1_pure_reimpl",
@@ -148,7 +148,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-hrnyaw2r/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-d99_r8zn/upstream_receipts.jsonl"
     },
     {
       "control": "nc2_forged_package",
@@ -222,7 +222,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-s28nzjga/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-bx485cnl/upstream_receipts.jsonl"
     },
     {
       "control": "nc3_ignores_return",
@@ -294,7 +294,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-oibm1wdn/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-dvxgrw9i/upstream_receipts.jsonl"
     },
     {
       "control": "nc4_wrong_symbol",
@@ -347,7 +347,7 @@
           {
             "check": "U2.symbol",
             "ok": false,
-            "detail": "调了要求集之外的符号:['inv-0013', 'inv-0014', 'inv-0015']",
+            "detail": "调了要求集之外的符号:['inv-0001', 'inv-0002', 'inv-0003']",
             "invocation_id": ""
           },
           {
@@ -370,7 +370,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-gdi5tt46/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-3voetgv0/upstream_receipts.jsonl"
     },
     {
       "control": "nc5_replayed_receipt",
@@ -405,7 +405,7 @@
           {
             "check": "U1.run_nonce",
             "ok": false,
-            "detail": "回执来自别的 run(重放):['inv-0007', 'inv-0008', 'inv-0009']",
+            "detail": "回执来自别的 run(重放):['inv-0001', 'inv-0002', 'inv-0003']",
             "invocation_id": ""
           },
           {
@@ -446,7 +446,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-w1fimp36/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-b_fwsuaz/upstream_receipts.jsonl"
     },
     {
       "control": "nc6_vendored_copy",
@@ -520,7 +520,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-jmeo1qm9/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-rmkl6cdn/upstream_receipts.jsonl"
     },
     {
       "control": "nc7_uncorrelated_call",
@@ -594,7 +594,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-he6mzzhk/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-tvzgxwp0/upstream_receipts.jsonl"
     },
     {
       "control": "nc8_forged_receipt",
@@ -670,7 +670,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-1aop9rnx/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-rvxjz4dh/upstream_receipts.jsonl"
     }
   ],
   "discrimination_by_family": {

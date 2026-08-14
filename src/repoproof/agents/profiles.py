@@ -69,7 +69,7 @@ def exec_fingerprint(repo: Path) -> str:
     return _hash({"files": items})
 
 
-def exec_generation(*, context: dict, tool: dict) -> str:
+def exec_generation(*, context: dict, tool: dict, runtime_profile: str = "") -> str:
     """代际标签,**从内容推导**。
 
     不接受调用方声明 —— 上了 spill 却忘了改标签,E0 与 E1 的数据就会混进
@@ -87,13 +87,20 @@ def exec_generation(*, context: dict, tool: dict) -> str:
         steps.append("S5")
     if context.get("policy", _E0_CONTEXT_POLICY) != _E0_CONTEXT_POLICY and "S2" not in steps:
         steps.append("S2")
+    # Runtime Profile(A1):sidecar 改变执行拓扑 = 改变被测系统。它必须
+    # 进代际标签 —— 不进的话,"上游装在 agent 的 venv 里由它自己调"和
+    # "上游由 harness 持有、只能经 RPC 请它执行"这两种发次会在分析时被
+    # 悄悄合池,而那是两道题(见 execution/runtime_profiles.py)。
+    suffix = ""
+    if runtime_profile and runtime_profile != "rt-inprocess-v1":
+        suffix = f"+{runtime_profile}"
     if not steps:
-        return E0
-    return "E1-" + "+".join(sorted(set(steps)))
+        return E0 + suffix
+    return "E1-" + "+".join(sorted(set(steps))) + suffix
 
 
 def profile_hashes(*, tool: dict, context: dict, budget: dict,
-                   repo: Path | None = None) -> dict:
+                   repo: Path | None = None, runtime_profile: str = "") -> dict:
     """四面里本模块负责的三面 + 指纹 + 代际,一次给全。
 
     provider 面不在这里 —— 它由 provider_gate 在 preflight 时算好并冻结,
@@ -102,7 +109,11 @@ def profile_hashes(*, tool: dict, context: dict, budget: dict,
         "tool_profile_hash": _hash(tool),
         "context_profile_hash": _hash(context),
         "budget_profile_hash": _hash(budget),
-        "exec_generation": exec_generation(context=context, tool=tool),
+        "exec_generation": exec_generation(context=context, tool=tool,
+                                           runtime_profile=runtime_profile),
+        # 上游交付拓扑(A1)。单独一个字段而不是只藏在代际串里 —— 分析时
+        # 要能直接按 profile 分组,而不是去解析标签字符串。
+        "runtime_profile_id": runtime_profile or "rt-inprocess-v1",
     }
     if repo is not None:
         out["exec_fingerprint"] = exec_fingerprint(repo)

@@ -11,7 +11,7 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 22,
+    "all_valid_run_outcomes": 23,
     "assisted_repair_runs": 14,
     "development_baseline_runs": 60,
     "exploratory": 7,
@@ -70,8 +70,8 @@
       }
     ],
     "provisional_evidence_runs": 3,
-    "smoke": 20,
-    "smoke_passes": 3,
+    "smoke": 21,
+    "smoke_passes": 4,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -92,9 +92,10 @@
       "t3-offerclaw-browser-use-v6-20260814-191956",
       "t2-offerclaw-open-deep-research-v5-20260814-192652",
       "t2-offerclaw-open-deep-research-v5-20260814-193733",
-      "t2-offerclaw-open-deep-research-v5-20260814-194534"
+      "t2-offerclaw-open-deep-research-v5-20260814-194534",
+      "t1-offerclaw-fastapi-mcp-v1-20260814-215038"
     ],
-    "total": 101,
+    "total": 102,
     "treatment_delivered_runs": 3,
     "treatment_not_delivered_runs": 3
   },
@@ -106,11 +107,11 @@
   },
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "9b26c3779244d3ed7289ec493990b6d7e81e777bfaac9c6fe42b887a71a2d2e4"
+    "runs_jsonl_sha256": "73287c1aaf6ab6814fa8f1d64a9934170c3f36d0ef784ab61ab27a49634afa8f"
   },
   "stages": {
     "T1": {
-      "all_valid_run_outcomes": 4,
+      "all_valid_run_outcomes": 5,
       "assisted_repair_runs": 0,
       "development_baseline_runs": 7,
       "exploratory": 0,
@@ -129,8 +130,8 @@
       "post_hoc_classified_runs": 0,
       "provisional_evidence": [],
       "provisional_evidence_runs": 0,
-      "smoke": 7,
-      "smoke_passes": 2,
+      "smoke": 8,
+      "smoke_passes": 3,
       "smoke_run_ids": [
         "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
         "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -138,9 +139,10 @@
         "t1-offerclaw-fastapi-mcp-v1-20260809-183548",
         "t1-offerclaw-fastapi-mcp-v1-20260814-185135",
         "t1-offerclaw-fastapi-mcp-v1-20260814-190248",
-        "t1-offerclaw-fastapi-mcp-v1-20260814-191346"
+        "t1-offerclaw-fastapi-mcp-v1-20260814-191346",
+        "t1-offerclaw-fastapi-mcp-v1-20260814-215038"
       ],
-      "total": 14,
+      "total": 15,
       "treatment_delivered_runs": 0,
       "treatment_not_delivered_runs": 0
     },

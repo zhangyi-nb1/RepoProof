@@ -153,7 +153,14 @@ def _exec_profile_fields(contract, preflight) -> dict:
         "max_output_tokens_total": b.max_output_tokens_total,
     }
     repo = Path(__file__).resolve().parents[3]
-    out = profile_hashes(tool=tool, context=context, budget=budget, repo=repo)
+    # 上游交付拓扑(A1):契约声明,缺省 in-process = 既有全部发次的行为。
+    # 它进代际标签,于是 sidecar 发次与 in-process 发次在分析时天然分池 ——
+    # 那是两道题,不是同一道题的两种跑法(execution/runtime_profiles.py)。
+    from repoproof.execution.runtime_profiles import profile_of_contract
+
+    rp = profile_of_contract(contract)
+    out = profile_hashes(tool=tool, context=context, budget=budget, repo=repo,
+                         runtime_profile=rp.id)
     # 语义分面(2026-08-14):与粗粒度 exec_fingerprint **并存**。后者是 S1
     # 留下的值,历史发次绑着它,不追溯改写(判据 F5);新发次两个都记,
     # 严格 A/B 只看相关面(判据 F4)。

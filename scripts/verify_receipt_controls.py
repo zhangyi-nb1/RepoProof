@@ -124,14 +124,17 @@ def run_one(control_path: Path, *, replay_source: Path | None = None,
                 "import_module": ident.import_module, "symbol": sidecar_mod.SYMBOL}),
         })
 
-    srv = sidecar_mod.serve(ledger, key, run_id, nonce, token="tok-" + nonce[:8])
+    handle = sidecar_mod.serve(ledger, key, run_id, nonce, token="tok-" + nonce[:8])
     try:
         from client import Sidecar
 
-        base = f"http://127.0.0.1:{srv.server_address[1]}"
-        delivery = ctrl.run(Sidecar(base, "tok-" + nonce[:8]), JOBS)
+        # adapter 只拿到 `agent_env()` 给的东西:端点与令牌。台账路径、
+        # 签名密钥、run_nonce 一概不给 —— 那是这套拓扑约束的全部力气所在。
+        env = handle.agent_env()
+        delivery = ctrl.run(Sidecar(env["REPOPROOF_SIDECAR_URL"],
+                                    env["REPOPROOF_SIDECAR_TOKEN"]), JOBS)
     finally:
-        srv.shutdown()
+        handle.shutdown()
     for k in ("REPOPROOF_REPLAY_SOURCE", "REPOPROOF_FORGE_TARGET",
               "REPOPROOF_FORGE_RUN_ID", "REPOPROOF_FORGE_RUN_NONCE",
               "REPOPROOF_FORGE_UPSTREAM"):

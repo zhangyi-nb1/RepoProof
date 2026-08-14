@@ -141,6 +141,10 @@ class TaskContract(BaseModel):
     target_project: TargetProject
     capability: Capability
     environment: Environment
+    # 上游交付拓扑(A1)。**缺省是 in-process,即既有全部发次的行为** ——
+    # 新增能力不得把老题悄悄换成另一道题。声明成 sidecar 的任务,其
+    # `task_shape` 已经变了,与 in-process 发次永不互比。
+    runtime_profile: str = "rt-inprocess-v1"
     constraints: Constraints
     budgets: Budgets
     acceptance: Acceptance

@@ -45,6 +45,10 @@ REQUIRED_FIELDS = (
     # 不再让执行语义指纹变动 —— 那种跨代失配没有信息量,只有摩擦。
     "executor_semantics_fingerprint", "model_profile_fingerprint",
     "verifier_fingerprint", "instrumentation_fingerprint", "analysis_schema_version",
+    # 上游交付拓扑(A1,2026-08-14)。单独一个字段而不是只藏在 exec_generation
+    # 串里 —— 分析时要能直接按 profile 分组,不必去解析标签字符串。
+    # 历史行无此字段 = rt-inprocess-v1(那时只有这一种拓扑)。
+    "runtime_profile_id",
 )
 
 UNKNOWN = "UNKNOWN"
