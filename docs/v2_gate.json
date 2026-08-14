@@ -29,9 +29,18 @@
       "t2-offerclaw-open-deep-research-v4-20260813-061630",
       "t2-offerclaw-open-deep-research-v5-20260813-213544",
       "t2-offerclaw-open-deep-research-v5-20260813-214529",
-      "t3-offerclaw-browser-use-v5-20260813-221616"
+      "t3-offerclaw-browser-use-v5-20260813-221616",
+      "t2-offerclaw-open-deep-research-v5-20260814-141217",
+      "t2-offerclaw-open-deep-research-v5-20260814-143845",
+      "t2-offerclaw-open-deep-research-v5-20260814-150018",
+      "t2-offerclaw-open-deep-research-v5-20260814-151537",
+      "t2-offerclaw-open-deep-research-v5-20260814-153239",
+      "t2-offerclaw-open-deep-research-v5-20260814-155052",
+      "t2-offerclaw-open-deep-research-v5-20260814-160138",
+      "t2-offerclaw-open-deep-research-v5-20260814-163534",
+      "t2-offerclaw-open-deep-research-v5-20260814-165445"
     ],
-    "passes": 10,
+    "passes": 19,
     "smoke": 9,
     "smoke_passes": 1,
     "smoke_run_ids": [
@@ -45,7 +54,7 @@
       "t2-offerclaw-open-deep-research-v5-20260814-125620",
       "t2-offerclaw-open-deep-research-v5-20260814-135519"
     ],
-    "total": 78
+    "total": 90
   },
   "gate_met": {
     "T1": true,
@@ -55,7 +64,7 @@
   },
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "5ec6bee83790e2d6e5a5e4f8cafddc9a4da708954645065b44815f3d34e10115"
+    "runs_jsonl_sha256": "f5e275e49d3b0942f98342c3dec75d4ef704e9f8eee0f7b34e6951202e56b5f2"
   },
   "stages": {
     "T1": {
@@ -96,9 +105,18 @@
         "t2-offerclaw-open-deep-research-v4-20260813-000737",
         "t2-offerclaw-open-deep-research-v4-20260813-061630",
         "t2-offerclaw-open-deep-research-v5-20260813-213544",
-        "t2-offerclaw-open-deep-research-v5-20260813-214529"
+        "t2-offerclaw-open-deep-research-v5-20260813-214529",
+        "t2-offerclaw-open-deep-research-v5-20260814-141217",
+        "t2-offerclaw-open-deep-research-v5-20260814-143845",
+        "t2-offerclaw-open-deep-research-v5-20260814-150018",
+        "t2-offerclaw-open-deep-research-v5-20260814-151537",
+        "t2-offerclaw-open-deep-research-v5-20260814-153239",
+        "t2-offerclaw-open-deep-research-v5-20260814-155052",
+        "t2-offerclaw-open-deep-research-v5-20260814-160138",
+        "t2-offerclaw-open-deep-research-v5-20260814-163534",
+        "t2-offerclaw-open-deep-research-v5-20260814-165445"
       ],
-      "passes": 5,
+      "passes": 14,
       "smoke": 4,
       "smoke_passes": 0,
       "smoke_run_ids": [
@@ -107,7 +125,7 @@
         "t2-offerclaw-open-deep-research-v5-20260814-125620",
         "t2-offerclaw-open-deep-research-v5-20260814-135519"
       ],
-      "total": 36
+      "total": 48
     },
     "T3": {
       "exploratory": 5,
