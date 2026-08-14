@@ -57,7 +57,14 @@ SPEC = UpstreamSpec(DISTRIBUTION, IMPORT_MODULE,
                     {SYMBOL: _normalize, OTHER_SYMBOL: _fingerprint},
                     loader=load_upstream)
 
+# lifecycle:**candidate**(2026-08-14 晋级,判据 G1–G5 全过,留痕见
+# `docs/evidence/profile_lifecycle/promotions.jsonl`)。
+#
+# 到此为止的含义:**机制自己站得住** —— 拓扑成立、诚实实现不被误杀、八条
+# 攻击各红各位、变异全捕。**不含**"真模型跑得动"这件事:我们的 adapter 是
+# 照着判据写的,那叫出题人自己会做。要往 qualified 走,得有 ≥2 个模型
+# profile 的真实发次且至少一发诚实通过 —— 那要等 T3-SIDECAR v1。
 PROFILE = register_profile(RuntimeProfile(
-    id=PROFILE_ID, topology="sidecar", lifecycle="experimental",
+    id=PROFILE_ID, topology="sidecar", lifecycle="candidate",
     summary="Conformance canary:harness 独占 fixture,agent 只能经 RPC 请它 normalize",
     upstream=SPEC, required_symbols=frozenset({SYMBOL}), default_symbol=SYMBOL))

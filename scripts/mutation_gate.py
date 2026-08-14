@@ -62,6 +62,8 @@ _USC = "src/repoproof/execution/upstream_sidecar.py"
 _T_RTP = ["tests/test_runtime_profiles.py"]
 _SCF = "scripts/sidecar_conformance.py"
 _T_SCF = ["tests/test_sidecar_conformance.py"]
+_PP = "src/repoproof/execution/profile_promotion.py"
+_T_PP = ["tests/test_profile_promotion.py"]
 _T_CF = ["tests/test_constraint_feedback.py"]
 _T_PI = ["tests/test_process_independence.py"]
 _T_RC = ["tests/test_root_cause_packets.py"]
@@ -765,6 +767,60 @@ MUTATIONS: list[dict] = [
         "old": '    for f in sorted(src_control.glob("*.py")):',
         "new": '    for f in sorted(src_control.glob(f"{module}.py")):',
         "catchers": _T_HD,
+    },
+    # ---- M53:Runtime Profile 晋级判据。生命周期是**对外承诺**(它决定别人
+    # 敢不敢拿这个 profile 的发次当数),所以每一道松动都是实质性的。
+    {
+        "id": "M53a-missing-evidence-passes",
+        "lesson": "查不到证据就默认放行 → 这样的闸门与没有闸门的区别,"
+                  "只在于它会让人误以为有闸门",
+        "file": _PP,
+        "old": '        return [Check("G1-G4.evidence", False,',
+        "new": '        return [Check("G1-G4.evidence", True,',
+        "catchers": _T_PP,
+    },
+    {
+        "id": "M53b-someone-elses-evidence-counts",
+        "lesson": "不核 profile_id → 拿别人的体检报告给自己晋级",
+        "file": _PP,
+        "old": '    if m.get("profile_id") != p.id:',
+        "new": "    if False:",
+        "catchers": _T_PP,
+    },
+    {
+        "id": "M53c-level-skipping-allowed",
+        "lesson": "允许 experimental 跳 qualified → 拿真实发次替'机制站不站得住'"
+                  "背书,而那是两个问题",
+        "file": _PP,
+        "old": '        if p.lifecycle == "experimental":',
+        "new": "        if False:",
+        "catchers": _T_PP,
+    },
+    {
+        "id": "M53d-fake-runs-count-as-real",
+        "lesson": "冒烟发次充真实发次 → --fake positive 必定 PASS(harness 自己"
+                  "塞的正控),拿它当'模型跑通了'是最容易发生的自欺",
+        "file": _PP,
+        "old": '            and not str(r.get("model", "")).startswith("fake")]',
+        "new": "            ]",
+        "catchers": _T_PP,
+    },
+    {
+        "id": "M53e-undecidable-returns-pass",
+        "lesson": "判不了却返回通过 → 把一个取舍(该不该设默认)伪装成一个测量",
+        "file": _PP,
+        "old": "                            ok=machine and bool(checks) and all(c.ok for c in checks),",
+        "new": "                            ok=bool(checks) and all(c.ok for c in checks),",
+        "catchers": _T_PP,
+    },
+    {
+        "id": "M53f-empty-mutation-registry-passes",
+        "lesson": "不查守护条目在场 → 空登记簿的逃逸数也是 0,那个'全捕'与本"
+                  "profile 无关",
+        "file": _PP,
+        "old": "    ok = escaped == 0 and stale == 0 and not missing",
+        "new": "    ok = escaped == 0 and stale == 0",
+        "catchers": _T_PP,
     },
     # ---- M52:Sidecar Conformance(A1 的第一个使用者)。
     {
