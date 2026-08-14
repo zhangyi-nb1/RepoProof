@@ -158,6 +158,68 @@ def test_forged_receipt_without_the_key_fails(tmp_path):
     assert any(f.check == "U1.signature" and not f.ok for f in v.findings)
 
 
+def test_unsigned_receipt_fails(tmp_path):
+    """R2 边界:**没有签名**也必须验不过。
+
+    变异闸门 M49b 抓到的逃逸:原钉死只喂了"签名是错的"(填 64 个 0),
+    于是把空签名分支改成 `return True` 竟然没人红 —— 而"干脆不签"恰恰是
+    伪造者最省事的走法。**钉死测的是有签名填错的情形,不是判据真正管的
+    情形**(与 M46a 同型的错误,LESSONS 里已经记过一次)。"""
+    w = _world(tmp_path)
+    unsigned = _receipt("run-1", w["nonce"], 97, {"job": "e"}, "E", "rn-e")
+    assert unsigned.receipt_signature == ""
+    assert not unsigned.signature_ok(w["key"]), "空签名竟然验过了"
+
+    with w["path"].open("a", encoding="utf-8") as fh:
+        fh.write(unsigned.to_json() + "\n")
+    v = _verify(w)
+    assert any(f.check == "U1.signature" and not f.ok for f in v.findings)
+
+
+def test_untrusted_receipts_do_not_count_toward_coverage(tmp_path):
+    """重放的回执**不得**去满足 U3/U4 —— 不只是 U1 报个红就完了。
+
+    变异闸门 M49e 抓到的逃逸:原钉死只断言 `U1.run_nonce` 报红,而那条由
+    单独一段计算;把 `trusted` 过滤里的 nonce 判断掏掉,重放的回执照样能
+    去凑覆盖率和采纳,U1 却仍然红着 —— 总判决没变,但**四道谓词的分工被
+    悄悄破坏了**,而 R1 要的正是每道各自说真话。
+
+    构造:台账里只有一张**别的 run** 的回执,本次待办清单要求一个单元。
+    U1.run_nonce 与 U3.coverage 必须**同时**红。"""
+    key, nonce = new_key(), new_nonce()
+    path = tmp_path / "upstream_receipts.jsonl"
+    ReceiptLedger(path, key).append(
+        _receipt("run-1", "上一次 run 的 nonce", 0, {"job": "a"}, "A", "rn-a"))
+
+    v = verify_receipts(path, key=key, run_id="run-1", run_nonce=nonce,
+                        task_id="t-recv", required_symbols=SYMS, required_upstream=UP,
+                        expected_units=[{"request_nonce": "rn-a",
+                                         "input_digest": digest_of({"job": "a"})}],
+                        delivery=["A"])
+    red = {f.check for f in v.failed()}
+    assert "U1.run_nonce" in red, "重放没被 U1 抓住"
+    assert "U3.coverage" in red, (
+        "重放的回执竟然算进了覆盖率 —— 不可信的回执不得参与任何后续判定")
+
+
+def test_untrusted_receipts_do_not_count_toward_adoption(tmp_path):
+    """同上,采纳侧:签名无效的回执不得替交付背书。"""
+    key, nonce = new_key(), new_nonce()
+    path = tmp_path / "upstream_receipts.jsonl"
+    good = _receipt("run-1", nonce, 0, {"job": "a"}, "A", "rn-a")
+    path.write_text(Receipt(**{**_shallow(good), "receipt_signature": "0" * 64}).to_json()
+                    + "\n", encoding="utf-8")
+
+    v = verify_receipts(path, key=key, run_id="run-1", run_nonce=nonce,
+                        task_id="t-recv", required_symbols=SYMS, required_upstream=UP,
+                        expected_units=[{"request_nonce": "rn-a",
+                                         "input_digest": digest_of({"job": "a"})}],
+                        delivery=["A"])
+    red = {f.check for f in v.failed()}
+    assert "U1.signature" in red
+    assert "U4.adoption" in red, "签名无效的回执竟然替交付背书了"
+
+
 def test_signing_with_a_different_key_fails(tmp_path):
     """R2 的另一面:用别的密钥签也不行(不是"有签名就行")。"""
     w = _world(tmp_path)
