@@ -187,6 +187,60 @@ def adjudicated_runs(project_root: str | Path) -> list[dict]:
     return out
 
 
+# ---------------------------------------------------------------- 用途分类
+# 2026-08-14:批 14 的 12 发机制消融跑在 T2v5 上,把 T2 的 passes 从 5 抬到
+# 14 —— 那个数字读起来像"模型能力通过数",而它们回答的是"S2' 在**已见任务**
+# 上的局部机制效应"。分类**旁挂**在 run_classifications.jsonl,原始 verdict
+# 一字不动(与 adjudications 同源纪律:runs.jsonl 只追加)。
+
+CLASSIFICATIONS_FILE = "run_classifications.jsonl"
+
+# 不计阶段闸门的用途:它们不回答"这个任务可判且可过"。
+MECHANISM_PURPOSES = frozenset({
+    "MECHANISM_ABLATION",      # E1 执行器消融(批 14)
+    "CRITERIA_INTEGRITY",      # AR 判据完整性(批 13)
+    "HARNESS_SELFCHECK",       # F0 自检
+})
+
+
+def load_classifications(project_root: str | Path) -> dict[str, dict]:
+    """→ {run_id: 分类记录}。文件缺失即空 —— 未分类的历史发次按常规处理。"""
+    path = Path(project_root) / "benchmarks" / "v2" / CLASSIFICATIONS_FILE
+    out: dict[str, dict] = {}
+    if not path.exists():
+        return out
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            rec = json.loads(line)
+            out[rec["run_id"]] = rec          # 后写覆盖前写,便于更正
+    return out
+
+
+def classify_runs(project_root: str | Path) -> list[dict]:
+    """台账 ⋈ 裁定 ⋈ 分类。**原始 verdict 原样保留**(判据 K1),分类字段
+    以缺省值补齐 —— 未分类 = 常规能力评估发次。"""
+    cls = load_classifications(project_root)
+    rows = []
+    for r in adjudicated_runs(project_root):
+        c = cls.get(r.get("run_id"), {})
+        rows.append({
+            **r,
+            "test_mode": c.get("test_mode", "UNCLASSIFIED"),
+            "run_purpose": c.get("run_purpose", "CAPABILITY_EVALUATION"),
+            "task_seen": c.get("task_seen", True),
+            "counts_toward_model_capability": c.get("counts_toward_model_capability", True),
+            "counts_toward_heldout_benchmark": c.get("counts_toward_heldout_benchmark", False),
+            "counts_toward_mechanism_effect": c.get("counts_toward_mechanism_effect", False),
+            "counts_toward_treatment_effect": c.get("counts_toward_treatment_effect"),
+            "treatment_assigned": c.get("treatment_assigned", False),
+            "treatment_activated": c.get("treatment_activated"),
+            "exclusion_reason": c.get("exclusion_reason"),
+            "assistance_level": c.get("assistance_level"),
+            "classification_timing": c.get("classification_timing"),
+        })
+    return rows
+
+
 def count_passes(project_root: str | Path, task_prefix: str | None = None) -> dict:
     """按 effective_verdict 统计 PASS(闸门判据)。
 
@@ -198,7 +252,7 @@ def count_passes(project_root: str | Path, task_prefix: str | None = None) -> di
        自己把正控塞进适配树,必定 PASS,那是机器自检不是模型能力。
     `total` 仍是全部发次(如实计数不挑选),`passes` 是**可充闸门**的通过数。
     """
-    rows = adjudicated_runs(project_root)
+    rows = classify_runs(project_root)
     if task_prefix:
         rows = [r for r in rows if str(r.get("task_id", "")).startswith(task_prefix)]
     smoke = [r for r in rows
@@ -206,7 +260,10 @@ def count_passes(project_root: str | Path, task_prefix: str | None = None) -> di
     real = [r for r in rows
             if not str(r.get("model", "")).startswith(SMOKE_MODEL_PREFIX)]
     exploratory = [r for r in real if r.get("batch") == EXPLORATORY_BATCH]
-    gateable = [r for r in real if r.get("batch") != EXPLORATORY_BATCH]
+    prereg = [r for r in real if r.get("batch") != EXPLORATORY_BATCH]
+    # 第四道扣除(2026-08-14,判据 K3):机制消融/判据完整性发次不充闸门
+    mechanism = [r for r in prereg if r["run_purpose"] in MECHANISM_PURPOSES]
+    gateable = [r for r in prereg if r["run_purpose"] not in MECHANISM_PURPOSES]
     passes = [r for r in gateable if r["effective_verdict"] in PASS_VERDICTS]
     invalidated = [
         r for r in rows
@@ -215,6 +272,23 @@ def count_passes(project_root: str | Path, task_prefix: str | None = None) -> di
     return {
         "total": len(rows),
         "passes": len(passes),
+        # ---- 能力分母拆分(判据 K2):闸门不得只有一个 passes 数字 ----
+        "all_valid_run_outcomes": sum(
+            1 for r in rows if r["effective_verdict"] in PASS_VERDICTS),
+        "development_baseline_runs": len(gateable),
+        "mechanism_ablation_runs": len(mechanism),
+        "mechanism_ablation_passes": sum(
+            1 for r in mechanism if r["effective_verdict"] in PASS_VERDICTS),
+        "heldout_model_evaluation_runs": sum(
+            1 for r in rows if r["counts_toward_heldout_benchmark"]),
+        "assisted_repair_runs": sum(1 for r in rows if r.get("assistance_level")),
+        "treatment_delivered_runs": sum(
+            1 for r in rows if r["treatment_activated"] is True),
+        "treatment_not_delivered_runs": sum(
+            1 for r in rows if r["treatment_assigned"] and r["treatment_activated"] is False),
+        "post_hoc_classified_runs": sum(
+            1 for r in rows
+            if r["classification_timing"] == "POST_HOC_TAXONOMY_CORRECTION"),
         "invalidated": len(invalidated),
         "exploratory": len(exploratory),
         "exploratory_passes": sum(

@@ -1,6 +1,18 @@
 {
+  "_denominators": {
+    "all_valid_run_outcomes": "全部有效发次里的 PASS 数(含机制消融)",
+    "development_baseline_runs": "开发套件(T1–T3)上的常规发次",
+    "heldout_model_evaluation_runs": "未见任务能力评测 —— **第二宿主未建,恒为 0**",
+    "mechanism_ablation_runs": "E1/AR 机制与判据实验 —— 不计能力",
+    "passes": "阶段闸门数 —— 存在性证明(任务可判且可过),**不是能力率**",
+    "post_hoc_classified_runs": "分类发生在看到结果之后(自曝,防伪装成预注册)",
+    "treatment_not_delivered_runs": "处理臂分配了但实测零生效 —— 不计处理效应"
+  },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
+    "all_valid_run_outcomes": 20,
+    "assisted_repair_runs": 14,
+    "development_baseline_runs": 60,
     "exploratory": 7,
     "exploratory_passes": 0,
     "exploratory_run_ids": [
@@ -12,6 +24,7 @@
       "t2-offerclaw-open-deep-research-v4-20260812-060126",
       "t2-offerclaw-open-deep-research-v4-20260812-061522"
     ],
+    "heldout_model_evaluation_runs": 0,
     "invalidated": 4,
     "invalidated_run_ids": [
       "t2-offerclaw-open-deep-research-v4-20260810-200119",
@@ -19,6 +32,8 @@
       "t3-offerclaw-browser-use-v4-20260811-172615",
       "t3-offerclaw-browser-use-v6-20260814-002139"
     ],
+    "mechanism_ablation_passes": 9,
+    "mechanism_ablation_runs": 14,
     "pass_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260810-000405",
       "t1-offerclaw-fastapi-mcp-v1-20260810-002354",
@@ -29,18 +44,10 @@
       "t2-offerclaw-open-deep-research-v4-20260813-061630",
       "t2-offerclaw-open-deep-research-v5-20260813-213544",
       "t2-offerclaw-open-deep-research-v5-20260813-214529",
-      "t3-offerclaw-browser-use-v5-20260813-221616",
-      "t2-offerclaw-open-deep-research-v5-20260814-141217",
-      "t2-offerclaw-open-deep-research-v5-20260814-143845",
-      "t2-offerclaw-open-deep-research-v5-20260814-150018",
-      "t2-offerclaw-open-deep-research-v5-20260814-151537",
-      "t2-offerclaw-open-deep-research-v5-20260814-153239",
-      "t2-offerclaw-open-deep-research-v5-20260814-155052",
-      "t2-offerclaw-open-deep-research-v5-20260814-160138",
-      "t2-offerclaw-open-deep-research-v5-20260814-163534",
-      "t2-offerclaw-open-deep-research-v5-20260814-165445"
+      "t3-offerclaw-browser-use-v5-20260813-221616"
     ],
-    "passes": 19,
+    "passes": 10,
+    "post_hoc_classified_runs": 2,
     "smoke": 9,
     "smoke_passes": 1,
     "smoke_run_ids": [
@@ -54,7 +61,9 @@
       "t2-offerclaw-open-deep-research-v5-20260814-125620",
       "t2-offerclaw-open-deep-research-v5-20260814-135519"
     ],
-    "total": 90
+    "total": 90,
+    "treatment_delivered_runs": 3,
+    "treatment_not_delivered_runs": 3
   },
   "gate_met": {
     "T1": true,
@@ -68,16 +77,23 @@
   },
   "stages": {
     "T1": {
+      "all_valid_run_outcomes": 3,
+      "assisted_repair_runs": 0,
+      "development_baseline_runs": 7,
       "exploratory": 0,
       "exploratory_passes": 0,
       "exploratory_run_ids": [],
+      "heldout_model_evaluation_runs": 0,
       "invalidated": 0,
       "invalidated_run_ids": [],
+      "mechanism_ablation_passes": 0,
+      "mechanism_ablation_runs": 0,
       "pass_run_ids": [
         "t1-offerclaw-fastapi-mcp-v1-20260810-000405",
         "t1-offerclaw-fastapi-mcp-v1-20260810-002354"
       ],
       "passes": 2,
+      "post_hoc_classified_runs": 0,
       "smoke": 4,
       "smoke_passes": 1,
       "smoke_run_ids": [
@@ -86,37 +102,37 @@
         "t1-offerclaw-fastapi-mcp-v1-20260809-182942",
         "t1-offerclaw-fastapi-mcp-v1-20260809-183548"
       ],
-      "total": 11
+      "total": 11,
+      "treatment_delivered_runs": 0,
+      "treatment_not_delivered_runs": 0
     },
     "T2": {
+      "all_valid_run_outcomes": 14,
+      "assisted_repair_runs": 12,
+      "development_baseline_runs": 30,
       "exploratory": 2,
       "exploratory_passes": 0,
       "exploratory_run_ids": [
         "t2-offerclaw-open-deep-research-v4-20260812-060126",
         "t2-offerclaw-open-deep-research-v4-20260812-061522"
       ],
+      "heldout_model_evaluation_runs": 0,
       "invalidated": 2,
       "invalidated_run_ids": [
         "t2-offerclaw-open-deep-research-v4-20260810-200119",
         "t2-offerclaw-open-deep-research-v4-20260810-202614"
       ],
+      "mechanism_ablation_passes": 9,
+      "mechanism_ablation_runs": 12,
       "pass_run_ids": [
         "t2-offerclaw-open-deep-research-v4-20260812-234005",
         "t2-offerclaw-open-deep-research-v4-20260813-000737",
         "t2-offerclaw-open-deep-research-v4-20260813-061630",
         "t2-offerclaw-open-deep-research-v5-20260813-213544",
-        "t2-offerclaw-open-deep-research-v5-20260813-214529",
-        "t2-offerclaw-open-deep-research-v5-20260814-141217",
-        "t2-offerclaw-open-deep-research-v5-20260814-143845",
-        "t2-offerclaw-open-deep-research-v5-20260814-150018",
-        "t2-offerclaw-open-deep-research-v5-20260814-151537",
-        "t2-offerclaw-open-deep-research-v5-20260814-153239",
-        "t2-offerclaw-open-deep-research-v5-20260814-155052",
-        "t2-offerclaw-open-deep-research-v5-20260814-160138",
-        "t2-offerclaw-open-deep-research-v5-20260814-163534",
-        "t2-offerclaw-open-deep-research-v5-20260814-165445"
+        "t2-offerclaw-open-deep-research-v5-20260813-214529"
       ],
-      "passes": 14,
+      "passes": 5,
+      "post_hoc_classified_runs": 0,
       "smoke": 4,
       "smoke_passes": 0,
       "smoke_run_ids": [
@@ -125,9 +141,14 @@
         "t2-offerclaw-open-deep-research-v5-20260814-125620",
         "t2-offerclaw-open-deep-research-v5-20260814-135519"
       ],
-      "total": 48
+      "total": 48,
+      "treatment_delivered_runs": 3,
+      "treatment_not_delivered_runs": 3
     },
     "T3": {
+      "all_valid_run_outcomes": 3,
+      "assisted_repair_runs": 2,
+      "development_baseline_runs": 23,
       "exploratory": 5,
       "exploratory_passes": 0,
       "exploratory_run_ids": [
@@ -137,36 +158,51 @@
         "t3-offerclaw-browser-use-v5-20260812-030156",
         "t3-offerclaw-browser-use-v5-20260812-054108"
       ],
+      "heldout_model_evaluation_runs": 0,
       "invalidated": 2,
       "invalidated_run_ids": [
         "t3-offerclaw-browser-use-v4-20260811-172615",
         "t3-offerclaw-browser-use-v6-20260814-002139"
       ],
+      "mechanism_ablation_passes": 0,
+      "mechanism_ablation_runs": 2,
       "pass_run_ids": [
         "t3-offerclaw-browser-use-v5-20260811-182535",
         "t3-offerclaw-browser-use-v5-20260813-032919",
         "t3-offerclaw-browser-use-v5-20260813-221616"
       ],
       "passes": 3,
+      "post_hoc_classified_runs": 2,
       "smoke": 1,
       "smoke_passes": 0,
       "smoke_run_ids": [
         "t3-offerclaw-browser-use-v2-20260811-091744"
       ],
-      "total": 31
+      "total": 31,
+      "treatment_delivered_runs": 0,
+      "treatment_not_delivered_runs": 0
     },
     "T4": {
+      "all_valid_run_outcomes": 0,
+      "assisted_repair_runs": 0,
+      "development_baseline_runs": 0,
       "exploratory": 0,
       "exploratory_passes": 0,
       "exploratory_run_ids": [],
+      "heldout_model_evaluation_runs": 0,
       "invalidated": 0,
       "invalidated_run_ids": [],
+      "mechanism_ablation_passes": 0,
+      "mechanism_ablation_runs": 0,
       "pass_run_ids": [],
       "passes": 0,
+      "post_hoc_classified_runs": 0,
       "smoke": 0,
       "smoke_passes": 0,
       "smoke_run_ids": [],
-      "total": 0
+      "total": 0,
+      "treatment_delivered_runs": 0,
+      "treatment_not_delivered_runs": 0
     }
   }
 }

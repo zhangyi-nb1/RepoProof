@@ -48,6 +48,7 @@ _RG = "scripts/redgreen.py"
 _FP = "src/repoproof/adoption/repair/failure_packet.py"
 _TB = "src/repoproof/agents/token_budget.py"
 _T_BR = ["tests/test_bench_records.py"]
+_T_RCL = ["tests/test_run_classification.py"]
 _T_HG = ["tests/test_host_guard.py"]
 _T_HD = ["tests/test_host_guided.py"]
 _T_CF = ["tests/test_constraint_feedback.py"]
@@ -102,8 +103,8 @@ MUTATIONS: list[dict] = [
         "id": "M27-exploratory-counts",
         "lesson": "#27 探索性加发充闸门(真话写在机器读不到的地方)",
         "file": _BR,
-        "old": '    gateable = [r for r in real if r.get("batch") != EXPLORATORY_BATCH]',
-        "new": "    gateable = list(real)",
+        "old": '    prereg = [r for r in real if r.get("batch") != EXPLORATORY_BATCH]',
+        "new": "    prereg = list(real)",
         "catchers": _T_BR,
     },
     # ---- LESSONS #26:裁定不进统计,台账自失真 ----
@@ -717,6 +718,42 @@ MUTATIONS: list[dict] = [
         "old": '                 "lossy": True,',
         "new": '                 "lossy": False,',
         "catchers": _T_WP,
+    },
+    {
+        "id": "M47a-mechanism-runs-count-toward-gate",
+        "lesson": "#K3:机制消融混进闸门 → 批 14 把 T2 passes 从 5 抬到 14,读起来像能力提升 180%",
+        "file": _BR,
+        "old": '    mechanism = [r for r in prereg if r["run_purpose"] in MECHANISM_PURPOSES]',
+        "new": "    mechanism = []",
+        "catchers": _T_RCL,
+    },
+    {
+        "id": "M47b-classification-rewrites-verdict",
+        "lesson": "#K1:分类改写原始 verdict → 篡改证据(那些发次确实跑完了、确实是那个结果)",
+        "file": _BR,
+        "old": '            "run_purpose": c.get("run_purpose", "CAPABILITY_EVALUATION"),',
+        "new": '            "run_purpose": c.get("run_purpose", "CAPABILITY_EVALUATION"),\n'
+               '            "verdict": "PASS_ADAPTED",',
+        "catchers": _T_RCL,
+    },
+    {
+        "id": "M47c-undelivered-treatment-counted",
+        "lesson": "#K4:处理零生效仍计处理效应 → 把'没做实验'当成'处理无害的证据'",
+        "file": _BR,
+        "old": ('        "treatment_not_delivered_runs": sum(\n'
+                '            1 for r in rows if r["treatment_assigned"] and r["treatment_activated"] is False),'),
+        "new": '        "treatment_not_delivered_runs": 0,',
+        "catchers": _T_RCL,
+    },
+    {
+        "id": "M47d-post-hoc-classification-hidden",
+        "lesson": "#K5:事后分类不自曝 → 把看到结果后的更正伪装成事前预注册",
+        "file": _BR,
+        "old": ('        "post_hoc_classified_runs": sum(\n'
+                '            1 for r in rows\n'
+                '            if r["classification_timing"] == "POST_HOC_TAXONOMY_CORRECTION"),'),
+        "new": '        "post_hoc_classified_runs": 0,',
+        "catchers": _T_RCL,
     },
     {
         "id": "M43e-never-ran-counts-as-red",

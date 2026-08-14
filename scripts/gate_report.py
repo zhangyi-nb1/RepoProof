@@ -46,8 +46,21 @@ def compute(project_root: Path = REPO) -> dict:
             "adjudications_jsonl_sha256": _sha256(bench / "adjudications.jsonl"),
         },
         "stages": stages,
-        # 阶段闸门语义(TESTPLAN §6):该阶段冻结任务 ≥1 真实模型 PASS
+        # 阶段闸门语义(TESTPLAN §6):该阶段冻结任务 ≥1 真实模型 PASS。
+        # `passes` 已扣除四类:已裁定无效 / 探索性加发 / 冒烟 / **机制消融**
+        # (2026-08-14 增第四道:E1 消融与 AR 判据测试不回答"任务可判可过")。
         "gate_met": {s: stages[s]["passes"] >= 1 for s in STAGES},
+        # 能力分母拆分(判据 K2):一个 passes 数字会被读成"模型能力通过数"。
+        # 这里显式说明每一类各是什么,以及**目前没有任何 Held-out 能力发次**。
+        "_denominators": {
+            "passes": "阶段闸门数 —— 存在性证明(任务可判且可过),**不是能力率**",
+            "all_valid_run_outcomes": "全部有效发次里的 PASS 数(含机制消融)",
+            "development_baseline_runs": "开发套件(T1–T3)上的常规发次",
+            "mechanism_ablation_runs": "E1/AR 机制与判据实验 —— 不计能力",
+            "heldout_model_evaluation_runs": "未见任务能力评测 —— **第二宿主未建,恒为 0**",
+            "treatment_not_delivered_runs": "处理臂分配了但实测零生效 —— 不计处理效应",
+            "post_hoc_classified_runs": "分类发生在看到结果之后(自曝,防伪装成预注册)",
+        },
         "all_runs": count_passes(project_root),
     }
 
