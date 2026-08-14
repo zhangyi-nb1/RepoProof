@@ -1,0 +1,61 @@
+fix commit : 91da6138a70af9d5f24c6809a35cea12a75abc98
+base commit: cd28f950c2ec5cccfc95f4fc187a9562de483598
+nodes      : 11
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=4
+  test_hashes_are_deterministic_across_calls: error-at-collection
+  test_changing_one_face_moves_only_that_hash: error-at-collection
+  test_changing_budget_moves_only_budget: error-at-collection
+  test_exec_fingerprint_tracks_src_only: error-at-collection
+  test_exec_fingerprint_on_this_repo_is_stable: error-at-collection
+  test_generation_is_derived_not_declared: error-at-collection
+  test_turning_on_spill_leaves_e0_automatically: error-at-collection
+  test_adding_editor_leaves_e0_automatically: error-at-collection
+  test_profile_hashes_carry_generation_and_fingerprint: error-at-collection
+  test_exec_fields_are_in_the_ledger_allowlist: error-at-collection
+  test_preflight_failure_blocks_the_run: error-at-collection
+
+-- base 段收集错误(按文件重跑取证)--
+  [tests.test_exec_profiles] E   ModuleNotFoundError: No module named 'repoproof.agents.profiles'
+qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_db410c2w/tree/tests/test_exec_profiles.py::test_hashes_are_deterministic_across_calls
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_db410c2w/tree/tests/test_exec_profiles.py::test_changing_one_face_moves_only_that_hash
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_db410c2w/tree/tests/test_exec_profiles.py::test_changing_budget_moves_only_budget
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_db410c2w/tree/tests/test_exec_profiles.py::test_exec_fingerprint_tracks_src_only
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_db410c2w/tree/tests/test_exec_profiles.py::test_exec_fingerprint_on_this_repo_is_stable
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_db410c2w/tree/tests/test_exec_profiles.py::test_generation_is_derived_not_declared
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_db410c2w/tree/tests/test_exec_profiles.py::test_turning_on_spill_leaves_e0_automatically
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_db410c2w/tree/tests/test_exec_profiles.py::test_adding_editor_leaves_e0_automatically
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_db410c2w/tree/tests/test_exec_profiles.py::test_profile_hashes_carry_generation_and_fingerprint
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_db410c2w/tree/tests/test_exec_profiles.py::test_exec_fields_are_in_the_ledger_allowlist
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_db410c2w/tree/tests/test_exec_profiles.py::test_preflight_failure_blocks_the_run
+
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_hashes_are_deterministic_across_calls: passed
+  test_changing_one_face_moves_only_that_hash: passed
+  test_changing_budget_moves_only_budget: passed
+  test_exec_fingerprint_tracks_src_only: passed
+  test_exec_fingerprint_on_this_repo_is_stable: passed
+  test_generation_is_derived_not_declared: passed
+  test_turning_on_spill_leaves_e0_automatically: passed
+  test_adding_editor_leaves_e0_automatically: passed
+  test_profile_hashes_carry_generation_and_fingerprint: passed
+  test_exec_fields_are_in_the_ledger_allowlist: passed
+  test_preflight_failure_blocks_the_run: passed
+...........                                                              [100%]
+
+
+VERDICT: VALID

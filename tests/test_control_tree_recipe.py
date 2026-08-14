@@ -134,15 +134,22 @@ def test_mount_not_duplicated_when_upstream_already_mounts(tmp_path):
 
 
 def test_selfcheck_catches_a_botched_assembly(tmp_path):
-    """C1/C3:自检要真能报错 —— 装错了当场知道,不是等五物验证出结论才发现。"""
+    """C1/C3:自检要真能报错 —— 装错了当场知道,不是等五物验证出结论才发现。
+
+    **控制组正文必须含 `def mount_*`**(2026-08-14 变异闸门 M42e 逃逸后加):
+    C5 让 verify() 先做挂载发现,若正文里没有挂载函数,它会在到达**逐字节
+    比对之前**就 SystemExit —— 本用例仍然绿,但绿的理由变了,于是"自检不
+    比对字节"这个变异就逃了。合成数据必须让被测那一段真的执行到。"""
     verify = _load("build_control_tree.py").verify
 
     dest = tmp_path / "dest"
     dest.mkdir()
     src_control = tmp_path / "ctl"
     src_control.mkdir()
-    (src_control / "research_jobs.py").write_text("REAL = 1\n")
-    (dest / "research_jobs.py").write_text("TAMPERED = 1\n")
+    (src_control / "research_jobs.py").write_text(
+        "def mount_research_api(app):\n    return app\n# REAL\n")
+    (dest / "research_jobs.py").write_text(
+        "def mount_research_api(app):\n    return app\n# TAMPERED\n")
     (dest / "rag_api.py").write_text("mount_research_api(app)\n")
 
     with pytest.raises(SystemExit):
