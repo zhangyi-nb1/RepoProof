@@ -78,6 +78,26 @@ def test_w4_extraction_failure_is_not_adoption_failure():
     assert "这不是 U4 红" in SS or "取件失败" in HG
 
 
+def test_w4b_no_delivery_is_reported_as_extraction_failure():
+    """W4 的行为面:`verify(..., delivery=None)` 必须报**取件失败**,
+    不是采纳失败。
+
+    变异闸门 M56c 抓到的逃逸:原钉死只查 `host_guided.py` 里有没有那个字符串,
+    而这条分支在 `sidecar_session.py` 里 —— 把它的 reason 改成
+    RECEIPT_VERIFICATION_FAILED,没人看得见。而那正是"harness 的毛病记成
+    被测方的失败"的具体形态。"""
+    import sys
+
+    sys.path.insert(0, str(REPO / "src"))
+    from repoproof.runner import sidecar_session as ss
+
+    got = ss.verify(None, task_id="whatever", delivery=None)   # type: ignore[arg-type]
+    assert got["ok"] is False
+    assert got["reason"] == "NO_DELIVERY_EXTRACTED", (
+        f"取件失败被报成了 {got['reason']!r} —— harness 的毛病记成被测方的失败")
+    assert "取件失败" in got["detail"] or "无从判断" in got["detail"]
+
+
 def test_w5_adoption_failure_goes_through_missing_external():
     """W5:采纳不通过走既有通道,不改 verdict。"""
     assert 'missing_external.append(\n                            "RECEIPT_VERIFICATION_FAILED:"' in HG
