@@ -1,0 +1,538 @@
+{
+ "exec_generation": "E0",
+ "whole_file_threshold_chars": 20000,
+ "repeat_min": 3,
+ "runs": [
+  {
+   "bundle": "t2-offerclaw-open-deep-research-v5-20260813-213544",
+   "per_round": [
+    {
+     "calls": 25,
+     "monotonic": true,
+     "input_tokens_total": 547192,
+     "input_tokens_unique": 38559,
+     "input_tokens_repeated": 508633,
+     "repeated_ratio": 0.9295,
+     "repeated_ratio_is_upper_bound": false,
+     "per_call_input": {
+      "median": 21805,
+      "p95": 33447,
+      "max": 38559,
+      "min": 1860
+     },
+     "output_tokens_total": 7086,
+     "cached_tokens_total": 493568,
+     "cache_hit_ratio": 0.902,
+     "tool_results": 25,
+     "whole_file_reads": {
+      "count": 0,
+      "threshold_chars": 20000,
+      "msg_indices": [],
+      "note": "大小取自 clip 标记的原文值,不是落盘长度(raw_output 已被截断)"
+     },
+     "clip_loss": {
+      "clipped_results": 12,
+      "dropped_chars": 57609,
+      "note": "E0 下被丢弃的中段**不可回读**;S2 的 spill 应把它降到 0"
+     },
+     "repeated_commands": {
+      "distinct": 0,
+      "total_extra_calls": 0,
+      "top": []
+     },
+     "file": "trajectory_round1.json"
+    }
+   ],
+   "aggregate": {
+    "rounds": 1,
+    "calls": 25,
+    "input_tokens_total": 547192,
+    "input_tokens_repeated": 508633,
+    "output_tokens_total": 7086,
+    "cached_tokens_total": 493568,
+    "whole_file_reads": 0,
+    "clip_dropped_chars": 57609,
+    "repeated_command_extra_calls": 0,
+    "repeated_ratio": 0.9295,
+    "cache_hit_ratio": 0.902
+   }
+  },
+  {
+   "bundle": "t2-offerclaw-open-deep-research-v5-20260813-214529",
+   "per_round": [
+    {
+     "calls": 15,
+     "monotonic": true,
+     "input_tokens_total": 541580,
+     "input_tokens_unique": 54746,
+     "input_tokens_repeated": 486834,
+     "repeated_ratio": 0.8989,
+     "repeated_ratio_is_upper_bound": false,
+     "per_call_input": {
+      "median": 36952,
+      "p95": 53366,
+      "max": 54746,
+      "min": 1860
+     },
+     "output_tokens_total": 10959,
+     "cached_tokens_total": 441344,
+     "cache_hit_ratio": 0.8149,
+     "tool_results": 35,
+     "whole_file_reads": {
+      "count": 3,
+      "threshold_chars": 20000,
+      "msg_indices": [
+       13,
+       26,
+       38
+      ],
+      "note": "大小取自 clip 标记的原文值,不是落盘长度(raw_output 已被截断)"
+     },
+     "clip_loss": {
+      "clipped_results": 14,
+      "dropped_chars": 111828,
+      "note": "E0 下被丢弃的中段**不可回读**;S2 的 spill 应把它降到 0"
+     },
+     "repeated_commands": {
+      "distinct": 0,
+      "total_extra_calls": 0,
+      "top": []
+     },
+     "file": "trajectory_round1.json"
+    }
+   ],
+   "aggregate": {
+    "rounds": 1,
+    "calls": 15,
+    "input_tokens_total": 541580,
+    "input_tokens_repeated": 486834,
+    "output_tokens_total": 10959,
+    "cached_tokens_total": 441344,
+    "whole_file_reads": 3,
+    "clip_dropped_chars": 111828,
+    "repeated_command_extra_calls": 0,
+    "repeated_ratio": 0.8989,
+    "cache_hit_ratio": 0.8149
+   }
+  },
+  {
+   "bundle": "t3-offerclaw-browser-use-v6-20260814-001051",
+   "per_round": [
+    {
+     "calls": 29,
+     "monotonic": true,
+     "input_tokens_total": 770354,
+     "input_tokens_unique": 41553,
+     "input_tokens_repeated": 728801,
+     "repeated_ratio": 0.9461,
+     "repeated_ratio_is_upper_bound": false,
+     "per_call_input": {
+      "median": 26353,
+      "p95": 40595,
+      "max": 41553,
+      "min": 2295
+     },
+     "output_tokens_total": 7133,
+     "cached_tokens_total": 712704,
+     "cache_hit_ratio": 0.9252,
+     "tool_results": 29,
+     "whole_file_reads": {
+      "count": 4,
+      "threshold_chars": 20000,
+      "msg_indices": [
+       3,
+       7,
+       11,
+       15
+      ],
+      "note": "大小取自 clip 标记的原文值,不是落盘长度(raw_output 已被截断)"
+     },
+     "clip_loss": {
+      "clipped_results": 8,
+      "dropped_chars": 101287,
+      "note": "E0 下被丢弃的中段**不可回读**;S2 的 spill 应把它降到 0"
+     },
+     "repeated_commands": {
+      "distinct": 0,
+      "total_extra_calls": 0,
+      "top": []
+     },
+     "file": "trajectory_round1.json"
+    },
+    {
+     "calls": 26,
+     "monotonic": true,
+     "input_tokens_total": 536806,
+     "input_tokens_unique": 29437,
+     "input_tokens_repeated": 507369,
+     "repeated_ratio": 0.9452,
+     "repeated_ratio_is_upper_bound": false,
+     "per_call_input": {
+      "median": 23594,
+      "p95": 28643,
+      "max": 29437,
+      "min": 2523
+     },
+     "output_tokens_total": 5397,
+     "cached_tokens_total": 479232,
+     "cache_hit_ratio": 0.8927,
+     "tool_results": 25,
+     "whole_file_reads": {
+      "count": 0,
+      "threshold_chars": 20000,
+      "msg_indices": [],
+      "note": "大小取自 clip 标记的原文值,不是落盘长度(raw_output 已被截断)"
+     },
+     "clip_loss": {
+      "clipped_results": 5,
+      "dropped_chars": 36112,
+      "note": "E0 下被丢弃的中段**不可回读**;S2 的 spill 应把它降到 0"
+     },
+     "repeated_commands": {
+      "distinct": 0,
+      "total_extra_calls": 0,
+      "top": []
+     },
+     "file": "trajectory_round2.json"
+    }
+   ],
+   "aggregate": {
+    "rounds": 2,
+    "calls": 55,
+    "input_tokens_total": 1307160,
+    "input_tokens_repeated": 1236170,
+    "output_tokens_total": 12530,
+    "cached_tokens_total": 1191936,
+    "whole_file_reads": 4,
+    "clip_dropped_chars": 137399,
+    "repeated_command_extra_calls": 0,
+    "repeated_ratio": 0.9457,
+    "cache_hit_ratio": 0.9119
+   }
+  },
+  {
+   "bundle": "t3-offerclaw-browser-use-v6-20260814-002139",
+   "per_round": [
+    {
+     "calls": 25,
+     "monotonic": true,
+     "input_tokens_total": 764551,
+     "input_tokens_unique": 55515,
+     "input_tokens_repeated": 709036,
+     "repeated_ratio": 0.9274,
+     "repeated_ratio_is_upper_bound": false,
+     "per_call_input": {
+      "median": 28775,
+      "p95": 50449,
+      "max": 55515,
+      "min": 2295
+     },
+     "output_tokens_total": 14348,
+     "cached_tokens_total": 689664,
+     "cache_hit_ratio": 0.9021,
+     "tool_results": 32,
+     "whole_file_reads": {
+      "count": 3,
+      "threshold_chars": 20000,
+      "msg_indices": [
+       5,
+       7,
+       9
+      ],
+      "note": "大小取自 clip 标记的原文值,不是落盘长度(raw_output 已被截断)"
+     },
+     "clip_loss": {
+      "clipped_results": 14,
+      "dropped_chars": 108725,
+      "note": "E0 下被丢弃的中段**不可回读**;S2 的 spill 应把它降到 0"
+     },
+     "repeated_commands": {
+      "distinct": 0,
+      "total_extra_calls": 0,
+      "top": []
+     },
+     "file": "trajectory_round1.json"
+    },
+    {
+     "calls": 13,
+     "monotonic": true,
+     "input_tokens_total": 189504,
+     "input_tokens_unique": 22947,
+     "input_tokens_repeated": 166557,
+     "repeated_ratio": 0.8789,
+     "repeated_ratio_is_upper_bound": false,
+     "per_call_input": {
+      "median": 17610,
+      "p95": 22728,
+      "max": 22947,
+      "min": 2516
+     },
+     "output_tokens_total": 4162,
+     "cached_tokens_total": 138752,
+     "cache_hit_ratio": 0.7322,
+     "tool_results": 21,
+     "whole_file_reads": {
+      "count": 0,
+      "threshold_chars": 20000,
+      "msg_indices": [],
+      "note": "大小取自 clip 标记的原文值,不是落盘长度(raw_output 已被截断)"
+     },
+     "clip_loss": {
+      "clipped_results": 3,
+      "dropped_chars": 3793,
+      "note": "E0 下被丢弃的中段**不可回读**;S2 的 spill 应把它降到 0"
+     },
+     "repeated_commands": {
+      "distinct": 0,
+      "total_extra_calls": 0,
+      "top": []
+     },
+     "file": "trajectory_round2.json"
+    }
+   ],
+   "aggregate": {
+    "rounds": 2,
+    "calls": 38,
+    "input_tokens_total": 954055,
+    "input_tokens_repeated": 875593,
+    "output_tokens_total": 18510,
+    "cached_tokens_total": 828416,
+    "whole_file_reads": 3,
+    "clip_dropped_chars": 112518,
+    "repeated_command_extra_calls": 0,
+    "repeated_ratio": 0.9178,
+    "cache_hit_ratio": 0.8683
+   }
+  },
+  {
+   "bundle": "t3-offerclaw-browser-use-v5-20260813-220713",
+   "per_round": [
+    {
+     "calls": 28,
+     "monotonic": true,
+     "input_tokens_total": 759944,
+     "input_tokens_unique": 47986,
+     "input_tokens_repeated": 711958,
+     "repeated_ratio": 0.9369,
+     "repeated_ratio_is_upper_bound": false,
+     "per_call_input": {
+      "median": 30271,
+      "p95": 47251,
+      "max": 47986,
+      "min": 2082
+     },
+     "output_tokens_total": 6827,
+     "cached_tokens_total": 695296,
+     "cache_hit_ratio": 0.9149,
+     "tool_results": 28,
+     "whole_file_reads": {
+      "count": 3,
+      "threshold_chars": 20000,
+      "msg_indices": [
+       3,
+       9,
+       51
+      ],
+      "note": "大小取自 clip 标记的原文值,不是落盘长度(raw_output 已被截断)"
+     },
+     "clip_loss": {
+      "clipped_results": 11,
+      "dropped_chars": 143541,
+      "note": "E0 下被丢弃的中段**不可回读**;S2 的 spill 应把它降到 0"
+     },
+     "repeated_commands": {
+      "distinct": 0,
+      "total_extra_calls": 0,
+      "top": []
+     },
+     "file": "trajectory_round1.json"
+    },
+    {
+     "calls": 15,
+     "monotonic": true,
+     "input_tokens_total": 253397,
+     "input_tokens_unique": 25207,
+     "input_tokens_repeated": 228190,
+     "repeated_ratio": 0.9005,
+     "repeated_ratio_is_upper_bound": false,
+     "per_call_input": {
+      "median": 19534,
+      "p95": 24384,
+      "max": 25207,
+      "min": 2409
+     },
+     "output_tokens_total": 2462,
+     "cached_tokens_total": 221184,
+     "cache_hit_ratio": 0.8729,
+     "tool_results": 14,
+     "whole_file_reads": {
+      "count": 0,
+      "threshold_chars": 20000,
+      "msg_indices": [],
+      "note": "大小取自 clip 标记的原文值,不是落盘长度(raw_output 已被截断)"
+     },
+     "clip_loss": {
+      "clipped_results": 6,
+      "dropped_chars": 30193,
+      "note": "E0 下被丢弃的中段**不可回读**;S2 的 spill 应把它降到 0"
+     },
+     "repeated_commands": {
+      "distinct": 0,
+      "total_extra_calls": 0,
+      "top": []
+     },
+     "file": "trajectory_round2.json"
+    }
+   ],
+   "aggregate": {
+    "rounds": 2,
+    "calls": 43,
+    "input_tokens_total": 1013341,
+    "input_tokens_repeated": 940148,
+    "output_tokens_total": 9289,
+    "cached_tokens_total": 916480,
+    "whole_file_reads": 3,
+    "clip_dropped_chars": 173734,
+    "repeated_command_extra_calls": 0,
+    "repeated_ratio": 0.9278,
+    "cache_hit_ratio": 0.9044
+   }
+  },
+  {
+   "bundle": "t3-offerclaw-browser-use-v5-20260813-221616",
+   "per_round": [
+    {
+     "calls": 25,
+     "monotonic": true,
+     "input_tokens_total": 776317,
+     "input_tokens_unique": 42283,
+     "input_tokens_repeated": 734034,
+     "repeated_ratio": 0.9455,
+     "repeated_ratio_is_upper_bound": false,
+     "per_call_input": {
+      "median": 37650,
+      "p95": 40723,
+      "max": 42283,
+      "min": 2082
+     },
+     "output_tokens_total": 10757,
+     "cached_tokens_total": 715264,
+     "cache_hit_ratio": 0.9214,
+     "tool_results": 37,
+     "whole_file_reads": {
+      "count": 1,
+      "threshold_chars": 20000,
+      "msg_indices": [
+       3
+      ],
+      "note": "大小取自 clip 标记的原文值,不是落盘长度(raw_output 已被截断)"
+     },
+     "clip_loss": {
+      "clipped_results": 7,
+      "dropped_chars": 53098,
+      "note": "E0 下被丢弃的中段**不可回读**;S2 的 spill 应把它降到 0"
+     },
+     "repeated_commands": {
+      "distinct": 0,
+      "total_extra_calls": 0,
+      "top": []
+     },
+     "file": "trajectory_round1.json"
+    },
+    {
+     "calls": 26,
+     "monotonic": true,
+     "input_tokens_total": 555872,
+     "input_tokens_unique": 37451,
+     "input_tokens_repeated": 518421,
+     "repeated_ratio": 0.9326,
+     "repeated_ratio_is_upper_bound": false,
+     "per_call_input": {
+      "median": 23683,
+      "p95": 35134,
+      "max": 37451,
+      "min": 2462
+     },
+     "output_tokens_total": 10960,
+     "cached_tokens_total": 492544,
+     "cache_hit_ratio": 0.8861,
+     "tool_results": 25,
+     "whole_file_reads": {
+      "count": 0,
+      "threshold_chars": 20000,
+      "msg_indices": [],
+      "note": "大小取自 clip 标记的原文值,不是落盘长度(raw_output 已被截断)"
+     },
+     "clip_loss": {
+      "clipped_results": 8,
+      "dropped_chars": 32282,
+      "note": "E0 下被丢弃的中段**不可回读**;S2 的 spill 应把它降到 0"
+     },
+     "repeated_commands": {
+      "distinct": 0,
+      "total_extra_calls": 0,
+      "top": []
+     },
+     "file": "trajectory_round2.json"
+    }
+   ],
+   "aggregate": {
+    "rounds": 2,
+    "calls": 51,
+    "input_tokens_total": 1332189,
+    "input_tokens_repeated": 1252455,
+    "output_tokens_total": 21717,
+    "cached_tokens_total": 1207808,
+    "whole_file_reads": 1,
+    "clip_dropped_chars": 85380,
+    "repeated_command_extra_calls": 0,
+    "repeated_ratio": 0.9401,
+    "cache_hit_ratio": 0.9066
+   }
+  }
+ ],
+ "m1_reconciliation": [
+  {
+   "bundle": "t2-offerclaw-open-deep-research-v5-20260813-213544",
+   "computed": 547192,
+   "ledger": 547192,
+   "deviation_pct": 0.0,
+   "m1_pass": true
+  },
+  {
+   "bundle": "t2-offerclaw-open-deep-research-v5-20260813-214529",
+   "computed": 541580,
+   "ledger": 541580,
+   "deviation_pct": 0.0,
+   "m1_pass": true
+  },
+  {
+   "bundle": "t3-offerclaw-browser-use-v6-20260814-001051",
+   "computed": 1307160,
+   "ledger": 1307160,
+   "deviation_pct": 0.0,
+   "m1_pass": true
+  },
+  {
+   "bundle": "t3-offerclaw-browser-use-v6-20260814-002139",
+   "computed": 954055,
+   "ledger": 954055,
+   "deviation_pct": 0.0,
+   "m1_pass": true
+  },
+  {
+   "bundle": "t3-offerclaw-browser-use-v5-20260813-220713",
+   "computed": 1013341,
+   "ledger": 1013341,
+   "deviation_pct": 0.0,
+   "m1_pass": true
+  },
+  {
+   "bundle": "t3-offerclaw-browser-use-v5-20260813-221616",
+   "computed": 1332189,
+   "ledger": 1332189,
+   "deviation_pct": 0.0,
+   "m1_pass": true
+  }
+ ]
+}
