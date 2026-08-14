@@ -471,11 +471,85 @@ PRE_SUBMIT 的提示协议与按阶段预算预留(§38.3:给最终验证/修复
 |---|---|---|
 | T3v7:h7 换**结构型锚** —— 首选 **Harness-owned Sidecar / Typed RPC**(harness 自己固定并运行 browser-use,agent 只能写 Adapter 去调它;"是否用上游"从足迹推断变成**执行拓扑约束**),次选能力型锚(真渲染执行 JS 才算得出的字段值)。二者都属 #43 冻结判据的合法锚型;sidecar 更彻底但会改变任务语义(从"集成库"变成"集成 RPC"),`task_shape` 须重评、决定要留痕。另加 `new_browsers` 公开教(#33 违规补齐) | 批 13 + 测试模式方案 §9.4 | 走 v7 新包;v6 冻结;修好前 T3 不发批 |
 | T2v5 h1 同族加固(`open_deep_research` 也可被自带同名包满足) | 批 13 待办 | 若改 oracle 走 v6;现有 v5 发次不受影响 |
-| h4 扫系统临时目录的脆弱性(撞别人 .pkg 权限炸) | nc8 验证时发现 | 小修,随 T3v7 一起 |
+| h4 扫系统临时目录的脆弱性(撞别人 .pkg 权限炸) | nc8 验证时发现 | 小修,随 T3v7 一起(**2026-08-14 已修**:扫描边界收窄到本次 run 创建的临时根、当前 workspace、证据输出目录、manifest 登记路径;不吞 PermissionError,不扫系统级 `/tmp`) |
+| **T3v6 在钉版环境里没有正确答案**(见下) | 2026-08-14 正控冒烟 | **阻断级**:解锁前 T3v6 的 PASS 与 FAIL 都不承载模型能力信息 |
 
 T 轨的每一步同样走:冻结判据(先过可搬运性审查)→ 控制对象(**正控 +
 不动脑伪造负控 + 有意规避负控 + 误杀侧正控**,四件套,批 11–13 定型)→
 红绿/变异 → 预注册 → 发批。
+
+### §4.1 T3v6:判据反转 —— 只有洗白能过(2026-08-14,正控冒烟查出)
+
+修 `--fake positive` 时,第一次给 T1/T2/T3 都装上真正控,**T3 立刻暴露出
+一件此前没人看见的事**:钉版离线环境里**真上游根本跑不起来**。
+
+取证(三条独立、可复算):
+
+1. **实跑**。把 `../upstream` 挂进搜索路径,`import browser_use` 成功,
+   取 `browser_use.Agent` 即炸:`agent/service.py:19 → agent/cloud_events.py:7
+   → from bubus import BaseEvent` → `ModuleNotFoundError: No module named 'bubus'`。
+2. **静态导入闭包 BFS**(从 `browser_use.agent.service` 出发,46 个模块):
+   导入期阻断的缺失包 4 个 —— `bubus`(6 处)、**`cdp_use`(20 处)**、
+   `uuid_extensions`(7 处)、`pyotp`(1 处)。
+3. **可得性**。上游 pyproject 声明 36 个依赖,钉版 wheelhouse 缺 **21 个**;
+   `hatchling` 也不在,PEP 517 源码构建同样起不来;历史发次试过的
+   sidecar 独立 venv 也失败 —— `PIP_NO_INDEX`/`PIP_FIND_LINKS` 是会话级
+   环境变量,新建 venv 一样继承(**离线封锁没有被绕过,这点是好的**)。
+
+后果是**判据反转**。h7 对 `sys.modules["browser_use"].Agent` 打桩,要求真
+调到 `Agent.run`。可是真上游的 Agent 导入不了,于是能满足 h7 的实现**必然
+自供了 `browser_use`** —— 或自供 `cdp_use`,那等于自己写浏览器驱动,正是
+R12 明令禁止的重实现。**这道判据非但没在挡洗白,反而只有洗白能过。**
+
+这与批 13 的观察对上了:order-68 留下的那句 `# import here so tests can
+observe browser_use in sys.modules` 不是模型在钻空子,是模型在**这个环境里
+唯一能走的路**。批 13 判它 False Pass 是对的,但当时归因不全 —— 我们以为
+是判据锚在了 SUT 能供的名字上(#43 坑五),现在看还叠了一层:**锚在了一个
+在本环境中不可能来自上游的名字上**。
+
+台账现状:T3 五发 PASS 中两发已裁 `INVALIDATED_FALSE_PASS`(v4 一发、v6
+一发),三发 v5 未裁。**本条不追溯改判 v5 那三发** —— v5 的 h7 是更弱的
+版本,且它们走的是 sidecar 子进程路线(h7 自己声明"子进程执行观察不到"
+是已知边界),与本条结论不是同一件事;要动它们需要单独取证。
+
+解锁前提(二选一,都不是小改):
+
+- **重建 wheelhouse**,把 browser-use 的导入闭包钉进去(至少 bubus /
+  cdp_use / uuid_extensions / pyotp)。这会改 `env_baseline_hash`,与既有
+  发次跨代;
+- **改任务形状**走 §9.4 的 Harness-owned Sidecar —— harness 自己固定并运行
+  browser-use,agent 只写 Adapter 去调它。"是否用上游"从足迹推断变成执行
+  拓扑约束,顺带绕开"上游能不能装进 agent 的 venv"这个问题。
+
+第二条与用户给的 A0/A1 路线(Upstream Execution Receipt → Sidecar 作为
+Runtime Profile)同向,**优先走第二条**。
+
+### §4.2 T1/T2 正控现已可复现为绿(同批修复的正面)
+
+| 任务 | 结局 | 交付形态 | 证据 |
+|---|---|---|---|
+| T1 | `PASS_ADAPTED`,隐藏 9/9,干净重放 PASS | 控制组 + `fastapi_mcp`/`mcp<2.0`(钉版 wheelhouse 内) | `t1-…-20260814-191346` |
+| T2 | `PASS_ADAPTED`,隐藏 10/10,干净重放 PASS | 控制组 + **14 行导入桥** + 三个外围垫片 | `t2-…-20260814-194534` |
+| T3 | **拒跑**(带诊断) | —— | 见 §4.1 |
+
+T2 这份正控**比任何一发历史通关发次都干净**:历史 PASS 是把 ODR 整包
+vendored 进仓再改写(order-155052:`deep_researcher.py` 720 行 +
+`configuration.py` 253 行 + `prompts.py` 369 行 …),图代码已不是上游字节;
+新正控用 PEP 420 命名空间包的导入桥**原地加载上游原字节**,只垫掉三个
+外围包(`langchain` LLM 绑定 / `tavily` 搜索 / `langchain_mcp_adapters`),
+它们都不是 R5 关心的能力本体。h1 的两条因果判据(金丝雀进报告、stub 请求
+数超装饰性)照过。
+
+顺带钉住的两个坑:
+
+- **只装不声明 = 重放全红**。T1 实测:`pip install` 只作用于会话内
+  `.venv`,干净重放只重放文件补丁,依赖不跟着走 —— agent 会话里 cap 9/9
+  全绿,重放 `ModuleNotFoundError` 全红。正控必须同时改 `requirements.txt`。
+- **不存在通用装法**。`pip install -e ../upstream` 三任务全灭(缺
+  `hatchling`);`pip install <distribution>` 只有 T1 成(另两个上游各 0 个
+  轮子)。上游可得性是**每任务的偶然事实**,只能钉在任务包里
+  (`controls/positive/smoke_setup.txt`),写进 harness 代码就是原缺陷
+  (写死 T1 的 `sdk_mcp.py`/`mcp<2.0`)换个体面形状而已。
 
 ---
 

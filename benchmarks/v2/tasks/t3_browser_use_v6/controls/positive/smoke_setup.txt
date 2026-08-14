@@ -1,0 +1,39 @@
+# T3 正控冒烟的环境清单(仅 harness 侧 `--fake positive` 使用;
+# 正式 run 走真实模型,本文件与控制组正文永不进入其提示或环境)。
+#
+# ==== 结论:T3v6 的正控在钉版离线环境下不可满足。冒烟拒跑。 ====
+#
+# 取证(2026-08-14,`--fake positive` 实跑 + 静态导入闭包 BFS):
+#
+# 1. 直接挂 `../upstream` 进搜索路径可以 `import browser_use`,但取
+#    `browser_use.Agent` 即炸:
+#      browser_use/agent/service.py:19
+#        → browser_use/agent/cloud_events.py:7 → `from bubus import BaseEvent`
+#      ModuleNotFoundError: No module named 'bubus'
+#
+# 2. 上游 pyproject 声明 36 个依赖,钉版 wheelhouse 里**缺 21 个**;
+#    上游源码直接 import 的缺失顶层包共 18 个。
+#
+# 3. 从 `browser_use.agent.service` 出发做顶层导入闭包 BFS(46 个模块),
+#    **导入期**阻断的缺失包 4 个:
+#      bubus            6 处
+#      cdp_use         20 处   ← CDP 浏览器驱动层
+#      uuid_extensions  7 处
+#      pyotp            1 处
+#
+# 4. 装不进去也补不上:`hatchling` 不在 wheelhouse,PEP 517 源码构建起不来;
+#    `pip install browser-use==0.13.7` 报 "from versions: none";
+#    历史上试过的 sidecar 独立 venv 同样失败 —— `PIP_NO_INDEX` /
+#    `PIP_FIND_LINKS` 是会话级环境变量,新建 venv 也继承(离线封锁没被绕过)。
+#
+# 于是 h7(`test_h7_real_browser_use_engaged`)出现**判据反转**:它对
+# `sys.modules["browser_use"].Agent` 打桩并要求真调到 `Agent.run`,可是在
+# 这个环境里真上游的 Agent 根本导入不了 —— 能满足 h7 的实现,必然是**自供
+# 了 browser_use**(或自供 `cdp_use`,那等于自己写浏览器驱动,正是 R12 明
+# 令禁止的重实现)。判据非但没在挡洗白,反而只有洗白能过。
+#
+# 这条不是模型的失败,是**任务在当前环境里没有正确答案**。要解锁需要重建
+# wheelhouse,把 browser-use 的导入闭包(至少 bubus / cdp_use /
+# uuid_extensions / pyotp)钉进去;在那之前 T3v6 的 PASS 与 FAIL 都不承载
+# 模型能力信息。详见 docs/EXECUTOR-UPGRADE-PLAN.md §4。
+#!BLOCKED: 真 browser_use.Agent 在钉版离线环境不可导入(导入闭包缺 bubus/cdp_use/uuid_extensions/pyotp,wheelhouse 缺 21/36 依赖,hatchling 缺席故源码构建亦不可行)。h7 因此只能被"自供 browser_use"满足 —— 判据反转。解锁前提:重建 wheelhouse 纳入 browser-use 导入闭包。

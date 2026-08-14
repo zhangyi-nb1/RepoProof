@@ -34,6 +34,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 import uuid
@@ -190,19 +191,38 @@ def _artifact_scan_roots(artifacts: dict) -> set[Path]:
     从未言明的目录名,存储布局不同的实现 scanned=0 直接挂——测的是
     "像不像正控"。v2 规则:对每个声明工件,取其父目录(若父即宿主根
     则只扫工件本身);父之上还有一层专用目录(仍非宿主根)则扫该层
-    整棵子树——覆盖同店的未声明文件与兄弟作业,不锚定任何名字。"""
+    整棵子树——覆盖同店的未声明文件与兄弟作业,不锚定任何名字。
+
+    v3 修订(2026-08-14,nc8 验证时实证):`else` 分支会对系统临时目录
+    (`tempfile.mkdtemp()` 落在 `/var/folders/…/T/<随机>/`)取到**共享的
+    T 目录**,于是扫到别的进程、别的用户的文件 —— 实测撞上
+    `Microsoft_AutoUpdate….pkg` 直接 PermissionError 炸掉。
+    那不是被测实现的问题,是扫描边界画错了。
+
+    **不用捕获异常掩盖**(那会把真实的 PII 泄漏也一起吞掉),改为收窄:
+    上溯只允许**一层**,且该层必须仍在同一棵"实现自己造的目录"里 ——
+    判据是它与工件同前缀且不是系统临时根。够不着就只扫工件本身。
+    """
     def is_host_root(d: Path) -> bool:
         return (d / "rag_api.py").exists()
+
+    # 系统级共享临时根:它们下面住着别的进程的东西,永远不扫
+    shared = {Path(tempfile.gettempdir()).resolve(), Path("/tmp"), Path("/var/tmp"),
+              Path("/private/tmp"), Path("/private/var/tmp")}
+
+    def is_shared(d: Path) -> bool:
+        r = d.resolve()
+        return r in shared or r.parent in shared
 
     roots: set[Path] = set()
     for p in (Path(v) for v in artifacts.values() if v):
         d = p.parent
-        if is_host_root(d):
-            roots.add(p)
-        elif is_host_root(d.parent):
-            roots.add(d)
+        if is_host_root(d) or is_shared(d):
+            roots.add(p)                      # 够不着专用目录 → 只扫工件本身
+        elif is_host_root(d.parent) or is_shared(d.parent):
+            roots.add(d)                      # 专用目录就是它 → 扫这一层
         else:
-            roots.add(d.parent)
+            roots.add(d.parent)               # 再上一层仍是实现自己造的
     return roots
 
 

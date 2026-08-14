@@ -1,0 +1,19 @@
+# T1 正控冒烟的环境清单(仅 harness 侧 `--fake positive` 使用;
+# 正式 run 走真实模型,本文件与控制组正文永不进入其提示或环境)。
+#
+# 一行一条命令,按序执行,`#` 开头与空行跳过。
+#
+# 为什么钉在这里而不是 harness 代码里:上游可得性是**每任务的偶然事实**。
+# 钉版 wheelhouse 里 `fastapi_mcp-0.4.0` 有轮子,所以 T1 能直接装;
+# T2/T3 的上游各 0 个轮子,只能走别的路。原实现把这两行写死在
+# `_fake_script` 里,于是 T2/T3 的正控冒烟直接 FileNotFoundError。
+#
+# `mcp<2.0` 不能省:wheelhouse 同时放了 mcp-1.29.0 与 mcp-2.0.0,
+# fastapi_mcp 0.4.0 只与前者兼容;不钉上界会解析到 2.0.0 而运行期炸。
+#
+# **两步缺一不可**(2026-08-14 实测):只装不声明,agent 会话里 cap 9/9
+# 全绿,干净重放却 ModuleNotFoundError 全红 —— 因为重放只重放文件补丁,
+# 会话内 `.venv` 的副作用不跟着走。真实通关发次都是改 requirements.txt
+# 让重放的环境构建把依赖装回来。正控必须演示同一条完整路径。
+printf '\n# T1 正控:MCP SDK 挂载(钉版 wheelhouse 内)\nfastapi_mcp\nmcp<2.0\n' >> requirements.txt
+.venv/bin/pip install -q 'fastapi_mcp' 'mcp<2.0'

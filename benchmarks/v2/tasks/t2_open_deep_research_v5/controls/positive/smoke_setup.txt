@@ -1,0 +1,212 @@
+# T2 正控冒烟的环境清单(仅 harness 侧 `--fake positive` 使用;
+# 正式 run 走真实模型,本文件与控制组正文永不进入其提示或环境)。
+#
+# 格式:命令块之间用单独一行 `---` 分隔;块外 `#` 开头行是注释。
+#
+# ---- 为什么需要这些垫片 ----
+#
+# 钉版 wheelhouse 里 `open_deep_research` 0 个轮子,`hatchling` 也没有,
+# 装不进去。但 ODR 的图代码本体在 `../upstream/src` 里是全的 —— 从
+# `deep_researcher` 出发做顶层导入闭包 BFS(5 个模块),**导入期**阻断
+# 只有 3 个外围包:
+#
+#   langchain                2 处   LLM 绑定(init_chat_model)
+#   langchain_mcp_adapters   1 处   MCP 工具接入(本任务用不到)
+#   tavily                   1 处   联网搜索(离线本就不可用)
+#
+# 都不是 R5 关心的能力本体(ODR 的研究图),所以垫掉它们、**原地用真上游
+# 的图**,是比历史通关发次更干净的正控 —— 那些发次是把 ODR 整包 vendored
+# 进仓再改写(order-155052:deep_researcher.py 720 行 + configuration.py
+# 253 行 + prompts.py 369 行 …),图代码本身已不是上游字节。
+#
+# 对比 T3:那边阻断的是 `cdp_use`(浏览器驱动本体,闭包内 20 处),垫掉它
+# 等于自己写浏览器驱动 —— 那是 R12 明令禁止的重实现,所以 T3 判为不可满足。
+#
+# ---- 为什么用导入桥而不是 .pth ----
+#
+# `.pth` 写进会话内 `.venv/site-packages`,干净重放只重放文件补丁,副作用
+# 不跟着走(T1 实测:只装不声明 → agent 会话 cap 9/9 全绿,重放全红)。
+# 导入桥是仓内文件,进补丁、能重放。上游 ODR 是 PEP 420 命名空间包(无
+# `__init__.py`),本地放一个 `__init__.py` 并把 `__path__` 指向上游,
+# `open_deep_research.deep_researcher` 解析到的就是**上游原字节**。
+mkdir -p open_deep_research langchain langchain_mcp_adapters
+---
+# `mcp` 在 wheelhouse 里(1.29.0),只是宿主基线默认没装;ODR 的 utils.py
+# 顶层 `from mcp import McpError`。两步缺一不可:装进会话 + 写进
+# requirements 好让干净重放的环境构建装回来(T1 实测过这个坑)。
+printf '\n# T2 正控:ODR 的 mcp 依赖(钉版 wheelhouse 内)\nmcp<2.0\n' >> requirements.txt
+---
+.venv/bin/pip install -q 'mcp<2.0'
+---
+cat > open_deep_research/__init__.py <<'RP_SETUP'
+"""导入桥:把包路径指向 ../upstream/src 里的钉版 ODR(不复制、不改写)。
+
+上游是 PEP 420 命名空间包,本地这个 __init__.py 只做一件事 ——
+把 __path__ 指向上游目录,于是 `open_deep_research.deep_researcher`
+加载的是上游原字节。R5 要的"真上游被调用"由此成立。
+"""
+import pathlib
+
+_here = pathlib.Path(__file__).resolve()
+_up = _here.parents[2] / "upstream" / "src" / "open_deep_research"
+if _up.is_dir():
+    __path__ = [str(_up)]
+RP_SETUP
+---
+cat > langchain/__init__.py <<'RP_SETUP'
+"""兼容命名空间:钉版 wheelhouse 只有 langchain_core,没有 langchain 伞包。"""
+RP_SETUP
+---
+cat > langchain/chat_models.py <<'RP_SETUP'
+"""`init_chat_model` 的最小实现 —— OpenAI 兼容 Chat Runnable。
+
+只补 ODR 图实际用到的那几个方法(with_config / bind_tools /
+with_structured_output / with_retry / ainvoke)。端点取
+OPENAI_BASE_URL + OPENAI_API_KEY:oracle 的 fake_llm_stub 就注在这两个
+环境变量上,所以模型响应是**真的经这条线回到图里**的 —— h1 的金丝雀与
+请求数两条因果判据靠的正是这一点。
+"""
+import asyncio
+import json
+import os
+import urllib.request
+from copy import copy
+
+from langchain_core.messages import AIMessage
+from langchain_core.utils.function_calling import convert_to_openai_tool
+
+
+def _message(m):
+    if isinstance(m, dict):
+        return {"role": m.get("role", "user"), "content": m.get("content", "")}
+    role = {"human": "user", "ai": "assistant", "system": "system",
+            "tool": "tool"}.get(getattr(m, "type", "human"), "user")
+    out = {"role": role, "content": m.content or ""}
+    if role == "tool":
+        out["tool_call_id"] = getattr(m, "tool_call_id", "call_0")
+    return out
+
+
+class _Chat:
+    def __init__(self, options=None, tools=None, schema=None):
+        self.options = options or {}
+        self.tools = tools
+        self.schema = schema
+
+    def _clone(self, **kw):
+        x = copy(self)
+        for k, v in kw.items():
+            setattr(x, k, v)
+        return x
+
+    def with_config(self, config=None, **kw):
+        opts = dict(self.options)
+        opts.update(config or {})
+        opts.update(kw)
+        return self._clone(options=opts)
+
+    def with_retry(self, **kw):
+        return self
+
+    def bind_tools(self, tools, **kw):
+        return self._clone(tools=list(tools))
+
+    def with_structured_output(self, schema, **kw):
+        return self._clone(schema=schema)
+
+    def invoke(self, messages, config=None, **kw):
+        return self._invoke(messages, config or {})
+
+    async def ainvoke(self, messages, config=None, **kw):
+        return await asyncio.to_thread(self._invoke, messages, config or {})
+
+    def _invoke(self, messages, runtime):
+        opts = dict(self.options)
+        opts.update((runtime or {}).get("configurable", {}))
+        base = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+        key = opts.get("api_key") or os.environ.get("OPENAI_API_KEY", "")
+        model = str(opts.get("model") or "openai:gpt-4.1").split(":", 1)[-1]
+        body = {"model": model,
+                "messages": [_message(m) for m in messages],
+                "max_tokens": int(opts.get("max_tokens") or 4096)}
+        tools = self.tools
+        if self.schema is not None:
+            tools = [self.schema]
+        if tools:
+            body["tools"] = [convert_to_openai_tool(t) for t in tools]
+            body["tool_choice"] = "auto"
+        req = urllib.request.Request(
+            base + "/chat/completions",
+            data=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json",
+                     "Authorization": f"Bearer {key}"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            data = json.loads(r.read().decode())
+        msg = (data.get("choices") or [{}])[0].get("message") or {}
+        text = msg.get("content") or ""
+        calls = msg.get("tool_calls") or []
+        if self.schema is not None:
+            args = {}
+            if calls:
+                try:
+                    args = json.loads(calls[0]["function"]["arguments"] or "{}")
+                except Exception:
+                    args = {}
+            if not args:
+                try:
+                    args = json.loads(text)
+                except Exception:
+                    args = {}
+            fields = getattr(self.schema, "model_fields", {})
+            for name, f in fields.items():
+                if name not in args:
+                    ann = getattr(f, "annotation", str)
+                    args[name] = [] if ann in (list,) else (text if ann is str else None)
+            return self.schema(**args)
+        tool_calls = []
+        for i, c in enumerate(calls):
+            fn = c.get("function") or {}
+            try:
+                a = json.loads(fn.get("arguments") or "{}")
+            except Exception:
+                a = {}
+            tool_calls.append({"name": fn.get("name", ""), "args": a,
+                               "id": c.get("id") or f"call_{i}", "type": "tool_call"})
+        return AIMessage(content=text, tool_calls=tool_calls)
+
+
+def init_chat_model(model=None, *, configurable_fields=None, max_tokens=None,
+                    api_key=None, tags=None, **kw):
+    opts = {}
+    if model is not None:
+        opts["model"] = model
+    if max_tokens is not None:
+        opts["max_tokens"] = max_tokens
+    if api_key is not None:
+        opts["api_key"] = api_key
+    return _Chat(options=opts)
+RP_SETUP
+---
+cat > tavily.py <<'RP_SETUP'
+"""占位:钉版环境离线,Tavily 搜索本就不可用;ODR 只在模块顶层 import 它。"""
+
+
+class AsyncTavilyClient:
+    def __init__(self, *a, **kw):
+        raise RuntimeError("TAVILY_UNAVAILABLE: 钉版环境离线,无外网搜索")
+
+    async def search(self, *a, **kw):
+        raise RuntimeError("TAVILY_UNAVAILABLE")
+RP_SETUP
+---
+cat > langchain_mcp_adapters/__init__.py <<'RP_SETUP'
+"""占位:本任务不接 MCP 工具;ODR 只在模块顶层 import 它。"""
+RP_SETUP
+---
+cat > langchain_mcp_adapters/client.py <<'RP_SETUP'
+class MultiServerMCPClient:
+    def __init__(self, *a, **kw):
+        raise RuntimeError("MCP_TOOLS_UNAVAILABLE: 本任务未接 MCP 工具")
+RP_SETUP
+---
+.venv/bin/python -c "import open_deep_research.deep_researcher as m; print('ODR graph at', m.__file__)"

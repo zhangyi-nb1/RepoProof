@@ -64,16 +64,30 @@ def _fold_stub(rule: str, msg_index: int, size: int, cmd: str) -> str:
 
 
 def _cmd_of(msgs: list[dict], tool_index: int) -> str:
-    """工具结果对应的命令:优先自带,否则回看前一条 assistant 的 action。"""
+    """工具结果对应的命令:优先自带,否则回看最近一条 assistant 的 action。
+
+    **多命令按序对位**(2026-08-14 修,批 14 实证):一次 assistant 可以发
+    多个 action,mini-swe 按序产出同样多条 tool 结果。原实现只取
+    `acts[0]`,于是第 2 条起的工具消息命令解析成**空串** → 不可折 → 投影
+    覆盖面随机依赖模型的命令组织方式。批 14 里 gpt-5.6 惯用多命令链,
+    整个处理臂因此 **0 次生效**,而我一度把那读成"处理无害"。
+
+    这是**量具修复**,不是策略改动:折叠规则一字未动,只是让"这条结果是
+    哪条命令产生的"解析对。"""
     extra = msgs[tool_index].get("extra") or {}
     if extra.get("command"):
         return _norm_cmd(extra["command"])
+    # 回看最近的 assistant,并数清本条 tool 在它之后是第几条
     for j in range(tool_index - 1, -1, -1):
         if msgs[j].get("role") == "assistant":
             acts = (msgs[j].get("extra") or {}).get("actions") or []
-            return _norm_cmd(acts[0].get("command", "")) if acts else ""
-        if msgs[j].get("role") == "tool":
-            break
+            if not acts:
+                return ""
+            offset = sum(1 for k in range(j + 1, tool_index)
+                         if msgs[k].get("role") == "tool")
+            if offset < len(acts):
+                return _norm_cmd(acts[offset].get("command", ""))
+            return ""                     # 结果比动作多:对不上就不猜
     return ""
 
 

@@ -186,17 +186,219 @@ def test_integrity_scope_excludes_repoproof_itself(tmp_path: Path, monkeypatch) 
 
 # ---------------------------------------------------------------- 冒烟脚本
 def test_fake_scripts_shape() -> None:
+    """冒烟脚本形状 —— **考行为不考实现**。
+
+    2026-08-14 改:原断言写死 `sdk_mcp.py` / `mcp<2.0`,即 T1 的实现细节。
+    那正是缺陷本身 —— `_fake_script` 当年也写死了同一批常量,于是 T2/T3
+    的 positive 冒烟直接 FileNotFoundError,两个任务的 F0 失去正控意义。
+    现在断言的是**每个任务都能生成、且落地的是它自己的正控**。"""
     runner = _RunnerStub()
     noop = _fake_script("noop", runner)
     assert "COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT" in noop[0]["actions"][0]["command"]
     pos = _fake_script("positive", runner)
     joined = "\n".join(a["command"] for step in pos for a in step["actions"])
-    assert "pip install" in joined and "mcp<2.0" in joined
-    assert "sdk_mcp.py" in joined
-    assert "requirements.txt" in joined, "正控冒烟必须声明依赖(重放语义)"
+    assert "sdk_mcp.py" in joined and "mount_sdk_mcp" in joined, (
+        "T1 的正控冒烟必须落地 T1 自己的控制组与挂载符号")
     assert joined.strip().endswith("COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT")
     with pytest.raises(ValueError):
         _fake_script("nonsense", runner)
+
+
+def test_fake_positive_works_for_every_task_not_just_t1() -> None:
+    """缺陷修复的正面:每个任务各落各的控制组,**不再有人被写死的常量卡住**。
+
+    反例(2026-08-14 之前的实现):写死 T1 的 `sdk_mcp.py`,T2/T3 直接
+    FileNotFoundError —— 它们的 F0 因此只能降级用 `--fake noop`,而 noop
+    什么都不验。
+
+    2026-08-14 晚修订:T3 现在会**拒跑**,但那是完全不同的一件事 —— 拒跑
+    来自任务包里显式写下的 `#!BLOCKED:`(真上游在钉版环境不可导入),而
+    不是 harness 写死了别的任务的文件名。两者必须区分开钉:
+      - 允许的失败 = ValueError,且带得出任务包给的诊断;
+      - 不允许的失败 = FileNotFoundError / KeyError 这类"实现漏了这个任务"。
+    """
+    from repoproof.runner.host_guided import HostGuidedRunner
+
+    repo = Path(__file__).resolve().parents[1]
+    want = {"t1_fastapi_mcp": "mount_sdk_mcp",
+            "t2_open_deep_research_v5": "mount_research_api",
+            "t3_browser_use_v6": "mount_apply_assist"}
+    for task, mount in want.items():
+        contract = repo / "benchmarks" / "v2" / "tasks" / task / "contract.yaml"
+        if not contract.exists():
+            continue
+        try:
+            steps = _fake_script("positive", HostGuidedRunner(contract, repo))
+        except ValueError as e:
+            assert "不可满足" in str(e), (
+                f"{task} 拒跑了,但理由不是任务包声明的阻断:{e}")
+            continue
+        except Exception as e:  # noqa: BLE001 —— 正是要抓"实现漏了这个任务"
+            raise AssertionError(
+                f"{task} 以 {type(e).__name__} 崩了 —— 这是写死常量的病征,"
+                f"不是任务包声明的阻断:{e}") from e
+        joined = "\n".join(a["command"] for step in steps for a in step["actions"])
+        assert mount in joined, f"{task} 的冒烟没落地它自己的挂载符号 {mount}"
+
+
+def test_missing_controls_fails_loudly_not_silently(tmp_path) -> None:
+    """控制组缺失必须显式失败,**不得静默退回 noop**。
+
+    静默退回会让冒烟"通过"而其实什么都没验 —— 与 batch_criteria 的
+    "空跑不算通过"、validate_controls 的 V3 同源。"""
+    import shutil
+
+    from repoproof.runner.host_guided import HostGuidedRunner
+
+    repo = Path(__file__).resolve().parents[1]
+    src = repo / "benchmarks" / "v2" / "tasks" / "t2_open_deep_research_v5"
+    if not src.exists():
+        return
+    dst = tmp_path / "task"
+    shutil.copytree(src, dst)
+    shutil.rmtree(dst / "controls" / "positive")
+
+    with pytest.raises(ValueError, match="正控"):
+        _fake_script("positive", HostGuidedRunner(dst / "contract.yaml", repo))
+
+
+# ------------------------------------------------ 正控环境清单(smoke_setup)
+# 2026-08-14。为什么要有这层:`--fake positive` 是**假阳侧正控** —— 它回答
+# "这套 oracle 在钉版环境里到底能不能被满足"。要回答得准,冒烟就得走真实
+# 发次的完整路径(装依赖 → 落控制组 → 接线 → 干净重放)。
+#
+# 而"依赖怎么装"是**每任务的偶然事实**,不存在通用装法(逐条实测):
+#   - `pip install -e ../upstream` 三任务全灭 —— wheelhouse 无 `hatchling`;
+#   - `pip install <distribution>` 只有 T1 成 —— 另两个上游各 0 个轮子。
+# 写死在 harness 代码里就是原缺陷的翻版(它写死了 T1 的 `sdk_mcp.py` /
+# `mcp<2.0`,于是 T2/T3 的 F0 直接 FileNotFoundError)。所以钉在任务包里。
+#
+# 冻结判据(先写判据与反例;措辞此后不改):
+#
+# - N1 **缺清单显式失败**。反例:静默跳过依赖步骤 → 冒烟"跑完了"却因
+#   ModuleNotFound 全红,读的人会以为是实现不对,其实是环境没备好。
+# - N2 **`#!BLOCKED:` 带诊断拒跑**,理由原样带出。反例:让它照常跑出一发
+#   FAIL → 台账里留下一条与"模型失败"同型的记录,而它其实是**环境不可
+#   满足**,两者含义相反(前者说模型不行,后者说这道题没有正确答案)。
+# - N3 **多行块整块下发**。反例:按行拆成多条命令 → heredoc 被腰斩,垫片
+#   文件写出半截,而每条命令各自 rc=0,失败要到 oracle 才现形。
+# - N4 **注释不进命令**。反例:把 `# ...` 也当命令发下去。
+# - N5 **落地控制组的全部 .py**,与 `build_control_tree.build()` 一致。
+#   反例:只落挂载模块 → 带辅助模块的正控在冒烟里缺件,而在控制树验证里
+#   是齐的:同一个正控,两条路径看到的东西不一样,冒烟不再是控制树的现场
+#   复现。
+
+
+def _pos_cmds(task: str) -> list[str]:
+    from repoproof.runner.host_guided import HostGuidedRunner
+
+    repo = Path(__file__).resolve().parents[1]
+    runner = HostGuidedRunner(
+        repo / "benchmarks" / "v2" / "tasks" / task / "contract.yaml", repo)
+    return [a["command"] for step in _fake_script("positive", runner)
+            for a in step["actions"]]
+
+
+def test_missing_setup_manifest_fails_loudly(tmp_path) -> None:
+    """N1:缺环境清单显式失败,不静默跳过依赖步骤。"""
+    import shutil
+
+    from repoproof.runner.host_guided import HostGuidedRunner
+
+    repo = Path(__file__).resolve().parents[1]
+    src = repo / "benchmarks" / "v2" / "tasks" / "t1_fastapi_mcp"
+    dst = tmp_path / "task"
+    shutil.copytree(src, dst)
+    (dst / "controls" / "positive" / "smoke_setup.txt").unlink()
+
+    with pytest.raises(ValueError, match="环境清单"):
+        _fake_script("positive", HostGuidedRunner(dst / "contract.yaml", repo))
+
+
+def test_blocked_directive_refuses_with_the_reason(tmp_path) -> None:
+    """N2:`#!BLOCKED:` 拒跑,且把理由原样带出来。"""
+    import shutil
+
+    from repoproof.runner.host_guided import HostGuidedRunner
+
+    repo = Path(__file__).resolve().parents[1]
+    src = repo / "benchmarks" / "v2" / "tasks" / "t1_fastapi_mcp"
+    dst = tmp_path / "task"
+    shutil.copytree(src, dst)
+    (dst / "controls" / "positive" / "smoke_setup.txt").write_text(
+        "# 说明\n#!BLOCKED: 上游在钉版环境不可导入,缺 bubus\n"
+        ".venv/bin/pip install -q foo\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="缺 bubus"):
+        _fake_script("positive", HostGuidedRunner(dst / "contract.yaml", repo))
+
+
+def test_multiline_block_is_delivered_whole(tmp_path) -> None:
+    """N3:heredoc 整块下发,不被按行拆碎。
+
+    反例(按行拆):每条命令各自 rc=0,垫片文件却只写出半截,
+    失败要到 oracle 才现形。"""
+    import shutil
+
+    from repoproof.runner.host_guided import HostGuidedRunner
+
+    repo = Path(__file__).resolve().parents[1]
+    src = repo / "benchmarks" / "v2" / "tasks" / "t1_fastapi_mcp"
+    dst = tmp_path / "task"
+    shutil.copytree(src, dst)
+    (dst / "controls" / "positive" / "smoke_setup.txt").write_text(
+        "# 注释不进命令\n"
+        "cat > shim.py <<'EOF'\nline1\n\nline3\nEOF\n"
+        "---\n"
+        "echo second\n", encoding="utf-8")
+
+    cmds = [a["command"]
+            for step in _fake_script("positive", HostGuidedRunner(dst / "contract.yaml", repo))
+            for a in step["actions"]]
+    whole = [c for c in cmds if c.startswith("cat > shim.py")]
+    assert len(whole) == 1, f"heredoc 被拆碎了:{cmds[:3]}"
+    assert whole[0] == "cat > shim.py <<'EOF'\nline1\n\nline3\nEOF", (
+        "块内换行(含空行)必须原样保留 —— 空行分块会腰斩 heredoc")
+    assert "echo second" in cmds
+    assert not any(c.lstrip().startswith("#") for c in cmds), "N4:注释不得成为命令"
+
+
+def test_smoke_lands_every_control_py_not_just_the_mount_module(tmp_path) -> None:
+    """N5:落地控制组全部 .py —— 与 build_control_tree.build() 同口径。"""
+    import shutil
+
+    from repoproof.runner.host_guided import HostGuidedRunner
+
+    repo = Path(__file__).resolve().parents[1]
+    src = repo / "benchmarks" / "v2" / "tasks" / "t1_fastapi_mcp"
+    dst = tmp_path / "task"
+    shutil.copytree(src, dst)
+    (dst / "controls" / "positive" / "helper_side.py").write_text(
+        "SIDE = 1\n", encoding="utf-8")
+
+    cmds = [a["command"]
+            for step in _fake_script("positive", HostGuidedRunner(dst / "contract.yaml", repo))
+            for a in step["actions"]]
+    joined = "\n".join(cmds)
+    assert "cat > helper_side.py" in joined, (
+        "辅助模块没被落地 —— 冒烟看到的正控与控制树看到的不是同一个")
+    assert "cat > sdk_mcp.py" in joined
+
+
+def test_real_task_manifests_are_present_and_say_what_they_should() -> None:
+    """接线检查:三个真任务的清单现状(防清单被误删或被悄悄改成 noop)。
+
+    T1/T2 应当能生成可跑脚本;T3 应当拒跑 —— 真 `browser_use.Agent` 在钉版
+    离线环境不可导入(导入闭包缺 bubus/cdp_use/uuid_extensions/pyotp)。
+    这条一旦变绿,说明要么 wheelhouse 重建了,要么有人把阻断悄悄删了 ——
+    两种情况都必须有人来看一眼。"""
+    for task in ("t1_fastapi_mcp", "t2_open_deep_research_v5"):
+        cmds = _pos_cmds(task)
+        assert any("pip install" in c for c in cmds), f"{task} 清单里没有装依赖的步骤"
+        assert cmds[-1].strip().endswith("COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT")
+
+    with pytest.raises(ValueError, match="不可满足"):
+        _pos_cmds("t3_browser_use_v6")
 
 
 class _RunnerStub:

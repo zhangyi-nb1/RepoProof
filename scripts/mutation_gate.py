@@ -719,6 +719,42 @@ MUTATIONS: list[dict] = [
         "new": '                 "lossy": False,',
         "catchers": _T_WP,
     },
+    # ---- M48:正控冒烟的环境清单(2026-08-14)。冒烟是**假阳侧正控**,它
+    # 回答"这套 oracle 在钉版环境里到底能不能被满足"。下面四条各对应一种
+    # "冒烟看起来跑了、其实什么都没证"的失效。
+    {
+        "id": "M48a-missing-manifest-silently-skipped",
+        "lesson": "#N1:缺环境清单却静默跳过装依赖 → 冒烟跑完全红,读的人以为实现不对,其实是环境没备好",
+        "file": _HD,
+        "old": "    if not setup.is_file():\n        raise ValueError(",
+        "new": "    if not setup.is_file():\n        setup.write_text('', encoding='utf-8')\n"
+               "    if False:\n        raise ValueError(",
+        "catchers": _T_HD,
+    },
+    {
+        "id": "M48b-blocked-directive-ignored",
+        "lesson": "#N2:忽略 #!BLOCKED 照常跑 → 台账里多一条与'模型失败'同型的记录,而它其实是环境不可满足,含义相反",
+        "file": _HD,
+        "old": '        if line.strip().startswith("#!BLOCKED:"):',
+        "new": "        if False:",
+        "catchers": _T_HD,
+    },
+    {
+        "id": "M48c-manifest-split-per-line",
+        "lesson": "#N3:按行拆命令 → heredoc 被腰斩,垫片只写出半截而每条 rc=0,失败要到 oracle 才现形",
+        "file": _HD,
+        "old": '    for block in raw.split("\\n---\\n"):',
+        "new": "    for block in raw.splitlines():",
+        "catchers": _T_HD,
+    },
+    {
+        "id": "M48d-smoke-lands-only-mount-module",
+        "lesson": "#N5:只落挂载模块 → 冒烟看到的正控与控制树看到的不是同一个,冒烟不再是控制树的现场复现",
+        "file": _HD,
+        "old": '    for f in sorted(src_control.glob("*.py")):',
+        "new": '    for f in sorted(src_control.glob(f"{module}.py")):',
+        "catchers": _T_HD,
+    },
     {
         "id": "M47a-mechanism-runs-count-toward-gate",
         "lesson": "#K3:机制消融混进闸门 → 批 14 把 T2 passes 从 5 抬到 14,读起来像能力提升 180%",

@@ -10,7 +10,7 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 20,
+    "all_valid_run_outcomes": 22,
     "assisted_repair_runs": 14,
     "development_baseline_runs": 60,
     "exploratory": 7,
@@ -48,8 +48,8 @@
     ],
     "passes": 10,
     "post_hoc_classified_runs": 2,
-    "smoke": 9,
-    "smoke_passes": 1,
+    "smoke": 20,
+    "smoke_passes": 3,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -59,9 +59,20 @@
       "t2-offerclaw-open-deep-research-v5-20260814-122427",
       "t2-offerclaw-open-deep-research-v5-20260814-125222",
       "t2-offerclaw-open-deep-research-v5-20260814-125620",
-      "t2-offerclaw-open-deep-research-v5-20260814-135519"
+      "t2-offerclaw-open-deep-research-v5-20260814-135519",
+      "t2-offerclaw-open-deep-research-v5-20260814-182408",
+      "t2-offerclaw-open-deep-research-v5-20260814-183345",
+      "t2-offerclaw-open-deep-research-v5-20260814-184350",
+      "t1-offerclaw-fastapi-mcp-v1-20260814-185135",
+      "t3-offerclaw-browser-use-v6-20260814-185516",
+      "t1-offerclaw-fastapi-mcp-v1-20260814-190248",
+      "t1-offerclaw-fastapi-mcp-v1-20260814-191346",
+      "t3-offerclaw-browser-use-v6-20260814-191956",
+      "t2-offerclaw-open-deep-research-v5-20260814-192652",
+      "t2-offerclaw-open-deep-research-v5-20260814-193733",
+      "t2-offerclaw-open-deep-research-v5-20260814-194534"
     ],
-    "total": 90,
+    "total": 101,
     "treatment_delivered_runs": 3,
     "treatment_not_delivered_runs": 3
   },
@@ -73,11 +84,11 @@
   },
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "f5e275e49d3b0942f98342c3dec75d4ef704e9f8eee0f7b34e6951202e56b5f2"
+    "runs_jsonl_sha256": "9b26c3779244d3ed7289ec493990b6d7e81e777bfaac9c6fe42b887a71a2d2e4"
   },
   "stages": {
     "T1": {
-      "all_valid_run_outcomes": 3,
+      "all_valid_run_outcomes": 4,
       "assisted_repair_runs": 0,
       "development_baseline_runs": 7,
       "exploratory": 0,
@@ -94,20 +105,23 @@
       ],
       "passes": 2,
       "post_hoc_classified_runs": 0,
-      "smoke": 4,
-      "smoke_passes": 1,
+      "smoke": 7,
+      "smoke_passes": 2,
       "smoke_run_ids": [
         "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
         "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
         "t1-offerclaw-fastapi-mcp-v1-20260809-182942",
-        "t1-offerclaw-fastapi-mcp-v1-20260809-183548"
+        "t1-offerclaw-fastapi-mcp-v1-20260809-183548",
+        "t1-offerclaw-fastapi-mcp-v1-20260814-185135",
+        "t1-offerclaw-fastapi-mcp-v1-20260814-190248",
+        "t1-offerclaw-fastapi-mcp-v1-20260814-191346"
       ],
-      "total": 11,
+      "total": 14,
       "treatment_delivered_runs": 0,
       "treatment_not_delivered_runs": 0
     },
     "T2": {
-      "all_valid_run_outcomes": 14,
+      "all_valid_run_outcomes": 15,
       "assisted_repair_runs": 12,
       "development_baseline_runs": 30,
       "exploratory": 2,
@@ -133,15 +147,21 @@
       ],
       "passes": 5,
       "post_hoc_classified_runs": 0,
-      "smoke": 4,
-      "smoke_passes": 0,
+      "smoke": 10,
+      "smoke_passes": 1,
       "smoke_run_ids": [
         "t2-offerclaw-open-deep-research-v5-20260814-122427",
         "t2-offerclaw-open-deep-research-v5-20260814-125222",
         "t2-offerclaw-open-deep-research-v5-20260814-125620",
-        "t2-offerclaw-open-deep-research-v5-20260814-135519"
+        "t2-offerclaw-open-deep-research-v5-20260814-135519",
+        "t2-offerclaw-open-deep-research-v5-20260814-182408",
+        "t2-offerclaw-open-deep-research-v5-20260814-183345",
+        "t2-offerclaw-open-deep-research-v5-20260814-184350",
+        "t2-offerclaw-open-deep-research-v5-20260814-192652",
+        "t2-offerclaw-open-deep-research-v5-20260814-193733",
+        "t2-offerclaw-open-deep-research-v5-20260814-194534"
       ],
-      "total": 48,
+      "total": 54,
       "treatment_delivered_runs": 3,
       "treatment_not_delivered_runs": 3
     },
@@ -173,12 +193,14 @@
       ],
       "passes": 3,
       "post_hoc_classified_runs": 2,
-      "smoke": 1,
+      "smoke": 3,
       "smoke_passes": 0,
       "smoke_run_ids": [
-        "t3-offerclaw-browser-use-v2-20260811-091744"
+        "t3-offerclaw-browser-use-v2-20260811-091744",
+        "t3-offerclaw-browser-use-v6-20260814-185516",
+        "t3-offerclaw-browser-use-v6-20260814-191956"
       ],
-      "total": 31,
+      "total": 33,
       "treatment_delivered_runs": 0,
       "treatment_not_delivered_runs": 0
     },

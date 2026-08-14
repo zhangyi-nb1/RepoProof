@@ -2108,25 +2108,97 @@ def run_host_guided_cli(
 
 
 def _fake_script(kind: str, runner: HostGuidedRunner) -> list[dict]:
-    """冒烟脚本。positive 脚本读取正控参考实现(harness 侧冒烟专用;
-    正式 run 走真实模型,正控内容永不进入其提示或环境)。"""
+    """冒烟脚本。positive 脚本读取**该任务自己的**正控参考实现(harness 侧
+    冒烟专用;正式 run 走真实模型,正控内容永不进入其提示或环境)。
+
+    2026-08-14 修:原实现把 T1 的 `sdk_mcp.py` / `mount_sdk_mcp` /
+    fastapi-mcp 钉版**写死**,对 T2/T3 直接 FileNotFoundError —— 于是那两
+    个任务的 F0 失去真正的正控意义(S1 只能降级用 `--fake noop`)。
+    现改为**从任务包发现**:控制组文件名与挂载符号都由 `build_control_tree`
+    的同一套发现逻辑给出,依赖钉版则读控制组自带的 `requirements.txt`
+    (没有就不装 —— 不猜)。
+
+    **控制组缺失必须显式失败,不得静默退回 noop**:那会让冒烟"通过"而
+    其实什么都没验(与 batch_criteria 的"空跑不算通过"同源)。
+    """
     if kind == "noop":
         return [{"content": "noop submit",
                  "actions": [{"command": "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]}]
     if kind != "positive":
         raise ValueError(f"未知 fake 模式:{kind}")
-    positive = (runner.task_dir / "controls" / "positive" / "sdk_mcp.py").read_text(
-        encoding="utf-8")
-    mcp_pins = "fastapi-mcp\nmcp<2.0\n"
-    steps = [
-        {"actions": [{"command": ".venv/bin/pip install -q fastapi-mcp 'mcp<2.0'"}]},
+
+    src_control = runner.task_dir / "controls" / "positive"
+    if not src_control.is_dir():
+        raise ValueError(
+            f"任务包没有正控目录,冒烟无从做起:{src_control}\n"
+            "positive 冒烟必须有真实正控 —— 拒绝静默退回 noop(那会让冒烟"
+            "'通过'而其实什么都没验)")
+
+    # 与 build_control_tree 用同一套挂载发现 —— 两处各写一份必然漂移
+    import importlib.util as _iu
+
+    _path = Path(__file__).resolve().parents[3] / "scripts" / "build_control_tree.py"
+    _spec = _iu.spec_from_file_location("build_control_tree", _path)
+    _bct = _iu.module_from_spec(_spec)
+    _spec.loader.exec_module(_bct)
+    module, mount_fn, _block = _bct.mount_of(src_control)
+
+    steps: list[dict] = []
+    # 环境准备:**每任务清单**,不猜。
+    #
+    # 为什么不能有通用装法(逐条实测,2026-08-14):
+    #   - `pip install -e ../upstream` 对三任务全灭 —— 钉版 wheelhouse 里
+    #     没有 `hatchling`,PEP 517 editable 构建离线起不来;
+    #   - `pip install <distribution>` 只有 T1 碰巧能成 —— wheelhouse 里
+    #     `fastapi_mcp` 有轮子,`open_deep_research` / `browser_use` 各 0 个;
+    #   - T2 即便把上游装进去,`langchain` 伞包仍不在 wheelhouse(只有
+    #     `langchain_core`/`langgraph`),真实通关发次是自己写兼容垫片的;
+    #   - T3 历史 PASS 发次的 pip **每一条都失败**,它是自写 `browser_use/`
+    #     包过的关 —— 那正是 T3v6 要堵的洗白路径,不能当正控范本。
+    #
+    # 结论:上游可得性是**每任务的偶然事实**,写在任务包里才对;写在
+    # harness 代码里,就是原实现"把 T1 的 fastapi-mcp / mcp<2.0 钉死"那个
+    # 病的翻版 —— 只是换了个更体面的形状。
+    #
+    # 缺清单 → 显式失败(与缺控制组目录同一条纪律:不猜、不静默降级)。
+    setup = src_control / "smoke_setup.txt"
+    if not setup.is_file():
+        raise ValueError(
+            f"正控没有环境清单,冒烟无从做起:{setup}\n"
+            "冒烟脚本不替任务猜上游怎么装 —— 钉版可得性是每任务的偶然事实"
+            "(实测:editable 装法三任务全灭;pip install <名> 只有 T1 能成)。"
+            "请在任务包里写清单,一行一条命令。")
+    # `#!BLOCKED: <理由>` —— 该任务的正控在钉版环境下**不可能绿**,冒烟带
+    # 诊断拒跑。为什么不是"跑出一发 FAIL 就完了":那会在台账里留下一条
+    # 看起来和模型失败同型的记录,而它其实是**环境不可满足**,两者的含义
+    # 完全相反(前者说模型不行,后者说这道题在这个环境里没有正确答案)。
+    # 格式:命令块之间用单独一行 `---` 分隔(块内保留换行,故 heredoc 可用);
+    # 块外的 `#` 开头行是注释。用显式分隔符而不是空行,是因为 heredoc 正文
+    # 里本来就可能有空行。
+    raw = setup.read_text(encoding="utf-8")
+    for line in raw.splitlines():
+        if line.strip().startswith("#!BLOCKED:"):
+            raise ValueError(
+                f"正控在钉版环境下不可满足,冒烟拒跑:{src_control}\n"
+                + line.strip()[len("#!BLOCKED:"):].strip())
+    for block in raw.split("\n---\n"):
+        cmd = "\n".join(ln for ln in block.splitlines()
+                        if not ln.lstrip().startswith("#")).strip()
+        if cmd:
+            steps.append({"actions": [{"command": cmd}]})
+
+    # 落**全部** .py,不只是挂载模块 —— `build_control_tree.build()` 就是
+    # `for f in sorted(src_control.glob("*.py"))`。只落一个的话,带辅助模块的
+    # 控制组在冒烟里会缺件,而在控制树验证里是齐的:同一个正控,两条路径看到
+    # 的东西不一样,冒烟就不再是控制树的现场复现。
+    for f in sorted(src_control.glob("*.py")):
+        steps.append({"actions": [{"command":
+                      f"cat > {f.name} <<'RP_EOF'\n"
+                      + f.read_text(encoding="utf-8") + "\nRP_EOF"}]})
+    steps += [
         {"actions": [{"command":
-                      "cat > sdk_mcp.py <<'RP_EOF'\n" + positive + "\nRP_EOF"}]},
-        {"actions": [{"command":
-                      "printf '\\nfrom sdk_mcp import mount_sdk_mcp\\n"
-                      "mount_sdk_mcp(app)\\n' >> rag_api.py"}]},
-        {"actions": [{"command":
-                      "printf '" + mcp_pins.replace("\n", "\\n") + "' >> requirements.txt"}]},
+                      f"printf '\\nfrom {module} import {mount_fn}\\n"
+                      f"{mount_fn}(app)\\n' >> rag_api.py"}]},
         {"actions": [{"command": "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]},
     ]
     return steps
