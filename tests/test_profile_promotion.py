@@ -96,10 +96,17 @@ def test_p4b_fake_scripted_runs_never_count_as_real():
 
 
 def test_p5_default_is_not_machine_decidable():
-    """P5:default/deprecated 判不了,而且**判不了 = 不通过**。"""
+    """P5:default/deprecated 判不了,而且**判不了 = 不通过**。
+
+    关键在于:那条 Check 自己是 `ok=True`(它是事实陈述,不是没过的判据),
+    **压 False 的是 `machine_decidable` 本身**。这样写才使"判不了 = 不通过"
+    真的被某样东西执行 —— 若那条 Check 也写成 ok=False,`machine and` 就成了
+    死代码,纪律只是碰巧成立(变异闸门 M53e 当场指出了这一点)。"""
     for target in ("default", "deprecated"):
         v = evaluate_promotion(CANARY.PROFILE_ID, repo=REPO, to=target)
         assert v.machine_decidable is False
+        assert all(c.ok for c in v.checks), (
+            "这一级的 Check 应当是事实陈述(ok=True)—— 否则 machine 那道成死代码")
         assert v.ok is False, "判不了却返回通过 —— 那是把取舍伪装成测量"
 
 

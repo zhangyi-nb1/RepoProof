@@ -290,15 +290,21 @@ def evaluate_promotion(profile_id: str, *, repo: Path,
                                 "拿真实发次去替机制背书"))
         checks += _check_real_runs(repo, p)
     elif to == "default":
+        # 这条 Check 是**事实陈述**,不是一条没过的判据 —— 所以它 ok=True。
+        # 把判决压成 False 的是 `machine_decidable=False` 本身。
+        #
+        # 一开始写成 ok=False,变异闸门(M53e)当场指出问题:那样 `machine and`
+        # 就成了死代码 —— 有没有它结果都一样,于是"判不了 = 不通过"这条纪律
+        # 其实没有被任何东西执行,只是碰巧成立。分开之后它才真的在把关。
         machine = False
-        checks.append(Check("G8.not_machine_decidable", False,
+        checks.append(Check("G8.not_machine_decidable", True,
                             "'该不该成为默认'是取舍(成本、语义、对既有发次的影响),"
                             "不是测量。机器判不了 —— 要人来定并在 RUNTIME-MODES.md "
                             "留痕。凑几个数就自动设默认,等于把取舍伪装成测量"))
     elif to == "deprecated":
         machine = False
-        checks.append(Check("G8.not_machine_decidable", False,
-                            "废弃同样是决定,不是测量"))
+        checks.append(Check("G8.not_machine_decidable", True,
+                            "废弃同样是决定,不是测量 —— 判决由 machine_decidable 压 False"))
     else:
         checks.append(Check("G0.unknown_target", False, f"未知目标级别:{to}"))
 
