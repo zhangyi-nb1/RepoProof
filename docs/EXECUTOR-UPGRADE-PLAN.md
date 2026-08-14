@@ -129,7 +129,38 @@ usage 可得)计算:
 输出 JSON 落 `docs/evidence/exec_metrics/`。
 **顺带**:`batch_criteria.py` 或批报模板加 Wilson 区间函数(n≥3 格子用)。
 
-### S1 归因基建:profile hash 拆分 + preflight 升格(非行为改动,先行)
+### S1 归因基建(**2026-08-14 已完成**)
+
+落地:`src/repoproof/agents/profiles.py` + `host_guided._exec_profile_fields()`
++ 台账 5 个新字段。11 条钉死(判据 P1–P4 见 `tests/test_exec_profiles.py`)、
+红绿 **VALID**(`docs/evidence/redgreen/91da6138a70a.txt`)、变异 **72/72**。
+
+**与原计划的三处偏差(都有理由,记在此)**:
+
+1. **"preflight 升格为强制门"—— 核盘发现它早就是强制门**
+   (`run_host_guided_cli`:`if not pf.ready: return blocked` + 零模型调用)。
+   不重做,改为**钉死防回归**(`test_preflight_failure_blocks_the_run`)。
+2. **长观测 canary —— 不做,推到 P-D**。理由是 S0 给了更强的证据:6 发
+   227 次调用的 usage 记账**精确相等(0.00%)**,真实规模的实测比合成
+   canary 更有说服力。它的独特价值只在**未知 provider**上,那正是 P-D
+   Canary 3 的位置。为一件已被真实数据证实的事每发烧 ~12k token,不值。
+3. **代际标签改为从内容推导**(原计划只说"记 exec_generation")。手填标签
+   会漂移 —— 上了 spill 却忘了改,E0/E1 数据就混池了。现在
+   `exec_generation()` 从 context/tool profile 的实际取值推出 `E0` /
+   `E1-S2` / `E1-S2+S4` …,并有钉死执法。
+
+**顺带修的一处钉死退化**:变异闸门抓到 M42e 逃逸 —— C5 改动让
+`verify()` 先做挂载发现,该钉死的合成控制组没有 `def mount_*`,于是在到达
+逐字节比对**之前**就 SystemExit,用例仍绿但**绿的理由变了**。合成数据补上
+挂载函数后复现:掏空比对必红。这正是变异闸门存在的意义。
+
+**已知缺口(记录,不在 S1 内修)**:`--fake positive` 冒烟脚本写死了 T1 的
+控制组文件名(`sdk_mcp.py` / `mount_sdk_mcp` / fastapi-mcp 钉版),对 T2/T3
+不可用。S1 的 F0 验证改用 `--fake noop` 完成(字段端到端落地已确认)。
+
+<details><summary>原计划正文(保留备查)</summary>
+
+#### S1 归因基建:profile hash 拆分 + preflight 升格(非行为改动,先行)
 
 **做什么**:
 1. run manifest 增四个指纹:`provider_profile_hash`(现 provider_config_sha256
@@ -146,6 +177,8 @@ usage 可得)计算:
 P2 host-run 在 preflight 缺失/失败时拒开(拒开理由独立,不与 H9-a 混);
 P3 长观测 canary 在 E0 下通过(它测的是记账不是投影)。
 **验**:钉死 + 变异条目照常;跑一发 fake-scripted 冒烟确认台账新字段落地。
+
+</details>
 
 ### S2 上下文治理第一刀:spill + 确定性 prune(E1 的定义性改动)
 
