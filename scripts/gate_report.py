@@ -60,6 +60,8 @@ def compute(project_root: Path = REPO) -> dict:
             "heldout_model_evaluation_runs": "未见任务能力评测 —— **第二宿主未建,恒为 0**",
             "treatment_not_delivered_runs": "处理臂分配了但实测零生效 —— 不计处理效应",
             "post_hoc_classified_runs": "分类发生在看到结果之后(自曝,防伪装成预注册)",
+            "provisional_evidence_runs": "证据已降级 —— **仍计入 passes(未被改判)**,"
+                                         "但引用时必须带上 caveat;见 provisional_evidence",
         },
         "all_runs": count_passes(project_root),
     }

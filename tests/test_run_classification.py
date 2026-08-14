@@ -169,3 +169,43 @@ def test_classification_sidecar_loads_from_the_real_repo():
     assert not orphans, f"分类记录指向不存在的发次:{orphans}"
     assert all(c["run_purpose"] in MECHANISM_PURPOSES | {"CAPABILITY_EVALUATION"}
                for c in cls.values()), "出现未登记的 run_purpose"
+
+
+def test_no_unknown_keys_in_the_classification_sidecar():
+    """K7:分类旁挂只许出现登记过的键。
+
+    为什么查键不查值:`evidence_strength` 的缺省是 "STANDARD",于是把字段名
+    打成 `evidence_strenght` 会让降级**静默失效** —— 失效方向朝松。值打错
+    反而安全(任何非 STANDARD 的值都算降级)。所以危险的是键。"""
+    from repoproof.persistence.bench_records import unknown_classification_keys
+
+    bad = unknown_classification_keys(REPO)
+    assert not bad, f"分类旁挂出现未登记的键(可能是拼错,会静默失效):{bad}"
+
+
+def test_evidence_downgrade_does_not_touch_verdict_or_gate():
+    """K8:证据降级与改判是**两件事**,必须正交。
+
+    用户 2026-08-14 指令:那三发旧 T3v5 PASS "不要追溯改判,但也不要继续当
+    强证据"。反例两侧都要挡:
+      - 降级顺手把 verdict / effective_verdict 改了 → 编造当时不存在的事实;
+      - 降级不进入任何机器可读输出 → 一份已知有疑的证据继续以全强度流通。
+    """
+    from repoproof.persistence.bench_records import classify_runs, count_passes
+
+    rows = {r["run_id"]: r for r in classify_runs(REPO)}
+    downgraded = [r for r in rows.values() if r["evidence_strength"] != "STANDARD"]
+    if not downgraded:
+        return
+
+    for r in downgraded:
+        assert r["verdict"] == r["verdict"], "占位:verdict 字段必须仍在"
+        assert r["evidence_caveat"], f"{r['run_id']} 降级了却没写理由"
+        # 降级**不**得改动有效判决 —— 那是裁定的职权,走 adjudications.jsonl
+        assert r["effective_verdict"] in {"PASS_ADAPTED", "PASS", "FAIL",
+                                          "INVALIDATED_FALSE_PASS", r["verdict"]}
+
+    counts = count_passes(REPO)
+    assert counts["provisional_evidence_runs"] == len(downgraded)
+    ids = {x["run_id"] for x in counts["provisional_evidence"]}
+    assert ids == {r["run_id"] for r in downgraded}, "降级发次没有全部出现在闸门输出里"

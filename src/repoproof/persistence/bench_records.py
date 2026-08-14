@@ -220,6 +220,31 @@ def load_classifications(project_root: str | Path) -> dict[str, dict]:
     return out
 
 
+# 分类旁挂允许出现的键。**白名单而非黑名单**:字段名打错(如
+# `evidence_strenght`)会让该字段静默取默认值 —— `evidence_strength` 的默认
+# 是 "STANDARD",也就是**打错字 = 降级悄悄失效**,失效方向朝松。值打错反而
+# 安全(非 STANDARD 一律算降级)。所以要防的是键,不是值。
+CLASSIFICATION_KEYS = frozenset({
+    "run_id", "run_order", "basis", "classified_at", "notes",
+    "test_mode", "run_purpose", "task_seen",
+    "counts_toward_model_capability", "counts_toward_heldout_benchmark",
+    "counts_toward_mechanism_effect", "counts_toward_treatment_effect",
+    "treatment_assigned", "treatment_activated", "exclusion_reason",
+    "assistance_level", "classification_timing",
+    "evidence_strength", "evidence_caveat",
+})
+
+
+def unknown_classification_keys(project_root: str | Path) -> dict[str, list[str]]:
+    """分类旁挂里出现的未登记键 —— 空字典才算干净。"""
+    bad: dict[str, list[str]] = {}
+    for rid, c in load_classifications(project_root).items():
+        extra = sorted(set(c) - CLASSIFICATION_KEYS)
+        if extra:
+            bad[rid] = extra
+    return bad
+
+
 def classify_runs(project_root: str | Path) -> list[dict]:
     """台账 ⋈ 裁定 ⋈ 分类。**原始 verdict 原样保留**(判据 K1),分类字段
     以缺省值补齐 —— 未分类 = 常规能力评估发次。"""
@@ -241,6 +266,14 @@ def classify_runs(project_root: str | Path) -> list[dict]:
             "exclusion_reason": c.get("exclusion_reason"),
             "assistance_level": c.get("assistance_level"),
             "classification_timing": c.get("classification_timing"),
+            # 证据强度分面(2026-08-14,判据 K7)。**与 verdict / 裁定 /
+            # 闸门计数完全正交** —— 它不改判任何一发,只回答"这一发还能不能
+            # 被当作强证据引用"。用户 2026-08-14 指令:那三发旧 T3v5 PASS
+            # "不要追溯改判,但也不要继续当强证据"。两件事必须分开表达,
+            # 因为把它们合并只有两种走法,都错:改判 = 编造当时不存在的
+            # 事实;不管 = 让一份已知有疑的证据继续以全强度流通。
+            "evidence_strength": c.get("evidence_strength", "STANDARD"),
+            "evidence_caveat": c.get("evidence_caveat"),
         })
     return rows
 
@@ -300,7 +333,15 @@ def count_passes(project_root: str | Path, task_prefix: str | None = None) -> di
         "smoke": len(smoke),
         "smoke_passes": sum(
             1 for r in smoke if r["effective_verdict"] in PASS_VERDICTS),
+        # 降级证据:仍计入 passes(未被改判),但引用时必须带上保留意见
+        "provisional_evidence_runs": sum(
+            1 for r in rows if r["evidence_strength"] != "STANDARD"),
         "pass_run_ids": [r.get("run_id") for r in passes],
+        "provisional_evidence": [
+            {"run_id": r.get("run_id"), "strength": r["evidence_strength"],
+             "caveat": r.get("evidence_caveat"),
+             "still_counted_in_passes": r.get("run_id") in {x.get("run_id") for x in passes}}
+            for r in rows if r["evidence_strength"] != "STANDARD"],
         "invalidated_run_ids": [r.get("run_id") for r in invalidated],
         "exploratory_run_ids": [r.get("run_id") for r in exploratory],
         "smoke_run_ids": [r.get("run_id") for r in smoke],
