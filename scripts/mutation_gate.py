@@ -857,9 +857,11 @@ MUTATIONS: list[dict] = [
         "id": "M56a-agent-env-leaks-the-ledger",
         "lesson": "台账路径漏进 agent 环境 → U1 的全部意义没了(谁都能伪造回执)",
         "file": _USC,
-        "old": '            "REPOPROOF_SIDECAR_TOKEN": self.token,',
-        "new": '            "REPOPROOF_SIDECAR_TOKEN": self.token,\n'
-               '            "REPOPROOF_LEDGER": str(self.ledger_path),',
+        "old": ('        return {"REPOPROOF_SIDECAR_URL": self.base_url,\n'
+                '                "REPOPROOF_SIDECAR_TOKEN": self.token}'),
+        "new": ('        return {"REPOPROOF_SIDECAR_URL": self.base_url,\n'
+                '                "REPOPROOF_LEDGER": str(self.ledger_path),\n'
+                '                "REPOPROOF_SIDECAR_TOKEN": self.token}'),
         "catchers": _T_SW,
     },
     {
