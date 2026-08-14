@@ -13,7 +13,9 @@ adapter 代码能表达的东西(adapter 连台账路径都不知道)。runner �
 EXPECT = "FAIL"
 # runner 会**沿用上一轮的密钥**跑这条 —— 否则签名先挂,nonce 那道走不到,
 # 这条负控就变成在考密钥轮换。签名绿、nonce 红,才是把它单独拎出来考。
-EXPECT_RED = {"U1.run_nonce", "U3.coverage", "U4.adoption"}
+# `U1.count`(2026-08-14 新增)也红:本次执行方一条没写,台账里却有 N 条。
+# 这比 nonce 更早、更硬 —— 不必读回执内容就成立。
+EXPECT_RED = {"U1.run_nonce", "U1.count", "U3.coverage", "U4.adoption"}
 NEEDS_REPLAYED_LEDGER = True
 
 

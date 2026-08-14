@@ -96,13 +96,14 @@ def _world(tmp_path: Path, *, jobs=(("a", "RESULT A"), ("b", "RESULT B"))):
         units.append({"request_nonce": rn, "input_digest": digest_of(inp)})
         delivery.append(out)
     return {"key": key, "nonce": nonce, "path": path, "units": units,
-            "delivery": delivery}
+            "delivery": delivery, "written": len(jobs)}
 
 
 def _verify(w, *, task_id="t-recv", **over):
     kw = {"key": w["key"], "run_id": "run-1", "run_nonce": w["nonce"],
           "task_id": task_id, "required_symbols": SYMS, "required_upstream": UP,
-          "expected_units": w["units"], "delivery": w["delivery"]}
+          "expected_units": w["units"], "delivery": w["delivery"],
+          "expected_receipt_count": w["written"]}
     kw.update(over)
     return verify_receipts(w["path"], **kw)
 
@@ -195,7 +196,7 @@ def test_untrusted_receipts_do_not_count_toward_coverage(tmp_path):
                         task_id="t-recv", required_symbols=SYMS, required_upstream=UP,
                         expected_units=[{"request_nonce": "rn-a",
                                          "input_digest": digest_of({"job": "a"})}],
-                        delivery=["A"])
+                        delivery=["A"], expected_receipt_count=1)
     red = {f.check for f in v.failed()}
     assert "U1.run_nonce" in red, "重放没被 U1 抓住"
     assert "U3.coverage" in red, (
@@ -214,7 +215,7 @@ def test_untrusted_receipts_do_not_count_toward_adoption(tmp_path):
                         task_id="t-recv", required_symbols=SYMS, required_upstream=UP,
                         expected_units=[{"request_nonce": "rn-a",
                                          "input_digest": digest_of({"job": "a"})}],
-                        delivery=["A"])
+                        delivery=["A"], expected_receipt_count=1)
     red = {f.check for f in v.failed()}
     assert "U1.signature" in red
     assert "U4.adoption" in red, "签名无效的回执竟然替交付背书了"
@@ -302,7 +303,7 @@ def test_wrong_symbol_is_caught(tmp_path):
                         task_id="t-recv", required_symbols=SYMS, required_upstream=UP,
                         expected_units=[{"request_nonce": "rn-a",
                                          "input_digest": digest_of({"job": "a"})}],
-                        delivery=["A"])
+                        delivery=["A"], expected_receipt_count=1)
     assert any(f.check == "U2.symbol" and not f.ok for f in v.findings)
 
 
@@ -321,7 +322,7 @@ def test_same_name_package_with_different_bytes_is_caught(tmp_path):
                         task_id="t-recv", required_symbols=SYMS, required_upstream=UP,
                         expected_units=[{"request_nonce": "rn-a",
                                          "input_digest": digest_of({"job": "a"})}],
-                        delivery=["A"])
+                        delivery=["A"], expected_receipt_count=1)
     assert any(f.check == "U2.upstream_identity" and not f.ok for f in v.findings)
 
 
@@ -368,7 +369,7 @@ def test_preview_and_size_do_not_affect_the_verdict(tmp_path):
                         task_id="t-recv", required_symbols=SYMS, required_upstream=UP,
                         expected_units=[{"request_nonce": "rn-a",
                                          "input_digest": digest_of(inp)}],
-                        delivery=[out])
+                        delivery=[out], expected_receipt_count=1)
     assert v.ok, [f.detail for f in v.failed()]
 
 
@@ -388,6 +389,37 @@ def test_round_trip_through_the_ledger_preserves_verifiability(tmp_path):
     w = _world(tmp_path)
     for r in read_ledger(w["path"]):
         assert r.signature_ok(w["key"]), f"{r.operation.invocation_id} 读回来就验不过了"
+
+
+def test_r10_tail_truncation_is_caught_by_the_count_not_the_chain(tmp_path):
+    """R10:**尾部截断哈希链查不出**,得靠台账之外的一个计数。
+
+    实测:删中间一行 → 链断在第 1 行;**删最后一行 → 链校验照样通过**。
+    链只证明"留下的这些是连续的",证明不了"没被砍掉尾巴"。
+
+    这是负控逼出来的缺口 —— 想把"链"这一道单独考出来,唯一办法是删行
+    (篡改会连签名一起破),而一删就发现末尾那种删法根本查不出。"""
+    w = _world(tmp_path, jobs=(("a", "A"), ("b", "B"), ("c", "C")))
+    lines = w["path"].read_text(encoding="utf-8").splitlines()
+    w["path"].write_text("\n".join(lines[:-1]) + "\n", encoding="utf-8")
+
+    ok, _, _ = verify_chain(w["path"])
+    assert ok, "前提变了:链现在查得出尾部截断?那这条钉死要重写"
+
+    v = _verify(w, delivery=w["delivery"][:-1])
+    red = {f.check for f in v.failed()}
+    assert "U1.chain" not in red, "链不该报红(它确实查不出尾部截断)"
+    assert "U1.count" in red, "砍了尾巴却没人报 —— 那这条判据白加了"
+
+
+def test_r10b_missing_count_is_refused_not_assumed(tmp_path):
+    """R10 的纪律面:不给条数一律判不过,不猜。
+
+    反例:缺省当成"没截断" → 砍尾巴变成免费的,而调用方还以为验过了。"""
+    v = _verify(_world(tmp_path), expected_receipt_count=None)
+    assert not v.ok
+    d = next(f.detail for f in v.failed() if f.check == "U1.count")
+    assert "尾部截断不可检测" in d
 
 
 def test_ledger_lives_in_the_evidence_dir_not_the_agent_workspace():

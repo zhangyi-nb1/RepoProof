@@ -112,12 +112,17 @@ def verify_receipts(
     required_upstream: dict,
     expected_units: list[dict] | None = None,
     delivery: object = None,
+    expected_receipt_count: int | None = None,
 ) -> ReceiptVerdict:
     """跑完 U1–U4。
 
     `expected_units`:harness 侧知道的待办单元,每个形如
     `{"request_nonce": ..., "input_digest": ...}`。它是 U3 的分母 ——
     **没有它就无法回答"象征性调用一次"**,因为一张回执看起来永远像"调过了"。
+
+    `expected_receipt_count`:执行方自己数出来的条数,**在台账之外**。
+    哈希链查得出改写/乱序/删中间行,**查不出尾部截断**(实测:删最后一行
+    链校验照样通过)。不给这个数,砍尾巴就是免费的。
     """
     f: list[Finding] = []
     receipts = read_ledger(ledger_path)
@@ -136,6 +141,17 @@ def verify_receipts(
     f.append(Finding("U1.run_nonce", not wrong_run,
                      "全部绑定到本次 run" if not wrong_run
                      else f"回执来自别的 run(重放):{wrong_run}"))
+
+    if expected_receipt_count is None:
+        f.append(Finding("U1.count", False,
+                         "调用方没有给出执行方实际写入的条数 —— **尾部截断不可检测**"
+                         "(哈希链只证明留下的这些是连续的,证明不了没被砍尾巴)。"
+                         "不给一律判不过,不猜。"))
+    else:
+        n = len(receipts)
+        f.append(Finding("U1.count", n == expected_receipt_count,
+                         f"执行方写了 {expected_receipt_count} 条,台账里 {n} 条"
+                         + ("" if n == expected_receipt_count else " —— 对不上")))
 
     bad_ver = [r.operation.invocation_id for r in receipts
                if r.receipt_version != RECEIPT_VERSION]

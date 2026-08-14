@@ -30,6 +30,13 @@
 #   ④controls 增 nc8_canary_launder(有意规避型负控)。
 #   h1-h6/h8 断言体、mock 站、fixtures、预算逐字节不变。
 task_id: t3-offerclaw-browser-use-v6
+# 谱系(2026-08-14):本任务属 **T3-INPROC** 支 —— agent 自己安装 / import /
+# 使用上游包。将来的 sidecar 版另开 **T3-SIDECAR v1**(runtime_profile:
+# rt-sidecar-browser-v1,task_shape: SIDECAR_RPC_ADOPTION),**不叫 T3v7**:
+# 那读起来像同一个任务的第七版,而能力定义已经变了。两支成绩永不混合。
+task_family: T3-INPROC
+adoption_shape: DEPENDENCY_INTEGRATION
+runtime_profile: rt-inprocess-v1
 task_version: v6
 kind: host_integrated
 

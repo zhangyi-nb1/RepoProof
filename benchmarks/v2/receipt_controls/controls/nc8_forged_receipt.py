@@ -22,7 +22,8 @@ import time
 from pathlib import Path
 
 EXPECT = "FAIL"
-EXPECT_RED = {"U1.signature", "U3.coverage", "U4.adoption"}
+# `U1.count`(2026-08-14 新增)同样红:它塞了执行方没写过的行。
+EXPECT_RED = {"U1.signature", "U1.count", "U3.coverage", "U4.adoption"}
 NEEDS_LEDGER_PATH = True
 
 

@@ -142,9 +142,30 @@ class TaskContract(BaseModel):
     capability: Capability
     environment: Environment
     # 上游交付拓扑(A1)。**缺省是 in-process,即既有全部发次的行为** ——
-    # 新增能力不得把老题悄悄换成另一道题。声明成 sidecar 的任务,其
-    # `task_shape` 已经变了,与 in-process 发次永不互比。
+    # 新增能力不得把老题悄悄换成另一道题。
     runtime_profile: str = "rt-inprocess-v1"
+    # ---- 任务谱系(2026-08-14 用户指令:明确分叉,不要续版本号)----
+    #
+    # 为什么不叫 "T3v7":`T3v6 → T3v7` 读起来像同一个任务的第七版,而**能力
+    # 定义已经变了**:
+    #
+    #   T3-INPROC   测 dependency integration + API understanding
+    #               + package/runtime setup + host adaptation
+    #   T3-SIDECAR  测 RPC protocol understanding + adapter implementation
+    #               + upstream semantic use
+    #
+    # 两者的成绩**永不混合**。谱系写在这里,论文/README/实验表直接引用,
+    # 不必去解读 task_id 里的版本尾巴。
+    #
+    # 注意 `task_id` 一律不动 —— 台账 92 行都引用着它,改名等于伪造历史。
+    # 谱系是**新增的旁注**,不是重命名。
+    # 命名说明:用户方案里管这个叫 `task_shape`。本仓 **`task_shape` 这个名字
+    # 已被难度画像占用**(HostContract.task_shape 是个 dict:files_and_modules /
+    # integration_points / … / total),直接复用会在 YAML 里静默撞键 —— 后者
+    # 覆盖前者,而且不报错(实测:字符串被 165 行那个 dict 悄悄吃掉)。
+    # 所以改叫 `adoption_shape`,含义与用户方案一致。
+    task_family: str = ""            # 例:T3-INPROC / T3-SIDECAR;空 = 未归族
+    adoption_shape: str = "DEPENDENCY_INTEGRATION"
     constraints: Constraints
     budgets: Budgets
     acceptance: Acceptance

@@ -60,6 +60,8 @@ _T_RCS = ["tests/test_receipt_controls.py"]
 _RTP = "src/repoproof/execution/runtime_profiles.py"
 _USC = "src/repoproof/execution/upstream_sidecar.py"
 _T_RTP = ["tests/test_runtime_profiles.py"]
+_SCF = "scripts/sidecar_conformance.py"
+_T_SCF = ["tests/test_sidecar_conformance.py"]
 _T_CF = ["tests/test_constraint_feedback.py"]
 _T_PI = ["tests/test_process_independence.py"]
 _T_RC = ["tests/test_root_cause_packets.py"]
@@ -763,6 +765,33 @@ MUTATIONS: list[dict] = [
         "old": '    for f in sorted(src_control.glob("*.py")):',
         "new": '    for f in sorted(src_control.glob(f"{module}.py")):',
         "catchers": _T_HD,
+    },
+    # ---- M52:Sidecar Conformance(A1 的第一个使用者)。
+    {
+        "id": "M52a-count-check-removed",
+        "lesson": "去掉台账外的条数校验 → **尾部截断查不出**(实测:删最后一行"
+                  "哈希链照样通过),砍掉不方便的回执变成免费的",
+        "file": _RC_V,
+        "old": "    if expected_receipt_count is None:",
+        "new": "    if False:",
+        "catchers": _T_UR,
+    },
+    {
+        "id": "M52b-topology-gate-removed",
+        "lesson": "不查拓扑就出数 → 上游若够得着,回执与八条攻击全是装饰;"
+                  "'它没来敲门'会被读成偷懒,其实是它不需要",
+        "file": _SCF,
+        "old": "    if not topo[\"ok\"]:",
+        "new": "    if False:",
+        "catchers": _T_SCF,
+    },
+    {
+        "id": "M52c-conformance-judge-ignores-red-spot",
+        "lesson": "红一片就算数 → 分不清四道谓词各自在不在干活",
+        "file": _SCF,
+        "old": '        elif r["expect"] == "FAIL" and set(r["actual_red"]) != set(r["expect_red"]):',
+        "new": "        elif False:",
+        "catchers": _T_SCF,
     },
     # ---- M51:Runtime Profile(A1,第 7 步)。sidecar 不是换实现细节,
     # 是换了一道题 —— 下面四条各拆掉一处"两道题被当成一道"的防线。

@@ -368,6 +368,34 @@ class HostAcceptance(BaseModel):
     hidden_oracle_command: list[str]
 
 
+def _reject_duplicate_keys(raw: bytes, path: Path) -> None:
+    """冻结契约里出现重复顶层键 → 报错。
+
+    2026-08-14 实测到的坑:往契约里加了一行 `task_shape: DEPENDENCY_INTEGRATION`,
+    而 165 行早就有一个 `task_shape:` 字典。`yaml.safe_load` **后者覆盖前者
+    且不报错**,于是新加的那行静默消失,而所有下游看到的仍是旧值 —— 契约是
+    冻结对象,这种静默覆盖等于契约说的和实际生效的不是一回事。
+    """
+    import yaml as _y
+
+    class _Dup(_y.SafeLoader):
+        pass
+
+    def _mapping(loader, node, deep=False):
+        seen, dups = set(), []
+        for k, _ in node.value:
+            key = loader.construct_object(k, deep=deep)
+            if key in seen:
+                dups.append(key)
+            seen.add(key)
+        if dups:
+            raise HostRunError(f"契约里有重复键(YAML 会静默覆盖):{sorted(set(dups))} @ {path}")
+        return _y.SafeLoader.construct_mapping(loader, node, deep=deep)
+
+    _Dup.add_constructor(_y.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _mapping)
+    _y.load(raw, Loader=_Dup)
+
+
 class HostContract(BaseModel):
     """宿主级任务契约(benchmarks/v2/tasks/*/contract.yaml,冻结对象)。"""
 
@@ -380,12 +408,18 @@ class HostContract(BaseModel):
     constraints: HostConstraints = HostConstraints()
     budgets: HostBudgets
     acceptance: HostAcceptance
-    task_shape: dict = Field(default_factory=dict)
+    task_shape: dict = Field(default_factory=dict)     # 难度画像(既有含义)
     failure_taxonomy_expected: list[str] = Field(default_factory=list)
+    # ---- 上游交付拓扑与任务谱系(A1,2026-08-14)----
+    # 缺省全部等于既有行为:in-process + 依赖集成 + 未归族。
+    runtime_profile: str = "rt-inprocess-v1"
+    task_family: str = ""
+    adoption_shape: str = "DEPENDENCY_INTEGRATION"
 
     @classmethod
     def load(cls, path: Path) -> tuple["HostContract", str]:
         raw = Path(path).read_bytes()
+        _reject_duplicate_keys(raw, path)
         data = yaml.safe_load(raw)
         contract = cls.model_validate(data)
         if contract.kind != "host_integrated":

@@ -134,6 +134,7 @@ def run_one(control_path: Path, *, replay_source: Path | None = None,
         delivery = ctrl.run(Sidecar(env["REPOPROOF_SIDECAR_URL"],
                                     env["REPOPROOF_SIDECAR_TOKEN"]), JOBS)
     finally:
+        written = handle.receipts_written()
         handle.shutdown()
     for k in ("REPOPROOF_REPLAY_SOURCE", "REPOPROOF_FORGE_TARGET",
               "REPOPROOF_FORGE_RUN_ID", "REPOPROOF_FORGE_RUN_NONCE",
@@ -146,7 +147,8 @@ def run_one(control_path: Path, *, replay_source: Path | None = None,
         required_upstream={"distribution": sidecar_mod.DISTRIBUTION,
                            "import_module": sidecar_mod.IMPORT_MODULE,
                            "artifact_hash": sidecar_mod._upstream_identity().artifact_hash},
-        expected_units=_expected_units(sidecar_mod), delivery=delivery)
+        expected_units=_expected_units(sidecar_mod), delivery=delivery,
+        expected_receipt_count=written)
 
     return {"_key": key,                     # 只在内存里传给 nc5,不落盘
             "control": control_path.stem,

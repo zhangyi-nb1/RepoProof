@@ -69,6 +69,14 @@ class UpstreamSpec:
     distribution: str
     import_module: str
     dispatch: dict[str, Callable[[Any], str]]
+    # 上游怎么进到 harness 进程里。缺省是普通 import;harness 独占的 fixture
+    # 需要显式挂路径,就给一个 loader。
+    #
+    # 为什么要有它:没有 loader 的话,`identity()` 只能靠"某个 dispatch 已经
+    # 先跑过、顺手把路径挂上了"这种副作用才 import 得到 —— 顺序一变就炸,
+    # 而且炸的地方是**算上游身份**,那是 U2 的全部依据。身份计算不该依赖
+    # 别人的副作用。
+    loader: Callable[[], Any] | None = None
 
     def identity(self) -> UpstreamIdentity:
         """**现场**从实际加载的模块算身份 —— 不读配置,不信自述。
@@ -76,7 +84,7 @@ class UpstreamSpec:
         `artifact_hash` 哈的是包内全部 .py 的字节。自带同名包能骗过
         `__name__` 与 `__version__`(T3 批 13 连 `UPSTREAM_COMMIT` 都照抄
         了),骗不过这个。"""
-        mod = __import__(self.import_module)
+        mod = self.loader() if self.loader is not None else __import__(self.import_module)
         root = Path(mod.__file__).resolve().parent
         h = hashlib.sha256()
         for f in sorted(root.rglob("*.py")):
@@ -100,6 +108,16 @@ class SidecarHandle:
 
     def shutdown(self) -> None:
         self.server.shutdown()
+
+    def receipts_written(self) -> int:
+        """**执行方自己数的**条数 —— 与台账文件相互独立。
+
+        为什么必须有:哈希链查得出改写、乱序、删中间行,**查不出尾部截断**
+        (实测:删最后一行,链校验照样通过)。链只能证明"留下的这些是连续
+        的",证明不了"没有被砍掉尾巴"。要证后者,得有一个**在台账之外**的
+        计数 —— 那就是这个。
+        """
+        return int(getattr(self.server, "seq", 0))
 
     def agent_env(self) -> dict[str, str]:
         """交给 agent 的**全部**东西 —— 端点与令牌,仅此而已。
