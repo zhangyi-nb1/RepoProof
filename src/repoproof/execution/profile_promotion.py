@@ -92,10 +92,33 @@ def _read_json(p: Path) -> dict | None:
         return None
 
 
-def _latest_mutation_evidence(repo: Path) -> dict | None:
+def _mutation_evidence_at_head(repo: Path) -> tuple[dict | None, str]:
+    """取**当前 HEAD 那一次**的变异证据。返回 (证据, 说明)。
+
+    两处曾经想当然、都被现场打脸:
+
+    1. **不按 mtime 取"最新"**。变异闸门在临时 git worktree 里跑,checkout
+       出来的文件 mtime 全都一样 —— "最新"其实是随机取。
+    2. **不接受别的 commit 的证据**。证据文件按 HEAD 命名正是为了这个:
+       上一个 commit 跑绿了,不代表这个 commit 还绿。拿旧证据给新代码背书,
+       与"改完不重跑"没有区别。
+    """
+    import subprocess
+
     d = repo / "docs" / "evidence" / "mutation_gate"
-    files = sorted(d.glob("*.json"), key=lambda f: f.stat().st_mtime) if d.is_dir() else []
-    return _read_json(files[-1]) if files else None
+    if not d.is_dir():
+        return None, "没有变异证据目录"
+    head = subprocess.run(                                   # noqa: S603 固定 argv
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        capture_output=True, text=True, check=False).stdout.strip()
+    if not head:
+        return None, "取不到 HEAD —— 无从判断证据是不是这份代码的"
+    f = d / f"{head[:12]}.json"
+    if not f.is_file():
+        return None, (f"HEAD {head[:12]} 上没有变异证据 —— 先跑 "
+                      "scripts/mutation_gate.py。上一个 commit 跑绿了不代表"
+                      "这个 commit 还绿")
+    return _read_json(f), f"HEAD {head[:12]}"
 
 
 # ------------------------------------------------------------------ 判据
@@ -138,11 +161,20 @@ def _check_conformance(repo: Path, p: RuntimeProfile) -> list[Check]:
     return out
 
 
-def _check_mutations(repo: Path) -> Check:
-    """G5:变异全捕,且守护这套机制的条目确实在场。"""
-    ev = _latest_mutation_evidence(repo)
+def _check_mutations(repo: Path, *, evidence: dict | None = None) -> Check:
+    """G5:变异全捕,且守护这套机制的条目确实在场。
+
+    `evidence` 显式传入时直接用它(钉死喂合成数据走这条);否则按 HEAD 取。
+    做成显式参数而不是"目录里只有一个文件就用那个",是因为后者是**隐式
+    行为** —— 真仓里有几十个文件所以严格,合成目录里只有一个所以宽松,
+    两种行为差别很大却没人写出来。
+    """
+    why = "显式传入"
+    if evidence is None:
+        evidence, why = _mutation_evidence_at_head(repo)
+    ev = evidence
     if ev is None:
-        return Check("G5.mutation", False, "没有变异闸门证据 —— 查不到就拒绝晋级")
+        return Check("G5.mutation", False, f"拿不到变异证据({why})—— 查不到就拒绝晋级")
     ids = [r.get("id", "") for r in (ev.get("results") or [])]
     present = {pre for pre in REQUIRED_MUTATION_PREFIXES
                if any(i.startswith(pre) for i in ids)}
@@ -170,7 +202,7 @@ def _check_mutations(repo: Path) -> Check:
                      f"stale={ev.get('stale')!r})—— 读不出就判不过,不猜")
     ok = escaped == 0 and stale == 0 and not missing
     return Check("G5.mutation", ok,
-                 f"逃逸 0、过期 0(共 {len(ids)} 条),守护条目 "
+                 f"逃逸 0、过期 0(共 {len(ids)} 条,{why}),守护条目 "
                  f"{sorted(present)} 在场" if ok
                  else f"逃逸 {escaped}、过期 {stale};缺守护条目 {sorted(missing)} —— "
                       "空登记簿的逃逸数也是 0,所以还要查在场")

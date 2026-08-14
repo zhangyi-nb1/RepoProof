@@ -139,13 +139,9 @@ def test_p7b_unparseable_mutation_evidence_fails_closed(tmp_path):
     """P7 的失效方向:读不出逃逸/过期时**判不过**,不是判过。"""
     from repoproof.execution.profile_promotion import _check_mutations
 
-    d = tmp_path / "docs" / "evidence" / "mutation_gate"
-    d.mkdir(parents=True)
-    (d / "x.json").write_text(json.dumps(
-        {"capture_rate": "100%", "escaped": "无", "stale": None,
-         "results": [{"id": "M49a"}, {"id": "M50a"}, {"id": "M52a"}]}), encoding="utf-8")
-
-    c = _check_mutations(tmp_path)
+    c = _check_mutations(tmp_path, evidence={
+        "capture_rate": "100%", "escaped": "无", "stale": None,
+        "results": [{"id": "M49a"}, {"id": "M50a"}, {"id": "M52a"}]})
     assert not c.ok and "读不出" in c.detail
 
 
@@ -155,24 +151,48 @@ def test_an_empty_registry_of_mutations_does_not_pass(tmp_path):
     反例:捕获率 100% 但一条相关的都没有 —— 那个 100% 与本 profile 无关。"""
     from repoproof.execution.profile_promotion import _check_mutations
 
-    d = tmp_path / "docs" / "evidence" / "mutation_gate"
-    d.mkdir(parents=True)
-    (d / "x.json").write_text(json.dumps(
-        {"escaped": [], "stale": [], "results": [{"id": "M30a-unrelated"}]}),
-        encoding="utf-8")
-
-    c = _check_mutations(tmp_path)
+    c = _check_mutations(tmp_path, evidence={
+        "escaped": [], "stale": [], "results": [{"id": "M30a-unrelated"}]})
     assert not c.ok and "缺守护条目" in c.detail
 
 
-def test_canary_is_candidate_and_earned_it():
-    """接线:canary 现在是 candidate,且判据现算仍然全过。"""
+def test_canary_is_candidate_and_still_earns_g1_to_g4():
+    """接线:canary 是 candidate,且 G1–G4 **现算**仍然全过。
+
+    为什么这里不现算 G5:变异证据按 HEAD 命名,**每个 commit 一份**,而
+    刚提交的 commit 上还没跑过 —— 现算必然报"这个 commit 上没有证据"。
+    那不是缺陷,正是 G5 想要的严格性(旧 commit 的绿不为新代码背书)。
+
+    于是分工:G1–G4 的证据(conformance 矩阵)是稳定的落盘件,这里现算;
+    G5 属于"晋级那一刻的事实",由留痕(P6)与晋级脚本负责。想现场复核,
+    跑 `scripts/mutation_gate.py` 之后再跑 `scripts/promote_profile.py`。"""
     assert CANARY.PROFILE.lifecycle == "candidate"
     v = evaluate_promotion(CANARY.PROFILE_ID, repo=REPO, to="candidate")
-    assert v.ok, [c.detail for c in v.failed()]
     assert {c.id for c in v.checks} == {
         "G1.topology", "G2.no_false_kill", "G3.reds_where_declared",
         "G4.discrimination", "G5.mutation"}
+    live = {c.id: c for c in v.checks if c.id != "G5.mutation"}
+    assert all(c.ok for c in live.values()), [c.detail for c in live.values() if not c.ok]
+
+
+def test_g5_refuses_evidence_from_another_commit(tmp_path):
+    """G5 的严格性:**别的 commit 的变异证据不算数**。
+
+    反例:按 mtime 取"最新"一份 —— 变异闸门在 git worktree 里跑,checkout
+    出来的文件 mtime 全一样,"最新"其实是随机取;而且上一个 commit 跑绿了
+    不代表这个 commit 还绿,拿旧证据背书与"改完不重跑"没区别。"""
+    from repoproof.execution.profile_promotion import _check_mutations
+
+    d = tmp_path / "docs" / "evidence" / "mutation_gate"
+    d.mkdir(parents=True)
+    (d / "deadbeefcafe.json").write_text(json.dumps(
+        {"escaped": [], "stale": [],
+         "results": [{"id": "M49a"}, {"id": "M50a"}, {"id": "M52a"}]}),
+        encoding="utf-8")
+    # tmp_path 不是 git 仓 → 取不到 HEAD → 判不过(而不是"就用这唯一一份")
+    c = _check_mutations(tmp_path)
+    assert not c.ok
+    assert "HEAD" in c.detail or "变异证据目录" in c.detail
 
 
 def test_lifecycle_order_is_frozen():
