@@ -36,6 +36,11 @@ REQUIRED_FIELDS = (
     "scope_change_count", "stagnation", "final_capability", "final_regression",
     "policy", "replay", "verdict", "failure_types", "execution_backend",
     "env_baseline_hash", "main_dir_integrity", "trace_sha256", "bundle_path",
+    # 执行侧四面指纹(S1,2026-08-14)。provider 面沿用 provider_config_hash;
+    # 其余三面 + 代际 + 代码内容指纹拆开记,供 E1 消融单变量归因。
+    # 历史行无这些字段 —— 只增不改,取数时按缺失=E0 处理。
+    "tool_profile_hash", "context_profile_hash", "budget_profile_hash",
+    "exec_generation", "exec_fingerprint",
 )
 
 UNKNOWN = "UNKNOWN"

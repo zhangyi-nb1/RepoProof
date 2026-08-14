@@ -80,6 +80,39 @@ def hard_signals(*, collected_ok: bool, policy_violations: int,
     return (collected_ok, policy_violations == 0, regression_failed == 0, passed)
 
 
+def _exec_profile_fields(contract, preflight) -> dict:
+    """执行侧三面指纹 + 代际 + 代码内容指纹(EXECUTOR-UPGRADE-PLAN S1)。
+
+    取值全部来自**本次发次真正生效的配置**,不是文档里写的意图:
+    工具面读 obs_cap() 与实际动作协议,上下文面读同一个 cap 与当前投影
+    策略,预算面读契约 budgets 全量。E1 各步上线时只需在这里补字段,
+    代际标签由 profiles.exec_generation 自动推导 —— 不靠人记得改。"""
+    from repoproof.agents.profiles import profile_hashes
+
+    b = contract.budgets
+    cap = obs_cap()
+    tool = {
+        "action_protocol": (preflight.action_protocol if preflight else "fake"),
+        "tools": ["bash"],
+        "obs_char_cap": cap,
+    }
+    context = {
+        # E0:mini-swe DefaultAgent 每轮重发完整历史,单条观察头尾截断
+        "policy": "full-history-resend",
+        "obs_char_cap": cap,
+    }
+    budget = {
+        "semantics": b.semantics, "max_rounds": b.max_rounds,
+        "max_model_calls": b.max_model_calls, "max_commands": b.max_commands,
+        "max_patch_files": b.max_patch_files, "max_patch_lines": b.max_patch_lines,
+        "max_wall_time_minutes": b.max_wall_time_minutes,
+        "max_input_tokens_total": b.max_input_tokens_total,
+        "max_output_tokens_total": b.max_output_tokens_total,
+    }
+    return profile_hashes(tool=tool, context=context, budget=budget,
+                          repo=Path(__file__).resolve().parents[3])
+
+
 def obs_cap() -> int | None:
     """观察限流阈值(修订④,2026-08-10):默认 8000 字符(~2k tokens)。
 
@@ -1888,6 +1921,10 @@ class HostGuidedRunner:
             "provider": "openai-compatible" if preflight else "fake",
             "provider_config_hash": (preflight.provider_config_sha256
                                      if preflight else "UNKNOWN"),
+            # 执行侧四面指纹(S1):provider 面见上一行,其余三面 + 代际 +
+            # 代码内容指纹在这里。拆开记是为了 E1 消融能单变量归因 ——
+            # 一个大 hash 只说"配置变了",拆开才说"变的是哪一面"。
+            **_exec_profile_fields(self.contract, preflight),
             "run_index": run_index,
             "run_order": run_order,
             # 批次归属:探索性加发打 EXPLORATORY_UNPREREGISTERED,闸门不计

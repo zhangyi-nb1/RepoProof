@@ -60,6 +60,8 @@ _EV = "src/repoproof/agents/repoproof_env.py"
 _T_WC = ["tests/test_workspace_containment.py"]
 _BC = "scripts/build_control_tree.py"
 _T_CT = ["tests/test_control_tree_recipe.py"]
+_PR = "src/repoproof/agents/profiles.py"
+_T_EP = ["tests/test_exec_profiles.py"]
 _VC = "scripts/validate_controls.py"
 _T_VM = ["tests/test_control_validation_matrix.py"]
 
@@ -637,6 +639,50 @@ MUTATIONS: list[dict] = [
         "old": "        if rc in VOID_EXITS:",
         "new": "        if False:",
         "catchers": _T_VM,
+    },
+    {
+        "id": "M45a-profile-hash-not-per-face",
+        "lesson": "#S1 P2:三面共用一个 hash → 只知道'配置变了',消融时无法判断变的是哪一面",
+        "file": _PR,
+        "old": ('        "tool_profile_hash": _hash(tool),\n'
+                '        "context_profile_hash": _hash(context),\n'
+                '        "budget_profile_hash": _hash(budget),'),
+        "new": ('        "tool_profile_hash": _hash({**tool, **context, **budget}),\n'
+                '        "context_profile_hash": _hash({**tool, **context, **budget}),\n'
+                '        "budget_profile_hash": _hash({**tool, **context, **budget}),'),
+        "catchers": _T_EP,
+    },
+    {
+        "id": "M45b-fingerprint-not-content-stable",
+        "lesson": "#S1 P1:哈希输入不排序 → 同一配置每次算出不同指纹,历史发次无法配对",
+        "file": _PR,
+        "old": '    return sha256_bytes(json.dumps(obj, sort_keys=True, separators=(",", ":"),',
+        "new": '    return sha256_bytes(json.dumps(obj, sort_keys=False, separators=(",", ":"),',
+        "catchers": _T_EP,
+    },
+    {
+        "id": "M45c-fingerprint-covers-whole-repo",
+        "lesson": "#S1 P3:指纹扩到全仓 → 改一个 docs 错别字就让全部历史发次'不可比'",
+        "file": _PR,
+        "old": '_EXEC_ROOT = ("src", "repoproof")',
+        "new": '_EXEC_ROOT = ()',
+        "catchers": _T_EP,
+    },
+    {
+        "id": "M45d-generation-ignores-spill",
+        "lesson": "#S1 P4:上了 spill 仍标 E0 → E0/E1 数据混进同一个池子(§2 规则 1 被架空)",
+        "file": _PR,
+        "old": '    if context.get("spill_threshold_chars") or context.get("prune_policy"):',
+        "new": "    if False:",
+        "catchers": _T_EP,
+    },
+    {
+        "id": "M45e-generation-ignores-new-tools",
+        "lesson": "#S1 P4:多了 editor 仍标 E0 → S4 上线后代际标签失真",
+        "file": _PR,
+        "old": '    tools = tuple(tool.get("tools") or _E0_TOOLS)',
+        "new": "    tools = _E0_TOOLS",
+        "catchers": _T_EP,
     },
     {
         "id": "M43e-never-ran-counts-as-red",
