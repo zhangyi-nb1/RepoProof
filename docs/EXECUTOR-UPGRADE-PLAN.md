@@ -629,15 +629,70 @@ E 轨关闭后的第一件事。**它不是调用日志** —— 用户点的要
 **98/98**(M51a–d)。真跑一发 T1 冒烟:`PASS_ADAPTED`、干净重放 PASS、
 `runtime_profile_id=rt-inprocess-v1`、`exec_generation=E0` —— **默认路径零变化**。
 
-### §3.7.1 本步**未做**的事(不含糊)
+### §3.7.1 A1 的第一个使用者:Sidecar Conformance / Runtime Canary(2026-08-14)
 
-**没有任何任务包声明 sidecar 形状。** T3v7 是它的自然归宿(§4 欠账表),
-但那要 browser-use 能在 sidecar 里真跑起来,而本机装不上(缺
-`bubus`/`cdp_use`/`uuid_extensions`/`pyotp`,且需联网)。所以 A1 现在是
-**机制齐备、尚无使用者**的状态。这是下一个增量,gated 在 T3 的去留决定上。
+用户指示:先做一个专门的 conformance fixture 证明 A1 真正可用,**不要**立刻
+上 T3-SIDECAR。已完成,详见 `benchmarks/v2/sidecar_conformance/README.md`。
 
-说清楚这一点是因为:一个"能力已具备"很容易被读成"能力已生效"。本步交付的
-是前者。
+**不是 benchmark**(F0 自检),不进 `runs.jsonl`,不影响任何闸门数字。
+
+拓扑核验四条全过(不过就拒绝出数):fixture 不在任何 wheelhouse、干净子进程
+import 不到、住在策略拒绝表覆盖的仓内目录、agent 环境里零线索。
+
+八条攻击 + 正控全部符合预期且各红各的位置。其中两条值得单独记:
+
+- **a4(调了但不用结果)只红在 U4** —— U1/U2/U3 全绿。任何"记录调用发生过"
+  式的回执都会给它发绿。这是整套设计的考题。
+- **a7(删行)只破链不破签名,a8(增行)只破签名不破链**。合成一条会掩盖掉
+  其中一道判据从没被考过。
+
+**负控逼出一个真缺口并当场补上**:想把"链"单独考出来,唯一办法是删行(改
+字段会连签名一起破)。一删就发现 —— **删最后一行,哈希链校验照样通过**。
+链只证明"留下的这些是连续的",证不了"没被砍尾巴"。补 `U1.count`:执行方
+自己数的条数,存在台账之外;不给条数一律判不过。
+
+**上游 fixture 刻意加盐**:能力若是纯函数,"自己重实现"会算出逐字节相同的
+输出,于是它只红在 U3 而 U4 反而绿 —— 采纳判据在这个 fixture 上就零判别力,
+而我们恰恰是拿它来证明采纳判据管用的。
+
+### §3.7.2 任务谱系:明确分叉,不续版本号(用户指令)
+
+```
+T3-INPROC  └── v6    dependency integration + API understanding
+                     + package/runtime setup + host adaptation
+T3-SIDECAR └── v1    RPC protocol understanding + adapter implementation
+                     + upstream semantic use          ← 尚未建立
+```
+
+**不叫 T3v7**:`T3v6 → T3v7` 读起来像同一个任务的第七版,而能力定义已经变了。
+两支成绩**永不混合**。T3v6 契约已显式标 `task_family: T3-INPROC`。
+
+`task_id` 一律不动 —— 台账 90+ 行引用着它,改名等于伪造历史。谱系是**新增
+旁注**(`task_family` / `adoption_shape`),不是重命名。
+
+命名冲突记一笔:用户方案里管这个叫 `task_shape`,但本仓该名已被**难度画像**
+占用(dict:`files_and_modules`/…/`total`)。我先按原名加了一行,YAML **后者
+覆盖前者且不报错**,字符串被静默吃掉 —— 遂改名 `adoption_shape`,并给冻结
+契约加了重复键防呆(契约是冻结对象,静默覆盖等于"契约说的"和"实际生效的"
+不是一回事)。
+
+### §3.7.3 本阶段**未做**的事(不含糊)
+
+**没有任何 benchmark 任务声明 sidecar 形状。** conformance canary 是使用者,
+但它按定义不是 benchmark。T3-SIDECAR v1 要 browser-use 能在 harness 侧真跑
+起来,而本机装不上(缺 `bubus`/`cdp_use`/`uuid_extensions`/`pyotp`,且需联网)。
+
+按用户给的顺序,余下:
+1. ~~conformance fixture 证明 A1 可用~~ ✅
+2. 固化 runtime profile(experimental → candidate)
+3. 建立 T3-SIDECAR v1
+4. 为 browser-use 构建钉死的 harness-owned runtime
+5. T3-INPROC 保留,与 SIDECAR 成绩不混合(已由 `task_family` + 代际标签保证)
+6. 第二宿主
+7. WH/HB
+
+**用户的暂缓清单**(问过之前不动):重建 T3v6 wheelhouse、重跑 S2′、追溯改判
+那三发旧 T3v5 PASS、开始第二宿主、直接跑大量 GPT。
 
 ---
 
