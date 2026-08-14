@@ -1,0 +1,318 @@
+{
+  "_what": "S2′ 处理暴露的零模型离线重放;口径与在线 projection.applied 同义",
+  "alignment_audit": {
+    "blocks": 539,
+    "aligned": 533,
+    "trailing_submit_no_result": 6,
+    "risky_misalignments": 0,
+    "examples": [],
+    "verdict": "偏移映射可靠(零处可能错位)"
+  },
+  "_selfcheck": "4 条合成用例通过(链式命中/纯执行不折/窗口内不折/入参不改)",
+  "window_reads": 8,
+  "test_mode": "E1",
+  "runs": [
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-141217",
+      "rounds": 1,
+      "model_calls": 24,
+      "activations_new": 12,
+      "activations_old": 12,
+      "folded_msgs_new": 68,
+      "folded_msgs_old": 68,
+      "arm": "A(对照/投影关)",
+      "model": "gpt-5.5",
+      "recorded_activated": false
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-142222",
+      "rounds": 3,
+      "model_calls": 87,
+      "activations_new": 50,
+      "activations_old": 50,
+      "folded_msgs_new": 343,
+      "folded_msgs_old": 343,
+      "arm": "B(处理/投影开)",
+      "model": "gpt-5.5",
+      "recorded_activated": true
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-143845",
+      "rounds": 2,
+      "model_calls": 38,
+      "activations_new": 28,
+      "activations_old": 3,
+      "folded_msgs_new": 186,
+      "folded_msgs_old": 5,
+      "arm": "A(对照/投影关)",
+      "model": "gpt-5.6",
+      "recorded_activated": false
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-150018",
+      "rounds": 2,
+      "model_calls": 36,
+      "activations_new": 29,
+      "activations_old": 0,
+      "folded_msgs_new": 198,
+      "folded_msgs_old": 0,
+      "arm": "B(处理/投影开)",
+      "model": "gpt-5.6",
+      "recorded_activated": false
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-151537",
+      "rounds": 3,
+      "model_calls": 83,
+      "activations_new": 37,
+      "activations_old": 37,
+      "folded_msgs_new": 224,
+      "folded_msgs_old": 224,
+      "arm": "A(对照/投影关)",
+      "model": "gpt-5.5",
+      "recorded_activated": false
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-153239",
+      "rounds": 3,
+      "model_calls": 85,
+      "activations_new": 49,
+      "activations_old": 49,
+      "folded_msgs_new": 360,
+      "folded_msgs_old": 360,
+      "arm": "B(处理/投影开)",
+      "model": "gpt-5.5",
+      "recorded_activated": true
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-155052",
+      "rounds": 1,
+      "model_calls": 18,
+      "activations_new": 15,
+      "activations_old": 0,
+      "folded_msgs_new": 127,
+      "folded_msgs_old": 0,
+      "arm": "A(对照/投影关)",
+      "model": "gpt-5.6",
+      "recorded_activated": false
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-160138",
+      "rounds": 1,
+      "model_calls": 15,
+      "activations_new": 12,
+      "activations_old": 0,
+      "folded_msgs_new": 82,
+      "folded_msgs_old": 0,
+      "arm": "B(处理/投影开)",
+      "model": "gpt-5.6",
+      "recorded_activated": false
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-161345",
+      "rounds": 2,
+      "model_calls": 37,
+      "activations_new": 8,
+      "activations_old": 8,
+      "folded_msgs_new": 15,
+      "folded_msgs_old": 15,
+      "arm": "A(对照/投影关)",
+      "model": "gpt-5.5",
+      "recorded_activated": false
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-162355",
+      "rounds": 2,
+      "model_calls": 60,
+      "activations_new": 34,
+      "activations_old": 34,
+      "folded_msgs_new": 231,
+      "folded_msgs_old": 231,
+      "arm": "B(处理/投影开)",
+      "model": "gpt-5.5",
+      "recorded_activated": true
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-163534",
+      "rounds": 2,
+      "model_calls": 39,
+      "activations_new": 12,
+      "activations_old": 0,
+      "folded_msgs_new": 72,
+      "folded_msgs_old": 0,
+      "arm": "A(对照/投影关)",
+      "model": "gpt-5.6",
+      "recorded_activated": false
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-165445",
+      "rounds": 1,
+      "model_calls": 17,
+      "activations_new": 8,
+      "activations_old": 0,
+      "folded_msgs_new": 44,
+      "folded_msgs_old": 0,
+      "arm": "B(处理/投影开)",
+      "model": "gpt-5.6",
+      "recorded_activated": false
+    }
+  ],
+  "by_model_treated": {
+    "gpt-5.5": {
+      "n": 3,
+      "nonzero_new": 3,
+      "nonzero_old": 3
+    },
+    "gpt-5.6": {
+      "n": 3,
+      "nonzero_new": 3,
+      "nonzero_old": 0
+    }
+  },
+  "control_arm_offline_activation": [
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-141217",
+      "model": "gpt-5.5",
+      "activations_if_treated": 12
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-143845",
+      "model": "gpt-5.6",
+      "activations_if_treated": 28
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-151537",
+      "model": "gpt-5.5",
+      "activations_if_treated": 37
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-155052",
+      "model": "gpt-5.6",
+      "activations_if_treated": 15
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-161345",
+      "model": "gpt-5.5",
+      "activations_if_treated": 8
+    },
+    {
+      "run_id": "t2-offerclaw-open-deep-research-v5-20260814-163534",
+      "model": "gpt-5.6",
+      "activations_if_treated": 12
+    }
+  ],
+  "gate": {
+    "threshold_coverage": 0.5,
+    "threshold_every_cell_nonzero": true,
+    "coverage_new": 1.0,
+    "coverage_old": 0.5,
+    "coverage_passes": true,
+    "every_model_cell_nonzero": true,
+    "all_pass": true,
+    "offset_mapping_reliable": true
+  },
+  "manual_sampling": {
+    "t2-offerclaw-open-deep-research-v5-20260814-150018": [
+      {
+        "round": "trajectory_round1.json",
+        "msg_index": 4,
+        "cmd_old": "",
+        "cmd_new": ".venv/bin/python -m pytest public_tests/ -q",
+        "foldable_old": false,
+        "foldable_new": false
+      },
+      {
+        "round": "trajectory_round1.json",
+        "msg_index": 5,
+        "cmd_old": "",
+        "cmd_new": "find . -maxdepth 2 -type f | sort | head -200 && printf '\\nUPSTREAM\\n'",
+        "foldable_old": false,
+        "foldable_new": true
+      },
+      {
+        "round": "trajectory_round1.json",
+        "msg_index": 8,
+        "cmd_old": "",
+        "cmd_new": "grep -nE 'FastAPI|include_router|lifespan|startup|Chroma|ingest|source",
+        "foldable_old": false,
+        "foldable_new": true
+      },
+      {
+        "round": "trajectory_round1.json",
+        "msg_index": 9,
+        "cmd_old": "",
+        "cmd_new": "find ../upstream/src -type f -maxdepth 4 -print | sort && sed -n '1,22",
+        "foldable_old": false,
+        "foldable_new": true
+      }
+    ],
+    "t2-offerclaw-open-deep-research-v5-20260814-160138": [
+      {
+        "round": "trajectory_round1.json",
+        "msg_index": 4,
+        "cmd_old": "",
+        "cmd_new": ".venv/bin/python -m pytest public_tests/ -q",
+        "foldable_old": false,
+        "foldable_new": false
+      },
+      {
+        "round": "trajectory_round1.json",
+        "msg_index": 5,
+        "cmd_old": "",
+        "cmd_new": "printf 'PUBLIC FILES\\n'; find public_tests -maxdepth 2 -type f -print ",
+        "foldable_old": false,
+        "foldable_new": false
+      },
+      {
+        "round": "trajectory_round1.json",
+        "msg_index": 8,
+        "cmd_old": "",
+        "cmd_new": "grep -nE 'FastAPI|app =|include_router|lifespan|startup|shutdown|Chrom",
+        "foldable_old": false,
+        "foldable_new": true
+      },
+      {
+        "round": "trajectory_round1.json",
+        "msg_index": 9,
+        "cmd_old": "",
+        "cmd_new": "find ../upstream/src -maxdepth 4 -type f -print | sort; printf '\\nPYPR",
+        "foldable_old": false,
+        "foldable_new": true
+      }
+    ],
+    "t2-offerclaw-open-deep-research-v5-20260814-165445": [
+      {
+        "round": "trajectory_round1.json",
+        "msg_index": 4,
+        "cmd_old": "",
+        "cmd_new": ".venv/bin/python -m pytest public_tests/ -q",
+        "foldable_old": false,
+        "foldable_new": false
+      },
+      {
+        "round": "trajectory_round1.json",
+        "msg_index": 5,
+        "cmd_old": "",
+        "cmd_new": "printf 'UPSTREAM\\n'; ls -la ../upstream; printf '\\nFILES\\n'; find ../u",
+        "foldable_old": false,
+        "foldable_new": false
+      },
+      {
+        "round": "trajectory_round1.json",
+        "msg_index": 8,
+        "cmd_old": "",
+        "cmd_new": "grep -n \"FastAPI\\|app =\\|include_router\\|lifespan\\|Chroma\\|collection\"",
+        "foldable_old": false,
+        "foldable_new": true
+      },
+      {
+        "round": "trajectory_round1.json",
+        "msg_index": 9,
+        "cmd_old": "",
+        "cmd_new": "find ../upstream/src -type f -maxdepth 4 -print; sed -n '1,240p' ../up",
+        "foldable_old": false,
+        "foldable_new": true
+      }
+    ]
+  }
+}
