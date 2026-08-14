@@ -1,0 +1,60 @@
+fix commit : 0cbde37ea9628026eb2815f06f0bf3411d16c7e7
+base commit: 7e33d4afa02bbe317c1b994d650256ae0467db06
+nodes      : 10
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=4
+  test_exec_type_results_are_never_folded: error-at-collection
+  test_pip_install_results_are_never_folded: error-at-collection
+  test_window_keeps_the_most_recent_reads_verbatim: error-at-collection
+  test_older_reads_beyond_the_window_are_folded: error-at-collection
+  test_nothing_folded_when_within_the_window: error-at-collection
+  test_stub_carries_the_command_for_rerun: error-at-collection
+  test_projection_does_not_mutate_history: error-at-collection
+  test_manifest_declares_lossiness: error-at-collection
+  test_system_and_task_messages_are_never_touched: error-at-collection
+  test_determinism: error-at-collection
+
+-- base 段收集错误(按文件重跑取证)--
+  [tests.test_window_projection] E   ImportError: cannot import name 'WINDOW_READS' from 'repoproof.agents.context_projector' (/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_lrrhszwb/tree/src/repoproof/agents/context_pr
+y)
+=========================== short test summary info ============================
+ERROR tests/test_window_projection.py
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_lrrhszwb/tree/tests/test_window_projection.py::test_exec_type_results_are_never_folded
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_lrrhszwb/tree/tests/test_window_projection.py::test_pip_install_results_are_never_folded
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_lrrhszwb/tree/tests/test_window_projection.py::test_window_keeps_the_most_recent_reads_verbatim
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_lrrhszwb/tree/tests/test_window_projection.py::test_older_reads_beyond_the_window_are_folded
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_lrrhszwb/tree/tests/test_window_projection.py::test_nothing_folded_when_within_the_window
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_lrrhszwb/tree/tests/test_window_projection.py::test_stub_carries_the_command_for_rerun
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_lrrhszwb/tree/tests/test_window_projection.py::test_projection_does_not_mutate_history
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_lrrhszwb/tree/tests/test_window_projection.py::test_manifest_declares_lossiness
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_lrrhszwb/tree/tests/test_window_projection.py::test_system_and_task_messages_are_never_touched
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_lrrhszwb/tree/tests/test_window_projection.py::test_determinism
+
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_exec_type_results_are_never_folded: passed
+  test_pip_install_results_are_never_folded: passed
+  test_window_keeps_the_most_recent_reads_verbatim: passed
+  test_older_reads_beyond_the_window_are_folded: passed
+  test_nothing_folded_when_within_the_window: passed
+  test_stub_carries_the_command_for_rerun: passed
+  test_projection_does_not_mutate_history: passed
+  test_manifest_declares_lossiness: passed
+  test_system_and_task_messages_are_never_touched: passed
+  test_determinism: passed
+..........                                                               [100%]
+
+
+VERDICT: VALID

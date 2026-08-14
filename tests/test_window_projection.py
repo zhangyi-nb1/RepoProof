@@ -87,6 +87,30 @@ def test_exec_type_results_are_never_folded():
         f"折到了非读取型命令:{[f['command'] for f in mf['folded']]}")
 
 
+def test_read_then_exec_chain_is_never_folded():
+    """W1 的**要害情形**:`sed -n … && pytest` 这种链。
+
+    首段是读取型,白名单会放行 —— 只有执行型否决拦得住它。而这正是真实
+    数据里最常见的形态(基线六发里大量 `sed -n … && .venv/bin/python -m
+    pytest`)。链的输出里含着测试结果,折了就是折修复依据。
+
+    2026-08-14 变异闸门 M46a 逃逸后补:原先的两条 W1 用例只测独立执行型
+    命令,而那种情形**光靠读取型白名单就排除了**,执行型否决从未被考到 ——
+    钉死测的是代码顺带处理的情况,不是判据真正管的情况。"""
+    # 链必须放在**窗口之外**(最前面):放在末尾会落进窗口保底,
+    # 于是"不折"是窗口给的、不是执行型否决给的 —— 用例就考不到 W1。
+    chain = "sed -n '1,50p' a.py && .venv/bin/python -m pytest public_tests/ -q"
+    msgs = _hist((chain, "FAILED " + "y" * 9000), *_reads(WINDOW_READS + 3))
+
+    out, mf = project_window(msgs)
+    bodies = [m["content"] for m in out if m["role"] == "tool"]
+
+    assert bodies[0].startswith("FAILED"), (
+        "窗口外、读取型开头的链被折了 —— 测试结果丢了(执行型否决失效)")
+    assert all("pytest" not in f["command"] for f in mf["folded"]), (
+        f"折到了含 pytest 的链:{[f['command'] for f in mf['folded']]}")
+
+
 def test_pip_install_results_are_never_folded():
     """W1 的另一面:pip 安装输出同样不折(依赖冲突的证据在里面)。"""
     msgs = _hist((".venv/bin/pip install foo", "ERROR: conflict " + "z" * 9000),
