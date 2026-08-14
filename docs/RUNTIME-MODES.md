@@ -267,8 +267,48 @@ G5 要一份"对当前代码仍然成立"的变异证据。前两种写法都错
 | profile | 拓扑 | 生命周期 | 依据 |
 |---|---|---|---|
 | `rt-inprocess-v1` | in_process | **default** | 既有全部发次的行为,先于本机制存在 |
+| `rt-sidecar-browser-v1` | sidecar | **candidate** | G1–G5 全过(2026-08-15);真 browser-use 0.13.7 + 封存 Chromium |
 | `rt-sidecar-canary-v1` | sidecar | **candidate** | G1–G5 全过(2026-08-14),留痕在案 |
 | `rt-sidecar-markdown-it-v1` | sidecar | experimental | 控制矩阵专用,未申请晋级 |
+
+### `rt-sidecar-browser-v1` 的封存件(2026-08-15)
+
+一次性 harness-only 联网 provisioning 的产物,`~/RepoProofRuntimes/`(受
+`host_guard` 保护,**不在** bench 根白名单里 —— 那是 LESSONS #29 判过的错法):
+
+```
+.venv/                    330M   browser-use 0.13.7 @ 32601887cfbc(本地钉版快照)
+browsers/chromium-1234/   554M   Google Chrome for Testing 151.0.7922.34(完整构建)
+requirements.lock         106 条依赖闭包
+runtime_manifest.json     3 个钉版来源 + 内容摘要
+```
+
+**联网边界靠结构不靠承诺**:`allow_network` 只存在于 `provision()` 的签名里,
+execute 侧的 `verify_sealed()` 根本没有这个参数 —— 想在发次期联网,得先改 API
+形状。agent 的会话环境一个字不改(仍 `PIP_NO_INDEX` + 冻结 wheelhouse)。
+
+**上游本体不走网络**:从本地钉版快照装(commit 与 T3 契约逐字相同),网络只
+解析依赖闭包,随后冻进 lock 并计入封存摘要。
+
+**浏览器封存后不再重下**(用户 2026-08-15 指令)。完整 Chromium 而非
+`--only-shell`:headless shell 是独立精简构建,拿它当浏览器等于自带一个"能力
+缺失"的混杂变量。
+
+矩阵实测(36s,零模型,死代理下只放行 127.0.0.1):
+
+| adapter | 结果 | 红在哪 |
+|---|---|---|
+| a0 真正使用结果 | **PASS** | — |
+| a1 不调用 sidecar / a2 自己重实现 / a3 假包 | FAIL | U3, U4 |
+| **a4 调了但不用结果** | FAIL | **仅 U4** |
+| a5 调错 symbol | FAIL | U2, U3, U4 |
+| a6 replay 旧 receipt | FAIL | U1.run_nonce, U1.count, U3, U4 |
+| **a7 改 receipt(删行)** | FAIL | **U1.chain, U1.count**(签名全绿) |
+| a8 伪造 receipt(增行) | FAIL | U1.signature, U1.count, U3, U4 |
+
+**a2 不是稻草人**:它真抓页面、真按 flex 规范算,数学上完全正确,仍然对不上
+排版引擎的定点 LayoutUnit 与余量分配(五个数全差)。这条一旦变绿,说明能力
+可重实现了,采纳判据在这套 fixture 上当场失去判别力。
 
 canary 到 candidate 的含义要划清:**机制站得住**(拓扑成立、诚实实现不被
 误杀、八条攻击各红各位、变异全捕);**不含**"真模型跑得动" —— 我们的
