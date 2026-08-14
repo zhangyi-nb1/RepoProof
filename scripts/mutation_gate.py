@@ -67,6 +67,8 @@ _BWK = "benchmarks/v2/sidecar_browser/worker.py"
 _T_BCF = ["tests/test_browser_conformance.py"]
 _VTR = "scripts/verify_task_receipts.py"
 _T_T3S = ["tests/test_t3_sidecar_task.py"]
+_SSN = "src/repoproof/runner/sidecar_session.py"
+_T_SW = ["tests/test_sidecar_wiring.py"]
 _PP = "src/repoproof/execution/profile_promotion.py"
 _T_PP = ["tests/test_profile_promotion.py"]
 _T_CF = ["tests/test_constraint_feedback.py"]
@@ -848,6 +850,33 @@ MUTATIONS: list[dict] = [
         "old": "    ok = escaped == 0 and stale == 0 and not missing",
         "new": "    ok = escaped == 0 and stale == 0",
         "catchers": _T_PP,
+    },
+    # ---- M56:sidecar 接进 host-run。这一段最容易出的错不是"功能不对",
+    # 而是**报错报得像另一件事** —— 三条守的都是归因不许混。
+    {
+        "id": "M56a-agent-env-leaks-the-ledger",
+        "lesson": "台账路径漏进 agent 环境 → U1 的全部意义没了(谁都能伪造回执)",
+        "file": _USC,
+        "old": '            "REPOPROOF_SIDECAR_TOKEN": self.token,',
+        "new": '            "REPOPROOF_SIDECAR_TOKEN": self.token,\n'
+               '            "REPOPROOF_LEDGER": str(self.ledger_path),',
+        "catchers": _T_SW,
+    },
+    {
+        "id": "M56b-one-item-is-enough",
+        "lesson": "U3 分母允许 <2 → '一次调用充抵所有项'永远抓不住",
+        "file": _SSN,
+        "old": '    if item_count < 2:',
+        "new": "    if False:",
+        "catchers": _T_SW,
+    },
+    {
+        "id": "M56c-extraction-failure-becomes-adoption-failure",
+        "lesson": "取件失败与采纳不成立混成一个 → harness 的毛病记成被测方的失败",
+        "file": _SSN,
+        "old": '        return {"ok": False, "reason": "NO_DELIVERY_EXTRACTED",',
+        "new": '        return {"ok": False, "reason": "RECEIPT_VERIFICATION_FAILED",',
+        "catchers": _T_SW,
     },
     # ---- M55:T3-SIDECAR v1 的任务级判据。
     {
