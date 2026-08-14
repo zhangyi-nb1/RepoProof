@@ -1,0 +1,54 @@
+fix commit : 729aaaad6d41a18cc8d3e48e572a7b977a131b01
+base commit: d3c3f8a193343d88d412f30e076fb6ffea3f7d95
+nodes      : 8
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=4
+  test_original_verdicts_are_never_rewritten: error-at-collection
+  test_mechanism_ablation_does_not_count_toward_the_stage_gate: error-at-collection
+  test_breakdown_has_all_required_buckets: error-at-collection
+  test_undelivered_treatment_is_excluded_from_treatment_effect: error-at-collection
+  test_post_hoc_classification_must_declare_itself: error-at-collection
+  test_unclassified_runs_default_to_capability_denominator: error-at-collection
+  test_real_ledger_reports_zero_heldout_runs: error-at-collection
+  test_classification_sidecar_loads_from_the_real_repo: error-at-collection
+
+-- base 段收集错误(按文件重跑取证)--
+  [tests.test_run_classification] E   ImportError: cannot import name 'MECHANISM_PURPOSES' from 'repoproof.persistence.bench_records' (/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_7jl47k06/tree/src/repoproof/persistenc
+odule>
+    from repoproof.persistence.bench_records import (
+E   ImportError: cannot import name 'MECHANISM_PURPOSES' from 'repoproof.persistence.bench_records' (/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_7jl47k06/tree/src/repoproof/persistence/bench_records.py)
+=========================== short test summary info ============================
+ERROR tests/test_run_classification.py
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_7jl47k06/tree/tests/test_run_classification.py::test_original_verdicts_are_never_rewritten
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_7jl47k06/tree/tests/test_run_classification.py::test_mechanism_ablation_does_not_count_toward_the_stage_gate
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_7jl47k06/tree/tests/test_run_classification.py::test_breakdown_has_all_required_buckets
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_7jl47k06/tree/tests/test_run_classification.py::test_undelivered_treatment_is_excluded_from_treatment_effect
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_7jl47k06/tree/tests/test_run_classification.py::test_post_hoc_classification_must_declare_itself
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_7jl47k06/tree/tests/test_run_classification.py::test_unclassified_runs_default_to_capability_denominator
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_7jl47k06/tree/tests/test_run_classification.py::test_real_ledger_reports_zero_heldout_runs
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_7jl47k06/tree/tests/test_run_classification.py::test_classification_sidecar_loads_from_the_real_repo
+
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_original_verdicts_are_never_rewritten: passed
+  test_mechanism_ablation_does_not_count_toward_the_stage_gate: passed
+  test_breakdown_has_all_required_buckets: passed
+  test_undelivered_treatment_is_excluded_from_treatment_effect: passed
+  test_post_hoc_classification_must_declare_itself: passed
+  test_unclassified_runs_default_to_capability_denominator: passed
+  test_real_ledger_reports_zero_heldout_runs: passed
+  test_classification_sidecar_loads_from_the_real_repo: passed
+........                                                                 [100%]
+
+
+VERDICT: VALID
