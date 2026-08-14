@@ -107,3 +107,110 @@ def profile_hashes(*, tool: dict, context: dict, budget: dict,
     if repo is not None:
         out["exec_fingerprint"] = exec_fingerprint(repo)
     return out
+
+
+# ---------------------------------------------------------------- 语义分面
+# 2026-08-14(用户指令):S1 的 `exec_fingerprint` 把整个 `src/repoproof/**`
+# 当成"执行器",于是修一个冒烟脚本、收窄一个扫描边界,都会让全部历史发次
+# **跨代失配**。保守,但那种失配没有信息量。
+#
+# 改按**语义所有权**分面:归属由"谁拥有这段语义"决定,不由目录决定 ——
+# `agents/` 下既有执行语义(context_projector)也有纯量具(profiles 自己)。
+#
+# 判定 executor_semantics 的唯一标准:**它是否改变模型可见内容、工具行为、
+# 命令执行或运行预算**。改了 → 被测系统变了 → 跨代;没改 → 不该跨代。
+
+FACES = ("executor_semantics", "model_profile", "verifier", "instrumentation")
+
+# 精确路径归属(前缀匹配,长者优先)。新增模块必须登记 —— 判据 F1 会红。
+_FACE_MAP: tuple[tuple[str, str], ...] = (
+    # ---- 执行语义:改了就是换了被测系统 ----
+    ("agents/context_projector.py", "executor_semantics"),   # 模型可见内容
+    ("agents/repoproof_env.py", "executor_semantics"),       # 工具行为/命令执行
+    ("agents/token_budget.py", "executor_semantics"),        # 运行预算
+    ("agents/backend.py", "executor_semantics"),             # agent 循环
+    ("harness/budget.py", "executor_semantics"),
+    ("harness/policy.py", "executor_semantics"),             # 哪些命令被拒
+    ("harness/prompt_manifest.py", "executor_semantics"),    # 模型可见提示
+    ("harness/coverage_ledger.py", "executor_semantics"),    # 模型可见状态
+    ("runner/", "executor_semantics"),                       # 编排与轮次
+    ("execution/", "executor_semantics"),                    # 命令怎么落地
+    ("adoption/repair/", "executor_semantics"),              # 反馈包内容
+    ("adoption/intent/", "executor_semantics"),
+    ("adoption/planning/", "executor_semantics"),
+    # ---- 模型面 ----
+    ("agents/provider_gate.py", "model_profile"),
+    # ---- 验证面:独立验证与完整性扫描 ----
+    ("verification/", "verifier"),
+    ("harness/oracle_guard.py", "verifier"),
+    ("harness/host_guard.py", "verifier"),
+    ("harness/postflight.py", "verifier"),
+    ("harness/host_snapshot.py", "verifier"),
+    ("harness/adaptation.py", "verifier"),
+    ("harness/contract_adequacy.py", "verifier"),
+    ("harness/controls_battery.py", "verifier"),
+    ("harness/task_package.py", "verifier"),
+    ("harness/requirement_spec.py", "verifier"),
+    ("harness/wheelhouse.py", "verifier"),
+    ("harness/host_task.py", "verifier"),
+    ("probes/", "verifier"),
+    ("adoption/admission/", "verifier"),
+    ("adoption/analysis/", "verifier"),
+    ("adoption/assembly/", "verifier"),
+    ("adoption/delivery/", "verifier"),                      # apply/rollback 完整性
+    # ---- 量具面:改它**不改变被测系统** ----
+    ("agents/profiles.py", "instrumentation"),               # 指纹自己
+    ("agents/fake_model.py", "instrumentation"),             # 冒烟脚本
+    ("harness/trace.py", "instrumentation"),                 # 记账
+    ("harness/artifacts.py", "instrumentation"),
+    ("persistence/", "instrumentation"),
+    ("domain/", "instrumentation"),
+    ("ui/", "instrumentation"),
+    ("cli.py", "instrumentation"),
+    ("__init__.py", "instrumentation"),
+    ("agents/__init__.py", "instrumentation"),
+    ("adoption/__init__.py", "instrumentation"),   # 纯命名空间,无语义
+    ("harness/__init__.py", "instrumentation"),
+)
+
+# 分析口径版本。改变**统计定义**(而非代码)时人工递增,例如换掉
+# "重复输入"的算法、改变能力分母的划分规则。
+ANALYSIS_SCHEMA_VERSION = 1
+
+
+def face_of(rel_path: str) -> str | None:
+    """模块的语义归属。未登记返回 None —— 判据 F1 会把它揪出来。"""
+    best: tuple[int, str] | None = None
+    for prefix, face in _FACE_MAP:
+        if rel_path == prefix or rel_path.startswith(prefix):
+            if best is None or len(prefix) > best[0]:
+                best = (len(prefix), face)
+    return best[1] if best else None
+
+
+def semantic_fingerprints(repo: Path) -> dict:
+    """按语义分面各算一个内容指纹 + 分析口径版本号。
+
+    与 `exec_fingerprint()` 并存:后者是 S1 留下的粗粒度值,历史发次绑定
+    着它,**不追溯改写**(判据 F5)。新发次两个都记。"""
+    root = repo.joinpath(*_EXEC_ROOT)
+    buckets: dict[str, list] = {f: [] for f in FACES}
+    if root.is_dir():
+        for p in sorted(root.rglob("*.py")):
+            if "__pycache__" in p.parts:
+                continue
+            rel = p.relative_to(root).as_posix()
+            face = face_of(rel)
+            if face:
+                buckets[face].append([rel, sha256_bytes(p.read_bytes())[:16]])
+    out = {f"{f}_fingerprint": _hash({"files": buckets[f]}) for f in FACES}
+    out["analysis_schema_version"] = ANALYSIS_SCHEMA_VERSION
+    return out
+
+
+def comparable_for(a: dict, b: dict, *, faces: tuple[str, ...]) -> bool:
+    """两发能否做严格 A/B —— **只看相关面**(判据 F4)。
+
+    要求全部面逐字节相同,会让"修个错别字"作废整批历史;那种保守没有
+    信息量,只有摩擦。"""
+    return all(a.get(f"{f}_fingerprint") == b.get(f"{f}_fingerprint") for f in faces)

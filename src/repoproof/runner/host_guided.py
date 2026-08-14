@@ -152,8 +152,15 @@ def _exec_profile_fields(contract, preflight) -> dict:
         "max_input_tokens_total": b.max_input_tokens_total,
         "max_output_tokens_total": b.max_output_tokens_total,
     }
-    return profile_hashes(tool=tool, context=context, budget=budget,
-                          repo=Path(__file__).resolve().parents[3])
+    repo = Path(__file__).resolve().parents[3]
+    out = profile_hashes(tool=tool, context=context, budget=budget, repo=repo)
+    # 语义分面(2026-08-14):与粗粒度 exec_fingerprint **并存**。后者是 S1
+    # 留下的值,历史发次绑着它,不追溯改写(判据 F5);新发次两个都记,
+    # 严格 A/B 只看相关面(判据 F4)。
+    from repoproof.agents.profiles import semantic_fingerprints
+
+    out.update(semantic_fingerprints(repo))
+    return out
 
 
 def obs_cap() -> int | None:

@@ -41,6 +41,10 @@ REQUIRED_FIELDS = (
     # 历史行无这些字段 —— 只增不改,取数时按缺失=E0 处理。
     "tool_profile_hash", "context_profile_hash", "budget_profile_hash",
     "exec_generation", "exec_fingerprint",
+    # 语义分面(2026-08-14):按谁拥有这段语义划,不按目录划。改量具/验证器
+    # 不再让执行语义指纹变动 —— 那种跨代失配没有信息量,只有摩擦。
+    "executor_semantics_fingerprint", "model_profile_fingerprint",
+    "verifier_fingerprint", "instrumentation_fingerprint", "analysis_schema_version",
 )
 
 UNKNOWN = "UNKNOWN"
