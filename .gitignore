@@ -36,3 +36,7 @@ provider.local.*
 # --- OS noise ---
 .DS_Store
 .env
+
+# harness 独占的 runtime 封存区(A1 provisioning 产物,330MB 级)。
+# 不进 git:它是**可复现的构建产物**,复现方式钉在
+# scripts/provision_browser_runtime.py 与 requirements.lock 里。

@@ -25,6 +25,16 @@ DEFAULT_PROTECTED = (
     "~/Desktop/XIANGMU/offerclaw",
     "~/Desktop/XIANGMU/localflow",
     "~/Desktop/XIANGMU/RepoProof",
+    # harness 独占的 runtime 封存区(A1 provisioning 的产物)。
+    #
+    # **不放在 `~/RepoProofBench/` 下**:那里的护栏是"白名单外一律算游离物"
+    # (`bench_root_strays`),往白名单里加一个几百 MB 的 runtime,正是
+    # LESSONS #29 判过的错法 —— 给兄弟目录开口子。所以另立一个根,并按
+    # 保护目录对待:agent 读写它都发不出去。
+    #
+    # 为什么必须保护:runtime 里装着真上游本体。agent 若够得着,它大可自己
+    # import 自己调,整条 sidecar 拓扑当场失效,而"它没来敲门"会被读成偷懒。
+    "~/RepoProofRuntimes",
 )
 
 
