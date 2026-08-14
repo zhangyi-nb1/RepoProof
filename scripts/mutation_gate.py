@@ -60,6 +60,8 @@ _EV = "src/repoproof/agents/repoproof_env.py"
 _T_WC = ["tests/test_workspace_containment.py"]
 _BC = "scripts/build_control_tree.py"
 _T_CT = ["tests/test_control_tree_recipe.py"]
+_CP = "src/repoproof/agents/context_projector.py"
+_T_WP = ["tests/test_window_projection.py"]
 _PR = "src/repoproof/agents/profiles.py"
 _T_EP = ["tests/test_exec_profiles.py"]
 _VC = "scripts/validate_controls.py"
@@ -683,6 +685,38 @@ MUTATIONS: list[dict] = [
         "old": '    tools = tuple(tool.get("tools") or _E0_TOOLS)',
         "new": "    tools = _E0_TOOLS",
         "catchers": _T_EP,
+    },
+    {
+        "id": "M46a-window-folds-exec-results",
+        "lesson": "#S2' W1:把 pytest/pip 的结果也折了 → 模型失去修复依据,且重跑要 95 秒",
+        "file": _CP,
+        "old": "    if not cmd or _EXEC_CMD.search(cmd):\n        return False",
+        "new": "    if not cmd:\n        return False",
+        "catchers": _T_WP,
+    },
+    {
+        "id": "M46b-window-folds-everything",
+        "lesson": "#S2' W2:窗口失效 → 连最近读过的代码都折掉,模型只能重读,省下的被吃回去",
+        "file": _CP,
+        "old": "    keep = set(reads[-window:]) if window > 0 else set()",
+        "new": "    keep = set()",
+        "catchers": _T_WP,
+    },
+    {
+        "id": "M46c-window-stub-drops-the-command",
+        "lesson": "#S2' W4:存根不给原命令 → 丢了还不告诉你怎么找回",
+        "file": _CP,
+        "old": '                f"(窗口外的旧读取结果)。需要时重跑该命令即可取回:`{cmd}`]")[:_STUB_MAX]',
+        "new": '                f"(窗口外的旧读取结果)。]")[:_STUB_MAX]',
+        "catchers": _T_WP,
+    },
+    {
+        "id": "M46d-window-hides-its-lossiness",
+        "lesson": "#S2' W6:有损投影不标 lossy → 后来者当成零风险,批报少一条诚实边界",
+        "file": _CP,
+        "old": '                 "lossy": True,',
+        "new": '                 "lossy": False,',
+        "catchers": _T_WP,
     },
     {
         "id": "M43e-never-ran-counts-as-red",

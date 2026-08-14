@@ -32,7 +32,7 @@
       "t3-offerclaw-browser-use-v5-20260813-221616"
     ],
     "passes": 10,
-    "smoke": 8,
+    "smoke": 9,
     "smoke_passes": 1,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
@@ -42,9 +42,10 @@
       "t3-offerclaw-browser-use-v2-20260811-091744",
       "t2-offerclaw-open-deep-research-v5-20260814-122427",
       "t2-offerclaw-open-deep-research-v5-20260814-125222",
-      "t2-offerclaw-open-deep-research-v5-20260814-125620"
+      "t2-offerclaw-open-deep-research-v5-20260814-125620",
+      "t2-offerclaw-open-deep-research-v5-20260814-135519"
     ],
-    "total": 77
+    "total": 78
   },
   "gate_met": {
     "T1": true,
@@ -54,7 +55,7 @@
   },
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "9919e5f53cfb8dc19ffefb175b55508233ac2ede447e6e7772bfa49afe92130d"
+    "runs_jsonl_sha256": "5ec6bee83790e2d6e5a5e4f8cafddc9a4da708954645065b44815f3d34e10115"
   },
   "stages": {
     "T1": {
@@ -98,14 +99,15 @@
         "t2-offerclaw-open-deep-research-v5-20260813-214529"
       ],
       "passes": 5,
-      "smoke": 3,
+      "smoke": 4,
       "smoke_passes": 0,
       "smoke_run_ids": [
         "t2-offerclaw-open-deep-research-v5-20260814-122427",
         "t2-offerclaw-open-deep-research-v5-20260814-125222",
-        "t2-offerclaw-open-deep-research-v5-20260814-125620"
+        "t2-offerclaw-open-deep-research-v5-20260814-125620",
+        "t2-offerclaw-open-deep-research-v5-20260814-135519"
       ],
-      "total": 35
+      "total": 36
     },
     "T3": {
       "exploratory": 5,

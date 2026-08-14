@@ -80,23 +80,30 @@ def hard_signals(*, collected_ok: bool, policy_violations: int,
     return (collected_ok, policy_violations == 0, regression_failed == 0, passed)
 
 
-def projection_enabled() -> bool:
-    """E1-S2 上下文投影开关。默认**关**(E0)—— 新机制先经消融证明有效,
-    再谈默认开启(§7 回退:E0 代码路径保留到 P-D 结束)。
+def projection_mode() -> str:
+    """投影模式:off(E0)/ prune(S2 确定性折叠)/ window(S2' 滑动窗口)。
 
-    开:REPOPROOF_CONTEXT_PROJECTION=1"""
+    S2 实测判别力为 0(基线重复命令 0 条),故 `1` 现在解作 **window** ——
+    那是唯一在真实数据上有效果的模式(基线六发降 12%,撞预算墙的 6 轮里
+    4 轮折算后余量充足)。要单跑 S2 的确定性折叠用 `prune`。"""
     import os
 
-    return os.environ.get("REPOPROOF_CONTEXT_PROJECTION", "").strip() in {"1", "true", "yes"}
+    raw = os.environ.get("REPOPROOF_CONTEXT_PROJECTION", "").strip().lower()
+    if raw in {"1", "true", "yes", "window"}:
+        return "window"
+    if raw == "prune":
+        return "prune"
+    return "off"
 
 
 def projector_or_none():
     """投影函数或 None。None = E0 语义,messages 一字不动。"""
-    if not projection_enabled():
+    mode = projection_mode()
+    if mode == "off":
         return None
-    from repoproof.agents.context_projector import project
+    from repoproof.agents.context_projector import project, project_window
 
-    return project
+    return project_window if mode == "window" else project
 
 
 def _exec_profile_fields(contract, preflight) -> dict:
@@ -120,13 +127,23 @@ def _exec_profile_fields(contract, preflight) -> dict:
         "policy": "full-history-resend",
         "obs_char_cap": cap,
     }
-    if projection_enabled():
+    mode = projection_mode()
+    if mode != "off":
         # 开了投影就**自动**离开 E0(profiles.exec_generation 据此推导);
-        # 标签与开关同源,不存在"开了却仍标 E0"的漂移(S1 判据 P4 的现场版)
-        from repoproof.agents.context_projector import SUPERSEDE_MIN_CHARS
+        # 标签与开关同源,不存在"开了却仍标 E0"的漂移(S1 判据 P4 的现场版)。
+        # 两种模式的 context 指纹必须不同 —— 它们是两个机制,不能混池。
+        from repoproof.agents.context_projector import (
+            SUPERSEDE_MIN_CHARS,
+            WINDOW_READS,
+        )
 
-        context["prune_policy"] = "deterministic-v1"
-        context["supersede_min_chars"] = SUPERSEDE_MIN_CHARS
+        if mode == "window":
+            context["prune_policy"] = "window-v1"
+            context["window_reads"] = WINDOW_READS
+            context["lossy"] = True
+        else:
+            context["prune_policy"] = "deterministic-v1"
+            context["supersede_min_chars"] = SUPERSEDE_MIN_CHARS
     budget = {
         "semantics": b.semantics, "max_rounds": b.max_rounds,
         "max_model_calls": b.max_model_calls, "max_commands": b.max_commands,
