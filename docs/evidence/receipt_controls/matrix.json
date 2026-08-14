@@ -1,0 +1,753 @@
+{
+  "_what": "上游执行回执的零模型正负控矩阵(第 6 步)",
+  "_discipline": [
+    "正控必须全过",
+    "每个负控必须红在它自己那一处",
+    "脚本先自证:放行谓词下 nc3 必须变绿"
+  ],
+  "task_id": "receipt-control-harness",
+  "jobs": 3,
+  "rows": [
+    {
+      "control": "positive",
+      "expect": "PASS",
+      "expect_red": [],
+      "actual": "PASS",
+      "actual_red": [],
+      "verdict": {
+        "ok": true,
+        "receipts": 3,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "3 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['markdown_it.MarkdownIt.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": true,
+            "detail": "3 个单元各有对得上的回执",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": true,
+            "detail": "3/3 个交付单元逐一对上回执 output",
+            "invocation_id": ""
+          }
+        ]
+      },
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-w8gzmbx6/upstream_receipts.jsonl"
+    },
+    {
+      "control": "nc1_pure_reimpl",
+      "expect": "FAIL",
+      "expect_red": [
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "verdict": {
+        "ok": false,
+        "receipts": 0,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "台账不存在(零回执)",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['markdown_it.MarkdownIt.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": false,
+            "detail": "3/3 个单元没有回执(或输入对不上):['rn-1', 'rn-2', 'rn-3']",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "3/3 个交付单元的摘要与任何一张回执的 output 都对不上 —— 调用发生了,用的却是别的结果",
+            "invocation_id": ""
+          }
+        ]
+      },
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-e0y1esh7/upstream_receipts.jsonl"
+    },
+    {
+      "control": "nc2_forged_package",
+      "expect": "FAIL",
+      "expect_red": [
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "verdict": {
+        "ok": false,
+        "receipts": 0,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "台账不存在(零回执)",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['markdown_it.MarkdownIt.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": false,
+            "detail": "3/3 个单元没有回执(或输入对不上):['rn-1', 'rn-2', 'rn-3']",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "3/3 个交付单元的摘要与任何一张回执的 output 都对不上 —— 调用发生了,用的却是别的结果",
+            "invocation_id": ""
+          }
+        ]
+      },
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-ipjnnjhf/upstream_receipts.jsonl"
+    },
+    {
+      "control": "nc3_ignores_return",
+      "expect": "FAIL",
+      "expect_red": [
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U4.adoption"
+      ],
+      "verdict": {
+        "ok": false,
+        "receipts": 3,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "3 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['markdown_it.MarkdownIt.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": true,
+            "detail": "3 个单元各有对得上的回执",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "3/3 个交付单元的摘要与任何一张回执的 output 都对不上 —— 调用发生了,用的却是别的结果",
+            "invocation_id": ""
+          }
+        ]
+      },
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-um3eqydd/upstream_receipts.jsonl"
+    },
+    {
+      "control": "nc4_wrong_symbol",
+      "expect": "FAIL",
+      "expect_red": [
+        "U2.symbol",
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U2.symbol",
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "verdict": {
+        "ok": false,
+        "receipts": 3,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "3 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": false,
+            "detail": "调了要求集之外的符号:['inv-0013', 'inv-0014', 'inv-0015']",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": false,
+            "detail": "3/3 个单元没有回执(或输入对不上):['rn-1', 'rn-2', 'rn-3']",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "3/3 个交付单元的摘要与任何一张回执的 output 都对不上 —— 调用发生了,用的却是别的结果",
+            "invocation_id": ""
+          }
+        ]
+      },
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-974kw8ir/upstream_receipts.jsonl"
+    },
+    {
+      "control": "nc5_replayed_receipt",
+      "expect": "FAIL",
+      "expect_red": [
+        "U1.run_nonce",
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U1.run_nonce",
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "verdict": {
+        "ok": false,
+        "receipts": 3,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "3 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": false,
+            "detail": "回执来自别的 run(重放):['inv-0007', 'inv-0008', 'inv-0009']",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['markdown_it.MarkdownIt.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": false,
+            "detail": "3/3 个单元没有回执(或输入对不上):['rn-1', 'rn-2', 'rn-3']",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "3/3 个交付单元的摘要与任何一张回执的 output 都对不上 —— 调用发生了,用的却是别的结果",
+            "invocation_id": ""
+          }
+        ]
+      },
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-w4t4iry5/upstream_receipts.jsonl"
+    },
+    {
+      "control": "nc6_vendored_copy",
+      "expect": "FAIL",
+      "expect_red": [
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "verdict": {
+        "ok": false,
+        "receipts": 0,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "台账不存在(零回执)",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['markdown_it.MarkdownIt.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": false,
+            "detail": "3/3 个单元没有回执(或输入对不上):['rn-1', 'rn-2', 'rn-3']",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "3/3 个交付单元的摘要与任何一张回执的 output 都对不上 —— 调用发生了,用的却是别的结果",
+            "invocation_id": ""
+          }
+        ]
+      },
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-v12xj9bt/upstream_receipts.jsonl"
+    },
+    {
+      "control": "nc7_uncorrelated_call",
+      "expect": "FAIL",
+      "expect_red": [
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "verdict": {
+        "ok": false,
+        "receipts": 3,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "3 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['markdown_it.MarkdownIt.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": false,
+            "detail": "3/3 个单元没有回执(或输入对不上):['rn-1', 'rn-2', 'rn-3']",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "3/3 个交付单元的摘要与任何一张回执的 output 都对不上 —— 调用发生了,用的却是别的结果",
+            "invocation_id": ""
+          }
+        ]
+      },
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-_0gb7uvo/upstream_receipts.jsonl"
+    },
+    {
+      "control": "nc8_forged_receipt",
+      "expect": "FAIL",
+      "expect_red": [
+        "U1.signature",
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U1.signature",
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "verdict": {
+        "ok": false,
+        "receipts": 3,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "3 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": false,
+            "detail": "签名无效:['forged-0', 'forged-1', 'forged-2']",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['markdown_it.MarkdownIt.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": false,
+            "detail": "3/3 个单元没有回执(或输入对不上):['rn-1', 'rn-2', 'rn-3']",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "3/3 个交付单元的摘要与任何一张回执的 output 都对不上 —— 调用发生了,用的却是别的结果",
+            "invocation_id": ""
+          }
+        ]
+      },
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-r40a5qly/upstream_receipts.jsonl"
+    }
+  ],
+  "discrimination_by_family": {
+    "U1": {
+      "red_in": [
+        "nc5_replayed_receipt",
+        "nc8_forged_receipt"
+      ],
+      "green_in": [
+        "positive",
+        "nc1_pure_reimpl",
+        "nc2_forged_package",
+        "nc3_ignores_return",
+        "nc4_wrong_symbol",
+        "nc6_vendored_copy",
+        "nc7_uncorrelated_call"
+      ]
+    },
+    "U2": {
+      "red_in": [
+        "nc4_wrong_symbol"
+      ],
+      "green_in": [
+        "positive",
+        "nc1_pure_reimpl",
+        "nc2_forged_package",
+        "nc3_ignores_return",
+        "nc5_replayed_receipt",
+        "nc6_vendored_copy",
+        "nc7_uncorrelated_call",
+        "nc8_forged_receipt"
+      ]
+    },
+    "U3": {
+      "red_in": [
+        "nc1_pure_reimpl",
+        "nc2_forged_package",
+        "nc4_wrong_symbol",
+        "nc5_replayed_receipt",
+        "nc6_vendored_copy",
+        "nc7_uncorrelated_call",
+        "nc8_forged_receipt"
+      ],
+      "green_in": [
+        "positive",
+        "nc3_ignores_return"
+      ]
+    },
+    "U4": {
+      "red_in": [
+        "nc1_pure_reimpl",
+        "nc2_forged_package",
+        "nc3_ignores_return",
+        "nc4_wrong_symbol",
+        "nc5_replayed_receipt",
+        "nc6_vendored_copy",
+        "nc7_uncorrelated_call",
+        "nc8_forged_receipt"
+      ],
+      "green_in": [
+        "positive"
+      ]
+    }
+  },
+  "checks_never_exercised_by_any_control": [
+    "U1.chain",
+    "U1.invocation_unique",
+    "U1.version",
+    "U2.upstream_identity"
+  ],
+  "of_which_covered_by_unit_pins": {
+    "U1.chain": "tests/test_upstream_receipt.py::test_hash_chain_detects_tampering_without_any_key / test_deleting_a_line_breaks_the_chain",
+    "U1.invocation_unique": "tests/test_upstream_receipt.py::(_duplicates;本批负控不产生重复 id)",
+    "U1.version": "tests/test_upstream_receipt.py::(RECEIPT_VERSION 由 U1.version 判;无版本漂移的现实负控)",
+    "U2.upstream_identity": "tests/test_upstream_receipt.py::test_same_name_package_with_different_bytes_is_caught —— 要在本矩阵里考它,得让 **sidecar 自己**加载假包,而 sidecar 是 harness 拥有的,不在本轮威胁模型内"
+  },
+  "of_which_uncovered_anywhere": [],
+  "problems": [],
+  "ok": true
+}

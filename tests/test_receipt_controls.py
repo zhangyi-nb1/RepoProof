@@ -1,0 +1,135 @@
+"""回执正负控矩阵的钉死 —— 第 6 步。
+
+矩阵本体在 `scripts/verify_receipt_controls.py`(零模型、真 sidecar 进程、
+真上游)。这里钉的是**矩阵不许悄悄退化**:
+
+- V1 **正控必须过**。反例:正控红了却没人管 → 判据变成一堵墙,而墙拦不住
+  洗白,只拦得住诚实实现。
+- V2 **nc3 只红在 U4**。反例:它开始红在别处 → 说明四道谓词糊在一起了,
+  "调了但没用"这件事就不再是被 U4 单独抓住的。nc3 是这套设计的考题,
+  它的红点位置一变,整套设计的核心主张就得重新论证。
+- V3 **每族谓词红过也绿过**。反例:某族恒红 → 与"永远报错"无从区分。
+- V4 **落盘证据与现算一致**。反例:改了控制组却没重跑 → 证据说的是旧事。
+- V5 **控制组齐全**。反例:悄悄删掉一个负控 → 覆盖面缩了而矩阵仍报全绿。
+
+矩阵跑一次约十几秒(要起 9 次 HTTP 服务)。**默认就跑**,不做成可跳过的
+——一条默认跳过的判据等于没有判据,而这套矩阵正是回执机制唯一的现场证明。
+`@pytest.mark.slow` 只是标注它慢,不改变是否运行。
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+REPO = Path(__file__).resolve().parents[1]
+MATRIX = REPO / "docs" / "evidence" / "receipt_controls" / "matrix.json"
+CONTROLS = REPO / "benchmarks" / "v2" / "receipt_controls" / "controls"
+
+REQUIRED_CONTROLS = {
+    "positive",
+    "nc1_pure_reimpl", "nc2_forged_package", "nc3_ignores_return",
+    "nc4_wrong_symbol", "nc5_replayed_receipt", "nc6_vendored_copy",
+    "nc7_uncorrelated_call", "nc8_forged_receipt",
+}
+
+
+def _matrix() -> dict:
+    if not MATRIX.is_file():
+        pytest.skip("矩阵证据未落盘 —— 跑 scripts/verify_receipt_controls.py")
+    return json.loads(MATRIX.read_text(encoding="utf-8"))
+
+
+def test_v5_every_control_is_present_on_disk():
+    """V5:控制组一个都不能少 —— 悄悄删一个,覆盖面缩了矩阵却仍全绿。"""
+    on_disk = {p.stem for p in CONTROLS.glob("*.py")}
+    missing = REQUIRED_CONTROLS - on_disk
+    assert not missing, f"控制组缺失:{sorted(missing)}"
+
+
+def test_v1_positive_control_passes():
+    """V1:正控必须过。判据拦不住洗白只拦得住诚实实现,那是最坏的情形。"""
+    m = _matrix()
+    pos = next(r for r in m["rows"] if r["control"] == "positive")
+    assert pos["actual"] == "PASS", (
+        f"正控红了 —— 判据成了一堵墙:{pos['actual_red']}")
+
+
+def test_v2_nc3_reds_only_on_adoption():
+    """V2:nc3(调了但无视返回)**只**红在 U4。
+
+    这是整套设计的考题。任何"记录调用发生过"式的回执都会给 nc3 发绿;
+    而它红在 U4 之外的任何地方,都说明四道谓词的分工出了问题。"""
+    m = _matrix()
+    nc3 = next(r for r in m["rows"] if r["control"] == "nc3_ignores_return")
+    assert nc3["actual"] == "FAIL"
+    assert nc3["actual_red"] == ["U4.adoption"], (
+        f"nc3 的红点变了:{nc3['actual_red']} —— "
+        "'调了但没用'不再是被 U4 单独抓住的,核心主张需要重新论证")
+
+
+def test_v2b_every_negative_control_fails_exactly_where_declared():
+    """V2 的推广:每个负控的实际红点集与它自己声明的期望集逐一相等。"""
+    m = _matrix()
+    for r in m["rows"]:
+        if r["expect"] != "FAIL":
+            continue
+        assert r["actual"] == "FAIL", f"{r['control']} 竟然过了"
+        assert sorted(r["actual_red"]) == sorted(r["expect_red"]), (
+            f"{r['control']} 红的位置变了:期望 {r['expect_red']},"
+            f"实际 {r['actual_red']}")
+
+
+def test_v3_each_predicate_family_reds_and_greens():
+    """V3:每族谓词都得红过也绿过 —— 恒红的判据不携带信息。"""
+    m = _matrix()
+    d = m["discrimination_by_family"]
+    for fam in ("U1", "U2", "U3", "U4"):
+        assert d[fam]["red_in"], f"{fam} 从没红过 —— 这批负控没考到它"
+        assert d[fam]["green_in"], f"{fam} 在所有组上都红 —— 与'恒红'无从区分"
+
+
+def test_v3b_unexercised_checks_are_all_covered_elsewhere():
+    """V3 的补充:本批没考到的子判据,必须每一条都在别处有覆盖。
+
+    反例:留一条哪儿都没覆盖的 → 名单看起来只是"分工问题",实际是缺口。"""
+    m = _matrix()
+    assert m["of_which_uncovered_anywhere"] == [], (
+        f"这些子判据哪儿都没覆盖:{m['of_which_uncovered_anywhere']}")
+
+
+def test_v4_committed_matrix_is_self_consistent():
+    """V4 的弱形式:落盘证据自身必须自洽(逐行结论与总判一致)。
+
+    强形式(真重跑)在 `test_v4_strong_matrix_is_fresh`。"""
+    m = _matrix()
+    assert m["ok"] is True and m["problems"] == []
+    assert {r["control"] for r in m["rows"]} == REQUIRED_CONTROLS
+    for r in m["rows"]:
+        red = {f["check"] for f in r["verdict"]["findings"] if not f["ok"]}
+        assert red == set(r["actual_red"]), f"{r['control']} 的红点与明细对不上"
+        assert (r["verdict"]["ok"] is (r["actual"] == "PASS"))
+
+
+@pytest.mark.slow
+def test_v4_strong_matrix_is_fresh():
+    """V4 强形式:真重跑一遍,结论必须与落盘证据逐条相同。
+
+    慢(要起 9 次 HTTP 服务),但**照跑** —— 落盘证据的新鲜度是这套矩阵
+    唯一的价值来源,让它可跳过等于让证据可以偷偷过期。"""
+    import importlib.util
+    import sys
+
+    spec = importlib.util.spec_from_file_location(
+        "verify_receipt_controls", REPO / "scripts" / "verify_receipt_controls.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+
+    assert mod.main() == 0
+    fresh = json.loads(MATRIX.read_text(encoding="utf-8"))
+    assert fresh["ok"] is True
+    assert {r["control"]: r["actual_red"] for r in fresh["rows"]} == \
+           {r["control"]: r["actual_red"] for r in _matrix()["rows"]}

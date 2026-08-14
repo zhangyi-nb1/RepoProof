@@ -32,6 +32,11 @@ packages = ["src/repoproof"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    # 标记"这条慢",但**不默认跳过** —— 跳过的判据等于没有判据。
+    # 目前最慢的一条是回执正负控矩阵(要起 9 次 HTTP 服务,约十几秒)。
+    "slow: 显著慢于其他用例;仍然默认运行",
+]
 
 [tool.ruff]
 line-length = 120

@@ -55,6 +55,8 @@ _RC_M = "src/repoproof/receipts/model.py"
 _RC_V = "src/repoproof/receipts/verify.py"
 _RC_L = "src/repoproof/receipts/ledger.py"
 _T_UR = ["tests/test_upstream_receipt.py"]
+_RCS = "scripts/verify_receipt_controls.py"
+_T_RCS = ["tests/test_receipt_controls.py"]
 _T_CF = ["tests/test_constraint_feedback.py"]
 _T_PI = ["tests/test_process_independence.py"]
 _T_RC = ["tests/test_root_cause_packets.py"]
@@ -758,6 +760,32 @@ MUTATIONS: list[dict] = [
         "old": '    for f in sorted(src_control.glob("*.py")):',
         "new": '    for f in sorted(src_control.glob(f"{module}.py")):',
         "catchers": _T_HD,
+    },
+    # ---- M50:回执正负控矩阵(第 6 步)。矩阵本身也是个检查器,同样要先
+    # 证明自己查得出 —— 否则"八个负控全被抓住"可能只是脚本在读自己的期望值。
+    {
+        "id": "M50a-matrix-ignores-where-it-reds",
+        "lesson": "红一片就算数 → 分不清'我有四道判据'和'我有一道判据起了四个名字'",
+        "file": _RCS,
+        "old": "            if set(r[\"actual_red\"]) != set(r[\"expect_red\"]):",
+        "new": "            if False:",
+        "catchers": _T_RCS,
+    },
+    {
+        "id": "M50b-matrix-skips-selfcheck",
+        "lesson": "矩阵不自证 → 报出来的'全被抓住'分不清是验证器真抓住了还是脚本在读期望值",
+        "file": _RCS,
+        "old": "    bad = selfcheck()\n    if bad:",
+        "new": "    bad = []\n    if bad:",
+        "catchers": _T_RCS,
+    },
+    {
+        "id": "M50c-discrimination-gate-removed",
+        "lesson": "不查判别力 → 一道恒红的判据与'永远报错'无从区分,却照样发绿",
+        "file": _RCS,
+        "old": "        if not green_in:",
+        "new": "        if False:",
+        "catchers": _T_RCS,
     },
     # ---- M49:上游执行回执(A0)。用户 2026-08-14 的提醒 —— 回执**不能是
     # 调用日志**:`browser_use.do_something(); return my_own_impl()` 这段能让
