@@ -128,8 +128,7 @@ def test_every_adapter_is_present_and_matches_expectation():
             assert sorted(r["actual_red"]) == sorted(r["expect_red"]), r["adapter"]
 
 
-def test_matrix_judge_catches_a_wrong_red_spot():
-    """判定函数自己的判别力(第 6 步 M50a 的教训:检查器先证明自己查得出)。"""
+def _script():
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(
@@ -137,6 +136,37 @@ def test_matrix_judge_catches_a_wrong_red_spot():
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod
     spec.loader.exec_module(mod)
+    return mod
+
+
+def test_c1b_a_failing_topology_actually_refuses_to_emit(monkeypatch, capsys):
+    """C1 的行为面:拓扑不成立时**当场拒绝出数**,而不是照跑。
+
+    变异闸门 M52b 抓到的逃逸:原钉死只读落盘证据里的 `topology.ok`,而现实
+    里拓扑一直是通过的 —— 于是把那道闸门整个掏掉也没人看得出来。与 M50a
+    同型:**检查器必须先证明自己查得出**,证明的办法是喂它一个合成的失败,
+    不是等现实里出问题。
+
+    这一条尤其要紧:拓扑是 A1 的地基。地基不成立时若还照跑,输出的八条
+    "攻击全被挡住"会被当成证据,而它其实什么都没证 —— agent 大可自己算,
+    根本不必来敲门。"""
+    mod = _script()          # 先加载脚本 —— 它把 conformance 目录挂进 sys.path
+    import topology as T
+
+    monkeypatch.setattr(
+        T, "check_topology",
+        lambda: {"ok": False, "findings": [
+            {"check": "T2.not_importable_cleanly", "ok": False,
+             "detail": "合成失败:agent 竟然 import 得到上游"}]})
+
+    rc = mod.main()
+    assert rc == 2, f"拓扑不成立却没拒绝出数(返回 {rc})"
+    assert "拒绝出数" in capsys.readouterr().err
+
+
+def test_matrix_judge_catches_a_wrong_red_spot():
+    """判定函数自己的判别力(第 6 步 M50a 的教训:检查器先证明自己查得出)。"""
+    mod = _script()
 
     ok = {"adapter": "x", "expect": "FAIL", "expect_red": ["U4.adoption"],
           "actual": "FAIL", "actual_red": ["U4.adoption"]}
