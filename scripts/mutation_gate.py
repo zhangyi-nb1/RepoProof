@@ -796,9 +796,11 @@ MUTATIONS: list[dict] = [
         "lesson": "查不到证据就默认放行 → 这样的闸门与没有闸门的区别,"
                   "只在于它会让人误以为有闸门",
         "file": _PP,
-        "old": ('    if m is None:\n'
+        "old": ('    if not mine:\n'
+                '        seen = sorted({m.get("profile_id") for m in mats if m})\n'
                 '        return [Check("G1-G4.evidence", False,'),
-        "new": ('    if m is None:\n'
+        "new": ('    if not mine:\n'
+                '        seen = sorted({m.get("profile_id") for m in mats if m})\n'
                 '        return [Check("G1-G4.evidence", True,'),
         "catchers": _T_PP,
     },
@@ -806,8 +808,8 @@ MUTATIONS: list[dict] = [
         "id": "M53b-someone-elses-evidence-counts",
         "lesson": "不核 profile_id → 拿别人的体检报告给自己晋级",
         "file": _PP,
-        "old": '    if m.get("profile_id") != p.id:',
-        "new": "    if False:",
+        "old": '    mine = [m for m in mats if m and m.get("profile_id") == p.id]',
+        "new": "    mine = [m for m in mats if m]",
         "catchers": _T_PP,
     },
     {
@@ -925,7 +927,7 @@ MUTATIONS: list[dict] = [
         "lesson": "同 id 可改语义 → 台账里一个 profile_id 底下混着两种行为,"
                   "回执的 runtime.profile_id 从此不可信",
         "file": _RTP,
-        "old": "    if p.id in _REGISTRY and _REGISTRY[p.id] != p:",
+        "old": "    if old is not None and profile_signature(old) != profile_signature(p):",
         "new": "    if False:",
         "catchers": _T_RTP,
     },

@@ -32,13 +32,37 @@ from repoproof.execution.runtime_profiles import known_profiles  # noqa: E402
 LEDGER = REPO / "docs" / "evidence" / "profile_lifecycle" / "promotions.jsonl"
 
 
+# 各 suite 的 profile 定义文件。**按路径列举,不按模块名 import** ——
+# 多个 suite 都有 `profile.py`,裸 import 会被 sys.modules 里先到的赢走,
+# 于是 `--list` 少列一个 profile 而毫无提示(实测在浏览器 suite 上发生过
+# 同型问题:整张拓扑表报的是别的 suite 的)。
+_SUITE_PROFILES = (
+    ("benchmarks/v2/sidecar_conformance/profile.py", "suite_canary_profile"),
+    ("benchmarks/v2/sidecar_browser/profile.py", "suite_browser_profile"),
+    ("benchmarks/v2/receipt_controls/sidecar.py", "suite_mdit_profile"),
+)
+
+
 def _load_side_profiles() -> None:
-    """把非内置的 profile 登记进来(它们随各自的使用者定义)。"""
-    for mod in ("profile", "sidecar"):
+    """把非内置的 profile 登记进来(它们随各自的使用者定义)。
+
+    加载失败**要说出来**:一个 profile 没登记上,`--list` 就少一行,而少的
+    那行看起来和"这个 profile 不存在"一模一样。
+    """
+    import importlib.util
+
+    for rel, name in _SUITE_PROFILES:
+        f = REPO / rel
+        if not f.is_file():
+            print(f"[warn] suite profile 不在:{rel}", file=sys.stderr)
+            continue
         try:
-            __import__(mod)
-        except Exception:                                    # noqa: BLE001
-            pass
+            spec = importlib.util.spec_from_file_location(name, f)
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[name] = mod
+            spec.loader.exec_module(mod)
+        except Exception as e:                               # noqa: BLE001
+            print(f"[warn] 登记 {rel} 失败:{type(e).__name__}: {e}", file=sys.stderr)
 
 
 def main() -> int:

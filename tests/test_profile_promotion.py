@@ -35,6 +35,25 @@ import profile as CANARY  # noqa: E402  —— 登记 rt-sidecar-canary-v1
 
 import sidecar as MDIT  # noqa: E402  —— 登记 rt-sidecar-markdown-it-v1
 
+
+def _register_browser_profile():
+    """按**路径**登记浏览器 suite 的 profile。
+
+    不能裸 `import profile` —— 两个 suite 同名,先到的赢走(实测踩过:浏览器
+    矩阵整张拓扑表报的是 canary 的)。P6 要覆盖到它,所以必须显式登记。"""
+    import importlib.util
+
+    f = REPO / "benchmarks" / "v2" / "sidecar_browser" / "profile.py"
+    if "suite_browser_profile" in sys.modules or not f.is_file():
+        return
+    spec = importlib.util.spec_from_file_location("suite_browser_profile", f)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["suite_browser_profile"] = mod
+    spec.loader.exec_module(mod)
+
+
+_register_browser_profile()
+
 from repoproof.execution.profile_promotion import (  # noqa: E402
     LIFECYCLE_ORDER,
     MIN_HONEST_PASSES,
@@ -65,8 +84,11 @@ def test_p2_another_profiles_evidence_does_not_count(tmp_path):
     (ev / "matrix.json").write_text(json.dumps(real, ensure_ascii=False), encoding="utf-8")
 
     v = evaluate_promotion(CANARY.PROFILE_ID, repo=tmp_path, to="candidate")
+    assert not v.ok
     d = next(c.detail for c in v.failed() if c.id == "G1-G4.evidence")
-    assert "不是" in d and "体检报告" in d
+    # 断言**实质**不断言措辞:必须拒绝,且把两个 id 都说出来 —— 读的人得能
+    # 分清"没跑过"和"拿了别人的报告",这两件事的修法不同。
+    assert CANARY.PROFILE_ID in d and "rt-somebody-else-v1" in d, d
 
 
 def test_p3_no_skipping_a_level():

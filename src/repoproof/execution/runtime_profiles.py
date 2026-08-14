@@ -83,10 +83,30 @@ IN_PROCESS_V1 = RuntimeProfile(
 _REGISTRY: dict[str, RuntimeProfile] = {IN_PROCESS_V1.id: IN_PROCESS_V1}
 
 
+def profile_signature(p: RuntimeProfile) -> tuple:
+    """profile 的**语义指纹** —— 不含可调用对象。
+
+    为什么不能直接比对象:`dispatch` 里是函数对象。同一份 profile.py 被两处
+    按不同模块名加载(测试与脚本各加载一次,或两个 suite 交叉引用),会得到
+    两个内容相同却"不相等"的 RuntimeProfile,注册表就误报"同 id 不同内容"。
+
+    守卫要挡的是**语义变了**(拓扑变了、要求的符号变了、上游换了),不是
+    "函数对象换了个地址"。所以比语义面:id / 拓扑 / 生命周期 / 摘要 /
+    要求符号集 / 默认符号 / 上游发行版与导入名 / **能力面的符号名集合**。
+    """
+    up = p.upstream
+    return (p.id, p.topology, p.lifecycle, p.summary,
+            tuple(sorted(p.required_symbols)), p.default_symbol,
+            None if up is None else (up.distribution, up.import_module,
+                                     tuple(sorted(up.dispatch))))
+
+
 def register_profile(p: RuntimeProfile) -> RuntimeProfile:
-    if p.id in _REGISTRY and _REGISTRY[p.id] != p:
-        raise ValueError(f"profile id 已被占用且内容不同:{p.id}。"
-                         "id 是对外承诺的名字,改行为请发新 id,别就地改语义")
+    old = _REGISTRY.get(p.id)
+    if old is not None and profile_signature(old) != profile_signature(p):
+        raise ValueError(f"profile id 已被占用且**语义**不同:{p.id}。"
+                         "id 是对外承诺的名字,改行为请发新 id,别就地改语义。"
+                         f"\n  旧 {profile_signature(old)}\n  新 {profile_signature(p)}")
     _REGISTRY[p.id] = p
     return p
 

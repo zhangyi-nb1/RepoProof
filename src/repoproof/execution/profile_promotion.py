@@ -201,20 +201,31 @@ def _mutation_evidence_for_head(repo: Path) -> tuple[dict | None, str]:
 def _check_conformance(repo: Path, p: RuntimeProfile) -> list[Check]:
     """G1–G4:零模型的机制证明。证据来自 conformance 矩阵。"""
     out: list[Check] = []
-    m = _read_json(repo / "docs" / "evidence" / "sidecar_conformance" / "matrix.json")
-    if m is None:
+    # **按 profile 找它自己的那份证据**,而不是写死一个路径。
+    #
+    # 写死路径 + 事后核 profile_id 也能挡住错配(那是下面那道),但会让第二个
+    # sidecar profile 永远拿不到自己的证据 —— 判据于是对它恒假,而恒假的判据
+    # 与"不支持"无从区分。扫目录再按 profile_id 认领,两件事就分开了:
+    # 找不到 = 没跑过;找到但 id 不对 = 拿了别人的报告。
+    root = repo / "docs" / "evidence"
+    mats = [_read_json(f) for f in sorted(root.glob("*conformance*/matrix.json"))]
+    mine = [m for m in mats if m and m.get("profile_id") == p.id]
+    if not mine:
+        seen = sorted({m.get("profile_id") for m in mats if m})
         return [Check("G1-G4.evidence", False,
-                      "没有 conformance 矩阵证据 —— 跑 scripts/sidecar_conformance.py。"
-                      "查不到证据一律拒绝晋级,不假设")]
-    if m.get("profile_id") != p.id:
+                      f"没有 {p.id!r} 的 conformance 矩阵证据(现有的是 {seen})—— "
+                      "跑对应的 conformance 脚本。查不到证据一律拒绝晋级,不假设")]
+    if len(mine) > 1:
         return [Check("G1-G4.evidence", False,
-                      f"矩阵证的是 {m.get('profile_id')!r},不是 {p.id!r} —— "
-                      "别人的体检报告不能拿来给自己晋级")]
+                      f"{p.id!r} 有 {len(mine)} 份矩阵证据 —— 分不清该信哪份,"
+                      "拒绝晋级")]
+    m = mine[0]
 
     topo = m.get("topology") or {}
     bad_topo = [f["check"] for f in topo.get("findings", []) if not f["ok"]]
     out.append(Check("G1.topology", bool(topo.get("ok")) and not bad_topo,
-                     "拓扑四条全过" if topo.get("ok") else f"拓扑不成立:{bad_topo}"))
+                     f"拓扑 {len(topo.get('findings') or [])} 条全过"
+                     if topo.get("ok") else f"拓扑不成立:{bad_topo}"))
 
     rows = m.get("rows") or []
     pos = [r for r in rows if r.get("expect") == "PASS"]
