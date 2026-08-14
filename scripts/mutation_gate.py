@@ -775,8 +775,10 @@ MUTATIONS: list[dict] = [
         "lesson": "查不到证据就默认放行 → 这样的闸门与没有闸门的区别,"
                   "只在于它会让人误以为有闸门",
         "file": _PP,
-        "old": '        return [Check("G1-G4.evidence", False,',
-        "new": '        return [Check("G1-G4.evidence", True,',
+        "old": ('    if m is None:\n'
+                '        return [Check("G1-G4.evidence", False,'),
+        "new": ('    if m is None:\n'
+                '        return [Check("G1-G4.evidence", True,'),
         "catchers": _T_PP,
     },
     {
