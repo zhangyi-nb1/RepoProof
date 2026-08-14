@@ -65,6 +65,8 @@ _T_SCF = ["tests/test_sidecar_conformance.py"]
 _BCF = "scripts/browser_conformance.py"
 _BWK = "benchmarks/v2/sidecar_browser/worker.py"
 _T_BCF = ["tests/test_browser_conformance.py"]
+_VTR = "scripts/verify_task_receipts.py"
+_T_T3S = ["tests/test_t3_sidecar_task.py"]
 _PP = "src/repoproof/execution/profile_promotion.py"
 _T_PP = ["tests/test_profile_promotion.py"]
 _T_CF = ["tests/test_constraint_feedback.py"]
@@ -846,6 +848,24 @@ MUTATIONS: list[dict] = [
         "old": "    ok = escaped == 0 and stale == 0 and not missing",
         "new": "    ok = escaped == 0 and stale == 0",
         "catchers": _T_PP,
+    },
+    # ---- M55:T3-SIDECAR v1 的任务级判据。
+    {
+        "id": "M55a-adoption-degrades-to-set-membership",
+        "lesson": "采纳判据从**逐项对应**退回**集合成员** → '一次调用充抵所有项'"
+                  "过得去(实测:nc3 只红在 U3,U4 反而绿)",
+        "file": _VTR,
+        "old": "        want = by_nonce.get(rn)",
+        "new": "        want = [d for v in by_nonce.values() for d in v]",
+        "catchers": _T_T3S,
+    },
+    {
+        "id": "M55b-empty-delivery-counts-as-adoption",
+        "lesson": "空交付算采纳 → '什么都不交'反而最容易过",
+        "file": _VTR,
+        "old": '    if not delivery:\n        return False, "交付为空 —— 空交付不算采纳"',
+        "new": '    if not delivery:\n        return True, "空"',
+        "catchers": _T_T3S,
     },
     # ---- M54:真上游(browser-use + 封存 Chromium)的 conformance。
     {

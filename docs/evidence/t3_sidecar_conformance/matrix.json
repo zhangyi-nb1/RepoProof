@@ -1,0 +1,461 @@
+{
+  "_what": "T3-SIDECAR v1 的任务级控制矩阵(F0:先证明判据不是墙也不是筛子)",
+  "_not_a_benchmark": "零模型;不进 runs.jsonl,不影响任何闸门数字",
+  "task_id": "t3-sidecar-page-facts-v1",
+  "profile_id": "rt-sidecar-browser-v1",
+  "items": 2,
+  "rows": [
+    {
+      "control": "positive",
+      "expect": "PASS",
+      "expect_red": [],
+      "actual": "PASS",
+      "actual_red": [],
+      "job_state": "done",
+      "failure": "",
+      "verdict": {
+        "ok": true,
+        "receipts": 2,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "2 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.count",
+            "ok": true,
+            "detail": "执行方写了 2 条,台账里 2 条",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['browser_use.BrowserSession.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": true,
+            "detail": "2 个单元各有对得上的回执",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": true,
+            "detail": "2/2 项各自对上自己那张回执",
+            "invocation_id": ""
+          }
+        ]
+      }
+    },
+    {
+      "control": "nc1_no_sidecar",
+      "expect": "FAIL",
+      "expect_red": [
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "job_state": "done",
+      "failure": "",
+      "verdict": {
+        "ok": false,
+        "receipts": 0,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "台账不存在(零回执)",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.count",
+            "ok": true,
+            "detail": "执行方写了 0 条,台账里 0 条",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['browser_use.BrowserSession.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": false,
+            "detail": "2/2 个单元没有回执(或输入对不上):['item-1', 'item-2']",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "2/2 项采纳不成立:['item-1:没有属于它的回执', 'item-2:没有属于它的回执']",
+            "invocation_id": ""
+          }
+        ]
+      }
+    },
+    {
+      "control": "nc2_ignores_result",
+      "expect": "FAIL",
+      "expect_red": [
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U4.adoption"
+      ],
+      "job_state": "done",
+      "failure": "",
+      "verdict": {
+        "ok": false,
+        "receipts": 2,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "2 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.count",
+            "ok": true,
+            "detail": "执行方写了 2 条,台账里 2 条",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['browser_use.BrowserSession.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": true,
+            "detail": "2 个单元各有对得上的回执",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "2/2 项采纳不成立:['item-1:交付的事实不是它那张回执的产出', 'item-2:交付的事实不是它那张回执的产出']",
+            "invocation_id": ""
+          }
+        ]
+      }
+    },
+    {
+      "control": "nc3_one_call_for_all",
+      "expect": "FAIL",
+      "expect_red": [
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "job_state": "done",
+      "failure": "",
+      "verdict": {
+        "ok": false,
+        "receipts": 1,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "1 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.count",
+            "ok": true,
+            "detail": "执行方写了 1 条,台账里 1 条",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['browser_use.BrowserSession.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": false,
+            "detail": "1/2 个单元没有回执(或输入对不上):['item-2']",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "1/2 项采纳不成立:['item-2:没有属于它的回执']",
+            "invocation_id": ""
+          }
+        ]
+      }
+    },
+    {
+      "control": "nc4_wrong_symbol",
+      "expect": "FAIL",
+      "expect_red": [
+        "U2.symbol",
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U2.symbol",
+        "U3.coverage",
+        "U4.adoption"
+      ],
+      "job_state": "done",
+      "failure": "",
+      "verdict": {
+        "ok": false,
+        "receipts": 2,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "2 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.count",
+            "ok": true,
+            "detail": "执行方写了 2 条,台账里 2 条",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": false,
+            "detail": "调了要求集之外的符号:['inv-0001', 'inv-0002']",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": false,
+            "detail": "2/2 个单元没有回执(或输入对不上):['item-1', 'item-2']",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "2/2 项采纳不成立:['item-1:没有属于它的回执', 'item-2:没有属于它的回执']",
+            "invocation_id": ""
+          }
+        ]
+      }
+    }
+  ],
+  "discrimination_by_family": {
+    "U1": {
+      "red_in": [],
+      "green_in": [
+        "positive",
+        "nc1_no_sidecar",
+        "nc2_ignores_result",
+        "nc3_one_call_for_all",
+        "nc4_wrong_symbol"
+      ]
+    },
+    "U2": {
+      "red_in": [
+        "nc4_wrong_symbol"
+      ],
+      "green_in": [
+        "positive",
+        "nc1_no_sidecar",
+        "nc2_ignores_result",
+        "nc3_one_call_for_all"
+      ]
+    },
+    "U3": {
+      "red_in": [
+        "nc1_no_sidecar",
+        "nc3_one_call_for_all",
+        "nc4_wrong_symbol"
+      ],
+      "green_in": [
+        "positive",
+        "nc2_ignores_result"
+      ]
+    },
+    "U4": {
+      "red_in": [
+        "nc1_no_sidecar",
+        "nc2_ignores_result",
+        "nc3_one_call_for_all",
+        "nc4_wrong_symbol"
+      ],
+      "green_in": [
+        "positive"
+      ]
+    }
+  },
+  "families_not_attacked_here": [
+    "U1"
+  ],
+  "of_which_covered_elsewhere": {
+    "U1": "receipt_controls / browser_conformance 两个矩阵"
+  },
+  "problems": [],
+  "ok": true
+}

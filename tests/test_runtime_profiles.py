@@ -65,19 +65,58 @@ def test_p1_default_profile_is_in_process():
     assert IN_PROCESS_V1.lifecycle == "default"
 
 
-def test_p1b_real_task_contracts_are_all_in_process():
-    """P1 的现场版:盘上每个任务包都仍是 in-process。
+# 有意声明 sidecar 拓扑的任务包 —— **白名单,逐个具名**。
+# 它当初写成"所有任务都必须是 in-process",并注明"第一个 sidecar 任务落地时
+# 会变红,那时必须有人来看一眼"。2026-08-15 它如约变红了,这就是那一眼:
+# T3-SIDECAR v1 是有意换的拓扑(新谱系,不是 T3v6 的下一版)。
+#
+# 改成白名单而不是放宽成"随便":放宽之后,谁顺手把 T1 的 runtime_profile
+# 改了也没人管,而那正是这条判据要挡的事。
+_SIDECAR_TASKS = {"t3_sidecar_v1": "rt-sidecar-browser-v1"}
 
-    这条会在第一个 sidecar 任务落地时变红 —— 那时**必须有人来看一眼**,
-    确认那道题确实是有意换的,而不是谁顺手改了个默认值。"""
+
+def test_p1b_real_task_contracts_declare_the_expected_topology():
+    """P1 的现场版:每个任务包的拓扑必须与白名单一致。
+
+    既有任务(T1/T2/T3-INPROC)仍是 in-process —— 新增 sidecar 能力**不得
+    悄悄改掉任何既有任务**;新任务要走 sidecar,必须先在这里具名登记。"""
     import yaml
 
     tasks = sorted((REPO / "benchmarks" / "v2" / "tasks").glob("*/contract.yaml"))
     assert tasks, "任务包一个都没有?"
     for f in tasks:
         got = (yaml.safe_load(f.read_text(encoding="utf-8")) or {}).get("runtime_profile")
-        assert got in (None, "", "rt-inprocess-v1"), (
-            f"{f.parent.name} 声明了 {got!r} —— 题面变了,别忘了它与既有发次不可互比")
+        want = _SIDECAR_TASKS.get(f.parent.name)
+        if want:
+            assert got == want, f"{f.parent.name} 应为 {want!r},实为 {got!r}"
+        else:
+            assert got in (None, "", "rt-inprocess-v1"), (
+                f"{f.parent.name} 声明了 {got!r} 却不在 sidecar 白名单里 —— "
+                "题面变了却没人登记,而它与既有发次不可互比")
+
+
+def test_p1c_the_two_t3_lineages_never_share_a_shape():
+    """两支 T3 的**谱系与形状必须分开**(用户 2026-08-14 指令)。
+
+    反例:两支用同一个 `task_family` 或同一个 `adoption_shape` → 实验表里
+    再也分不开"装库集成"与"RPC 采纳"两种能力,成绩会被合池平均。"""
+    import yaml
+
+    def load(name):
+        f = REPO / "benchmarks" / "v2" / "tasks" / name / "contract.yaml"
+        return yaml.safe_load(f.read_text(encoding="utf-8")) if f.is_file() else None
+
+    inproc, side = load("t3_browser_use_v6"), load("t3_sidecar_v1")
+    if inproc is None or side is None:
+        return
+    assert inproc["task_family"] == "T3-INPROC"
+    assert side["task_family"] == "T3-SIDECAR"
+    assert inproc["adoption_shape"] != side["adoption_shape"]
+    assert side["adoption_shape"] == "SIDECAR_RPC_ADOPTION"
+    assert inproc["task_id"] != side["task_id"], "两支共用 task_id 会让台账混池"
+    # 上游同源同 commit —— 换的是拓扑不是上游,这样两支才可对照
+    assert inproc["source_repo"]["resolved_commit"] == \
+           side["source_repo"]["resolved_commit"]
 
 
 # ------------------------------------------------------------------ P2

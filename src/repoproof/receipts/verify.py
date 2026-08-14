@@ -84,7 +84,18 @@ def digest_equality_predicate(extract: Callable[[object], list[str]]) -> Adoptio
     `output.digest` 上带了规范化口径(`canon`),任务应当选一个既容得下
     排版差异、又容不下"换一份内容"的口径(如 `text/whitespace-squashed`)。
     口径选松了,这条判据就退化成搬运即可满足 —— 那是任务的责任,不是本
-    模块能替它决定的。"""
+    模块能替它决定的。
+
+    **另一条边界,实测踩到过(2026-08-15,T3-SIDECAR 的 nc3)**:它判的是
+    "交付里每一项的摘要**在**回执 output 的集合里",是**集合成员**不是逐项
+    对应。于是"一次调用充抵所有项"过得去 —— 只调一次拿到 A 的结果,把它
+    当作 A 和 B 一起交,两项都落在集合里,U4 照绿(当时只有 U3 报红)。
+
+    要挡住它,任务得自己写**逐项对应**的谓词:交付项与回执按
+    `binding.request_nonce` 配对,每项只认它自己那张。做得到这件事的信息
+    只有任务有(哪一项对应哪个 nonce),所以本模块给不出通用版本 ——
+    这正是采纳谓词按任务登记的理由。参见
+    `scripts/verify_task_receipts.py::_per_unit_adoption`。"""
 
     def _pred(receipts: list[Receipt], delivery: object) -> tuple[bool, str]:
         want = {r.output.digest for r in receipts}

@@ -88,7 +88,12 @@ class _H(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):                       # noqa: N802
-        nonce = getattr(self.server, "nonce", "")          # type: ignore[attr-defined]
+        # **内容随查询串变**。原先整站同一份内容,于是"一次调用充抵所有项"
+        # 在内容上恰好正确 —— U3 抓得住(输入摘要不同),U4 抓不住。那样
+        # 采纳判据在 per-item 这件事上没有判别力,而那正是它该管的事之一。
+        base = getattr(self.server, "nonce", "")           # type: ignore[attr-defined]
+        q = self.path.split("?", 1)[1] if "?" in self.path else ""
+        nonce = f"{base}/{q}" if q else base
         if self.path.startswith("/health"):
             body = json.dumps({"ok": True, "nonce": nonce}).encode()
             ctype = "application/json"

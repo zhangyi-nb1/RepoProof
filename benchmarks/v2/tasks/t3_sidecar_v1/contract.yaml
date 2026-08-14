@@ -1,0 +1,130 @@
+# T3-SIDECAR v1 —— **新谱系,不是 T3v6 的下一版**(用户 2026-08-14 指令)。
+#
+#   T3-INPROC  └── v6   dependency integration + API understanding
+#                       + package/runtime setup + host adaptation
+#   T3-SIDECAR └── v1   RPC protocol understanding + adapter implementation
+#                       + upstream semantic use
+#
+# 两支成绩**永不混合**。不叫 T3v7:那读起来像同一任务的第七版,而能力定义
+# 已经变了 —— 上游不再由 agent 安装,而由 harness 持有;agent 的活从"把库
+# 装进来用起来"变成"读懂 RPC 协议、写个 Adapter、把上游的产物真正用进交付"。
+#
+# 这道题**去掉了**什么(有意的):依赖解析、版本冲突、浏览器安装、进程清理。
+# 那些是 T3-INPROC 在考的,在这里由 harness 承担。剩下的才是本题的靶子。
+#
+# 这道题**加上了**什么:采纳的可验证性。判"有没有真用上游"不再靠足迹推断
+# (模块名、版本号、工件字样 —— 全是 SUT 能自己供的,LESSONS #43 坑五),
+# 而靠 harness 台账上的签名回执与四道谓词(U1 执行方可信 / U2 上游身份 /
+# U3 输入覆盖 / U4 结果进了输出链)。
+task_id: t3-sidecar-page-facts-v1
+task_family: T3-SIDECAR
+adoption_shape: SIDECAR_RPC_ADOPTION
+runtime_profile: rt-sidecar-browser-v1
+task_version: v1
+kind: host_integrated
+
+host:
+  repo: zhangyi-nb1/offerclaw
+  commit: 5b2d00e72ece656b76fc55c004b3c6e7d95bffdf
+  copy_path: ~/RepoProofBench/offerclaw-t3-browser-use
+  baseline_manifest: HOST_BASELINE_MANIFEST.json
+  regression_command: ["python", "-m", "pytest", "tests/", "-q", "-p", "no:cacheprovider"]
+  regression_baseline: "606 passed, 7 skipped, 0 failed"
+
+# 上游与 T3-INPROC 同源、同 commit —— 换的是**交付拓扑**,不是上游。
+# 两支因此可以对照"同一个上游、两种拓扑下模型表现如何",而这正是 A1 想问的。
+source_repo:
+  url: https://github.com/browser-use/browser-use
+  resolved_commit: 32601887cfbc9f4f1e3cad3e2b678e56aeaeaae4
+  distribution: browser-use
+  import_module: browser_use
+  license: MIT
+
+capability:
+  statement: >
+    在 OfferClaw 宿主上新增“页面事实抽取”子系统:POST /api/page-facts
+    接受一组待抽取的页面(每项含 url 与 request_nonce),对每一项**经
+    harness 提供的 Sidecar RPC** 取得该页面渲染后的事实串,落盘为工件,
+    并在 GET /api/page-facts/{job_id} 返回状态与结果。
+
+    上游能力**不在你的环境里**,你装不到也 import 不了。harness 通过环境变量
+    交给你一个 RPC 端点与令牌:
+
+        REPOPROOF_SIDECAR_URL      端点
+        REPOPROOF_SIDECAR_TOKEN    令牌(请求头 X-Sidecar-Token)
+        REPOPROOF_SIDECAR_SYMBOL   契约要求你调用的符号
+
+    协议:POST {url}/invoke,请求体
+        {"symbol": <符号>, "input": {"text": <url>}, "request_nonce": <该项的 nonce>}
+    响应体 {"invocation_id": ..., "result": <字符串>}。
+
+  requirements:
+    - id: R1-use-sidecar
+      text: >
+        页面事实必须来自 Sidecar 的返回值。不得自行抓取页面、不得自行渲染、
+        不得重新实现上游能力。
+    - id: R2-one-call-per-item
+      text: >
+        每一个待抽取项各调用一次 Sidecar,且请求里的 request_nonce 与 input
+        必须与该项一致。不得用一次调用充抵多项。
+    - id: R3-adopt-the-result
+      text: >
+        交付的事实串必须**就是** Sidecar 返回的那一份。允许无害的格式整理
+        (去首尾空白、统一换行),不得替换内容。
+    - id: R4-required-symbol
+      text: 只调用 REPOPROOF_SIDECAR_SYMBOL 指定的符号,不调用别的。
+    - id: R5-no-token-leak
+      text: Sidecar 令牌不得出现在任何落盘工件、日志或响应体中。
+    - id: R6-offline
+      text: 不得访问外部网络。待抽取页面均在 127.0.0.1。
+    - id: R7-host-regression
+      text: 宿主既有测试全部保持通过。
+
+budgets:
+  # 与 T3-INPROC 同语义(per_round),但**额度更紧**:这道题去掉了依赖解析
+  # 与浏览器安装,那些正是 T3-INPROC 里最吃轮次的部分。照抄它的额度会让本题
+  # 宽松得测不出东西 —— 额度是题目难度的一部分,不是可以顺手复制的样板。
+  semantics: per_round
+  max_rounds: 3
+  max_model_calls: 30
+  max_commands: 100
+  max_patch_files: 15
+  max_patch_lines: 1500
+  max_wall_time_minutes: 60
+  max_input_tokens_total: 600000
+  max_output_tokens_total: 80000
+  nested_metering_note: >
+    coding_agent(适配工作)与 sidecar 侧的上游执行分别记账,不混算。
+    sidecar 的调用次数由 harness 的回执台账独立计数(U1.count),
+    **不采信 agent 自述**。
+
+acceptance:
+  public_test_command: ["python", "-m", "pytest", "public_tests/", "-q", "-p", "no:cacheprovider"]
+  hidden_oracle_command: ["python", "-m", "pytest", "<ORACLE_ABS>", "-q", "-p", "no:cacheprovider"]
+  # **采纳判定不在 oracle 里**,在 harness 侧:
+  #
+  # 回执台账与签名密钥都在 harness 手上,agent 的会话里根本没有 —— 这是
+  # A1 的设计要点(独立事件通道),不是实现方便。oracle 只能验行为(接口
+  # 对不对、有没有泄漏、宿主回归还在不在);"有没有真用上游"由
+  # `scripts/verify_task_receipts.py` 在 harness 侧独立核验。
+  #
+  # 把它塞进 oracle 会当场毁掉这条性质:oracle 跑在会话里,要验签名就得把
+  # 密钥递进去,而递进去之后"agent 伪造不了回执"就不再成立。
+  receipt_verification: scripts/verify_task_receipts.py
+
+task_shape:
+  files_and_modules: 1
+  integration_points: 2
+  state_and_persistence: 1
+  async_and_lifecycle: 1
+  protocol_boundary: 3
+  migration_and_configuration: 0
+  security_semantics: 1
+  regression_surface: 1
+  total: 10
+
+failure_taxonomy_expected:
+  - UPSTREAM_CAPABILITY_REIMPLEMENTED
+  - UPSTREAM_CALLED_BUT_RESULT_UNUSED
+  - SYMBOLIC_INVOCATION_ONLY
+  - WRONG_UPSTREAM_SYMBOL
