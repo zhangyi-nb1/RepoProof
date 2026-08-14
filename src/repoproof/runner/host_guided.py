@@ -992,12 +992,76 @@ class HostGuidedRunner:
              "-c", "commit.gpgsign=false", *args],
             timeout_s=timeout_s, workdir="host")
 
-    def _assemble(self, backend: LocalWorktreeBackend, label: str) -> _Session:
-        """装配一个会话:快照+替身+PII 扫描+上游+公开测试+S0 提交。"""
+    def _sidecar_env_for_oracle(self) -> dict[str, str]:
+        """oracle 需要的 sidecar 环境。非 sidecar 任务返回空字典(行为不变)。
+
+        给的是**与 agent 同一份**:端点、令牌、符号、fixture 基址、那批项的
+        nonce。oracle 拿它去提交作业;它拿不到台账与密钥,与 agent 一样。
+        """
+        sess = getattr(self, "_sidecar_sess", None)
+        return dict(sess.agent_env()) if sess is not None else {}
+
+    def _extract_sidecar_delivery(self, s) -> list | None:
+        """紧贴产出取交付 —— 在会话被销毁之前调用。"""
+        import importlib.util
+
+        f = self.task_dir / "delivery_extractor.py"
+        if not f.is_file() or s is None:
+            return None
+        spec = importlib.util.spec_from_file_location("rp_delivery_extractor", f)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        try:
+            return mod.extract(s.root / "host")
+        except Exception:                                     # noqa: BLE001
+            return None
+
+    def _verify_sidecar_receipts(self, sess, s, *, delivery=None) -> dict:
+        """取交付 + 核验回执。**会话销毁前调用。**
+
+        取件器由任务包提供(`delivery_extractor.py`)。没有取件器就判不过 ——
+        不猜:一个 sidecar 任务若没说清"交付在哪",那它的采纳根本无从判定,
+        而默认放行等于把这道判据整个删掉。
+        """
+        import importlib.util
+
+        from repoproof.runner import sidecar_session as _ss
+
+        f = self.task_dir / "delivery_extractor.py"
+        if not f.is_file():
+            return {"ok": False, "reason": "NO_DELIVERY_EXTRACTOR",
+                    "detail": f"任务包没有 {f.name} —— 交付在哪没人说得清,"
+                              "采纳无从判定。不猜。"}
+        spec = importlib.util.spec_from_file_location("rp_delivery_extractor", f)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        if delivery is None:
+            host = (s.root / "host") if s is not None else None
+            delivery = mod.extract(host) if host is not None else None
+        if delivery is None:
+            # 取不到就**把现场说清楚**:是会话没了、目录不在、还是目录空。
+            # 含糊的 NO_DELIVERY_EXTRACTED 会让人无从下手,而取件失败与
+            # 采纳不成立的修法完全不同。
+            host = (s.root / "host") if s is not None else None
+            seen = (sorted(x.name for x in host.iterdir())[:20]
+                    if host is not None and host.is_dir()
+                    else "(会话已销毁或 host 目录不在 —— 多半是取件时机晚了)")
+            return {"ok": False, "reason": "NO_DELIVERY_EXTRACTED",
+                    "detail": f"取不到交付。host={host};其中有:{seen}"}
+        return _ss.verify(sess, task_id=self.contract.task_id, delivery=delivery)
+
+    def _assemble(self, backend: LocalWorktreeBackend, label: str,
+                  extra_env: dict[str, str] | None = None) -> _Session:
+        """装配一个会话:快照+替身+PII 扫描+上游+公开测试+S0 提交。
+
+        `extra_env` 供 sidecar 拓扑注入端点与令牌(A1)。**缺省 None = 既有
+        行为一字不变** —— 新增能力不得改变任何既有任务的会话环境。
+        """
         ev = self.store.append_event
         session = backend.start(name_prefix=f"rp-host-{label}", env={
             "PIP_NO_INDEX": "1",
             "PIP_FIND_LINKS": str(self.wheelhouse),
+            **(extra_env or {}),
             # A 类只读缓存共享(TESTPLAN §4-3):共享 + 离线开关;假 HOME 不变
             "MODELSCOPE_CACHE": str(Path("~/.cache/modelscope").expanduser()),
             "PYTHONHASHSEED": "0",
@@ -1147,6 +1211,11 @@ class HostGuidedRunner:
             timeout_s=timeout_s, workdir="host",
             env={"PYTHONPATH": str(s.root / "host"),
                  "OFFERCLAW_HOST_ROOT": str(s.root / "host"),
+                 # A1:oracle 是用**显式 env** 跑的,会话级环境到不了它 ——
+                 # 实测踩过:oracle 里 os.environ["REPOPROOF_FIXTURE_URL"]
+                 # 直接 KeyError,三条隐藏用例全红,而真因与被测方无关。
+                 # sidecar 拓扑的任务,oracle 必须拿得到端点与那批项。
+                 **self._sidecar_env_for_oracle(),
                  **self._meter_env(meter_tag)})
         stdout = res.stdout.decode(errors="replace")
         append_oracle_log(self.store.run_dir, stdout, res.exit_code)   # 修订⑥
@@ -1246,6 +1315,9 @@ class HostGuidedRunner:
         ev("oracle.hashed", actor="harness", payload={"files": len(oracle_before)})
 
         verdict_record: dict = {}
+        sidecar_sess = None            # A1:仅 sidecar 拓扑的任务会起
+        delivery_snapshot: list | None = None
+        receipt_verification: dict | None = None
         missing_external: list[str] = []
         budget_exhausted: str | None = None
         agent_metrics: dict = {"model_calls": 0, "commands": 0, "denied": 0,
@@ -1273,7 +1345,26 @@ class HostGuidedRunner:
                 missing_external.append(f"BENCH_ROOT_CONTAMINATED:{strays[:5]}")
                 raise _BenchContaminated(strays)
 
-            s = self._assemble(backend, "agent")
+            # ---- A1:sidecar 拓扑的任务,发次期由 harness 起上游 ----
+            #
+            # 只对声明了 sidecar 的任务生效;in-process 任务走原路,
+            # 一个字节都不变(§2 规则 5 的延伸:加一条新路,不动老路)。
+            from repoproof.execution.runtime_profiles import profile_of_contract
+
+            _rt = profile_of_contract(self.contract)
+            if _rt.topology == "sidecar":
+                from repoproof.runner import sidecar_session as _ss
+
+                sidecar_sess = _ss.start(profile=_rt, run_id=self.run_id,
+                                         run_dir=self.store.run_dir)
+                self._sidecar_sess = sidecar_sess
+                ev("sidecar.started", actor="harness",
+                   payload={"profile_id": _rt.id, "items": len(sidecar_sess.items),
+                            "fixture": sidecar_sess.fixture_url})
+
+            s = self._assemble(backend, "agent",
+                               extra_env=(sidecar_sess.agent_env()
+                                          if sidecar_sess else None))
             upstream_before = hash_tree(s.root / "upstream")
             public_before = hash_public_surface(s.root / "host")
             self.timings["env_build"] = 0.0
@@ -1786,6 +1877,14 @@ class HostGuidedRunner:
             # -232629 实证:每轮语义下"终轮撞执法线"与"任务成功"常态共存,
             # v1 的"耗尽即跳过"会让读入型模型的 PASS 结构性不可达;源方案
             # §3-14 规定最终 PASS 必须过 clean replay → 三绿必须尝试)。
+            # A1:**在销毁 agent 会话之前**把交付取出来。
+            # 实测踩过:原本放在最外层 finally 里,而 clean replay 会先
+            # `backend.destroy(s.id); s = None`,等到 finally 时 host 目录
+            # 早没了 —— 报出来是 "host=None",看起来像交付不存在,实则是
+            # 取件时机错了。**取件必须紧贴产出,不能等到清场之后。**
+            if sidecar_sess is not None and s is not None and delivery_snapshot is None:
+                delivery_snapshot = self._extract_sidecar_delivery(s)
+
             if replay_eligible(cap, reg, pol):
                 if not keep_session:
                     backend.destroy(s.id)
@@ -1840,6 +1939,34 @@ class HostGuidedRunner:
                 gate_reasons=["HOST_BASELINE_UNHEALTHY:宿主基线不达标,未消耗任何模型预算"],
                 t0=t0)
         finally:
+            # A1:**会话销毁之前**取交付并核验回执 —— 销毁之后就取不到了。
+            # 放在 finally 里是为了任何路径都会跑到;主成功路径的 return 在
+            # 本 finally 之后,所以 `receipt_verification` 赶得上进报告。
+            if sidecar_sess is not None:
+                try:
+                    receipt_verification = self._verify_sidecar_receipts(
+                        sidecar_sess, s, delivery=delivery_snapshot)
+                    ev("sidecar.receipts_verified", actor="harness",
+                       payload={"ok": receipt_verification.get("ok"),
+                                "reason": receipt_verification.get("reason", "")})
+                    if not receipt_verification.get("ok"):
+                        # 走既有的 missing_external 通道,不对 verdict 做手术:
+                        # 那条通道的语义本来就是"外部前置条件不满足 → 不算通过",
+                        # 而"没真用上游"正是这种。自己改 verdict 会让 gate 的
+                        # 结论与它自己的 reasons 对不上。
+                        missing_external.append(
+                            "RECEIPT_VERIFICATION_FAILED:"
+                            + str(receipt_verification.get("reason")))
+                except Exception as exc:                          # noqa: BLE001
+                    # 核验本身出错 ≠ 核验不通过。混同会把 harness 的毛病
+                    # 记成被测方的失败,而两者修法完全不同。
+                    receipt_verification = {
+                        "ok": False, "reason": "RECEIPT_VERIFIER_ERROR",
+                        "detail": f"{type(exc).__name__}: {exc}"}
+                    missing_external.append("RECEIPT_VERIFIER_ERROR")
+                finally:
+                    sidecar_sess.shutdown()
+                    self._sidecar_sess = None
             if s is not None and not keep_session:
                 backend.destroy(s.id)
 
@@ -1856,6 +1983,7 @@ class HostGuidedRunner:
         verdict_record = {
             "verdict": gate.verdict.value,
             "gate_reasons": gate.reasons,
+            "receipt_verification": receipt_verification,
             "capability": cap.detail if cap else "not_run",
             "regression": reg.detail if reg else "not_run",
             "policy": pol.detail if pol else "not_run",

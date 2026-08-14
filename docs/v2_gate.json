@@ -11,7 +11,7 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 23,
+    "all_valid_run_outcomes": 24,
     "assisted_repair_runs": 14,
     "development_baseline_runs": 60,
     "exploratory": 7,
@@ -70,8 +70,8 @@
       }
     ],
     "provisional_evidence_runs": 3,
-    "smoke": 21,
-    "smoke_passes": 4,
+    "smoke": 25,
+    "smoke_passes": 5,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -93,9 +93,13 @@
       "t2-offerclaw-open-deep-research-v5-20260814-192652",
       "t2-offerclaw-open-deep-research-v5-20260814-193733",
       "t2-offerclaw-open-deep-research-v5-20260814-194534",
-      "t1-offerclaw-fastapi-mcp-v1-20260814-215038"
+      "t1-offerclaw-fastapi-mcp-v1-20260814-215038",
+      "t3-sidecar-page-facts-v1-20260815-030403",
+      "t3-sidecar-page-facts-v1-20260815-031138",
+      "t3-sidecar-page-facts-v1-20260815-031942",
+      "t3-sidecar-page-facts-v1-20260815-032720"
     ],
-    "total": 102,
+    "total": 106,
     "treatment_delivered_runs": 3,
     "treatment_not_delivered_runs": 3
   },
@@ -107,7 +111,7 @@
   },
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "73287c1aaf6ab6814fa8f1d64a9934170c3f36d0ef784ab61ab27a49634afa8f"
+    "runs_jsonl_sha256": "9722cfb41be72ce200cc9253da0da484b8a18556839c96c2fd66361160f81d8d"
   },
   "stages": {
     "T1": {
@@ -194,7 +198,7 @@
       "treatment_not_delivered_runs": 3
     },
     "T3": {
-      "all_valid_run_outcomes": 3,
+      "all_valid_run_outcomes": 4,
       "assisted_repair_runs": 2,
       "development_baseline_runs": 23,
       "exploratory": 5,
@@ -242,14 +246,18 @@
         }
       ],
       "provisional_evidence_runs": 3,
-      "smoke": 3,
-      "smoke_passes": 0,
+      "smoke": 7,
+      "smoke_passes": 1,
       "smoke_run_ids": [
         "t3-offerclaw-browser-use-v2-20260811-091744",
         "t3-offerclaw-browser-use-v6-20260814-185516",
-        "t3-offerclaw-browser-use-v6-20260814-191956"
+        "t3-offerclaw-browser-use-v6-20260814-191956",
+        "t3-sidecar-page-facts-v1-20260815-030403",
+        "t3-sidecar-page-facts-v1-20260815-031138",
+        "t3-sidecar-page-facts-v1-20260815-031942",
+        "t3-sidecar-page-facts-v1-20260815-032720"
       ],
-      "total": 33,
+      "total": 37,
       "treatment_delivered_runs": 0,
       "treatment_not_delivered_runs": 0
     },

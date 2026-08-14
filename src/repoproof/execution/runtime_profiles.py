@@ -25,6 +25,7 @@ experimental → candidate → qualified → default → deprecated。
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal
 
 from repoproof.execution.upstream_sidecar import UpstreamSpec
@@ -111,9 +112,44 @@ def register_profile(p: RuntimeProfile) -> RuntimeProfile:
     return p
 
 
+# 能力面定义住在 `benchmarks/` 下(随各自的使用者),那里不是包,import 不到。
+# 登记表按 **profile id → 定义文件**,查不到就按这张表去加载一次。
+#
+# 为什么是白名单而不是扫目录:扫目录意味着"放一个文件进去就能凭空多出一个
+# profile",而 profile id 是**对外承诺的名字**(它原样进回执与台账)。多出
+# 一个没人登记过的承诺,比少一个更糟。
+_LAZY_DEFS: dict[str, str] = {
+    "rt-sidecar-browser-v1": "benchmarks/v2/sidecar_browser/profile.py",
+    "rt-sidecar-canary-v1": "benchmarks/v2/sidecar_conformance/profile.py",
+    "rt-sidecar-markdown-it-v1": "benchmarks/v2/receipt_controls/sidecar.py",
+}
+
+
+def _lazy_register(pid: str) -> bool:
+    """按登记表加载一次能力面定义。加载不动就返回 False,由调用方报错。"""
+    import importlib.util
+    import sys
+
+    rel = _LAZY_DEFS.get(pid)
+    if rel is None:
+        return False
+    f = Path(__file__).resolve().parents[3] / rel
+    if not f.is_file():
+        return False
+    name = f"rp_profiledef_{pid.replace('-', '_')}"
+    if name in sys.modules:
+        return pid in _REGISTRY
+    spec = importlib.util.spec_from_file_location(name, f)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return pid in _REGISTRY
+
+
 def profile(pid: str) -> RuntimeProfile:
-    if pid not in _REGISTRY:
-        raise ValueError(f"未登记的 runtime profile:{pid};已登记 {sorted(_REGISTRY)}")
+    if pid not in _REGISTRY and not _lazy_register(pid):
+        raise ValueError(f"未登记的 runtime profile:{pid};已登记 {sorted(_REGISTRY)}"
+                         f";可惰性加载 {sorted(_LAZY_DEFS)}")
     return _REGISTRY[pid]
 
 
