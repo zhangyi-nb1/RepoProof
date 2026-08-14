@@ -237,3 +237,56 @@ def test_fold_rules_have_no_target_in_the_e0_baseline():
     assert folded_total == 0, (
         f"基线六发里出现了 {folded_total} 条可折叠项 —— S2 的靶子出现了,"
         "重新评估折叠规则的收益(2026-08-14 实测为 0)")
+
+
+# ------------------------------------------- S3/S4 靶子实测(同为 Null Result)
+# 2026-08-14:按指导文档"S3/S4/S5 只有在对应失败形态仍存在时再做"的规则,
+# 动手前先在基线六发上量靶子。结果:
+#
+#   S3 持久 shell 要治"状态不连续":`cd` 命令**全六发共 1 条**,每轮 cwd
+#      恒为 1 个(harness 每次传 cwd,状态本来就稳);重复命令 0(S0 已报)。
+#   S4 结构化编辑器要治"bash 改文件脆":44 次非零退出里**语法错误 0、
+#      权限 0**。我最初按"含 heredoc/重定向的命令挂了"数出 13 次编辑失败,
+#      逐条看发现多数是**同一条链里后面的部分**挂了(python not found /
+#      pip / pytest),`cat > f <<EOF` 本身写成功了。量具太粗。
+#
+#   44 次非零退出的真实分布:测试失败 15(34%,这是正事)· POLICY_DENIED 10
+#   (23%,策略拒执不是执行器缺陷)· pip 安装 9(20%)· command not found 4
+#   · ModuleNotFound 3 · 文件不存在 1 · **语法/权限 0**
+#
+# 故 S3 与 S4 同样记 Null Result。真正剩下的靶子是 S5 要治的**语义替代**
+# —— 批 11-13 里 order-66/68/69 三发都是那一型(纯 HTTP 重实现、自带同名
+# 假包),那是执行器治不了的,得靠判据与状态板。
+
+def test_s3_s4_targets_absent_in_the_e0_baseline():
+    """S3/S4 的失败形态在基线上不存在 —— Null Result,不是 bug。
+
+    转红 = 靶子出现了,重新评估这两步的收益。"""
+    import json
+    import re
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[1]
+    baseline = repo / "docs" / "evidence" / "exec_metrics" / "baseline-E0.json"
+    if not baseline.is_file():
+        return
+
+    syntax_err = re.compile(r"SyntaxError|IndentationError")
+    perm_err = re.compile(r"Permission denied")
+    cd_cmd = re.compile(r"(^|[;&|]\s*)cd\s", re.M)
+
+    n_syntax = n_perm = n_cd = 0
+    for r in json.loads(baseline.read_text(encoding="utf-8"))["runs"]:
+        for traj in sorted((repo / "runs" / r["bundle"]).glob("trajectory_round*.json")):
+            for m in json.loads(traj.read_text(encoding="utf-8")).get("messages") or []:
+                if m.get("role") == "tool":
+                    body = m.get("content") or ""
+                    n_syntax += bool(syntax_err.search(body))
+                    n_perm += bool(perm_err.search(body))
+                elif m.get("role") == "assistant":
+                    for a in ((m.get("extra") or {}).get("actions") or []):
+                        n_cd += bool(cd_cmd.search(a.get("command", "") or ""))
+
+    assert n_syntax == 0, f"出现 {n_syntax} 次语法错误 —— S4 结构化编辑器的靶子出现了"
+    assert n_perm == 0, f"出现 {n_perm} 次权限错误 —— 重新评估工具面"
+    assert n_cd <= 2, f"出现 {n_cd} 条 cd 命令 —— S3 持久 shell 的靶子可能出现了"

@@ -172,6 +172,81 @@ def round_metrics(traj: dict) -> dict:
     }
 
 
+# ---------------------------------------------------------------- 靶子扫描
+# S3/S4/S5 是**条件立项**:指导文档明写"只有在对应失败形态仍存在时再做,
+# 不一次性全部堆上"。S2 的教训就是我先造机制、后验前提 —— 三条折叠规则
+# 全部以"命令重复"为前提,而 S0 早已报了"重复命令全 0"。
+#
+# 故每一步动手前先在真实轨迹上量它的靶子。下面每个计数器都对应文档里
+# 那一步声称要治的失败形态;计数为 0 = 该步在当前证据下无靶子。
+
+# S3:持久 shell 要治"状态不连续" —— 表现为反复重建 cwd/环境
+_S3_CD = re.compile(r"(^|[;&|]\s*)cd\s", re.M)
+_S3_PATH_ERR = re.compile(r"No such file or directory|not a directory", re.I)
+
+# S4:结构化编辑器要治"用 bash 改文件很脆" —— 表现为写文件命令失败/整文件重写
+_SRC_EXT = r"(py|txt|toml|cfg|yaml|yml|json|md)"
+_S4_EDIT = re.compile(
+    r"<<\s*'?[A-Z_]+'?"          # heredoc(cat > f <<EOF 型)
+    r"|sed -i|tee\s"             # 原地改 / 写入
+    rf"|>>?\s*\S+\.{_SRC_EXT}"  # 重定向写源码文件
+)
+_S4_WHOLE_WRITE = re.compile(r"cat\s*>\s*\S+\s*<<")
+
+# S5:契约胶囊/需求状态板要治"需求遗漏"与"语义替代" —— 前者看提交时公开
+# 测试是否仍红,后者看裁定表(AR 模式的产物,不是本扫描能判的,单独列)
+_S5_PUBLIC_RUN = re.compile(r"pytest|public_tests")
+
+
+def scan_targets(traj: dict) -> dict:
+    """单轮的 S3/S4/S5 靶子计数。每项都能指回消息序号。"""
+    msgs = traj.get("messages") or []
+    cds = path_errs = edits = edit_fails = whole_writes = public_runs = 0
+    last_public_run_at = -1
+    cwds: set[str] = set()
+    for i, m in enumerate(msgs):
+        if m.get("role") == "assistant":
+            for a in ((m.get("extra") or {}).get("actions") or []):
+                cmd = a.get("command", "") or ""
+                if _S3_CD.search(cmd):
+                    cds += 1
+                if _S4_EDIT.search(cmd):
+                    edits += 1
+                if _S4_WHOLE_WRITE.search(cmd):
+                    whole_writes += 1
+                if _S5_PUBLIC_RUN.search(cmd):
+                    public_runs += 1
+                    last_public_run_at = i
+        elif m.get("role") == "tool":
+            extra = m.get("extra") or {}
+            rc = extra.get("returncode")
+            body = m.get("content") or ""
+            if extra.get("cwd"):
+                cwds.add(str(extra["cwd"]))
+            if _S3_PATH_ERR.search(body):
+                path_errs += 1
+            if rc not in (0, None):
+                # 这条工具结果对应的命令是不是编辑型?回看前一条 assistant
+                for j in range(i - 1, -1, -1):
+                    if msgs[j].get("role") == "assistant":
+                        cmds = " ".join(a.get("command", "") for a
+                                        in ((msgs[j].get("extra") or {}).get("actions") or []))
+                        if _S4_EDIT.search(cmds):
+                            edit_fails += 1
+                        break
+    return {
+        "s3_cd_commands": cds,
+        "s3_path_errors": path_errs,
+        "s3_distinct_cwds": len(cwds),
+        "s4_edit_commands": edits,
+        "s4_edit_failures": edit_fails,
+        "s4_whole_file_writes": whole_writes,
+        "s5_public_test_runs": public_runs,
+        "s5_last_public_run_msg": last_public_run_at,
+        "s5_messages": len(msgs),
+    }
+
+
 def selfcheck() -> list[str]:
     """自证:喂一份**每个指标都该报警**的合成轨迹,报不出来就没资格发零。
 
