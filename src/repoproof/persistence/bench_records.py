@@ -236,6 +236,7 @@ CLASSIFICATION_KEYS = frozenset({
     "treatment_assigned", "treatment_activated", "exclusion_reason",
     "assistance_level", "classification_timing",
     "evidence_strength", "evidence_caveat",
+    "counts_toward_profile_qualification",
 })
 
 
@@ -276,6 +277,8 @@ def classify_runs(project_root: str | Path) -> list[dict]:
             # "不要追溯改判,但也不要继续当强证据"。两件事必须分开表达,
             # 因为把它们合并只有两种走法,都错:改判 = 编造当时不存在的
             # 事实;不管 = 让一份已知有疑的证据继续以全强度流通。
+            "counts_toward_profile_qualification": c.get(
+                "counts_toward_profile_qualification", False),
             "evidence_strength": c.get("evidence_strength", "STANDARD"),
             "evidence_caveat": c.get("evidence_caveat"),
         })
@@ -327,6 +330,8 @@ def count_passes(project_root: str | Path, task_prefix: str | None = None) -> di
             1 for r in rows if r["treatment_activated"] is True),
         "treatment_not_delivered_runs": sum(
             1 for r in rows if r["treatment_assigned"] and r["treatment_activated"] is False),
+        "profile_qualification_runs": sum(
+            1 for r in rows if r["counts_toward_profile_qualification"]),
         "post_hoc_classified_runs": sum(
             1 for r in rows
             if r["classification_timing"] == "POST_HOC_TAXONOMY_CORRECTION"),
