@@ -182,6 +182,48 @@ def test_canary_is_candidate_and_still_earns_g1_to_g4():
     assert all(c.ok for c in live.values()), [c.detail for c in live.values() if not c.ok]
 
 
+def _tiny_repo(tmp_path: Path, *, guarded_rel: str = "src/guarded.py") -> tuple[Path, str]:
+    """造一个最小 git 仓:一个提交 + 一份指向它的变异证据。"""
+    import subprocess
+
+    def git(*a):
+        subprocess.run(["git", "-C", str(tmp_path), *a],                 # noqa: S603
+                       capture_output=True, check=True)
+
+    (tmp_path / "src").mkdir(parents=True)
+    (tmp_path / guarded_rel).write_text("X = 1\n", encoding="utf-8")
+    (tmp_path / "unrelated.md").write_text("hi\n", encoding="utf-8")
+    git("init", "-q")
+    git("config", "user.email", "t@t")
+    git("config", "user.name", "t")
+    git("add", "-A")
+    git("commit", "-qm", "base")
+    head = subprocess.run(["git", "-C", str(tmp_path), "rev-parse", "HEAD"],   # noqa: S603
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+    d = tmp_path / "docs" / "evidence" / "mutation_gate"
+    d.mkdir(parents=True)
+    (d / f"{head[:12]}.json").write_text(json.dumps({
+        "head_commit": head, "escaped": [], "stale": [],
+        "results": [{"id": "M49a", "file": guarded_rel,
+                     "catchers": ["tests/test_guarded.py"]},
+                    {"id": "M50a", "file": guarded_rel, "catchers": []},
+                    {"id": "M52a", "file": guarded_rel, "catchers": []}]}),
+        encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "evidence")
+    return tmp_path, head
+
+
+def _commit(repo: Path, msg: str) -> None:
+    import subprocess
+
+    subprocess.run(["git", "-C", str(repo), "add", "-A"],                # noqa: S603
+                   capture_output=True, check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", msg],       # noqa: S603
+                   capture_output=True, check=True)
+
+
 def test_g5_needs_a_git_head_to_judge_evidence(tmp_path):
     """G5:不是 git 仓 → 判不过(而不是"目录里只有一份就用那份")。"""
     from repoproof.execution.profile_promotion import _check_mutations
@@ -192,42 +234,62 @@ def test_g5_needs_a_git_head_to_judge_evidence(tmp_path):
         {"head_commit": "deadbeefcafe", "escaped": [], "stale": [],
          "results": [{"id": "M49a"}, {"id": "M50a"}, {"id": "M52a"}]}),
         encoding="utf-8")
-    c = _check_mutations(tmp_path)
-    assert not c.ok
+    assert not _check_mutations(tmp_path).ok
 
 
-def test_g5_evidence_expires_when_a_guarded_file_changes():
-    """G5 的核心语义:证据在**它守护的文件改动后失效**。
+def test_g5_evidence_survives_an_unrelated_change(tmp_path):
+    """G5 语义(一侧):**不相干的改动不该让证据作废**。
 
-    三次修正的落点(每次都被现场打脸):
-      按 mtime 取最新 → worktree 里 mtime 全一样,等于随机取;
-      只认 HEAD 那一份 → 死锁(提交证据本身产生新 HEAD),G5 永远过不了 ——
-        一道永远过不了的判据不是严格,是墙;
-      现在:不相干的改动不让证据作废,相干的改动必须让它作废。
+    反例(前一版实现):只认 HEAD 那一份 → 提交证据本身就产生新 HEAD,
+    于是 HEAD 上永远没有证据,G5 永远过不了。一道永远过不了的判据不是严格,
+    是墙(LESSONS #44)。
 
-    这条直接考"相干的改动必须让它作废"。"""
-    import subprocess
-
+    这条同时挡住"把钉死写成读真仓当前状态"那个错法 —— 那样任何一次改动
+    守护文件都会让套件红,而 verify_integrity 是先跑套件再跑变异闸门,
+    一趟永远绿不了。判据要考的是**函数的语义**,不是仓库此刻的状态。"""
     from repoproof.execution.profile_promotion import _mutation_evidence_for_head
 
-    ev, why = _mutation_evidence_for_head(REPO)
-    assert ev is not None, f"真仓里应当有一份有效证据:{why}"
+    repo, _ = _tiny_repo(tmp_path)
+    (repo / "unrelated.md").write_text("changed\n", encoding="utf-8")
+    _commit(repo, "docs only")
 
-    guarded = set()
-    for r in ev.get("results") or []:
-        if r.get("file"):
-            guarded.add(r["file"])
-        guarded.update(r.get("catchers") or [])
-    assert guarded, "证据里读不出守护集 —— 那这条判据无从判定失效"
+    ev, why = _mutation_evidence_for_head(repo)
+    assert ev is not None, f"不相干的改动把证据判废了:{why}"
+    assert "未触及" in why
 
-    commit = ev["head_commit"]
-    head = subprocess.run(["git", "-C", str(REPO), "rev-parse", "HEAD"],
-                          capture_output=True, text=True, check=False).stdout.strip()
-    changed = set(subprocess.run(
-        ["git", "-C", str(REPO), "diff", "--name-only", f"{commit}..{head}"],
-        capture_output=True, text=True, check=False).stdout.split())
-    assert not (guarded & changed), (
-        f"守护的文件改过却仍在用这份证据:{sorted(guarded & changed)}")
+
+def test_g5_evidence_expires_when_a_guarded_file_changes(tmp_path):
+    """G5 语义(另一侧):**相干的改动必须让证据作废**。
+
+    反例:改了被变异守护的源文件却仍拿旧证据背书 —— 与"改完不重跑"没区别。
+
+    两侧都要考:只考这一侧会写出一道永远作废的判据,只考另一侧会写出一道
+    永远有效的判据 —— 两种都不携带信息。"""
+    from repoproof.execution.profile_promotion import _mutation_evidence_for_head
+
+    repo, _ = _tiny_repo(tmp_path)
+    (repo / "src" / "guarded.py").write_text("X = 2\n", encoding="utf-8")
+    _commit(repo, "touch guarded")
+
+    ev, why = _mutation_evidence_for_head(repo)
+    assert ev is None, "守护的文件改过,证据却仍被接受"
+    assert "守护的文件此后改过" in why
+
+
+def test_g5_evidence_from_a_foreign_branch_does_not_count(tmp_path):
+    """G5:head_commit 不是 HEAD 祖先的证据不算数(别的分支跑出来的绿)。"""
+    from repoproof.execution.profile_promotion import _mutation_evidence_for_head
+
+    repo, _ = _tiny_repo(tmp_path)
+    (repo / "docs" / "evidence" / "mutation_gate" / "ffffffffffff.json").write_text(
+        json.dumps({"head_commit": "f" * 40, "escaped": [], "stale": [],
+                    "results": [{"id": "M49a"}, {"id": "M50a"}, {"id": "M52a"}]}),
+        encoding="utf-8")
+    _commit(repo, "alien evidence")
+
+    ev, why = _mutation_evidence_for_head(repo)
+    assert ev is not None, why
+    assert ev.get("head_commit") != "f" * 40, "外来分支的证据被选中了"
 
 
 def test_lifecycle_order_is_frozen():
