@@ -135,6 +135,9 @@ class TokenBudgetedModel:
     max_input_tokens: int
     max_output_tokens: int
     on_exhausted: Callable[[dict], None] | None = None
+    # E1-S2 上下文投影。None = E0(全历史重发,一字不动)。
+    projector: Callable[[list[dict]], tuple[list[dict], dict]] | None = None
+    on_projection: Callable[[dict], None] | None = None
     exhausted: dict | None = field(default=None)
 
     # --- 同步记账:执法的权威来源,不依赖异步钩子(LESSONS #39 H7-a)
@@ -210,6 +213,13 @@ class TokenBudgetedModel:
             self.observed_ratio = max(self.observed_ratio, pin / est)
 
     def query(self, messages: list[dict], **kwargs) -> dict:
+        # E1-S2:先投影,再记账。顺序不可颠倒 —— 预算必须按**真正发出去的**
+        # 那份算,否则折叠省下的额度会被"按未投影历史投影"的预算白白吃掉,
+        # 收益归零。完整历史仍留在 agent 与轨迹里(证据不减,C4)。
+        if self.projector is not None:
+            messages, manifest = self.projector(messages)
+            if manifest.get("folded_messages") and self.on_projection is not None:
+                self.on_projection(manifest)
         used_in, used_out = self.used_in, self.used_out
         # provider 只在钩子里给 usage 时(返回体不带),同步记账看不到任何
         # 一次调用的大小,下限支会永远是 0 —— 不可越线的保证就只剩估算一条

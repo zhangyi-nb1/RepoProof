@@ -80,6 +80,25 @@ def hard_signals(*, collected_ok: bool, policy_violations: int,
     return (collected_ok, policy_violations == 0, regression_failed == 0, passed)
 
 
+def projection_enabled() -> bool:
+    """E1-S2 上下文投影开关。默认**关**(E0)—— 新机制先经消融证明有效,
+    再谈默认开启(§7 回退:E0 代码路径保留到 P-D 结束)。
+
+    开:REPOPROOF_CONTEXT_PROJECTION=1"""
+    import os
+
+    return os.environ.get("REPOPROOF_CONTEXT_PROJECTION", "").strip() in {"1", "true", "yes"}
+
+
+def projector_or_none():
+    """投影函数或 None。None = E0 语义,messages 一字不动。"""
+    if not projection_enabled():
+        return None
+    from repoproof.agents.context_projector import project
+
+    return project
+
+
 def _exec_profile_fields(contract, preflight) -> dict:
     """执行侧三面指纹 + 代际 + 代码内容指纹(EXECUTOR-UPGRADE-PLAN S1)。
 
@@ -101,6 +120,13 @@ def _exec_profile_fields(contract, preflight) -> dict:
         "policy": "full-history-resend",
         "obs_char_cap": cap,
     }
+    if projection_enabled():
+        # 开了投影就**自动**离开 E0(profiles.exec_generation 据此推导);
+        # 标签与开关同源,不存在"开了却仍标 E0"的漂移(S1 判据 P4 的现场版)
+        from repoproof.agents.context_projector import SUPERSEDE_MIN_CHARS
+
+        context["prune_policy"] = "deterministic-v1"
+        context["supersede_min_chars"] = SUPERSEDE_MIN_CHARS
     budget = {
         "semantics": b.semantics, "max_rounds": b.max_rounds,
         "max_model_calls": b.max_model_calls, "max_commands": b.max_commands,
@@ -1259,6 +1285,9 @@ class HostGuidedRunner:
                         max_output_tokens=b.max_output_tokens_total,
                         on_exhausted=lambda payload: ev("budget.exhausted", actor="harness",
                                                         payload=payload),
+                        projector=projector_or_none(),
+                        on_projection=lambda mf: ev("projection.applied", actor="harness",
+                                                    payload=mf),
                     )
 
                 model = make_budget_model(token_totals)   # total 语义:全程一个额度
