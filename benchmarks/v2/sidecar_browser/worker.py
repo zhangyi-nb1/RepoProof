@@ -37,7 +37,23 @@ def _free_port() -> int:
 def _launch_chromium(exe: str, port: int, user_data: str, offline: bool):
     argv = [exe, "--headless=new", f"--remote-debugging-port={port}",
             f"--user-data-dir={user_data}", "--no-first-run",
-            "--no-default-browser-check", "--disable-gpu"]
+            "--no-default-browser-check", "--disable-gpu",
+            # **不碰 macOS 钥匙串。** Chromium 默认会向系统钥匙串要
+            # "Chromium Safe Storage" 用来加密 cookie/密码,于是弹出一个要
+            # 登录密码的对话框 —— 而它是**模态阻塞**的:启动就此挂住,表现
+            # 成"浏览器起得极慢/超时",看日志完全看不出原因(实测:第一次
+            # 16.3s、第二次直接 400)。
+            #
+            # 我们既不存 cookie 也不存密码(每次都是全新的 user-data-dir,
+            # 用完即删),这份加密对我们没有任何用处 —— 而代价是一个需要
+            # 人输密码的弹窗。自动化里绝不该有那种东西。
+            "--password-store=basic", "--use-mock-keychain",
+            # 顺带关掉几个会联网/弹窗的默认行为,让"离线"更彻底
+            "--disable-background-networking",
+            "--disable-component-update",
+            "--disable-sync",
+            "--metrics-recording-only",
+            "--no-service-autorun"]
     if offline:
         # 除本机外一律走死代理:证明这一步**不需要外网**。
         # bypass 留 127.0.0.1/localhost,fixture 才加载得到。

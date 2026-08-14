@@ -62,6 +62,9 @@ _USC = "src/repoproof/execution/upstream_sidecar.py"
 _T_RTP = ["tests/test_runtime_profiles.py"]
 _SCF = "scripts/sidecar_conformance.py"
 _T_SCF = ["tests/test_sidecar_conformance.py"]
+_BCF = "scripts/browser_conformance.py"
+_BWK = "benchmarks/v2/sidecar_browser/worker.py"
+_T_BCF = ["tests/test_browser_conformance.py"]
 _PP = "src/repoproof/execution/profile_promotion.py"
 _T_PP = ["tests/test_profile_promotion.py"]
 _T_CF = ["tests/test_constraint_feedback.py"]
@@ -841,6 +844,34 @@ MUTATIONS: list[dict] = [
         "old": "    ok = escaped == 0 and stale == 0 and not missing",
         "new": "    ok = escaped == 0 and stale == 0",
         "catchers": _T_PP,
+    },
+    # ---- M54:真上游(browser-use + 封存 Chromium)的 conformance。
+    {
+        "id": "M54a-suite-topology-mixup",
+        "lesson": "两个 suite 都有 topology.py,裸 import 被先到的赢走 → 浏览器矩阵"
+                  "报出 canary 的拓扑,而整张表其余部分全绿、看不出异样(实测发生过)",
+        "file": _BCF,
+        "old": '        return 2\n    print("拓扑核验(A1 的地基,真上游版):")',
+        "new": '        pass\n    print("拓扑核验(A1 的地基,真上游版):")',
+        "catchers": _T_BCF,
+    },
+    {
+        "id": "M54b-keychain-prompt-returns",
+        "lesson": "去掉 --password-store=basic → Chromium 向 macOS 钥匙串要密码,"
+                  "弹出**模态**对话框把启动挂住;表现成'浏览器极慢/超时',"
+                  "日志里看不出原因(实测 16.3s → 400)",
+        "file": _BWK,
+        "old": '            "--password-store=basic", "--use-mock-keychain",',
+        "new": "",
+        "catchers": _T_BCF,
+    },
+    {
+        "id": "M54c-browser-goes-online",
+        "lesson": "去掉死代理 → 离线就成了声称而不是跑出来的",
+        "file": _BWK,
+        "old": '        argv += ["--proxy-server=127.0.0.1:1",',
+        "new": '        argv += ["--ignore-certificate-errors",',
+        "catchers": _T_BCF,
     },
     # ---- M52:Sidecar Conformance(A1 的第一个使用者)。
     {
