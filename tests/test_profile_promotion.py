@@ -39,6 +39,7 @@ from repoproof.execution.profile_promotion import (  # noqa: E402
     LIFECYCLE_ORDER,
     MIN_HONEST_PASSES,
     MIN_MODEL_PROFILES,
+    REQUIRED_GUARD_SET,
     evaluate_promotion,
 )
 from repoproof.execution.runtime_profiles import known_profiles  # noqa: E402
@@ -205,6 +206,9 @@ def _tiny_repo(tmp_path: Path, *, guarded_rel: str = "src/guarded.py") -> tuple[
     d.mkdir(parents=True)
     (d / f"{head[:12]}.json").write_text(json.dumps({
         "head_commit": head, "escaped": [], "stale": [],
+        # 真实证据总会声明下界里那几样,合成的也得声明 —— 否则考的是下界
+        # 而不是"有效期",两件事会混在一起。
+        "guard_set": sorted(REQUIRED_GUARD_SET | {guarded_rel, "tests/test_guarded.py"}),
         "results": [{"id": "M49a", "file": guarded_rel,
                      "catchers": ["tests/test_guarded.py"]},
                     {"id": "M50a", "file": guarded_rel, "catchers": []},
@@ -274,6 +278,59 @@ def test_g5_evidence_expires_when_a_guarded_file_changes(tmp_path):
     ev, why = _mutation_evidence_for_head(repo)
     assert ev is None, "守护的文件改过,证据却仍被接受"
     assert "守护的文件此后改过" in why
+
+
+def test_g5_under_declared_guard_set_is_refused(tmp_path):
+    """**守护集下界**(用户 2026-08-14 指令):证据不得靠少声明守护文件长期有效。
+
+    反例:一份证据只声明守护 `a.py`,于是改动 `receipts/verify.py`(四道谓词
+    本体)它照样"仍然有效" —— 那与"分母由被测方提供"是同一个病。验证方必须
+    另有一个最低必守集合并要求 `REQUIRED_GUARD_SET ⊆ evidence.guard_set`。"""
+    from repoproof.execution.profile_promotion import _mutation_evidence_for_head
+
+    repo, head = _tiny_repo(tmp_path)
+    f = repo / "docs" / "evidence" / "mutation_gate" / f"{head[:12]}.json"
+    ev = json.loads(f.read_text(encoding="utf-8"))
+    # 抽掉下界里的一样 —— 只抽一个,好证明是**这一条**在挡
+    dropped = "src/repoproof/receipts/verify.py"
+    ev["guard_set"] = [g for g in ev["guard_set"] if g != dropped]
+    f.write_text(json.dumps(ev, ensure_ascii=False), encoding="utf-8")
+    _commit(repo, "under-declare")
+
+    got, why = _mutation_evidence_for_head(repo)
+    assert got is None, "少声明了守护文件,证据却仍被接受"
+    assert dropped in why
+
+
+def test_g5_lower_bound_covers_the_load_bearing_files():
+    """下界本身的内容也要钉:少任何一样,前面的结论都可能被悄悄绕过。"""
+    assert REQUIRED_GUARD_SET >= {
+        "src/repoproof/execution/runtime_profiles.py",
+        "src/repoproof/execution/profile_promotion.py",
+        "src/repoproof/execution/upstream_sidecar.py",
+        "src/repoproof/receipts/model.py",
+        "src/repoproof/receipts/ledger.py",
+        "src/repoproof/receipts/verify.py",
+        "scripts/mutation_gate.py",
+    }
+
+
+def test_g5_old_format_evidence_cannot_vouch(tmp_path):
+    """旧格式证据(无 guard_set)必然过不了下界 —— 那是对的,不是兼容性缺陷。
+
+    从 results 反推推不出登记簿自身(它不是任何一条变异的 `file`),所以旧
+    证据在新规则下不该继续背书。"""
+    from repoproof.execution.profile_promotion import _mutation_evidence_for_head
+
+    repo, head = _tiny_repo(tmp_path)
+    f = repo / "docs" / "evidence" / "mutation_gate" / f"{head[:12]}.json"
+    ev = json.loads(f.read_text(encoding="utf-8"))
+    ev.pop("guard_set")
+    f.write_text(json.dumps(ev, ensure_ascii=False), encoding="utf-8")
+    _commit(repo, "old format")
+
+    got, why = _mutation_evidence_for_head(repo)
+    assert got is None and "守护集" in why
 
 
 def test_g5_evidence_from_a_foreign_branch_does_not_count(tmp_path):

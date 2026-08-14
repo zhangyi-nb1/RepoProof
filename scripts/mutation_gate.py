@@ -768,6 +768,24 @@ MUTATIONS: list[dict] = [
         "new": '    for f in sorted(src_control.glob(f"{module}.py")):',
         "catchers": _T_HD,
     },
+    {
+        "id": "M53g-guard-set-lower-bound-removed",
+        "lesson": "不查守护集下界 → 一份证据靠少声明几个守护文件就能长期有效,"
+                  "与'分母由被测方提供'同病(用户 2026-08-14 指出)",
+        "file": _PP,
+        "old": "    short = REQUIRED_GUARD_SET - guarded",
+        "new": "    short = set()",
+        "catchers": _T_PP,
+    },
+    {
+        "id": "M53h-guard-set-omits-the-catalog",
+        "lesson": "下界不含登记簿自身 → 改了变异登记簿(加条目/改 old/改 catcher),"
+                  "旧证据仍替新一套变异背书",
+        "file": _PP,
+        "old": '    "scripts/mutation_gate.py",                       # 变异登记簿与证据格式',
+        "new": "",
+        "catchers": _T_PP,
+    },
     # ---- M53:Runtime Profile 晋级判据。生命周期是**对外承诺**(它决定别人
     # 敢不敢拿这个 profile 的发次当数),所以每一道松动都是实质性的。
     {
