@@ -154,6 +154,63 @@ def test_sealed_browser_runtime_if_provisioned():
     assert lock.is_file() and lock.stat().st_size > 0, "依赖闭包没被冻结"
 
 
+def test_sealed_chromium_is_full_build_and_actually_runs():
+    """封存的浏览器:**完整构建**、是主程序不是辅助进程、且真跑得起来。
+
+    用户 2026-08-15 指令:第一次就下完整 Chromium,不要为省体积用
+    `--only-shell` —— headless shell 是独立的精简构建,拿它当浏览器等于自带
+    一个"能力缺失"的混杂变量,将来某条负控红了会分不清是判据抓住了它还是
+    浏览器少了个能力。
+
+    三条都是踩过的:
+      - playwright 会同时装下 `chromium-<build>` 与
+        `chromium_headless_shell-<build>`,选错就成了 shell;
+      - 递归 glob 会掉进 `…/Helpers/… Helper (Alerts).app/…`,那是辅助进程
+        (实测第一次就选中了它)——"能找到可执行文件"不等于找到了要的那个;
+      - 文件在、可执行位在、路径也对,仍可能起不来。跑一次 `--version` 才算数。
+    """
+    import subprocess
+
+    root = Path("~/RepoProofRuntimes/rt-sidecar-browser-v1").expanduser()
+    if not (root / PROVISION_MARKER).is_file():
+        pytest.skip("尚未 provision")
+    m = RuntimeManifest.load(root)
+
+    assert m.extras.get("chromium_full_build") is True, "封存的是 headless shell?"
+    rel = m.extras.get("chromium_executable") or ""
+    assert rel, "清单里没记 Chromium 可执行文件"
+    assert "headless_shell" not in rel, f"选中了 headless shell:{rel}"
+    assert "Helper" not in rel, f"选中了辅助进程:{rel}"
+
+    exe = root / rel
+    assert exe.is_file(), f"清单指向的浏览器不在:{exe}"
+    out = subprocess.run([str(exe), "--version"], capture_output=True,   # noqa: S603
+                         text=True, check=False, timeout=60)
+    ver = (out.stdout or out.stderr).strip()
+    assert "Chrome" in ver or "Chromium" in ver, f"跑不出版本:{ver!r}"
+    assert m.extras.get("chromium_version_string", "") in ver or ver, ver
+
+    pin = next((s for s in m.pinned if s.distribution == "chromium"), None)
+    assert pin is not None and pin.version, "Chromium 没被钉进清单"
+    assert pin.resolved_commit.startswith("playwright-"), (
+        "没记下它是哪个 playwright 版本钉的 —— 那样'同一份浏览器'无从复现")
+
+
+def test_chromium_lives_inside_the_sealed_root():
+    """浏览器必须在 runtime 根**之内** —— 否则它不进封存摘要、也不受保护。
+
+    反例:落在 `~/Library/Caches/ms-playwright`(playwright 的默认位置)——
+    那是共用缓存,别的项目一句 `playwright install` 就可能把它换掉,而我们
+    封存这份浏览器的全部理由就是让它不再变。"""
+    root = Path("~/RepoProofRuntimes/rt-sidecar-browser-v1").expanduser()
+    if not (root / PROVISION_MARKER).is_file():
+        pytest.skip("尚未 provision")
+    m = RuntimeManifest.load(root)
+    exe = (root / m.extras["chromium_executable"]).resolve()
+    assert exe.is_relative_to(root.resolve()), f"浏览器跑到封存件之外了:{exe}"
+    assert is_protected(exe), "浏览器不在保护目录内"
+
+
 def test_manifest_round_trips(tmp_path):
     """清单读写往返不丢字段(它是 execute 期唯一认的东西)。"""
     m = provision(profile_id="p", root=tmp_path,
