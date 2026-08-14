@@ -40,3 +40,8 @@ provider.local.*
 # harness 独占的 runtime 封存区(A1 provisioning 产物,330MB 级)。
 # 不进 git:它是**可复现的构建产物**,复现方式钉在
 # scripts/provision_browser_runtime.py 与 requirements.lock 里。
+
+# 任务运行产生的交付工件(控制矩阵会在正控目录里落一批)。
+# 它们被跟踪之后会给下一次运行埋雷:取件器把目录下全部 json 一网打尽,
+# 上一次的旧事实会混进这一次的交付。
+page_facts_jobs/

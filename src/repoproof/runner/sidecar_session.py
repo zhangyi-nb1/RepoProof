@@ -46,19 +46,57 @@ class SidecarSession:
 
     # ---------------------------------------------------------------- agent 侧
     def agent_env(self) -> dict[str, str]:
-        """交给 agent 会话的**全部**东西。
+        """交给 agent 会话的**全部**东西:端点、令牌、要调的符号。**仅此。**
 
-        端点、令牌、要调的符号、fixture 基址、以及它该处理的那批项的 nonce。
-        **没有**台账路径、**没有**密钥 —— 那两样一旦漏出去,U1 的全部意义
-        就没了。`SidecarHandle.agent_env()` 已经保证不漏,这里只在它之上
-        追加任务需要的几项。
+        2026-08-15 可搬运性审查(B4)砍掉了原本还给的两项 ——
+        `REPOPROOF_FIXTURE_URL` 与 `REPOPROOF_ITEM_NONCES`。
+
+        为什么必须砍:oracle 构造 URL 的写法与 harness 生成待办项的写法**逐字
+        相同**,于是 agent 在 round-1 的 shell 里就能算出 oracle 将来会下发的
+        全部项,手工各调一次,把事实抄成源码里的字典 —— 交付代码一次 RPC 都
+        不发,而 U1–U4 全绿。sidecar 会话每发次只起一次、台账跨全部轮次累计,
+        回执早就躺在里面了。**回执证明的是"会话里有人调过",不是"交付代码
+        调了"。** 而且猜错格式零代价(多余调用不判红),所以"多猜几种预取"
+        是严格占优策略。
+
+        可满足性有据:正控只读 URL/TOKEN/SYMBOL,不依赖 fixture 基址;agent
+        要自测,自己起个本地页面即可。
+
+        **没有**台账路径、**没有**密钥 —— 那两样一漏,U1 的全部意义就没了。
         """
         env = dict(self.handle.agent_env())
         env["REPOPROOF_SIDECAR_SYMBOL"] = self.profile.default_symbol
-        env["REPOPROOF_FIXTURE_URL"] = self.fixture_url
-        env["REPOPROOF_ITEM_NONCES"] = ",".join(i["request_nonce"] for i in self.items)
         env.update(self.extra_env)
         return env
+
+    def oracle_env(self) -> dict[str, str]:
+        """交给 **oracle** 的环境 —— 比 agent 多两项:fixture 基址与那批 nonce。
+
+        oracle 要用它们构造待抽取项;agent 不需要、也不该知道(见 `agent_env`
+        的 B4 说明)。两者分开是这条修复的全部内容。
+        """
+        env = self.agent_env()
+        env["REPOPROOF_FIXTURE_URL"] = self.fixture_url
+        env["REPOPROOF_ITEM_NONCES"] = ",".join(i["request_nonce"] for i in self.items)
+        return env
+
+    def rotate_items(self) -> None:
+        """在 **oracle 起跑那一刻**现摇一批 agent 从没见过的项。
+
+        砍掉环境变量只挡住"直接读";还得挡住"猜"。项的 nonce 一换,预取的
+        字典必然在 U3 上红 —— 没见过的页面预取不了。
+
+        换项之后 `expected_units()` 自然跟着变(它是从 `items` 算的),所以
+        这里只需换 items 本身。**必须在 oracle 起跑前调用**,晚了 oracle 拿到
+        的就是旧项。
+        """
+        import os as _os
+
+        base = self.fixture_url
+        self.items = [{"request_nonce": f"item-{i + 1}-{_os.urandom(6).hex()}"}
+                      for i in range(len(self.items))]
+        for it in self.items:
+            it["url"] = f"{base}?item={it['request_nonce']}"
 
     # ---------------------------------------------------------------- 验证
     def expected_units(self) -> list[dict]:

@@ -44,6 +44,11 @@ EXPECT = {
     "nc2_ignores_result": ("FAIL", {"U4.adoption"}),
     "nc3_one_call_for_all": ("FAIL", {"U3.coverage", "U4.adoption"}),
     "nc4_wrong_symbol": ("FAIL", {"U2.symbol", "U3.coverage", "U4.adoption"}),
+    # 2026-08-15 可搬运性审查补的三条。它们**修前全是零红通过**(实测),
+    # 正好当"修好了没有"的现场证据 —— 光看"老矩阵还绿"证明不了任何事。
+    "nc5_launder_forged_input": ("FAIL", {"U4.adoption"}),
+    "nc6_partial_delivery": ("FAIL", {"U4.adoption"}),
+    "nc7_blank_output": ("FAIL", {"U4.adoption"}),
 }
 
 _PROFILE = None

@@ -999,7 +999,29 @@ class HostGuidedRunner:
         nonce。oracle 拿它去提交作业;它拿不到台账与密钥,与 agent 一样。
         """
         sess = getattr(self, "_sidecar_sess", None)
-        return dict(sess.agent_env()) if sess is not None else {}
+        if sess is None:
+            return {}
+        # **oracle 拿的比 agent 多两项**(fixture 基址 + 那批 nonce)。
+        # B4:agent 拿到它们就能预取 oracle 将来会下发的全部项,把事实写死进
+        # 源码,交付代码一次 RPC 都不发而四道谓词全绿。
+        return dict(sess.oracle_env())
+
+    def _delivery_dirs(self) -> list[str]:
+        """任务声明的交付目录 —— oracle 起跑前由 harness 清场(B5)。
+
+        **由契约/取件器声明,不扫目录**:清场是删除动作,删什么必须写死在
+        任务包里,不能从 agent 落盘的东西推断(那是 #43 坑五的翻版)。
+        """
+        f = self.task_dir / "delivery_extractor.py"
+        if not f.is_file():
+            return []
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("rp_delivery_dirs", f)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        d = getattr(mod, "JOBS_DIRNAME", None)
+        return [d] if isinstance(d, str) and d and "/" not in d and d != "." else []
 
     def _extract_sidecar_delivery(self, s) -> list | None:
         """紧贴产出取交付 —— 在会话被销毁之前调用。"""
@@ -1786,6 +1808,27 @@ class HostGuidedRunner:
 
             # ---------------- 独立验证 ----------------
             t_verify = time.monotonic()
+            # ---- A1:oracle 起跑前的两件事(2026-08-15 可搬运性审查)----
+            if sidecar_sess is not None:
+                # B4:**现摇一批 agent 从没见过的项**。砍掉环境变量只挡住
+                # "直接读";还得挡住"猜" —— oracle 构造 URL 的写法与 harness
+                # 生成项的写法逐字相同,agent 在 round-1 就能算出将来要抽哪些
+                # 页面、提前各调一次、把事实写死进源码,交付代码一次 RPC 不发
+                # 而四道谓词全绿。项一换,预取的字典必然在 U3 上红。
+                sidecar_sess.rotate_items()
+                # B5:**清掉早轮残留的交付工件**(误杀侧)。取件器把
+                # `page_facts_jobs/` 下全部 json 一网打尽,而每轮 `git add -A`
+                # 会把它们变成 tracked 文件长久留在工作区。修复循环的全部意义
+                # 就是允许 round-1 是错的:round-1 落 2 条坏事实、round-3 改对
+                # 再落 2 条好的,终局取件把 4 条一起交上去 → U4 红,措辞与
+                # "调了但没用"一字不差,而最终交付物其实是完美的。
+                # 契约里没有一个字说"清理旧作业",oracle 全绿也不给反馈,
+                # 判死发生在 agent 看不见的 harness 侧 —— 那正是循环与闸门
+                # 不对齐(常设纪律)。清场是纯 harness 动作,不改 patch。
+                for _d in self._delivery_dirs():
+                    s.backend.exec(s.id, ["rm", "-rf", _d],
+                                   timeout_s=60, workdir="host")
+
             cap_run = self._run_oracle(s, oracle_snap)
             cap = VerificationResult(
                 verifier="CapabilityVerifier",

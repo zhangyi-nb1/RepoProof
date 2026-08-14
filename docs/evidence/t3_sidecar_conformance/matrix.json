@@ -155,7 +155,7 @@
           {
             "check": "U4.adoption",
             "ok": false,
-            "detail": "2/2 项采纳不成立:['item-1:没有属于它的回执', 'item-2:没有属于它的回执']",
+            "detail": "2/2 项采纳不成立:['item-1:没有**输入对得上**的回执 —— 真因见 U3', 'item-2:没有**输入对得上**的回执 —— 真因见 U3']",
             "invocation_id": ""
           }
         ]
@@ -315,7 +315,7 @@
           {
             "check": "U4.adoption",
             "ok": false,
-            "detail": "1/2 项采纳不成立:['item-2:没有属于它的回执']",
+            "detail": "1/2 项采纳不成立:['item-2:没有**输入对得上**的回执 —— 真因见 U3']",
             "invocation_id": ""
           }
         ]
@@ -398,7 +398,244 @@
           {
             "check": "U4.adoption",
             "ok": false,
-            "detail": "2/2 项采纳不成立:['item-1:没有属于它的回执', 'item-2:没有属于它的回执']",
+            "detail": "2/2 项采纳不成立:['item-1:没有**输入对得上**的回执 —— 真因见 U3', 'item-2:没有**输入对得上**的回执 —— 真因见 U3']",
+            "invocation_id": ""
+          }
+        ]
+      }
+    },
+    {
+      "control": "nc5_launder_forged_input",
+      "expect": "FAIL",
+      "expect_red": [
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U4.adoption"
+      ],
+      "job_state": "done",
+      "failure": "",
+      "verdict": {
+        "ok": false,
+        "receipts": 4,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "4 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.count",
+            "ok": true,
+            "detail": "执行方写了 4 条,台账里 4 条",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['browser_use.BrowserSession.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": true,
+            "detail": "2 个单元各有对得上的回执",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "2/2 项采纳不成立:['item-1:交付的事实不是它那张回执的产出', 'item-2:交付的事实不是它那张回执的产出']",
+            "invocation_id": ""
+          }
+        ]
+      }
+    },
+    {
+      "control": "nc6_partial_delivery",
+      "expect": "FAIL",
+      "expect_red": [
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U4.adoption"
+      ],
+      "job_state": "done",
+      "failure": "",
+      "verdict": {
+        "ok": false,
+        "receipts": 2,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "2 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.count",
+            "ok": true,
+            "detail": "执行方写了 2 条,台账里 2 条",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['browser_use.BrowserSession.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": true,
+            "detail": "2 个单元各有对得上的回执",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "交付漏了 ['item-2'] —— 采纳只成立了一部分,而契约要的是每一项都用上游的产物",
+            "invocation_id": ""
+          }
+        ]
+      }
+    },
+    {
+      "control": "nc7_blank_output",
+      "expect": "FAIL",
+      "expect_red": [
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U4.adoption"
+      ],
+      "job_state": "done",
+      "failure": "",
+      "verdict": {
+        "ok": false,
+        "receipts": 4,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "4 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.count",
+            "ok": true,
+            "detail": "执行方写了 4 条,台账里 4 条",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['browser_use.BrowserSession.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": true,
+            "detail": "2 个单元各有对得上的回执",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "2/2 项采纳不成立:['item-1:交付的事实为空 —— 空产出不是采纳凭证', 'item-2:交付的事实为空 —— 空产出不是采纳凭证']",
             "invocation_id": ""
           }
         ]
@@ -413,7 +650,10 @@
         "nc1_no_sidecar",
         "nc2_ignores_result",
         "nc3_one_call_for_all",
-        "nc4_wrong_symbol"
+        "nc4_wrong_symbol",
+        "nc5_launder_forged_input",
+        "nc6_partial_delivery",
+        "nc7_blank_output"
       ]
     },
     "U2": {
@@ -424,7 +664,10 @@
         "positive",
         "nc1_no_sidecar",
         "nc2_ignores_result",
-        "nc3_one_call_for_all"
+        "nc3_one_call_for_all",
+        "nc5_launder_forged_input",
+        "nc6_partial_delivery",
+        "nc7_blank_output"
       ]
     },
     "U3": {
@@ -435,7 +678,10 @@
       ],
       "green_in": [
         "positive",
-        "nc2_ignores_result"
+        "nc2_ignores_result",
+        "nc5_launder_forged_input",
+        "nc6_partial_delivery",
+        "nc7_blank_output"
       ]
     },
     "U4": {
@@ -443,7 +689,10 @@
         "nc1_no_sidecar",
         "nc2_ignores_result",
         "nc3_one_call_for_all",
-        "nc4_wrong_symbol"
+        "nc4_wrong_symbol",
+        "nc5_launder_forged_input",
+        "nc6_partial_delivery",
+        "nc7_blank_output"
       ],
       "green_in": [
         "positive"

@@ -79,6 +79,28 @@ capability:
       text: 不得访问外部网络。待抽取页面均在 127.0.0.1。
     - id: R7-host-regression
       text: 宿主既有测试全部保持通过。
+    # ---- 以下三条是 2026-08-15 可搬运性审查补的。补它们不是"放宽判据",
+    # 而是**把本来就在判的东西说出来**:原先这三样只存在于 harness 侧的
+    # 取件器与 oracle 里,契约一个字没提,而它们决定生死。用未言明的要求
+    # 判人,红了也无从预防 —— 那是判据的缺陷,不是被测方的。
+    - id: R8-artifact-layout
+      text: >
+        每个作业完成后,把结果写成
+        <宿主根>/page_facts_jobs/<job_id>.json,内容为
+        {"job_id": <job_id>,
+         "facts": [{"request_nonce": <该项 nonce>, "facts": <事实串>}, ...]}。
+        harness 从这里取交付来判采纳:写在别处或换键名 = 取不到交付。
+    - id: R9-feature-flag
+      text: >
+        特性开关环境变量名为 OFFERCLAW_PAGE_FACTS;取
+        1/true/True/yes 之一时启用。开关未启用时**不得注册任何路由**
+        (与宿主既有约定一致)。
+    - id: R10-api-shape
+      text: >
+        POST /api/page-facts 请求体 {"items":[{"url","request_nonce"}]}
+        → {"job_id"};GET /api/page-facts/{job_id} →
+        {"state": queued|running|done|failed,
+         "facts":[{"request_nonce","facts"}], "failure"}。
 
 budgets:
   # 与 T3-INPROC 同语义(per_round),但**额度更紧**:这道题去掉了依赖解析

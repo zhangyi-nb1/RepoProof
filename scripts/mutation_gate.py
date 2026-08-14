@@ -886,16 +886,46 @@ MUTATIONS: list[dict] = [
         "lesson": "采纳判据从**逐项对应**退回**集合成员** → '一次调用充抵所有项'"
                   "过得去(实测:nc3 只红在 U3,U4 反而绿)",
         "file": _VTR,
-        "old": "        want = by_nonce.get(rn)",
-        "new": "        want = [d for v in by_nonce.values() for d in v]",
+        "old": "            want = by_nonce.get(rn)",
+        "new": "            want = [d for v in by_nonce.values() for d in v]",
         "catchers": _T_T3S,
     },
     {
         "id": "M55b-empty-delivery-counts-as-adoption",
         "lesson": "空交付算采纳 → '什么都不交'反而最容易过",
         "file": _VTR,
-        "old": '    if not delivery:\n        return False, "交付为空 —— 空交付不算采纳"',
-        "new": '    if not delivery:\n        return True, "空"',
+        "old": ('        if not delivery:\n'
+                '            return False, "交付为空 —— 空交付不算采纳"'),
+        "new": ('        if not delivery:\n'
+                '            return True, "空"'),
+        "catchers": _T_T3S,
+    },
+    # ---- 2026-08-15 可搬运性审查补上的三个洞,各配一条变异 ----
+    {
+        "id": "M55c-adoption-ignores-the-input-digest",
+        "lesson": "U4 不核 input_digest → 同 nonce 换个自造输入再调一次,"
+                  "sidecar 就成了'任意内容的签名机'(审查 B1,修前十项全绿)",
+        "file": _VTR,
+        "old": "            if r.input.digest != exp.get(rn):",
+        "new": "            if False:",
+        "catchers": _T_T3S,
+    },
+    {
+        "id": "M55d-adoption-denominator-from-the-sut",
+        "lesson": "U4 的分母回到 len(delivery) → 全调只交一半照过(审查 B2)。"
+                  "与 U3 的教训同源:分母不能来自被测方",
+        "file": _VTR,
+        "old": "        missing = sorted(set(exp) - delivered)",
+        "new": "        missing = []",
+        "catchers": _T_T3S,
+    },
+    {
+        "id": "M55e-blank-output-counts-as-adoption",
+        "lesson": "空产出算采纳 → CANON_TEXT_SQUASH 下空对空,而 worker 找不到"
+                  "#answer 时返回空串且不抛,sidecar 照签(审查 B3)",
+        "file": _VTR,
+        "old": "            if not raw.strip():",
+        "new": "            if False:",
         "catchers": _T_T3S,
     },
     # ---- M54:真上游(browser-use + 封存 Chromium)的 conformance。
