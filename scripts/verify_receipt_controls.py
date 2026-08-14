@@ -154,6 +154,30 @@ def run_one(control_path: Path, *, replay_source: Path | None = None,
             "verdict": v.as_dict(), "ledger": str(ledger)}
 
 
+def find_problems(rows: list[dict]) -> list[str]:
+    """纪律 1 与 2 的判定 —— **单独一个函数,好让钉死直接考它**。
+
+    为什么要抽出来:它原本内联在 `main()` 里,于是钉死只能去读落盘证据。
+    可落盘证据与这道检查是**互为冗余**的两条路 —— 只要现实里没有不匹配,
+    把这道检查整个掏掉也没人看得出来(变异闸门 M50a 当场抓到了这一点)。
+    抽出来之后,钉死可以喂它一行合成的错配,直接考它认不认得出。
+
+    这与 `selfcheck()` 是同一条纪律的两半:自证管"验证器在不在验",
+    本函数管"矩阵的判定在不在判"。
+    """
+    problems: list[str] = []
+    for r in rows:
+        if r["actual"] != r["expect"]:
+            problems.append(f"{r['control']}:期望 {r['expect']},实际 {r['actual']}")
+        elif r["expect"] == "FAIL":
+            # 纪律 2:必须红在它自己那一处,红一片不算数
+            if set(r["actual_red"]) != set(r["expect_red"]):
+                problems.append(
+                    f"{r['control']}:红的位置不对 —— 期望 {r['expect_red']},"
+                    f"实际 {r['actual_red']}")
+    return problems
+
+
 def _register_predicate():
     register_adoption(TASK_ID, digest_equality_predicate(
         lambda dv: [digest_of(x, canon=CANON_TEXT_SQUASH) for x in (dv or [])]))
@@ -200,16 +224,7 @@ def main() -> int:
     for r in rows:
         r.pop("_key", None)          # 密钥绝不进证据文件
 
-    problems = []
-    for r in rows:
-        if r["actual"] != r["expect"]:
-            problems.append(f"{r['control']}:期望 {r['expect']},实际 {r['actual']}")
-        elif r["expect"] == "FAIL":
-            # 纪律 2:必须红在它自己那一处,红一片不算数
-            if set(r["actual_red"]) != set(r["expect_red"]):
-                problems.append(
-                    f"{r['control']}:红的位置不对 —— 期望 {r['expect_red']},"
-                    f"实际 {r['actual_red']}")
+    problems = find_problems(rows)
 
     # 纪律 4:**每一族谓词都得红过也绿过**。一道在所有负控上都红的判据,
     # 与"恒红"无从区分,它在本实验里不携带任何信息;一道从不红的判据则

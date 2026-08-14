@@ -768,7 +768,7 @@ MUTATIONS: list[dict] = [
         "lesson": "红一片就算数 → 分不清'我有四道判据'和'我有一道判据起了四个名字'",
         "file": _RCS,
         "old": "            if set(r[\"actual_red\"]) != set(r[\"expect_red\"]):",
-        "new": "            if False:",
+        "new": "            if False:",  # noqa: E501 —— 抽成 find_problems 后可被钉死直接考
         "catchers": _T_RCS,
     },
     {

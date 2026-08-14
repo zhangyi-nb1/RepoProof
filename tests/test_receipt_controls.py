@@ -113,12 +113,7 @@ def test_v4_committed_matrix_is_self_consistent():
         assert (r["verdict"]["ok"] is (r["actual"] == "PASS"))
 
 
-@pytest.mark.slow
-def test_v4_strong_matrix_is_fresh():
-    """V4 强形式:真重跑一遍,结论必须与落盘证据逐条相同。
-
-    慢(要起 9 次 HTTP 服务),但**照跑** —— 落盘证据的新鲜度是这套矩阵
-    唯一的价值来源,让它可跳过等于让证据可以偷偷过期。"""
+def _script():
     import importlib.util
     import sys
 
@@ -127,8 +122,48 @@ def test_v4_strong_matrix_is_fresh():
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod
     spec.loader.exec_module(mod)
+    return mod
 
-    assert mod.main() == 0
+
+def test_v2c_the_matrix_judge_itself_catches_a_wrong_red_spot():
+    """V2 的自证:矩阵的判定函数**自己**认不认得出红点错位。
+
+    变异闸门 M50a 抓到的逃逸:那道检查原本内联在 `main()` 里,而钉死只读
+    落盘证据 —— 两条路互为冗余,现实里没有不匹配时,把检查整个掏掉也没人
+    看得出来。**检查器必须先证明自己查得出,才有资格发绿**;证明的办法是
+    喂它一行合成的错配,而不是等现实里出问题。"""
+    fp = _script().find_problems
+
+    ok_row = {"control": "x", "expect": "FAIL",
+              "expect_red": ["U4.adoption"], "actual": "FAIL",
+              "actual_red": ["U4.adoption"]}
+    assert fp([ok_row]) == []
+
+    # 红在别处
+    moved = {**ok_row, "actual_red": ["U3.coverage"]}
+    assert fp([moved]), "红点挪位置了却没被判出来"
+
+    # 红一片(多红了一处)
+    smeared = {**ok_row, "actual_red": ["U3.coverage", "U4.adoption"]}
+    assert fp([smeared]), "红一片却算通过 —— 那证明不了是哪道判据抓住的它"
+
+    # 负控竟然过了
+    passed = {**ok_row, "actual": "PASS", "actual_red": []}
+    assert fp([passed]), "负控过了却没被判出来"
+
+    # 正控红了
+    pos_red = {"control": "positive", "expect": "PASS", "expect_red": [],
+               "actual": "FAIL", "actual_red": ["U4.adoption"]}
+    assert fp([pos_red]), "正控红了却没被判出来 —— 判据成墙也得报"
+
+
+@pytest.mark.slow
+def test_v4_strong_matrix_is_fresh():
+    """V4 强形式:真重跑一遍,结论必须与落盘证据逐条相同。
+
+    慢(要起 9 次 HTTP 服务),但**照跑** —— 落盘证据的新鲜度是这套矩阵
+    唯一的价值来源,让它可跳过等于让证据可以偷偷过期。"""
+    assert _script().main() == 0
     fresh = json.loads(MATRIX.read_text(encoding="utf-8"))
     assert fresh["ok"] is True
     assert {r["control"]: r["actual_red"] for r in fresh["rows"]} == \
