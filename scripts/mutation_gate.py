@@ -51,6 +51,10 @@ _T_BR = ["tests/test_bench_records.py"]
 _T_RCL = ["tests/test_run_classification.py"]
 _T_HG = ["tests/test_host_guard.py"]
 _T_HD = ["tests/test_host_guided.py"]
+_RC_M = "src/repoproof/receipts/model.py"
+_RC_V = "src/repoproof/receipts/verify.py"
+_RC_L = "src/repoproof/receipts/ledger.py"
+_T_UR = ["tests/test_upstream_receipt.py"]
 _T_CF = ["tests/test_constraint_feedback.py"]
 _T_PI = ["tests/test_process_independence.py"]
 _T_RC = ["tests/test_root_cause_packets.py"]
@@ -754,6 +758,68 @@ MUTATIONS: list[dict] = [
         "old": '    for f in sorted(src_control.glob("*.py")):',
         "new": '    for f in sorted(src_control.glob(f"{module}.py")):',
         "catchers": _T_HD,
+    },
+    # ---- M49:上游执行回执(A0)。用户 2026-08-14 的提醒 —— 回执**不能是
+    # 调用日志**:`browser_use.do_something(); return my_own_impl()` 这段能让
+    # 任何"调用发生过"式的判据全过。下面七条各拆掉一道绑定,对应七种绕过。
+    {
+        "id": "M49a-adoption-defaults-to-pass",
+        "lesson": "#R5:没登记采纳谓词就默认放行 → 只证明 U1–U3 的回执看起来"
+                  "像证明了全部四件,正是'调真包用自己结果'的形状",
+        "file": _RC_V,
+        "old": "    if pred is None:\n        f.append(Finding(\"U4.adoption\", False,",
+        "new": "    if pred is None:\n        f.append(Finding(\"U4.adoption\", True,",
+        "catchers": _T_UR,
+    },
+    {
+        "id": "M49b-signature-always-valid",
+        "lesson": "#R2:签名校验形同虚设 → agent 自己造一张回执塞进台账即可过关",
+        "file": _RC_M,
+        "old": "        if not self.receipt_signature:\n            return False",
+        "new": "        if not self.receipt_signature:\n            return True",
+        "catchers": _T_UR,
+    },
+    {
+        "id": "M49c-chain-ignores-prev-hash",
+        "lesson": "#R3:链校验不看 prev_sha256 → 事后改写/删行/换序全都查不出,第三方也就无从独立复核",
+        "file": _RC_L,
+        "old": '        if row.get("prev_sha256") != prev:',
+        "new": "        if False:",
+        "catchers": _T_UR,
+    },
+    {
+        "id": "M49d-coverage-passes-without-a-unit-list",
+        "lesson": "#R6:没有待办清单就默认通过 → 没有分母,'象征性调用一次'永远抓不住",
+        "file": _RC_V,
+        "old": "    if expected_units is None:\n        f.append(Finding(\"U3.coverage\", False,",
+        "new": "    if expected_units is None:\n        f.append(Finding(\"U3.coverage\", True,",
+        "catchers": _T_UR,
+    },
+    {
+        "id": "M49e-run-nonce-not-checked",
+        "lesson": "重放:不校验 run_nonce → 上一次 run 的回执签名有效、内容完好,直接拿来充数",
+        "file": _RC_V,
+        "old": "               and r.binding.run_nonce == run_nonce",
+        "new": "               and True",
+        "catchers": _T_UR,
+    },
+    {
+        "id": "M49f-upstream-identity-not-enforced",
+        "lesson": "真包在场跑复制实现:不比 artifact_hash → 自带同名包、"
+                  "照抄 __version__ 即可(T3 批 13 原样)",
+        "file": _RC_V,
+        "old": "            if want and got != want:",
+        "new": "            if False:",
+        "catchers": _T_UR,
+    },
+    {
+        "id": "M49g-adoption-uses-containment-not-equality",
+        "lesson": "#43 坑三:采纳判据从'相等'退化成'包含' → 把上游结果里的"
+                  "一个标记抄进产物即可满足,实质内容仍是自写的",
+        "file": _RC_V,
+        "old": "        missing = [u for u in units if u not in want]",
+        "new": "        missing = [] if want else list(units)",
+        "catchers": _T_UR,
     },
     {
         "id": "M47a-mechanism-runs-count-toward-gate",

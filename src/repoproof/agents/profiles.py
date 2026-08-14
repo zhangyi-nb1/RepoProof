@@ -142,6 +142,10 @@ _FACE_MAP: tuple[tuple[str, str], ...] = (
     ("agents/provider_gate.py", "model_profile"),
     # ---- 验证面:独立验证与完整性扫描 ----
     ("verification/", "verifier"),
+    # 上游执行回执(A0):它判定"什么算真的用了上游",是判据不是执行器。
+    # 注意 sidecar 本体将来落地时**不归这一面** —— 那东西改变 agent 能做
+    # 什么(执行拓扑),属 executor_semantics。回执只负责验。
+    ("receipts/", "verifier"),
     ("harness/oracle_guard.py", "verifier"),
     ("harness/host_guard.py", "verifier"),
     ("harness/postflight.py", "verifier"),
