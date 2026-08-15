@@ -45,3 +45,9 @@ provider.local.*
 # 它们被跟踪之后会给下一次运行埋雷:取件器把目录下全部 json 一网打尽,
 # 上一次的旧事实会混进这一次的交付。
 page_facts_jobs/
+
+# H2 held-out 题的答案测量件。2026-08-15 对抗性搜捕:它与 measurement.json
+# 合起来可重建出 554/554 的实现,而本仓 remote 是**公开** GitHub 仓 ——
+# 一道 held-out 题的答案不能躺在公开的基准仓里(当时 129 个 commit 未推,
+# 侥幸没漏出去)。完整件在 ~/RepoProofArchive/host2/,不进版本控制。
+docs/evidence/host2_discrimination/naive_plugins.py

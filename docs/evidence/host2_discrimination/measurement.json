@@ -27,10 +27,11 @@
     "list": [
       "test_api_unicode_converter —— 从 converter.regex 抠 minLength/maxLength",
       "test_api_int_float_converter —— signed 为假时 minimum 夹到 ≥0",
-      "test_api_any_converter —— enum 反转义(re.sub(r'\\\\(.)', r'\\1', s))",
+      "test_api_any_converter —— enum 反转义(«实现片段已抹去»",
       "test_apispec_correct_path_parameters_ordering —— rule._trace 保序,而 rule.arguments 是集合",
       "test_blueprint_route_path_parameter_default —— 排除 rule.defaults 里的参数"
     ]
   },
-  "conclusion": "**判别力是 22 条 / 5 个行为,不是 554。** '消融红 310 条'量的是'什么都不做',而模型的真实分布是'写个能跑的朴素版'。任何引用这道题结论的地方都必须带上这句 —— 与 T3-SIDECAR 那条'oracle 只挡根本没做'同型。"
+  "conclusion": "**判别力是 22 条 / 5 个行为,不是 554。** '消融红 310 条'量的是'什么都不做',而模型的真实分布是'写个能跑的朴素版'。任何引用这道题结论的地方都必须带上这句 —— 与 T3-SIDECAR 那条'oracle 只挡根本没做'同型。",
+  "_scrubbed": "2026-08-15:对抗性搜捕发现本文件与同目录 naive_plugins.py 合起来可重建出 554/554 的实现。本仓 remote 是**公开** GitHub 仓 —— 一道 held-out 题的答案不能躺在公开的基准仓里。实现片段已抹去,完整测量件移到 ~/RepoProofArchive/host2/(不进版本控制)。"
 }

@@ -2,7 +2,7 @@
   "_what": "H2 宿主副本的部署层自证 —— 挖空 + 剥离 + **捞不出答案**",
   "_why": "这道题的诚实尺寸是 1–2 bit。答案只要还能从副本里捞出来,信息量当场归零,而所有数字看起来照常。",
   "host": "/Users/zhangronglei/RepoProofBench/host2-flask-smorest/host",
-  "sealed_source": "/Users/zhangronglei/RepoProofBench/host2-flask-smorest/repo",
+  "sealed_source": "/Users/zhangronglei/RepoProofArchive/host2/repo",
   "seam": "src/flask_smorest/spec/plugins.py",
   "carved_symbols": [
     "__init__",
@@ -17,6 +17,9 @@
     "rule_to_params",
     "unicodeconverter2paramschema",
     "uuidconverter2paramschema"
+  ],
+  "carve_removed_imports": [
+    "Mapping"
   ],
   "stripped": {
     "dirs": [
@@ -44,7 +47,7 @@
       "CHANGELOG.rst"
     ]
   },
-  "host_digest": "sha256:5578f89f10f4a9c4bd1b7ff1713aa4d94ca4ad1279f910345d246f573933cc25",
+  "host_digest": "sha256:59a5e5b8f8cadd2ebbacdf7344f75ac6855b65671f6b5f9cf221abdda5acf867",
   "leak_hits": [],
   "structural_problems": [],
   "_selfcheck": "扫描器先被喂过一次原件(塞进副本),必须当场报出来;再在干净副本上跑一次,必须不报。两头都过才算它在验。",

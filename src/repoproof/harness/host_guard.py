@@ -171,6 +171,21 @@ _BENCH_ALLOWED_NAMES = frozenset({
 })
 _BENCH_ALLOWED_PREFIXES = ("wheelhouse-",)   # 冻结轮仓(commit 尾号命名)
 
+# **目录内部**也要有名单(2026-08-15,LESSONS #29 同型第二次)。
+#
+# 原来白名单的粒度只到顶层目录名,于是 `host2-flask-smorest/` 整个放行 ——
+# 而它里面同时装着交付树 `host/`、**未挖空的原件 `repo/`(含 .git 与 554 条
+# 隐藏 oracle)**、一个 `.pth` 指回原件的 venv,和一份 `plugins.py.pristine`。
+# 对抗性搜捕当场用一条 `cat .pth` 把 12 个函数体逐字节取回。
+#
+# 这与 #29 那次(`offerclaw-transaction-stack/` 内含三份 PASS 解被整个放行)
+# **完全同型**:闸门拦住了无害的,放行了答案卷。当时的结论是"改精确名单",
+# 但只改了一层 —— 一层名单挡不住"合法目录里装着不该有的东西"。
+_BENCH_ALLOWED_ENTRIES: dict[str, frozenset[str]] = {
+    # 第二宿主:只许交付树与轮仓。原件/venv/pristine 一律归档到 bench 根之外。
+    "host2-flask-smorest": frozenset({"host", "wheelhouse"}),
+}
+
 
 def bench_root_strays(bench_root: str | Path = BENCH_ROOT_DEFAULT) -> list[str]:
     """返回 bench 根下白名单外的条目名(排序);空列表 = 干净。
@@ -187,8 +202,22 @@ def bench_root_strays(bench_root: str | Path = BENCH_ROOT_DEFAULT) -> list[str]:
     for entry in sorted(root.iterdir(), key=lambda p: p.name):
         name = entry.name
         if name == ".DS_Store" or name in _BENCH_ALLOWED_NAMES:
+            strays.extend(_entry_strays(entry))
             continue
         if name.startswith(_BENCH_ALLOWED_PREFIXES) or (extra and name.startswith(extra)):
             continue
         strays.append(name)
     return strays
+
+
+def _entry_strays(entry: Path) -> list[str]:
+    """已登记目录**内部**的白名单。放行一个目录不等于放行它装的一切。
+
+    只对显式登记了内部名单的目录生效 —— 没登记的维持原状(整个放行),
+    免得给 T1–T3 那三个宿主副本凭空加一道会误伤的闸门。
+    """
+    allowed = _BENCH_ALLOWED_ENTRIES.get(entry.name)
+    if allowed is None or not entry.is_dir():
+        return []
+    return [f"{entry.name}/{p.name}" for p in sorted(entry.iterdir(), key=lambda x: x.name)
+            if p.name != ".DS_Store" and p.name not in allowed]

@@ -186,3 +186,47 @@ def test_bench_hygiene_flags_vendored_upstream(tmp_path: Path) -> None:
     (tmp_path / "offerclaw-t3-browser-use").mkdir()
     (tmp_path / "upstream").mkdir()
     assert bench_root_strays(tmp_path) == ["upstream"]
+
+
+_REPO = Path(__file__).resolve().parents[1]
+
+
+def test_bench_allowlist_is_two_levels_deep():
+    """放行一个目录**不等于**放行它装的一切(LESSONS #29 同型第二次)。
+
+    2026-08-15 对抗性搜捕实录:`host2-flask-smorest/` 在白名单里,于是它里面
+    同时装着交付树 `host/`、**未挖空的原件 `repo/`(含 .git 与 554 条隐藏
+    oracle)**、一个 `.pth` 指回原件的 venv —— 全部一张票放行。一条
+    `cat .pth` 就把被挖的 12 个函数体逐字节取回。
+
+    这与 #29 那次完全同型:`offerclaw-transaction-stack/` 内含三份已验证
+    PASS 解被整个放行。当时的结论是"改精确名单",但只改了一层 ——
+    **一层名单挡不住"合法目录里装着不该有的东西"。**
+    """
+    import sys
+
+    sys.path.insert(0, str(_REPO / "src"))
+    from repoproof.harness.host_guard import (
+        _BENCH_ALLOWED_ENTRIES,
+        bench_root_strays,
+    )
+
+    assert "host2-flask-smorest" in _BENCH_ALLOWED_ENTRIES
+    assert _BENCH_ALLOWED_ENTRIES["host2-flask-smorest"] == frozenset({"host", "wheelhouse"})
+
+    root = Path("~/RepoProofBench").expanduser()
+    if not root.is_dir():
+        pytest.skip("bench 根不在本机")
+    assert bench_root_strays() == [], f"bench 根不干净:{bench_root_strays()}"
+
+    # 判别力:登记目录里塞一样不该有的,必须报出来(带目录前缀,好定位)
+    probe = root / "host2-flask-smorest" / "_rp_probe_stray"
+    if not (root / "host2-flask-smorest").is_dir():
+        pytest.skip("第二宿主不在本机")
+    try:
+        probe.mkdir()
+        got = bench_root_strays()
+        assert "host2-flask-smorest/_rp_probe_stray" in got, (
+            f"登记目录内部的杂物没被报出来:{got}")
+    finally:
+        probe.rmdir()

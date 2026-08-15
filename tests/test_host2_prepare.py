@@ -52,7 +52,7 @@ class C:
     def m(self):
         return 42
 '''
-    carved, names = _mod()._carve(src)
+    carved, names, removed = _mod()._carve(src)
     assert names == ["f", "m"]
     assert '"""说明。"""' in carved, "docstring 被挖掉了 —— 那是改写宿主"
     assert "def f(a):" in carved and "def m(self):" in carved
@@ -64,6 +64,36 @@ class C:
     after = {n.name for n in ast.walk(ast.parse(carved))
              if isinstance(n, (ast.FunctionDef, ast.ClassDef))}
     assert after == before, f"符号集变了:{after ^ before} —— 那是 ENRICHED"
+    assert removed == [], "这份样例里没有孤儿 import,不该抹掉任何东西"
+
+
+def test_h1b_carving_cleans_up_its_own_footprint():
+    """H1b:挖空**自己制造**的残留必须抹掉 —— 孤儿 import 是结构性异常。
+
+    上游是 lint-clean 的(pyproject 的 ruff select 含 "F")。挖掉函数体之后,
+    它用的 import 就成了没人引用的孤儿,而"这棵树里恰好有一条 F401"等于
+    指着某个被挖的函数说"这里要用到它" —— 那是**我们的手印**,不是上游的
+    公开面,所以抹掉不算改写宿主(反倒是留着才失真)。
+
+    实测:真 seam 挖空后 `collections.abc.Mapping` 变成孤儿。
+    """
+    src = "\n".join([
+        "from collections.abc import Mapping",
+        "import re",
+        "",
+        "RE = re.compile('x')",
+        "",
+        "",
+        "def f(p):",
+        '    """说明。"""',
+        "    return isinstance(p, Mapping)",
+        "",
+    ])
+    carved, _names, removed = _mod()._carve(src)
+    assert removed == ["Mapping"], f"孤儿 import 没抹掉:{removed}"
+    assert "Mapping" not in carved
+    # 仍在用的 import 一个都不许动 —— 抹多了就是改写宿主
+    assert "import re" in carved and "RE = re.compile" in carved
 
 
 def test_h2_fingerprints_are_self_calibrating():
@@ -143,6 +173,9 @@ def test_h5_the_prepared_copy_is_leak_free():
     assert r["leak_hits"] == [], f"副本里能捞到答案:{r['leak_hits']}"
     assert r["structural_problems"] == [], r["structural_problems"]
     assert r["ok"] is True
+    assert r["carve_removed_imports"] == ["Mapping"], (
+        f"挖空的手印记录变了:{r['carve_removed_imports']} —— "
+        "孤儿 import 是结构性异常,等于指着被挖的函数说'这里用得着它'")
     assert len(r["carved_symbols"]) == 12, (
         f"挖空的符号数变了({len(r['carved_symbols'])})—— 题面变了,诚实尺寸要重算")
 

@@ -38,7 +38,12 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 SEALED = Path("~/RepoProofBench/host2-flask-smorest").expanduser()
-SRC = SEALED / "repo"
+# **原件不在 bench 根下。** 2026-08-15 对抗性搜捕:原件、venv、pristine 原本
+# 与交付树同级,而 bench 白名单的粒度只到顶层目录名 —— 整个目录一张票放行,
+# 一条 `cat .pth` 就把 12 个函数体逐字节取回。与 LESSONS #29 完全同型
+# (`offerclaw-transaction-stack/` 内含三份 PASS 解被整个放行)。
+ARCHIVE = Path("~/RepoProofArchive/host2").expanduser()
+SRC = ARCHIVE / "repo"
 HOST = SEALED / "host"
 SEAM = "src/flask_smorest/spec/plugins.py"
 
@@ -92,7 +97,30 @@ def _carve(src_text: str) -> tuple[str, list[str]]:
 
     for start, end, indent in sorted(spans, reverse=True):
         lines[start:end] = [" " * indent + "raise NotImplementedError"]
-    return "\n".join(lines) + "\n", sorted(carved)
+    out = "\n".join(lines) + "\n"
+
+    # 挖空**自己制造**的残留:函数体没了,它用的 import 就成了孤儿。
+    # 上游是 lint-clean 的(pyproject 的 ruff select 含 "F"),所以"一条没人
+    # 用的 import"在这棵树里是**结构性异常** —— 等于指着某个被挖的函数说
+    # "这里要用到 Mapping"。这不是上游的公开面,是我们的手印,必须抹掉。
+    removed: list[str] = []
+    tree2 = ast.parse(out)
+    used = {n.id for n in ast.walk(tree2) if isinstance(n, ast.Name)} | {
+        n.attr for n in ast.walk(tree2) if isinstance(n, ast.Attribute)} | {
+        a.value.id for a in ast.walk(tree2)
+        if isinstance(a, ast.Attribute) and isinstance(a.value, ast.Name)}
+    drop_lines: set[int] = set()
+    for node in ast.walk(tree2):
+        if not isinstance(node, (ast.Import, ast.ImportFrom)):
+            continue
+        alive = [a for a in node.names if (a.asname or a.name.split(".")[0]) in used]
+        if not alive:
+            drop_lines.add(node.lineno - 1)
+            removed += [a.asname or a.name for a in node.names]
+    if drop_lines:
+        kept = [ln for i, ln in enumerate(out.splitlines()) if i not in drop_lines]
+        out = "\n".join(kept) + "\n"
+    return out, sorted(carved), removed
 
 
 def _digest_tree(root: Path) -> str:
@@ -116,9 +144,10 @@ def build() -> dict:
     shutil.copytree(SRC, HOST, ignore=_ignore)
 
     original = (SRC / SEAM).read_text(encoding="utf-8")
-    carved_text, carved_symbols = _carve(original)
+    carved_text, carved_symbols, removed_imports = _carve(original)
     (HOST / SEAM).write_text(carved_text, encoding="utf-8")
     return {"carved_symbols": carved_symbols,
+            "carve_removed_imports": removed_imports,
             "original_digest": hashlib.sha256(original.encode()).hexdigest()[:16],
             "carved_digest": hashlib.sha256(carved_text.encode()).hexdigest()[:16]}
 
@@ -246,6 +275,41 @@ def selfcheck(original: str) -> list[str]:
     return bad
 
 
+def repo_scan(original: str) -> list[str]:
+    """**答案不许出现在本仓 git 跟踪的任何文件里。**
+
+    2026-08-15 对抗性搜捕当场抓到:一次勘察留下的
+    `docs/evidence/host2_discrimination/naive_plugins.py` 是 12 个函数的完整
+    实现(`__init__`/`init_spec` 与原件 **AST 逐字相同**),配上同目录
+    `measurement.json` 里的半行代码,实测可重建出 **554/554**。
+    而本仓 remote 是**公开** GitHub 仓 —— 当时 129 个 commit 未推,侥幸没漏。
+
+    教训不是"别把答案写进证据",是**扫描边界画错了**:我只扫了交付树,
+    而答案躺在出题方自己的仓里。所以这条单列一道闸门。
+    """
+    import subprocess
+
+    fps = _answer_fingerprints(original)
+    tracked = subprocess.run(["git", "-C", str(REPO), "ls-files", "-z"],
+                             capture_output=True, text=True).stdout.split("\0")
+    bad: list[str] = []
+    for rel in tracked:
+        if not rel:
+            continue
+        f = REPO / rel
+        if not f.is_file():
+            continue
+        try:
+            body = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for name, pat in fps:
+            if re.search(pat, body):
+                bad.append(f"**本仓 git 里有答案**:{rel}({name})—— remote 是公开仓")
+                break
+    return bad
+
+
 def structural_checks() -> list[str]:
     """结构性检查:那三条被点名的路径,逐条确认没了。"""
     bad: list[str] = []
@@ -282,7 +346,7 @@ def main() -> int:
     info = build()
     original = (SRC / SEAM).read_text(encoding="utf-8")
     hits = leak_scan(original)
-    bad = structural_checks() + selfcheck(original)
+    bad = structural_checks() + selfcheck(original) + repo_scan(original)
 
     report = {
         "_what": "H2 宿主副本的部署层自证 —— 挖空 + 剥离 + **捞不出答案**",
@@ -290,6 +354,9 @@ def main() -> int:
                 "信息量当场归零,而所有数字看起来照常。",
         "host": str(HOST), "sealed_source": str(SRC), "seam": SEAM,
         "carved_symbols": info["carved_symbols"],
+        # 挖空自己制造的残留(孤儿 import)—— 抹掉的记在这里,免得日后
+        # 有人以为副本与上游的差异只有那 12 个 raise
+        "carve_removed_imports": info["carve_removed_imports"],
         "stripped": {"dirs": sorted(STRIP_DIRS), "suffixes": list(STRIP_SUFFIXES),
                      "files": sorted(STRIP_FILES)},
         "host_digest": _digest_tree(HOST),

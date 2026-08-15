@@ -863,6 +863,37 @@ MUTATIONS: list[dict] = [
         "new": "    ok = escaped == 0 and stale == 0",
         "catchers": _T_PP,
     },
+    {
+        "id": "M63d-answer-may-live-in-our-own-public-repo",
+        "lesson": "不扫**本仓 git 跟踪的文件** → 一次勘察留下的 naive_plugins.py "
+                  "(12 个函数全实现,__init__/init_spec 与原件 AST 逐字相同)就躺在"
+                  "证据目录里,而 remote 是**公开** GitHub 仓。扫描边界画错了:"
+                  "答案不在交付树里,在出题方自己的仓里(2026-08-15 搜捕实录)",
+        "file": _PH2,
+        "old": "    bad = structural_checks() + selfcheck(original) + repo_scan(original)",
+        "new": "    bad = structural_checks() + selfcheck(original)",
+        "catchers": _T_PH2,
+    },
+    {
+        "id": "M63e-carve-leaves-its-own-fingerprint",
+        "lesson": "挖空留下孤儿 import → 上游是 lint-clean 的,'恰好一条 F401'"
+                  "在这棵树里是结构性异常,等于指着被挖的函数说'这里用得着它'",
+        "file": _PH2,
+        "old": "        if not alive:",
+        "new": "        if False:",
+        "catchers": _T_PH2,
+    },
+    {
+        "id": "M63f-allowlist-is-only-one-level-deep",
+        "lesson": "bench 白名单粒度只到顶层目录名 → 一张票放行整个目录,而它里面"
+                  "同时装着交付树与**未挖空的原件 + .pth 指回原件的 venv**;"
+                  "一条 `cat .pth` 逐字节取回 12 个函数体。与 LESSONS #29 "
+                  "(offerclaw-transaction-stack 内含三份 PASS 解被整个放行)同型第二次",
+        "file": _HG,
+        "old": "            strays.extend(_entry_strays(entry))",
+        "new": "            pass",
+        "catchers": _T_HG,
+    },
     # ---- M63:H2 宿主副本的部署层。这道题只有 1–2 bit,**答案能捞出来一次
     # 就当场归零**,而所有数字看起来照常。三条守的是"删了"与"捞不出来"
     # 之间那段距离。

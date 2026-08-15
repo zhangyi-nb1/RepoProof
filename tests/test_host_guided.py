@@ -795,7 +795,9 @@ def test_k16_a_second_hosts_shape_is_actually_honoured():
     from repoproof.runner.host_guided import HostGuidedRunner, HostInfo
 
     h = HostInfo(repo="marshmallow-code/flask-smorest", commit="3451351",
-                 copy_path="~/RepoProofBench/host2-flask-smorest/repo",
+                 # 指**交付树**,不是原件树 —— 原件含 .git 与 554 条隐藏 oracle,
+                 # 而 host_guided 会把 copy_path 整棵快照进会话
+                 copy_path="~/RepoProofBench/host2-flask-smorest/host",
                  regression_command=["python", "-m", "pytest", "-q"],
                  setup_commands=[["python3", "-m", "venv", ".venv"],
                                  [".venv/bin/pip", "install", "--no-index", "-e", "."]],
