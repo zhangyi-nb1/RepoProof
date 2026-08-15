@@ -1,0 +1,312 @@
+{
+  "_what": "差分注入矩阵 —— A1 结构上限(F2)的现场证据",
+  "_the_gap": "U4 比的是 digest(交付产出) == digest(回执产出)。上游算得对、被测方自己也算得对时两者恒等 —— 所以 U3/U4 判的是'有没有按项数发出等量、输入对得上的 RPC',**不是'值是不是从上游流过来的'**。",
+  "_the_fix": "让上游产出带上只有 harness 算得出的标记(HMAC(run_secret, 规范化输入)[:12])。判据一个字不用改 —— 变的只是上游产出不再可预测。",
+  "_why_markdown_it": "它的产出**可以被独立算出来**(nc1 就是朴素重实现),而 F2 只在'答案算得出来'时成立。拿一个算不出答案的上游做这个实验,会得到一个漂亮但空洞的绿。",
+  "_t3_sidecar_note": "T3-SIDECAR 那道题的答案算不出来(必须真渲染),所以它**碰巧**不受影响 —— 那是任务的偶然性质,不是机制的性质。",
+  "_not_a_benchmark": "零模型;不进 runs.jsonl,不影响任何闸门数字",
+  "rows": [
+    {
+      "control": "positive",
+      "mode": "plain",
+      "expect": "PASS",
+      "expect_red": [],
+      "actual": "PASS",
+      "actual_red": [],
+      "verdict": {
+        "ok": true,
+        "receipts": 3,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "3 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.count",
+            "ok": true,
+            "detail": "执行方写了 3 条,台账里 3 条",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['markdown_it.MarkdownIt.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": true,
+            "detail": "3 个单元各有对得上的回执",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": true,
+            "detail": "3/3 个交付单元逐一对上回执 output",
+            "invocation_id": ""
+          }
+        ]
+      }
+    },
+    {
+      "control": "positive",
+      "mode": "perturbed",
+      "expect": "PASS",
+      "expect_red": [],
+      "actual": "PASS",
+      "actual_red": [],
+      "verdict": {
+        "ok": true,
+        "receipts": 3,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "3 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.count",
+            "ok": true,
+            "detail": "执行方写了 3 条,台账里 3 条",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['markdown_it.MarkdownIt.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": true,
+            "detail": "3 个单元各有对得上的回执",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": true,
+            "detail": "3/3 个交付单元逐一对上回执 output",
+            "invocation_id": ""
+          }
+        ]
+      }
+    },
+    {
+      "control": "nc9_memorised_but_calls",
+      "mode": "plain",
+      "expect": "PASS",
+      "expect_red": [],
+      "actual": "PASS",
+      "actual_red": [],
+      "verdict": {
+        "ok": true,
+        "receipts": 3,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "3 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.count",
+            "ok": true,
+            "detail": "执行方写了 3 条,台账里 3 条",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['markdown_it.MarkdownIt.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": true,
+            "detail": "3 个单元各有对得上的回执",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": true,
+            "detail": "3/3 个交付单元逐一对上回执 output",
+            "invocation_id": ""
+          }
+        ]
+      }
+    },
+    {
+      "control": "nc9_memorised_but_calls",
+      "mode": "perturbed",
+      "expect": "FAIL",
+      "expect_red": [
+        "U4.adoption"
+      ],
+      "actual": "FAIL",
+      "actual_red": [
+        "U4.adoption"
+      ],
+      "verdict": {
+        "ok": false,
+        "receipts": 3,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "3 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.count",
+            "ok": true,
+            "detail": "执行方写了 3 条,台账里 3 条",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['markdown_it.MarkdownIt.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": true,
+            "detail": "3 个单元各有对得上的回执",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": false,
+            "detail": "3/3 个交付单元的摘要与任何一张回执的 output 都对不上 —— 调用发生了,用的却是别的结果",
+            "invocation_id": ""
+          }
+        ]
+      }
+    }
+  ],
+  "problems": [],
+  "ok": true
+}

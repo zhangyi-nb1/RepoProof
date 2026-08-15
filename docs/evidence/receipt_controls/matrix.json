@@ -80,7 +80,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-3jkglc04/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-my1fv102/upstream_receipts.jsonl"
     },
     {
       "control": "nc1_pure_reimpl",
@@ -160,7 +160,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-w8j7p216/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-w12z6p9d/upstream_receipts.jsonl"
     },
     {
       "control": "nc2_forged_package",
@@ -240,7 +240,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-yrwxz2hv/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-f7m8zt5g/upstream_receipts.jsonl"
     },
     {
       "control": "nc3_ignores_return",
@@ -318,7 +318,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-8pmqbaz0/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-jimyijnk/upstream_receipts.jsonl"
     },
     {
       "control": "nc4_wrong_symbol",
@@ -400,7 +400,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-13mvlsyy/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-17mhdiin/upstream_receipts.jsonl"
     },
     {
       "control": "nc5_replayed_receipt",
@@ -484,7 +484,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-w8ytr9sp/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-pc7qdzqr/upstream_receipts.jsonl"
     },
     {
       "control": "nc6_vendored_copy",
@@ -564,7 +564,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-fvksi5n6/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-b1xzpska/upstream_receipts.jsonl"
     },
     {
       "control": "nc7_uncorrelated_call",
@@ -644,7 +644,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-j5bykibc/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-2dasck_6/upstream_receipts.jsonl"
     },
     {
       "control": "nc8_forged_receipt",
@@ -728,7 +728,81 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-w5b4u06a/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-9zcq9v82/upstream_receipts.jsonl"
+    },
+    {
+      "control": "nc9_memorised_but_calls",
+      "expect": "PASS",
+      "expect_red": [],
+      "actual": "PASS",
+      "actual_red": [],
+      "verdict": {
+        "ok": true,
+        "receipts": 3,
+        "findings": [
+          {
+            "check": "U1.chain",
+            "ok": true,
+            "detail": "3 条,链完整",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.signature",
+            "ok": true,
+            "detail": "全部签名有效",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.run_nonce",
+            "ok": true,
+            "detail": "全部绑定到本次 run",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.count",
+            "ok": true,
+            "detail": "执行方写了 3 条,台账里 3 条",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.version",
+            "ok": true,
+            "detail": "receipt_version=1",
+            "invocation_id": ""
+          },
+          {
+            "check": "U1.invocation_unique",
+            "ok": true,
+            "detail": "invocation_id 无重复",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.symbol",
+            "ok": true,
+            "detail": "符号都在要求集 ['markdown_it.MarkdownIt.render'] 内",
+            "invocation_id": ""
+          },
+          {
+            "check": "U2.upstream_identity",
+            "ok": true,
+            "detail": "发行版/版本/artifact_hash 全部对上",
+            "invocation_id": ""
+          },
+          {
+            "check": "U3.coverage",
+            "ok": true,
+            "detail": "3 个单元各有对得上的回执",
+            "invocation_id": ""
+          },
+          {
+            "check": "U4.adoption",
+            "ok": true,
+            "detail": "3/3 个交付单元逐一对上回执 output",
+            "invocation_id": ""
+          }
+        ]
+      },
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-receipt-2xlfdzac/upstream_receipts.jsonl"
     }
   ],
   "discrimination_by_family": {
@@ -744,7 +818,8 @@
         "nc3_ignores_return",
         "nc4_wrong_symbol",
         "nc6_vendored_copy",
-        "nc7_uncorrelated_call"
+        "nc7_uncorrelated_call",
+        "nc9_memorised_but_calls"
       ]
     },
     "U2": {
@@ -759,7 +834,8 @@
         "nc5_replayed_receipt",
         "nc6_vendored_copy",
         "nc7_uncorrelated_call",
-        "nc8_forged_receipt"
+        "nc8_forged_receipt",
+        "nc9_memorised_but_calls"
       ]
     },
     "U3": {
@@ -774,7 +850,8 @@
       ],
       "green_in": [
         "positive",
-        "nc3_ignores_return"
+        "nc3_ignores_return",
+        "nc9_memorised_but_calls"
       ]
     },
     "U4": {
@@ -789,7 +866,8 @@
         "nc8_forged_receipt"
       ],
       "green_in": [
-        "positive"
+        "positive",
+        "nc9_memorised_but_calls"
       ]
     }
   },

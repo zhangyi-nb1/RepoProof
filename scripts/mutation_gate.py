@@ -68,6 +68,9 @@ _T_BCF = ["tests/test_browser_conformance.py"]
 _VTR = "scripts/verify_task_receipts.py"
 _T_T3S = ["tests/test_t3_sidecar_task.py"]
 _FSM = "scripts/failure_side_matrix.py"
+_DIF = "src/repoproof/execution/differential.py"
+_DIM = "scripts/differential_injection_matrix.py"
+_T_DIF = ["tests/test_differential_injection.py"]
 _T_FS = ["tests/test_failure_side.py"]
 _SSN = "src/repoproof/runner/sidecar_session.py"
 _T_SW = ["tests/test_sidecar_wiring.py"]
@@ -857,6 +860,54 @@ MUTATIONS: list[dict] = [
         "old": "    ok = escaped == 0 and stale == 0 and not missing",
         "new": "    ok = escaped == 0 and stale == 0",
         "catchers": _T_PP,
+    },
+    # ---- M62:差分注入。修的是 A1 的**结构上限**(F2) —— U4 比的是
+    # digest 相等,而上游算得对、被测方自己也算得对时两者恒等。这几条守的都是
+    # "修了个寂寞":机制还在、标记还发,只是它不再不可预测,于是等于没修。
+    {
+        "id": "M62a-tag-ignores-the-input",
+        "lesson": "标记不按输入分 → 一次 run 里所有项同一个标记,把别项的抄过来"
+                  "就能过。与'U3 分母不能来自被测方'同源:判据不能锚在被测方"
+                  "自己搬得动的东西上",
+        "file": _DIF,
+        "old": '    return hmac.new(secret, digest_of(payload, canon=CANON_JSON).encode("utf-8"),',
+        "new": '    return hmac.new(secret, b"fixed",',
+        "catchers": _T_DIF,
+    },
+    {
+        "id": "M62b-tag-ignores-the-secret",
+        "lesson": "标记不按密钥分 → 被测方自己就能算出来,差分注入等于没有,"
+                  "而矩阵照样'全绿'(它只看红在哪,不看标记算不算得出)",
+        "file": _DIF,
+        'old': '    return hmac.new(secret, digest_of(payload, canon=CANON_JSON).encode("utf-8"),',
+        'new': '    return hmac.new(b"", digest_of(payload, canon=CANON_JSON).encode("utf-8"),',
+        "catchers": _T_DIF,
+    },
+    {
+        "id": "M62c-secret-is-not-random",
+        "lesson": "run 密钥退化成常量 → 跨 run 可复用,昨天算出的标记今天还能用",
+        "file": _DIF,
+        "old": "    return os.urandom(32)",
+        "new": '    return b"0" * 32',
+        "catchers": _T_DIF,
+    },
+    {
+        "id": "M62d-matrix-does-not-require-the-two-modes-to-differ",
+        "lesson": "矩阵不查'同一控制组两种模式必须分开' → 注入没起作用也算过,"
+                  "而这正是这张表**唯一**要证明的事",
+        "file": _DIM,
+        "old": "    if nc9_plain and nc9_pert and not (",
+        "new": "    if False and not (",
+        "catchers": _T_DIF,
+    },
+    {
+        "id": "M62e-matrix-ignores-the-wall-side",
+        "lesson": "矩阵不查正控 → 差分注入把诚实实现也判死了也算过,"
+                  "那不是修复是另一种墙(LESSONS #44)",
+        "file": _DIM,
+        "old": '    if any(r["actual"] != "PASS" for r in pos):',
+        "new": "    if False:",
+        "catchers": _T_DIF,
     },
     # ---- M59:失败侧。判据**红了之后**那一段 —— 控制矩阵一步没走过,
     # 而它悄悄失效时,系统照跑、矩阵照绿,只是每一次"没真用上游"都被记成
