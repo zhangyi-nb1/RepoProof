@@ -165,9 +165,13 @@ def test_f6_the_matrix_judge_itself_catches_a_planted_defect():
             "failure_types": ["UPSTREAM_CALLED_BUT_RESULT_UNUSED"]}},
         "类型缺失": {"nc4_wrong_symbol": {
             "run_id": "x", "verdict": "FAIL", "failure_types": []}},
-        "契约没声明的类型": {"nc4_wrong_symbol": {
+        # **只有 taxonomy 那条能查出来的**形态:期望的类型在、另外多报一个
+        # 契约没声明的。写成 `["MADE_UP_TYPE"]` 是抓不住这条的 —— "期望类型
+        # 不在里面"会先报出来,taxonomy 检查被掏掉也看不出差别(实测:
+        # M59c 就这么逃了一次)。
+        "契约没声明的类型(混在对的里面)": {"nc4_wrong_symbol": {
             "run_id": "x", "verdict": "FAIL",
-            "failure_types": ["MADE_UP_TYPE"]}},
+            "failure_types": ["WRONG_UPSTREAM_SYMBOL", "MADE_UP_TYPE"]}},
     }
     for label, over in planted.items():
         assert mod.find_problems([], _found(**over)), f"查不出:{label}"
