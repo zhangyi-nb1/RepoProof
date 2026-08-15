@@ -1,0 +1,27 @@
+{
+  "_what": "一发盲攻的测量记录 —— held-out 准入判据的输入与判决",
+  "candidate": "rehearsal-pagination",
+  "mode": "full-suite",
+  "baseline": {
+    "total": 554,
+    "passed": 554,
+    "skipped": 0
+  },
+  "delta_nodes": [],
+  "attacked_passed": 554,
+  "ratio": 1.0,
+  "failed_nodes": [],
+  "regression_broken": [],
+  "residual_kinds": [],
+  "method": "盲攻协议(彩排 rehearsal-pagination,2026-08-16):\n攻击者 = Claude Fable 5 子代理,单发。\n输入 = 彩排交付树(pagination.py 挖空;tests/docs/.git 剥离;结构检查/\n泄漏扫描/扫描器自证全过)+ deps-only venv(flask/marshmallow/apispec/\nwebargs/werkzeug,自封存轮仓离线装;不含被测包本体,防 .pth 指回原件)。\n禁:隐藏 oracle、原实现、两个给定路径之外的文件系统、网络、迭代对拍。\n允许:用 deps venv 的 python 对自己写的文件做导入/语法检查。\n交付树形状(评分后查明,如实记):所用 _carve 存在嵌套 span 陈旧坐标缺陷\n(彩排当场抓到,已修:H1c/M63g),本发的树比设计**更苛刻** —— 除 17 符号\n挖空外,PaginationMixin 的五个方法连签名都被误吞。攻击者从 blueprint.py\n调用点反推出全部缺失签名并重建。554/554 因此只强不弱。\n边界如实:攻击者与出题方同机同族,\"不出给定路径\"靠提示约束而非沙箱;\npagination 0.47.0 远早于知识截止,记忆与推导不可分 —— 这正是准入判据要防\n的混合威胁,post-cutoff 时间切分关的就是记忆那一半。评分与判决由\nblind_attack_admission.py(B1–B9 钉死)独立执行;--extras tests 按上游\n自己的 pyproject 声明装测试侧依赖(彩排抓到的第 2 条流程缺陷)。\n",
+  "digests": {
+    "pristine_tree": "sha256:9f337afdc1e4ec3f540e004a50473e6d5be4c5ee2fb6f040bdd0a13c5258fc53",
+    "attacked_file": "sha256:ac803d81651cd6a9a52f2c90648522f533902daf6c6bcb8b4b1dcf5fc3200a54"
+  },
+  "verdict": {
+    "ok": false,
+    "reasons": [
+      "盲攻单发 554/554 = 100.0%,越过 95% 线 —— 这道题剩下的可测面已经小到没有意义。(参照:H2 v1 的五个候选是 97.3%–100%,而按'挖空红了多少条'看它们的红数是 541/420/362/83/77,**看着都很健康**。)"
+    ]
+  }
+}

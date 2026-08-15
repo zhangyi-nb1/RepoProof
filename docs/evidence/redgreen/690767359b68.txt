@@ -1,0 +1,76 @@
+fix commit : 690767359b6803cd26d7e7fa08ed1d3cca4344bd
+base commit: ab0ed6568274fd38bde2de436fc58af3788349ae
+nodes      : 11
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_b1_score_comes_from_junit_counts_with_failed_nodes: failed
+  test_b1b_skips_refuse_the_measurement: failed
+  test_b2_dirty_baseline_refuses_no_ratio: failed
+  test_b6_denominator_is_the_baseline_total: failed
+  test_b3_record_requires_method_and_carries_review_material: failed
+  test_b4_subprocess_env_is_forced_offline: failed
+  test_b7_delta_baseline_must_red_exactly_the_delta_set: failed
+  test_b8_delta_ratio_is_over_the_delta_set_only: failed
+  test_b9_regression_breakage_is_listed_not_blended: failed
+  test_b5_verdict_goes_through_the_admission_judge_not_a_copy: failed
+  test_h1c_sibling_methods_survive_a_method_with_nested_defs: failed
+          \"\"\"doc\"\"\"
+            def inner():
+                a = 1
+                b = 2
+                c = 3
+                d = 4
+                return a + b + c + d
+            return inner()
+    
+        def sibling_a(self):
+            \"\"\"doc\"\"\"
+            return 2
+    
+        def sibling_b(self):
+            return 3
+    """
+        carved, names, _removed = _mod()._carve(src)
+        kept = {n.name for n in ast.walk(ast.parse(carved))
+                if isinstance(n, ast.FunctionDef)}
+>       assert {"outer", "sibling_a", "sibling_b"} <= kept, (
+            f"兄弟方法被吞:缺 {({'outer', 'sibling_a', 'sibling_b'} - kept)}")
+E       AssertionError: 兄弟方法被吞:缺 {'sibling_a'}
+E       assert {'outer', 'si..., 'sibling_b'} <= {'outer', 'sibling_b'}
+E         
+E         Extra items in the left set:
+E         'sibling_a'
+
+tests/test_host2_prepare.py:103: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_blind_attack_admission.py::test_b1_score_comes_from_junit_counts_with_failed_nodes
+FAILED tests/test_blind_attack_admission.py::test_b1b_skips_refuse_the_measurement
+FAILED tests/test_blind_attack_admission.py::test_b2_dirty_baseline_refuses_no_ratio
+FAILED tests/test_blind_attack_admission.py::test_b6_denominator_is_the_baseline_total
+FAILED tests/test_blind_attack_admission.py::test_b3_record_requires_method_and_carries_review_material
+FAILED tests/test_blind_attack_admission.py::test_b4_subprocess_env_is_forced_offline
+FAILED tests/test_blind_attack_admission.py::test_b7_delta_baseline_must_red_exactly_the_delta_set
+FAILED tests/test_blind_attack_admission.py::test_b8_delta_ratio_is_over_the_delta_set_only
+FAILED tests/test_blind_attack_admission.py::test_b9_regression_breakage_is_listed_not_blended
+FAILED tests/test_blind_attack_admission.py::test_b5_verdict_goes_through_the_admission_judge_not_a_copy
+FAILED tests/test_host2_prepare.py::test_h1c_sibling_methods_survive_a_method_with_nested_defs
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_b1_score_comes_from_junit_counts_with_failed_nodes: passed
+  test_b1b_skips_refuse_the_measurement: passed
+  test_b2_dirty_baseline_refuses_no_ratio: passed
+  test_b6_denominator_is_the_baseline_total: passed
+  test_b3_record_requires_method_and_carries_review_material: passed
+  test_b4_subprocess_env_is_forced_offline: passed
+  test_b7_delta_baseline_must_red_exactly_the_delta_set: passed
+  test_b8_delta_ratio_is_over_the_delta_set_only: passed
+  test_b9_regression_breakage_is_listed_not_blended: passed
+  test_b5_verdict_goes_through_the_admission_judge_not_a_copy: passed
+  test_h1c_sibling_methods_survive_a_method_with_nested_defs: passed
+...........                                                              [100%]
+
+
+VERDICT: VALID
