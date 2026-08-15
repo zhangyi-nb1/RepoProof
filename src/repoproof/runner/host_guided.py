@@ -979,6 +979,7 @@ class HostGuidedRunner:
         self.run_id = f"{self.contract.task_id}-{time.strftime('%Y%m%d-%H%M%S')}"
         self.budgets = self.contract.budgets.as_budgets()
         self.timings: dict[str, float] = {}
+        self._fake_mode: str | None = None     # 冒烟脚本名(真实发次恒为 None)
         self._browser_pids_before: set[int] | None = None   # 增强①:run 起点快照
         # 先核验后建店(LESSONS #35 · F3,批 6 期间实证):建店在护栏之前
         # 会给**被拒绝的**调用也留下 runs/<task>-<ts>/ 空壳,混在真实证据里
@@ -1386,7 +1387,13 @@ class HostGuidedRunner:
             self._browser_pids_before = None
         contract = self.contract
         b = contract.budgets
-        model_name = provider.model_name if provider else "fake-scripted"
+        # 冒烟发次的名字带上**跑的是哪一个脚本**。原来全叫 `fake-scripted`,
+        # 于是台账里 `--fake noop`、`--fake positive`、七个负控长得一模一样 ——
+        # "冒烟 10 发通过 4 发"这句话说不出任何东西。前缀仍是 `fake`,
+        # `SMOKE_MODEL_PREFIX` 的扣除照旧生效(它用的是 startswith)。
+        model_name = (provider.model_name if provider
+                      else f"fake-scripted:{self._fake_mode}" if self._fake_mode
+                      else "fake-scripted")
         ev("run.start", actor="runner", payload={
             "run_id": self.run_id, "mode": "host-guided-repair",
             "task_id": contract.task_id, "max_rounds": b.max_rounds,
@@ -2389,6 +2396,10 @@ def run_host_guided_cli(
       None        真实模型(REPOPROOF_API_BASE/KEY/MODEL 环境变量)
       "noop"      fake 模型什么都不做直接提交(FAIL 路径冒烟)
       "positive"  fake 模型脚本化注入正控(PASS 路径冒烟;绝不用于正式 run)
+      "control:X" 注入任务包里的控制组 X。负控走完整条链路,用来验判据在
+                  **失败侧**的行为 —— 控制矩阵只跑到"红在哪",红之后那段
+                  (归因分流 → capability 合并 → gate → verdict → 台账)
+                  它一步没走过。
     """
     if fake is None:
         # 预检在 runner 构造(=建 run 目录)之前:preflight 拦截绝不留下
@@ -2426,6 +2437,7 @@ def run_host_guided_cli(
                             batch=batch, keep_session=keep_session)
         return {"blocked": False, "preflight": pf.summary(), "report": report}
     runner = HostGuidedRunner(contract_path, project_root, wheelhouse=wheelhouse)
+    runner._fake_mode = fake          # 台账里要看得出跑的是哪一个冒烟脚本
 
     from repoproof.agents.fake_model import FakeModel
 
@@ -2455,14 +2467,33 @@ def _fake_script(kind: str, runner: HostGuidedRunner) -> list[dict]:
     if kind == "noop":
         return [{"content": "noop submit",
                  "actions": [{"command": "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]}]
-    if kind != "positive":
-        raise ValueError(f"未知 fake 模式:{kind}")
 
-    src_control = runner.task_dir / "controls" / "positive"
+    # `control:<名>` —— 把任务包里的**任一**控制组当脚本跑完整条链路。
+    #
+    # 为什么要有它(2026-08-15,PQ 首批之后):控制矩阵只跑到"判据红在哪",
+    # 而红了之后那一段 —— 归因分流 → capability 合并 → completion gate →
+    # verdict → 台账 —— **矩阵一步都没走过**。首批四发全过,于是判据在
+    # **失败侧**的行为至今零现场实例:S1/S2 那套分流只有合成证据。
+    # 负控走完整条链路,是唯一能在不等真实失败的前提下把那段补上的办法。
+    #
+    # 它**不是**新的判据,也不产生任何模型成绩:model 仍是 `fake-scripted`,
+    # 照旧按冒烟从闸门里扣除。
+    name = "positive"
+    if kind.startswith("control:"):
+        name = kind.split(":", 1)[1].strip()
+        if not name or "/" in name or name.startswith("."):
+            raise ValueError(f"控制组名不合法:{name!r}")
+    elif kind != "positive":
+        raise ValueError(f"未知 fake 模式:{kind}(noop | positive | control:<名>)")
+
+    src_control = runner.task_dir / "controls" / name
     if not src_control.is_dir():
+        avail = sorted(p.name for p in (runner.task_dir / "controls").glob("*")
+                       if p.is_dir()) if (runner.task_dir / "controls").is_dir() else []
         raise ValueError(
-            f"任务包没有正控目录,冒烟无从做起:{src_control}\n"
-            "positive 冒烟必须有真实正控 —— 拒绝静默退回 noop(那会让冒烟"
+            f"任务包没有这个控制组,冒烟无从做起:{src_control}\n"
+            f"已有:{avail}\n"
+            "冒烟必须有真实控制组 —— 拒绝静默退回 noop(那会让冒烟"
             "'通过'而其实什么都没验)")
 
     # 与 build_control_tree 用同一套挂载发现 —— 两处各写一份必然漂移
@@ -2494,8 +2525,15 @@ def _fake_script(kind: str, runner: HostGuidedRunner) -> list[dict]:
     # 缺清单 → 显式失败(与缺控制组目录同一条纪律:不猜、不静默降级)。
     setup = src_control / "smoke_setup.txt"
     if not setup.is_file():
+        # 负控回落到**正控的**清单。这不是图省事:负控与正控必须在**同一个
+        # 环境**里跑,环境不同就不成对照 —— 那样红的可能是环境而不是判据。
+        # 所以回落目标只有一个、且是那个唯一的参照系。
+        shared = src_control.parent / "positive" / "smoke_setup.txt"
+        if shared.is_file():
+            setup = shared
+    if not setup.is_file():
         raise ValueError(
-            f"正控没有环境清单,冒烟无从做起:{setup}\n"
+            f"控制组没有环境清单,冒烟无从做起:{setup}\n"
             "冒烟脚本不替任务猜上游怎么装 —— 钉版可得性是每任务的偶然事实"
             "(实测:editable 装法三任务全灭;pip install <名> 只有 T1 能成)。"
             "请在任务包里写清单,一行一条命令。")

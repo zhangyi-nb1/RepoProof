@@ -67,6 +67,8 @@ _BWK = "benchmarks/v2/sidecar_browser/worker.py"
 _T_BCF = ["tests/test_browser_conformance.py"]
 _VTR = "scripts/verify_task_receipts.py"
 _T_T3S = ["tests/test_t3_sidecar_task.py"]
+_FSM = "scripts/failure_side_matrix.py"
+_T_FS = ["tests/test_failure_side.py"]
 _SSN = "src/repoproof/runner/sidecar_session.py"
 _T_SW = ["tests/test_sidecar_wiring.py"]
 _PP = "src/repoproof/execution/profile_promotion.py"
@@ -850,6 +852,36 @@ MUTATIONS: list[dict] = [
         "old": "    ok = escaped == 0 and stale == 0 and not missing",
         "new": "    ok = escaped == 0 and stale == 0",
         "catchers": _T_PP,
+    },
+    # ---- M59:失败侧。判据**红了之后**那一段 —— 控制矩阵一步没走过,
+    # 而它悄悄失效时,系统照跑、矩阵照绿,只是每一次"没真用上游"都被记成
+    # BLOCKED(不算模型失败、可重跑),这道题等于白出。
+    {
+        "id": "M59a-negative-control-silently-becomes-positive",
+        "lesson": "`--fake control:X` 退回正控 → 七个负控全变正控,失败侧矩阵"
+                  "八行全绿,而'全绿'正好长得像'全部通过'",
+        "file": _HD,
+        "old": '    src_control = runner.task_dir / "controls" / name',
+        "new": '    src_control = runner.task_dir / "controls" / "positive"',
+        "catchers": _T_FS,
+    },
+    {
+        "id": "M59b-failure-side-judge-ignores-blocked",
+        "lesson": "失败侧判定不查 verdict → 负控落在 BLOCKED('不是被测方的错、"
+                  "可重跑')也算过,而那正是这张表唯一要拦的东西",
+        "file": _FSM,
+        "old": "        if got != want_verdict:",
+        "new": "        if False:",
+        "catchers": _T_FS,
+    },
+    {
+        "id": "M59c-failure-side-judge-accepts-undeclared-types",
+        "lesson": "失败侧判定不查 taxonomy → 归因报一个契约没声明的类型也算过,"
+                  "那就是用未言明的要求判人(B6/B7/B10 那条 blocking 的病)",
+        "file": _FSM,
+        "old": "        stray = [t for t in types if t not in taxonomy and t != \"UNKNOWN\"]",
+        "new": "        stray = []",
+        "catchers": _T_FS,
     },
     {
         "id": "M58b-pq-runs-inflate-the-stage-gate",

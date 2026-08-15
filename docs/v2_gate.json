@@ -72,7 +72,7 @@
       }
     ],
     "provisional_evidence_runs": 3,
-    "smoke": 28,
+    "smoke": 35,
     "smoke_passes": 8,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
@@ -102,9 +102,16 @@
       "t3-sidecar-page-facts-v1-20260815-032720",
       "t3-sidecar-page-facts-v1-20260815-054223",
       "t3-sidecar-page-facts-v1-20260815-123758",
-      "t3-sidecar-page-facts-v1-20260815-134813"
+      "t3-sidecar-page-facts-v1-20260815-134813",
+      "t3-sidecar-page-facts-v1-20260815-153926",
+      "t3-sidecar-page-facts-v1-20260815-154700",
+      "t3-sidecar-page-facts-v1-20260815-155251",
+      "t3-sidecar-page-facts-v1-20260815-155856",
+      "t3-sidecar-page-facts-v1-20260815-160458",
+      "t3-sidecar-page-facts-v1-20260815-161121",
+      "t3-sidecar-page-facts-v1-20260815-161452"
     ],
-    "total": 113,
+    "total": 120,
     "treatment_delivered_runs": 3,
     "treatment_not_delivered_runs": 3
   },
@@ -116,7 +123,7 @@
   },
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "d9563f4dd3f462e32a3befa6584b5a840e89323d54a5f60e99b6944bbd6e37ef"
+    "runs_jsonl_sha256": "4ffa0532a8bfb20dc8be37e204f6a78a3a0cbdaecd9efe843275a2487412c0d0"
   },
   "stages": {
     "T1": {
@@ -254,7 +261,7 @@
         }
       ],
       "provisional_evidence_runs": 3,
-      "smoke": 10,
+      "smoke": 17,
       "smoke_passes": 4,
       "smoke_run_ids": [
         "t3-offerclaw-browser-use-v2-20260811-091744",
@@ -266,9 +273,16 @@
         "t3-sidecar-page-facts-v1-20260815-032720",
         "t3-sidecar-page-facts-v1-20260815-054223",
         "t3-sidecar-page-facts-v1-20260815-123758",
-        "t3-sidecar-page-facts-v1-20260815-134813"
+        "t3-sidecar-page-facts-v1-20260815-134813",
+        "t3-sidecar-page-facts-v1-20260815-153926",
+        "t3-sidecar-page-facts-v1-20260815-154700",
+        "t3-sidecar-page-facts-v1-20260815-155251",
+        "t3-sidecar-page-facts-v1-20260815-155856",
+        "t3-sidecar-page-facts-v1-20260815-160458",
+        "t3-sidecar-page-facts-v1-20260815-161121",
+        "t3-sidecar-page-facts-v1-20260815-161452"
       ],
-      "total": 44,
+      "total": 51,
       "treatment_delivered_runs": 0,
       "treatment_not_delivered_runs": 0
     },

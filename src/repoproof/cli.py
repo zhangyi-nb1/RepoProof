@@ -132,8 +132,11 @@ def main(argv: list[str] | None = None) -> int:
                              "preregistration (excluded from stage-gate pass counts)")
     p_host.add_argument("--wheelhouse", type=Path, default=None,
                         help="frozen local wheel index (default: ~/RepoProofBench/wheelhouse-offerclaw-<commit7>)")
-    p_host.add_argument("--fake", choices=["noop", "positive"], default=None,
-                        help="smoke only: scripted fake model (never for official runs)")
+    p_host.add_argument("--fake", default=None, metavar="MODE",
+                        help="smoke only: scripted fake model (never for official runs). "
+                             "noop | positive | control:<name> —— control:<name> 把任务包里的"
+                             "任一控制组当脚本跑完整条链路(负控走到 verdict,"
+                             "用来验判据在**失败侧**的行为,那是矩阵看不到的一段)")
     p_host.add_argument("--keep-session", action="store_true",
                         help="debug: keep the session tree on disk after the run")
 

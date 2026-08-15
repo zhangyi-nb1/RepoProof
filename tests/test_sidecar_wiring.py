@@ -216,18 +216,33 @@ def test_w7_item_count_must_be_at_least_two():
 
 
 def test_w8_the_real_run_passed_all_four_predicates():
-    """接线的现场证明:真跑过一次 host-run,四道谓词全过。"""
-    runs = sorted(Path(REPO / "runs").glob("t3-sidecar-page-facts-v1-*"))
-    if not runs:
-        pytest.skip("尚未跑过 T3-SIDECAR 发次")
-    rep = json.loads((runs[-1] / "report.json").read_text(encoding="utf-8"))
+    """接线的现场证明:**真实模型**跑过一次 host-run,四道谓词全过。
+
+    2026-08-15 改:原来取 `runs/` 里最新的那一发,而失败侧矩阵之后最新的
+    是负控冒烟(它**本该**红在 U4)—— 于是这条把"负控如期红了"读成"接线
+    断了"。取真实模型的最近一发才是它想说的事,而且更强:冒烟是我们自己
+    塞的脚本,它绿证明不了接线对模型也成立。
+    """
+    import json as _json
+
+    ledger = REPO / "benchmarks" / "v2" / "runs.jsonl"
+    rows = [_json.loads(x) for x in ledger.read_text(encoding="utf-8").splitlines()
+            if x.strip()] if ledger.is_file() else []
+    real = [r for r in rows
+            if str(r.get("task_id", "")).startswith("t3-sidecar")
+            and not str(r.get("model", "")).startswith("fake")
+            and str(r.get("verdict", "")).startswith("PASS")]
+    if not real:
+        pytest.skip("尚未有真实模型的 T3-SIDECAR 通过发次")
+    d = Path(REPO / "runs") / str(real[-1]["run_id"])
+    rep = json.loads((d / "report.json").read_text(encoding="utf-8"))
     rv = rep.get("receipt_verification")
     assert rv is not None, "报告里没有回执核验 —— 接线断了"
     assert rv["ok"] is True, [f for f in rv["findings"] if not f["ok"]]
     checks = {f["check"] for f in rv["findings"]}
     assert {"U1.chain", "U1.signature", "U1.count", "U2.symbol",
             "U2.upstream_identity", "U3.coverage", "U4.adoption"} <= checks
-    assert (runs[-1] / "upstream_receipts.jsonl").is_file(), "台账没落在 run 目录"
+    assert (d / "upstream_receipts.jsonl").is_file(), "台账没落在 run 目录"
 
 
 def test_w5c_the_routing_decision_itself_is_pinned_by_behavior():

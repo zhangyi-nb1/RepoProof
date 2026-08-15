@@ -1,0 +1,104 @@
+{
+  "_what": "T3-SIDECAR v1 的**失败侧**矩阵:判据红了之后那一段",
+  "_why": "PQ 首批 4/4 全过,失败侧零现场实例;S1/S2 的归因分流此前只有合成证据",
+  "_not_a_benchmark": "全部是 fake-scripted 冒烟,按 SMOKE_MODEL_PREFIX 从闸门里扣除,不计任何模型成绩",
+  "task_id": "t3-sidecar-page-facts-v1",
+  "rows": [
+    {
+      "control": "positive",
+      "expect_verdict": "PASS_ADAPTED",
+      "expect_side": null,
+      "expect_type": null,
+      "run_id": "t3-sidecar-page-facts-v1-20260815-134813",
+      "actual_verdict": "PASS_ADAPTED",
+      "actual_types": "UNKNOWN",
+      "model": "fake-scripted"
+    },
+    {
+      "control": "nc1_no_sidecar",
+      "expect_verdict": "FAIL",
+      "expect_side": "agent",
+      "expect_type": "UPSTREAM_CAPABILITY_REIMPLEMENTED",
+      "run_id": "t3-sidecar-page-facts-v1-20260815-154700",
+      "actual_verdict": "FAIL",
+      "actual_types": [
+        "UPSTREAM_CAPABILITY_REIMPLEMENTED"
+      ],
+      "model": "fake-scripted"
+    },
+    {
+      "control": "nc2_ignores_result",
+      "expect_verdict": "FAIL",
+      "expect_side": "agent",
+      "expect_type": "UPSTREAM_CALLED_BUT_RESULT_UNUSED",
+      "run_id": "t3-sidecar-page-facts-v1-20260815-153926",
+      "actual_verdict": "FAIL",
+      "actual_types": [
+        "UPSTREAM_CALLED_BUT_RESULT_UNUSED"
+      ],
+      "model": "fake-scripted"
+    },
+    {
+      "control": "nc3_one_call_for_all",
+      "expect_verdict": "FAIL",
+      "expect_side": "agent",
+      "expect_type": "UPSTREAM_CAPABILITY_REIMPLEMENTED",
+      "run_id": "t3-sidecar-page-facts-v1-20260815-155251",
+      "actual_verdict": "FAIL",
+      "actual_types": [
+        "UPSTREAM_CAPABILITY_REIMPLEMENTED"
+      ],
+      "model": "fake-scripted:control:nc3_one_call_for_all"
+    },
+    {
+      "control": "nc4_wrong_symbol",
+      "expect_verdict": "FAIL",
+      "expect_side": "agent",
+      "expect_type": "WRONG_UPSTREAM_SYMBOL",
+      "run_id": "t3-sidecar-page-facts-v1-20260815-155856",
+      "actual_verdict": "FAIL",
+      "actual_types": [
+        "WRONG_UPSTREAM_SYMBOL"
+      ],
+      "model": "fake-scripted:control:nc4_wrong_symbol"
+    },
+    {
+      "control": "nc5_launder_forged_input",
+      "expect_verdict": "FAIL",
+      "expect_side": "agent",
+      "expect_type": "UPSTREAM_CALLED_BUT_RESULT_UNUSED",
+      "run_id": "t3-sidecar-page-facts-v1-20260815-160458",
+      "actual_verdict": "FAIL",
+      "actual_types": [
+        "UPSTREAM_CALLED_BUT_RESULT_UNUSED"
+      ],
+      "model": "fake-scripted:control:nc5_launder_forged_input"
+    },
+    {
+      "control": "nc6_partial_delivery",
+      "expect_verdict": "FAIL",
+      "expect_side": "agent",
+      "expect_type": "UPSTREAM_CALLED_BUT_RESULT_UNUSED",
+      "run_id": "t3-sidecar-page-facts-v1-20260815-161121",
+      "actual_verdict": "FAIL",
+      "actual_types": [
+        "UPSTREAM_CALLED_BUT_RESULT_UNUSED"
+      ],
+      "model": "fake-scripted:control:nc6_partial_delivery"
+    },
+    {
+      "control": "nc7_blank_output",
+      "expect_verdict": "FAIL",
+      "expect_side": "agent",
+      "expect_type": "UPSTREAM_CALLED_BUT_RESULT_UNUSED",
+      "run_id": "t3-sidecar-page-facts-v1-20260815-161452",
+      "actual_verdict": "FAIL",
+      "actual_types": [
+        "UPSTREAM_CALLED_BUT_RESULT_UNUSED"
+      ],
+      "model": "fake-scripted:control:nc7_blank_output"
+    }
+  ],
+  "problems": [],
+  "ok": true
+}

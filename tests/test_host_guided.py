@@ -254,7 +254,7 @@ def test_missing_controls_fails_loudly_not_silently(tmp_path) -> None:
     shutil.copytree(src, dst)
     shutil.rmtree(dst / "controls" / "positive")
 
-    with pytest.raises(ValueError, match="正控"):
+    with pytest.raises(ValueError, match="控制组"):
         _fake_script("positive", _stub_for(dst))
 
 
