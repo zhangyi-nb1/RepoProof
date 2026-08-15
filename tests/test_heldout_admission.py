@@ -100,3 +100,26 @@ def test_a5_the_threshold_is_justified_not_picked():
     # 下一个人只会看到两个不一样的数字,不知道哪个是想清楚过的
     assert "0.98" in src and "否掉了这个值" in src
     assert 0.9 <= MAX_BLIND_ATTACK_RATIO < 1.0
+
+
+def test_a6_prose_residual_is_caught_even_when_the_ratio_is_fine():
+    """A6:净剩是散文,**哪怕比例很好看**也要判死。
+
+    M64c 逃逸实录:A2 里的 etag(97.3%)靠比例那一关就被杀了,于是散文那条
+    检查从没上过场,把它掏掉也看不出差别。**合成缺陷必须让被考的那条判断
+    唯一能查出来** —— 这个坑一天之内踩了第三次(M59c、M62d/e,现在 M64c)。
+
+    所以这里造一个比例很低(=比例关放行)但净剩全是措辞的候选。真实形态:
+    一道题挖空后红了一大片,而模型真正需要"想明白"的只剩几句英文提示语。
+    """
+    good_ratio = BlindAttack(total=554, passed=200, method=M,
+                             residual_kinds=frozenset({"wording", "prose"}))
+    assert good_ratio.ratio < MAX_BLIND_ATTACK_RATIO, "先确认比例关会放行它"
+    v = judge(good_ratio)
+    assert not v.ok, "净剩全是英文措辞,却因为比例好看就放行了"
+    assert any("散文" in r for r in v.reasons)
+
+    # 掺一条真行为进去就该过 —— 判据不许连"措辞 + 行为"也一起杀(那是墙)
+    mixed = BlindAttack(total=554, passed=200, method=M,
+                        residual_kinds=frozenset({"wording", "behaviour"}))
+    assert judge(mixed).ok, judge(mixed).reasons
