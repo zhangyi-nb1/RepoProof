@@ -1622,3 +1622,60 @@ origin 仍是 zhangyi-nb1 —— **换了宿主没换出题方**,按严口径拿
 **D4(WH 的 H0/H2 全仓无定义)仍未裁** —— 它只卡 WH,不卡 HB,先放着。
 
 变异 135 → **136**,测试 757 → **758**。
+
+## 状态条目 · 2026-08-15(补三)· 第二宿主已封存:flask-smorest 0.47.0
+
+按裁决 D2/D3 用掉了那次联网 provisioning。**产物已封存,后面所有发次用这一份,
+不再重下**(与 `rt-sidecar-browser-v1` 同一条纪律)。
+
+```
+~/RepoProofBench/host2-flask-smorest/
+  repo/         marshmallow-code/flask-smorest 0.47.0 @ 3451351(MIT,60 文件)
+  wheelhouse/   23 个轮子 / 3.7M,零 sdist,macOS arm64
+  host_manifest.json   摘要 + 判据基线 + 诚实边界
+```
+清单副本:`docs/evidence/host2_manifest.json`。
+
+**为什么是它**(12 个候选,三路提名 + 对抗复核,十个当场否掉):
+
+- 它是唯一一个 oracle **卫生**的:554 条全绿、**零 skip**、1.4s、四次跑数字一致;
+  `COLUMNS` / `TZ` / `LANG` / `TMPDIR` 四组环境全部 554 passed,零敏感。
+  (对比:jsonschema 消融后判别力恒等于 0;DRF 挖空是 skip 不是 red;
+  datasette 要 gcc 且有元测试;typer 的 `filterwarnings=["error"]` 是活的。)
+- 判据是**黑盒**的:测试文件对 seam 文件 `plugins.py` 的私有名引用为零,唯一
+  触点是公开 API `api.register_converter(...)` —— 不是 sqlfluff 那种按名字填空。
+- 严口径成立:oracle 是**它自带的**,我们一个字不改;origin 是 marshmallow-code,
+  **换宿主同时换了出题方**。
+
+**已独立复现**(不是转述勘察员的话):
+- 断网(死端口代理 127.0.0.1:9 强制任何漏网联网当场失败)从零建 venv、
+  `--no-index` 装齐、跑套件 → **554 passed in 1.88s**。
+- 窄口消融(`rule_to_params` 首行 raise)→ **310 failed / 192 passed / 52 errors**;
+  还原后 `git status` 为空、554 全绿。
+
+### 必须跟着任何结论走的一条:**判别力是 24 条,不是 554**
+
+勘察员手写了一版**朴素** FlaskPlugin(用 `rule.arguments` 而非 `rule._trace`),
+实测 **530/554 通过**。残差 24 条收敛成 **约 5 个独立行为**:unicode 转换器
+min/maxlength 语义、int/float signed 处理、路径参数排序、`rule.defaults` 排除、
+AnyConverter 枚举反解。
+
+**"挖空红 310 条"严重高估了真实判别力** —— 模型的真实分布不是"什么都不做",
+是"写个能跑的朴素版"。这和失败侧那条发现同型(oracle 只挡"根本没做"),
+必须一并写进任何引用。
+
+### 其余诚实边界(已写进 host_manifest.json)
+
+- **记忆污染未证伪**:`plugins.py` 自 2024-03 起未改,0.47.0 发于 2026-03-22,
+  远早于模型知识截止;docstring 原文写着 "Heavily copied from apispec.",
+  而 apispec-webframeworks 的公开 FlaskPlugin 功能等价。背没背过只能实测。
+- **规模边缘**:物理 2382 行,扣空行/注释/docstring 后真码 1152。
+- **结构性冲突**:能满足"大规模自带套件 + 硬 seam + 离线可钉"的仓几乎必然是
+  高星老仓,也就必然在权重里。判据 4 与"无污染"在开源生态里天然打架 ——
+  绕开的方向是"钉截止日之后的版本"或"选新上游当接入点",不是继续翻老仓。
+
+**下一步**(不需要新裁决):把 harness 的宿主耦合拆开 —— 勘察查出五处把
+OfferClaw 布局当常量的地方(`requirements.txt`/`rag_ingest.py` 装环境、
+三个健康检查脚本、`_run_public` 写死 `pytest public_tests/` 根本不读契约、
+`_run_regression` 静默退回、`OFFERCLAW_HOST_ROOT`),第二宿主不是"跑起来不准",
+是**跑不起来**。

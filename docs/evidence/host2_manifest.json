@@ -1,0 +1,49 @@
+{
+  "_what": "第二宿主 host2 的封存清单(C 轨)。与 rt-sidecar-browser-v1 同一条纪律:建好就封,后面所有发次用这一份,不再重下。",
+  "host_id": "marshmallow-code/flask-smorest",
+  "version": "0.47.0",
+  "commit": "345135141f16cbd802d384a058791f1acc28f019",
+  "license": "MIT",
+  "provisioned_at": "2026-08-15",
+  "provisioning_network": "一次性 build 阶段联网(用户 2026-08-15 裁决 D2/D3);agent 与正式 benchmark execution 永不联网",
+  "repo_digest": "sha256:f7c8a41242c150658df59e196f56373fc2746a715dbb09d2ecf54381b3c7954d",
+  "repo_files": 60,
+  "wheelhouse_digest": "sha256:a755db31904752f747d69580f6b446a5501fb7f823ffacf2a89a68251cfbc69e",
+  "wheelhouse_files": 23,
+  "oracle": {
+    "authorship": "UPSTREAM_OWN_TEST_SUITE",
+    "why": "严口径(用户裁决 D1):我们写的 oracle 一律不算 held-out。这份套件是 flask-smorest 自带的,我们一个字不改。",
+    "command": [
+      "python",
+      "-m",
+      "pytest",
+      "-p",
+      "no:cacheprovider",
+      "-o",
+      "addopts=",
+      "-q"
+    ],
+    "baseline": {
+      "passed": 554,
+      "skipped": 0,
+      "failed": 0,
+      "wall_s": 1.41
+    }
+  },
+  "offline_verified": {
+    "how": "死端口代理(127.0.0.1:9)强制任何漏网联网当场失败,而不是靠'我没连网'的自觉",
+    "result": "554 passed in 1.88s(从零建 venv + --no-index 装齐 + 跑套件)"
+  },
+  "seam": {
+    "file": "src/flask_smorest/spec/plugins.py",
+    "lines": 163,
+    "ablation_narrow": "rule_to_params 首行 raise → 310 failed / 192 passed / 52 errors",
+    "restored": "554 passed(还原后逐字节干净,git status 为空)"
+  },
+  "honest_boundaries": [
+    "**判别力远小于 554。** 勘察员手写了一版朴素 FlaskPlugin(用 rule.arguments 而非 rule._trace),实测 530/554 通过 —— 真正在判的只有 24 条测试、约 5 个独立行为(unicode 转换器 min/maxlength、int/float signed、路径参数排序、rule.defaults 排除、AnyConverter 枚举反解)。'挖空红 310 条'严重高估了真实判别力:模型的真实分布不是'什么都不做',是'写个能跑的朴素版'。**这个数(24/5)必须跟着任何结论走。**",
+    "**记忆污染未证伪。** plugins.py 自 2024-03 起未改,0.47.0 发布于 2026-03-22,远早于模型知识截止。且 docstring 原文写着 'Heavily copied from apispec.',而 apispec-webframeworks 的公开 FlaskPlugin 功能等价。模型背没背过,只能实测。",
+    "**判据 6(规模)边缘。** 物理 2382 行,扣空行/注释/docstring 后真码 1152 行。按真码口径低于我自己设的 2000 下限。",
+    "**结构性冲突。** 能满足'自带大规模测试套件 + 硬依赖 seam + 离线可钉版'的仓,几乎必然是高星老仓,也就必然在模型权重里。判据 4 与'无污染'在开源生态里存在结构性冲突 —— 下一轮还会撞上。"
+  ]
+}
