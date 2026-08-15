@@ -299,6 +299,21 @@ _ROUND_HEADER = (
 
 
 # --------------------------------------------------------------- 冻结契约
+def _resolve_wheelhouse(explicit, host) -> Path:
+    """冻结轮仓的落点 —— 命令行 > 契约声明 > 第一宿主的历史命名。
+
+    **抽成函数而不是写在 `__init__` 里**,是因为 `__init__` 要建 run 目录、
+    校 HEAD、读 manifest,钉死没法直接考它,于是只能读源码串 —— 而读串抓不住
+    "字段还在、没人用"(实测:M61d 就这么逃了一次)。
+    """
+    return Path(
+        explicit
+        or getattr(host, "wheelhouse_path", "")
+        or Path("~/RepoProofBench").expanduser()
+        / f"wheelhouse-offerclaw-{host.commit[:7]}"
+    ).expanduser().resolve()
+
+
 class HostHealthCheck(BaseModel):
     """基线健康检查的一条。
 
@@ -1028,12 +1043,7 @@ class HostGuidedRunner:
         # 名字里带 "offerclaw" 不是小事:它是**第六处**把第一宿主当常量的地方,
         # 而这一处的失败最隐蔽 —— 目录不存在时报的是"冻结 wheelhouse 缺失",
         # 看起来像是没建轮仓,而不是"harness 在按别人的名字找"。
-        self.wheelhouse = Path(
-            wheelhouse
-            or self.contract.host.wheelhouse_path
-            or Path("~/RepoProofBench").expanduser()
-            / f"wheelhouse-offerclaw-{self.contract.host.commit[:7]}"
-        ).expanduser().resolve()
+        self.wheelhouse = _resolve_wheelhouse(wheelhouse, self.contract.host)
         self.run_id = f"{self.contract.task_id}-{time.strftime('%Y%m%d-%H%M%S')}"
         self.budgets = self.contract.budgets.as_budgets()
         self.timings: dict[str, float] = {}

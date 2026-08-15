@@ -871,24 +871,32 @@ def test_k19_wheelhouse_path_is_declarable_and_defaults_unchanged():
     import sys
 
     sys.path.insert(0, str(_REPO / "src"))
-    from repoproof.runner.host_guided import HostGuidedRunner, HostInfo
+    from repoproof.runner.host_guided import HostInfo
 
     for name in ("t1_fastapi_mcp", "t3_sidecar_v1", "t2_open_deep_research_v5"):
         c = _contract(name)
         assert c.host.wheelhouse_path == "", f"{name} 声明了轮仓路径 —— 缺省该是空"
         assert c.host.require_wheelhouse_manifest is True
 
-    r = HostGuidedRunner.__new__(HostGuidedRunner)
-    r.contract = _contract("t1_fastapi_mcp")
-    # 缺省路径必须仍是历史命名(拿 __init__ 里那段表达式现算,不抄字符串)
+    # **考行为**:直接喂落点解析函数。只断言"字段还在"是抓不住"字段还在、
+    # 没人用"的 —— 实测 M61d 就这么逃了一次。
     from pathlib import Path as _P
 
+    from repoproof.runner.host_guided import _resolve_wheelhouse
+
+    h1 = _contract("t1_fastapi_mcp").host
     want = (_P("~/RepoProofBench").expanduser()
-            / f"wheelhouse-offerclaw-{r.contract.host.commit[:7]}").resolve()
-    got = _P(r.contract.host.wheelhouse_path
-             or _P("~/RepoProofBench").expanduser()
-             / f"wheelhouse-offerclaw-{r.contract.host.commit[:7]}").expanduser().resolve()
-    assert got == want
+            / f"wheelhouse-offerclaw-{h1.commit[:7]}").resolve()
+    assert _resolve_wheelhouse(None, h1) == want, "第一宿主的缺省落点变了"
+
+    h2 = HostInfo(repo="marshmallow-code/flask-smorest", commit="3451351",
+                  copy_path="~/x", regression_command=["python", "-m", "pytest"],
+                  wheelhouse_path="~/RepoProofBench/host2-flask-smorest/wheelhouse")
+    assert _resolve_wheelhouse(None, h2) == (
+        _P("~/RepoProofBench/host2-flask-smorest/wheelhouse").expanduser().resolve()), (
+        "契约声明的轮仓没被采纳 —— 第二宿主会去按第一宿主的名字找")
+    # 命令行 --wheelhouse 仍然最高优先
+    assert _resolve_wheelhouse("/tmp/wh", h2) == _P("/tmp/wh").resolve()
 
     # 第二宿主声明自己的,必须被采纳
     h = HostInfo(repo="marshmallow-code/flask-smorest", commit="3451351",
