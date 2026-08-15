@@ -867,6 +867,25 @@ MUTATIONS: list[dict] = [
     # ---- M61:C 轨,宿主耦合拆开之后的守护。三条都是"泛化顺手把第一宿主
     # 改坏"或"泛化只是多了几个没人读的字段"——两种都让这次改动白做。
     {
+        "id": "M61d-wheelhouse-path-back-to-the-first-hosts-name",
+        "lesson": "轮仓路径又写死成 `wheelhouse-offerclaw-<commit7>` → 第二宿主的"
+                  "轮仓找不到,而报的是'冻结 wheelhouse 缺失',看起来像没建轮仓,"
+                  "不像'harness 在按别人的名字找'。第六处宿主耦合",
+        "file": _HD,
+        "old": "            or self.contract.host.wheelhouse_path",
+        "new": '            or ""',
+        "catchers": _T_HD,
+    },
+    {
+        "id": "M61e-fabricated-env-baseline-hash",
+        "lesson": "没有 wheelhouse manifest 时凭空给个环境基线哈希 → 台账里那一格"
+                  "看起来煞有介事,而它什么都不代表(纸面值当真实测量值,源 §15)",
+        "file": _HD,
+        "old": '            self.env_baseline_hash = "UNKNOWN"',
+        "new": '            self.env_baseline_hash = "sha256:" + "0" * 64',
+        "catchers": _T_HD,
+    },
+    {
         "id": "M61a-public-command-back-to-a-constant",
         "lesson": "公开面又写死 → 契约的 public_test_command 说了不算,"
                   "**契约说的和实际跑的不是一回事**;第二宿主的公开面在别处",

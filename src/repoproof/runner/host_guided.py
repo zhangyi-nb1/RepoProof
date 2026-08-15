@@ -349,6 +349,13 @@ class HostInfo(BaseModel):
     # 别的宿主自然读别的名字。两个都注入(见 `_run_oracle`)——多注一个没有害处,
     # 少注一个会让 oracle 在自己家里找不到路。
     host_root_env: str = "OFFERCLAW_HOST_ROOT"
+    # 冻结轮仓。空 = 沿用第一宿主的历史命名 `wheelhouse-offerclaw-<commit7>`
+    # (九个现存轮仓都叫这个,改名会让全部历史发次无法复现)。
+    wheelhouse_path: str = ""
+    # 轮仓 manifest。第二宿主的轮仓是 `pip download` 出来的,没有第一宿主那套
+    # env_baseline_hash 记账 —— 缺省仍要求它在(那是第一宿主的既有纪律),
+    # 契约可声明 false 表示"这个宿主的环境基线由别处保证"。
+    require_wheelhouse_manifest: bool = True
 
 
 class HostSourceRepo(BaseModel):
@@ -1014,8 +1021,16 @@ class HostGuidedRunner:
             self.project_root / "upstream-cache"
             / f"upstream-{self.contract.source_repo.resolved_commit[:12]}"
         )
+        # 轮仓路径。缺省仍是 `wheelhouse-offerclaw-<commit7>`(第一宿主的历史
+        # 命名,九个现存轮仓都叫这个,改名等于让全部历史发次无法复现);
+        # 第二宿主在契约里声明自己的 `host.wheelhouse_path`。
+        #
+        # 名字里带 "offerclaw" 不是小事:它是**第六处**把第一宿主当常量的地方,
+        # 而这一处的失败最隐蔽 —— 目录不存在时报的是"冻结 wheelhouse 缺失",
+        # 看起来像是没建轮仓,而不是"harness 在按别人的名字找"。
         self.wheelhouse = Path(
             wheelhouse
+            or self.contract.host.wheelhouse_path
             or Path("~/RepoProofBench").expanduser()
             / f"wheelhouse-offerclaw-{self.contract.host.commit[:7]}"
         ).expanduser().resolve()
@@ -1046,7 +1061,12 @@ class HostGuidedRunner:
             raise HostRunError(f"冻结 wheelhouse 缺失:{self.wheelhouse}")
         manifest = self.wheelhouse / "wheelhouse_manifest.json"
         if not manifest.is_file():
-            raise HostRunError(f"wheelhouse manifest 缺失:{manifest}")
+            if self.contract.host.require_wheelhouse_manifest:
+                raise HostRunError(f"wheelhouse manifest 缺失:{manifest}")
+            # 声明了不要求 —— 但**环境基线哈希不许凭空造一个**。写明它没有,
+            # 让台账里那一格如实是 UNKNOWN,而不是一个看起来煞有介事的值。
+            self.env_baseline_hash = "UNKNOWN"
+            return
         self.env_baseline_hash = json.loads(
             manifest.read_text(encoding="utf-8"))["env_baseline_hash"]
 

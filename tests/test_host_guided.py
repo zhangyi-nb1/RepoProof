@@ -856,3 +856,49 @@ def test_k18_health_check_gating_flag_is_honoured():
     by = {c.command[-1]: c for c in _contract("t1_fastapi_mcp").host.health_checks}
     assert by["doctor.py"].gating is False
     assert by["verify_pipeline.py"].gating is True
+
+
+def test_k19_wheelhouse_path_is_declarable_and_defaults_unchanged():
+    """K19:轮仓路径可声明,**且现有契约解析出的路径逐字不变**。
+
+    这是第六处把第一宿主当常量的地方,也是失败最隐蔽的一处:目录不存在时
+    报的是"冻结 wheelhouse 缺失",看起来像没建轮仓,而不是"harness 在按
+    别人的名字找"。
+
+    缺省不能改:九个现存轮仓都叫 `wheelhouse-offerclaw-<commit7>`,
+    改名会让全部历史发次无法复现。
+    """
+    import sys
+
+    sys.path.insert(0, str(_REPO / "src"))
+    from repoproof.runner.host_guided import HostGuidedRunner, HostInfo
+
+    for name in ("t1_fastapi_mcp", "t3_sidecar_v1", "t2_open_deep_research_v5"):
+        c = _contract(name)
+        assert c.host.wheelhouse_path == "", f"{name} 声明了轮仓路径 —— 缺省该是空"
+        assert c.host.require_wheelhouse_manifest is True
+
+    r = HostGuidedRunner.__new__(HostGuidedRunner)
+    r.contract = _contract("t1_fastapi_mcp")
+    # 缺省路径必须仍是历史命名(拿 __init__ 里那段表达式现算,不抄字符串)
+    from pathlib import Path as _P
+
+    want = (_P("~/RepoProofBench").expanduser()
+            / f"wheelhouse-offerclaw-{r.contract.host.commit[:7]}").resolve()
+    got = _P(r.contract.host.wheelhouse_path
+             or _P("~/RepoProofBench").expanduser()
+             / f"wheelhouse-offerclaw-{r.contract.host.commit[:7]}").expanduser().resolve()
+    assert got == want
+
+    # 第二宿主声明自己的,必须被采纳
+    h = HostInfo(repo="marshmallow-code/flask-smorest", commit="3451351",
+                 copy_path="~/x", regression_command=["python", "-m", "pytest"],
+                 wheelhouse_path="~/RepoProofBench/host2-flask-smorest/wheelhouse",
+                 require_wheelhouse_manifest=False)
+    assert "host2-flask-smorest" in h.wheelhouse_path
+    assert h.require_wheelhouse_manifest is False
+
+    # 不要求 manifest 时,环境基线哈希必须是 UNKNOWN,**不许凭空造一个**
+    src = _runner_src()
+    assert 'self.env_baseline_hash = "UNKNOWN"' in src, (
+        "没有 manifest 却给了个看起来煞有介事的基线哈希")
