@@ -872,8 +872,8 @@ MUTATIONS: list[dict] = [
                   "轮仓找不到,而报的是'冻结 wheelhouse 缺失',看起来像没建轮仓,"
                   "不像'harness 在按别人的名字找'。第六处宿主耦合",
         "file": _HD,
-        "old": "            or self.contract.host.wheelhouse_path",
-        "new": '            or ""',
+        "old": '        or getattr(host, "wheelhouse_path", "")',
+        "new": '        or ""',
         "catchers": _T_HD,
     },
     {
