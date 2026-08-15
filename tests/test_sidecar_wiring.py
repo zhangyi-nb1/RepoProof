@@ -235,6 +235,10 @@ def test_w8_the_real_run_passed_all_four_predicates():
     if not real:
         pytest.skip("尚未有真实模型的 T3-SIDECAR 通过发次")
     d = Path(REPO / "runs") / str(real[-1]["run_id"])
+    if not (d / "report.json").is_file():
+        # `runs/` 不进仓,而钉死会跑在临时 worktree 里(变异闸门就是这么跑的)。
+        # 台账在树里、run 目录不在 —— 那不是"接线断了",是这里没有那份证据。
+        pytest.skip(f"run 目录不在本树里:{d}")
     rep = json.loads((d / "report.json").read_text(encoding="utf-8"))
     rv = rep.get("receipt_verification")
     assert rv is not None, "报告里没有回执核验 —— 接线断了"

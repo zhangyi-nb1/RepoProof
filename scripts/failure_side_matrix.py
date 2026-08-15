@@ -131,12 +131,25 @@ def main() -> int:
     table = []
     for name, (wv, ws, wt) in EXPECT.items():
         r = found.get(name)
+        # oracle / 重放的现场结论也抄进证据里。**证据必须自足**:钉死跑在
+        # 临时 worktree 里,那里没有 `runs/`(它不进仓),回头去读 run 目录
+        # 就会在闸门里炸成"基线不绿"——实测踩过。
+        rep = (REPO / "runs" / str(r["run_id"]) / "report.json") if r else None
+        d = json.loads(rep.read_text(encoding="utf-8")) if rep and rep.is_file() else {}
+        cap = str(d.get("capability") or "")
         table.append({"control": name, "expect_verdict": wv,
                       "expect_side": ws, "expect_type": wt,
                       "run_id": r.get("run_id") if r else None,
                       "actual_verdict": r.get("verdict") if r else None,
                       "actual_types": (r.get("failure_types") if r else None),
-                      "model": r.get("model") if r else None})
+                      "model": r.get("model") if r else None,
+                      "oracle_green": ("failed_checks=0" in cap) if cap else None,
+                      "oracle_detail": cap[:120] or None,
+                      "replay": str(d.get("replay") or "") or None,
+                      "receipt_red": sorted(
+                          f["check"] for f in
+                          ((d.get("receipt_verification") or {}).get("findings") or [])
+                          if not f["ok"])})
 
     w = max(len(t["control"]) for t in table)
     print(f"{'控制组'.ljust(w)}  期望         实际         failure_types")

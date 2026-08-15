@@ -232,17 +232,18 @@ def test_f8_the_oracle_alone_would_pass_five_of_the_seven():
     这条会随证据一起过期:哪天 oracle 变强了(比如自己也能验事实),这个
     数字就该变,而变了就得有人重新说清楚判别力搬到哪去了。
     """
+    # 读**证据里抄下来的** oracle 结论,不去翻 `runs/` —— 那个目录不进仓,
+    # 而钉死会跑在临时 worktree 里(变异闸门就是这么跑的,实测炸过一次)。
     m = _m()
-    weak = []
-    for r in m["rows"]:
-        if r["expect_verdict"] != "FAIL":
-            continue
-        d = json.loads((REPO / "runs" / r["run_id"] / "report.json").read_text(
-            encoding="utf-8"))
-        if "failed_checks=0" in str(d.get("capability") or ""):
-            weak.append(r["control"])
+    weak = [r["control"] for r in m["rows"]
+            if r["expect_verdict"] == "FAIL" and r.get("oracle_green")]
     assert len(weak) == 5, (
         f"oracle 独自放行的负控从 5 个变成了 {len(weak)} 个({weak})——"
         "判别力的分布变了,得重新说清楚它搬到哪去了")
     assert "nc1_no_sidecar" in weak, (
         "连'完全自抓'都不在 oracle 放行之列了?那 oracle 变强了,这条要重写")
+    # 同时钉住"回执层确实在这五个上红了" —— 只证明 oracle 放行还不够,
+    # 那只说明 oracle 弱,不说明有别的东西接住了。
+    by = {r["control"]: r for r in m["rows"]}
+    for c in weak:
+        assert by[c]["receipt_red"], f"{c}:oracle 放行、回执也没红 —— 没人接得住"

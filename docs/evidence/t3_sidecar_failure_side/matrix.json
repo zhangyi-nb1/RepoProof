@@ -12,7 +12,11 @@
       "run_id": "t3-sidecar-page-facts-v1-20260815-134813",
       "actual_verdict": "PASS_ADAPTED",
       "actual_types": "UNKNOWN",
-      "model": "fake-scripted"
+      "model": "fake-scripted",
+      "oracle_green": true,
+      "oracle_detail": "passed_checks=4, failed_checks=0, total_checks=4",
+      "replay": "mode=clean_adoption, status=PASS",
+      "receipt_red": []
     },
     {
       "control": "nc1_no_sidecar",
@@ -24,7 +28,14 @@
       "actual_types": [
         "UPSTREAM_CAPABILITY_REIMPLEMENTED"
       ],
-      "model": "fake-scripted"
+      "model": "fake-scripted",
+      "oracle_green": true,
+      "oracle_detail": "passed_checks=4, failed_checks=0, total_checks=4 | 采纳不成立:U3.coverage: 2/2 个单元没有回执(或输入对不上):['item-1-e3a43b7ff0f5', 'item-",
+      "replay": "mode=clean_adoption, status=PASS",
+      "receipt_red": [
+        "U3.coverage",
+        "U4.adoption"
+      ]
     },
     {
       "control": "nc2_ignores_result",
@@ -36,7 +47,13 @@
       "actual_types": [
         "UPSTREAM_CALLED_BUT_RESULT_UNUSED"
       ],
-      "model": "fake-scripted"
+      "model": "fake-scripted",
+      "oracle_green": true,
+      "oracle_detail": "passed_checks=4, failed_checks=0, total_checks=4 | 采纳不成立:U4.adoption: 6/6 项采纳不成立:['item-1-ee98eda29da8:交付的事实不是它那张回执的产出',",
+      "replay": "mode=clean_adoption, status=PASS",
+      "receipt_red": [
+        "U4.adoption"
+      ]
     },
     {
       "control": "nc3_one_call_for_all",
@@ -48,7 +65,14 @@
       "actual_types": [
         "UPSTREAM_CAPABILITY_REIMPLEMENTED"
       ],
-      "model": "fake-scripted:control:nc3_one_call_for_all"
+      "model": "fake-scripted:control:nc3_one_call_for_all",
+      "oracle_green": true,
+      "oracle_detail": "passed_checks=4, failed_checks=0, total_checks=4 | 采纳不成立:U3.coverage: 1/2 个单元没有回执(或输入对不上):['item-2-c167f3fa590c']; U4.ad",
+      "replay": "mode=clean_adoption, status=PASS",
+      "receipt_red": [
+        "U3.coverage",
+        "U4.adoption"
+      ]
     },
     {
       "control": "nc4_wrong_symbol",
@@ -60,7 +84,15 @@
       "actual_types": [
         "WRONG_UPSTREAM_SYMBOL"
       ],
-      "model": "fake-scripted:control:nc4_wrong_symbol"
+      "model": "fake-scripted:control:nc4_wrong_symbol",
+      "oracle_green": true,
+      "oracle_detail": "passed_checks=4, failed_checks=0, total_checks=4 | 采纳不成立:U2.symbol: 调了要求集之外的符号:['inv-0001', 'inv-0002', 'inv-0003', 'inv",
+      "replay": "mode=clean_adoption, status=PASS",
+      "receipt_red": [
+        "U2.symbol",
+        "U3.coverage",
+        "U4.adoption"
+      ]
     },
     {
       "control": "nc5_launder_forged_input",
@@ -72,7 +104,13 @@
       "actual_types": [
         "UPSTREAM_CALLED_BUT_RESULT_UNUSED"
       ],
-      "model": "fake-scripted:control:nc5_launder_forged_input"
+      "model": "fake-scripted:control:nc5_launder_forged_input",
+      "oracle_green": true,
+      "oracle_detail": "passed_checks=4, failed_checks=0, total_checks=4 | 采纳不成立:U4.adoption: 6/6 项采纳不成立:['item-1-aaf5526f9cfc:交付的事实不是它那张回执的产出',",
+      "replay": "mode=clean_adoption, status=PASS",
+      "receipt_red": [
+        "U4.adoption"
+      ]
     },
     {
       "control": "nc6_partial_delivery",
@@ -84,7 +122,13 @@
       "actual_types": [
         "UPSTREAM_CALLED_BUT_RESULT_UNUSED"
       ],
-      "model": "fake-scripted:control:nc6_partial_delivery"
+      "model": "fake-scripted:control:nc6_partial_delivery",
+      "oracle_green": false,
+      "oracle_detail": "passed_checks=3, failed_checks=1, total_checks=4 — failing: test_h2_每项都有事实且非空 | 采纳不成立:U4.adoption: 交付漏了 ['item-2-5c8156b",
+      "replay": null,
+      "receipt_red": [
+        "U4.adoption"
+      ]
     },
     {
       "control": "nc7_blank_output",
@@ -96,7 +140,13 @@
       "actual_types": [
         "UPSTREAM_CALLED_BUT_RESULT_UNUSED"
       ],
-      "model": "fake-scripted:control:nc7_blank_output"
+      "model": "fake-scripted:control:nc7_blank_output",
+      "oracle_green": false,
+      "oracle_detail": "passed_checks=3, failed_checks=1, total_checks=4 — failing: test_h2_每项都有事实且非空 | 采纳不成立:U4.adoption: 6/6 项采纳不成立:['item-1-b",
+      "replay": null,
+      "receipt_red": [
+        "U4.adoption"
+      ]
     }
   ],
   "problems": [],
