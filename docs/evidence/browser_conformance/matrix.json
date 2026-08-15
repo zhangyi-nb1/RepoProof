@@ -107,7 +107,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-yhrfssjh/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-0hxvnu55/upstream_receipts.jsonl"
     },
     {
       "adapter": "a1_never_calls",
@@ -187,7 +187,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-ydr8w2ix/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-j3rg7jas/upstream_receipts.jsonl"
     },
     {
       "adapter": "a2_reimplements",
@@ -267,7 +267,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-r10cid67/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-v727v217/upstream_receipts.jsonl"
     },
     {
       "adapter": "a3_fake_package",
@@ -347,7 +347,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-st8rk9l9/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-smstrdkg/upstream_receipts.jsonl"
     },
     {
       "adapter": "a4_ignores_result",
@@ -425,7 +425,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-qgiy4iwf/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-ugcv_pvd/upstream_receipts.jsonl"
     },
     {
       "adapter": "a5_wrong_symbol",
@@ -507,7 +507,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-vll6m930/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-d5mi2w5d/upstream_receipts.jsonl"
     },
     {
       "adapter": "a6_replays_receipt",
@@ -591,7 +591,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-ol8fqtzy/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-97qnfaqj/upstream_receipts.jsonl"
     },
     {
       "adapter": "a7_tampers_receipt",
@@ -612,7 +612,7 @@
           {
             "check": "U1.chain",
             "ok": false,
-            "detail": "第 0 行的 prev_sha256 对不上(记的是 cdaacfab0d80e59cb268afb8132f48a92be07b2c820aeb46b31850a73daf29d2,实际应为 None)",
+            "detail": "第 0 行的 prev_sha256 对不上(记的是 795b1135e7890b412c35b4b80392e534fc39e78bc70cfe0f3b95fbf2507e9bd0,实际应为 None)",
             "invocation_id": "line 0"
           },
           {
@@ -671,7 +671,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-j3qr_6bk/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-3ot9nsfi/upstream_receipts.jsonl"
     },
     {
       "adapter": "a8_forges_receipt",
@@ -755,7 +755,7 @@
           }
         ]
       },
-      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-26y3a7av/upstream_receipts.jsonl"
+      "ledger": "/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-bconf-qb8_wfo1/upstream_receipts.jsonl"
     }
   ],
   "discrimination_by_family": {

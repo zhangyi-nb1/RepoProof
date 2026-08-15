@@ -89,7 +89,12 @@ def run_one(control: str, mode: str) -> dict:
     # 用的是摘要相等式谓词。不登记的话 U4 恒红,连正控都过不去(实测踩过)。
     vrc._register_predicate()
 
-    ctrl = _load(SUITE / "controls" / f"{control}.py", f"diff_ctl_{control}_{mode}")
+    # 正控在 `controls/`(与金丝雀矩阵共用同一份 —— 误杀侧必须是**同一个**
+    # 诚实实现,换一份就不是对照了);nc9 在 `differential_controls/`,因为
+    # 它的期望随模式而变,而金丝雀矩阵没有模式的概念(放进去会被读成
+    # "一个通过了的负控",那是这套证据里最容易被误读的一句话)。
+    sub = "controls" if control == "positive" else "differential_controls"
+    ctrl = _load(SUITE / sub / f"{control}.py", f"diff_ctl_{control}_{mode}")
     work = Path(tempfile.mkdtemp(prefix=f"rp-diff-{mode}-"))
     ledger = work / LEDGER_NAME
     key, nonce = new_key(), new_nonce()
