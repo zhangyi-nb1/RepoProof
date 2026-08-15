@@ -1679,3 +1679,43 @@ OfferClaw 布局当常量的地方(`requirements.txt`/`rag_ingest.py` 装环境�
 三个健康检查脚本、`_run_public` 写死 `pytest public_tests/` 根本不读契约、
 `_run_regression` 静默退回、`OFFERCLAW_HOST_ROOT`),第二宿主不是"跑起来不准",
 是**跑不起来**。
+
+## 状态条目 · 2026-08-15(补四)· harness 的宿主耦合拆开
+
+第二宿主此前不是"跑起来不准",是**跑不起来**。五处把 OfferClaw 布局当常量
+的地方逐条搬进契约,**缺省值 = 现状,T1–T3 行为一个字节不变**(K13 逐字段
+现场比对 + 零模型端到端复跑坐实)。
+
+| # | 原来写死了什么 | 换宿主的死法 | 现在 |
+|---|---|---|---|
+| 1 | `venv → pip -r requirements.txt → rag_ingest.py` | 没那两个文件 → HostRunError | `host.setup_commands` |
+| 2 | 三个健康检查脚本 + 硬编码中文串 `"0 处未围栏"` | 脚本不存在 → exec 127 → **每发零预算 BLOCKED 且无旁路** | `host.health_checks`(可声明 pass_if / gating) |
+| 3 | `_run_public` 写死 `pytest public_tests/` | **契约说的和实际跑的不是一回事** | 读 `acceptance.public_test_command` |
+| 4 | `_run_regression` 非 python 开头就**静默**退回 | 契约写了别的也照跑 OfferClaw 那条,报告看不出差别 | 缺声明直接报错,不猜 |
+| 5 | oracle 的 `OFFERCLAW_HOST_ROOT` | 新宿主 oracle 找不到自己的根 | 三个名字都注 |
+
+K16 是**正控**(第二宿主声明自己的形状,harness 必须照做)—— 前四条全是
+"别把第一宿主改坏"的负控,而可满足性只能靠正控验(LESSONS #44)。
+
+### 顺带两件
+
+- 第二宿主目录登记进 bench 白名单。它当场拦下过一发
+  `BENCH_ROOT_CONTAMINATED` —— 那是白名单该有的表现,不是它的毛病。
+- **M29b/M29c 重锚**:它们的 `old` 串是白名单**末行**,每加一个宿主就 STALE
+  两条,而 STALE 让 `G5.mutation` 判不过、整条晋级链连坐全红。改锚到不随
+  名单增长的判定行,同一个缺陷换个等价表达。这类"锚在会增长的结构上"的
+  条目,以后新增时就该避开。
+
+### 一个自己踩的坑(K17 + M61b)
+
+第一版重构写成 `for i, cmd in enumerate(cmds): if i == pip_idx: continue`,
+于是 pip **之后**的步骤被提前执行 —— `rag_ingest.py` 在 chromadb 装上之前跑,
+当场 ModuleNotFoundError → 零预算 BLOCKED。
+
+**单测抓不到它(它们不建环境),是零模型端到端冒烟一把抓住的。** 这条值得
+单记:重构建环境/健康检查这类"只有真跑才经过"的代码,单测绿不算数。
+
+变异 136 → **139**,测试 763 → **764**。
+
+**下一步**:给第二宿主写第一个任务包(contract + 接线点 + 用它自带的 554 条
+当 oracle)。判据先冻结、再开跑,老规矩。
