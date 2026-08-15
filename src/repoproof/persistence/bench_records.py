@@ -263,6 +263,9 @@ CLASSIFICATION_KEYS = frozenset({
     "assistance_level", "classification_timing",
     "evidence_strength", "evidence_caveat",
     "counts_toward_profile_qualification",
+    # 严口径 held-out(用户 2026-08-15 裁决):oracle 是谁写的。
+    # 只有 UPSTREAM_OWN_TEST_SUITE 才让 counts_toward_heldout_benchmark 生效。
+    "oracle_authorship",
 })
 
 
@@ -289,7 +292,12 @@ def classify_runs(project_root: str | Path) -> list[dict]:
             "run_purpose": c.get("run_purpose", "CAPABILITY_EVALUATION"),
             "task_seen": c.get("task_seen", True),
             "counts_toward_model_capability": c.get("counts_toward_model_capability", True),
-            "counts_toward_heldout_benchmark": c.get("counts_toward_heldout_benchmark", False),
+            # 严口径闸门:oracle 不是外部来的,这一格一律 false。
+            # 分类文件说 true 也不算 —— 自述不能自证(见 ORACLE_AUTHORSHIP_*)。
+            "counts_toward_heldout_benchmark": bool(
+                c.get("counts_toward_heldout_benchmark", False)
+                and c.get("oracle_authorship") == ORACLE_AUTHORSHIP_EXTERNAL),
+            "oracle_authorship": c.get("oracle_authorship", ORACLE_AUTHORSHIP_OURS),
             "counts_toward_mechanism_effect": c.get("counts_toward_mechanism_effect", False),
             "counts_toward_treatment_effect": c.get("counts_toward_treatment_effect"),
             "treatment_assigned": c.get("treatment_assigned", False),
@@ -314,6 +322,23 @@ def classify_runs(project_root: str | Path) -> list[dict]:
 # 阶段闸门(T1–T4)是**第一宿主**上的存在性证明。历史行没有 host_id 字段,
 # 缺失 = 那时只有这一个宿主(与 runtime_profile_id 同一条处理规则)。
 BASELINE_HOST = "zhangyi-nb1/offerclaw"
+
+# ------------------------------------------------------------------ held-out 口径
+# 用户 2026-08-15 裁决:**严口径 —— 我们写的 oracle 一律不算 held-out。**
+#
+# 在此之前盘上两套措辞并存且自相矛盾:TESTPLAN §11.4 要求"未参与 harness
+# 开发",而 §7 又要求第二宿主"照旧走全流程",§7 的 hidden oracle 仍由我们写。
+# 不裁的话,第一发 held-out 落账时 `counts_toward_heldout_benchmark` 填什么
+# 就成了临场判断 —— 数字先出来、口径后跟上,这是本项目最贵的一种错。
+#
+# 严口径的可操作形式:**oracle 的作者必须不是我们**。任务包必须显式声明
+# oracle 从哪来;声明不出外部来源的,`counts_toward_heldout_benchmark`
+# 一律按 false 处理,**不管分类文件里写了什么**。
+#
+# 为什么是"不管写了什么":分类是旁挂的自述文件,手一滑就能置 true,而
+# held-out 是四类分母里唯一被直接读成"模型能力"的那个。自述不能自证。
+ORACLE_AUTHORSHIP_EXTERNAL = "UPSTREAM_OWN_TEST_SUITE"   # 目标仓自带,我们没碰
+ORACLE_AUTHORSHIP_OURS = "AUTHORED_BY_HARNESS"           # 我们写的(T1–T3 全部)
 
 
 def _same_host(row: dict) -> bool:

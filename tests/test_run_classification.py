@@ -277,6 +277,7 @@ def test_k8_heldout_gets_the_same_four_deductions_as_passes(tmp_path):
     而这个数字是四类分母里**唯一会被直接读成"模型能力"**的那个。
     """
     HELDOUT = {"counts_toward_heldout_benchmark": True,
+               "oracle_authorship": "UPSTREAM_OWN_TEST_SUITE",   # 严口径要这个
                "run_purpose": "CAPABILITY_EVALUATION", "test_mode": "HB"}
     rows = [_run("real"),
             _run("smk", **{"model": "fake-scripted"}),
@@ -363,3 +364,37 @@ def test_k11_the_heldout_prose_is_derived_from_data_not_written_down():
     assert "第二宿主未建" not in note2, (
         f"第二宿主已在台账里,这句话还在说未建:{note2}")
     assert "someone/newhost" in note2
+
+
+def test_k12_our_own_oracle_can_never_be_counted_as_heldout(tmp_path):
+    """K12(用户 2026-08-15 裁决,**严口径**):我们写的 oracle 一律不算 held-out。
+
+    裁决之前盘上两套措辞并存且自相矛盾:TESTPLAN §11.4 要求"未参与 harness
+    开发",§7 又要求第二宿主"照旧走全流程"而 §7 的 oracle 仍由我们写。不裁的话,
+    第一发落账时这一格填什么就是临场判断 —— 数字先出来、口径后跟上。
+
+    实现要点:**分类文件说 true 也不算**。它是旁挂的自述,手一滑就能置 true,
+    而 held-out 是四类分母里唯一被直接读成"模型能力"的那个。自述不能自证。
+    """
+    from repoproof.persistence.bench_records import (
+        ORACLE_AUTHORSHIP_EXTERNAL,
+        ORACLE_AUTHORSHIP_OURS,
+    )
+
+    base = {"counts_toward_heldout_benchmark": True,
+            "run_purpose": "CAPABILITY_EVALUATION", "test_mode": "HB"}
+
+    def _n(**over):
+        root = _write(tmp_path / f"c{len(over)}{over.get('oracle_authorship', '')}",
+                      [_run("a", **{"host_id": "someone/newhost"})],
+                      [_cls("a", **{**base, **over})])
+        return count_passes(root)["heldout_model_evaluation_runs"]
+
+    assert _n(oracle_authorship=ORACLE_AUTHORSHIP_EXTERNAL) == 1, "外部 oracle 该算"
+    assert _n(oracle_authorship=ORACLE_AUTHORSHIP_OURS) == 0, (
+        "我们写的 oracle 被算成 held-out —— 严口径失效")
+    assert _n() == 0, "没声明 oracle 来源就算 held-out —— 默认必须是不算"
+    assert _n(oracle_authorship="SOMETHING_ELSE") == 0, "无法识别的来源必须按不算处理"
+
+    # 现有 T1–T3 全部是我们写的 oracle,真台账里这个数必须仍是 0
+    assert count_passes(REPO)["heldout_model_evaluation_runs"] == 0

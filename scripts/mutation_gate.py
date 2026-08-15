@@ -860,6 +860,16 @@ MUTATIONS: list[dict] = [
     # 散文说不算、代码算了(LESSONS #45 二)。它们现在全都"看起来没事",
     # 因为 held-out 还是 0、第二宿主还没建 —— 那正是最坏的时机。
     {
+        "id": "M60d-our-own-oracle-counts-as-heldout",
+        "lesson": "严口径失效 → 我们自己写的 oracle 也算 held-out,而 held-out 是"
+                  "四类分母里**唯一被直接读成模型能力**的那个;更糟的是它只信"
+                  "旁挂分类文件的自述,手一滑置个 true 就成立(用户 2026-08-15 裁决)",
+        "file": _BR,
+        "old": '                and c.get("oracle_authorship") == ORACLE_AUTHORSHIP_EXTERNAL),',
+        "new": "                ),",
+        "catchers": _T_RCL,
+    },
+    {
         "id": "M60a-heldout-denominator-has-no-deductions",
         "lesson": "held-out 分母不扣除 → 冒烟(35 发)、探索性加发(7)、已裁定"
                   "无效(4)全进那个**唯一会被读成模型能力**的数字",

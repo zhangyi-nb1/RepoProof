@@ -1596,3 +1596,29 @@ oracle 全绿而回执核验红"按字面读会在上面五行上触发,而那�
 
 **下一步只等裁决**:D1–D4。四条里 D2/D3 是一个问题的两面(选了宿主就要
 联网建 wheelhouse);D1 是纯口径题,不裁就没法填第一发的分类字段。
+
+## 裁决记录 · 2026-08-15 · D1 held-out 口径 / D2+D3 第二宿主路线
+
+用户裁决(两条,此后按此执行):
+
+**D1 严口径**:**我们写的 oracle 一律不算 held-out。** held-out 任务的
+hidden oracle 必须是**目标仓自带的测试套件**,我们只做接线,判据一个字不碰。
+
+> 这同时裁掉了 TESTPLAN 内部的自相矛盾:§11.4("未参与 harness 开发")
+> 与 §7(第二宿主"照旧走全流程",而 §7 的 oracle 由我们写)。以 §11.4 为准。
+
+已冻进代码(不是只写在文档里 —— 那正是 LESSONS #45 二的病):
+`counts_toward_heldout_benchmark` 现在**与 `oracle_authorship` 联判**,
+只有 `UPSTREAM_OWN_TEST_SUITE` 才生效;分类文件里写 true 也不算,因为它是
+旁挂自述,手一滑就能置 true,而 held-out 是四类分母里唯一被直接读成
+"模型能力"的那个。**自述不能自证。** 钉死 K12,变异 M60d。
+现有 T1–T3 全部是我们写的 oracle,真台账里这个数仍是 0(K12 末行现场验)。
+
+**D2+D3**:**允许再来一次联网 provisioning,拉一个真外部仓。** 边界与
+Chromium 那次完全相同 —— 只在 build/provisioning 阶段联网,agent 与正式
+benchmark execution 永不联网。理由:本机零候选,而 LocalFlow 虽规模够,
+origin 仍是 zhangyi-nb1 —— **换了宿主没换出题方**,按严口径拿不到资格。
+
+**D4(WH 的 H0/H2 全仓无定义)仍未裁** —— 它只卡 WH,不卡 HB,先放着。
+
+变异 135 → **136**,测试 757 → **758**。
