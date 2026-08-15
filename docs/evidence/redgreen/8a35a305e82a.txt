@@ -1,0 +1,66 @@
+fix commit : 8a35a305e82ae36f16dfd7dee66fae39e194fbbb
+base commit: b734026b73d2316bd5979fffa4810a21110e2d37
+nodes      : 12
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_no_red_is_escaped_regardless_of_declaration: failed
+  test_red_without_the_declared_judge_is_misattributed: failed
+  test_red_from_the_declared_judge_is_caught_and_attributed: failed
+  test_parametrized_red_matches_base_name_but_prefixes_do_not: failed
+  test_undeclared_entry_is_caught_but_marked_unattributed: failed
+  test_collection_collapse_is_visible_not_misattributed: failed
+  test_red_exit_with_no_parsed_nodes_is_gate_plumbing_not_caught: failed
+  test_attribution_canary_verdict_gates_the_run: failed
+  test_attribution_canary_entry_reuses_c0_and_names_an_impossible_judge: failed
+  test_report_lists_are_derived_from_results_not_freeform: failed
+  test_g5_nonzero_misattribution_fails: failed
+  test_g5_unreadable_misattribution_fails_closed: failed
+80000gn/T/pytest-of-zhangronglei/pytest-5437/test_g5_unreadable_misattribut0')
+
+    def test_g5_unreadable_misattribution_fails_closed(tmp_path):
+        """P7b 的归因侧:证据里读不出 misattributed(旧格式 / 被手删)→ 判不过。
+        "看不懂就放行"的分支在这里也不许有 —— 与逃逸 / 过期同一条纪律。"""
+        from repoproof.execution.profile_promotion import _check_mutations
+    
+        c = _check_mutations(tmp_path, evidence={
+            "escaped": [], "stale": [],
+            "results": [{"id": "M49a"}, {"id": "M50a"}, {"id": "M52a"}, {"id": "M65a"}]})
+>       assert not c.ok and "读不出" in c.detail
+E       assert (not True)
+E        +  where True = Check(id='G5.mutation', ok=True, detail="逃逸 0、过期 0(共 4 条,显式传入),守护条目 ['M49', 'M50', 'M52'] 在场").ok
+
+tests/test_profile_promotion.py:257: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_mutation_attribution.py::test_no_red_is_escaped_regardless_of_declaration
+FAILED tests/test_mutation_attribution.py::test_red_without_the_declared_judge_is_misattributed
+FAILED tests/test_mutation_attribution.py::test_red_from_the_declared_judge_is_caught_and_attributed
+FAILED tests/test_mutation_attribution.py::test_parametrized_red_matches_base_name_but_prefixes_do_not
+FAILED tests/test_mutation_attribution.py::test_undeclared_entry_is_caught_but_marked_unattributed
+FAILED tests/test_mutation_attribution.py::test_collection_collapse_is_visible_not_misattributed
+FAILED tests/test_mutation_attribution.py::test_red_exit_with_no_parsed_nodes_is_gate_plumbing_not_caught
+FAILED tests/test_mutation_attribution.py::test_attribution_canary_verdict_gates_the_run
+FAILED tests/test_mutation_attribution.py::test_attribution_canary_entry_reuses_c0_and_names_an_impossible_judge
+FAILED tests/test_mutation_attribution.py::test_report_lists_are_derived_from_results_not_freeform
+FAILED tests/test_profile_promotion.py::test_g5_nonzero_misattribution_fails
+FAILED tests/test_profile_promotion.py::test_g5_unreadable_misattribution_fails_closed
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_no_red_is_escaped_regardless_of_declaration: passed
+  test_red_without_the_declared_judge_is_misattributed: passed
+  test_red_from_the_declared_judge_is_caught_and_attributed: passed
+  test_parametrized_red_matches_base_name_but_prefixes_do_not: passed
+  test_undeclared_entry_is_caught_but_marked_unattributed: passed
+  test_collection_collapse_is_visible_not_misattributed: passed
+  test_red_exit_with_no_parsed_nodes_is_gate_plumbing_not_caught: passed
+  test_attribution_canary_verdict_gates_the_run: passed
+  test_attribution_canary_entry_reuses_c0_and_names_an_impossible_judge: passed
+  test_report_lists_are_derived_from_results_not_freeform: passed
+  test_g5_nonzero_misattribution_fails: passed
+  test_g5_unreadable_misattribution_fails_closed: passed
+............                                                             [100%]
+
+
+VERDICT: VALID
