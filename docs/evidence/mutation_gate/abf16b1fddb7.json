@@ -1,5 +1,5 @@
 {
-  "head_commit": "955c0040f87a1f1a8290e791f050efa53170fdb1",
+  "head_commit": "abf16b1fddb751f50831659312abecd34af1c97f",
   "mutations": 156,
   "guard_set": [
     "benchmarks/v2/sidecar_browser/worker.py",
@@ -61,13 +61,11 @@
     "tests/test_window_projection.py",
     "tests/test_workspace_containment.py"
   ],
-  "caught": 155,
-  "escaped": [
-    "M64c-prose-residual-counts-as-behaviour"
-  ],
+  "caught": 156,
+  "escaped": [],
   "stale": [],
-  "capture_rate": "155/156",
-  "wall_seconds": 408.6,
+  "capture_rate": "156/156",
+  "wall_seconds": 411.6,
   "results": [
     {
       "id": "M30a-smoke-not-excluded",
@@ -78,7 +76,7 @@
       "catchers": [
         "tests/test_bench_records.py"
       ],
-      "seconds": 0.8
+      "seconds": 0.2
     },
     {
       "id": "M30b-smoke-prefix-case-variant",
@@ -265,7 +263,7 @@
       "catchers": [
         "tests/test_constraint_feedback.py"
       ],
-      "seconds": 0.4
+      "seconds": 0.3
     },
     {
       "id": "M34a-exit4-blanket-reject",
@@ -551,7 +549,7 @@
       "catchers": [
         "tests/test_workspace_containment.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.4
     },
     {
       "id": "M41e-denial-reasons-only-counted",
@@ -562,7 +560,7 @@
       "catchers": [
         "tests/test_workspace_containment.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.5
     },
     {
       "id": "M41f-residue-scan-skips-scratch-trees",
@@ -573,7 +571,7 @@
       "catchers": [
         "tests/test_workspace_containment.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.5
     },
     {
       "id": "M41g-residue-scan-flags-the-live-session",
@@ -595,7 +593,7 @@
       "catchers": [
         "tests/test_workspace_containment.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.4
     },
     {
       "id": "M41i-out-of-workspace-not-fatal",
@@ -617,7 +615,7 @@
       "catchers": [
         "tests/test_workspace_containment.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.4
     },
     {
       "id": "M42g-scan-blindness-fails-open",
@@ -628,7 +626,7 @@
       "catchers": [
         "tests/test_workspace_containment.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.4
     },
     {
       "id": "M42h-blind-scan-does-not-block",
@@ -694,7 +692,7 @@
       "catchers": [
         "tests/test_control_tree_recipe.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.2
     },
     {
       "id": "M42e-control-tree-selfcheck-is-decorative",
@@ -705,7 +703,7 @@
       "catchers": [
         "tests/test_control_tree_recipe.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.2
     },
     {
       "id": "M44a-mount-symbol-hardcoded-to-t2",
@@ -716,7 +714,7 @@
       "catchers": [
         "tests/test_control_tree_recipe.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.2
     },
     {
       "id": "M44b-missing-mount-is-guessed-not-refused",
@@ -727,7 +725,7 @@
       "catchers": [
         "tests/test_control_tree_recipe.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.2
     },
     {
       "id": "M43a-must-fail-all-green-still-passes",
@@ -749,7 +747,7 @@
       "catchers": [
         "tests/test_control_validation_matrix.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.2
     },
     {
       "id": "M43c-collateral-damage-ignored",
@@ -947,7 +945,7 @@
       "catchers": [
         "tests/test_profile_promotion.py"
       ],
-      "seconds": 2.6
+      "seconds": 2.8
     },
     {
       "id": "M53h-guard-set-omits-the-catalog",
@@ -958,7 +956,7 @@
       "catchers": [
         "tests/test_profile_promotion.py"
       ],
-      "seconds": 2.5
+      "seconds": 2.7
     },
     {
       "id": "M53a-missing-evidence-passes",
@@ -1024,7 +1022,7 @@
       "catchers": [
         "tests/test_profile_promotion.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.2
     },
     {
       "id": "M63d-answer-may-live-in-our-own-public-repo",
@@ -1085,13 +1083,12 @@
       "id": "M64c-prose-residual-counts-as-behaviour",
       "lesson": "净剩不查是不是散文 → etag 那个候选净剩 15 条(五个里最多),全是三句 warning 的英文措辞比对,换成真值即满分",
       "file": "src/repoproof/execution/heldout_admission.py",
-      "outcome": "ESCAPED",
-      "pytest_exit": 0,
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
       "catchers": [
         "tests/test_heldout_admission.py"
       ],
-      "seconds": 0.2,
-      "tail": ".....                                                                    [100%]\n"
+      "seconds": 0.2
     },
     {
       "id": "M63a-fingerprints-not-self-calibrated",
@@ -1267,7 +1264,7 @@
       "catchers": [
         "tests/test_run_classification.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.2
     },
     {
       "id": "M60b-second-host-runs-land-in-the-first-hosts-stage",
@@ -1410,7 +1407,7 @@
       "catchers": [
         "tests/test_t3_sidecar_task.py"
       ],
-      "seconds": 65.3
+      "seconds": 66.8
     },
     {
       "id": "M57g-host-swallows-the-shape-error",
@@ -1421,7 +1418,7 @@
       "catchers": [
         "tests/test_t3_sidecar_task.py"
       ],
-      "seconds": 64.7
+      "seconds": 64.9
     },
     {
       "id": "M56a-agent-env-leaks-the-ledger",
@@ -1465,7 +1462,7 @@
       "catchers": [
         "tests/test_t3_sidecar_task.py"
       ],
-      "seconds": 63.0
+      "seconds": 63.5
     },
     {
       "id": "M55b-empty-delivery-counts-as-adoption",
@@ -1520,7 +1517,7 @@
       "catchers": [
         "tests/test_browser_conformance.py"
       ],
-      "seconds": 33.9
+      "seconds": 34.2
     },
     {
       "id": "M54b-keychain-prompt-returns",
@@ -1641,7 +1638,7 @@
       "catchers": [
         "tests/test_receipt_controls.py"
       ],
-      "seconds": 5.0
+      "seconds": 5.1
     },
     {
       "id": "M50c-discrimination-gate-removed",
