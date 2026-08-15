@@ -155,15 +155,22 @@ def find_problems(rows: list[dict]) -> list[str]:
             out.append(f"{r['control']}/{r['mode']}:红的位置不对 —— "
                        f"期望 {r['expect_red']},实际 {r['actual_red']}")
 
+    # 下面两条**只看 actual,不看 EXPECT** —— 这是它们存在的全部理由。
+    #
+    # 逐行比对已经把 actual 与 EXPECT 对过一遍了,所以这两条若也从 EXPECT
+    # 出发,就与上面互为冗余,掏掉哪一条都没人看得见(M50a 的教训;实测:
+    # M62d/M62e 头一版就这么逃了)。而最可能悄悄发生的削弱恰恰是
+    # **有人改了 EXPECT 去迁就一个坏掉的现实** —— 那时逐行比对全绿,
+    # 只有这两条还在说话。
     by = {(r["control"], r["mode"]): r for r in rows}
     nc9_plain = by.get(("nc9_memorised_but_calls", "plain"))
     nc9_pert = by.get(("nc9_memorised_but_calls", "perturbed"))
-    # **这张表唯一真正要证明的事**:同一份控制组代码,换个模式就从过变成不过。
-    # 两行都在期望位上还不够 —— 要显式说出"差分是这两行之间的唯一变量"。
+    # 这张表唯一真正要证明的事:同一份控制组代码,换个模式就从过变成不过。
     if nc9_plain and nc9_pert and not (
             nc9_plain["actual"] == "PASS" and nc9_pert["actual"] == "FAIL"):
         out.append("nc9 在两种模式下的结论没有分开 —— 差分注入没起作用,"
-                   "或者上限本来就不存在(两种都要重新查)")
+                   "或者上限本来就不存在(两种都要重新查)。"
+                   f"实测:plain={nc9_plain['actual']} perturbed={nc9_pert['actual']}")
     pos = [r for r in rows if r["control"] == "positive"]
     if any(r["actual"] != "PASS" for r in pos):
         out.append("正控在某种模式下红了 —— 差分注入把诚实实现也判死了,"

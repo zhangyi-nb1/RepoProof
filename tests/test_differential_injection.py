@@ -188,6 +188,19 @@ def test_d8_the_matrix_judge_catches_planted_defects():
         "红错了地方": {
             ("nc9_memorised_but_calls", "perturbed"):
                 {"actual": "FAIL", "actual_red": ["U3.coverage"]}},
+        # **最像会真发生的那种削弱**:现实坏了,而有人改 EXPECT 去迁就它。
+        # 这时逐行比对全绿(actual == expect),只有"两种模式必须分开"
+        # 与"正控必须过"这两条还在说话 —— 它们只看 actual,不看 EXPECT。
+        # 实测:头一版这两条从 EXPECT 出发,与逐行比对互为冗余,M62d/M62e
+        # 双双逃逸。
+        "改了 EXPECT 去迁就'注入没起作用'": {
+            ("nc9_memorised_but_calls", "perturbed"):
+                {"expect": "PASS", "expect_red": [],
+                 "actual": "PASS", "actual_red": []}},
+        "改了 EXPECT 去迁就'正控被判死'": {
+            ("positive", "perturbed"):
+                {"expect": "FAIL", "expect_red": ["U4.adoption"],
+                 "actual": "FAIL", "actual_red": ["U4.adoption"]}},
     }
     for label, over in planted.items():
         assert mod.find_problems(_rows(over)), f"查不出:{label}"
