@@ -5,14 +5,26 @@
 而是"把 LESSONS 里每一条历史缺陷(及其近似变体)重新犯一遍,套件会不会红"。
 变体的意义:抓得住原案却抓不住变体 = 钉死过拟合到了事发实例,护不住缺陷类。
 
-三种结局:
-    CAUGHT   注入后指定测试子集变红(期望值)
-    ESCAPED  注入后子集仍绿 —— 套件没在护这条教训,当场补钉死
-    STALE    旧串在源里找不到/不唯一 —— 源码重构后登记簿未更新,必须维护
+四种结局:
+    CAUGHT         注入后指定测试子集变红,且**声明要考的那条判断在红名单里**
+    ESCAPED        注入后子集仍绿 —— 套件没在护这条教训,当场补钉死
+    STALE          旧串在源里找不到/不唯一 —— 源码重构后登记簿未更新,必须维护
+    MISATTRIBUTED  红了,但抓住它的不是声明的判断 —— 登记簿错误,非通过
 
-自证机制(先于一切变异运行):金丝雀变异(掏空 PASS_VERDICTS)若未被抓住,
-说明 worktree 隔离失效(测的是主树不是变异体),整个闸门自宣无效退出——
-检查器必须先证明自己在检查,才有资格给别人发绿。
+归因执法(2026-08-16,M59c/M62d,e/M64c 一天三次同型逃逸之后):
+`expected_catcher` 声明这条变异必须由哪条钉死抓住(裸函数名;参数化按
+基名匹配)。只看"红没红"的旧口径下,合成缺陷被更早的另一条判断先杀
+(比例关先于散文关),被考的判断掏掉也看不出差别 —— 语料在替一条不存在
+的防线背书。声明为空的存量条目照旧算 CAUGHT,但进 `unattributed`
+诚实清单;整文件收集期崩溃单列 COLLAPSE(判断不是被抢先,是全场阵亡)。
+**边界(如实声明)**:归因粒度到 junitxml 节点;同一个测试函数里多条断言
+的先后遮蔽量不到,那一半仍靠"合成缺陷必须只触发被考的那条判断"的设计纪律。
+
+自证机制(先于一切变异运行):C0 金丝雀变异(掏空 PASS_VERDICTS)若未被
+抓住,说明 worktree 隔离失效(测的是主树不是变异体);C1 归因金丝雀
+(同一变异体、声明一个不存在的判断)若没有判出 MISATTRIBUTED,说明归因
+执法在装样子。任一不过,整个闸门自宣无效退出 —— 检查器必须先证明自己
+在检查,才有资格给别人发绿。
 
 隔离:临时 git worktree(HEAD)+ `PYTHONPATH=<树>/src` 压过 editable 安装;
 每个变异注入→跑子集→`git checkout --` 还原。主工作树全程零触碰。
@@ -30,6 +42,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -96,6 +109,8 @@ _PR = "src/repoproof/agents/profiles.py"
 _T_EP = ["tests/test_exec_profiles.py"]
 _VC = "scripts/validate_controls.py"
 _T_VM = ["tests/test_control_validation_matrix.py"]
+_MG = "scripts/mutation_gate.py"
+_T_MA = ["tests/test_mutation_attribution.py"]
 
 CANARY = {
     "id": "C0-plumbing-canary",
@@ -104,6 +119,19 @@ CANARY = {
     "old": 'PASS_VERDICTS = frozenset({"PASS", "PASS_ADAPTED"})',
     "new": "PASS_VERDICTS = frozenset()",
     "catchers": _T_BR,
+}
+
+# C1:归因金丝雀。复用 C0 的变异体(已被 C0 证明必红),但声明一个 catcher
+# 文件里**不存在**的判断 —— 红∩声明恒为空,唯一健康结局就是 MISATTRIBUTED。
+# 判出别的(尤其 CAUGHT)= 归因执法在装样子,整个闸门的归因结论无效。
+ATTRIBUTION_CANARY = {
+    "id": "C1-attribution-canary",
+    "lesson": "自证:摆好的归因错位必须报得出来(声明 A 抓、实际 B 抓 ≠ 通过)",
+    "file": CANARY["file"],
+    "old": CANARY["old"],
+    "new": CANARY["new"],
+    "catchers": CANARY["catchers"],
+    "expected_catcher": ["test_attribution_canary_names_a_judge_that_never_fires"],
 }
 
 MUTATIONS: list[dict] = [
@@ -118,6 +146,7 @@ MUTATIONS: list[dict] = [
                 '            if not str(r.get("model", "")).startswith(SMOKE_MODEL_PREFIX)]'),
         "new": "    smoke = []\n    real = list(rows)",
         "catchers": _T_BR,
+        "expected_catcher": ["test_fake_smoke_pass_never_counts_toward_gate"],
     },
     {
         "id": "M30b-smoke-prefix-case-variant",
@@ -126,6 +155,7 @@ MUTATIONS: list[dict] = [
         "old": 'SMOKE_MODEL_PREFIX = "fake"',
         "new": 'SMOKE_MODEL_PREFIX = "FAKE"',
         "catchers": _T_BR,
+        "expected_catcher": ["test_fake_smoke_pass_never_counts_toward_gate"],
     },
     # ---- LESSONS #27:探索性加发未与预注册批次隔离 ----
     {
@@ -135,6 +165,7 @@ MUTATIONS: list[dict] = [
         "old": '    prereg = [r for r in real if r.get("batch") != EXPLORATORY_BATCH]',
         "new": "    prereg = list(real)",
         "catchers": _T_BR,
+        "expected_catcher": ["test_exploratory_batch_never_counts_toward_gate"],
     },
     # ---- LESSONS #26:裁定不进统计,台账自失真 ----
     {
@@ -144,6 +175,7 @@ MUTATIONS: list[dict] = [
         "old": '    passes = [r for r in gateable if r["effective_verdict"] in PASS_VERDICTS]',
         "new": '    passes = [r for r in gateable if r.get("verdict") in PASS_VERDICTS]',
         "catchers": _T_BR,
+        "expected_catcher": ["test_effective_verdict_join_and_pass_count"],
     },
     {
         "id": "M26b-substring-pass-variant",
@@ -152,6 +184,7 @@ MUTATIONS: list[dict] = [
         "old": '    passes = [r for r in gateable if r["effective_verdict"] in PASS_VERDICTS]',
         "new": '    passes = [r for r in gateable if "PASS" in str(r["effective_verdict"])]',
         "catchers": _T_BR,
+        "expected_catcher": ["test_effective_verdict_join_and_pass_count"],
     },
     # ---- LESSONS #29:bench 根白名单方向反了 ----
     {
@@ -162,6 +195,7 @@ MUTATIONS: list[dict] = [
         "new": ('        if name == ".DS_Store" or name.startswith("offerclaw-") '
                 'or name in _BENCH_ALLOWED_NAMES:'),
         "catchers": _T_HG,
+        "expected_catcher": ["test_bench_hygiene_offerclaw_prefix_is_not_a_free_pass"],
     },
     {
         "id": "M29b-upstream-whitelisted",
@@ -174,6 +208,7 @@ MUTATIONS: list[dict] = [
         "new": ('        if name == ".DS_Store" or name in ('
                 '_BENCH_ALLOWED_NAMES | {"upstream"}):'),
         "catchers": _T_HG,
+        "expected_catcher": ["test_bench_hygiene_flags_vendored_upstream"],
     },
     {
         "id": "M29c-answer-key-registered",
@@ -184,6 +219,7 @@ MUTATIONS: list[dict] = [
                 'name == "offerclaw-transaction-stack" or '
                 '(extra and name.startswith(extra)):'),
         "catchers": _T_HG,
+        "expected_catcher": ["test_bench_hygiene_offerclaw_prefix_is_not_a_free_pass"],
     },
     # ---- 主目录硬护栏(红线,无单独 lesson 号) ----
     {
@@ -193,6 +229,7 @@ MUTATIONS: list[dict] = [
         "old": '    return os.path.realpath(os.path.expanduser(str(p))).lower().rstrip("/")',
         "new": '    return os.path.realpath(os.path.expanduser(str(p))).rstrip("/")',
         "catchers": _T_HG,
+        "expected_catcher": ["test_path_variants_all_blocked"],
     },
     # ---- LESSONS #31:harness 替模型认领错 ----
     {
@@ -202,6 +239,7 @@ MUTATIONS: list[dict] = [
         "old": "            added = added_problem_dists(full, self._baseline_dists())",
         "new": "            added = []",
         "catchers": _T_HD,
+        "expected_catcher": ["test_dependency_failure_attributed_to_agent_not_harness"],
     },
     {
         "id": "M31b-attribution-flipped",
@@ -210,6 +248,7 @@ MUTATIONS: list[dict] = [
         "old": '                               "attribution": "agent",',
         "new": '                               "attribution": "harness",',
         "catchers": _T_HD,
+        "expected_catcher": ["test_dependency_failure_attributed_to_agent_not_harness"],
     },
     {
         "id": "M31c-failure-types-union-dropped",
@@ -220,6 +259,7 @@ MUTATIONS: list[dict] = [
                 '               if vr is not None and vr.extra.get("failure_type")})'),
         "new": "            )",
         "catchers": _T_HD,
+        "expected_catcher": ["test_verifier_attribution_reaches_failure_types"],
     },
     {
         "id": "M31d-pep503-dropped",
@@ -228,6 +268,7 @@ MUTATIONS: list[dict] = [
         "old": '    return re.sub(r"[-_.]+", "-", name).lower()',
         "new": "    return name.lower()",
         "catchers": _T_HD,
+        "expected_catcher": ["test_dist_names_are_pep503_normalised"],
     },
     # ---- LESSONS #33:轮内约束不反馈,终局才伏击 ----
     {
@@ -237,6 +278,7 @@ MUTATIONS: list[dict] = [
         "old": "                denied_round = env.denied_count - denied_before",
         "new": "                denied_round = env.denied_count",
         "catchers": _T_CF,
+        "expected_catcher": ["test_run_round_uses_per_round_denied_delta"],
     },
     {
         "id": "M33b-green-stop-ignores-fatal",
@@ -245,6 +287,7 @@ MUTATIONS: list[dict] = [
         "old": "                    and not result.fatal_violations):",
         "new": "                    ):",
         "catchers": _T_CF,
+        "expected_catcher": ["test_green_round_with_fatal_violation_keeps_looping"],
     },
     {
         "id": "M33c-rollback-detail-mismatch",
@@ -253,6 +296,7 @@ MUTATIONS: list[dict] = [
         "old": "            packets = build_failure_packets(src_cp.failed_nodes, src_cp.failure_details)",
         "new": "            packets = build_failure_packets(src_cp.failed_nodes, result.failure_details)",
         "catchers": _T_CF,
+        "expected_catcher": ["test_rollback_is_explained_and_details_come_from_restored_round"],
     },
     {
         "id": "M33d-violation-packets-dropped",
@@ -262,6 +306,7 @@ MUTATIONS: list[dict] = [
                 "                                     for p in (*packets_next, *violation_packets)],"),
         "new": "                    failure_packets=[p.to_dict() for p in packets_next],",
         "catchers": _T_CF,
+        "expected_catcher": ["test_round_record_ledger_carries_violation_packets"],
     },
     {
         "id": "M33e-patch-overage-poisons-ranking",
@@ -270,6 +315,7 @@ MUTATIONS: list[dict] = [
         "old": "    return packets, fatal, len(tampered)",
         "new": "    return packets, fatal, len(tampered) + len(fatal)",
         "catchers": _T_CF,
+        "expected_catcher": ["test_patch_overage_packet_carries_gate_numbers_and_is_fatal"],
     },
     # ---- LESSONS #34:红绿守卫两义性 ----
     {
@@ -279,6 +325,7 @@ MUTATIONS: list[dict] = [
         "old": "        if not genuine:",
         "new": "        if True:",
         "catchers": _T_PI,
+        "expected_catcher": ["test_import_error_collection_counts_as_red"],
     },
     {
         "id": "M34b-exit4-blanket-accept",
@@ -287,6 +334,7 @@ MUTATIONS: list[dict] = [
         "old": "    if red_exit == 4:",
         "new": "    if False:",
         "catchers": _T_PI,
+        "expected_catcher": ["test_typo_node_name_still_cannot_fake_red", "test_unrelated_collection_crash_is_not_red"],
     },
     # ---- LESSONS #35:排序只对齐终局判据 ----
     {
@@ -296,6 +344,7 @@ MUTATIONS: list[dict] = [
         "old": "    return packets, fatal, len(tampered)",
         "new": "    return packets, fatal, len(tampered) + denied_delta",
         "catchers": _T_CF,
+        "expected_catcher": ["test_denied_round_can_still_win_on_pass_count"],
     },
     {
         "id": "M35b-store-before-guard",
@@ -308,6 +357,7 @@ MUTATIONS: list[dict] = [
                 '(runs_root or self.project_root / "runs") / self.run_id)\n'
                 '        self._verify_static_resources()'),
         "catchers": _T_HD,
+        "expected_catcher": ["test_failed_construction_leaves_no_run_dir"],
     },
     # ---- LESSONS #36:反馈量足够、形状错误 ----
     {
@@ -317,6 +367,7 @@ MUTATIONS: list[dict] = [
         "old": "COLLAPSE_MIN = 3   # 同签名达此数量才合并;2 条不值得抽象",
         "new": "COLLAPSE_MIN = 9999",
         "catchers": _T_RC,
+        "expected_catcher": ["test_shared_root_cause_collapses_into_one_packet"],
     },
     {
         "id": "M36b-timeout-rule-dropped",
@@ -325,6 +376,7 @@ MUTATIONS: list[dict] = [
         "old": '    (TIMEOUT, ("未在", "内终结", "timed out", "timeout", "timeouterror")),',
         "new": "",
         "catchers": _T_RC,
+        "expected_catcher": ["test_timeout_is_typed_and_advised_as_timeout"],
     },
     {
         "id": "M36c-victim-list-truncated",
@@ -333,6 +385,7 @@ MUTATIONS: list[dict] = [
         "old": '                         f"(判定类型 {cause}):" + "、".join(names)),',
         "new": '                         f"(判定类型 {cause}):" + "、".join(names[:6])),',
         "catchers": _T_RC,
+        "expected_catcher": ["test_no_information_is_silently_dropped"],
     },
     {
         "id": "M36d-collapse-too-eager",
@@ -341,6 +394,7 @@ MUTATIONS: list[dict] = [
         "old": "    collapsed = {n for sig, ns in groups.items() if len(ns) >= COLLAPSE_MIN for n in ns}",
         "new": "    collapsed = {n for sig, ns in groups.items() if len(ns) >= 1 for n in ns}",
         "catchers": _T_RC,
+        "expected_catcher": ["test_distinct_root_causes_are_not_merged"],
     },
     # ---- LESSONS #37:修剪轮不能白干 ----
     {
@@ -350,6 +404,7 @@ MUTATIONS: list[dict] = [
         "old": "        1.0 if not r.fatal_violations else 0.0,\n        1.0 if r.within_budget else 0.0,",
         "new": "        1.0 if r.within_budget else 0.0,",
         "catchers": _T_CF,
+        "expected_catcher": ["test_trimmed_round_beats_oversized_round_on_equal_passes"],
     },
     {
         "id": "M37b-compliance-outranks-progress",
@@ -360,6 +415,7 @@ MUTATIONS: list[dict] = [
         "new": ("        1.0 if not r.fatal_violations else 0.0,\n"
                 "        float(r.passed),\n        float(r.passed),"),
         "catchers": _T_CF,
+        "expected_catcher": ["test_compliance_never_outranks_test_progress"],
     },
     # ---- LESSONS #38:探针失败不得沉默;冲突也是一种死法 ----
     {
@@ -369,6 +425,7 @@ MUTATIONS: list[dict] = [
         "old": "    if unresolvable_dists or dependency_probe_failed:",
         "new": "    if unresolvable_dists:",
         "catchers": _T_CF,
+        "expected_catcher": ["test_probe_failure_always_produces_a_fatal_packet"],
     },
     {
         "id": "M38b-conflict-pattern-dropped",
@@ -377,6 +434,7 @@ MUTATIONS: list[dict] = [
         "old": "    return [d for d in conflicting_dists(pip_output) if d not in baseline]",
         "new": "    return []",
         "catchers": _T_CF,
+        "expected_catcher": ["test_version_conflict_is_recognised_and_attributed_to_adder"],
     },
     # ---- LESSONS #39:执法读到陈旧总量 + 固定内移是猜的 ----
     {
@@ -386,6 +444,7 @@ MUTATIONS: list[dict] = [
         "old": '        return max(self.sync_in, int(self.totals.get("in", 0) or 0))',
         "new": '        return int(self.totals.get("in", 0) or 0)',
         "catchers": _T_TE,
+        "expected_catcher": ["test_enforcement_does_not_rely_on_the_async_usage_hook"],
     },
     {
         "id": "M39b-pre-call-projection-disabled",
@@ -394,6 +453,7 @@ MUTATIONS: list[dict] = [
         "old": "            if used_in + projected > self.max_input_tokens:",
         "new": "            if used_in + projected > self.max_input_tokens * 100:",
         "catchers": _T_TE,
+        "expected_catcher": ["test_no_single_call_can_cross_the_hard_cap"],
     },
     {
         "id": "M39c-observed-max-floor-dropped",
@@ -402,6 +462,7 @@ MUTATIONS: list[dict] = [
         "old": "        return max(math.ceil(est * self.ratio * SAFETY_FACTOR), self.max_call_in)",
         "new": "        return math.ceil(est * self.ratio * SAFETY_FACTOR)",
         "catchers": _T_TE,
+        "expected_catcher": ["test_projection_floor_is_the_largest_observed_call"],
     },
     {
         "id": "M39d-round-bucket-back-to-hook",
@@ -410,6 +471,7 @@ MUTATIONS: list[dict] = [
         "old": '    if getattr(model, "seen", False):',
         "new": '    if not getattr(model, "seen", False):',
         "catchers": _T_TE,
+        "expected_catcher": ["test_round_bucket_prefers_synchronous_accounting"],
     },
     {
         "id": "M39e-estimator-ignores-cjk",
@@ -418,6 +480,7 @@ MUTATIONS: list[dict] = [
         "old": "    cjk = len(_CJK.findall(text))",
         "new": "    cjk = 0",
         "catchers": _T_TE,
+        "expected_catcher": ["test_estimator_never_undercounts_cjk"],
     },
     {
         "id": "M39f-enforcement-line-inset-again",
@@ -426,6 +489,7 @@ MUTATIONS: list[dict] = [
         "old": "    return budgets.max_input_tokens_total",
         "new": "    return max(1, budgets.max_input_tokens_total - 50_000)",
         "catchers": _T_HD,
+        "expected_catcher": ["test_enforcement_input_cap_is_the_contract_value_not_an_inset"],
     },
     # ---- LESSONS #40:fixtures 是量具,不是实现面 ----
     {
@@ -435,6 +499,7 @@ MUTATIONS: list[dict] = [
         "old": 'PROTECTED_PUBLIC_DIRS = ("public_tests", "fixtures")',
         "new": 'PROTECTED_PUBLIC_DIRS = ("public_tests",)',
         "catchers": _T_PS,
+        "expected_catcher": ["test_fixtures_count_as_public_surface_tampering"],
     },
     {
         "id": "M40b-final-check-back-to-public-tests-only",
@@ -443,6 +508,7 @@ MUTATIONS: list[dict] = [
         "old": "                public_before, hash_public_surface(s.root / \"host\"))",
         "new": "                public_before, hash_tree(s.root / \"host\" / \"public_tests\"))",
         "catchers": _T_PS,
+        "expected_catcher": ["test_both_call_sites_use_the_merged_surface"],
     },
     {
         "id": "M40c-prompt-drops-the-fixtures-rule",
@@ -451,6 +517,7 @@ MUTATIONS: list[dict] = [
         "old": '        + "\\n- Do not modify ./public_tests, ./fixtures or ../upstream. The fixtures\\n"',
         "new": '        + "\\n- Do not modify ./public_tests or ../upstream.\\n"',
         "catchers": _T_PS,
+        "expected_catcher": ["test_prompt_forbids_touching_fixtures"],
     },
     {
         "id": "M41a-answer-key-markers-gone",
@@ -459,6 +526,7 @@ MUTATIONS: list[dict] = [
         "old": '    "_scratch_t",                 # 正控/负控安装树(order-21 抄的就是它)',
         "new": '    "__never_matches_anything__",',
         "catchers": _T_WC,
+        "expected_catcher": ["test_heredoc_body_is_file_content_not_a_command"],
     },
     {
         "id": "M41b-root-sweep-not-detected",
@@ -467,6 +535,7 @@ MUTATIONS: list[dict] = [
         "old": "    if root_sweeping(lowered):",
         "new": "    if False:",
         "catchers": _T_WC,
+        "expected_catcher": ["test_root_sweep_is_denied_but_does_not_kill"],
     },
     {
         "id": "M41c-sweep-detector-ignores-separators",
@@ -475,6 +544,7 @@ MUTATIONS: list[dict] = [
         "old": "        if tok in _SEPARATORS:\n            active = False\n            continue",
         "new": "        if tok in _SEPARATORS:\n            continue",
         "catchers": _T_WC,
+        "expected_catcher": ["test_root_sweep_detection_does_not_fire_on_plain_paths"],
     },
     {
         "id": "M41d-root-sweep-promoted-to-a-kill",
@@ -483,6 +553,7 @@ MUTATIONS: list[dict] = [
         "old": "        reasons.append(ROOT_SWEEP)",
         "new": "        reasons.append(f\"{OUT_OF_WORKSPACE}:{ROOT_SWEEP}\")",
         "catchers": _T_WC,
+        "expected_catcher": ["test_root_sweep_is_denied_but_does_not_kill"],
     },
     {
         "id": "M41d2-heredoc-body-scanned-as-a-command",
@@ -491,6 +562,7 @@ MUTATIONS: list[dict] = [
         "old": "    for tok in strip_heredocs(command).split():",
         "new": "    for tok in command.split():",
         "catchers": _T_WC,
+        "expected_catcher": ["test_heredoc_body_is_file_content_not_a_command"],
     },
     {
         "id": "M41e-denial-reasons-only-counted",
@@ -499,6 +571,7 @@ MUTATIONS: list[dict] = [
         "old": "            self.policy_denials.extend(decision.reasons)",
         "new": "            pass",
         "catchers": _T_WC,
+        "expected_catcher": ["test_denial_reasons_are_recorded_not_just_counted"],
     },
     {
         "id": "M41f-residue-scan-skips-scratch-trees",
@@ -507,6 +580,7 @@ MUTATIONS: list[dict] = [
         "old": '                    if e.name.startswith("_scratch_t"):',
         "new": '                    if False:',
         "catchers": _T_WC,
+        "expected_catcher": ["test_scratch_tree_is_residue"],
     },
     {
         "id": "M41g-residue-scan-flags-the-live-session",
@@ -515,6 +589,7 @@ MUTATIONS: list[dict] = [
         "old": '                if e.name == _SESSION_DIR:\n                    continue',
         "new": '                if False:\n                    continue',
         "catchers": _T_WC,
+        "expected_catcher": ["test_session_workspace_is_not_residue"],
     },
     {
         "id": "M41h-residue-is-a-warning-not-a-block",
@@ -523,6 +598,7 @@ MUTATIONS: list[dict] = [
         "old": "        residue = reachable_answer_keys(Path(contract_path).parent, blind=blind)\n        if residue:",
         "new": "        residue = reachable_answer_keys(Path(contract_path).parent, blind=blind)\n        if False:",
         "catchers": _T_WC,
+        "expected_catcher": ["test_both_call_sites_are_wired"],
     },
     {
         "id": "M41i-out-of-workspace-not-fatal",
@@ -531,6 +607,7 @@ MUTATIONS: list[dict] = [
         "old": '        fatal.append("out_of_workspace")',
         "new": '        pass',
         "catchers": _T_WC,
+        "expected_catcher": ["test_answer_key_hits_are_fatal_and_counted"],
     },
     {
         "id": "M41j-prompt-drops-the-workspace-boundary",
@@ -539,6 +616,7 @@ MUTATIONS: list[dict] = [
         "old": '        + "\\n- STAY INSIDE THE WORKSPACE. Everything you need is here: ./ and the\\n"',
         "new": '        + "\\n- Prefer to work inside the workspace.\\n"',
         "catchers": _T_WC,
+        "expected_catcher": ["test_prompt_states_the_workspace_boundary"],
     },
     {
         "id": "M42g-scan-blindness-fails-open",
@@ -551,6 +629,7 @@ MUTATIONS: list[dict] = [
                "                if False:\n"
                "                    blind.append(str(cur))",
         "catchers": _T_WC,
+        "expected_catcher": ["test_unlistable_dir_is_reported_as_blind_not_as_clean"],
     },
     {
         "id": "M42h-blind-scan-does-not-block",
@@ -563,6 +642,7 @@ MUTATIONS: list[dict] = [
                '            return {"blocked": True, "agent_model_call_count": 0,\n'
                '                    "preflight": {"ready": False, "reason": "ANSWER_KEY_SCAN_BLIND"},',
         "catchers": _T_WC,
+        "expected_catcher": ["test_blind_scan_blocks_the_run_with_its_own_reason"],
     },
     {
         "id": "M42f-trash-added-back-as-a-scan-root",
@@ -571,6 +651,7 @@ MUTATIONS: list[dict] = [
         "old": 'ANSWER_KEY_SCAN_ROOTS = ("~/RepoProofBench", "~/RepoProofBench-quarantine", "/tmp")',
         "new": 'ANSWER_KEY_SCAN_ROOTS = ("~/RepoProofBench", "~/RepoProofBench-quarantine", "/tmp", "~/.Trash")',
         "catchers": _T_WC,
+        "expected_catcher": ["test_trash_is_deliberately_not_a_scan_root"],
     },
     {
         "id": "M42a-control-tree-missing-the-mount",
@@ -579,6 +660,7 @@ MUTATIONS: list[dict] = [
         "old": "    if marker not in text:\n        rag.write_text(text + block)",
         "new": "    if False:\n        rag.write_text(text + block)",
         "catchers": _T_CT,
+        "expected_catcher": ["test_mount_is_appended_exactly_once"],
     },
     {
         "id": "M42b-control-tree-drags-venv-and-git",
@@ -588,6 +670,7 @@ MUTATIONS: list[dict] = [
         "old": "    return {n for n in names if n in SKIP_DIRS}",
         "new": "    return set()",
         "catchers": _T_CT,
+        "expected_catcher": ["test_venv_and_git_and_pycache_are_excluded"],
     },
     {
         "id": "M42c-control-tree-mounts-twice",
@@ -596,6 +679,7 @@ MUTATIONS: list[dict] = [
         "old": "    if marker not in text:\n        rag.write_text(text + block)",
         "new": "    if True:\n        rag.write_text(text + block)",
         "catchers": _T_CT,
+        "expected_catcher": ["test_mount_not_duplicated_when_upstream_already_mounts"],
     },
     {
         "id": "M42d-control-tree-defaults-to-residue",
@@ -604,6 +688,7 @@ MUTATIONS: list[dict] = [
         "old": "        if args.keep:",
         "new": "        if True:",
         "catchers": _T_CT,
+        "expected_catcher": ["test_default_is_teardown_and_keep_is_opt_in"],
     },
     {
         "id": "M42e-control-tree-selfcheck-is-decorative",
@@ -612,6 +697,7 @@ MUTATIONS: list[dict] = [
         "old": "        if got.read_bytes() != f.read_bytes():",
         "new": "        if False:",
         "catchers": _T_CT,
+        "expected_catcher": ["test_selfcheck_catches_a_botched_assembly"],
     },
     {
         "id": "M44a-mount-symbol-hardcoded-to-t2",
@@ -620,6 +706,7 @@ MUTATIONS: list[dict] = [
         "old": "            return f.stem, fn, f\"\\nfrom {f.stem} import {fn}  # noqa: E402\\n{fn}(app)\\n\"",
         "new": "            return \"research_jobs\", \"mount_research_api\", \"\\nmount_research_api(app)\\n\"",
         "catchers": _T_CT,
+        "expected_catcher": ["test_mount_symbol_is_discovered_from_the_control_body"],
     },
     {
         "id": "M44b-missing-mount-is-guessed-not-refused",
@@ -628,6 +715,7 @@ MUTATIONS: list[dict] = [
         "old": "    raise SystemExit(f\"控制组里找不到 `def mount_*(app)`,装不出能跑的树:{src_control}\")",
         "new": "    return \"research_jobs\", \"mount_research_api\", \"\\nmount_research_api(app)\\n\"",
         "catchers": _T_CT,
+        "expected_catcher": ["test_control_without_a_mount_function_is_refused"],
     },
     {
         "id": "M43a-must-fail-all-green-still-passes",
@@ -636,6 +724,7 @@ MUTATIONS: list[dict] = [
         "old": "        elif name not in red:",
         "new": "        elif False:",
         "catchers": _T_VM,
+        "expected_catcher": ["test_must_fail_all_green_means_the_requirement_is_only_text"],
     },
     {
         "id": "M43b-nothing-collected-counts-as-pass",
@@ -644,6 +733,7 @@ MUTATIONS: list[dict] = [
         "old": "    if not outcomes:\n        return False,",
         "new": "    if False:\n        return False,",
         "catchers": _T_VM,
+        "expected_catcher": ["test_nothing_collected_is_never_a_pass"],
     },
     {
         "id": "M43c-collateral-damage-ignored",
@@ -652,6 +742,7 @@ MUTATIONS: list[dict] = [
         "old": "        for name in sorted(red & should_be_green):",
         "new": "        for name in sorted(set()):",
         "catchers": _T_VM,
+        "expected_catcher": ["test_collateral_red_destroys_discrimination"],
     },
     {
         "id": "M43d-green-overwrites-red-in-parametrized",
@@ -660,6 +751,7 @@ MUTATIONS: list[dict] = [
         "old": "        if out.get(name) == \"FAILED\":       # 已经红了就不被后续绿覆盖",
         "new": "        if False:       # 已经红了就不被后续绿覆盖",
         "catchers": _T_VM,
+        "expected_catcher": ["test_parametrized_outcomes_merge_and_a_single_red_wins"],
     },
     {
         "id": "M43f-empty-suite-is-not-noticed",
@@ -668,6 +760,7 @@ MUTATIONS: list[dict] = [
         "old": "        elif n == 0:",
         "new": "        elif False:",
         "catchers": _T_VM,
+        "expected_catcher": ["test_a_suite_that_ran_nothing_voids_the_verdict"],
     },
     {
         "id": "M43g-void-exit-codes-accepted",
@@ -676,6 +769,7 @@ MUTATIONS: list[dict] = [
         "old": "        if rc in VOID_EXITS:",
         "new": "        if False:",
         "catchers": _T_VM,
+        "expected_catcher": ["test_pytest_internal_exit_codes_void_the_run"],
     },
     {
         "id": "M45a-profile-hash-not-per-face",
@@ -688,6 +782,7 @@ MUTATIONS: list[dict] = [
                 '        "context_profile_hash": _hash({**tool, **context, **budget}),\n'
                 '        "budget_profile_hash": _hash({**tool, **context, **budget}),'),
         "catchers": _T_EP,
+        "expected_catcher": ["test_changing_one_face_moves_only_that_hash"],
     },
     {
         "id": "M45b-fingerprint-not-content-stable",
@@ -696,6 +791,7 @@ MUTATIONS: list[dict] = [
         "old": '    return sha256_bytes(json.dumps(obj, sort_keys=True, separators=(",", ":"),',
         "new": '    return sha256_bytes(json.dumps(obj, sort_keys=False, separators=(",", ":"),',
         "catchers": _T_EP,
+        "expected_catcher": ["test_hashes_are_deterministic_across_calls"],
     },
     {
         "id": "M45c-fingerprint-covers-whole-repo",
@@ -704,6 +800,7 @@ MUTATIONS: list[dict] = [
         "old": '_EXEC_ROOT = ("src", "repoproof")',
         "new": '_EXEC_ROOT = ()',
         "catchers": _T_EP,
+        "expected_catcher": ["test_exec_fingerprint_tracks_src_only"],
     },
     {
         "id": "M45d-generation-ignores-spill",
@@ -712,6 +809,7 @@ MUTATIONS: list[dict] = [
         "old": '    if context.get("spill_threshold_chars") or context.get("prune_policy"):',
         "new": "    if False:",
         "catchers": _T_EP,
+        "expected_catcher": ["test_turning_on_spill_leaves_e0_automatically"],
     },
     {
         "id": "M45e-generation-ignores-new-tools",
@@ -720,6 +818,7 @@ MUTATIONS: list[dict] = [
         "old": '    tools = tuple(tool.get("tools") or _E0_TOOLS)',
         "new": "    tools = _E0_TOOLS",
         "catchers": _T_EP,
+        "expected_catcher": ["test_adding_editor_leaves_e0_automatically"],
     },
     {
         "id": "M46a-window-folds-exec-results",
@@ -728,6 +827,7 @@ MUTATIONS: list[dict] = [
         "old": "    if not cmd or _EXEC_CMD.search(cmd):\n        return False",
         "new": "    if not cmd:\n        return False",
         "catchers": _T_WP,
+        "expected_catcher": ["test_read_then_exec_chain_is_never_folded"],
     },
     {
         "id": "M46b-window-folds-everything",
@@ -736,6 +836,7 @@ MUTATIONS: list[dict] = [
         "old": "    keep = set(reads[-window:]) if window > 0 else set()",
         "new": "    keep = set()",
         "catchers": _T_WP,
+        "expected_catcher": ["test_window_keeps_the_most_recent_reads_verbatim"],
     },
     {
         "id": "M46c-window-stub-drops-the-command",
@@ -744,6 +845,7 @@ MUTATIONS: list[dict] = [
         "old": '                f"(窗口外的旧读取结果)。需要时重跑该命令即可取回:`{cmd}`]")[:_STUB_MAX]',
         "new": '                f"(窗口外的旧读取结果)。]")[:_STUB_MAX]',
         "catchers": _T_WP,
+        "expected_catcher": ["test_stub_carries_the_command_for_rerun"],
     },
     {
         "id": "M46d-window-hides-its-lossiness",
@@ -752,6 +854,7 @@ MUTATIONS: list[dict] = [
         "old": '                 "lossy": True,',
         "new": '                 "lossy": False,',
         "catchers": _T_WP,
+        "expected_catcher": ["test_manifest_declares_lossiness"],
     },
     # ---- M48:正控冒烟的环境清单(2026-08-14)。冒烟是**假阳侧正控**,它
     # 回答"这套 oracle 在钉版环境里到底能不能被满足"。下面四条各对应一种
@@ -764,6 +867,7 @@ MUTATIONS: list[dict] = [
         "new": "    if not setup.is_file():\n        setup.write_text('', encoding='utf-8')\n"
                "    if False:\n        raise ValueError(",
         "catchers": _T_HD,
+        "expected_catcher": ["test_missing_setup_manifest_fails_loudly"],
     },
     {
         "id": "M48b-blocked-directive-ignored",
@@ -772,6 +876,7 @@ MUTATIONS: list[dict] = [
         "old": '        if line.strip().startswith("#!BLOCKED:"):',
         "new": "        if False:",
         "catchers": _T_HD,
+        "expected_catcher": ["test_blocked_directive_refuses_with_the_reason"],
     },
     {
         "id": "M48c-manifest-split-per-line",
@@ -780,6 +885,7 @@ MUTATIONS: list[dict] = [
         "old": '    for block in raw.split("\\n---\\n"):',
         "new": "    for block in raw.splitlines():",
         "catchers": _T_HD,
+        "expected_catcher": ["test_multiline_block_is_delivered_whole"],
     },
     {
         "id": "M48d-smoke-lands-only-mount-module",
@@ -788,6 +894,7 @@ MUTATIONS: list[dict] = [
         "old": '    for f in sorted(src_control.glob("*.py")):',
         "new": '    for f in sorted(src_control.glob(f"{module}.py")):',
         "catchers": _T_HD,
+        "expected_catcher": ["test_smoke_lands_every_control_py_not_just_the_mount_module"],
     },
     {
         "id": "M53g-guard-set-lower-bound-removed",
@@ -797,6 +904,7 @@ MUTATIONS: list[dict] = [
         "old": "    short = REQUIRED_GUARD_SET - guarded",
         "new": "    short = set()",
         "catchers": _T_PP,
+        "expected_catcher": ["test_g5_under_declared_guard_set_is_refused"],
     },
     {
         "id": "M53h-guard-set-omits-the-catalog",
@@ -806,6 +914,7 @@ MUTATIONS: list[dict] = [
         "old": '    "scripts/mutation_gate.py",                       # 变异登记簿与证据格式',
         "new": "",
         "catchers": _T_PP,
+        "expected_catcher": ["test_g5_lower_bound_covers_the_load_bearing_files"],
     },
     # ---- M53:Runtime Profile 晋级判据。生命周期是**对外承诺**(它决定别人
     # 敢不敢拿这个 profile 的发次当数),所以每一道松动都是实质性的。
@@ -821,6 +930,7 @@ MUTATIONS: list[dict] = [
                 '        seen = sorted({m.get("profile_id") for m in mats if m})\n'
                 '        return [Check("G1-G4.evidence", True,'),
         "catchers": _T_PP,
+        "expected_catcher": ["test_p1_missing_evidence_refuses"],
     },
     {
         "id": "M53b-someone-elses-evidence-counts",
@@ -829,6 +939,7 @@ MUTATIONS: list[dict] = [
         "old": '    mine = [m for m in mats if m and m.get("profile_id") == p.id]',
         "new": "    mine = [m for m in mats if m]",
         "catchers": _T_PP,
+        "expected_catcher": ["test_p2_another_profiles_evidence_does_not_count"],
     },
     {
         "id": "M53c-level-skipping-allowed",
@@ -838,6 +949,7 @@ MUTATIONS: list[dict] = [
         "old": '        if p.lifecycle == "experimental":',
         "new": "        if False:",
         "catchers": _T_PP,
+        "expected_catcher": ["test_p3_no_skipping_a_level"],
     },
     {
         "id": "M53d-fake-runs-count-as-real",
@@ -847,6 +959,7 @@ MUTATIONS: list[dict] = [
         "old": '            and not str(r.get("model", "")).startswith("fake")]',
         "new": "            ]",
         "catchers": _T_PP,
+        "expected_catcher": ["test_p4b_fake_scripted_runs_never_count_as_real"],
     },
     {
         "id": "M53e-undecidable-returns-pass",
@@ -855,15 +968,17 @@ MUTATIONS: list[dict] = [
         "old": "                            ok=machine and bool(checks) and all(c.ok for c in checks),",
         "new": "                            ok=bool(checks) and all(c.ok for c in checks),",
         "catchers": _T_PP,
+        "expected_catcher": ["test_p5_default_is_not_machine_decidable"],
     },
     {
         "id": "M53f-empty-mutation-registry-passes",
         "lesson": "不查守护条目在场 → 空登记簿的逃逸数也是 0,那个'全捕'与本"
                   "profile 无关",
         "file": _PP,
-        "old": "    ok = escaped == 0 and stale == 0 and not missing",
-        "new": "    ok = escaped == 0 and stale == 0",
+        "old": "    ok = escaped == 0 and stale == 0 and mis == 0 and not missing",
+        "new": "    ok = escaped == 0 and stale == 0 and mis == 0",
         "catchers": _T_PP,
+        "expected_catcher": ["test_an_empty_registry_of_mutations_does_not_pass"],
     },
     {
         "id": "M63d-answer-may-live-in-our-own-public-repo",
@@ -875,6 +990,7 @@ MUTATIONS: list[dict] = [
         "old": "    bad = structural_checks() + selfcheck(original) + repo_scan(original)",
         "new": "    bad = structural_checks() + selfcheck(original)",
         "catchers": _T_PH2,
+        "expected_catcher": ["test_h7_repo_scan_is_wired_into_main_not_just_defined"],
     },
     {
         "id": "M63e-carve-leaves-its-own-fingerprint",
@@ -884,6 +1000,7 @@ MUTATIONS: list[dict] = [
         "old": "        if not alive:",
         "new": "        if False:",
         "catchers": _T_PH2,
+        "expected_catcher": ["test_h1b_carving_cleans_up_its_own_footprint"],
     },
     {
         "id": "M63f-allowlist-is-only-one-level-deep",
@@ -895,6 +1012,69 @@ MUTATIONS: list[dict] = [
         "old": "            strays.extend(_entry_strays(entry))",
         "new": "            pass",
         "catchers": _T_HG,
+        "expected_catcher": ["test_bench_allowlist_is_two_levels_deep"],
+    },
+    # ---- M65:变异闸门自身的归因执法(2026-08-16)。M59c/M62d,e/M64c 一天
+    # 三次同型逃逸:合成缺陷被更早的另一条判断先杀,被考的判断掏掉也看不出
+    # 差别 —— 于是把"CAUGHT 必须由声明的判断抓住"变成机器执法。这五条守的
+    # 就是执法本身:每一条被砍掉,闸门都还在发"全捕",只是那份全捕又开始
+    # 替不存在的防线背书。
+    {
+        "id": "M65a-any-red-counts-as-the-declared-judge",
+        "lesson": "归因命中退化成'红了就算' → MISATTRIBUTED 永不可达,"
+                  "M59c/M64c 那种被别的判断抢先抓住的形状全部隐形",
+        "file": _MG,
+        # 自指锚:被守码与登记簿同文件,字面量拆开写,否则登记项把自己数成第 2 次
+        "old": "        hits = sorted(n for n in failed "
+               "if _matches_declared(n, declared))",
+        "new": "        hits = sorted(failed)",
+        "catchers": _T_MA,
+        "expected_catcher": ["test_red_without_the_declared_judge_is_misattributed"],
+    },
+    {
+        "id": "M65b-unattributed-list-silenced",
+        "lesson": "报表不再列未声明存量 → '还没声明'与'声明并验证过'长一个样,"
+                  "诚实清单静默清零(沉默的缺口最像没有缺口)",
+        "file": _MG,
+        "old": '        "unattributed": [r["id"] for r in results\n'
+               '                         if r["outcome"] == "CAUGHT"\n'
+               '                         and r.get("attribution") == "UNDECLARED"],',
+        "new": '        "unattributed": [],',
+        "catchers": _T_MA,
+        "expected_catcher": ["test_report_lists_are_derived_from_results_not_freeform"],
+    },
+    {
+        "id": "M65c-plumbing-failure-becomes-a-catch",
+        "lesson": "junitxml 解析不出失败节点时冒充 CAUGHT → 测量仪故障被记成"
+                  "测到了东西,而它长得跟正常捕获一模一样",
+        "file": _MG,
+        # 自指锚,同 M65a:拆开写
+        "old": '        return "GATE_PLUMBING", '
+               '{"pytest_exit": exit_code}',
+        "new": '        return "CAUGHT", {"attribution": "UNDECLARED"}',
+        "catchers": _T_MA,
+        "expected_catcher": ["test_red_exit_with_no_parsed_nodes_is_gate_plumbing_not_caught"],
+    },
+    {
+        "id": "M65d-promotion-ignores-misattribution",
+        "lesson": "晋级判据不看归因错位 → 一份混着 MISATTRIBUTED 的证据照样"
+                  "给 profile 背书(散文说三种坏结局都得是零、代码只数两种 ——"
+                  "LESSONS #45 二的形状)",
+        "file": _PP,
+        "old": "    ok = escaped == 0 and stale == 0 and mis == 0 and not missing",
+        "new": "    ok = escaped == 0 and stale == 0 and not missing",
+        "catchers": _T_PP,
+        "expected_catcher": ["test_g5_nonzero_misattribution_fails"],
+    },
+    {
+        "id": "M65e-attribution-canary-stops-gating",
+        "lesson": "归因金丝雀不再拦 → 摆好的归因错位抓不出来也照常发绿,"
+                  "C1 变成装饰(与 C0 被拆同型,只是拆的是归因那一半)",
+        "file": _MG,
+        "old": '    if outcome == "MISATTRIBUTED":\n        return None',
+        "new": "    if True:\n        return None",
+        "catchers": _T_MA,
+        "expected_catcher": ["test_attribution_canary_verdict_gates_the_run"],
     },
     # ---- M64:held-out 准入。两轮实测(全仓 111 函数逐个挖空 + 五次独立强攻)
     # 把一件事钉死了:**"挖空之后红了多少条"是个坏指标** —— 红得最多的那个
@@ -907,6 +1087,7 @@ MUTATIONS: list[dict] = [
         "old": "    if attack is None:",
         "new": "    if False:",
         "catchers": _T_HA,
+        "expected_catcher": ["test_a1_silence_is_not_a_pass"],
     },
     {
         "id": "M64b-threshold-drifts-above-the-measured-floor",
@@ -917,6 +1098,7 @@ MUTATIONS: list[dict] = [
         "old": "MAX_BLIND_ATTACK_RATIO = 0.95",
         "new": "MAX_BLIND_ATTACK_RATIO = 0.98",
         "catchers": _T_HA,
+        "expected_catcher": ["test_a2_the_five_real_candidates_all_die"],
     },
     {
         "id": "M64c-prose-residual-counts-as-behaviour",
@@ -926,6 +1108,7 @@ MUTATIONS: list[dict] = [
         "old": "    residual = attack.residual_kinds - _PROSE_RESIDUALS",
         "new": "    residual = attack.residual_kinds",
         "catchers": _T_HA,
+        "expected_catcher": ["test_a6_prose_residual_is_caught_even_when_the_ratio_is_fine"],
     },
     # ---- M63:H2 宿主副本的部署层。这道题只有 1–2 bit,**答案能捞出来一次
     # 就当场归零**,而所有数字看起来照常。三条守的是"删了"与"捞不出来"
@@ -939,6 +1122,7 @@ MUTATIONS: list[dict] = [
         "old": "    return [(n, pat) for n, pat in out if not re.search(pat, blob)]",
         "new": "    return out",
         "catchers": _T_PH2,
+        "expected_catcher": ["test_h2_fingerprints_are_self_calibrating"],
     },
     {
         "id": "M63b-carving-eats-the-docstring",
@@ -950,6 +1134,7 @@ MUTATIONS: list[dict] = [
         "new": "        i = 0\n"
                "        if (False and isinstance(body[0], ast.Expr)",
         "catchers": _T_PH2,
+        "expected_catcher": ["test_h1_carving_removes_bodies_but_keeps_signatures_and_docstrings"],
     },
     {
         "id": "M63c-git-dir-survives-into-the-copy",
@@ -959,6 +1144,8 @@ MUTATIONS: list[dict] = [
         "old": '    ".git",          # `git show HEAD:<seam>` 一行拿到原件',
         "new": "    # (剥离清单里没有 .git)",
         "catchers": _T_PH2,
+        "expected_catcher": ["test_h4_every_strip_entry_names_a_real_retrieval_path",
+                             "test_h7_repo_scan_is_wired_into_main_not_just_defined"],
     },
     # ---- M62:差分注入。修的是 A1 的**结构上限**(F2) —— U4 比的是
     # digest 相等,而上游算得对、被测方自己也算得对时两者恒等。这几条守的都是
@@ -972,6 +1159,7 @@ MUTATIONS: list[dict] = [
         "old": '    return hmac.new(secret, digest_of(payload, canon=CANON_JSON).encode("utf-8"),',
         "new": '    return hmac.new(secret, b"fixed",',
         "catchers": _T_DIF,
+        "expected_catcher": ["test_d2_the_tag_is_scoped_to_the_input"],
     },
     {
         "id": "M62b-tag-ignores-the-secret",
@@ -981,6 +1169,7 @@ MUTATIONS: list[dict] = [
         'old': '    return hmac.new(secret, digest_of(payload, canon=CANON_JSON).encode("utf-8"),',
         'new': '    return hmac.new(b"", digest_of(payload, canon=CANON_JSON).encode("utf-8"),',
         "catchers": _T_DIF,
+        "expected_catcher": ["test_d3_the_tag_is_unpredictable_without_the_secret"],
     },
     {
         "id": "M62c-secret-is-not-random",
@@ -989,6 +1178,7 @@ MUTATIONS: list[dict] = [
         "old": "    return os.urandom(32)",
         "new": '    return b"0" * 32',
         "catchers": _T_DIF,
+        "expected_catcher": ["test_d3_the_tag_is_unpredictable_without_the_secret"],
     },
     {
         "id": "M62d-matrix-does-not-require-the-two-modes-to-differ",
@@ -998,6 +1188,7 @@ MUTATIONS: list[dict] = [
         "old": "    if nc9_plain and nc9_pert and not (",
         "new": "    if False and not (",
         "catchers": _T_DIF,
+        "expected_catcher": ["test_d8_the_matrix_judge_catches_planted_defects"],
     },
     {
         "id": "M62e-matrix-ignores-the-wall-side",
@@ -1007,6 +1198,7 @@ MUTATIONS: list[dict] = [
         "old": '    if any(r["actual"] != "PASS" for r in pos):',
         "new": "    if False:",
         "catchers": _T_DIF,
+        "expected_catcher": ["test_d8_the_matrix_judge_catches_planted_defects"],
     },
     # ---- M59:失败侧。判据**红了之后**那一段 —— 控制矩阵一步没走过,
     # 而它悄悄失效时,系统照跑、矩阵照绿,只是每一次"没真用上游"都被记成
@@ -1025,6 +1217,7 @@ MUTATIONS: list[dict] = [
         "old": '        or getattr(host, "wheelhouse_path", "")',
         "new": '        or ""',
         "catchers": _T_HD,
+        "expected_catcher": ["test_k19_wheelhouse_path_is_declarable_and_defaults_unchanged"],
     },
     {
         "id": "M61e-fabricated-env-baseline-hash",
@@ -1034,6 +1227,7 @@ MUTATIONS: list[dict] = [
         "old": '            self.env_baseline_hash = "UNKNOWN"',
         "new": '            self.env_baseline_hash = "sha256:" + "0" * 64',
         "catchers": _T_HD,
+        "expected_catcher": ["test_k19_wheelhouse_path_is_declarable_and_defaults_unchanged"],
     },
     {
         "id": "M61a-public-command-back-to-a-constant",
@@ -1043,6 +1237,7 @@ MUTATIONS: list[dict] = [
         "old": "        cmd = list(self.contract.acceptance.public_test_command)",
         "new": '        cmd = ["python", "-m", "pytest", "public_tests/", "-q", "-p", "no:cacheprovider"]',
         "catchers": _T_HD,
+        "expected_catcher": ["test_k14_public_command_comes_from_the_contract_not_a_constant"],
     },
     {
         "id": "M61b-setup-steps-run-out-of-order",
@@ -1053,6 +1248,7 @@ MUTATIONS: list[dict] = [
         "old": "        head = cmds[:pip_idx] if pip_idx is not None else cmds",
         "new": "        head = [c for i, c in enumerate(cmds) if i != pip_idx]",
         "catchers": _T_HD,
+        "expected_catcher": ["test_k17_setup_steps_run_in_the_declared_order"],
     },
     {
         "id": "M61c-health-check-gating-flag-ignored",
@@ -1062,6 +1258,7 @@ MUTATIONS: list[dict] = [
         "old": "            if hc.gating:",
         "new": "            if True:",
         "catchers": _T_HD,
+        "expected_catcher": ["test_k18_health_check_gating_flag_is_honoured"],
     },
     {
         "id": "M60e-enriched-host-counts-as-heldout",
@@ -1074,6 +1271,7 @@ MUTATIONS: list[dict] = [
                "                in _HELDOUT_OK_HOST_MODS),",
         "new": "                ),",
         "catchers": _T_RCL,
+        "expected_catcher": ["test_k20_harness_enriched_hosts_can_never_be_heldout"],
     },
     {
         "id": "M60d-our-own-oracle-counts-as-heldout",
@@ -1084,6 +1282,7 @@ MUTATIONS: list[dict] = [
         "old": '                and c.get("oracle_authorship") == ORACLE_AUTHORSHIP_EXTERNAL',
         "new": "                and True",
         "catchers": _T_RCL,
+        "expected_catcher": ["test_k12_our_own_oracle_can_never_be_counted_as_heldout"],
     },
     {
         "id": "M60a-heldout-denominator-has-no-deductions",
@@ -1093,6 +1292,7 @@ MUTATIONS: list[dict] = [
         "old": '            1 for r in gateable if r["counts_toward_heldout_benchmark"]),',
         "new": '            1 for r in rows if r["counts_toward_heldout_benchmark"]),',
         "catchers": _T_RCL,
+        "expected_catcher": ["test_k8_heldout_gets_the_same_four_deductions_as_passes"],
     },
     {
         "id": "M60b-second-host-runs-land-in-the-first-hosts-stage",
@@ -1103,6 +1303,7 @@ MUTATIONS: list[dict] = [
         "old": '                and _same_host(r)]',
         "new": "                ]",
         "catchers": _T_RCL,
+        "expected_catcher": ["test_k9_a_second_host_run_does_not_land_in_the_first_hosts_stage"],
     },
     {
         "id": "M60c-missing-host-id-silently-becomes-the-baseline-host",
@@ -1112,6 +1313,7 @@ MUTATIONS: list[dict] = [
         "old": '    if rec.get("host_id") in (None, "", UNKNOWN):',
         "new": "    if False:",
         "catchers": _T_RCL,
+        "expected_catcher": ["test_k10_writing_a_run_without_a_host_id_is_refused"],
     },
     {
         "id": "M59a-negative-control-silently-becomes-positive",
@@ -1121,6 +1323,7 @@ MUTATIONS: list[dict] = [
         "old": '    src_control = runner.task_dir / "controls" / name',
         "new": '    src_control = runner.task_dir / "controls" / "positive"',
         "catchers": _T_FS,
+        "expected_catcher": ["test_f7_control_mode_injects_the_control_it_was_asked_for"],
     },
     {
         "id": "M59b-failure-side-judge-ignores-blocked",
@@ -1130,6 +1333,7 @@ MUTATIONS: list[dict] = [
         "old": "        if got != want_verdict:",
         "new": "        if False:",
         "catchers": _T_FS,
+        "expected_catcher": ["test_f6_the_matrix_judge_itself_catches_a_planted_defect"],
     },
     {
         "id": "M59c-failure-side-judge-accepts-undeclared-types",
@@ -1139,6 +1343,7 @@ MUTATIONS: list[dict] = [
         "old": "        stray = [t for t in types if t not in taxonomy and t != \"UNKNOWN\"]",
         "new": "        stray = []",
         "catchers": _T_FS,
+        "expected_catcher": ["test_f6_the_matrix_judge_itself_catches_a_planted_defect"],
     },
     {
         "id": "M58b-pq-runs-inflate-the-stage-gate",
@@ -1149,6 +1354,7 @@ MUTATIONS: list[dict] = [
         "old": '    gateable = [r for r in prereg if r["run_purpose"] not in NON_GATEABLE_PURPOSES]',
         "new": '    gateable = [r for r in prereg if r["run_purpose"] not in MECHANISM_PURPOSES]',
         "catchers": _T_RCL,
+        "expected_catcher": ["test_k7_profile_qualification_does_not_count_toward_the_stage_gate"],
     },
     {
         "id": "M58a-g6-reads-a-field-nobody-writes",
@@ -1159,6 +1365,7 @@ MUTATIONS: list[dict] = [
         "old": '            if p.id in (r.get("runtime_profile_id"), r.get("runtime_profile"))',
         "new": '            if p.id == r.get("runtime_profile")',
         "catchers": _T_PP,
+        "expected_catcher": ["test_p4c_g6_is_satisfiable_by_the_field_the_harness_actually_writes"],
     },
     # ---- M57:2026-08-15 可搬运性审查的 should-fix(S1–S4)。守的全是**归因**:
     # 每一条被砍掉,系统都还能跑、矩阵也还是绿的,只是**这笔账记错了人**。
@@ -1170,6 +1377,7 @@ MUTATIONS: list[dict] = [
         "old": "    failures = session.upstream_failures_on_expected_items()",
         "new": "    failures = []",
         "catchers": _T_SW,
+        "expected_catcher": ["test_w4c_upstream_failure_is_reported_before_extraction"],
     },
     {
         "id": "M57b-upstream-failures-not-scoped-to-our-items",
@@ -1180,6 +1388,7 @@ MUTATIONS: list[dict] = [
         "old": '        want = {u["input_digest"] for u in self.expected_units()}',
         "new": '        want = {f.get("input_digest") for f in self.handle.upstream_failures()}',
         "catchers": _T_SW,
+        "expected_catcher": ["test_w9_upstream_failures_are_scoped_to_our_own_items"],
     },
     {
         "id": "M57c-crash-leaves-no-trace",
@@ -1189,6 +1398,7 @@ MUTATIONS: list[dict] = [
         "old": "                srv.upstream_failures.append({                            # type: ignore[attr-defined]",
         "new": "                [].append({",
         "catchers": _T_SW,
+        "expected_catcher": ["test_w10_an_upstream_crash_is_recorded_and_does_not_forge_a_receipt"],
     },
     {
         "id": "M57d-crash-looks-like-bad-input",
@@ -1198,6 +1408,7 @@ MUTATIONS: list[dict] = [
         "old": '            return self._json(502, {"error": f"{type(e).__name__}: {e}",',
         "new": '            return self._json(400, {"error": f"{type(e).__name__}: {e}",',
         "catchers": _T_SW,
+        "expected_catcher": ["test_w10_an_upstream_crash_is_recorded_and_does_not_forge_a_receipt"],
     },
     {
         "id": "M57e-adoption-failure-goes-back-to-blocked",
@@ -1208,6 +1419,7 @@ MUTATIONS: list[dict] = [
         "old": '        return "agent"',
         "new": '        return "harness"',
         "catchers": _T_SW,
+        "expected_catcher": ["test_w5c_the_routing_decision_itself_is_pinned_by_behavior"],
     },
     {
         "id": "M57f-extractor-swallows-bad-shape",
@@ -1217,6 +1429,7 @@ MUTATIONS: list[dict] = [
         "old": "    if not out and bad:",
         "new": "    if False:",
         "catchers": _T_T3S,
+        "expected_catcher": ["test_s16_extractor_distinguishes_missing_dir_from_unreadable_artifacts"],
     },
     {
         "id": "M57g-host-swallows-the-shape-error",
@@ -1226,6 +1439,7 @@ MUTATIONS: list[dict] = [
         "old": '            if type(e).__name__ == "DeliveryExtractionError":',
         "new": "            if False:",
         "catchers": _T_T3S,
+        "expected_catcher": ["test_s17_unreadable_delivery_is_not_reported_as_extraction_failure"],
     },
     # ---- M56:sidecar 接进 host-run。这一段最容易出的错不是"功能不对",
     # 而是**报错报得像另一件事** —— 三条守的都是归因不许混。
@@ -1239,6 +1453,7 @@ MUTATIONS: list[dict] = [
                 '                "REPOPROOF_LEDGER": str(self.ledger_path),\n'
                 '                "REPOPROOF_SIDECAR_TOKEN": self.token}'),
         "catchers": _T_SW,
+        "expected_catcher": ["test_w2_neither_agent_nor_oracle_gets_the_key_or_ledger"],
     },
     {
         "id": "M56b-one-item-is-enough",
@@ -1247,6 +1462,7 @@ MUTATIONS: list[dict] = [
         "old": '    if item_count < 2:',
         "new": "    if False:",
         "catchers": _T_SW,
+        "expected_catcher": ["test_w7_item_count_must_be_at_least_two"],
     },
     {
         "id": "M56c-extraction-failure-becomes-adoption-failure",
@@ -1255,6 +1471,7 @@ MUTATIONS: list[dict] = [
         "old": '        return {"ok": False, "reason": "NO_DELIVERY_EXTRACTED",',
         "new": '        return {"ok": False, "reason": "RECEIPT_VERIFICATION_FAILED",',
         "catchers": _T_SW,
+        "expected_catcher": ["test_w4b_no_delivery_is_reported_as_extraction_failure"],
     },
     # ---- M55:T3-SIDECAR v1 的任务级判据。
     {
@@ -1265,6 +1482,7 @@ MUTATIONS: list[dict] = [
         "old": "            want = by_nonce.get(rn)",
         "new": "            want = [d for v in by_nonce.values() for d in v]",
         "catchers": _T_T3S,
+        "expected_catcher": ["test_s4_one_call_for_all_reds_on_both_coverage_and_adoption"],
     },
     {
         "id": "M55b-empty-delivery-counts-as-adoption",
@@ -1275,6 +1493,7 @@ MUTATIONS: list[dict] = [
         "new": ('        if not delivery:\n'
                 '            return True, "空"'),
         "catchers": _T_T3S,
+        "expected_catcher": ["test_s2_every_negative_reds_where_declared"],
     },
     # ---- 2026-08-15 可搬运性审查补上的三个洞,各配一条变异 ----
     {
@@ -1285,6 +1504,7 @@ MUTATIONS: list[dict] = [
         "old": "            if r.input.digest != exp.get(rn):",
         "new": "            if False:",
         "catchers": _T_T3S,
+        "expected_catcher": ["test_s8_laundering_via_forged_input_is_caught"],
     },
     {
         "id": "M55d-adoption-denominator-from-the-sut",
@@ -1294,6 +1514,7 @@ MUTATIONS: list[dict] = [
         "old": "        missing = sorted(set(exp) - delivered)",
         "new": "        missing = []",
         "catchers": _T_T3S,
+        "expected_catcher": ["test_s9_partial_delivery_is_caught"],
     },
     {
         "id": "M55e-blank-output-counts-as-adoption",
@@ -1303,6 +1524,7 @@ MUTATIONS: list[dict] = [
         "old": "            if not raw.strip():",
         "new": "            if False:",
         "catchers": _T_T3S,
+        "expected_catcher": ["test_s10_blank_and_malformed_are_caught_and_attributed"],
     },
     # ---- M54:真上游(browser-use + 封存 Chromium)的 conformance。
     {
@@ -1313,6 +1535,7 @@ MUTATIONS: list[dict] = [
         "old": '        return 2\n    print("拓扑核验(A1 的地基,真上游版):")',
         "new": '        pass\n    print("拓扑核验(A1 的地基,真上游版):")',
         "catchers": _T_BCF,
+        "expected_catcher": ["test_b1b_a_foreign_suites_topology_is_refused"],
     },
     {
         "id": "M54b-keychain-prompt-returns",
@@ -1323,6 +1546,7 @@ MUTATIONS: list[dict] = [
         "old": '            "--password-store=basic", "--use-mock-keychain",',
         "new": "",
         "catchers": _T_BCF,
+        "expected_catcher": ["test_chromium_never_touches_the_macos_keychain"],
     },
     {
         "id": "M54c-browser-goes-online",
@@ -1331,6 +1555,7 @@ MUTATIONS: list[dict] = [
         "old": '        argv += ["--proxy-server=127.0.0.1:1",',
         "new": '        argv += ["--ignore-certificate-errors",',
         "catchers": _T_BCF,
+        "expected_catcher": ["test_offline_flags_are_present"],
     },
     # ---- M52:Sidecar Conformance(A1 的第一个使用者)。
     {
@@ -1341,6 +1566,7 @@ MUTATIONS: list[dict] = [
         "old": "    if expected_receipt_count is None:",
         "new": "    if False:",
         "catchers": _T_UR,
+        "expected_catcher": ["test_r10b_missing_count_is_refused_not_assumed"],
     },
     {
         "id": "M52b-topology-gate-removed",
@@ -1350,6 +1576,7 @@ MUTATIONS: list[dict] = [
         "old": "    if not topo[\"ok\"]:",
         "new": "    if False:",
         "catchers": _T_SCF,
+        "expected_catcher": ["test_c1b_a_failing_topology_actually_refuses_to_emit"],
     },
     {
         "id": "M52c-conformance-judge-ignores-red-spot",
@@ -1358,6 +1585,7 @@ MUTATIONS: list[dict] = [
         "old": '        elif r["expect"] == "FAIL" and set(r["actual_red"]) != set(r["expect_red"]):',
         "new": "        elif False:",
         "catchers": _T_SCF,
+        "expected_catcher": ["test_matrix_judge_catches_a_wrong_red_spot"],
     },
     # ---- M51:Runtime Profile(A1,第 7 步)。sidecar 不是换实现细节,
     # 是换了一道题 —— 下面四条各拆掉一处"两道题被当成一道"的防线。
@@ -1369,6 +1597,7 @@ MUTATIONS: list[dict] = [
         "old": '    if runtime_profile and runtime_profile != "rt-inprocess-v1":',
         "new": "    if False:",
         "catchers": _T_RTP,
+        "expected_catcher": ["test_p2_sidecar_shows_up_in_the_execution_generation"],
     },
     {
         "id": "M51b-required-symbols-may-be-empty",
@@ -1378,6 +1607,7 @@ MUTATIONS: list[dict] = [
         "old": "            if not self.required_symbols:",
         "new": "            if False:",
         "catchers": _T_RTP,
+        "expected_catcher": ["test_p3b_sidecar_without_required_symbols_is_rejected"],
     },
     {
         "id": "M51c-profile-id-can-be-redefined",
@@ -1387,6 +1617,7 @@ MUTATIONS: list[dict] = [
         "old": "    if old is not None and profile_signature(old) != profile_signature(p):",
         "new": "    if False:",
         "catchers": _T_RTP,
+        "expected_catcher": ["test_p4_profile_id_is_a_promise"],
     },
     {
         "id": "M51d-symbol-allowlist-not-enforced",
@@ -1396,6 +1627,7 @@ MUTATIONS: list[dict] = [
         "old": "        if fn is None:",
         "new": "        if fn is None and False:",
         "catchers": _T_RTP,
+        "expected_catcher": ["test_p6_unknown_symbol_is_refused_before_execution"],
     },
     # ---- M50:回执正负控矩阵(第 6 步)。矩阵本身也是个检查器,同样要先
     # 证明自己查得出 —— 否则"八个负控全被抓住"可能只是脚本在读自己的期望值。
@@ -1406,6 +1638,7 @@ MUTATIONS: list[dict] = [
         "old": "            if set(r[\"actual_red\"]) != set(r[\"expect_red\"]):",
         "new": "            if False:",  # noqa: E501 —— 抽成 find_problems 后可被钉死直接考
         "catchers": _T_RCS,
+        "expected_catcher": ["test_v2c_the_matrix_judge_itself_catches_a_wrong_red_spot"],
     },
     {
         "id": "M50b-matrix-skips-selfcheck",
@@ -1414,6 +1647,7 @@ MUTATIONS: list[dict] = [
         "old": "    bad = selfcheck()\n    if bad:",
         "new": "    bad = []\n    if bad:",
         "catchers": _T_RCS,
+        "expected_catcher": ["test_v4_strong_matrix_is_fresh"],
     },
     {
         "id": "M50c-discrimination-gate-removed",
@@ -1422,6 +1656,7 @@ MUTATIONS: list[dict] = [
         "old": "        if not green_in:",
         "new": "        if False:",
         "catchers": _T_RCS,
+        "expected_catcher": ["test_v3_each_predicate_family_reds_and_greens"],
     },
     # ---- M49:上游执行回执(A0)。用户 2026-08-14 的提醒 —— 回执**不能是
     # 调用日志**:`browser_use.do_something(); return my_own_impl()` 这段能让
@@ -1434,6 +1669,7 @@ MUTATIONS: list[dict] = [
         "old": "    if pred is None:\n        f.append(Finding(\"U4.adoption\", False,",
         "new": "    if pred is None:\n        f.append(Finding(\"U4.adoption\", True,",
         "catchers": _T_UR,
+        "expected_catcher": ["test_task_without_an_adoption_predicate_cannot_pass"],
     },
     {
         "id": "M49b-signature-always-valid",
@@ -1442,6 +1678,7 @@ MUTATIONS: list[dict] = [
         "old": "        if not self.receipt_signature:\n            return False",
         "new": "        if not self.receipt_signature:\n            return True",
         "catchers": _T_UR,
+        "expected_catcher": ["test_unsigned_receipt_fails"],
     },
     {
         "id": "M49c-chain-ignores-prev-hash",
@@ -1450,6 +1687,7 @@ MUTATIONS: list[dict] = [
         "old": '        if row.get("prev_sha256") != prev:',
         "new": "        if False:",
         "catchers": _T_UR,
+        "expected_catcher": ["test_hash_chain_detects_tampering_without_any_key"],
     },
     {
         "id": "M49d-coverage-passes-without-a-unit-list",
@@ -1458,6 +1696,7 @@ MUTATIONS: list[dict] = [
         "old": "    if expected_units is None:\n        f.append(Finding(\"U3.coverage\", False,",
         "new": "    if expected_units is None:\n        f.append(Finding(\"U3.coverage\", True,",
         "catchers": _T_UR,
+        "expected_catcher": ["test_missing_unit_list_cannot_pass"],
     },
     {
         "id": "M49e-run-nonce-not-checked",
@@ -1466,6 +1705,7 @@ MUTATIONS: list[dict] = [
         "old": "               and r.binding.run_nonce == run_nonce",
         "new": "               and True",
         "catchers": _T_UR,
+        "expected_catcher": ["test_untrusted_receipts_do_not_count_toward_coverage"],
     },
     {
         "id": "M49f-upstream-identity-not-enforced",
@@ -1475,6 +1715,7 @@ MUTATIONS: list[dict] = [
         "old": "            if want and got != want:",
         "new": "            if False:",
         "catchers": _T_UR,
+        "expected_catcher": ["test_same_name_package_with_different_bytes_is_caught"],
     },
     {
         "id": "M49g-adoption-uses-containment-not-equality",
@@ -1484,6 +1725,7 @@ MUTATIONS: list[dict] = [
         "old": "        missing = [u for u in units if u not in want]",
         "new": "        missing = [] if want else list(units)",
         "catchers": _T_UR,
+        "expected_catcher": ["test_calling_real_upstream_but_returning_own_result_is_caught"],
     },
     {
         "id": "M47a-mechanism-runs-count-toward-gate",
@@ -1492,6 +1734,7 @@ MUTATIONS: list[dict] = [
         "old": '    mechanism = [r for r in prereg if r["run_purpose"] in MECHANISM_PURPOSES]',
         "new": "    mechanism = []",
         "catchers": _T_RCL,
+        "expected_catcher": ["test_mechanism_ablation_does_not_count_toward_the_stage_gate"],
     },
     {
         "id": "M47b-classification-rewrites-verdict",
@@ -1501,6 +1744,7 @@ MUTATIONS: list[dict] = [
         "new": '            "run_purpose": c.get("run_purpose", "CAPABILITY_EVALUATION"),\n'
                '            "verdict": "PASS_ADAPTED",',
         "catchers": _T_RCL,
+        "expected_catcher": ["test_original_verdicts_are_never_rewritten"],
     },
     {
         "id": "M47c-undelivered-treatment-counted",
@@ -1510,6 +1754,7 @@ MUTATIONS: list[dict] = [
                 '            1 for r in rows if r["treatment_assigned"] and r["treatment_activated"] is False),'),
         "new": '        "treatment_not_delivered_runs": 0,',
         "catchers": _T_RCL,
+        "expected_catcher": ["test_undelivered_treatment_is_excluded_from_treatment_effect"],
     },
     {
         "id": "M47d-post-hoc-classification-hidden",
@@ -1520,6 +1765,7 @@ MUTATIONS: list[dict] = [
                 '            if r["classification_timing"] == "POST_HOC_TAXONOMY_CORRECTION"),'),
         "new": '        "post_hoc_classified_runs": 0,',
         "catchers": _T_RCL,
+        "expected_catcher": ["test_post_hoc_classification_must_declare_itself"],
     },
     {
         "id": "M43e-never-ran-counts-as-red",
@@ -1528,6 +1774,7 @@ MUTATIONS: list[dict] = [
         "old": "        if name not in outcomes:\n            problems.append(f\"{name}:预期必红,但它根本没跑\")",
         "new": "        if name not in outcomes:\n            continue",
         "catchers": _T_VM,
+        "expected_catcher": ["test_must_fail_case_that_never_ran_is_not_a_pass"],
     },
 ]
 
@@ -1539,12 +1786,118 @@ def _git(*args: str, cwd: Path = REPO) -> str:
                           capture_output=True, text=True).stdout.strip()
 
 
-def _run_subset(tree: Path, catchers: list[str]) -> tuple[int, str]:
+def _run_subset(tree: Path, catchers: list[str]) -> tuple[int, str, set[str], bool]:
+    """跑 catcher 子集并解析 junitxml。返回 (退出码, 输出尾巴, 失败节点名集合,
+    是否有收集期崩溃)。
+
+    不用 `-x`:归因需要**完整**的红名单 —— 只看第一个红,恰好会漏掉
+    "被考的判断排在别人后面"这种最需要看见的情况(M64c 的形状)。
+    失败节点取 junitxml 的 `name`(函数名,参数化带 `[...]`);收集期崩溃
+    的形状是 classname 为空 + error 子节点(本仓 pytest 实测,2026-08-16)。
+    """
+    xml_path = tree / "rp_mutation_junit.xml"
+    xml_path.unlink(missing_ok=True)
     env = dict(os.environ, PYTHONPATH=str(tree / "src"))
     proc = subprocess.run(
-        [str(PYTEST), *catchers, "-q", "-x", "-p", "no:cacheprovider"],
+        [str(PYTEST), *catchers, "-q", "-p", "no:cacheprovider",
+         "--junitxml", str(xml_path)],
         cwd=tree, env=env, capture_output=True, text=True)
-    return proc.returncode, (proc.stdout + proc.stderr)[-800:]
+    failed: set[str] = set()
+    collapsed = False
+    if xml_path.exists():
+        try:
+            for case in ET.parse(xml_path).getroot().iter("testcase"):
+                bad, err = case.find("failure"), case.find("error")
+                if bad is None and err is None:
+                    continue
+                failed.add(case.get("name", "?"))
+                if err is not None and not (case.get("classname") or ""):
+                    collapsed = True
+        except ET.ParseError:
+            pass          # 解析不出 → failed 为空,退出码红时由 GATE_PLUMBING 兜底
+        xml_path.unlink(missing_ok=True)
+    return proc.returncode, (proc.stdout + proc.stderr)[-800:], failed, collapsed
+
+
+# ------------------------------------------------- 归因判定(判据见钉死 E1–E8)
+
+def _matches_declared(name: str, declared: list[str]) -> bool:
+    """节点名是否命中声明。参数化按基名(`test_x[3]` 算 `test_x`),但不做
+    前缀猜测(`test_x_more` 不算 `test_x` —— 把邻居的功劳记到声明头上,
+    是另一种归因错位)。"""
+    return any(name == d or name.startswith(d + "[") for d in declared)
+
+
+def classify_catch(*, exit_code: int, failed: set[str], collapsed: bool,
+                   declared: list[str] | None) -> tuple[str, dict]:
+    """一次注入后的结局判定。CAUGHT 不能只看"红没红",要看**红的是不是
+    声明要考的那条判断** —— 否则合成缺陷被别的判断先杀,被考的判断掏掉
+    也看不出差别(M59c/M62d,e/M64c,一天三次)。"""
+    if not failed:
+        if exit_code == 0:
+            return "ESCAPED", {}
+        # 退出码红、却一个失败节点都解析不出:测量仪自身的管道坏了。
+        # 冒充 CAUGHT 等于把仪器故障记成测到了东西。
+        return "GATE_PLUMBING", {"pytest_exit": exit_code}
+    if declared:
+        hits = sorted(n for n in failed if _matches_declared(n, declared))
+        if hits:
+            return "CAUGHT", {"attribution": "DECLARED", "attributed_to": hits}
+        if collapsed:
+            # 整文件收集期崩溃:声明的判断不是被抢了先,是全场阵亡 ——
+            # 与 MISATTRIBUTED 是两种病,单列可见。
+            return "CAUGHT", {"attribution": "COLLAPSE"}
+        return "MISATTRIBUTED", {
+            "failed_nodes": sorted(failed), "expected_catcher": list(declared)}
+    if collapsed:
+        return "CAUGHT", {"attribution": "COLLAPSE"}
+    # 存量未声明:照旧算捕获,但必须可见地标出来 —— "还没声明"与
+    # "声明并验证过"不许长一个样(诚实清单由 build_report 汇出)。
+    return "CAUGHT", {"attribution": "UNDECLARED"}
+
+
+def attribution_canary_verdict(outcome: str) -> str | None:
+    """C1 的结局必须恰为 MISATTRIBUTED;其余任何结局 → 返回自宣无效的理由。
+    摆好的归因错位都抓不出来,就没资格给整本登记簿发归因结论。"""
+    if outcome == "MISATTRIBUTED":
+        return None
+    return (f"归因金丝雀结局是 {outcome},不是 MISATTRIBUTED —— "
+            "归因执法在装样子,本闸门的一切归因结论无效")
+
+
+def build_report(head: str, results: list[dict], *, wall_seconds: float,
+                 mutations_total: int) -> dict:
+    """汇总只从逐条结果推导 —— 手写汇总正是"散文说不算、代码算了"的入口。"""
+    caught = sum(1 for r in results if r["outcome"] == "CAUGHT")
+    # 显式声明**这份证据守护哪些文件** —— 这些文件一变,证据就该作废。
+    # 含登记簿自身:改了登记簿(加条目、改 old/new、改 catcher/声明),旧证据
+    # 当然不再代表现在这套变异。派生自 MUTATIONS 而非从 results 反推,是为了
+    # 让 STALE/ESCAPED 的条目也算数(它们守护的文件同样相干)。
+    guard_set = sorted(
+        {m["file"] for m in MUTATIONS if m.get("file")}
+        | {c for m in MUTATIONS for c in (m.get("catchers") or [])}
+        | {"scripts/mutation_gate.py"})
+    return {
+        "head_commit": head,
+        "mutations": mutations_total,
+        "guard_set": guard_set,
+        "caught": caught,
+        "attributed": sum(1 for r in results
+                          if r["outcome"] == "CAUGHT"
+                          and r.get("attribution") == "DECLARED"),
+        "unattributed": [r["id"] for r in results
+                         if r["outcome"] == "CAUGHT"
+                         and r.get("attribution") == "UNDECLARED"],
+        "collapsed": [r["id"] for r in results
+                      if r["outcome"] == "CAUGHT"
+                      and r.get("attribution") == "COLLAPSE"],
+        "misattributed": [r["id"] for r in results if r["outcome"] == "MISATTRIBUTED"],
+        "escaped": [r["id"] for r in results if r["outcome"] == "ESCAPED"],
+        "stale": [r["id"] for r in results if r["outcome"] == "STALE"],
+        "capture_rate": f"{caught}/{mutations_total}",
+        "wall_seconds": round(wall_seconds, 1),
+        "results": results,
+    }
 
 
 def _apply(tree: Path, m: dict) -> str | None:
@@ -1574,22 +1927,38 @@ def run_gate() -> int:
         try:
             # 基线:未变异的 worktree 上所有 catcher 必须全绿,否则无从归因
             all_catchers = sorted({c for m in [CANARY, *MUTATIONS] for c in m["catchers"]})
-            code, tail = _run_subset(tree, all_catchers)
+            code, tail, _, _ = _run_subset(tree, all_catchers)
             if code != 0:
                 print(f"[ABORT] 基线不绿(exit={code}),无从归因变异:\n{tail}")
                 return 2
-            # 金丝雀:证明测的是变异体不是主树
+            # C0 金丝雀:证明测的是变异体不是主树
             err = _apply(tree, CANARY)
             if err:
                 print(f"[ABORT] 金丝雀 STALE:{err}")
                 return 2
-            code, tail = _run_subset(tree, CANARY["catchers"])
+            code, tail, _, _ = _run_subset(tree, CANARY["catchers"])
             _restore(tree, CANARY)
             if code == 0:
                 print("[ABORT] 金丝雀未被抓住 —— worktree 隔离失效,"
                       "本闸门在测主树而非变异体,一切结论无效。")
                 return 2
-            print(f"金丝雀 CAUGHT(exit={code})—— 隔离通路自证有效。\n")
+            print(f"金丝雀 CAUGHT(exit={code})—— 隔离通路自证有效。")
+
+            # C1 归因金丝雀:声明 A 抓、实际 B 抓,必须判出 MISATTRIBUTED。
+            err = _apply(tree, ATTRIBUTION_CANARY)
+            if err:
+                print(f"[ABORT] 归因金丝雀 STALE:{err}")
+                return 2
+            code, tail, failed, collapsed = _run_subset(tree, ATTRIBUTION_CANARY["catchers"])
+            _restore(tree, ATTRIBUTION_CANARY)
+            outcome, _extra = classify_catch(
+                exit_code=code, failed=failed, collapsed=collapsed,
+                declared=ATTRIBUTION_CANARY["expected_catcher"])
+            reason = attribution_canary_verdict(outcome)
+            if reason:
+                print(f"[ABORT] {reason}")
+                return 2
+            print("归因金丝雀 MISATTRIBUTED —— 归因执法自证有效。\n")
 
             for m in MUTATIONS:
                 t0 = time.monotonic()
@@ -1599,49 +1968,52 @@ def run_gate() -> int:
                                     "outcome": "STALE", "detail": err})
                     print(f"  STALE   {m['id']} —— {err}")
                     continue
-                code, tail = _run_subset(tree, m["catchers"])
+                code, tail, failed, collapsed = _run_subset(tree, m["catchers"])
                 _restore(tree, m)
-                outcome = "CAUGHT" if code != 0 else "ESCAPED"
+                declared = m.get("expected_catcher")
+                outcome, extra = classify_catch(
+                    exit_code=code, failed=failed, collapsed=collapsed,
+                    declared=declared)
+                if outcome == "GATE_PLUMBING":
+                    print(f"[ABORT] {m['id']}:pytest 退出码 {code} 却解析不出任何"
+                          "失败节点 —— junitxml 管道坏了,归因不可判,整个闸门"
+                          "自宣无效。")
+                    return 2
                 results.append({
                     "id": m["id"], "lesson": m["lesson"], "file": m["file"],
                     "outcome": outcome, "pytest_exit": code,
                     "catchers": m["catchers"],
+                    **({"expected_catcher": declared} if declared else {}),
+                    **extra,
+                    "failed_nodes": sorted(failed),
                     "seconds": round(time.monotonic() - t0, 1),
-                    **({"tail": tail} if outcome == "ESCAPED" else {}),
+                    **({"tail": tail} if outcome in ("ESCAPED", "MISATTRIBUTED") else {}),
                 })
-                print(f"  {outcome:7s} {m['id']}  ({results[-1]['seconds']}s)")
+                mark = extra.get("attribution", "")
+                print(f"  {outcome:13s} {m['id']}"
+                      + (f"  [{mark}]" if mark else "")
+                      + f"  ({results[-1]['seconds']}s)")
         finally:
             _git("worktree", "remove", "--force", str(tree))
             _git("worktree", "prune")
 
-    caught = sum(1 for r in results if r["outcome"] == "CAUGHT")
-    bad = [r for r in results if r["outcome"] != "CAUGHT"]
-    # 显式声明**这份证据守护哪些文件** —— 这些文件一变,证据就该作废。
-    # 含登记簿自身:改了登记簿(加条目、改 old/new、改 catcher),旧证据当然
-    # 不再代表现在这套变异。派生自 MUTATIONS 而非从 results 反推,是为了
-    # 让 STALE/ESCAPED 的条目也算数(它们守护的文件同样相干)。
-    guard_set = sorted(
-        {m["file"] for m in MUTATIONS if m.get("file")}
-        | {c for m in MUTATIONS for c in (m.get("catchers") or [])}
-        | {"scripts/mutation_gate.py"})
-    report = {
-        "head_commit": head,
-        "mutations": len(MUTATIONS),
-        "guard_set": guard_set,
-        "caught": caught,
-        "escaped": [r["id"] for r in results if r["outcome"] == "ESCAPED"],
-        "stale": [r["id"] for r in results if r["outcome"] == "STALE"],
-        "capture_rate": f"{caught}/{len(MUTATIONS)}",
-        "wall_seconds": round(time.monotonic() - t_start, 1),
-        "results": results,
-    }
+    report = build_report(head, results,
+                          wall_seconds=time.monotonic() - t_start,
+                          mutations_total=len(MUTATIONS))
     EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
     dest = EVIDENCE_DIR / f"{head[:12]}.json"
     dest.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n",
                     encoding="utf-8")
-    print(f"\n捕获率 {report['capture_rate']};证据已落盘:{dest}")
-    if bad:
-        print("未达 100% —— ESCAPED 当场补钉死,STALE 更新登记簿。绝不带病放行。")
+    print(f"\n捕获率 {report['capture_rate']}(声明归因 {report['attributed']}、"
+          f"未声明 {len(report['unattributed'])}、整文件崩溃 {len(report['collapsed'])});"
+          f"证据已落盘:{dest}")
+    if report["unattributed"]:
+        head_ids = ", ".join(report["unattributed"][:8])
+        more = " …" if len(report["unattributed"]) > 8 else ""
+        print(f"未归因存量(诚实清单,待补声明):{head_ids}{more}")
+    if report["escaped"] or report["stale"] or report["misattributed"]:
+        print("未达标 —— ESCAPED 当场补钉死;STALE 更新登记簿;MISATTRIBUTED 修"
+              "声明或重设计合成缺陷(它被错误的判断抢先抓住了)。绝不带病放行。")
         return 1
     return 0
 

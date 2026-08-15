@@ -225,8 +225,36 @@ def test_an_empty_registry_of_mutations_does_not_pass(tmp_path):
     from repoproof.execution.profile_promotion import _check_mutations
 
     c = _check_mutations(tmp_path, evidence={
-        "escaped": [], "stale": [], "results": [{"id": "M30a-unrelated"}]})
+        "escaped": [], "stale": [], "misattributed": [],
+        "results": [{"id": "M30a-unrelated"}]})
     assert not c.ok and "缺守护条目" in c.detail
+
+
+def test_g5_nonzero_misattribution_fails(tmp_path):
+    """G5 第三腿(2026-08-16):归因错位非零 → 不算全捕。
+
+    MISATTRIBUTED = 有条目被**错误的判断**抓住(M59c/M64c 一天三次的
+    形状)—— 那份"全捕"里混着替不存在的防线背的书。逃逸 / 过期 / 错位
+    三种坏结局都得是零;守归因执法自身的 M65 条目也必须在必守清单里,
+    否则把执法删了、旧证据照样背书。"""
+    from repoproof.execution.profile_promotion import REQUIRED_MUTATION_PREFIXES, _check_mutations
+
+    assert "M65" in REQUIRED_MUTATION_PREFIXES, "守归因执法的条目不在必守清单里"
+    c = _check_mutations(tmp_path, evidence={
+        "escaped": [], "stale": [], "misattributed": ["M64c-prose-residual"],
+        "results": [{"id": "M49a"}, {"id": "M50a"}, {"id": "M52a"}, {"id": "M65a"}]})
+    assert not c.ok and "错位" in c.detail
+
+
+def test_g5_unreadable_misattribution_fails_closed(tmp_path):
+    """P7b 的归因侧:证据里读不出 misattributed(旧格式 / 被手删)→ 判不过。
+    "看不懂就放行"的分支在这里也不许有 —— 与逃逸 / 过期同一条纪律。"""
+    from repoproof.execution.profile_promotion import _check_mutations
+
+    c = _check_mutations(tmp_path, evidence={
+        "escaped": [], "stale": [],
+        "results": [{"id": "M49a"}, {"id": "M50a"}, {"id": "M52a"}, {"id": "M65a"}]})
+    assert not c.ok and "读不出" in c.detail
 
 
 def test_canary_is_candidate_and_still_earns_g1_to_g4():

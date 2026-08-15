@@ -53,10 +53,11 @@ LIFECYCLE_ORDER = ("experimental", "candidate", "qualified", "default", "depreca
 MIN_MODEL_PROFILES = 2
 MIN_HONEST_PASSES = 1
 
-# G5 要求在场的变异条目前缀 —— 守护回执与 conformance 这套机制的那些。
+# G5 要求在场的变异条目前缀 —— 守护回执与 conformance 这套机制的那些,
+# 外加 M65(守变异闸门自身的归因执法:把执法删了,旧证据不得继续背书)。
 # 写成前缀而不是全名,是为了让同族新增条目自动纳入;写成**必须在场**而不是
 # "只要捕获率 100%",是因为一个空登记簿的捕获率也是 100%。
-REQUIRED_MUTATION_PREFIXES = ("M49", "M50", "M52")
+REQUIRED_MUTATION_PREFIXES = ("M49", "M50", "M52", "M65")
 
 # G5 的**守护集下界**(用户 2026-08-14 指令)。
 #
@@ -283,16 +284,22 @@ def _check_mutations(repo: Path, *, evidence: dict | None = None) -> Check:
         return None
 
     escaped, stale = _count(ev.get("escaped"), "escaped"), _count(ev.get("stale"), "stale")
-    if escaped is None or stale is None:
+    # 归因错位(2026-08-16,M59c/M64c 一天三次):MISATTRIBUTED = 有条目被
+    # **错误的判断**抓住 —— 那份"全捕"里混着替不存在的防线背的书。旧格式
+    # 证据没有这个键 → 读不出 → 判不过;它们本来就不该在新规则下继续背书
+    # (与守护集下界对旧证据的处置同一条纪律)。
+    mis = _count(ev.get("misattributed"), "misattributed")
+    if escaped is None or stale is None or mis is None:
         return Check("G5.mutation", False,
-                     f"变异证据里读不出逃逸/过期(escaped={ev.get('escaped')!r}, "
-                     f"stale={ev.get('stale')!r})—— 读不出就判不过,不猜")
-    ok = escaped == 0 and stale == 0 and not missing
+                     f"变异证据里读不出逃逸/过期/归因错位(escaped={ev.get('escaped')!r}, "
+                     f"stale={ev.get('stale')!r}, misattributed={ev.get('misattributed')!r})"
+                     "—— 读不出就判不过,不猜")
+    ok = escaped == 0 and stale == 0 and mis == 0 and not missing
     return Check("G5.mutation", ok,
-                 f"逃逸 0、过期 0(共 {len(ids)} 条,{why}),守护条目 "
+                 f"逃逸 0、过期 0、归因错位 0(共 {len(ids)} 条,{why}),守护条目 "
                  f"{sorted(present)} 在场" if ok
-                 else f"逃逸 {escaped}、过期 {stale};缺守护条目 {sorted(missing)} —— "
-                      "空登记簿的逃逸数也是 0,所以还要查在场")
+                 else f"逃逸 {escaped}、过期 {stale}、归因错位 {mis};缺守护条目 "
+                      f"{sorted(missing)} —— 空登记簿的逃逸数也是 0,所以还要查在场")
 
 
 def _check_real_runs(repo: Path, p: RuntimeProfile) -> list[Check]:
