@@ -111,6 +111,8 @@ _VC = "scripts/validate_controls.py"
 _T_VM = ["tests/test_control_validation_matrix.py"]
 _MG = "scripts/mutation_gate.py"
 _T_MA = ["tests/test_mutation_attribution.py"]
+_BAM = "scripts/blind_attack_admission.py"
+_T_BAM = ["tests/test_blind_attack_admission.py"]
 
 CANARY = {
     "id": "C0-plumbing-canary",
@@ -1014,6 +1016,50 @@ MUTATIONS: list[dict] = [
         "catchers": _T_HG,
         "expected_catcher": ["test_bench_allowlist_is_two_levels_deep"],
     },
+    # ---- M66:盲攻测量驱动器(2026-08-16,D5 彩排产物)。heldout_admission
+    # 是纯判官,数字从这里来 —— 量法一松,0.95 那条线就是摆设。四条守的都是
+    # "分数掺水的方式":基线不配当尺子仍产 ratio / 分母来自被测方 / 离线
+    # 变成声称 / 回归面混进能力面。
+    {
+        "id": "M66a-green-delta-in-baseline-not-refused",
+        "lesson": "基线上就绿的 delta 测试不拒 → FAIL_TO_PASS 不再被实测,"
+                  "'parent 树上就能过的新行为'混进分母,ratio 虚低,烂候选准入",
+        "file": _BAM,
+        "old": "    green_deltas = sorted(set(delta_nodes) - red)",
+        "new": "    green_deltas = []",
+        "catchers": _T_BAM,
+        "expected_catcher": ["test_b7_delta_baseline_must_red_exactly_the_delta_set"],
+    },
+    {
+        "id": "M66b-denominator-from-the-attacked-run",
+        "lesson": "全套件分母改读攻击后 junit → 攻击件打崩收集期,节点数缩水,"
+                  "分母跟着缩 —— 被测方决定分母(U3 的老病,第三次出现)",
+        "file": _BAM,
+        "old": '        return BlindAttack(total=baseline["total"], passed=attacked["passed"],',
+        "new": '        return BlindAttack(total=attacked["total"], passed=attacked["passed"],',
+        "catchers": _T_BAM,
+        "expected_catcher": ["test_b6_denominator_is_the_baseline_total"],
+    },
+    {
+        "id": "M66c-offline-env-only-fills-gaps",
+        "lesson": "死代理从覆盖退化成 setdefault → 外面挂着真代理时照常联网,"
+                  "'离线'从跑出来的变回声称的",
+        "file": _BAM,
+        "old": '        env[k] = "http://127.0.0.1:9"',
+        "new": '        env.setdefault(k, "http://127.0.0.1:9")',
+        "catchers": _T_BAM,
+        "expected_catcher": ["test_b4_subprocess_env_is_forced_offline"],
+    },
+    {
+        "id": "M66d-regression-greens-blended-into-the-ratio",
+        "lesson": "delta 分子不再与 delta 集求交 → 旧套件的绿全进分子,"
+                  "回归面冒充能力面,ratio 能超过 1",
+        "file": _BAM,
+        "old": '    won = delta_nodes & set(attacked.get("passed_nodes", ()))',
+        "new": '    won = set(attacked.get("passed_nodes", ()))',
+        "catchers": _T_BAM,
+        "expected_catcher": ["test_b8_delta_ratio_is_over_the_delta_set_only"],
+    },
     # ---- M65:变异闸门自身的归因执法(2026-08-16)。M59c/M62d,e/M64c 一天
     # 三次同型逃逸:合成缺陷被更早的另一条判断先杀,被考的判断掏掉也看不出
     # 差别 —— 于是把"CAUGHT 必须由声明的判断抓住"变成机器执法。这五条守的
@@ -1113,6 +1159,19 @@ MUTATIONS: list[dict] = [
     # ---- M63:H2 宿主副本的部署层。这道题只有 1–2 bit,**答案能捞出来一次
     # 就当场归零**,而所有数字看起来照常。三条守的是"删了"与"捞不出来"
     # 之间那段距离。
+    {
+        "id": "M63g-overlapping-carve-spans-swallow-siblings",
+        "lesson": "嵌套 def 的重叠 span 不去重 → 内层先替换、外层再按**陈旧坐标**"
+                  "切,把后移上来的兄弟方法整个吞掉,连签名都不剩(2026-08-16 彩排"
+                  "当场抓到:pagination 五个兄弟方法消失;plugins 表达不出这个形状,"
+                  "H1 从未红过 —— 靶子表达不出缺陷,钉死就等于不存在)",
+        "file": _PH2,
+        "old": "    spans = [s for s in spans\n"
+               "             if not any(o != s and o[0] <= s[0] and s[1] <= o[1] for o in spans)]",
+        "new": "    spans = list(spans)",
+        "catchers": _T_PH2,
+        "expected_catcher": ["test_h1c_sibling_methods_survive_a_method_with_nested_defs"],
+    },
     {
         "id": "M63a-fingerprints-not-self-calibrated",
         "lesson": "泄漏指纹不排掉'原仓 seam 之外也有的行' → 通用惯用行(如 "

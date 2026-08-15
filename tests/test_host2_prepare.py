@@ -67,6 +67,45 @@ class C:
     assert removed == [], "这份样例里没有孤儿 import,不该抹掉任何东西"
 
 
+def test_h1c_sibling_methods_survive_a_method_with_nested_defs():
+    """H1c:嵌套 def 的重叠 span 必须去重 —— 否则外层函数的**陈旧坐标**会把
+    后移上来的兄弟方法整个吞掉,连签名都不剩。
+
+    2026-08-16 彩排当场抓到:pagination.py 的 paginate(体内含
+    decorator/wrapper)之后的五个兄弟方法在交付树里消失;而 plugins.py
+    没有这种形状,H1 从未红过 —— 靶子表达不出缺陷,钉死就等于不存在
+    (与"合成缺陷必须只触发被考的判断"同一课的另一面)。
+
+    正确语义:外层函数体(含其内嵌 def)整体换成 raise;**兄弟**方法一个
+    不许少。"""
+    src = """
+class C:
+    def outer(self):
+        \"\"\"doc\"\"\"
+        def inner():
+            a = 1
+            b = 2
+            c = 3
+            d = 4
+            return a + b + c + d
+        return inner()
+
+    def sibling_a(self):
+        \"\"\"doc\"\"\"
+        return 2
+
+    def sibling_b(self):
+        return 3
+"""
+    carved, names, _removed = _mod()._carve(src)
+    kept = {n.name for n in ast.walk(ast.parse(carved))
+            if isinstance(n, ast.FunctionDef)}
+    assert {"outer", "sibling_a", "sibling_b"} <= kept, (
+        f"兄弟方法被吞:缺 {({'outer', 'sibling_a', 'sibling_b'} - kept)}")
+    assert "inner" not in kept, "嵌套体应随外层函数体一起被挖"
+    assert carved.count("raise NotImplementedError") == 3
+
+
 def test_h1b_carving_cleans_up_its_own_footprint():
     """H1b:挖空**自己制造**的残留必须抹掉 —— 孤儿 import 是结构性异常。
 

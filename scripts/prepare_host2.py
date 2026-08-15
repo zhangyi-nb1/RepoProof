@@ -95,6 +95,13 @@ def _carve(src_text: str) -> tuple[str, list[str]]:
         spans.append((start, end, body[i].col_offset))
         carved.append(node.name)
 
+    # 嵌套 def:外层函数体本来就包含内层,替换外层即已挖掉内层;但给内层
+    # 单独留 span 的话,reverse 替换后外层的**陈旧坐标**会把后移上来的
+    # 兄弟方法整个吞掉,连签名都不剩(2026-08-16 彩排当场抓到:pagination
+    # 五个兄弟方法消失;plugins 没有这种形状,H1 从未红过)。
+    # 只保留不被任何其它 span 包含的最外层 span。
+    spans = [s for s in spans
+             if not any(o != s and o[0] <= s[0] and s[1] <= o[1] for o in spans)]
     for start, end, indent in sorted(spans, reverse=True):
         lines[start:end] = [" " * indent + "raise NotImplementedError"]
     out = "\n".join(lines) + "\n"
