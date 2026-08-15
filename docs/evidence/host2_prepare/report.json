@@ -1,0 +1,66 @@
+{
+  "_what": "H2 宿主副本的部署层自证 —— 挖空 + 剥离 + **捞不出答案**",
+  "_why": "这道题的诚实尺寸是 1–2 bit。答案只要还能从副本里捞出来,信息量当场归零,而所有数字看起来照常。",
+  "host": "/Users/zhangronglei/RepoProofBench/host2-flask-smorest/host",
+  "sealed_source": "/Users/zhangronglei/RepoProofBench/host2-flask-smorest/repo",
+  "seam": "src/flask_smorest/spec/plugins.py",
+  "carved_symbols": [
+    "__init__",
+    "anyconverter2paramschema",
+    "baseconverter2paramschema",
+    "flaskpath2openapi",
+    "floatconverter2paramschema",
+    "init_spec",
+    "integerconverter2paramschema",
+    "path_helper",
+    "register_converter",
+    "rule_to_params",
+    "unicodeconverter2paramschema",
+    "uuidconverter2paramschema"
+  ],
+  "stripped": {
+    "dirs": [
+      ".git",
+      ".github",
+      ".pytest_cache",
+      ".ruff_cache",
+      "__pycache__",
+      "docs",
+      "htmlcov",
+      "tests"
+    ],
+    "suffixes": [
+      ".pyc",
+      ".pyo",
+      ".orig",
+      ".bak",
+      ".rej",
+      ".pth",
+      ".egg-link"
+    ],
+    "files": [
+      ".pre-commit-config.yaml",
+      ".readthedocs.yaml",
+      "CHANGELOG.rst"
+    ]
+  },
+  "host_digest": "sha256:5578f89f10f4a9c4bd1b7ff1713aa4d94ca4ad1279f910345d246f573933cc25",
+  "leak_hits": [],
+  "structural_problems": [],
+  "_selfcheck": "扫描器先被喂过一次原件(塞进副本),必须当场报出来;再在干净副本上跑一次,必须不报。两头都过才算它在验。",
+  "disclosed_hints": [
+    {
+      "where": "src/flask_smorest/spec/__init__.py::Api.register_converter",
+      "what": "docstring 里有一段完整的示例,逐字给出了 converter→paramschema 函数的签名与返回形状:`def objectidconverter2paramschema(converter): return {'type': 'string', 'format': 'ObjectID'}`",
+      "impact": "六个 *2paramschema 的**契约**基本被这段说明白了。剩下的难点是各转换器**各自的**属性映射(minlen/maxlen、signed、枚举反解),那才是真正的 held-out 部分。",
+      "why_kept": "上游自己的公开 API 文档。剥掉它,副本就不再是那个宿主了。"
+    },
+    {
+      "where": "src/flask_smorest/spec/__init__.py::Api._register_converter",
+      "what": "`self.flask_plugin.register_converter(converter, func)` —— 点明了 FlaskPlugin.register_converter 的调用形状",
+      "impact": "register_converter 这一个 node 的难度接近零 —— 调用形状被点明了,剩下的只是把 (converter, func) 存进一张表。",
+      "why_kept": "它是**上游自己的**调用方代码,不是被挖的那份实现。剥掉它,副本就不再是那个宿主了(F1:改写宿主的题一律不算 held-out)。"
+    }
+  ],
+  "ok": true
+}

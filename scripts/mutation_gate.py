@@ -69,6 +69,8 @@ _VTR = "scripts/verify_task_receipts.py"
 _T_T3S = ["tests/test_t3_sidecar_task.py"]
 _FSM = "scripts/failure_side_matrix.py"
 _DIF = "src/repoproof/execution/differential.py"
+_PH2 = "scripts/prepare_host2.py"
+_T_PH2 = ["tests/test_host2_prepare.py"]
 _DIM = "scripts/differential_injection_matrix.py"
 _T_DIF = ["tests/test_differential_injection.py"]
 _T_FS = ["tests/test_failure_side.py"]
@@ -860,6 +862,39 @@ MUTATIONS: list[dict] = [
         "old": "    ok = escaped == 0 and stale == 0 and not missing",
         "new": "    ok = escaped == 0 and stale == 0",
         "catchers": _T_PP,
+    },
+    # ---- M63:H2 宿主副本的部署层。这道题只有 1–2 bit,**答案能捞出来一次
+    # 就当场归零**,而所有数字看起来照常。三条守的是"删了"与"捞不出来"
+    # 之间那段距离。
+    {
+        "id": "M63a-fingerprints-not-self-calibrated",
+        "lesson": "泄漏指纹不排掉'原仓 seam 之外也有的行' → 通用惯用行(如 "
+                  "`if self.openapi_version.major < 3:`)全部报出来,真信号被淹;"
+                  "实测头两版就栽在这",
+        "file": _PH2,
+        "old": "    return [(n, pat) for n, pat in out if not re.search(pat, blob)]",
+        "new": "    return out",
+        "catchers": _T_PH2,
+    },
+    {
+        "id": "M63b-carving-eats-the-docstring",
+        "lesson": "挖空连 docstring 一起挖 → 那是**改写宿主**,而不是挖空;"
+                  "按 F1,改写过的宿主一律不算 held-out(ENRICHED)",
+        "file": _PH2,
+        "old": "        i = 0\n"
+               "        if (body and isinstance(body[0], ast.Expr)",
+        "new": "        i = 0\n"
+               "        if (False and isinstance(body[0], ast.Expr)",
+        "catchers": _T_PH2,
+    },
+    {
+        "id": "M63c-git-dir-survives-into-the-copy",
+        "lesson": "`.git` 留在副本里 → `git show HEAD:<seam>` 一行拿到原件,"
+                  "整道题当场归零",
+        "file": _PH2,
+        "old": '    ".git",          # `git show HEAD:<seam>` 一行拿到原件',
+        "new": "    # (剥离清单里没有 .git)",
+        "catchers": _T_PH2,
     },
     # ---- M62:差分注入。修的是 A1 的**结构上限**(F2) —— U4 比的是
     # digest 相等,而上游算得对、被测方自己也算得对时两者恒等。这几条守的都是
