@@ -1,0 +1,36 @@
+{
+  "_what": "第二宿主(flask-smorest 0.47.0)自带 554 条套件的**真实判别力**实测",
+  "_why": "勘察员报了 530/554,而这个数决定整道题值不值得做 —— 必须自己复现,不能转述(常设纪律:blocking 结论先独立复现再动手)",
+  "_not_a_benchmark": "零模型;不进 runs.jsonl,不影响任何闸门数字",
+  "host": "marshmallow-code/flask-smorest 0.47.0 @ 3451351",
+  "baseline": {
+    "passed": 554,
+    "failed": 0,
+    "note": "原件,断网跑"
+  },
+  "naive_implementation": {
+    "source": "docs/evidence/host2_discrimination/naive_plugins.py",
+    "how": "自己手写,刻意用公开 API `rule.arguments`(原件用私有 `rule._trace`),且不预设那五个细节行为",
+    "passed": 532,
+    "failed": 22,
+    "note": "勘察员独立报 530/554 —— 两次不同的朴素写法,残差落在同一组行为上"
+  },
+  "ablation_narrow": {
+    "passed": 192,
+    "failed": 310,
+    "errors": 52,
+    "how": "rule_to_params 首行 raise NotImplementedError"
+  },
+  "real_discriminating_surface": {
+    "tests": 22,
+    "behaviours": 5,
+    "list": [
+      "test_api_unicode_converter —— 从 converter.regex 抠 minLength/maxLength",
+      "test_api_int_float_converter —— signed 为假时 minimum 夹到 ≥0",
+      "test_api_any_converter —— enum 反转义(re.sub(r'\\\\(.)', r'\\1', s))",
+      "test_apispec_correct_path_parameters_ordering —— rule._trace 保序,而 rule.arguments 是集合",
+      "test_blueprint_route_path_parameter_default —— 排除 rule.defaults 里的参数"
+    ]
+  },
+  "conclusion": "**判别力是 22 条 / 5 个行为,不是 554。** '消融红 310 条'量的是'什么都不做',而模型的真实分布是'写个能跑的朴素版'。任何引用这道题结论的地方都必须带上这句 —— 与 T3-SIDECAR 那条'oracle 只挡根本没做'同型。"
+}
