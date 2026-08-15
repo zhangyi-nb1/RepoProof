@@ -1482,7 +1482,11 @@ MUTATIONS: list[dict] = [
         "old": "            want = by_nonce.get(rn)",
         "new": "            want = [d for v in by_nonce.values() for d in v]",
         "catchers": _T_T3S,
-        "expected_catcher": ["test_s4_one_call_for_all_reds_on_both_coverage_and_adoption"],
+        # 首跑执法当场抓到的归因错位(2026-08-16):复审时凭语义声明了 s4,
+        # 而这条变异的活体红名单里只有矩阵新鲜度检查 —— s* 钉死大多读**已
+        # 落盘**的矩阵,对这条变异不上场。这也如实暴露了 M55a 的单薄:今天
+        # 站在这个缺陷与绿之间的只有 freshness 一道,值得日后补专用活体钉死。
+        "expected_catcher": ["test_matrix_is_fresh"],
     },
     {
         "id": "M55b-empty-delivery-counts-as-adoption",
