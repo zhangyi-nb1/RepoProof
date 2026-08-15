@@ -1,5 +1,5 @@
 {
-  "head_commit": "72b5abddfa1fdbca1fb957aa3eccfa660c58bc9e",
+  "head_commit": "c99895ced05062220e86362f6c98e78d8ec17e95",
   "mutations": 153,
   "guard_set": [
     "benchmarks/v2/sidecar_browser/worker.py",
@@ -59,13 +59,11 @@
     "tests/test_window_projection.py",
     "tests/test_workspace_containment.py"
   ],
-  "caught": 152,
-  "escaped": [
-    "M63d-answer-may-live-in-our-own-public-repo"
-  ],
+  "caught": 153,
+  "escaped": [],
   "stale": [],
-  "capture_rate": "152/153",
-  "wall_seconds": 399.3,
+  "capture_rate": "153/153",
+  "wall_seconds": 403.0,
   "results": [
     {
       "id": "M30a-smoke-not-excluded",
@@ -76,7 +74,7 @@
       "catchers": [
         "tests/test_bench_records.py"
       ],
-      "seconds": 0.7
+      "seconds": 0.2
     },
     {
       "id": "M30b-smoke-prefix-case-variant",
@@ -175,7 +173,7 @@
       "catchers": [
         "tests/test_host_guided.py"
       ],
-      "seconds": 0.4
+      "seconds": 0.5
     },
     {
       "id": "M31b-attribution-flipped",
@@ -208,7 +206,7 @@
       "catchers": [
         "tests/test_host_guided.py"
       ],
-      "seconds": 0.4
+      "seconds": 0.5
     },
     {
       "id": "M33a-denied-cumulative-restored",
@@ -329,7 +327,7 @@
       "catchers": [
         "tests/test_root_cause_packets.py"
       ],
-      "seconds": 0.2
+      "seconds": 0.3
     },
     {
       "id": "M36c-victim-list-truncated",
@@ -351,7 +349,7 @@
       "catchers": [
         "tests/test_root_cause_packets.py"
       ],
-      "seconds": 0.2
+      "seconds": 0.3
     },
     {
       "id": "M37a-compliance-term-removed",
@@ -406,7 +404,7 @@
       "catchers": [
         "tests/test_token_enforcement.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.2
     },
     {
       "id": "M39b-pre-call-projection-disabled",
@@ -593,7 +591,7 @@
       "catchers": [
         "tests/test_workspace_containment.py"
       ],
-      "seconds": 0.4
+      "seconds": 0.3
     },
     {
       "id": "M41i-out-of-workspace-not-fatal",
@@ -604,7 +602,7 @@
       "catchers": [
         "tests/test_workspace_containment.py"
       ],
-      "seconds": 0.4
+      "seconds": 0.3
     },
     {
       "id": "M41j-prompt-drops-the-workspace-boundary",
@@ -648,7 +646,7 @@
       "catchers": [
         "tests/test_workspace_containment.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.4
     },
     {
       "id": "M42a-control-tree-missing-the-mount",
@@ -945,7 +943,7 @@
       "catchers": [
         "tests/test_profile_promotion.py"
       ],
-      "seconds": 2.7
+      "seconds": 2.8
     },
     {
       "id": "M53h-guard-set-omits-the-catalog",
@@ -956,7 +954,7 @@
       "catchers": [
         "tests/test_profile_promotion.py"
       ],
-      "seconds": 2.6
+      "seconds": 2.7
     },
     {
       "id": "M53a-missing-evidence-passes",
@@ -978,7 +976,7 @@
       "catchers": [
         "tests/test_profile_promotion.py"
       ],
-      "seconds": 0.2
+      "seconds": 0.3
     },
     {
       "id": "M53c-level-skipping-allowed",
@@ -989,7 +987,7 @@
       "catchers": [
         "tests/test_profile_promotion.py"
       ],
-      "seconds": 0.2
+      "seconds": 0.3
     },
     {
       "id": "M53d-fake-runs-count-as-real",
@@ -1028,13 +1026,12 @@
       "id": "M63d-answer-may-live-in-our-own-public-repo",
       "lesson": "不扫**本仓 git 跟踪的文件** → 一次勘察留下的 naive_plugins.py (12 个函数全实现,__init__/init_spec 与原件 AST 逐字相同)就躺在证据目录里,而 remote 是**公开** GitHub 仓。扫描边界画错了:答案不在交付树里,在出题方自己的仓里(2026-08-15 搜捕实录)",
       "file": "scripts/prepare_host2.py",
-      "outcome": "ESCAPED",
-      "pytest_exit": 0,
+      "outcome": "CAUGHT",
+      "pytest_exit": 1,
       "catchers": [
         "tests/test_host2_prepare.py"
       ],
-      "seconds": 0.3,
-      "tail": ".......                                                                  [100%]\n"
+      "seconds": 0.5
     },
     {
       "id": "M63e-carve-leaves-its-own-fingerprint",
@@ -1056,7 +1053,7 @@
       "catchers": [
         "tests/test_host_guard.py"
       ],
-      "seconds": 0.4
+      "seconds": 0.5
     },
     {
       "id": "M63a-fingerprints-not-self-calibrated",
@@ -1122,7 +1119,7 @@
       "catchers": [
         "tests/test_differential_injection.py"
       ],
-      "seconds": 0.2
+      "seconds": 0.3
     },
     {
       "id": "M62d-matrix-does-not-require-the-two-modes-to-differ",
@@ -1309,7 +1306,7 @@
       "catchers": [
         "tests/test_profile_promotion.py"
       ],
-      "seconds": 0.3
+      "seconds": 0.2
     },
     {
       "id": "M57a-upstream-crash-blamed-on-the-agent",
@@ -1375,7 +1372,7 @@
       "catchers": [
         "tests/test_t3_sidecar_task.py"
       ],
-      "seconds": 63.1
+      "seconds": 62.9
     },
     {
       "id": "M57g-host-swallows-the-shape-error",
@@ -1386,7 +1383,7 @@
       "catchers": [
         "tests/test_t3_sidecar_task.py"
       ],
-      "seconds": 63.2
+      "seconds": 64.4
     },
     {
       "id": "M56a-agent-env-leaks-the-ledger",
@@ -1430,7 +1427,7 @@
       "catchers": [
         "tests/test_t3_sidecar_task.py"
       ],
-      "seconds": 63.4
+      "seconds": 62.9
     },
     {
       "id": "M55b-empty-delivery-counts-as-adoption",
@@ -1485,7 +1482,7 @@
       "catchers": [
         "tests/test_browser_conformance.py"
       ],
-      "seconds": 34.2
+      "seconds": 33.8
     },
     {
       "id": "M54b-keychain-prompt-returns",
@@ -1606,7 +1603,7 @@
       "catchers": [
         "tests/test_receipt_controls.py"
       ],
-      "seconds": 5.0
+      "seconds": 5.1
     },
     {
       "id": "M50c-discrimination-gate-removed",
@@ -1683,7 +1680,7 @@
       "catchers": [
         "tests/test_upstream_receipt.py"
       ],
-      "seconds": 0.2
+      "seconds": 0.3
     },
     {
       "id": "M49g-adoption-uses-containment-not-equality",
