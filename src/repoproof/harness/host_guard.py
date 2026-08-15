@@ -163,6 +163,10 @@ _BENCH_ALLOWED_NAMES = frozenset({
     "_sessions",                     # 会话区(每 run 一个子目录,跑完销毁)
     "offerclaw-t1-fastapi-mcp",      # T1 宿主副本
     "offerclaw-t2-odr",              # T2 宿主副本
+    # 第二宿主(C 轨,2026-08-15):flask-smorest 0.47.0 的封存件 + 轮仓 + 清单。
+    # 登记进来是**有意识的动作** —— 它 2026-08-15 那天当场拦下过一发,
+    # 那正是这条白名单该有的表现,不是它的毛病。
+    "host2-flask-smorest",
     "offerclaw-t3-browser-use",      # T3 宿主副本
 })
 _BENCH_ALLOWED_PREFIXES = ("wheelhouse-",)   # 冻结轮仓(commit 尾号命名)

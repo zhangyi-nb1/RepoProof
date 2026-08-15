@@ -299,6 +299,34 @@ _ROUND_HEADER = (
 
 
 # --------------------------------------------------------------- 冻结契约
+class HostHealthCheck(BaseModel):
+    """基线健康检查的一条。
+
+    `pass_if_stdout_contains` 是给"退出码非零但已知预期差异"留的口子 ——
+    OfferClaw 的 `verify_docs.py` 就是这种(chunks 交叉核对因合成语料重建
+    必然不一致,但"0 处未围栏裸露"不退化才是真判据,2026-08-09 由首次冒烟
+    BLOCKED 校准)。**只在契约里显式写出来才生效**,代码里不再有硬编码中文串。
+    """
+
+    command: list[str]
+    pass_if_stdout_contains: str = ""
+    gating: bool = True          # False = 只记录不作门禁(OfferClaw 的 doctor.py)
+
+
+# 第一宿主(OfferClaw)的形状。**缺省值就是它现在的行为,逐字节不变** ——
+# 泛化的意义是让第二宿主能声明自己的形状,不是趁机改第一宿主的判据。
+_OFFERCLAW_SETUP = [
+    ["python3", "-m", "venv", ".venv"],
+    [".venv/bin/pip", "install", "-q", "-r", "requirements.txt"],
+    [".venv/bin/python", "rag_ingest.py"],
+]
+_OFFERCLAW_HEALTH = [
+    {"command": ["python", "verify_pipeline.py"]},
+    {"command": ["python", "verify_docs.py"], "pass_if_stdout_contains": "0 处未围栏"},
+    {"command": ["python", "doctor.py"], "gating": False},
+]
+
+
 class HostInfo(BaseModel):
     repo: str
     commit: str
@@ -306,6 +334,21 @@ class HostInfo(BaseModel):
     baseline_manifest: str = "HOST_BASELINE_MANIFEST.json"
     regression_command: list[str]
     regression_baseline: str = ""
+    # ---- C 轨(2026-08-15):宿主形状从代码常量搬进契约 ----
+    #
+    # 勘察查出五处把 OfferClaw 布局当常量的地方,第二宿主不是"跑起来不准",
+    # 是**跑不起来**:没有 requirements.txt / rag_ingest.py 直接 HostRunError,
+    # 三个健康检查脚本不存在 → exec 127 → 每发零预算 BLOCKED,而且无旁路。
+    #
+    # 缺省 = OfferClaw 现状,所以 T1–T3 的行为**一个字节都不变**(K13 现场验)。
+    # 第二宿主在自己的契约里声明,不改一行 harness 代码。
+    setup_commands: list[list[str]] = Field(default_factory=lambda: list(_OFFERCLAW_SETUP))
+    health_checks: list[HostHealthCheck] = Field(
+        default_factory=lambda: [HostHealthCheck(**h) for h in _OFFERCLAW_HEALTH])
+    # oracle 拿宿主根用的环境变量名。OfferClaw 的 oracle 读 OFFERCLAW_HOST_ROOT;
+    # 别的宿主自然读别的名字。两个都注入(见 `_run_oracle`)——多注一个没有害处,
+    # 少注一个会让 oracle 在自己家里找不到路。
+    host_root_env: str = "OFFERCLAW_HOST_ROOT"
 
 
 class HostSourceRepo(BaseModel):
@@ -1203,15 +1246,37 @@ class HostGuidedRunner:
         return self._baseline_dists_cache
 
     def _build_env_in_session(self, s: _Session, *, timeout_s: int = 900) -> dict:
-        """per-run venv 重建(预注册教训:绝不复制)+ 合成语料建索引。"""
+        """per-run venv 重建(预注册教训:绝不复制)+ 宿主自己的建环境步骤。
+
+        步骤由契约 `host.setup_commands` 声明,缺省 = OfferClaw 现状(逐字节
+        不变)。**依赖归因那段仍然只对装依赖的那一步生效** —— 它区分的是
+        "轮仓不全(harness)"还是"适配自己加的钉版(agent)",换个宿主这条
+        区分照样成立,但只有 pip 那步的输出里才有可解析的分发名。
+        """
+        cmds = list(self.contract.host.setup_commands)
+        if not cmds:
+            raise HostRunError(
+                "契约没声明 host.setup_commands —— 建环境无从做起。不猜:"
+                "怎么装环境是每个宿主的偶然事实,写在 harness 代码里就是"
+                "把第一宿主的布局当常量(C 轨勘察实录)")
         t0 = time.monotonic()
-        r1 = s.backend.exec(s.id, ["python3", "-m", "venv", ".venv"],
-                            timeout_s=300, workdir="host")
-        if r1.exit_code != 0:
-            raise HostRunError(f"venv 创建失败:{r1.stderr.decode(errors='replace')[-300:]}")
-        r2 = s.backend.exec(
-            s.id, [".venv/bin/pip", "install", "-q", "-r", "requirements.txt"],
-            timeout_s=timeout_s, workdir="host")
+        pip_idx = next((i for i, c in enumerate(cmds)
+                        if any("pip" in part for part in c)), None)
+        # **只跑装依赖之前的那几步。** 第一版写成 `for i, cmd in enumerate(cmds):
+        # if i == pip_idx: continue`,于是 pip 之后的步骤被提前跑了 ——
+        # OfferClaw 的 `rag_ingest.py` 在装 chromadb 之前执行,当场
+        # ModuleNotFoundError。零模型端到端冒烟一把抓住,单测没有(它们不建环境)。
+        head = cmds[:pip_idx] if pip_idx is not None else cmds
+        for i, cmd in enumerate(head):
+            r = s.backend.exec(s.id, cmd, timeout_s=min(timeout_s, 600), workdir="host")
+            if r.exit_code != 0:
+                raise HostRunError(
+                    f"建环境第 {i + 1} 步失败({' '.join(cmd)}):"
+                    + (r.stdout + r.stderr).decode(errors="replace")[-300:])
+        if pip_idx is None:
+            venv_s = round(time.monotonic() - t0, 1)
+            return {"venv_s": venv_s, "ingest_s": 0.0}
+        r2 = s.backend.exec(s.id, cmds[pip_idx], timeout_s=timeout_s, workdir="host")
         if r2.exit_code != 0:
             full = (r2.stdout + r2.stderr).decode(errors="replace")
             tail = full[-500:]
@@ -1232,11 +1297,12 @@ class HostGuidedRunner:
             raise HostRunError("宿主依赖安装失败(wheelhouse 不全?):" + tail)
         venv_s = round(time.monotonic() - t0, 1)
         t1 = time.monotonic()
-        r3 = s.backend.exec(s.id, [".venv/bin/python", "rag_ingest.py"],
-                            timeout_s=600, workdir="host")
-        if r3.exit_code != 0:
-            raise HostRunError(
-                "合成语料建索引失败:" + (r3.stdout + r3.stderr).decode(errors="replace")[-500:])
+        for i, cmd in enumerate(cmds[pip_idx + 1:], start=pip_idx + 2):
+            r = s.backend.exec(s.id, cmd, timeout_s=600, workdir="host")
+            if r.exit_code != 0:
+                raise HostRunError(
+                    f"建环境第 {i} 步失败({' '.join(cmd)}):"
+                    + (r.stdout + r.stderr).decode(errors="replace")[-500:])
         return {"venv_s": venv_s, "ingest_s": round(time.monotonic() - t1, 1)}
 
     # ------------------------------------------------------------ 基线与测量
@@ -1255,8 +1321,12 @@ class HostGuidedRunner:
 
     def _run_regression(self, s: _Session, *, timeout_s: int = 900) -> dict:
         cmd = self.contract.host.regression_command
-        argv = ([s.venv_py, *cmd[1:]] if cmd and cmd[0] == "python"
-                else [s.venv_py, "-m", "pytest", "tests/", "-q", "-p", "no:cacheprovider"])
+        if not cmd:
+            raise HostRunError("契约没声明 host.regression_command —— 回归跑什么不猜")
+        # 原来是 `if cmd[0] == "python" else 退回 pytest tests/`:**静默**退回,
+        # 于是契约写了别的命令也照跑 OfferClaw 那条,而报告里看不出差别。
+        # 现在只在开头是 "python" 时替换成会话 venv 的解释器,其余原样执行。
+        argv = [s.venv_py, *cmd[1:]] if cmd[0] == "python" else list(cmd)
         xml_name = "rp_reg.xml"
         (s.root / xml_name).unlink(missing_ok=True)
         argv = [*argv, "--junitxml", f"../{xml_name}"]
@@ -1270,6 +1340,19 @@ class HostGuidedRunner:
         return {"RP_METER_DIR": str(self.store.run_dir / "nested_meter"),
                 "RP_METER_TAG": tag}
 
+    def _public_argv(self) -> list[str]:
+        """公开面命令 —— **读契约**。
+
+        2026-08-15 之前这里写死 `pytest public_tests/`,而契约的
+        `acceptance.public_test_command` 一直躺在那儿没人读:**契约说的和实际
+        跑的不是一回事**。现有五个契约声明的与写死的逐字相同(K14 现场比对),
+        所以这次改动对 T1–T3 是零行为变化 —— 但第二宿主的公开面在别处。
+        """
+        cmd = list(self.contract.acceptance.public_test_command)
+        if not cmd:
+            raise HostRunError("契约没声明 acceptance.public_test_command —— 公开面在哪不猜")
+        return cmd[1:] if cmd[:1] == ["python"] else cmd
+
     def _run_public(self, s: _Session, *, timeout_s: int = 600,
                     meter_tag: str = "public") -> dict:
         xml_path = s.root / "rp_public.xml"
@@ -1277,7 +1360,7 @@ class HostGuidedRunner:
             xml_path.unlink()
         res = s.backend.exec(
             s.id,
-            [s.venv_py, "-m", "pytest", "public_tests/", "-q", "-p", "no:cacheprovider",
+            [s.venv_py, *self._public_argv(),
              "--junitxml", "../rp_public.xml"],
             timeout_s=timeout_s, workdir="host", env=self._meter_env(meter_tag))
         junit = parse_junit_xml(xml_path.read_bytes() if xml_path.exists() else None)
@@ -1296,7 +1379,12 @@ class HostGuidedRunner:
              "--junitxml", f"../{xml_name}"],
             timeout_s=timeout_s, workdir="host",
             env={"PYTHONPATH": str(s.root / "host"),
+                 # 宿主根。OfferClaw 的 oracle 读 OFFERCLAW_HOST_ROOT,别的宿主
+                 # 读别的名字 —— 两个都注,多注一个无害,少注一个会让 oracle
+                 # 在自己家里找不到路。
                  "OFFERCLAW_HOST_ROOT": str(s.root / "host"),
+                 self.contract.host.host_root_env: str(s.root / "host"),
+                 "REPOPROOF_HOST_ROOT": str(s.root / "host"),
                  # A1:oracle 是用**显式 env** 跑的,会话级环境到不了它 ——
                  # 实测踩过:oracle 里 os.environ["REPOPROOF_FIXTURE_URL"]
                  # 直接 KeyError,三条隐藏用例全红,而真因与被测方无关。
@@ -1318,26 +1406,25 @@ class HostGuidedRunner:
             "failed": reg["failed_checks"], "expected_passed": expected,
         }
         ok = reg["exit_code"] == 0 and reg["passed_checks"] >= expected
-        r = s.backend.exec(s.id, [s.venv_py, "verify_pipeline.py"],
-                           timeout_s=300, workdir="host")
-        report["verify_pipeline.py"] = {"exit_code": r.exit_code,
-                                        "tail": r.stdout.decode(errors="replace")[-200:]}
-        ok = ok and r.exit_code == 0
-        # verify_docs 的基线判据 = "0 处未围栏裸露" 不退化(Manifest
-        # known_deviations:chunks 交叉核对 112 vs 3538 因合成语料重建,
-        # 其非零退出码是已知预期差异,不作门禁)——实测本判据由首次冒烟
-        # BLOCKED 校准(2026-08-09)。
-        rd = s.backend.exec(s.id, [s.venv_py, "verify_docs.py"],
-                            timeout_s=300, workdir="host")
-        rd_out = rd.stdout.decode(errors="replace")
-        docs_ok = rd.exit_code == 0 or "0 处未围栏" in rd_out
-        report["verify_docs.py"] = {"exit_code": rd.exit_code, "bare_ok": docs_ok,
-                                    "tail": rd_out[-200:]}
-        ok = ok and docs_ok
-        rdoc = s.backend.exec(s.id, [s.venv_py, "doctor.py"], timeout_s=300, workdir="host")
-        report["doctor"] = {"exit_code": rdoc.exit_code,
-                            "tail": rdoc.stdout.decode(errors="replace")[-300:],
-                            "note": "已知预期差异(chunks 口径/合成密钥 WARN),不作门禁"}
+        # 健康检查由契约 `host.health_checks` 声明。缺省 = OfferClaw 的三条
+        # (verify_pipeline 严判 / verify_docs 认 "0 处未围栏" / doctor 不作门禁),
+        # 行为逐字节不变。写死在代码里的问题不是"不通用",是**第二宿主每发
+        # 都会零预算 BLOCKED 且无旁路** —— 脚本不存在 → exec 127。
+        for hc in self.contract.host.health_checks:
+            argv = [s.venv_py, *hc.command[1:]] if hc.command[:1] == ["python"] else hc.command
+            r = s.backend.exec(s.id, argv, timeout_s=300, workdir="host")
+            out = r.stdout.decode(errors="replace")
+            # `pass_if_stdout_contains` 是给"退出码非零但已知预期差异"留的口子,
+            # **只在契约里显式写出来才生效**(OfferClaw 的 verify_docs 是这种:
+            # chunks 交叉核对因合成语料重建必然不一致,而真判据是"0 处未围栏
+            # 裸露"不退化 —— 2026-08-09 由首次冒烟 BLOCKED 校准)。
+            passed = r.exit_code == 0 or (
+                bool(hc.pass_if_stdout_contains) and hc.pass_if_stdout_contains in out)
+            name = " ".join(hc.command[-1:]) or " ".join(hc.command)
+            report[name] = {"exit_code": r.exit_code, "passed": passed,
+                            "gating": hc.gating, "tail": out[-300:]}
+            if hc.gating:
+                ok = ok and passed
         return ok, report
 
     # ------------------------------------------------------------ diff 计量

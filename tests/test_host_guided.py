@@ -696,3 +696,144 @@ def test_postflight_record_unknown_when_no_data() -> None:
     from repoproof.persistence.bench_records import normalise_record
     rec = normalise_record({"run_id": "x", "runtime_browser_agent": "UNKNOWN"})
     assert rec["runtime_browser_agent"] == "UNKNOWN", "额外字段必须如实入行"
+
+
+_REPO = Path(__file__).resolve().parents[1]
+
+
+# ==================================================== C 轨:宿主耦合拆开(2026-08-15)
+# 勘察查出五处把第一宿主(OfferClaw)的布局当常量。第二宿主不是"跑起来不准",
+# 是**跑不起来**:没有 requirements.txt / rag_ingest.py 直接 HostRunError,
+# 三个健康检查脚本不存在 → exec 127 → 每发零预算 BLOCKED 且无旁路。
+#
+# 泛化的意义是让第二宿主能声明自己的形状,**不是趁机改第一宿主的判据**——
+# 所以头一条钉死就是"现有契约的行为一个字节都不许变"。
+
+def _contract(name: str):
+    import sys
+
+    sys.path.insert(0, str(_REPO / "src"))
+    from repoproof.runner.host_guided import HostContract
+
+    return HostContract.load(
+        _REPO / "benchmarks" / "v2" / "tasks" / name / "contract.yaml")[0]
+
+
+def test_k13_the_first_hosts_shape_is_unchanged_by_the_generalisation():
+    """K13:泛化之后,**现有契约解析出的宿主形状与写死时逐字节相同**。
+
+    这是整次改动唯一真正危险的地方:把常量搬进契约,顺手改了默认值,于是
+    T1–T3 的基线判据悄悄变了,而所有数字看起来照常。
+    """
+    from repoproof.runner.host_guided import _OFFERCLAW_HEALTH, _OFFERCLAW_SETUP
+
+    for name in ("t1_fastapi_mcp", "t3_sidecar_v1", "t2_open_deep_research_v5"):
+        h = _contract(name).host
+        assert h.setup_commands == _OFFERCLAW_SETUP, f"{name} 的建环境步骤变了"
+        assert [c.command for c in h.health_checks] == [
+            x["command"] for x in _OFFERCLAW_HEALTH], f"{name} 的健康检查变了"
+        assert h.host_root_env == "OFFERCLAW_HOST_ROOT"
+
+    # 那三条的**判据**也不许变:verify_pipeline 严判、verify_docs 认那句串、
+    # doctor 不作门禁。它们各自是踩出来的,不是设计出来的。
+    by = {c.command[-1]: c for c in _contract("t1_fastapi_mcp").host.health_checks}
+    assert by["verify_pipeline.py"].gating and not by["verify_pipeline.py"].pass_if_stdout_contains
+    assert by["verify_docs.py"].pass_if_stdout_contains == "0 处未围栏"
+    assert by["doctor.py"].gating is False, "doctor 变成门禁了 —— 它有已知预期差异"
+
+
+def test_k14_public_command_comes_from_the_contract_not_a_constant():
+    """K14:公开面命令**读契约**,且现有契约与原写死值逐字相同。
+
+    改之前 `_run_public` 写死 `pytest public_tests/`,而
+    `acceptance.public_test_command` 一直躺在契约里没人读 ——
+    **契约说的和实际跑的不是一回事**,这本身就是判据不可信的一种。
+    """
+    import sys
+
+    sys.path.insert(0, str(_REPO / "src"))
+    from repoproof.runner.host_guided import HostGuidedRunner, HostRunError
+
+    hardcoded = ["-m", "pytest", "public_tests/", "-q", "-p", "no:cacheprovider"]
+    for name in ("t1_fastapi_mcp", "t3_sidecar_v1", "t2_open_deep_research_v5"):
+        r = HostGuidedRunner.__new__(HostGuidedRunner)
+        r.contract = _contract(name)
+        assert r._public_argv() == hardcoded, f"{name} 的公开面与原写死值不同了"
+
+    # 声明成别的,就必须跑别的 —— 否则等于没读
+    r = HostGuidedRunner.__new__(HostGuidedRunner)
+    r.contract = _contract("t1_fastapi_mcp").model_copy(deep=True)
+    r.contract.acceptance.public_test_command = ["python", "-m", "pytest", "t/", "-q"]
+    assert r._public_argv() == ["-m", "pytest", "t/", "-q"]
+    r.contract.acceptance.public_test_command = []
+    with pytest.raises(HostRunError, match="不猜"):
+        r._public_argv()
+
+
+def test_k15_regression_no_longer_silently_falls_back():
+    """K15:回归命令不再**静默**退回 `pytest tests/`。
+
+    老写法是 `if cmd[0] == "python" else 退回`。于是契约声明了别的命令
+    (第二宿主必然如此 —— 它没有 `tests/` 这个目录名的保证)也照跑
+    OfferClaw 那条,**而报告里看不出任何差别**。静默退回比报错难查得多。
+    """
+    src = _runner_src()
+    assert '[s.venv_py, "-m", "pytest", "tests/", "-q", "-p", "no:cacheprovider"]' not in src, (
+        "静默退回的那条还在")
+    assert 'raise HostRunError("契约没声明 host.regression_command' in src
+
+
+def test_k16_a_second_hosts_shape_is_actually_honoured():
+    """K16(**正控**):第二宿主声明自己的形状,harness 必须照做。
+
+    上面三条都是"别把第一宿主改坏"的负控。可满足性只能靠正控验
+    (LESSONS #44)—— 不验的话,泛化可能只是"多了几个没人读的字段"。
+    """
+    import sys
+
+    sys.path.insert(0, str(_REPO / "src"))
+    from repoproof.runner.host_guided import HostGuidedRunner, HostInfo
+
+    h = HostInfo(repo="marshmallow-code/flask-smorest", commit="3451351",
+                 copy_path="~/RepoProofBench/host2-flask-smorest/repo",
+                 regression_command=["python", "-m", "pytest", "-q"],
+                 setup_commands=[["python3", "-m", "venv", ".venv"],
+                                 [".venv/bin/pip", "install", "--no-index", "-e", "."]],
+                 health_checks=[{"command": ["python", "-c", "import flask_smorest"]}],
+                 host_root_env="FLASK_SMOREST_HOST_ROOT")
+    assert h.setup_commands[1][1] == "install" and "rag_ingest.py" not in str(h.setup_commands)
+    assert [c.command[-1] for c in h.health_checks] == ["import flask_smorest"]
+    assert h.host_root_env == "FLASK_SMOREST_HOST_ROOT"
+
+    # oracle 环境里三个名字都要在(多注无害,少注会让 oracle 找不到自己的根)
+    src = _runner_src()
+    assert "self.contract.host.host_root_env: str(s.root" in src
+    assert '"REPOPROOF_HOST_ROOT": str(s.root' in src
+    assert '"OFFERCLAW_HOST_ROOT": str(s.root' in src, "第一宿主的名字被删了 —— 它的 oracle 会瞎"
+
+    # 建环境:没有 pip 那步也要能跑完(第二宿主可能用 uv / 预建 venv)
+    r = HostGuidedRunner.__new__(HostGuidedRunner)
+    assert callable(r._build_env_in_session)
+
+
+def test_k17_setup_steps_run_in_the_declared_order():
+    """K17:建环境的步骤必须**按声明顺序**跑,装依赖那步不许被跳到后面。
+
+    实录(2026-08-15,泛化当天):第一版写成
+    `for i, cmd in enumerate(cmds): if i == pip_idx: continue`,
+    于是 pip **之后**的步骤被提前执行 —— OfferClaw 的 `rag_ingest.py` 在
+    chromadb 装上之前跑,当场 ModuleNotFoundError → 零预算 BLOCKED。
+
+    单测抓不到它(它们不建环境),是零模型端到端冒烟一把抓住的。这条把
+    顺序钉在源码上,免得下次重构又把它拆散。
+    """
+    src = _runner_src()
+    assert "head = cmds[:pip_idx] if pip_idx is not None else cmds" in src, (
+        "装依赖之前那几步的切片没了 —— 顺序可能又被打乱")
+    assert "for i, cmd in enumerate(cmds[pip_idx + 1:], start=pip_idx + 2):" in src, (
+        "装依赖之后那几步没跑")
+    # 顺序断言:head 循环必须出现在 pip 执行之前,tail 循环必须在它之后
+    i_head = src.index("head = cmds[:pip_idx]")
+    i_pip = src.index("r2 = s.backend.exec(s.id, cmds[pip_idx]")
+    i_tail = src.index("for i, cmd in enumerate(cmds[pip_idx + 1:]")
+    assert i_head < i_pip < i_tail, "三段的先后顺序被打乱了"

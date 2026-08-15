@@ -160,17 +160,22 @@ MUTATIONS: list[dict] = [
         "id": "M29b-upstream-whitelisted",
         "lesson": "#29 变体:给无害兄弟目录 upstream 开口子(该迁走的是整套栈)",
         "file": _HG,
-        "old": '    "offerclaw-t3-browser-use",      # T3 宿主副本\n})',
-        "new": '    "offerclaw-t3-browser-use",      # T3 宿主副本\n    "upstream",\n})',
+        # 锚在**判定行**而不是名单末行(2026-08-15 重锚):名单会随宿主增长,
+        # 锚在末行的话每加一个宿主就 STALE 两条,而 STALE 让 G5.mutation 判不过、
+        # 整条晋级链连坐全红。判定行不随名单动。
+        "old": '        if name == ".DS_Store" or name in _BENCH_ALLOWED_NAMES:',
+        "new": ('        if name == ".DS_Store" or name in ('
+                '_BENCH_ALLOWED_NAMES | {"upstream"}):'),
         "catchers": _T_HG,
     },
     {
         "id": "M29c-answer-key-registered",
         "lesson": "#29 变体:把答案卷目录本身登记进白名单",
         "file": _HG,
-        "old": '    "offerclaw-t3-browser-use",      # T3 宿主副本\n})',
-        "new": ('    "offerclaw-t3-browser-use",      # T3 宿主副本\n'
-                '    "offerclaw-transaction-stack",\n})'),
+        "old": '        if name.startswith(_BENCH_ALLOWED_PREFIXES) or (extra and name.startswith(extra)):',
+        "new": ('        if name.startswith(_BENCH_ALLOWED_PREFIXES) or '
+                'name == "offerclaw-transaction-stack" or '
+                '(extra and name.startswith(extra)):'),
         "catchers": _T_HG,
     },
     # ---- 主目录硬护栏(红线,无单独 lesson 号) ----
