@@ -851,6 +851,26 @@ MUTATIONS: list[dict] = [
         "new": "    ok = escaped == 0 and stale == 0",
         "catchers": _T_PP,
     },
+    {
+        "id": "M58b-pq-runs-inflate-the-stage-gate",
+        "lesson": "PQ 发次进阶段闸门 → profile 资格审自己把 T3 的 passes 从 3 抬到 7,"
+                  "而 `_denominators` 里白纸黑字写着它'不充闸门'。散文说不算、代码"
+                  "算了(2026-08-15 首批 PQ 当场撞出来)",
+        "file": _BR,
+        "old": '    gateable = [r for r in prereg if r["run_purpose"] not in NON_GATEABLE_PURPOSES]',
+        "new": '    gateable = [r for r in prereg if r["run_purpose"] not in MECHANISM_PURPOSES]',
+        "catchers": _T_RCL,
+    },
+    {
+        "id": "M58a-g6-reads-a-field-nobody-writes",
+        "lesson": "G6 读 `runtime_profile`,而台账写的是 `runtime_profile_id` —— "
+                  "少个后缀,任何 profile 的 G6 恒为 0。一条**永不可满足**的判据,"
+                  "而它长得跟'确实还没人跑过'一模一样(2026-08-15 首批发次撞出来)",
+        "file": _PP,
+        "old": '            if p.id in (r.get("runtime_profile_id"), r.get("runtime_profile"))',
+        "new": '            if p.id == r.get("runtime_profile")',
+        "catchers": _T_PP,
+    },
     # ---- M57:2026-08-15 可搬运性审查的 should-fix(S1–S4)。守的全是**归因**:
     # 每一条被砍掉,系统都还能跑、矩阵也还是绿的,只是**这笔账记错了人**。
     {

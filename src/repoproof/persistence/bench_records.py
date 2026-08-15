@@ -210,6 +210,20 @@ MECHANISM_PURPOSES = frozenset({
     "HARNESS_SELFCHECK",       # F0 自检
 })
 
+# 同样不充闸门,但**不是机制消融** —— 分开一个集合是为了别把它们计进
+# `mechanism_ablation_runs`,那个数字有自己的含义。
+#
+# 2026-08-15 首批 PQ 发次当场撞出来的:`_denominators` 里白纸黑字写着
+# "PQ:runtime profile 资格审 —— **不充闸门、不计模型能力**",而扣除逻辑
+# 只认 MECHANISM_PURPOSES,于是四发 PQ 直接把 T3 的 passes 从 3 抬到 7。
+# **散文说不算,代码算了** —— 这正是 process-independence 要防的那种缝。
+QUALIFICATION_PURPOSES = frozenset({
+    "RUNTIME_PROFILE_QUALIFICATION",   # PQ:profile 资格审(G6/G7)
+})
+
+# 阶段闸门的扣除面 = 机制类 ∪ 资格审类。
+NON_GATEABLE_PURPOSES = MECHANISM_PURPOSES | QUALIFICATION_PURPOSES
+
 
 def load_classifications(project_root: str | Path) -> dict[str, dict]:
     """→ {run_id: 分类记录}。文件缺失即空 —— 未分类的历史发次按常规处理。"""
@@ -305,9 +319,11 @@ def count_passes(project_root: str | Path, task_prefix: str | None = None) -> di
             if not str(r.get("model", "")).startswith(SMOKE_MODEL_PREFIX)]
     exploratory = [r for r in real if r.get("batch") == EXPLORATORY_BATCH]
     prereg = [r for r in real if r.get("batch") != EXPLORATORY_BATCH]
-    # 第四道扣除(2026-08-14,判据 K3):机制消融/判据完整性发次不充闸门
+    # 第四道扣除(2026-08-14,判据 K3):机制消融/判据完整性发次不充闸门。
+    # 2026-08-15 补上 PQ:它答的是"这个 runtime profile 够不够格",不是
+    # "这个任务可判且可过" —— 混进去会让 profile 资格审自己抬高阶段闸门。
     mechanism = [r for r in prereg if r["run_purpose"] in MECHANISM_PURPOSES]
-    gateable = [r for r in prereg if r["run_purpose"] not in MECHANISM_PURPOSES]
+    gateable = [r for r in prereg if r["run_purpose"] not in NON_GATEABLE_PURPOSES]
     passes = [r for r in gateable if r["effective_verdict"] in PASS_VERDICTS]
     invalidated = [
         r for r in rows

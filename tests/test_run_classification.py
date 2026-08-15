@@ -36,7 +36,7 @@ import json
 from pathlib import Path
 
 from repoproof.persistence.bench_records import (
-    MECHANISM_PURPOSES,
+    NON_GATEABLE_PURPOSES,
     classify_runs,
     count_passes,
     load_classifications,
@@ -71,6 +71,11 @@ def _cls(rid: str, **kw) -> dict:
     return base
 
 
+_PQ = {"test_mode": "PQ", "run_purpose": "RUNTIME_PROFILE_QUALIFICATION",
+       "task_seen": False, "counts_toward_mechanism_effect": False,
+       "counts_toward_profile_qualification": True}
+
+
 def test_original_verdicts_are_never_rewritten(tmp_path):
     """K1:分类是旁挂第二事实,原始 verdict 原样保留。"""
     root = _write(tmp_path, [_run("a"), _run("b", "FAIL")],
@@ -93,6 +98,50 @@ def test_mechanism_ablation_does_not_count_toward_the_stage_gate(tmp_path):
     assert got["passes"] == 1, f"机制消融被计进闸门了,passes={got['passes']}"
     assert got["mechanism_ablation_runs"] == 2
     assert got["development_baseline_runs"] == 1
+
+
+def test_k7_profile_qualification_does_not_count_toward_the_stage_gate(tmp_path):
+    """K7(2026-08-15 首批 PQ 发次当场撞出来的):**PQ 不充闸门。**
+
+    `_denominators` 里白纸黑字写着"PQ:runtime profile 资格审 —— 不充闸门、
+    不计模型能力",而扣除逻辑只认 `MECHANISM_PURPOSES`,于是四发 PQ 把 T3 的
+    passes 从 3 抬到 7。**散文说不算,代码算了。** 更难看的是这个方向:
+    profile 资格审自己抬高了阶段闸门,而资格审存在的理由恰恰是"这个 profile
+    还没资格被当数"。
+
+    同时钉住**不许改记成机制消融** —— `mechanism_ablation_runs` 有自己的含义
+    (E1/AR),把 PQ 塞进那格是拿一个错标掩盖另一个。
+    """
+    root = _write(tmp_path,
+                  [_run("cap"), _run("pq1"), _run("pq2")],
+                  [_cls("pq1", **_PQ), _cls("pq2", **_PQ)])
+
+    got = count_passes(root)
+
+    assert got["passes"] == 1, (
+        f"PQ 发次被计进阶段闸门了,passes={got['passes']} —— "
+        "profile 资格审自己把闸门抬高了")
+    assert got["profile_qualification_runs"] == 2
+    assert got["mechanism_ablation_runs"] == 0, "PQ 被错记成机制消融"
+    assert got["development_baseline_runs"] == 1
+    # 如实计数不挑选:总数仍是 3,扣除只作用在 passes 上
+    assert got["total"] == 3 and got["all_valid_run_outcomes"] == 3
+
+
+def test_k7b_the_real_ledger_keeps_pq_out_of_t3(tmp_path):
+    """K7 在**真台账**上的现场:2026-08-15 那四发 PQ 一个都不许进 T3 passes。
+
+    上一条用合成数据证明扣除逻辑对;这条证明它**真的作用到了那四发**上 ——
+    分类漏登记的话,逻辑再对也没用(实测就是漏了,所以先红后绿)。
+    """
+    got = count_passes(REPO, task_prefix="t3-")
+    pq = {"t3-sidecar-page-facts-v1-20260815-135626",
+          "t3-sidecar-page-facts-v1-20260815-140454",
+          "t3-sidecar-page-facts-v1-20260815-141403",
+          "t3-sidecar-page-facts-v1-20260815-142222"}
+    assert not (pq & set(got["pass_run_ids"])), (
+        f"PQ 发次进了 T3 的闸门通过名单:{sorted(pq & set(got['pass_run_ids']))}")
+    assert got["profile_qualification_runs"] >= 4
 
 
 def test_breakdown_has_all_required_buckets(tmp_path):
@@ -167,8 +216,9 @@ def test_classification_sidecar_loads_from_the_real_repo():
     orphans = [rid for rid in cls if rid not in known]
 
     assert not orphans, f"分类记录指向不存在的发次:{orphans}"
-    assert all(c["run_purpose"] in MECHANISM_PURPOSES | {"CAPABILITY_EVALUATION"}
-               for c in cls.values()), "出现未登记的 run_purpose"
+    allowed = NON_GATEABLE_PURPOSES | {"CAPABILITY_EVALUATION"}
+    bad = sorted({c["run_purpose"] for c in cls.values()} - allowed)
+    assert not bad, f"出现未登记的 run_purpose:{bad}(登记在 bench_records.py)"
 
 
 def test_no_unknown_keys_in_the_classification_sidecar():

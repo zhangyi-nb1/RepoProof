@@ -12,7 +12,7 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 27,
+    "all_valid_run_outcomes": 31,
     "assisted_repair_runs": 14,
     "development_baseline_runs": 60,
     "exploratory": 7,
@@ -50,7 +50,7 @@
     ],
     "passes": 10,
     "post_hoc_classified_runs": 5,
-    "profile_qualification_runs": 0,
+    "profile_qualification_runs": 4,
     "provisional_evidence": [
       {
         "caveat": "T3v6 的正控冒烟(2026-08-14)查出:钉版离线环境里真 browser_use.Agent 不可导入(导入闭包缺 bubus/cdp_use/uuid_extensions/pyotp,wheelhouse 缺 21/36 依赖,hatchling 缺席故源码构建亦不可行)。本发是 v5、h7 是更弱版本、走 sidecar 子进程路线(h7 自述'子进程执行观察不到'是已知边界),因此**不追溯改判** —— 改判等于编造当时不存在的事实。但'上游是否真被采用'这件事在本环境里缺可靠判定手段,故本发不再作为'T3 任务可过'的强证据引用。解锁前提:A0 上游执行回执落地后重新取证。",
@@ -104,7 +104,7 @@
       "t3-sidecar-page-facts-v1-20260815-123758",
       "t3-sidecar-page-facts-v1-20260815-134813"
     ],
-    "total": 109,
+    "total": 113,
     "treatment_delivered_runs": 3,
     "treatment_not_delivered_runs": 3
   },
@@ -116,7 +116,7 @@
   },
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "feb5507256c7fbc060795fdd4e523b823a14b262147fc0a52d0e33267ce55445"
+    "runs_jsonl_sha256": "d9563f4dd3f462e32a3befa6584b5a840e89323d54a5f60e99b6944bbd6e37ef"
   },
   "stages": {
     "T1": {
@@ -205,7 +205,7 @@
       "treatment_not_delivered_runs": 3
     },
     "T3": {
-      "all_valid_run_outcomes": 7,
+      "all_valid_run_outcomes": 11,
       "assisted_repair_runs": 2,
       "development_baseline_runs": 23,
       "exploratory": 5,
@@ -232,7 +232,7 @@
       ],
       "passes": 3,
       "post_hoc_classified_runs": 5,
-      "profile_qualification_runs": 0,
+      "profile_qualification_runs": 4,
       "provisional_evidence": [
         {
           "caveat": "T3v6 的正控冒烟(2026-08-14)查出:钉版离线环境里真 browser_use.Agent 不可导入(导入闭包缺 bubus/cdp_use/uuid_extensions/pyotp,wheelhouse 缺 21/36 依赖,hatchling 缺席故源码构建亦不可行)。本发是 v5、h7 是更弱版本、走 sidecar 子进程路线(h7 自述'子进程执行观察不到'是已知边界),因此**不追溯改判** —— 改判等于编造当时不存在的事实。但'上游是否真被采用'这件事在本环境里缺可靠判定手段,故本发不再作为'T3 任务可过'的强证据引用。解锁前提:A0 上游执行回执落地后重新取证。",
@@ -268,7 +268,7 @@
         "t3-sidecar-page-facts-v1-20260815-123758",
         "t3-sidecar-page-facts-v1-20260815-134813"
       ],
-      "total": 40,
+      "total": 44,
       "treatment_delivered_runs": 0,
       "treatment_not_delivered_runs": 0
     },

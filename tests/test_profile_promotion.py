@@ -44,15 +44,18 @@ def _register_browser_profile():
     import importlib.util
 
     f = REPO / "benchmarks" / "v2" / "sidecar_browser" / "profile.py"
-    if "suite_browser_profile" in sys.modules or not f.is_file():
-        return
+    if not f.is_file():
+        return None
+    if "suite_browser_profile" in sys.modules:
+        return sys.modules["suite_browser_profile"]
     spec = importlib.util.spec_from_file_location("suite_browser_profile", f)
     mod = importlib.util.module_from_spec(spec)
     sys.modules["suite_browser_profile"] = mod
     spec.loader.exec_module(mod)
+    return mod
 
 
-_register_browser_profile()
+BROWSER = _register_browser_profile()
 
 from repoproof.execution.profile_promotion import (  # noqa: E402
     LIFECYCLE_ORDER,
@@ -106,6 +109,46 @@ def test_p4_qualified_needs_real_model_runs():
     assert {"G6.model_profiles", "G6b.honest_pass"} <= red, red
     assert MIN_MODEL_PROFILES >= 2 and MIN_HONEST_PASSES >= 1, (
         "门槛被调低了 —— 这两个数是预先写死的,改它需要新的理由与留痕")
+
+
+def test_p4c_g6_is_satisfiable_by_the_field_the_harness_actually_writes(tmp_path):
+    """P4c(**正控**):G6 必须**真的过得去**,而且靠台账里真有的那个字段。
+
+    2026-08-15 首批发次当场撞出来的:判据读的是 `runtime_profile`,而
+    `bench_records.py` 的白名单里写的是 `runtime_profile_id` —— 少个后缀,
+    于是**任何** profile 的 G6 恒为 0,一条永不可满足的判据,而它长得跟
+    "确实还没人跑过"一模一样。
+
+    上面 P4/P4b 全是负控:它们只证明 G6 挡得住假的,证明不了它放得过真的。
+    LESSONS #44:**判别力靠负控验,可满足性只能靠正控验。**
+    """
+    from repoproof.execution.profile_promotion import _check_real_runs
+    from repoproof.execution.runtime_profiles import profile
+
+    led = tmp_path / "benchmarks" / "v2" / "runs.jsonl"
+    led.parent.mkdir(parents=True)
+    pid = BROWSER.PROFILE_ID
+
+    def _reds(rows):
+        led.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+        return {c.id for c in _check_real_runs(tmp_path, profile(pid)) if not c.ok}
+
+    # ① 台账写什么、判据就得认什么 —— 用 harness 真写的那个字段名
+    two_models = [
+        {"run_id": f"r{i}", "runtime_profile_id": pid, "model": m,
+         "verdict": "PASS_ADAPTED"}
+        for i, m in enumerate(("gpt-5.5", "gpt-5.6"))]
+    assert _reds(two_models) == set(), "G6 用真台账字段过不去 —— 这是一条墙"
+
+    # ② 判别力仍在:一个模型不够、fake 不算、非 PASS 不算
+    assert "G6.model_profiles" in _reds(two_models[:1])
+    assert {"G6.model_profiles", "G6b.honest_pass"} <= _reds(
+        [{**r, "model": "fake-scripted"} for r in two_models])
+    assert "G6b.honest_pass" in _reds(
+        [{**r, "verdict": "FAIL"} for r in two_models])
+    # ③ 别的 profile 的发次不算数
+    assert "G6.model_profiles" in _reds(
+        [{**r, "runtime_profile_id": "rt-inprocess-v1"} for r in two_models])
 
 
 def test_p4b_fake_scripted_runs_never_count_as_real():

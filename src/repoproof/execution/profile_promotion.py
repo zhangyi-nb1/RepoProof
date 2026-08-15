@@ -307,7 +307,14 @@ def _check_real_runs(repo: Path, p: RuntimeProfile) -> list[Check]:
                     rows.append(json.loads(line))
                 except Exception:                            # noqa: BLE001
                     pass
-    mine = [r for r in rows if r.get("runtime_profile") == p.id
+    # 台账里的字段叫 `runtime_profile_id`(bench_records.py 的白名单)。
+    # 2026-08-15 首批发次时发现这里读的是 `runtime_profile` —— 少个 `_id`,
+    # 于是**任何** profile 的 G6 都恒为 0:一条**永不可满足**的判据,而它长得
+    # 跟"确实还没人跑过"一模一样。这正是 LESSONS #44 说的那种墙:判别力靠
+    # 负控验,**可满足性只能靠正控验** —— G1–G5 全是负控,没人验过它能过。
+    # 两个名字都认:老行(11 发)写的是 `runtime_profile_id`,别再漏掉。
+    mine = [r for r in rows
+            if p.id in (r.get("runtime_profile_id"), r.get("runtime_profile"))
             and not str(r.get("model", "")).startswith("fake")]
 
     models = {r.get("model") for r in mine if r.get("model")}
