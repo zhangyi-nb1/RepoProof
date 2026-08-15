@@ -851,6 +851,73 @@ MUTATIONS: list[dict] = [
         "new": "    ok = escaped == 0 and stale == 0",
         "catchers": _T_PP,
     },
+    # ---- M57:2026-08-15 可搬运性审查的 should-fix(S1–S4)。守的全是**归因**:
+    # 每一条被砍掉,系统都还能跑、矩阵也还是绿的,只是**这笔账记错了人**。
+    {
+        "id": "M57a-upstream-crash-blamed-on-the-agent",
+        "lesson": "不先问上游有没有崩 → 我们的浏览器崩了,报出来是'它没交东西';"
+                  "而模型看见 502 会合理地改走自抓,终点还被归成'重实现'",
+        "file": _SSN,
+        "old": "    failures = session.upstream_failures_on_expected_items()",
+        "new": "    failures = []",
+        "catchers": _T_SW,
+    },
+    {
+        "id": "M57b-upstream-failures-not-scoped-to-our-items",
+        "lesson": "上游故障不按 harness 自己算的 input_digest 圈定 → 拿自造的坏输入"
+                  "把浏览器打崩就能换 BLOCKED(不算模型失败、可重跑),"
+                  "交白卷比交错答案划算",
+        "file": _SSN,
+        "old": '        want = {u["input_digest"] for u in self.expected_units()}',
+        "new": '        want = {f.get("input_digest") for f in self.handle.upstream_failures()}',
+        "catchers": _T_SW,
+    },
+    {
+        "id": "M57c-crash-leaves-no-trace",
+        "lesson": "上游崩了不留痕 → 核验期只看见'它没交东西',harness 的故障"
+                  "判成被测方失败",
+        "file": _USC,
+        "old": "                srv.upstream_failures.append({                            # type: ignore[attr-defined]",
+        "new": "                [].append({",
+        "catchers": _T_SW,
+    },
+    {
+        "id": "M57d-crash-looks-like-bad-input",
+        "lesson": "上游崩了报 400 → 与'被测方交了坏入参'混成一件事,"
+                  "而两者一个该重跑、一个该判失败",
+        "file": _USC,
+        "old": '            return self._json(502, {"error": f"{type(e).__name__}: {e}",',
+        "new": '            return self._json(400, {"error": f"{type(e).__name__}: {e}",',
+        "catchers": _T_SW,
+    },
+    {
+        "id": "M57e-adoption-failure-goes-back-to-blocked",
+        "lesson": "采纳不成立又走回 missing_external → 短路成 BLOCKED,与'profile "
+                  "没登记''宿主基线不健康'同桶。这道题存在的全部理由就是把"
+                  "'没真用上游'判成被测方失败,一判出来就塞进'可重跑',等于白判",
+        "file": _HD,
+        "old": '        return "agent"',
+        "new": '        return "harness"',
+        "catchers": _T_SW,
+    },
+    {
+        "id": "M57f-extractor-swallows-bad-shape",
+        "lesson": "工件全读不出仍返回 None → 被测方交了形状不对的东西,报出来是"
+                  "'取件失败(harness 的问题)',归因整个反了(审查 S4)",
+        "file": "benchmarks/v2/tasks/t3_sidecar_v1/delivery_extractor.py",
+        "old": "    if not out and bad:",
+        "new": "    if False:",
+        "catchers": _T_T3S,
+    },
+    {
+        "id": "M57g-host-swallows-the-shape-error",
+        "lesson": "宿主的裸 except 把 DeliveryExtractionError 吞回 None → S4 只修了"
+                  "一半,形状错又变回含糊的'取不到交付'",
+        "file": _HD,
+        "old": '            if type(e).__name__ == "DeliveryExtractionError":',
+        "new": "            if False:",
+        "catchers": _T_T3S,
+    },
     # ---- M56:sidecar 接进 host-run。这一段最容易出的错不是"功能不对",
     # 而是**报错报得像另一件事** —— 三条守的都是归因不许混。
     {

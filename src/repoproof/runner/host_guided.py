@@ -396,6 +396,29 @@ def _reject_duplicate_keys(raw: bytes, path: Path) -> None:
     _y.load(raw, Loader=_Dup)
 
 
+# S2:哪些回执核验失败**不许记到被测方头上**(走 missing_external → BLOCKED)。
+# 其余(U2/U3/U4 判红)是**被测方**的失败,必须并进 capability 侧,否则
+# "没真用上游"会被记成"不算模型失败、可重跑"。
+_HARNESS_SIDE_RECEIPT_REASONS = frozenset({
+    "NO_DELIVERY_EXTRACTOR",       # 任务包没给取件器
+    "NO_DELIVERY_EXTRACTED",       # 取不到交付(目录不在)
+    "RECEIPT_VERIFIER_ERROR",      # 核验器自己炸了
+    "UPSTREAM_EXECUTION_ERROR",    # 封存浏览器崩了/超时(S1)
+    # 工件在、但**全都读不出来**(S4)。严格说这不是 harness 的错(契约 R8
+    # 写明了 schema),但契约的 failure_taxonomy 里没有对应类型,硬塞一个
+    # 等于用未言明的要求判人 —— 而预注册 Q3 写死了"说不清的,该发作废"。
+    # 所以归到"不判被测方失败"这一侧,同时**保留独立的 reason 串**:
+    # 它与 NO_DELIVERY_EXTRACTED 在记录里可区分,真出现了看得见、能议。
+    "DELIVERY_SHAPE_INVALID",
+})
+
+
+def _adoption_detail(rv: dict) -> str:
+    red = [f'{f["check"]}: {f["detail"]}' for f in (rv.get("findings") or [])
+           if not f["ok"]]
+    return "; ".join(red)[:600] or str(rv.get("reason"))
+
+
 class HostContract(BaseModel):
     """宿主级任务契约(benchmarks/v2/tasks/*/contract.yaml,冻结对象)。"""
 
@@ -1006,6 +1029,32 @@ class HostGuidedRunner:
         # 源码,交付代码一次 RPC 都不发而四道谓词全绿。
         return dict(sess.oracle_env())
 
+    def _receipt_failure_side(self, rv: dict) -> str:
+        """回执核验没过 —— **这笔算谁的**。返回 `"harness"` 或 `"agent"`。
+
+        单独一个方法而不是写在 `finally` 里的 if,是为了让变异闸门能**考行为**:
+        埋在两千行的 finally 里,任何钉死都只能读源码字符串,而读字符串抓不住
+        "结构还在、判定反了"(M46a 那一类逃逸)。
+        """
+        if rv.get("attribution") == "harness":
+            return "harness"
+        if str(rv.get("reason")) in _HARNESS_SIDE_RECEIPT_REASONS:
+            return "harness"
+        return "agent"
+
+    def _adoption_failure_type(self, rv: dict) -> str:
+        """把红掉的谓词映射成契约已声明的失败类型 —— 归因要能对回 taxonomy。"""
+        red = {f["check"] for f in (rv.get("findings") or []) if not f["ok"]}
+        if "U2.symbol" in red:
+            return "WRONG_UPSTREAM_SYMBOL"
+        if "U3.coverage" in red and "U4.adoption" in red:
+            return "UPSTREAM_CAPABILITY_REIMPLEMENTED"
+        if "U3.coverage" in red:
+            return "SYMBOLIC_INVOCATION_ONLY"
+        if "U4.adoption" in red:
+            return "UPSTREAM_CALLED_BUT_RESULT_UNUSED"
+        return "UPSTREAM_CAPABILITY_REIMPLEMENTED"
+
     def _delivery_dirs(self) -> list[str]:
         """任务声明的交付目录 —— oracle 起跑前由 harness 清场(B5)。
 
@@ -1035,7 +1084,13 @@ class HostGuidedRunner:
         spec.loader.exec_module(mod)
         try:
             return mod.extract(s.root / "host")
-        except Exception:                                     # noqa: BLE001
+        except Exception as e:                                # noqa: BLE001
+            # S4 的下半截。取件器现在会把"工件在、但全都读不出来"单独抛出来
+            # (`DeliveryExtractionError`);裸 except 吞成 None 的话,它就又变
+            # 回含糊的"取不到交付",S4 白修。按类名认 —— 取件器是按路径加载
+            # 的,isinstance 对不上(同一个类被加载了两次是两个类)。
+            if type(e).__name__ == "DeliveryExtractionError":
+                self._delivery_shape_error = str(e)
             return None
 
     def _verify_sidecar_receipts(self, sess, s, *, delivery=None) -> dict:
@@ -1059,7 +1114,15 @@ class HostGuidedRunner:
         spec.loader.exec_module(mod)
         if delivery is None:
             host = (s.root / "host") if s is not None else None
-            delivery = mod.extract(host) if host is not None else None
+            try:
+                delivery = mod.extract(host) if host is not None else None
+            except mod.DeliveryExtractionError as e:
+                self._delivery_shape_error = str(e)
+        shape_err = getattr(self, "_delivery_shape_error", "")
+        if delivery is None and shape_err:
+            # 工件在、但全都读不出来 —— 与"目录不在"分开报(S4)。
+            return {"ok": False, "reason": "DELIVERY_SHAPE_INVALID",
+                    "detail": f"交付工件读不出:{shape_err[:400]}"}
         if delivery is None:
             # 取不到就**把现场说清楚**:是会话没了、目录不在、还是目录空。
             # 含糊的 NO_DELIVERY_EXTRACTED 会让人无从下手,而取件失败与
@@ -1279,6 +1342,15 @@ class HostGuidedRunner:
     # ------------------------------------------------------------ diff 计量
     def _diff_stats(self, s: _Session, base: str, head: str = "HEAD") -> dict:
         num = self._git(s, "diff", "--numstat", f"{base}..{head}")
+        # S6:**交付工件不计入补丁预算**。
+        #
+        # 它们是任务要求落盘的产物(契约 R8),不是"改动"。每自测一次多一个
+        # 文件,十来次就撞 `max_patch_files` —— 而公开面本来就是让它自测的。
+        #
+        # 排除集**只能来自任务包声明**(`delivery_extractor.JOBS_DIRNAME`),
+        # 不做通配、不从 agent 落盘的任何东西推断 —— 后者是 #43 坑五的翻版:
+        # 判据锚在 SUT 能自己供的名字上,它随便建个目录就能把改动藏进去。
+        skip = tuple(f"{d}/" for d in self._delivery_dirs())
         files: list[str] = []
         lines = 0
         for row in num.stdout.decode(errors="replace").splitlines():
@@ -1286,6 +1358,8 @@ class HostGuidedRunner:
             if len(parts) != 3:
                 continue
             a, d, path = parts
+            if skip and path.startswith(skip):
+                continue
             files.append(path)
             lines += (int(a) if a.isdigit() else 0) + (int(d) if d.isdigit() else 0)
         return {"files": files, "total_files": len(files), "total_lines": lines}
@@ -1337,8 +1411,10 @@ class HostGuidedRunner:
         ev("oracle.hashed", actor="harness", payload={"files": len(oracle_before)})
 
         verdict_record: dict = {}
+        self._delivery_shape_error = ""  # S4:每发次清空,免得上一发的错串过来
         sidecar_sess = None            # A1:仅 sidecar 拓扑的任务会起
         delivery_snapshot: list | None = None
+        adoption_vr: VerificationResult | None = None
         receipt_verification: dict | None = None
         missing_external: list[str] = []
         budget_exhausted: str | None = None
@@ -1830,6 +1906,16 @@ class HostGuidedRunner:
                                    timeout_s=60, workdir="host")
 
             cap_run = self._run_oracle(s, oracle_snap)
+
+            # S3:**交付要在 oracle 之后、宿主回归之前取。**
+            #
+            # `_run_regression` 跑的是 agent 可写的 `tests/`,而每一次 exec 都
+            # 带着 sidecar 令牌 —— 于是存在一个窗口:API 只返回占位串骗过
+            # oracle,再由 `tests/` 下一个必过的测试在这个窗口里调 sidecar 把
+            # 工件补写出来,U1–U4 全绿。取件绑到 oracle 的观察窗口上,那条路
+            # 就断了:oracle 看见什么,采纳就判什么。
+            if sidecar_sess is not None and s is not None:
+                delivery_snapshot = self._extract_sidecar_delivery(s)
             cap = VerificationResult(
                 verifier="CapabilityVerifier",
                 passed=cap_run["exit_code"] == 0,
@@ -1925,6 +2011,8 @@ class HostGuidedRunner:
             # `backend.destroy(s.id); s = None`,等到 finally 时 host 目录
             # 早没了 —— 报出来是 "host=None",看起来像交付不存在,实则是
             # 取件时机错了。**取件必须紧贴产出,不能等到清场之后。**
+            # 兜底:上面那次没取到(例如 oracle 早退)时再试一次。
+            # **正常路径不走这里** —— 走到这里说明 oracle 那次是空的。
             if sidecar_sess is not None and s is not None and delivery_snapshot is None:
                 delivery_snapshot = self._extract_sidecar_delivery(s)
 
@@ -1993,13 +2081,30 @@ class HostGuidedRunner:
                        payload={"ok": receipt_verification.get("ok"),
                                 "reason": receipt_verification.get("reason", "")})
                     if not receipt_verification.get("ok"):
-                        # 走既有的 missing_external 通道,不对 verdict 做手术:
-                        # 那条通道的语义本来就是"外部前置条件不满足 → 不算通过",
-                        # 而"没真用上游"正是这种。自己改 verdict 会让 gate 的
-                        # 结论与它自己的 reasons 对不上。
-                        missing_external.append(
-                            "RECEIPT_VERIFICATION_FAILED:"
-                            + str(receipt_verification.get("reason")))
+                        # S2:**按归因分流**,不再一律走 missing_external。
+                        #
+                        # 那条通道会短路成 BLOCKED,与"profile 没登记""宿主
+                        # 基线不健康"同桶 —— 而这道题存在的全部理由就是把
+                        # "没真用上游"判成**被测方失败**。一判出来就被塞进
+                        # "不算模型失败、可重跑"的那格,等于白判。
+                        #
+                        # harness 侧的问题(取件器缺失、核验器出错、上游自己
+                        # 崩了)仍走 missing_external —— 那些**确实**不是被测方
+                        # 的错,BLOCKED 是对的。
+                        _reason = str(receipt_verification.get("reason"))
+                        if self._receipt_failure_side(receipt_verification) == "harness":
+                            missing_external.append(
+                                "RECEIPT_VERIFICATION_FAILED:" + _reason)
+                        else:
+                            adoption_vr = VerificationResult(
+                                verifier="AdoptionVerifier", passed=False,
+                                detail=str(receipt_verification.get("findings")
+                                           and _adoption_detail(receipt_verification)
+                                           or _reason),
+                                extra={"attribution": "agent",
+                                       "failure_type": self._adoption_failure_type(
+                                           receipt_verification),
+                                       "reason": _reason})
                 except Exception as exc:                          # noqa: BLE001
                     # 核验本身出错 ≠ 核验不通过。混同会把 harness 的毛病
                     # 记成被测方的失败,而两者修法完全不同。
@@ -2018,6 +2123,20 @@ class HostGuidedRunner:
             self.store.save_verification(r)
             ev("verification.result", actor=r.verifier,
                payload={"passed": r.passed, "detail": r.detail})
+        # S2:采纳不成立 = **被测方失败**,并进 capability 侧。
+        #
+        # 不并进去的话,gate 只看得见 oracle 的绿 —— 而 oracle 只验行为,
+        # 它给绿不代表用了上游。合成一条新的 capability 结果,detail 里
+        # 两边都写清楚,`extra` 带上归因与 taxonomy 类型。
+        if adoption_vr is not None:
+            cap = VerificationResult(
+                verifier="capability+adoption", passed=False,
+                detail=(f"{cap.detail if cap else 'not_run'} | "
+                        f"采纳不成立:{adoption_vr.detail}"),
+                extra={**(dict(cap.extra) if cap and cap.extra else {}),
+                       **dict(adoption_vr.extra)})
+            self.store.save_verification(adoption_vr)
+
         gate = completion_gate.decide(
             capability=cap, regression=reg, policy=pol, replay=rep,
             adaptation=adaptation_manifest,

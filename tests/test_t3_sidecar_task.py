@@ -346,3 +346,94 @@ def test_s15_public_surface_is_not_empty():
     assert files, "public_tests/ 是空的"
     src = "\n".join(f.read_text(encoding="utf-8") for f in files)
     assert src.count("def test_") >= 5, "公开面太薄,给不出有用的反馈"
+
+
+def _extractor():
+    """按路径加载取件器 —— `benchmarks/` 不是包。"""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "t3s_delivery_extractor", TASK / "delivery_extractor.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_s16_extractor_distinguishes_missing_dir_from_unreadable_artifacts(tmp_path):
+    """S4:**目录不在**与**工件全读不出**是两件事,报出来必须能分开。
+
+    审查发现的原形:try 只包 `json.loads`,而 `doc.get("facts")` 在 try 外。
+    于是顶层是 JSON 数组、或 `"facts": 3`,就抛 TypeError/AttributeError,
+    被上游的裸 except 吞成 None —— **被测方交了个形状不对的工件,报出来却是
+    "取件失败(harness 的问题)"**,归因整个反了。
+    """
+    ex = _extractor()
+    d = tmp_path / ex.JOBS_DIRNAME
+
+    # ① 目录不在 → None(这确实是"没写到约定落点")
+    assert ex.extract(tmp_path) is None
+
+    # ② 目录在但空 → None
+    d.mkdir()
+    assert ex.extract(tmp_path) is None
+
+    # ③ 顶层是数组(不是对象)—— 老实现在这里抛 AttributeError
+    (d / "a.json").write_text('[{"request_nonce": "x"}]', encoding="utf-8")
+    with pytest.raises(ex.DeliveryExtractionError) as e1:
+        ex.extract(tmp_path)
+    assert "1/1" in str(e1.value)
+
+    # ④ facts 不是列表 —— 老实现在这里抛 TypeError
+    (d / "a.json").write_text('{"facts": 3}', encoding="utf-8")
+    with pytest.raises(ex.DeliveryExtractionError):
+        ex.extract(tmp_path)
+
+    # ⑤ 坏文件**不吃掉**好文件:一坏一好要取出那一好的
+    (d / "b.json").write_text(
+        '{"facts": [{"request_nonce": "n1", "facts": "7"}]}', encoding="utf-8")
+    got = ex.extract(tmp_path)
+    assert got == [{"request_nonce": "n1", "facts": "7"}], (
+        f"坏文件把好文件也带走了:{got}")
+
+
+def test_s17_unreadable_delivery_is_not_reported_as_extraction_failure(tmp_path):
+    """S4 的下半截:`DELIVERY_SHAPE_INVALID` 不许退化成 `NO_DELIVERY_EXTRACTED`。
+
+    上一条只证明取件器**抛得出来**;这条证明宿主**没把它吞回去**。
+    只修一半的话,那个裸 except 会把它变回含糊的"取不到交付",S4 白修。
+    """
+    import sys
+
+    sys.path.insert(0, str(REPO / "src"))
+    from repoproof.runner.host_guided import (
+        _HARNESS_SIDE_RECEIPT_REASONS,
+        HostGuidedRunner,
+    )
+
+    class _R:
+        task_dir = TASK
+        _delivery_shape_error = ""
+
+        class contract:      # noqa: N801
+            task_id = "t3-sidecar-page-facts-v1"
+
+    class _S:
+        root = tmp_path
+
+    (tmp_path / "host" / _extractor().JOBS_DIRNAME).mkdir(parents=True)
+    (tmp_path / "host" / _extractor().JOBS_DIRNAME / "a.json").write_text(
+        '{"facts": 3}', encoding="utf-8")
+
+    r = _R()
+    # 先走紧贴产出的那次取件(它是裸 except,S4 的下半截就修在这里)
+    assert HostGuidedRunner._extract_sidecar_delivery(r, _S()) is None
+    assert r._delivery_shape_error, "形状错被裸 except 吞了 —— 归因会退化成 harness"
+
+    got = HostGuidedRunner._verify_sidecar_receipts(r, None, _S(), delivery=None)
+    assert got["reason"] == "DELIVERY_SHAPE_INVALID", (
+        f"报成了 {got['reason']!r} —— 与'目录不在'混成一件事")
+
+    # 归因去向:没有对应的 taxonomy 类型可用,按预注册 Q3 归"作废"侧;
+    # 但 reason 串独立,记录里看得见(不是悄悄和 NO_DELIVERY_EXTRACTED 同框)。
+    assert "DELIVERY_SHAPE_INVALID" in _HARNESS_SIDE_RECEIPT_REASONS
+    assert "DELIVERY_SHAPE_INVALID" != "NO_DELIVERY_EXTRACTED"

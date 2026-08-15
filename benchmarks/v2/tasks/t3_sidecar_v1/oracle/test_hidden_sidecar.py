@@ -86,14 +86,31 @@ def test_h3_token_never_leaks(app):
     with TestClient(app) as c:
         st = _submit_and_wait(c)
     assert token not in json.dumps(st, ensure_ascii=False), "响应体里泄漏了令牌"
+
+    # 目录级排除。原实现 `HOST.rglob("*")` 会把会话内当场重建的 1.8G venv
+    # 整棵读一遍(实测 12s、峰值 RSS 2.1G,单个 322MB 的 .dylib 解码成 1G 的
+    # str),而 `except (OSError, UnicodeError)` 接不住 MemoryError。
+    #
+    # **零覆盖损失**:宿主 .gitignore 忽略 `.venv/`,其中内容进不了 bundle,
+    # 而本条的威胁模型明写是"拿到 bundle 的人"。
+    # **不设文件大小上限** —— 上限可被被测方操纵(把令牌塞进一个超大文件)。
+    skip_dirs = {".venv", "venv", ".git", "__pycache__", "node_modules",
+                 ".pytest_cache", ".mypy_cache", ".ruff_cache"}
+    scanned = 0
     for f in HOST.rglob("*"):
-        if not f.is_file() or f.suffix in {".pyc"} or ".git" in f.parts:
+        if not f.is_file() or f.suffix == ".pyc":
+            continue
+        if skip_dirs & set(f.parts):
             continue
         try:
-            if token in f.read_text(encoding="utf-8", errors="ignore"):
-                raise AssertionError(f"工件里泄漏了令牌:{f.relative_to(HOST)}")
-        except (OSError, UnicodeError):
+            body = f.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
             continue
+        scanned += 1
+        if token in body:
+            raise AssertionError(f"工件里泄漏了令牌:{f.relative_to(HOST)}")
+    # 免得哪天排除集写宽了,这条变成恒绿的摆设
+    assert scanned > 0, "一个文件都没扫到 —— 排除集把扫描面吃光了"
 
 
 def test_h4_disabled_flag_registers_no_routes(monkeypatch):

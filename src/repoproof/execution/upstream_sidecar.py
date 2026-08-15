@@ -56,6 +56,19 @@ from repoproof.receipts.model import (
 _BOOT = time.time()
 
 
+class UpstreamExecutionError(RuntimeError):
+    """**上游自己**执行失败(封存浏览器超时/崩溃、封存件损坏、worker 起不来)。
+
+    与被测方的错误必须分开。原先两者都以 400 回去且 harness 侧不留痕迹,
+    终点是 U3 报"没调上游" —— 而模型看见 400 会**合理地**改走自抓,于是被
+    归成"重实现"。**归因完全反了**:是我们的浏览器崩了,记成了它作弊。
+
+    只有这个类型映射成 502 + `harness_side: true`;`_url_of` 那类入参错误
+    仍是 400(一刀切成 502 等于把"被测方交了坏入参"也算到 harness 头上,
+    朝反方向重开同一个洞)。
+    """
+
+
 @dataclass(frozen=True)
 class UpstreamSpec:
     """任务侧声明的上游能力面。
@@ -109,6 +122,11 @@ class SidecarHandle:
     def shutdown(self) -> None:
         self.server.shutdown()
 
+    def upstream_failures(self) -> list[dict]:
+        """**上游自己**执行失败的清单(S1)。与回执条数正交:失败不产出回执,
+        所以 `seq` 不变 —— 光看条数分不出"没调"和"调了但我们崩了"。"""
+        return list(getattr(self.server, "upstream_failures", []))
+
     def receipts_written(self) -> int:
         """**执行方自己数的**条数 —— 与台账文件相互独立。
 
@@ -153,6 +171,18 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json(400, {"error": f"未支持的符号:{symbol}"})
         try:
             result = fn(payload)
+        except UpstreamExecutionError as e:
+            # harness 侧留痕:**不动 seq**(没产出回执,条数不该变),
+            # 只记进失败清单,好让核验期把 U3 的红归对人。
+            with srv.lock:                                                # type: ignore[attr-defined]
+                srv.upstream_failures.append({                            # type: ignore[attr-defined]
+                    "symbol": symbol,
+                    "request_nonce": request_nonce,
+                    "input_digest": digest_of(payload, canon=CANON_JSON),
+                    "error": f"{type(e).__name__}: {e}",
+                    "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
+            return self._json(502, {"error": f"{type(e).__name__}: {e}",
+                                    "harness_side": True})
         except Exception as e:                                            # noqa: BLE001
             return self._json(400, {"error": f"{type(e).__name__}: {e}"})
 
@@ -206,6 +236,7 @@ def start_sidecar(*, spec: UpstreamSpec, ledger_path: Path, key: bytes,
     srv.default_symbol = default_symbol               # type: ignore[attr-defined]
     srv.lock = threading.Lock()                       # type: ignore[attr-defined]
     srv.seq = 0                                       # type: ignore[attr-defined]
+    srv.upstream_failures = []                        # type: ignore[attr-defined]
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return SidecarHandle(srv, f"http://{host}:{srv.server_address[1]}",
                          token, Path(ledger_path), profile_id, key)

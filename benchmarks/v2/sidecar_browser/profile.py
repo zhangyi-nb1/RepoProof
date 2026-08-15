@@ -32,7 +32,10 @@ from repoproof.execution.provisioning import (  # noqa: E402
     verify_sealed,
 )
 from repoproof.execution.runtime_profiles import RuntimeProfile, register_profile  # noqa: E402
-from repoproof.execution.upstream_sidecar import UpstreamSpec  # noqa: E402
+from repoproof.execution.upstream_sidecar import (  # noqa: E402
+    UpstreamExecutionError,
+    UpstreamSpec,
+)
 
 PROFILE_ID = "rt-sidecar-browser-v1"
 RUNTIME_ROOT = Path("~/RepoProofRuntimes").expanduser() / PROFILE_ID
@@ -73,7 +76,8 @@ def _chromium() -> str:
     m = RuntimeManifest.load(RUNTIME_ROOT)
     exe = RUNTIME_ROOT / m.extras["chromium_executable"]
     if not exe.is_file():
-        raise RuntimeError(f"封存的 Chromium 不在:{exe}(绝不回落系统 Chrome)")
+        raise UpstreamExecutionError(
+            f"封存的 Chromium 不在:{exe}(绝不回落系统 Chrome)")
     return str(exe)
 
 
@@ -85,10 +89,11 @@ def _run_worker(url: str) -> dict:
     try:
         out = json.loads(r.stdout.strip().splitlines()[-1])
     except Exception as e:                                             # noqa: BLE001
-        raise RuntimeError(f"worker 输出读不出({e}):{r.stdout[-300:]}"
-                           f" / {r.stderr[-300:]}") from e
+        # S1:worker 说不出话 = **上游侧**故障,不是被测方的错。
+        raise UpstreamExecutionError(
+            f"worker 输出读不出({e}):{r.stdout[-300:]} / {r.stderr[-300:]}") from e
     if "error" in out:
-        raise RuntimeError(f"worker 失败:{out['error']}")
+        raise UpstreamExecutionError(f"worker 失败:{out['error']}")
     return out
 
 
