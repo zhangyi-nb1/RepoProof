@@ -70,6 +70,8 @@ _T_T3S = ["tests/test_t3_sidecar_task.py"]
 _FSM = "scripts/failure_side_matrix.py"
 _DIF = "src/repoproof/execution/differential.py"
 _PH2 = "scripts/prepare_host2.py"
+_HA = "src/repoproof/execution/heldout_admission.py"
+_T_HA = ["tests/test_heldout_admission.py"]
 _T_PH2 = ["tests/test_host2_prepare.py"]
 _DIM = "scripts/differential_injection_matrix.py"
 _T_DIF = ["tests/test_differential_injection.py"]
@@ -893,6 +895,37 @@ MUTATIONS: list[dict] = [
         "old": "            strays.extend(_entry_strays(entry))",
         "new": "            pass",
         "catchers": _T_HG,
+    },
+    # ---- M64:held-out 准入。两轮实测(全仓 111 函数逐个挖空 + 五次独立强攻)
+    # 把一件事钉死了:**"挖空之后红了多少条"是个坏指标** —— 红得最多的那个
+    # 是三行字典查找。红的数量量的是"什么都不做",不是"写错了"。
+    {
+        "id": "M64a-silence-counts-as-a-pass",
+        "lesson": "没量过就放行 → '还没量'与'量了没问题'在台账里长得一模一样,"
+                  "而一道没被量过的 held-out 题,它的分数是什么意思谁也说不清",
+        "file": _HA,
+        "old": "    if attack is None:",
+        "new": "    if False:",
+        "catchers": _T_HA,
+    },
+    {
+        "id": "M64b-threshold-drifts-above-the-measured-floor",
+        "lesson": "阈值放回汇总建议的 0.98 → 五个实测候选里 plugins(97.8%,"
+                  "**就是被判死的 v1 本体**)与 etag(97.3%)双双漏网。"
+                  "线必须画在**这个形态实测出来的地板**之下",
+        "file": _HA,
+        "old": "MAX_BLIND_ATTACK_RATIO = 0.95",
+        "new": "MAX_BLIND_ATTACK_RATIO = 0.98",
+        "catchers": _T_HA,
+    },
+    {
+        "id": "M64c-prose-residual-counts-as-behaviour",
+        "lesson": "净剩不查是不是散文 → etag 那个候选净剩 15 条(五个里最多),"
+                  "全是三句 warning 的英文措辞比对,换成真值即满分",
+        "file": _HA,
+        "old": "    residual = attack.residual_kinds - _PROSE_RESIDUALS",
+        "new": "    residual = attack.residual_kinds",
+        "catchers": _T_HA,
     },
     # ---- M63:H2 宿主副本的部署层。这道题只有 1–2 bit,**答案能捞出来一次
     # 就当场归零**,而所有数字看起来照常。三条守的是"删了"与"捞不出来"
