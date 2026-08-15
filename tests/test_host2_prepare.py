@@ -199,3 +199,38 @@ def test_h6_public_hints_are_disclosed_not_deleted():
             f"没说清为什么不能删:{h['why_kept']}")
     # 那条最要紧的必须在:Api.register_converter 的 docstring 里有完整示例
     assert any("register_converter" in h["where"] for h in hints)
+
+
+def test_h7_repo_scan_is_wired_into_main_not_just_defined(tmp_path):
+    """H7:`repo_scan` 必须**接进 main 的结论**,不是定义在那儿好看。
+
+    M63d 逃逸实录:变异只把 `main()` 里那次调用去掉,而 H5 读的是**已落盘的**
+    报告 —— 报告是接线还在时生成的,所以照样绿。判据锚在证据文件上,就抓不住
+    "生成证据的那条路被掐了"。
+
+    这条直接跑 `main()`:先把答案塞进一个 git 跟踪的文件,`main()` 必须返回
+    非零、且报告里点名那个文件。跑完还原。
+    """
+    import subprocess
+
+    m = _mod()
+    if not m.SRC.is_dir():
+        pytest.skip("封存件不在本机")
+    original = (m.SRC / m.SEAM).read_text(encoding="utf-8")
+
+    assert m.main() == 0, "干净状态下 main 就不过 —— 后面的对照没有意义"
+
+    probe = REPO / "docs" / "evidence" / "_rp_h7_probe.py"
+    try:
+        probe.write_text(original, encoding="utf-8")
+        subprocess.run(["git", "-C", str(REPO), "add", "-N", str(probe)], check=True)
+        rc = m.main()
+        report = json.loads(REPORT.read_text(encoding="utf-8"))
+        assert rc != 0, "答案躺在本仓 git 里,main 竟然返回 0"
+        assert any("_rp_h7_probe" in b for b in report["structural_problems"]), (
+            f"报告没点名那个文件:{report['structural_problems']}")
+    finally:
+        subprocess.run(["git", "-C", str(REPO), "rm", "-q", "--cached", str(probe)],
+                       check=False)
+        probe.unlink(missing_ok=True)
+        m.main()          # 还原成干净报告
