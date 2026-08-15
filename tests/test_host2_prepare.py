@@ -234,3 +234,22 @@ def test_h7_repo_scan_is_wired_into_main_not_just_defined(tmp_path):
                        check=False)
         probe.unlink(missing_ok=True)
         m.main()          # 还原成干净报告
+
+
+def test_h8_the_timeline_finding_survives_a_regeneration():
+    """H8:写进证据的结论必须**活过下一次 main()**。
+
+    2026-08-15 当场踩到:我把"方案 2 在这个仓上执行不了"手写进
+    `report.json`,一次 `pytest` 跑完(H7 末尾会重跑 main 还原)就没了 ——
+    **证据文件是机器生成的,手写的东西在里面活不下来。**
+
+    所以结论要写在**生成它的脚本里**。这条钉住那个位置。
+    """
+    m = _mod()
+    assert hasattr(m, "TIMELINE_CHECK"), "结论没写在脚本里 —— 下次重跑就没了"
+    tc = m.TIMELINE_CHECK
+    assert tc["src_or_tests_changed_after_2026_05"] == "零"
+    assert "换仓" in tc["conclusion"] and "选错 seam" in tc["conclusion"], (
+        "结论里没说清'死因是选错 seam 不是选错仓' —— 那会让下一轮修错对象")
+    r = _r()
+    assert r["timeline_check"] == tc, "证据里的与脚本里的对不上"

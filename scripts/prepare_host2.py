@@ -222,6 +222,28 @@ DISCLOSED_HINTS = [
 ]
 
 
+# 方案 2(换时间轴:选 knowledge cutoff 之后 upstream 才写的函数体)在这个仓上
+# **执行不了** —— 离线查 clone 自带的历史查出来的,没再联网。写在**生成证据的
+# 脚本里**而不是手改证据文件:证据是机器生成的,手写的东西活不过下一次 main()
+# (2026-08-15 当场踩到,一次 `pytest` 跑完就没了)。
+TIMELINE_CHECK = {
+    "clone_has_post_cutoff_history": True,
+    "latest_commit_in_clone": "2026-08-01 f709b45 Update all dependencies",
+    "src_or_tests_changed_after_2026_05": "零",
+    "only_2026_source_commit":
+        "2026-03-22 1878e05 feat: Add pagination metadata field descriptions",
+    "why_that_one_is_unusable":
+        "它改的是 7 行 `metadata={\"description\": ...}` 的**英文文案**。挖了它,"
+        "题目就成了'猜出原作者的英文措辞' —— 不可推导(所以确实没被污染),"
+        "但那是抽奖不是能力。",
+    "dev_vs_tag_on_src_tests": "逐字节相同(dev 多出来的只有 CI/renovate/lock)",
+    "conclusion":
+        "flask-smorest 没有可用的 cutoff 后 seam。方案 2 要换仓,而换仓要联网 —— "
+        "那是用户的裁量。**但 v1 的真死因是选错 seam(可推导性),不是选错仓**,"
+        "所以先在同一个仓里按可推导性重选。",
+}
+
+
 def leak_scan(original: str) -> list[dict]:
     """**在造好的副本里找答案。** 找得到 = 这道题当场归零。
 
@@ -367,6 +389,7 @@ def main() -> int:
         # 要么为了"零泄漏"去删上游自己的文档(改写宿主),要么把真泄漏
         # 混在"已知无害"里放过 —— 两种都坏。
         "disclosed_hints": DISCLOSED_HINTS,
+        "timeline_check": TIMELINE_CHECK,
         "ok": not hits and not bad,
     }
     out = REPO / "docs" / "evidence" / "host2_prepare" / "report.json"
