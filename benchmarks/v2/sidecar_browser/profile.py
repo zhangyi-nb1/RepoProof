@@ -126,14 +126,18 @@ SPEC = UpstreamSpec(DISTRIBUTION, IMPORT_MODULE,
                     {SYMBOL: _render, OTHER_SYMBOL: _title_only},
                     loader=load_upstream)
 
-# lifecycle:**candidate**(2026-08-15 晋级,G1–G5 全过,留痕见
+# lifecycle:**qualified**(2026-08-15 晋级,G1–G7 全过,留痕见
 # `docs/evidence/profile_lifecycle/promotions.jsonl`)。
 #
-# 含义与 canary 那次相同,不多不少:**机制在真上游上站得住** —— 拓扑五条、
-# 诚实实现不被误杀、八条攻击各红各位、变异全捕。**不含**"真模型跑得动":
-# 我们的 adapter 是照着判据写的,那叫出题人自己会做。要往 qualified 走,
-# 得有 ≥2 个模型 profile 的真实发次且至少一发诚实通过 —— 那要等 T3-SIDECAR v1。
+# candidate 那一级的含义是"机制在真上游上站得住"—— 拓扑五条、诚实实现不被
+# 误杀、八条攻击各红各位、变异全捕。**不含**"真模型跑得动":我们的 adapter
+# 是照着判据写的,那叫出题人自己会做。
+#
+# qualified 补上的正是这一条:预注册批 PQ-T3SIDECAR-1(4 发,gpt-5.5/5.6
+# 交替)四发全部 PASS_ADAPTED 且回执四道谓词全过。**仍不含**"这个拓扑更好"
+# —— 那要 WH/HB 对照,第二宿主还没建;也不含任何模型能力结论
+# (counts_toward_model_capability: false,判据是我们自己出的)。
 PROFILE = register_profile(RuntimeProfile(
-    id=PROFILE_ID, topology="sidecar", lifecycle="candidate",
+    id=PROFILE_ID, topology="sidecar", lifecycle="qualified",
     summary="真 browser-use 0.13.7 + 封存 Chromium;agent 只能经 RPC 请它渲染",
     upstream=SPEC, required_symbols=frozenset({SYMBOL}), default_symbol=SYMBOL))
