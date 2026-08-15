@@ -837,3 +837,22 @@ def test_k17_setup_steps_run_in_the_declared_order():
     i_pip = src.index("r2 = s.backend.exec(s.id, cmds[pip_idx]")
     i_tail = src.index("for i, cmd in enumerate(cmds[pip_idx + 1:]")
     assert i_head < i_pip < i_tail, "三段的先后顺序被打乱了"
+
+
+def test_k18_health_check_gating_flag_is_honoured():
+    """K18:`gating=False` 的健康检查**只记录不作门禁**。
+
+    OfferClaw 的 `doctor.py` 就是这种 —— Manifest 里写明的已知预期差异
+    (chunks 口径 / 合成密钥 WARN)。不认这个旗标 = 每发零预算 BLOCKED,
+    而 BLOCKED 的含义是"不是被测方的错",于是所有发次都作废。
+    """
+    src = _runner_src()
+    assert "if hc.gating:" in src, "gating 旗标没人读了"
+    assert "ok = ok and passed" in src
+    # 判据不许再回到硬编码中文串
+    assert '"0 处未围栏" in rd_out' not in src, "那句中文串又写死回代码里了"
+    assert "hc.pass_if_stdout_contains in out" in src
+
+    by = {c.command[-1]: c for c in _contract("t1_fastapi_mcp").host.health_checks}
+    assert by["doctor.py"].gating is False
+    assert by["verify_pipeline.py"].gating is True

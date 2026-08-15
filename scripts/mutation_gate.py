@@ -864,6 +864,36 @@ MUTATIONS: list[dict] = [
     # ---- M60:C 轨(第二宿主)开工前的记账加固。三条守的都是**同一种病**:
     # 散文说不算、代码算了(LESSONS #45 二)。它们现在全都"看起来没事",
     # 因为 held-out 还是 0、第二宿主还没建 —— 那正是最坏的时机。
+    # ---- M61:C 轨,宿主耦合拆开之后的守护。三条都是"泛化顺手把第一宿主
+    # 改坏"或"泛化只是多了几个没人读的字段"——两种都让这次改动白做。
+    {
+        "id": "M61a-public-command-back-to-a-constant",
+        "lesson": "公开面又写死 → 契约的 public_test_command 说了不算,"
+                  "**契约说的和实际跑的不是一回事**;第二宿主的公开面在别处",
+        "file": _HD,
+        "old": "        cmd = list(self.contract.acceptance.public_test_command)",
+        "new": '        cmd = ["python", "-m", "pytest", "public_tests/", "-q", "-p", "no:cacheprovider"]',
+        "catchers": _T_HD,
+    },
+    {
+        "id": "M61b-setup-steps-run-out-of-order",
+        "lesson": "建环境把装依赖之后的步骤提前跑 → rag_ingest.py 在 chromadb "
+                  "装上之前执行,零预算 BLOCKED。**单测抓不到(不建环境)**,"
+                  "2026-08-15 泛化当天由端到端冒烟抓住",
+        "file": _HD,
+        "old": "        head = cmds[:pip_idx] if pip_idx is not None else cmds",
+        "new": "        head = [c for i, c in enumerate(cmds) if i != pip_idx]",
+        "catchers": _T_HD,
+    },
+    {
+        "id": "M61c-health-check-gating-flag-ignored",
+        "lesson": "健康检查不认 gating=False → OfferClaw 的 doctor.py(已知预期"
+                  "差异:chunks 口径 / 合成密钥 WARN)变成门禁,每发零预算 BLOCKED",
+        "file": _HD,
+        "old": "            if hc.gating:",
+        "new": "            if True:",
+        "catchers": _T_HD,
+    },
     {
         "id": "M60d-our-own-oracle-counts-as-heldout",
         "lesson": "严口径失效 → 我们自己写的 oracle 也算 held-out,而 held-out 是"
