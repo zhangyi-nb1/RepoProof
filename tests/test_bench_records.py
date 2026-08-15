@@ -27,7 +27,7 @@ def test_layout_and_unknown_discipline(tmp_path: Path) -> None:
     root = ensure_layout(tmp_path)
     assert (root / "preregistrations").is_dir() and (root / "reports").is_dir()
 
-    append_run(tmp_path, {"run_id": "r1", "model": "gpt-5.5", "cost": None})
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "r1", "model": "gpt-5.5", "cost": None})
     rec = load_runs(tmp_path)[0]
     assert rec["model"] == "gpt-5.5"
     assert rec["cost"] == UNKNOWN                     # None → UNKNOWN,绝不写 0
@@ -37,16 +37,16 @@ def test_layout_and_unknown_discipline(tmp_path: Path) -> None:
 
 
 def test_append_only_rejects_duplicate_and_requires_run_id(tmp_path: Path) -> None:
-    append_run(tmp_path, {"run_id": "r1"})
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "r1"})
     with pytest.raises(BenchRecordError, match="append-only"):
-        append_run(tmp_path, {"run_id": "r1", "verdict": "PASS_ADAPTED"})
+        append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "r1", "verdict": "PASS_ADAPTED"})
     with pytest.raises(BenchRecordError, match="run_id"):
-        append_run(tmp_path, {"model": "x"})
+        append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "model": "x"})
     assert len(load_runs(tmp_path)) == 1              # 拒绝不留半行
 
 
 def test_unknown_extra_fields_preserved(tmp_path: Path) -> None:
-    append_run(tmp_path, {"run_id": "r2", "novel_metric": 42})
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "r2", "novel_metric": 42})
     rec = [r for r in load_runs(tmp_path) if r["run_id"] == "r2"][0]
     assert rec["novel_metric"] == 42                  # schema 演进不丢数据
 
@@ -66,7 +66,7 @@ def _adj(run_id: str, **over) -> dict:
 
 def test_adjudication_never_touches_runs_jsonl(tmp_path: Path) -> None:
     """旁挂写入后事实源逐字节不变——'别动原文件'的钉死。"""
-    append_run(tmp_path, {"run_id": "r1", "verdict": "PASS_ADAPTED"})
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "r1", "verdict": "PASS_ADAPTED"})
     runs_path = bench_root(tmp_path) / "runs.jsonl"
     before = runs_path.read_bytes()
 
@@ -77,9 +77,13 @@ def test_adjudication_never_touches_runs_jsonl(tmp_path: Path) -> None:
 
 
 def test_effective_verdict_join_and_pass_count(tmp_path: Path) -> None:
-    append_run(tmp_path, {"run_id": "good", "task_id": "t3-x", "verdict": "PASS_ADAPTED"})
-    append_run(tmp_path, {"run_id": "fake", "task_id": "t3-x", "verdict": "PASS_ADAPTED"})
-    append_run(tmp_path, {"run_id": "bad", "task_id": "t3-x", "verdict": "FAIL"})
+    append_run(tmp_path, {
+        "host_id": "zhangyi-nb1/offerclaw",
+        "run_id": "good", "task_id": "t3-x", "verdict": "PASS_ADAPTED"})
+    append_run(tmp_path, {
+        "host_id": "zhangyi-nb1/offerclaw",
+        "run_id": "fake", "task_id": "t3-x", "verdict": "PASS_ADAPTED"})
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "bad", "task_id": "t3-x", "verdict": "FAIL"})
     append_adjudication(tmp_path, _adj("fake"))
 
     rows = {r["run_id"]: r for r in adjudicated_runs(tmp_path)}
@@ -101,7 +105,7 @@ def test_false_pass_not_counted_by_substring(tmp_path: Path) -> None:
 
 
 def test_adjudication_guards(tmp_path: Path) -> None:
-    append_run(tmp_path, {"run_id": "r1", "verdict": "PASS_ADAPTED"})
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "r1", "verdict": "PASS_ADAPTED"})
 
     with pytest.raises(BenchRecordError, match="不在 runs.jsonl"):
         append_adjudication(tmp_path, _adj("nope"))            # 不得裁定不存在的运行
@@ -123,11 +127,11 @@ def test_exploratory_batch_never_counts_toward_gate(tmp_path: Path) -> None:
     —— 与 order-38 同类(真话写在机器读不到的地方),且台账 append-only,
     事后只能再挂一层裁定去补救。
     """
-    append_run(tmp_path, {"run_id": "t9-pre", "task_id": "t9-x",
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "t9-pre", "task_id": "t9-x",
                           "verdict": "PASS_ADAPTED"})                  # 预注册批次
-    append_run(tmp_path, {"run_id": "t9-explore", "task_id": "t9-x",
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "t9-explore", "task_id": "t9-x",
                           "verdict": "PASS_ADAPTED", "batch": EXPLORATORY_BATCH})
-    append_run(tmp_path, {"run_id": "t9-explore-fail", "task_id": "t9-x",
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "t9-explore-fail", "task_id": "t9-x",
                           "verdict": "FAIL", "batch": EXPLORATORY_BATCH})
 
     c = count_passes(tmp_path, task_prefix="t9-")
@@ -139,7 +143,7 @@ def test_exploratory_batch_never_counts_toward_gate(tmp_path: Path) -> None:
 
 def test_historical_rows_without_batch_are_preregistered(tmp_path: Path) -> None:
     """历史行无 batch 字段 → 视为预注册(它们确实是),不得因新字段被误扣。"""
-    append_run(tmp_path, {"run_id": "old", "task_id": "t1-x", "verdict": "PASS"})
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "old", "task_id": "t1-x", "verdict": "PASS"})
     assert "batch" not in load_runs(tmp_path)[0], "记录器不给历史语义补写默认值"
     c = count_passes(tmp_path, task_prefix="t1-")
     assert c["passes"] == 1 and c["exploratory"] == 0
@@ -152,9 +156,9 @@ def test_fake_smoke_pass_never_counts_toward_gate(tmp_path: Path) -> None:
     显示 3 个 PASS,其中 `t1-...-20260809-182942` 的 model 是 `fake-scripted`
     —— 机器自检被当成了模型能力。真实模型 PASS 是 2。
     """
-    append_run(tmp_path, {"run_id": "t1-real", "task_id": "t1-x",
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "t1-real", "task_id": "t1-x",
                           "model": "gpt-5.6", "verdict": "PASS_ADAPTED"})
-    append_run(tmp_path, {"run_id": "t1-smoke", "task_id": "t1-x",
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "t1-smoke", "task_id": "t1-x",
                           "model": "fake-scripted", "verdict": "PASS_ADAPTED"})
     c = count_passes(tmp_path, task_prefix="t1-")
     assert c["passes"] == 1 and c["pass_run_ids"] == ["t1-real"]

@@ -28,11 +28,14 @@ def test_gate_report_computes_from_ledger_only(tmp_path: Path) -> None:
     from repoproof.persistence.bench_records import EXPLORATORY_BATCH, append_run
 
     gr = _load("gate_report.py")
-    append_run(tmp_path, {"run_id": "a", "task_id": "t1-x", "model": "gpt-5.6",
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "a",
+                          "task_id": "t1-x", "model": "gpt-5.6",
                           "verdict": "PASS_ADAPTED"})
-    append_run(tmp_path, {"run_id": "b", "task_id": "t1-x", "model": "fake-scripted",
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "b",
+                          "task_id": "t1-x", "model": "fake-scripted",
                           "verdict": "PASS_ADAPTED"})                    # 冒烟
-    append_run(tmp_path, {"run_id": "c", "task_id": "t1-x", "model": "gpt-5.5",
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "c",
+                          "task_id": "t1-x", "model": "gpt-5.5",
                           "verdict": "PASS_ADAPTED", "batch": EXPLORATORY_BATCH})
     data = gr.compute(tmp_path)
     t1 = data["stages"]["T1"]
@@ -56,7 +59,7 @@ def test_gate_report_check_detects_tamper_and_staleness(tmp_path: Path, monkeypa
         '"passes": 0', '"passes": 9', 1), encoding="utf-8")
     assert gr.check(tmp_path), "手改数字必须被查出"
     gate_json.write_text(gr.render(gr.compute(tmp_path)), encoding="utf-8")
-    append_run(tmp_path, {"run_id": "new", "task_id": "t1-x", "model": "gpt-5.6",
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": "new", "task_id": "t1-x", "model": "gpt-5.6",
                           "verdict": "FAIL"})
     assert gr.check(tmp_path), "台账动了、json 没再生成 → 过期必须被查出"
 

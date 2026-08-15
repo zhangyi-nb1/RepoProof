@@ -28,7 +28,7 @@ PAGE = ROOT / "src" / "repoproof" / "ui" / "pages" / "host_pilot.py"
 
 def _seed(root: Path, models: list[str]) -> None:
     for i, m in enumerate(models):
-        append_run(root, {"run_id": f"{HOST_PILOT['task_id']}-2026080{i}-000000",
+        append_run(root, {"host_id": "zhangyi-nb1/offerclaw", "run_id": f"{HOST_PILOT['task_id']}-2026080{i}-000000",
                           "task_id": HOST_PILOT["task_id"], "model": m,
                           "verdict": "FAIL"})
 
@@ -42,7 +42,9 @@ def test_pilot_state_counts_per_model_and_ignores_fake(tmp_path: Path) -> None:
     assert host_pilot_state(tmp_path)["next_global_order"] == 1  # fake 不计
     # 同模型重复两发 + 另一模型一发
     for i, m in enumerate(["deepseek-v4-pro", "deepseek-v4-pro", "gpt-5.6"]):
-        append_run(tmp_path, {"run_id": f"{HOST_PILOT['task_id']}-2026081{i}-111111",
+        append_run(tmp_path, {
+            "host_id": "zhangyi-nb1/offerclaw",
+            "run_id": f"{HOST_PILOT['task_id']}-2026081{i}-111111",
                               "task_id": HOST_PILOT["task_id"],
                               "model": m, "verdict": "FAIL"})
     s = host_pilot_state(tmp_path)
@@ -150,7 +152,7 @@ def test_argv_carries_that_stage_own_contract(tmp_path: Path) -> None:
 def test_per_task_counts_are_independent(tmp_path: Path) -> None:
     """同一模型在 T1/T2 各自计数;全局序号跨任务单调(TESTPLAN §9)。"""
     for key in ("T1", "T2", "T2"):
-        append_run(tmp_path, {"run_id": f"{HOST_TASKS[key]['task_id']}-x{key}"
+        append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": f"{HOST_TASKS[key]['task_id']}-x{key}"
                               f"-{next_run_index(tmp_path, key, 'gpt-5.6')}",
                               "task_id": HOST_TASKS[key]["task_id"],
                               "model": "gpt-5.6", "verdict": "FAIL"})
@@ -164,11 +166,17 @@ def test_per_task_counts_are_independent(tmp_path: Path) -> None:
 def test_older_task_versions_are_disclosed_not_silently_dropped(tmp_path: Path) -> None:
     """旧版发次不进面板(版本不可互比),但**条数必须明示**——静默少显示会让
     人以为发次丢了,而"少报"正是本项目最忌讳的失真方向。"""
-    append_run(tmp_path, {"run_id": "t3-old-1", "task_id": "t3-offerclaw-browser-use-v4",
+    append_run(tmp_path, {
+        "host_id": "zhangyi-nb1/offerclaw",
+        "run_id": "t3-old-1", "task_id": "t3-offerclaw-browser-use-v4",
                           "model": "gpt-5.6", "verdict": "FAIL"})
-    append_run(tmp_path, {"run_id": "t3-old-2", "task_id": "t3-offerclaw-browser-use",
+    append_run(tmp_path, {
+        "host_id": "zhangyi-nb1/offerclaw",
+        "run_id": "t3-old-2", "task_id": "t3-offerclaw-browser-use",
                           "model": "gpt-5.5", "verdict": "FAIL"})
-    append_run(tmp_path, {"run_id": "t3-cur", "task_id": HOST_TASKS["T3"]["task_id"],
+    append_run(tmp_path, {
+        "host_id": "zhangyi-nb1/offerclaw",
+        "run_id": "t3-cur", "task_id": HOST_TASKS["T3"]["task_id"],
                           "model": "gpt-5.6", "verdict": "PASS_ADAPTED"})
     s = host_task_state(tmp_path, "T3")
     assert len(s["done"]) == 1, "面板只含当前冻结版"
@@ -181,10 +189,10 @@ def test_variance_counts_effective_verdict_not_system(tmp_path: Path) -> None:
     """被人工判无效的假 PASS 不得进方差面板的通过计数;n<3 明确标注。"""
     tid = HOST_TASKS["T3"]["task_id"]
     for i, v in enumerate(["PASS_ADAPTED", "FAIL", "PASS_ADAPTED"]):
-        append_run(tmp_path, {"run_id": f"{tid}-2026081{i}-000000", "task_id": tid,
+        append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": f"{tid}-2026081{i}-000000", "task_id": tid,
                               "model": "gpt-5.6", "verdict": v,
                               "input_tokens": 100 + i * 50, "rounds_used": 1 + i})
-    append_run(tmp_path, {"run_id": f"{tid}-fake", "task_id": tid,
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": f"{tid}-fake", "task_id": tid,
                           "model": "fake-scripted", "verdict": "PASS"})
     append_adjudication(tmp_path, {
         "run_id": f"{tid}-20260810-000000", "system_verdict": "PASS_ADAPTED",
@@ -202,7 +210,7 @@ def test_variance_counts_effective_verdict_not_system(tmp_path: Path) -> None:
     assert v["stats"]["读入"] == {"n": 3, "min": 100, "max": 200,
                                   "mean": 150.0, "spread": 100}
     # n<3 必须自报不足以谈方差(项目纪律:n<3 不排名)
-    append_run(tmp_path, {"run_id": f"{tid}-20260820-000000", "task_id": tid,
+    append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": f"{tid}-20260820-000000", "task_id": tid,
                           "model": "gpt-5.5", "verdict": "FAIL"})
     small = [x for x in variance_summary(tmp_path, "T3") if x["model"] == "gpt-5.5"][0]
     assert small["n"] == 1 and small["enough_for_variance"] is False

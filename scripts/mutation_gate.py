@@ -856,6 +856,37 @@ MUTATIONS: list[dict] = [
     # ---- M59:失败侧。判据**红了之后**那一段 —— 控制矩阵一步没走过,
     # 而它悄悄失效时,系统照跑、矩阵照绿,只是每一次"没真用上游"都被记成
     # BLOCKED(不算模型失败、可重跑),这道题等于白出。
+    # ---- M60:C 轨(第二宿主)开工前的记账加固。三条守的都是**同一种病**:
+    # 散文说不算、代码算了(LESSONS #45 二)。它们现在全都"看起来没事",
+    # 因为 held-out 还是 0、第二宿主还没建 —— 那正是最坏的时机。
+    {
+        "id": "M60a-heldout-denominator-has-no-deductions",
+        "lesson": "held-out 分母不扣除 → 冒烟(35 发)、探索性加发(7)、已裁定"
+                  "无效(4)全进那个**唯一会被读成模型能力**的数字",
+        "file": _BR,
+        "old": '            1 for r in gateable if r["counts_toward_heldout_benchmark"]),',
+        "new": '            1 for r in rows if r["counts_toward_heldout_benchmark"]),',
+        "catchers": _T_RCL,
+    },
+    {
+        "id": "M60b-second-host-runs-land-in-the-first-hosts-stage",
+        "lesson": "阶段归属只看 task_id 前缀 → 第二宿主的 `t3-<新宿主>-…` 自动"
+                  "进 stages.T3。不是理论风险:t3-sidecar(另一份 oracle)现在"
+                  "就在 T3 的 total 里,只靠 run_purpose 挡在 passes 外",
+        "file": _BR,
+        "old": '                and _same_host(r)]',
+        "new": "                ]",
+        "catchers": _T_RCL,
+    },
+    {
+        "id": "M60c-missing-host-id-silently-becomes-the-baseline-host",
+        "lesson": "落账不拦缺失 host_id → normalise 填 UNKNOWN,而 UNKNOWN 被当"
+                  "第一宿主放行,新宿主漏填 = 静默进旧闸门(M58b 的形状)",
+        "file": _BR,
+        "old": '    if rec.get("host_id") in (None, "", UNKNOWN):',
+        "new": "    if False:",
+        "catchers": _T_RCL,
+    },
     {
         "id": "M59a-negative-control-silently-becomes-positive",
         "lesson": "`--fake control:X` 退回正控 → 七个负控全变正控,失败侧矩阵"

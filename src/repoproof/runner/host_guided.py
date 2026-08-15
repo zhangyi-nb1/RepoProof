@@ -2321,6 +2321,10 @@ class HostGuidedRunner:
             # 批次归属:探索性加发打 EXPLORATORY_UNPREREGISTERED,闸门不计
             # (TESTPLAN §8/§9)。缺省 UNKNOWN,历史行无此字段=预注册批次。
             "batch": batch,
+            # 宿主身份(C 轨)。阶段闸门是**第一宿主**上的存在性证明,而阶段
+            # 归属靠 task_id 前缀 —— 不落这一笔,第二宿主的 `t3-<新宿主>-…`
+            # 会自动进 stages.T3。`append_run` 缺它直接拒收。
+            "host_id": self.contract.host.repo,
             "guided": True,
             "max_rounds": self.contract.budgets.max_rounds,
             "rounds_used": rounds_used,

@@ -1,8 +1,9 @@
 {
   "_denominators": {
     "all_valid_run_outcomes": "全部有效发次里的 PASS 数(含机制消融)",
-    "development_baseline_runs": "开发套件(T1–T3)上的常规发次",
+    "development_baseline_runs": "开发套件上的常规发次(**全台账口径**,不限阶段;新前缀的发次也会进这个数)",
     "heldout_model_evaluation_runs": "未见任务能力评测 —— **第二宿主未建,恒为 0**",
+    "heldout_passes": "held-out 里的通过数 —— 其余三类都有分子,只给分母会让人自己配一个",
     "mechanism_ablation_runs": "E1/AR 机制与判据实验 —— 不计能力",
     "passes": "阶段闸门数 —— 存在性证明(任务可判且可过),**不是能力率**",
     "post_hoc_classified_runs": "分类发生在看到结果之后(自曝,防伪装成预注册)",
@@ -27,6 +28,7 @@
       "t2-offerclaw-open-deep-research-v4-20260812-061522"
     ],
     "heldout_model_evaluation_runs": 0,
+    "heldout_passes": 0,
     "invalidated": 4,
     "invalidated_run_ids": [
       "t2-offerclaw-open-deep-research-v4-20260810-200119",
@@ -121,6 +123,9 @@
     "T3": true,
     "T4": false
   },
+  "hosts_covered": [
+    "zhangyi-nb1/offerclaw"
+  ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
     "runs_jsonl_sha256": "4ffa0532a8bfb20dc8be37e204f6a78a3a0cbdaecd9efe843275a2487412c0d0"
@@ -134,6 +139,7 @@
       "exploratory_passes": 0,
       "exploratory_run_ids": [],
       "heldout_model_evaluation_runs": 0,
+      "heldout_passes": 0,
       "invalidated": 0,
       "invalidated_run_ids": [],
       "mechanism_ablation_passes": 0,
@@ -174,6 +180,7 @@
         "t2-offerclaw-open-deep-research-v4-20260812-061522"
       ],
       "heldout_model_evaluation_runs": 0,
+      "heldout_passes": 0,
       "invalidated": 2,
       "invalidated_run_ids": [
         "t2-offerclaw-open-deep-research-v4-20260810-200119",
@@ -225,6 +232,7 @@
         "t3-offerclaw-browser-use-v5-20260812-054108"
       ],
       "heldout_model_evaluation_runs": 0,
+      "heldout_passes": 0,
       "invalidated": 2,
       "invalidated_run_ids": [
         "t3-offerclaw-browser-use-v4-20260811-172615",
@@ -294,6 +302,7 @@
       "exploratory_passes": 0,
       "exploratory_run_ids": [],
       "heldout_model_evaluation_runs": 0,
+      "heldout_passes": 0,
       "invalidated": 0,
       "invalidated_run_ids": [],
       "mechanism_ablation_passes": 0,

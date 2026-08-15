@@ -35,6 +35,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from repoproof.persistence.bench_records import (
     NON_GATEABLE_PURPOSES,
     classify_runs,
@@ -57,8 +59,9 @@ def _write(tmp: Path, runs: list[dict], cls: list[dict] | None = None) -> Path:
     return tmp
 
 
-def _run(rid: str, verdict: str = "PASS_ADAPTED", task: str = "t2-x") -> dict:
-    return {"run_id": rid, "task_id": task, "model": "gpt-5.5", "verdict": verdict}
+def _run(rid: str, verdict: str = "PASS_ADAPTED", task: str = "t2-x", **kw) -> dict:
+    return {"run_id": rid, "task_id": task, "model": "gpt-5.5",
+            "verdict": verdict, **kw}
 
 
 def _cls(rid: str, **kw) -> dict:
@@ -259,3 +262,104 @@ def test_evidence_downgrade_does_not_touch_verdict_or_gate():
     assert counts["provisional_evidence_runs"] == len(downgraded)
     ids = {x["run_id"] for x in counts["provisional_evidence"]}
     assert ids == {r["run_id"] for r in downgraded}, "降级发次没有全部出现在闸门输出里"
+
+
+# ============================================ C 轨(第二宿主)开工前的记账加固
+# 三条都不是"将来的风险",是**现在就在错的账**,只因为第二宿主还没建、
+# held-out 还是 0,所以没人看得出来。第一批 held-out 数字一落地,污染会和
+# 真数一起进来,而"它一直是 0"看起来正好像它没问题。
+
+def test_k8_heldout_gets_the_same_four_deductions_as_passes(tmp_path):
+    """K8:held-out 分母**必须**和 passes 走同样四道扣除。
+
+    修之前是 `for r in rows` —— 一道都没有。冒烟、探索性加发、已裁定无效、
+    机制消融,只要有人把 `counts_toward_heldout_benchmark` 置 true 就全进去,
+    而这个数字是四类分母里**唯一会被直接读成"模型能力"**的那个。
+    """
+    HELDOUT = {"counts_toward_heldout_benchmark": True,
+               "run_purpose": "CAPABILITY_EVALUATION", "test_mode": "HB"}
+    rows = [_run("real"),
+            _run("smk", **{"model": "fake-scripted"}),
+            _run("exp", **{"batch": "EXPLORATORY_UNPREREGISTERED"}),
+            _run("mech")]
+    cls = [_cls(r["run_id"], **HELDOUT) for r in rows]
+    cls[-1] = _cls("mech", **{**HELDOUT, "run_purpose": "MECHANISM_ABLATION"})
+    got = count_passes(_write(tmp_path, rows, cls))
+
+    assert got["heldout_model_evaluation_runs"] == 1, (
+        f"held-out 分母是 {got['heldout_model_evaluation_runs']},该是 1 —— "
+        "冒烟/探索/机制混进了唯一会被读成能力的那个数")
+    assert got["heldout_passes"] == 1, "只有分母没有分子,引用时必然有人自己配一个"
+
+
+def test_k9_a_second_host_run_does_not_land_in_the_first_hosts_stage(tmp_path):
+    """K9:第二宿主的发次**不许**因为 task_id 前缀就进第一宿主的阶段闸门。
+
+    阶段归属一直靠 `task_id.startswith("t3-")`。这不是理论风险 ——
+    `t3-sidecar-page-facts-v1`(另一份 oracle、另一套判据)现在就被算在
+    stages.T3 的 total 里,只靠 run_purpose 挡在 passes 之外,而那道挡板是
+    2026-08-15 才补的(M58b)。第二宿主一来,同样的洞会以"能力数字"的形式
+    再犯一次,后果重得多。
+    """
+    root = _write(tmp_path,
+                  [_run("own", task="t3-offerclaw-x"),
+                   _run("new", task="t3-newhost-x", **{"host_id": "someone/newhost"})])
+    t3 = count_passes(root, task_prefix="t3-")
+
+    assert t3["passes"] == 1, f"第二宿主的发次进了 T3 闸门:{t3['pass_run_ids']}"
+    assert "new" not in (t3["pass_run_ids"] or [])
+    assert t3["total"] == 1, "它连 total 都不该进 —— 那不是这个阶段的任务"
+    # 历史行没有 host_id,必须仍按第一宿主处理(只增不改)
+    assert count_passes(_write(tmp_path / "b", [_run("old", task="t3-x")]),
+                        task_prefix="t3-")["passes"] == 1
+
+
+def test_k10_writing_a_run_without_a_host_id_is_refused(tmp_path):
+    """K10:落账时说不清宿主就**拒收**。
+
+    光把 host_id 加进 REQUIRED_FIELDS 是没用的:`normalise_record` 对缺失
+    字段一律填 UNKNOWN 而不报错,而 UNKNOWN 会被当第一宿主放行 —— 于是
+    新宿主漏填 = 静默进旧闸门。这正是 M58b 的形状,必须在写入口拦。
+    """
+    from repoproof.persistence.bench_records import BenchRecordError, append_run
+
+    with pytest.raises(BenchRecordError, match="host_id"):
+        append_run(tmp_path, {"run_id": "x", "task_id": "t3-y", "verdict": "PASS"})
+    append_run(tmp_path, {"run_id": "x", "task_id": "t3-y", "verdict": "PASS",
+                          "host_id": "a/b"})     # 说得出来就收
+
+
+def test_k11_the_heldout_prose_is_derived_from_data_not_written_down():
+    """K11:"第二宿主未建,恒为 0" 这句话必须由**数据**推出来。
+
+    写死的话,第二宿主建成后它照样原样写进 v2_gate.json,而没有任何检查
+    会发现它成了假话 —— LESSONS #45 二("散文说不算,代码算了")的同型。
+    """
+    import importlib.util
+    import sys
+
+    spec = importlib.util.spec_from_file_location(
+        "gate_report", REPO / "scripts" / "gate_report.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+
+    d = mod.compute(REPO)
+    assert d["hosts_covered"] == ["zhangyi-nb1/offerclaw"], d["hosts_covered"]
+    note = d["_denominators"]["heldout_model_evaluation_runs"]
+    assert "第二宿主未建" in note, "现在确实还没建,这句该在"
+
+    # 合成一个"已经建了第二宿主"的台账,那句话必须自己消失
+    import json
+    import tempfile
+
+    tmp = Path(tempfile.mkdtemp())
+    (tmp / "benchmarks" / "v2").mkdir(parents=True)
+    (tmp / "benchmarks" / "v2" / "runs.jsonl").write_text(
+        json.dumps({"run_id": "a", "task_id": "t3-x", "model": "gpt-5.5",
+                    "verdict": "PASS", "host_id": "someone/newhost"}) + "\n",
+        encoding="utf-8")
+    note2 = mod.compute(tmp)["_denominators"]["heldout_model_evaluation_runs"]
+    assert "第二宿主未建" not in note2, (
+        f"第二宿主已在台账里,这句话还在说未建:{note2}")
+    assert "someone/newhost" in note2

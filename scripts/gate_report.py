@@ -39,6 +39,17 @@ def compute(project_root: Path = REPO) -> dict:
     """从 runs.jsonl ⋈ adjudications.jsonl 重算闸门(唯一合法算法=count_passes)。"""
     stages = {s: count_passes(project_root, task_prefix=f"{s.lower()}-") for s in STAGES}
     bench = project_root / "benchmarks" / "v2"
+    everything = count_passes(project_root)
+    # 台账里出现过哪些宿主 —— 说明串由**数据**推出来,不由散文写死。
+    from repoproof.persistence.bench_records import BASELINE_HOST, UNKNOWN, load_runs
+
+    hosts = sorted({str(r.get("host_id") or BASELINE_HOST).replace(UNKNOWN, BASELINE_HOST)
+                    for r in load_runs(project_root)})
+    second_host_built = [h for h in hosts if h != BASELINE_HOST]
+    heldout_note = (
+        "未见任务能力评测 —— **第二宿主未建,恒为 0**" if not second_host_built
+        else f"未见任务能力评测(已扣除冒烟/探索/无效/机制四类);"
+             f"台账里的宿主:{hosts}")
     return {
         "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
         "inputs": {
@@ -55,9 +66,12 @@ def compute(project_root: Path = REPO) -> dict:
         "_denominators": {
             "passes": "阶段闸门数 —— 存在性证明(任务可判且可过),**不是能力率**",
             "all_valid_run_outcomes": "全部有效发次里的 PASS 数(含机制消融)",
-            "development_baseline_runs": "开发套件(T1–T3)上的常规发次",
+            "development_baseline_runs": "开发套件上的常规发次(**全台账口径**,"
+                                        "不限阶段;新前缀的发次也会进这个数)",
             "mechanism_ablation_runs": "E1/AR 机制与判据实验 —— 不计能力",
-            "heldout_model_evaluation_runs": "未见任务能力评测 —— **第二宿主未建,恒为 0**",
+            "heldout_model_evaluation_runs": heldout_note,
+            "heldout_passes": "held-out 里的通过数 —— 其余三类都有分子,"
+                              "只给分母会让人自己配一个",
             "treatment_not_delivered_runs": "处理臂分配了但实测零生效 —— 不计处理效应",
             "post_hoc_classified_runs": "分类发生在看到结果之后(自曝,防伪装成预注册)",
             "profile_qualification_runs": "PQ:runtime profile 资格审 —— "
@@ -65,7 +79,11 @@ def compute(project_root: Path = REPO) -> dict:
             "provisional_evidence_runs": "证据已降级 —— **仍计入 passes(未被改判)**,"
                                          "但引用时必须带上 caveat;见 provisional_evidence",
         },
-        "all_runs": count_passes(project_root),
+        # 台账里出现过的宿主。第二宿主一落账这里就变,而
+        # `heldout_model_evaluation_runs` 的说明串跟着它走 —— 散文不再能
+        # 独自变成假话(LESSONS #45 二的直接补丁)。
+        "hosts_covered": hosts,
+        "all_runs": everything,
     }
 
 

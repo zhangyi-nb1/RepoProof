@@ -49,6 +49,10 @@ REQUIRED_FIELDS = (
     # 串里 —— 分析时要能直接按 profile 分组,不必去解析标签字符串。
     # 历史行无此字段 = rt-inprocess-v1(那时只有这一种拓扑)。
     "runtime_profile_id",
+    # 宿主身份(C 轨,2026-08-15)。阶段闸门是**第一宿主**上的存在性证明,
+    # 而阶段归属一直靠 task_id 前缀 —— 第二宿主的 `t3-<新宿主>-…` 会自动
+    # 进 stages.T3。历史行无此字段 = 第一宿主(那时只有这一个)。
+    "host_id",
 )
 
 UNKNOWN = "UNKNOWN"
@@ -112,6 +116,14 @@ def append_run(project_root: str | Path, record: dict) -> Path:
     """追加一行 run 记录;同 run_id 重复追加拒绝(append-only 事实源)。"""
     root = ensure_layout(project_root)
     rec = normalise_record(record)
+    # `normalise_record` 对缺失字段一律填 UNKNOWN 而不报错 —— 所以光把
+    # `host_id` 加进 REQUIRED_FIELDS 等于什么都没做:新宿主漏填就变成
+    # UNKNOWN,而 `_same_host` 把 UNKNOWN 当第一宿主放行,发次照样进闸门。
+    # 这里显式拒绝:**宿主是谁,写账的人必须说得出来。**
+    if rec.get("host_id") in (None, "", UNKNOWN):
+        raise BenchRecordError(
+            "run 记录必须携带 host_id —— 阶段闸门是第一宿主上的存在性证明,"
+            "宿主说不清就没法判这一发该不该进闸门")
     path = root / "runs.jsonl"
     for existing in load_runs(project_root):
         if existing.get("run_id") == rec["run_id"]:
@@ -299,6 +311,25 @@ def classify_runs(project_root: str | Path) -> list[dict]:
     return rows
 
 
+# 阶段闸门(T1–T4)是**第一宿主**上的存在性证明。历史行没有 host_id 字段,
+# 缺失 = 那时只有这一个宿主(与 runtime_profile_id 同一条处理规则)。
+BASELINE_HOST = "zhangyi-nb1/offerclaw"
+
+
+def _same_host(row: dict) -> bool:
+    """这一发是不是跑在第一宿主上。
+
+    为什么要有它(2026-08-15,C0-4):阶段归属靠 `task_id.startswith("t3-")`,
+    于是**任何**叫 `t3-<新宿主>-…` 的发次都会自动进 `stages.T3`。这不是将来
+    的风险 —— `t3-sidecar-page-facts-v1`(另一份 oracle、另一套判据)现在就
+    被算在 stages.T3 里,只是靠 `run_purpose` 挡在 `passes` 之外,而那道挡板
+    刚在 2026-08-15 补上(M58b)。第二宿主一来,同样的洞会以"能力数字"的
+    形式再犯一次,后果重得多。
+    """
+    h = row.get("host_id")
+    return h in (None, "", UNKNOWN, BASELINE_HOST)
+
+
 def count_passes(project_root: str | Path, task_prefix: str | None = None) -> dict:
     """按 effective_verdict 统计 PASS(闸门判据)。
 
@@ -312,7 +343,8 @@ def count_passes(project_root: str | Path, task_prefix: str | None = None) -> di
     """
     rows = classify_runs(project_root)
     if task_prefix:
-        rows = [r for r in rows if str(r.get("task_id", "")).startswith(task_prefix)]
+        rows = [r for r in rows if str(r.get("task_id", "")).startswith(task_prefix)
+                and _same_host(r)]
     smoke = [r for r in rows
              if str(r.get("model", "")).startswith(SMOKE_MODEL_PREFIX)]
     real = [r for r in rows
@@ -339,8 +371,21 @@ def count_passes(project_root: str | Path, task_prefix: str | None = None) -> di
         "mechanism_ablation_runs": len(mechanism),
         "mechanism_ablation_passes": sum(
             1 for r in mechanism if r["effective_verdict"] in PASS_VERDICTS),
+        # Held-out 能力评测。**四道扣除和 passes 一模一样** ——
+        # 2026-08-15(C0-2)之前它是 `for r in rows`,一道扣除都没有:
+        # 冒烟(现 35 发)、探索性加发(7)、已裁定无效(4)只要有人手滑把
+        # `counts_toward_heldout_benchmark` 置 true 就全进这个数,而这个数字
+        # 是四类分母里**唯一直接读成"模型能力"**的那个。现在还没有第二宿主
+        # 所以它恒为 0,谁也没发现 —— 那正是最坏的时机:第一批 held-out 发次
+        # 落账时,污染会和真数一起进来,而"它一直是 0"看起来像它没问题。
         "heldout_model_evaluation_runs": sum(
-            1 for r in rows if r["counts_toward_heldout_benchmark"]),
+            1 for r in gateable if r["counts_toward_heldout_benchmark"]),
+        # 通过数也要有。其余三类(机制/探索/冒烟)都有各自的 passes,
+        # 唯独 held-out 只有 runs —— 只有分母没有分子,引用时必然有人自己配一个。
+        "heldout_passes": sum(
+            1 for r in gateable
+            if r["counts_toward_heldout_benchmark"]
+            and r["effective_verdict"] in PASS_VERDICTS),
         "assisted_repair_runs": sum(1 for r in rows if r.get("assistance_level")),
         "treatment_delivered_runs": sum(
             1 for r in rows if r["treatment_activated"] is True),
