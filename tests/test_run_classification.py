@@ -398,3 +398,48 @@ def test_k12_our_own_oracle_can_never_be_counted_as_heldout(tmp_path):
 
     # 现有 T1–T3 全部是我们写的 oracle,真台账里这个数必须仍是 0
     assert count_passes(REPO)["heldout_model_evaluation_runs"] == 0
+
+
+def test_k20_harness_enriched_hosts_can_never_be_heldout(tmp_path):
+    """K20:harness **往宿主里加语义**的题,一律不算 held-out。
+
+    这是严口径闸门的**第二道**,2026-08-15 第二宿主设计评审当场查出的盲区:
+    只看 `oracle_authorship` 管的是**测试文本**谁写的,对"harness 改写了
+    **非测试**源码"完全无感。于是有一条又宽又隐蔽的路 ——
+
+        把宿主源码改得面目全非、塞进我们自己发明的接线语义,
+        上游那 554 条此刻实际在检验"你有没有猜对**我们新加的**东西",
+        而闸门照样认它是 held-out。
+
+    不是假想:本次三份设计里有一份的最大 trap(71 条上游测试)判的就是
+    harness 自造的 `register_doc_preparer` + 现摇 priority。做它等于亲手把
+    第一发 held-out 数字喂进盲区。
+
+    可判的分界线:**只许挖空,不许加语义。**
+    """
+    from repoproof.persistence.bench_records import (
+        HOST_MOD_ENRICHED,
+        HOST_MOD_HOLLOW_ONLY,
+        HOST_MOD_PRISTINE,
+        ORACLE_AUTHORSHIP_EXTERNAL,
+    )
+
+    base = {"counts_toward_heldout_benchmark": True,
+            "oracle_authorship": ORACLE_AUTHORSHIP_EXTERNAL,
+            "run_purpose": "CAPABILITY_EVALUATION", "test_mode": "HB"}
+
+    def _n(mode):
+        cls = dict(base)
+        if mode is not None:
+            cls["host_modification_mode"] = mode
+        root = _write(tmp_path / f"m{mode}",
+                      [_run("a", **{"host_id": "someone/newhost"})], [_cls("a", **cls)])
+        return count_passes(root)["heldout_model_evaluation_runs"]
+
+    assert _n(HOST_MOD_PRISTINE) == 1, "宿主没改,该算"
+    assert _n(HOST_MOD_HOLLOW_ONLY) == 1, (
+        "只挖空也不算的话就没题可出了 —— 上游测试考的仍是上游自己的语义")
+    assert _n(None) == 1, "缺省该按 PRISTINE 处理(历史行没有这个字段)"
+    assert _n(HOST_MOD_ENRICHED) == 0, (
+        "harness 往宿主里加了语义还算 held-out —— 上游测试此刻在考我们发明的东西")
+    assert _n("SOMETHING_ELSE") == 0, "无法识别的改动模式必须按不算处理"

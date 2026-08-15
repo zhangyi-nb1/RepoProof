@@ -266,6 +266,9 @@ CLASSIFICATION_KEYS = frozenset({
     # 严口径 held-out(用户 2026-08-15 裁决):oracle 是谁写的。
     # 只有 UPSTREAM_OWN_TEST_SUITE 才让 counts_toward_heldout_benchmark 生效。
     "oracle_authorship",
+    # 第二道:harness 对宿主做了什么。加语义(ENRICHED)的一律不算 held-out ——
+    # 上游测试此刻在考我们发明的东西,oracle 文本谁写的就不重要了。
+    "host_modification_mode",
 })
 
 
@@ -292,12 +295,18 @@ def classify_runs(project_root: str | Path) -> list[dict]:
             "run_purpose": c.get("run_purpose", "CAPABILITY_EVALUATION"),
             "task_seen": c.get("task_seen", True),
             "counts_toward_model_capability": c.get("counts_toward_model_capability", True),
-            # 严口径闸门:oracle 不是外部来的,这一格一律 false。
-            # 分类文件说 true 也不算 —— 自述不能自证(见 ORACLE_AUTHORSHIP_*)。
+            # 严口径闸门,**两道**:
+            #   ① oracle 必须是外部来的(测试文本不是我们写的);
+            #   ② harness 对宿主的改动必须只是挖空,不许加语义 —— 否则上游测试
+            #      实际在考我们发明的东西,oracle 的文本来源就没有意义了。
+            # 分类文件说 true 也不算:自述不能自证。
             "counts_toward_heldout_benchmark": bool(
                 c.get("counts_toward_heldout_benchmark", False)
-                and c.get("oracle_authorship") == ORACLE_AUTHORSHIP_EXTERNAL),
+                and c.get("oracle_authorship") == ORACLE_AUTHORSHIP_EXTERNAL
+                and c.get("host_modification_mode", HOST_MOD_PRISTINE)
+                in _HELDOUT_OK_HOST_MODS),
             "oracle_authorship": c.get("oracle_authorship", ORACLE_AUTHORSHIP_OURS),
+            "host_modification_mode": c.get("host_modification_mode", HOST_MOD_PRISTINE),
             "counts_toward_mechanism_effect": c.get("counts_toward_mechanism_effect", False),
             "counts_toward_treatment_effect": c.get("counts_toward_treatment_effect"),
             "treatment_assigned": c.get("treatment_assigned", False),
@@ -339,6 +348,31 @@ BASELINE_HOST = "zhangyi-nb1/offerclaw"
 # held-out 是四类分母里唯一被直接读成"模型能力"的那个。自述不能自证。
 ORACLE_AUTHORSHIP_EXTERNAL = "UPSTREAM_OWN_TEST_SUITE"   # 目标仓自带,我们没碰
 ORACLE_AUTHORSHIP_OURS = "AUTHORED_BY_HARNESS"           # 我们写的(T1–T3 全部)
+
+# ---- 严口径的**第二道**闸门(2026-08-15,设计评审当场查出的盲区)----
+#
+# 只看 oracle_authorship 是不够的:它管的是**测试文本**谁写的,对"harness 改写了
+# **非测试**源码"完全无感。于是有一条又宽又隐蔽的路 ——
+#
+#     把宿主源码改得面目全非、往里塞进我们自己发明的接线语义,
+#     上游那 554 条此刻实际在检验"你有没有猜对**我们新加的**东西",
+#     而闸门照样认它是 held-out。
+#
+# 这不是假想:本次第二宿主的三份设计里,有一份(contrarian)的最大 trap 判的就是
+# harness 自造的 `register_doc_preparer` + 现摇 priority,71 条上游测试为它服务。
+# 做它等于亲手把第一发 held-out 数字喂进盲区。
+#
+# 可判的分界线:**只许挖空,不许加语义。**
+#   HOLLOW_ONLY —— 改动只是把原件里**已存在**的符号换成 NotImplementedError。
+#                  上游测试考的仍是上游自己的语义,只是实现被拿走了。
+#   ENRICHED    —— 引入了原件里没有的符号/行为。上游测试此刻在考我们发明的东西,
+#                  **不算 held-out**,不管 oracle 的文本是谁写的。
+#   PRISTINE    —— 宿主一个字没改(T1–T3 是这种:改的是"加一个新功能",
+#                  而 oracle 本来就是我们写的,已被第一道闸门挡掉)。
+HOST_MOD_PRISTINE = "PRISTINE"
+HOST_MOD_HOLLOW_ONLY = "HOLLOW_ONLY"
+HOST_MOD_ENRICHED = "ENRICHED"
+_HELDOUT_OK_HOST_MODS = frozenset({HOST_MOD_PRISTINE, HOST_MOD_HOLLOW_ONLY})
 
 
 def _same_host(row: dict) -> bool:

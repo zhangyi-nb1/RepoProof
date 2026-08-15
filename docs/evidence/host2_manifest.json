@@ -45,5 +45,28 @@
     "**记忆污染未证伪。** plugins.py 自 2024-03 起未改,0.47.0 发布于 2026-03-22,远早于模型知识截止。且 docstring 原文写着 'Heavily copied from apispec.',而 apispec-webframeworks 的公开 FlaskPlugin 功能等价。模型背没背过,只能实测。",
     "**判据 6(规模)边缘。** 物理 2382 行,扣空行/注释/docstring 后真码 1152 行。按真码口径低于我自己设的 2000 下限。",
     "**结构性冲突。** 能满足'自带大规模测试套件 + 硬依赖 seam + 离线可钉版'的仓,几乎必然是高星老仓,也就必然在模型权重里。判据 4 与'无污染'在开源生态里存在结构性冲突 —— 下一轮还会撞上。"
-  ]
+  ],
+  "design_review_findings": {
+    "_when": "2026-08-15,第二宿主第一道题的设计评审(三路独立出题 + 对抗攻击)",
+    "F1_strict_gate_blind_spot": {
+      "what": "严口径闸门只看 oracle_authorship(测试文本谁写的),对 harness 改写**非测试**源码完全无感 —— 把宿主改得面目全非、让上游测试实际在考我们发明的接线语义,闸门照样认它是 held-out",
+      "evidence": "三份设计里有一份的最大 trap(71 条上游测试)判的就是 harness 自造的 register_doc_preparer + 现摇 priority",
+      "status": "**已修**:加第二道闸门 host_modification_mode,ENRICHED 一律不算 held-out(只许挖空,不许加语义)。K20 + M60e。"
+    },
+    "F2_a1_structural_limit": {
+      "what": "U4 比的是 digest(交付产出) == digest(回执产出)。上游算得对、被测方自己也算得对时两者恒等 —— 所以 U3/U4 判的是'有没有按项数发出等量且输入对得上的 RPC',**不是'值是不是从上游流过来的'**。一个'自己算对 + 照常发 RPC'的实现与诚实实现逐项不可分辨。",
+      "why_t3_sidecar_survives": "被**任务的偶然性质**挡住,不是被机制挡住:fixture 的答案只能靠真渲染拿到,且待抽取项的 nonce 在 oracle 起跑那一刻现摇(rotate_items,审查 B4)—— 算不出也预取不了。**换一道答案可独立算出的题,这条上限立刻暴露。**",
+      "fix": "差分注入:上游返回受 run_key 扰动的值(扰动量只有上游知道),采纳判据改成'交付逐项等于扰动后的值'。待立项 A1-MECH-SELFTEST,run_purpose: CRITERIA_INTEGRITY —— 不计模型能力、不计 held-out。",
+      "status": "**未修**。已写进 scripts/verify_task_receipts.py 的判据源码里,读判据的人在同一屏能看见。在做完之前,任何引用 U4 的地方都要带上它。"
+    }
+  },
+  "first_task_decision": {
+    "chosen": "H2-SEAM-REIMPL v1(挖空 spec/plugins.py 的 12 个符号,554 条自带套件当隐藏 oracle,切 2 个测试函数当公开面差集)",
+    "rejected": {
+      "contrarian": "往宿主里加自造语义 → 正撞 F1 那个盲区;且参考解在 6 种现摇排列里有 3 种就是 18 failed(发题即死)",
+      "adopt": "轮仓里没有可采纳的外部上游,且撞 F2 的结构上限 —— 拆核后降级为 A1-MECH-SELFTEST 另立项"
+    },
+    "honest_size": "修完部署层三条之后,它是一道 **10 个 held-out node、2 项微技能、约 1–2 bit 的二值下限闸门**。它是闸门,不是分数。",
+    "status": "设计已定,契约未写。开工前还有部署层三条要修(.git 泄漏原件 / .pth 指回原仓 / 交付边界未写进契约)。"
+  }
 }

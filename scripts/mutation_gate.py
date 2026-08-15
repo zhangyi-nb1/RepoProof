@@ -914,13 +914,25 @@ MUTATIONS: list[dict] = [
         "catchers": _T_HD,
     },
     {
+        "id": "M60e-enriched-host-counts-as-heldout",
+        "lesson": "严口径只查测试文本来源,不查 harness 往宿主里加没加语义 → "
+                  "把宿主改得面目全非、让上游测试实际在考**我们发明的**接线,"
+                  "闸门照样认它是 held-out(2026-08-15 设计评审当场查出的盲区,"
+                  "有一份设计的最大 trap 就是 71 条上游测试为自造语义服务)",
+        "file": _BR,
+        "old": '                and c.get("host_modification_mode", HOST_MOD_PRISTINE)\n'
+               "                in _HELDOUT_OK_HOST_MODS),",
+        "new": "                ),",
+        "catchers": _T_RCL,
+    },
+    {
         "id": "M60d-our-own-oracle-counts-as-heldout",
         "lesson": "严口径失效 → 我们自己写的 oracle 也算 held-out,而 held-out 是"
                   "四类分母里**唯一被直接读成模型能力**的那个;更糟的是它只信"
                   "旁挂分类文件的自述,手一滑置个 true 就成立(用户 2026-08-15 裁决)",
         "file": _BR,
-        "old": '                and c.get("oracle_authorship") == ORACLE_AUTHORSHIP_EXTERNAL),',
-        "new": "                ),",
+        "old": '                and c.get("oracle_authorship") == ORACLE_AUTHORSHIP_EXTERNAL',
+        "new": "                and True",
         "catchers": _T_RCL,
     },
     {
