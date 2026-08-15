@@ -241,3 +241,66 @@ oracle 4/4、重放 PASS、回执 13 条四道谓词全过,**且一轮就过**(�
   host(含 1.8G venv,实测 12s);落盘工件计入 patch 预算。
 
 这六条**下一轮修**;本批报必须逐条抄上。
+
+---
+
+## §10 修订 B:S1–S6 六条 should-fix 全部修完(仍在开跑前)
+
+上一节末尾写的是"这六条**下一轮修**,本批报必须逐条抄上"。实际做法改了:
+**开跑前一并修完**,因为其中三条(S1/S2/S3)改的是**归因**,而这批的全部
+产出就是归因结论 —— 带着已知的归因错误开跑,等于先污染再解释。
+
+判据(§4)**一字未改**。改的是执行与记账,不是尺子。
+
+| 项 | 修法 | 行为钉死(全部考行为,不读源码串) |
+|---|---|---|
+| S1 | `UpstreamExecutionError` → HTTP 502 + `harness_side: true`,记进 `upstream_failures` 且**不动 `seq`**;`ValueError` 仍 400。核验期**先问上游有没有崩**,再判取件 | `test_w10`(真起 sidecar,打 502/400 两路)、`test_w4c`(顺序)、`test_w9`(范围) |
+| S2 | 按归因分流:harness 侧五种原因走 `missing_external`;U2/U3/U4 判红并进 capability 侧,带 `attribution=agent` 与 taxonomy 类型 | `test_w5c`(喂结论字典考分流)、`test_w5b`(类型映射回契约) |
+| S3 | 取件夹在 `_run_oracle` 与 `_run_regression` **之间** | `test_w3`(三点顺序) |
+| S4 | 取件器整段进 try,坏文件单独计数;全坏且零产出抛 `DeliveryExtractionError`;宿主不许把它吞回 `None` | `test_s16`(取件器五种形态)、`test_s17`(宿主两截) |
+| S5 | 令牌扫描改**目录级**排除(`.venv/venv/.git/__pycache__/node_modules`),只吞 `OSError`,且断言 `scanned > 0` | 空扫描的"没泄漏"是空话 —— 断言扫到过东西 |
+| S6 | patch 预算跳过**契约/任务包声明的**交付目录(不扫目录:删什么、跳什么必须写死在任务包里) | `_delivery_dirs()` 只认 `JOBS_DIRNAME` |
+
+### S1 的一条附带发现(审查没提,修的时候撞出来的)
+
+上游故障若不按 harness 自己算的 `input_digest` 圈定范围,就有个现成的钻空子
+法:**拿一个自造的坏输入把封存浏览器打崩** → "上游故障非空" → 整发次判
+`BLOCKED`(不算模型失败、可重跑)—— **交白卷比交错答案划算**。现在故障必须
+落在我们下发的那几项上才算数(`M57b` 守这条)。
+
+### S4 留下的一处诚实边界
+
+"工件在、但全都读不出来"报 `DELIVERY_SHAPE_INVALID`。严格说这是**被测方**的
+形状问题(契约 R8 写明了 schema),但 `failure_taxonomy_expected` 里没有对应
+类型,硬塞一个等于**用未言明的要求判人**(正是 B6/B7/B10 那条 blocking 的
+病)。按 §4 的 Q3("出现说不清的,该发作废")归到**不判被测方失败**那一侧,
+但 **reason 串独立**,记录里与 `NO_DELIVERY_EXTRACTED` 分得开。真出现了,
+批报里单独议 —— 不悄悄和"取件失败"同框。
+
+### 变异登记簿 +7(M57a–g)
+
+每一条被砍掉,系统都照跑、控制矩阵也照绿,**只是这笔账记错了人** —— 这正是
+本批唯一要产出的东西,所以七条都必须有人守:
+
+```
+M57a 不先问上游崩没崩        M57b 上游故障不圈范围(→ 交白卷换 BLOCKED)
+M57c 崩了不留痕              M57d 崩了报 400(与"坏入参"混成一件事)
+M57e 采纳不成立又走回 BLOCKED M57f 取件器吞掉形状错
+M57g 宿主吞掉形状错
+```
+
+`scripts/mutation_gate.py` 在 `89d17ea` 上 **127/127**,证据
+`docs/evidence/mutation_gate/89d17ea9ebcf.json`。
+
+### §8 前置条件复核(开跑前逐条兑现)
+
+- [x] 可搬运性审查完成,blocking 清零(四条 B1–B4 已由我独立复现后才动手)
+- [x] 变异闸门 100%(127/127,`89d17ea`)
+- [x] 全套测试绿(**742 passed, 20 skipped**)、`check_public_claims` 绿
+- [x] `verify_sealed` 报封存件完好(3 个钉版上游,provision 于 2026-08-14T16:26:12Z)
+- [x] 本预注册已提交(`9d52121`);S1–S6 修复在 `89d17ea`,**本批以 89d17ea 起跑**
+
+零模型端到端复验(`89d17ea`,`--fake positive`):`PASS_ADAPTED`,公开面 7/7、
+oracle 4/4、重放 PASS、**回执 13 条、U1–U4 十项全绿**、一轮即过。
+run_id `t3-sidecar-page-facts-v1-20260815-134813`,批次记
+`EXPLORATORY_UNPREREGISTERED`(不计任何闸门数)。

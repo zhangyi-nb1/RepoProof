@@ -12,7 +12,7 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 26,
+    "all_valid_run_outcomes": 27,
     "assisted_repair_runs": 14,
     "development_baseline_runs": 60,
     "exploratory": 7,
@@ -72,8 +72,8 @@
       }
     ],
     "provisional_evidence_runs": 3,
-    "smoke": 27,
-    "smoke_passes": 7,
+    "smoke": 28,
+    "smoke_passes": 8,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -101,9 +101,10 @@
       "t3-sidecar-page-facts-v1-20260815-031942",
       "t3-sidecar-page-facts-v1-20260815-032720",
       "t3-sidecar-page-facts-v1-20260815-054223",
-      "t3-sidecar-page-facts-v1-20260815-123758"
+      "t3-sidecar-page-facts-v1-20260815-123758",
+      "t3-sidecar-page-facts-v1-20260815-134813"
     ],
-    "total": 108,
+    "total": 109,
     "treatment_delivered_runs": 3,
     "treatment_not_delivered_runs": 3
   },
@@ -115,7 +116,7 @@
   },
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "91a18d065b0b36303d35d8cfaddaaba5c287ed4bdadd8c6e691b1f860cccecf4"
+    "runs_jsonl_sha256": "feb5507256c7fbc060795fdd4e523b823a14b262147fc0a52d0e33267ce55445"
   },
   "stages": {
     "T1": {
@@ -204,7 +205,7 @@
       "treatment_not_delivered_runs": 3
     },
     "T3": {
-      "all_valid_run_outcomes": 6,
+      "all_valid_run_outcomes": 7,
       "assisted_repair_runs": 2,
       "development_baseline_runs": 23,
       "exploratory": 5,
@@ -253,8 +254,8 @@
         }
       ],
       "provisional_evidence_runs": 3,
-      "smoke": 9,
-      "smoke_passes": 3,
+      "smoke": 10,
+      "smoke_passes": 4,
       "smoke_run_ids": [
         "t3-offerclaw-browser-use-v2-20260811-091744",
         "t3-offerclaw-browser-use-v6-20260814-185516",
@@ -264,9 +265,10 @@
         "t3-sidecar-page-facts-v1-20260815-031942",
         "t3-sidecar-page-facts-v1-20260815-032720",
         "t3-sidecar-page-facts-v1-20260815-054223",
-        "t3-sidecar-page-facts-v1-20260815-123758"
+        "t3-sidecar-page-facts-v1-20260815-123758",
+        "t3-sidecar-page-facts-v1-20260815-134813"
       ],
-      "total": 39,
+      "total": 40,
       "treatment_delivered_runs": 0,
       "treatment_not_delivered_runs": 0
     },
