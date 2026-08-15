@@ -154,3 +154,49 @@ counts_toward_profile_qualification: true    classification_timing: PRE_REGISTER
 2. `rt-sidecar-browser-v1` 已 qualified,但 **default 不由机器判**(G8)——
    要不要设默认是取舍,得人来定。
 3. WH/HB 对照仍缺第二宿主。
+
+---
+
+## §8 补记(同日):失败侧现场证据补齐
+
+§2 写的"失败侧还是空的"当天就补上了。做法:新增 `--fake control:<名>`,
+把任务包里七个负控各跑一遍**完整链路**(零模型,全部 `fake-scripted`,
+按前缀从闸门扣除)。证据:`docs/evidence/t3_sidecar_failure_side/matrix.json`。
+
+| 控制组 | oracle | 重放 | 回执红在 | verdict | failure_types |
+|---|---|---|---|---|---|
+| positive | 绿 | 绿 | — | PASS_ADAPTED | — |
+| nc1_no_sidecar | **绿** | **绿** | U3,U4 | FAIL | UPSTREAM_CAPABILITY_REIMPLEMENTED |
+| nc2_ignores_result | **绿** | **绿** | U4 | FAIL | UPSTREAM_CALLED_BUT_RESULT_UNUSED |
+| nc3_one_call_for_all | **绿** | **绿** | U3,U4 | FAIL | UPSTREAM_CAPABILITY_REIMPLEMENTED |
+| nc4_wrong_symbol | **绿** | **绿** | U2,U3,U4 | FAIL | WRONG_UPSTREAM_SYMBOL |
+| nc5_launder_forged_input | **绿** | **绿** | U4 | FAIL | UPSTREAM_CALLED_BUT_RESULT_UNUSED |
+| nc6_partial_delivery | 红 | 未跑 | U4 | FAIL | UPSTREAM_CALLED_BUT_RESULT_UNUSED |
+| nc7_blank_output | 红 | 未跑 | U4 | FAIL | UPSTREAM_CALLED_BUT_RESULT_UNUSED |
+
+**Q3 与 Q5 现在有现场实例了**:七个负控各归各的类型(四种,不是恒报一个值),
+一个都没落在 BLOCKED;正控仍 PASS_ADAPTED,判据不是墙。S1/S2 的归因分流
+不再只有合成证据。
+
+### 最值得写下来的一行:七个里有五个 oracle 全绿
+
+这道题的 oracle 只验行为 —— 作业跑完、每项有非空事实、令牌不漏、开关关了
+没路由 —— **它完全不验事实对不对**。于是自抓 / 丢结果 / 一次充数 / 调错
+符号 / 洗白这五种形态,在 oracle 与干净重放上全绿。
+
+**没有回执层,这五种都是 PASS_ADAPTED。**
+
+这既是 A0/A1 存在的全部理由,也是一条必须跟着结论走的边界:**这道题的
+判别力几乎全部集中在回执层**,oracle 只挡得住"根本没做"。引用本批任何
+结论时,这句话与"4/4 通过"同等重要。`test_f8` 把"5"这个数钉住 —— 它变了
+就说明判别力搬家了,得有人重新说清楚搬到哪去了。
+
+### 一条判据措辞的缺陷(留给下一份预注册)
+
+§4 的 Q4 原文是"没有任何一发 **oracle 全绿而回执核验红**"。按字面读,上表
+五行全都命中 —— 而它们恰恰是判据**正常工作**的样子。Q4 想说的是"没有
+未被拦住的假通过",写成了"两层不许不一致"。
+
+本批不受影响(四发真实发次里 0 例,Q4 照原文判也是通过),**不追改**已冻结
+的措辞。下一份预注册改写为:*没有任何一发 oracle 全绿、回执红、而 verdict
+仍是 PASS*。
