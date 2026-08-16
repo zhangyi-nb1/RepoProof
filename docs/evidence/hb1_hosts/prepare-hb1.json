@@ -1,0 +1,452 @@
+{
+  "_what": "HB-PCDELTA-1 三 bench 宿主的部署层自证 —— V 树重构交叉验证 + 攻击者残迹留痕 + 回归基线 + 校准泄漏扫描(双向自证)",
+  "round": 2,
+  "round_reason": "第二轮:attacks/<id>/delivery 实测为攻击者终态树(第一轮泄漏扫描撞出,含攻击者自己的实现),host 源按 2026-08-16 裁决改为重构视野树 V(路径 = delivery∩parent,内容一律 parent 版本);第一轮基线数字作废",
+  "generated_by": "scripts/prepare_hb1_hosts.py",
+  "prereg": "benchmarks/v2/preregistrations/HB-batch1-postcutoff-delta-prereg-20260816.md",
+  "archive": "/Users/zhangronglei/RepoProofArchive/d5-hunt",
+  "bench_root": "/Users/zhangronglei/RepoProofBench",
+  "python": "3.12.5",
+  "argv": [
+    "scripts/prepare_hb1_hosts.py",
+    "--hosts"
+  ],
+  "invocations": [
+    {
+      "argv": [
+        "scripts/prepare_hb1_hosts.py",
+        "--hosts"
+      ],
+      "stages": [
+        "hosts"
+      ],
+      "round": 2,
+      "utc": "2026-08-16T06:00:25+00:00"
+    },
+    {
+      "argv": [
+        "scripts/prepare_hb1_hosts.py",
+        "--hosts"
+      ],
+      "stages": [
+        "hosts"
+      ],
+      "round": 2,
+      "utc": "2026-08-16T06:04:53+00:00"
+    },
+    {
+      "argv": [
+        "scripts/prepare_hb1_hosts.py",
+        "--leak-scan"
+      ],
+      "stages": [
+        "leak"
+      ],
+      "round": 2,
+      "utc": "2026-08-16T06:04:54+00:00"
+    },
+    {
+      "argv": [
+        "scripts/prepare_hb1_hosts.py",
+        "--measure"
+      ],
+      "stages": [
+        "measure"
+      ],
+      "round": 2,
+      "utc": "2026-08-16T06:05:07+00:00"
+    },
+    {
+      "argv": [
+        "scripts/prepare_hb1_hosts.py",
+        "--hosts"
+      ],
+      "stages": [
+        "hosts"
+      ],
+      "round": 2,
+      "utc": "2026-08-16T06:07:02+00:00"
+    }
+  ],
+  "hosts": {
+    "click-3581": {
+      "source_parent_tree": "/Users/zhangronglei/RepoProofArchive/d5-hunt/candidates/click-3581/parent_tree",
+      "source_delivery": "/Users/zhangronglei/RepoProofArchive/d5-hunt/attacks/click-3581/delivery",
+      "source_wheelhouse": "/Users/zhangronglei/RepoProofArchive/d5-hunt/wheelhouse/click",
+      "bench_dir": "/Users/zhangronglei/RepoProofBench/hb1-click-3581",
+      "construction_check": {
+        "ok": true,
+        "v_count": 139,
+        "expected_count": 139,
+        "missing_from_v": [],
+        "unexpected_in_v": []
+      },
+      "attacker_residue": {
+        "added": [],
+        "modified": [
+          "CHANGES.md",
+          "docs/api.md",
+          "docs/option-decorators.md",
+          "src/click/__init__.py",
+          "src/click/__pycache__/__init__.cpython-312.pyc",
+          "src/click/__pycache__/_compat.cpython-312.pyc",
+          "src/click/__pycache__/_utils.cpython-312.pyc",
+          "src/click/__pycache__/core.cpython-312.pyc",
+          "src/click/__pycache__/decorators.cpython-312.pyc",
+          "src/click/__pycache__/exceptions.cpython-312.pyc",
+          "src/click/__pycache__/formatting.cpython-312.pyc",
+          "src/click/__pycache__/globals.cpython-312.pyc",
+          "src/click/__pycache__/parser.cpython-312.pyc",
+          "src/click/__pycache__/termui.cpython-312.pyc",
+          "src/click/__pycache__/types.cpython-312.pyc",
+          "src/click/__pycache__/utils.cpython-312.pyc",
+          "src/click/decorators.py"
+        ]
+      },
+      "wheelhouse_mode": "verify-only",
+      "wheelhouse_digest": "sha256:fdbdd76a8cf2572c1a8824440aee8627e84a5379e9ed7931741806a525db7819",
+      "wheelhouse_file_count": 8,
+      "deployed": true,
+      "host_digest": "sha256:79f3856dd5ea1d541064cb1137b08735926fd474322e4e1a70299e7de9d8686e",
+      "file_count": 139,
+      "verify": {
+        "host_vs_V": {
+          "ok": true,
+          "missing": [],
+          "extra": [],
+          "mismatch": []
+        },
+        "wheelhouse": {
+          "ok": true,
+          "missing": [],
+          "extra": [],
+          "mismatch": []
+        }
+      },
+      "verify_ok": true,
+      "host_mode": "verify-only",
+      "bench_dir_entries": [
+        "host",
+        "wheelhouse"
+      ],
+      "leak": {
+        "fingerprints_total": 43,
+        "calibrated_out": 10,
+        "calibrated_out_names": [
+          "src/click/decorators.py:) -> t.Callable[[FC], FC]:",
+          "src/click/decorators.py::param param_decls: One or more option n",
+          "src/click/decorators.py::param kwargs: Extra arguments are passe",
+          "src/click/decorators.py:if not value or ctx.resilient_parsing:",
+          "src/click/decorators.py:param_decls = (\"--version\",)",
+          "src/click/decorators.py:kwargs.setdefault(\"is_flag\", True)",
+          "src/click/decorators.py:kwargs.setdefault(\"expose_value\", False)",
+          "src/click/decorators.py:kwargs.setdefault(\"is_eager\", True)",
+          "src/click/decorators.py:kwargs.setdefault(\"help\", _(\"Show the ve",
+          "src/click/decorators.py:return option(*param_decls, **kwargs)"
+        ],
+        "effective": 33,
+        "hits": [],
+        "planted_detected": true,
+        "clean_zero": true,
+        "selfcheck_ok": true
+      },
+      "baseline": {
+        "total": 1614,
+        "passed": 1588,
+        "failed": 0,
+        "skipped": 26,
+        "failed_nodes": [],
+        "skip_nodes": [
+          "tests.test_chain::test_group_chaining",
+          "tests.test_termui::test_editor_windows_path_normalization[plain notepad]",
+          "tests.test_termui::test_editor_windows_path_normalization[quoted path with flag]",
+          "tests.test_termui::test_getchar_special_key_windows[\\x00-a]",
+          "tests.test_termui::test_getchar_special_key_windows[\\x00-b]",
+          "tests.test_termui::test_getchar_special_key_windows[\\xe0-c]",
+          "tests.test_termui::test_getchar_windows[False- ]",
+          "tests.test_termui::test_getchar_windows[False-H]",
+          "tests.test_termui::test_getchar_windows[False-\\u5b57]",
+          "tests.test_termui::test_getchar_windows[False-\\xc0]",
+          "tests.test_termui::test_getchar_windows[False-\\xe0H]",
+          "tests.test_termui::test_getchar_windows[False-\\xe0R]",
+          "tests.test_termui::test_getchar_windows[False-\\xe9]",
+          "tests.test_termui::test_getchar_windows[False-h]",
+          "tests.test_termui::test_getchar_windows[True- ]",
+          "tests.test_termui::test_getchar_windows[True-H]",
+          "tests.test_termui::test_getchar_windows[True-\\u5b57]",
+          "tests.test_termui::test_getchar_windows[True-\\xc0]",
+          "tests.test_termui::test_getchar_windows[True-\\xe0H]",
+          "tests.test_termui::test_getchar_windows[True-\\xe0R]",
+          "tests.test_termui::test_getchar_windows[True-\\xe9]",
+          "tests.test_termui::test_getchar_windows[True-h]",
+          "tests.test_termui::test_getchar_windows_exceptions[\\x03-KeyboardInterrupt]",
+          "tests.test_termui::test_getchar_windows_exceptions[\\x1a-EOFError]",
+          "tests.test_testing::test_capture_fd_windows_error",
+          "tests.test_types::test_path_surrogates"
+        ],
+        "recipe": {
+          "venv_python": "/Users/zhangronglei/Desktop/XIANGMU/RepoProof/.venv/bin/python",
+          "pip": [
+            "install",
+            "-q",
+            "--no-index",
+            "--find-links",
+            "/Users/zhangronglei/RepoProofBench/hb1-click-3581/wheelhouse",
+            "-e",
+            "<tree>",
+            "pytest"
+          ],
+          "env_extra": [],
+          "pytest": [
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "--junitxml",
+            "<tmp>/junit.xml"
+          ]
+        },
+        "status": "READY",
+        "problems": []
+      }
+    },
+    "click-3407": {
+      "source_parent_tree": "/Users/zhangronglei/RepoProofArchive/d5-hunt/candidates/click-3407/parent_tree",
+      "source_delivery": "/Users/zhangronglei/RepoProofArchive/d5-hunt/attacks/click-3407/delivery",
+      "source_wheelhouse": "/Users/zhangronglei/RepoProofArchive/d5-hunt/wheelhouse/click",
+      "bench_dir": "/Users/zhangronglei/RepoProofBench/hb1-click-3407",
+      "construction_check": {
+        "ok": true,
+        "v_count": 152,
+        "expected_count": 152,
+        "missing_from_v": [],
+        "unexpected_in_v": []
+      },
+      "attacker_residue": {
+        "added": [],
+        "modified": [
+          "CHANGES.md",
+          "src/click/__pycache__/__init__.cpython-312.pyc",
+          "src/click/__pycache__/_compat.cpython-312.pyc",
+          "src/click/__pycache__/_utils.cpython-312.pyc",
+          "src/click/__pycache__/core.cpython-312.pyc",
+          "src/click/__pycache__/decorators.cpython-312.pyc",
+          "src/click/__pycache__/exceptions.cpython-312.pyc",
+          "src/click/__pycache__/formatting.cpython-312.pyc",
+          "src/click/__pycache__/globals.cpython-312.pyc",
+          "src/click/__pycache__/parser.cpython-312.pyc",
+          "src/click/__pycache__/termui.cpython-312.pyc",
+          "src/click/__pycache__/types.cpython-312.pyc",
+          "src/click/__pycache__/utils.cpython-312.pyc",
+          "src/click/termui.py",
+          "src/click/types.py"
+        ]
+      },
+      "wheelhouse_mode": "verify-only",
+      "wheelhouse_digest": "sha256:fdbdd76a8cf2572c1a8824440aee8627e84a5379e9ed7931741806a525db7819",
+      "wheelhouse_file_count": 8,
+      "deployed": true,
+      "host_digest": "sha256:a80e79f722b296960642d69b947006cbe333035d203a4cc281b7c354678ee92b",
+      "file_count": 152,
+      "verify": {
+        "host_vs_V": {
+          "ok": true,
+          "missing": [],
+          "extra": [],
+          "mismatch": []
+        },
+        "wheelhouse": {
+          "ok": true,
+          "missing": [],
+          "extra": [],
+          "mismatch": []
+        }
+      },
+      "verify_ok": true,
+      "host_mode": "verify-only",
+      "bench_dir_entries": [
+        "host",
+        "wheelhouse"
+      ],
+      "leak": {
+        "fingerprints_total": 61,
+        "calibrated_out": 10,
+        "calibrated_out_names": [
+          "src/click/termui.py:if isinstance(show_default, str):",
+          "src/click/termui.py:elif default is not None:",
+          "src/click/termui.py:hide_input: bool = False,",
+          "src/click/termui.py:confirmation_prompt: bool | str = False,",
+          "src/click/termui.py:prompt_suffix: str = \": \",",
+          "src/click/termui.py:show_default: bool | str = True,",
+          "src/click/termui.py:show_choices: bool = True,",
+          "src/click/termui.py:.. versionchanged:: 8.5.0",
+          "src/click/types.py:param: Parameter | None = None,",
+          "src/click/types.py:ctx: Context | None = None,"
+        ],
+        "effective": 51,
+        "hits": [],
+        "planted_detected": true,
+        "clean_zero": true,
+        "selfcheck_ok": true
+      },
+      "baseline": {
+        "total": 1893,
+        "passed": 1868,
+        "failed": 0,
+        "skipped": 25,
+        "failed_nodes": [],
+        "skip_nodes": [
+          "tests.test_chain::test_group_chaining",
+          "tests.test_termui::test_editor_windows_path_normalization[plain notepad]",
+          "tests.test_termui::test_editor_windows_path_normalization[quoted path with flag]",
+          "tests.test_termui::test_getchar_special_key_windows[\\x00-a]",
+          "tests.test_termui::test_getchar_special_key_windows[\\x00-b]",
+          "tests.test_termui::test_getchar_special_key_windows[\\xe0-c]",
+          "tests.test_termui::test_getchar_windows[False- ]",
+          "tests.test_termui::test_getchar_windows[False-H]",
+          "tests.test_termui::test_getchar_windows[False-\\u5b57]",
+          "tests.test_termui::test_getchar_windows[False-\\xc0]",
+          "tests.test_termui::test_getchar_windows[False-\\xe0H]",
+          "tests.test_termui::test_getchar_windows[False-\\xe0R]",
+          "tests.test_termui::test_getchar_windows[False-\\xe9]",
+          "tests.test_termui::test_getchar_windows[False-h]",
+          "tests.test_termui::test_getchar_windows[True- ]",
+          "tests.test_termui::test_getchar_windows[True-H]",
+          "tests.test_termui::test_getchar_windows[True-\\u5b57]",
+          "tests.test_termui::test_getchar_windows[True-\\xc0]",
+          "tests.test_termui::test_getchar_windows[True-\\xe0H]",
+          "tests.test_termui::test_getchar_windows[True-\\xe0R]",
+          "tests.test_termui::test_getchar_windows[True-\\xe9]",
+          "tests.test_termui::test_getchar_windows[True-h]",
+          "tests.test_termui::test_getchar_windows_exceptions[\\x03-KeyboardInterrupt]",
+          "tests.test_termui::test_getchar_windows_exceptions[\\x1a-EOFError]",
+          "tests.test_testing::test_capture_fd_windows_error"
+        ],
+        "recipe": {
+          "venv_python": "/Users/zhangronglei/Desktop/XIANGMU/RepoProof/.venv/bin/python",
+          "pip": [
+            "install",
+            "-q",
+            "--no-index",
+            "--find-links",
+            "/Users/zhangronglei/RepoProofBench/hb1-click-3407/wheelhouse",
+            "-e",
+            "<tree>",
+            "pytest"
+          ],
+          "env_extra": [],
+          "pytest": [
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "--junitxml",
+            "<tmp>/junit.xml"
+          ]
+        },
+        "status": "READY",
+        "problems": []
+      }
+    },
+    "sqlglot-8042": {
+      "source_parent_tree": "/Users/zhangronglei/RepoProofArchive/d5-hunt/candidates/sqlglot-8042/parent_tree",
+      "source_delivery": "/Users/zhangronglei/RepoProofArchive/d5-hunt/attacks/sqlglot-8042/delivery",
+      "source_wheelhouse": "/Users/zhangronglei/RepoProofArchive/d5-hunt/wheelhouse/sqlglot",
+      "bench_dir": "/Users/zhangronglei/RepoProofBench/hb1-sqlglot-8042",
+      "construction_check": {
+        "ok": true,
+        "v_count": 354,
+        "expected_count": 354,
+        "missing_from_v": [],
+        "unexpected_in_v": []
+      },
+      "attacker_residue": {
+        "added": [],
+        "modified": [
+          "sqlglot/lineage.py"
+        ]
+      },
+      "wheelhouse_mode": "verify-only",
+      "wheelhouse_digest": "sha256:fb68fc2340082e113ccf31330b3db5cc611503d0e0d048c9840f2c2569370a78",
+      "wheelhouse_file_count": 16,
+      "deployed": true,
+      "host_digest": "sha256:2f361664168611d297eee848b6d04a0275461064d68596f60b1a1c120a468115",
+      "file_count": 354,
+      "verify": {
+        "host_vs_V": {
+          "ok": true,
+          "missing": [],
+          "extra": [],
+          "mismatch": []
+        },
+        "wheelhouse": {
+          "ok": true,
+          "missing": [],
+          "extra": [],
+          "mismatch": []
+        }
+      },
+      "verify_ok": true,
+      "host_mode": "verify-only",
+      "bench_dir_entries": [
+        "host",
+        "wheelhouse"
+      ],
+      "leak": {
+        "fingerprints_total": 51,
+        "calibrated_out": 6,
+        "calibrated_out_names": [
+          "sqlglot/lineage.py:columns: list[str] = []",
+          "sqlglot/lineage.py:columns = parent.this.named_selects",
+          "sqlglot/lineage.py:columns = cte_source.expression.named_se",
+          "sqlglot/lineage.py:columns = list(schema.column_names(paren",
+          "sqlglot/lineage.py:renames: dict[str, str] = {}",
+          "sqlglot/lineage.py:mapping: dict[str, list[exp.Column]] = {"
+        ],
+        "effective": 45,
+        "hits": [],
+        "planted_detected": true,
+        "clean_zero": true,
+        "selfcheck_ok": true
+      },
+      "baseline": {
+        "total": 1150,
+        "passed": 1150,
+        "failed": 0,
+        "skipped": 0,
+        "failed_nodes": [],
+        "skip_nodes": [],
+        "recipe": {
+          "venv_python": "/Users/zhangronglei/Desktop/XIANGMU/RepoProof/.venv/bin/python",
+          "pip": [
+            "install",
+            "-q",
+            "--no-index",
+            "--find-links",
+            "/Users/zhangronglei/RepoProofBench/hb1-sqlglot-8042/wheelhouse",
+            "-e",
+            "<tree>",
+            "pytest",
+            "duckdb",
+            "pandas",
+            "python-dateutil",
+            "pytz",
+            "typing_extensions"
+          ],
+          "env_extra": [
+            "SETUPTOOLS_SCM_PRETEND_VERSION"
+          ],
+          "pytest": [
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "--junitxml",
+            "<tmp>/junit.xml"
+          ]
+        },
+        "status": "READY",
+        "problems": []
+      }
+    }
+  },
+  "ok": true,
+  "bytecode_ruling": "裁决二(2026-08-16,tripwire 首跑触发后):两条推导双双剔除 __pycache__/** 与 *.pyc,V 一律不含字节码 —— 被剥测试文件的 parent 侧 .pyc 是指向隐藏 oracle 的结构性箭头且可反编译,攻击者实际视野本就无字节码;会话快照 DEFAULT_EXCLUDES 早已排除 __pycache__,与既有纪律同向"
+}

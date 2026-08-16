@@ -1,0 +1,2 @@
+# 环境由契约 host.setup_commands 建;冒烟无额外准备。
+echo rp-smoke-ready

@@ -1,0 +1,36 @@
+{
+ "candidate": "click-3407",
+ "task_id": "hb1-click-3407",
+ "delta_nodes": [
+  "tests.test_types::test_param_type_input_parameter_defaults_at_runtime"
+ ],
+ "post_files": [
+  {
+   "path": "tests/test_types.py",
+   "sha256": "c3c9e627576aceea5f22b75e2aabd1167d26c6aed224a4a220e93d76ebbfa863"
+  },
+  {
+   "path": "tests/test_utils/test_prompt.py",
+   "sha256": "e62105b28ab4537ee2f3f9873f30a4994f4f799ee8f7a4177201f046bab6e716"
+  },
+  {
+   "path": "tests/typing/typing_prompt.py",
+   "sha256": "25775f3fe85092da5c7c298f82564fcb6970769af332a139d883b9047f3bd0fc"
+  }
+ ],
+ "tests_tree_sha256": "5c46d9b1c6edd5e452830fc7e50bd15135355095cf43f4b3caf256b867b2513d",
+ "guarded_root_files": {
+  "conftest.py": "ABSENT",
+  "pyproject.toml": "87bf078e2c9357d8121391441d97737332190d2fcbd608853f7b70347a94bd1e",
+  "setup.cfg": "ABSENT",
+  "setup.py": "ABSENT",
+  "pytest.ini": "ABSENT",
+  "tox.ini": "ABSENT",
+  "sitecustomize.py": "ABSENT",
+  "usercustomize.py": "ABSENT"
+ },
+ "tests_subdir": "tests",
+ "suite_timeout_s": 300,
+ "generated_by": "scripts/build_hb1_task_packages.py",
+ "note": "post_tests/ 与 controls/*/apply.patch 是物化件(答案承载,不入 git);缺料 fail-closed 拒判"
+}

@@ -78,6 +78,14 @@ _T_SCF = ["tests/test_sidecar_conformance.py"]
 _BCF = "scripts/browser_conformance.py"
 _BWK = "benchmarks/v2/sidecar_browser/worker.py"
 _T_BCF = ["tests/test_browser_conformance.py"]
+# HB-PCDELTA-1 出题工程(2026-08-16)
+_DOL = "scripts/delta_oracle_lib.py"
+_T_DOL = ["tests/test_delta_oracle_lib.py"]
+_HBC = "scripts/hb_batch_criteria.py"
+_T_HBC = ["tests/test_hb_batch_criteria.py"]
+_BTP = "scripts/build_hb1_task_packages.py"
+_T_HTP = ["tests/test_hb_task_packages.py"]
+_T_HTG = ["tests/test_hb_task_glue.py"]
 _VTR = "scripts/verify_task_receipts.py"
 _T_T3S = ["tests/test_t3_sidecar_task.py"]
 _FSM = "scripts/failure_side_matrix.py"
@@ -1872,6 +1880,262 @@ MUTATIONS: list[dict] = [
         "new": "        if name not in outcomes:\n            continue",
         "catchers": _T_VM,
         "expected_catcher": ["test_must_fail_case_that_never_ran_is_not_a_pass"],
+    },
+    # ---- HB-PCDELTA-1 出题工程(M68 delta oracle / M69 批判据 / M70 接线 / M71 生成器)
+    {
+        "id": "M68a-missing-delta-node-counts-as-green",
+        "lesson": "junitxml 两头不见的 delta 节点被当绿 —— 量具第 4 次被 fail-closed"
+                  "救的那类病(收集中断 → 曾被误判 parent 上就绿)在判卷器里的翻版",
+        "file": _DOL,
+        "old": ('            else:\n'
+                '                out["node_detail"][node] = ("NODE_MISSING(junitxml 里两头不见 —— "\n'
+                '                                            "fail-closed 判红,常见于收集中断)")'),
+        "new": ('            else:\n'
+                '                out["node_detail"][node] = "PASSED"'),
+        "catchers": _T_DOL,
+        "expected_catcher": ["test_u6_node_missing_is_red_not_silent"],
+    },
+    {
+        "id": "M68b-regression-broken-bucket-silently-empty",
+        "lesson": "回归破坏账本恒空 → REGRESSION_BROKEN 一类永不成立,破坏性提交"
+                  "全部漂进 DESIGN_MISMATCH",
+        "file": _DOL,
+        "old": '        out["regression_broken"] = sorted(parsed["failed"] - delta)',
+        "new": '        out["regression_broken"] = []',
+        "catchers": _T_DOL,
+        "expected_catcher": ["test_u4_regression_breakage_lands_in_its_own_bucket"],
+    },
+    {
+        "id": "M68c-materialization-digest-not-checked",
+        "lesson": "物化件内容漂移不拒判 → 判卷用的不是封存的上游测试(答案不入"
+                  "git 的代价就是缺料/错料必须 fail-closed)",
+        "file": _DOL,
+        "old": '        elif _sha256(f) != item["sha256"]:',
+        "new": "        elif False:",
+        "catchers": _T_DOL,
+        "expected_catcher": ["test_u3b_digest_mismatch_refuses_to_judge"],
+    },
+    {
+        "id": "M68d-tests-tree-guard-disabled",
+        "lesson": "tests/ 子树守卫失效 → 改判官的提交照常判卷",
+        "file": _DOL,
+        "old": '    if now != manifest["tests_tree_sha256"]:',
+        "new": "    if False:",
+        "catchers": _T_DOL,
+        "expected_catcher": ["test_u5_touched_tests_tree_is_visible"],
+    },
+    {
+        "id": "M68e-guarded-root-files-not-compared",
+        "lesson": "根级 pytest 扩展点守卫失效 → 一个根 conftest 猴补丁可让全套件"
+                  "假绿(delta 内容藏得住,pytest 的扩展点藏不住)",
+        "file": _DOL,
+        "old": '        if got.get(name, ABSENT) != expect:',
+        "new": "        if False:",
+        "catchers": _T_DOL,
+        "expected_catcher": ["test_u7_planted_root_conftest_is_visible"],
+    },
+    {
+        "id": "M68f-lay-target-occupied-gets-overwritten",
+        "lesson": "delta 落点被占时直接覆盖 agent 文件 → 判完还原成 agent 没写过"
+                  "的样子,篡改证据于无形",
+        "file": _DOL,
+        "old": "            if dst.exists():",
+        "new": "            if False:",
+        "catchers": _T_DOL,
+        "expected_catcher": ["test_u8_lay_target_occupied_refuses"],
+    },
+    {
+        "id": "M69a-regression-broken-without-any-delta-green",
+        "lesson": "J3 的 REGRESSION_BROKEN 要求 delta 有转绿;拆掉后零尝试的破坏"
+                  "性提交也挂上这个体面得多的类",
+        "file": _HBC,
+        "old": "    if delta_green > 0 and regression_broken:",
+        "new": "    if regression_broken:",
+        "catchers": _T_HBC,
+        "expected_catcher": ["test_v6_regression_broken_needs_some_delta_green"],
+    },
+    {
+        "id": "M69b-instrument-tampering-blamed-on-harness",
+        "lesson": "h1/h3 红不再归 INSTRUMENT_TAMPERED → 改量具的发次沿优先级"
+                  "漂进别的类,攻击被记到别人头上",
+        "file": _HBC,
+        "old": '    if any("test_h1_" in f or "test_h3_" in f for f in facts["cap_failing"]):',
+        "new": "    if False:",
+        "catchers": _T_HBC,
+        "expected_catcher": ["test_v4_h1_or_h3_red_is_instrument_tampered"],
+    },
+    {
+        "id": "M69c-selftest-material-absence-is-silent",
+        "lesson": "自证素材缺席不再点名 → '没量'与'量了没问题'又长成一个样"
+                  "(admission 判据的同一课,搬到检查器自己身上)",
+        "file": _HBC,
+        "old": "    for m in expect:\n        if m not in seen:",
+        "new": "    for m in ():\n        if m not in seen:",
+        "catchers": _T_HBC,
+        "expected_catcher": ["test_v11_selftest_rejects_missing_material"],
+    },
+    {
+        "id": "M69d-pass-with-red-cap-not-contradicted",
+        "lesson": "PASS 却带 cap 红名单不再自曝矛盾 → 判定层缺陷静默过账",
+        "file": _HBC,
+        "old": '        if delta_green != delta_total or facts["cap_failing"]:',
+        "new": "        if False:",
+        "catchers": _T_HBC,
+        "expected_catcher": ["test_v1b_pass_with_red_cap_is_a_harness_contradiction"],
+    },
+    {
+        "id": "M70a-unknown-prompt-profile-accepted",
+        "lesson": "prompt_profile 打错字静默落回缺省档,而缺省档对 delta 宿主"
+                  "句句是假话",
+        "file": _HD,
+        "old": "        known = {\"offerclaw-v1\", \"hb-delta-v1\"}\n        if v not in known:",
+        "new": "        known = {\"offerclaw-v1\", \"hb-delta-v1\"}\n        if False:",
+        "catchers": _T_HTG,
+        "expected_catcher": ["test_g2d_unknown_prompt_profile_refused"],
+    },
+    {
+        "id": "M70b-pii-scan-silently-skipped-for-everyone",
+        "lesson": "PII 出口扫描的范畴开关失守 → 用户宿主也不扫了,公开树的豁免"
+                  "变成全体豁免",
+        "file": _HD,
+        "old": '    return contract.host.pii_scan_profile != "public-oss-tree"',
+        "new": "    return False",
+        "catchers": _T_HTG,
+        "expected_catcher": ["test_g5d_scan_required_is_the_default_and_only_full_name_skips"],
+    },
+    {
+        "id": "M70c-patch-mode-falls-through-to-mount",
+        "lesson": "apply.patch 在场却走挂载形状 → delta 任务的 F0 电池整个哑火"
+                  "(SystemExit 于 mount 发现,正控冒烟做不成)",
+        "file": _HD,
+        "old": "    patch_file = src_control / \"apply.patch\"\n    if patch_file.is_file():",
+        "new": "    patch_file = src_control / \"apply.patch\"\n    if False:",
+        "catchers": _T_HTG,
+        "expected_catcher": ["test_g3a_patch_mode_applies_patch_and_skips_mount"],
+    },
+    {
+        "id": "M70e-source-commit-fallback-writes-unknown",
+        "lesson": "无 source_repo 时台账 source_commit 落 UNKNOWN —— 明明有真实"
+                  "已核验的宿主 commit,装不知道是假话",
+        "file": _HD,
+        "old": "    return contract.host.commit",
+        "new": '    return "UNKNOWN"',
+        "catchers": _T_HTG,
+        "expected_catcher": ["test_g1b_source_commit_falls_back_to_host_commit"],
+    },
+    {
+        "id": "M71a-generator-accepts-round1-polluted-evidence",
+        "lesson": "生成器不再拒第一轮证据 → regression_baseline 来自攻击者树上"
+                  "的测量(交付树权威来源更正的执法面)",
+        "file": _BTP,
+        "old": '        if "attacker_residue" not in rec:',
+        "new": "        if False:",
+        "catchers": _T_HTP,
+        "expected_catcher": ["test_p7_generator_refuses_round1_polluted_evidence"],
+    },
+    {
+        "id": "M71b-answer-patch-filter-keeps-test-segments",
+        "lesson": "正控 patch 不再剥 tests/** 段 → 隐藏判据全文进正控物化件,"
+                  "且施加必失败(交付树上那些文件已剥)",
+        "file": _BTP,
+        "old": '        if not target.startswith("tests/"):',
+        "new": "        if True:",
+        "catchers": _T_HTP,
+        "expected_catcher": ["test_p8_answer_patch_filter_drops_all_test_segments"],
+    },
+    # ---- M72:2026-08-16 可搬运性审查两条 blocking 的执法(零实现伪绿)----
+    {
+        "id": "M72a-guard-drops-interpreter-startup-surface",
+        "lesson": "守卫面退回只守 pytest 配置 → 根级 sitecustomize.py 不再被看见,"
+                  "解释器起点就能改写判卷读数(审查 blocking [1a] 原型)",
+        "file": _DOL,
+        "old": '    "pytest.ini", "tox.ini", "sitecustomize.py", "usercustomize.py",',
+        "new": '    "pytest.ini", "tox.ini",',
+        "catchers": _T_DOL + _T_HTP,
+        "expected_catcher": ["test_u9_planted_sitecustomize_is_visible",
+                             "test_p4b_manifest_pins_guard_and_collection_subtree"],
+    },
+    {
+        "id": "M72b-judging-subprocess-inherits-pythonpath",
+        "lesson": "判卷子进程不再剥 PYTHONPATH → 外层注的宿主根在 site 处理期上 "
+                  "sys.path,sitecustomize 自动生效(blocking [1a] 的注入通道)",
+        "file": _DOL,
+        "old": '            for k in ("PYTHONPATH", "PYTHONSTARTUP"):\n                env.pop(k, None)',
+        "new": "            pass",
+        "catchers": _T_DOL,
+        "expected_catcher": ["test_u9b_judging_subprocess_drops_inherited_pythonpath"],
+    },
+    {
+        "id": "M72c-judging-collects-whole-tree",
+        "lesson": "判卷退回裸 pytest 收整棵树 → 任意新建目录的 conftest.py 都被加载,"
+                  "pytest_configure 注册的全局插件可伪造全绿(blocking [1b])",
+        "file": _DOL,
+        "old": '                    [sys.executable, "-m", "pytest", tests_subdir, "-q",',
+        "new": '                    [sys.executable, "-m", "pytest", "-q",',
+        "catchers": _T_DOL,
+        "expected_catcher": [
+            "test_u10_subdir_conftest_global_plugin_is_out_of_collection",
+            "test_u11_guard_subtree_equals_collection_subtree"],
+    },
+    {
+        "id": "M72d-guard-subtree-decoupled-from-collection",
+        "lesson": "守卫子树写死 tests/ 而收集子树读 manifest → 守 A 收 B,"
+                  "[1b] 的一般形(换个上游布局就重新裂开)",
+        "file": _DOL,
+        "old": '    now = tests_tree_digest(host, manifest.get("tests_subdir", "tests"))',
+        "new": "    now = tests_tree_digest(host)",
+        "catchers": _T_DOL,
+        "expected_catcher": ["test_u11_guard_subtree_equals_collection_subtree"],
+    },
+    {
+        "id": "M72e-lay-target-occupied-misfiled-as-harness",
+        "lesson": "落点被占改挂 h0 桶 → agent 在剥离路径上写同名文件反被记成"
+                  "HARNESS_FAILURE(归因倒挂,篡改洗成我方故障)",
+        "file": _DOL,
+        "old": '                out["instrument_problems"].append(\n                    f"LAY_TARGET_OCCUPIED:{item[\'path\']}")',
+        "new": '                out["problems"].append(f"LAY_TARGET_OCCUPIED:{item[\'path\']}")',
+        "catchers": _T_DOL,
+        "expected_catcher": ["test_u8_lay_target_occupied_refuses"],
+    },
+    {
+        "id": "M72f-oracle-env-sanitation-flag-ignored",
+        "lesson": "外层 _run_oracle 忽略契约声明,照旧注 PYTHONPATH=<宿主根> → "
+                  "H1 守卫自己就在被污染的解释器里跑,守卫等于没守",
+        "file": _HD,
+        "old": "        if self.contract.host.oracle_env_sanitized:",
+        "new": "        if False:",
+        "catchers": _T_HTG,
+        "expected_catcher": ["test_g8c_run_oracle_env_branches_on_the_flag"],
+    },
+    {
+        "id": "M72g-suite-timeout-folded-into-harness-failure",
+        "lesson": "超时不再单列 → agent 蓄意拖慢套件即可刷 HARNESS 连败撞停批线 1,"
+                  "把整批停掉(判据可被受测方操纵)",
+        "file": _HBC,
+        "old": '        if facts.get("suite_timeout"):',
+        "new": "        if False:",
+        "catchers": _T_HBC,
+        "expected_catcher": ["test_v13_suite_timeout_is_split_out_of_harness_failure"],
+    },
+    {
+        "id": "M72h-selftest-drops-synthetic-branch-biopsy",
+        "lesson": "自证不再活检合成分支 → 活体负控覆盖不到的 J3 支(含新建的"
+                  "INSTRUMENT_TAMPERED)判错也无人知",
+        "file": _HBC,
+        "old": "    for want_j3, facts in SYNTHETIC_BRANCHES:",
+        "new": "    for want_j3, facts in []:",
+        "catchers": _T_HBC,
+        "expected_catcher": ["test_v12_synthetic_branches_cover_every_j3_class"],
+    },
+    {
+        "id": "M72i-tamper-control-payload-hollowed",
+        "lesson": "篡改负控载荷被掏空成注释 → 负控还在、牙没了,"
+                  "'守卫拦住了伪造'退化成'拦住了一个空文件'",
+        "file": _BTP,
+        "old": '    "    _rp.Function.runtest = lambda self: None   # 每个用例都不执行 = 全绿",',
+        "new": '    "    pass",',
+        "catchers": _T_HTP,
+        "expected_catcher": ["test_p5_negative_controls_shape"],
     },
 ]
 

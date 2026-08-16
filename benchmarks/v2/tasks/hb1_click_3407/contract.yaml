@@ -1,0 +1,251 @@
+task_id: hb1-click-3407
+task_version: v1
+kind: host_integrated
+prompt_profile: hb-delta-v1
+host:
+  repo: pallets/click
+  commit: cfa01eeb7894a408af70b29d28c0b24f8680f9fb
+  copy_path: ~/RepoProofBench/hb1-click-3407/host
+  regression_command:
+    - .venv/bin/python
+    - -m
+    - pytest
+    - tests
+    - -q
+    - -p
+    - "no:cacheprovider"
+  regression_baseline: "1868 passed, 25 skipped, 0 failed"
+  setup_commands:
+    - [python3, -m, venv, .venv]
+    - [.venv/bin/pip, install, -q, --no-index, -e, ., pytest]
+  health_checks:
+    - command:
+        - .venv/bin/python
+        - -c
+        - import click
+  host_root_env: HB_DELTA_HOST_ROOT
+  wheelhouse_path: ~/RepoProofBench/hb1-click-3407/wheelhouse
+  require_wheelhouse_manifest: false
+  pii_scan_profile: public-oss-tree
+  oracle_env_sanitized: true
+capability:
+  statement: |+
+    # pallets/click PR #3407: `click.prompt` typing clarifications / improvements
+
+    merged_at: 2026-07-22T22:25:17Z
+    merge_commit: 5e906a8afb67242dffdd91404dbf31f469054b15
+    base: cfa01eeb7894a408af70b29d28c0b24f8680f9fb
+
+    ## PR 正文
+
+    This improves the typing of `click.prompt`. However there is still an opening question / issue...
+
+    # Brief summary
+
+    The current code makes the following change to the public API of `click.prompt`:
+
+    ```diff
+     def prompt(
+         text: str,
+    -    default: t.Any | None = None,
+    +    default: V | None = None,
+         hide_input: bool = False,
+         confirmation_prompt: bool | str = False,
+    -    type: ParamType[t.Any] | t.Any | None = None,
+    -    value_proc: t.Callable[[str], t.Any] | None = None,
+    +    type: ParamType[V] | V | None = None,
+    +    value_proc: t.Callable[[str], V] | None = None,
+         prompt_suffix: str = ": ",
+         show_default: bool | str = True,
+         err: bool = False,
+         show_choices: bool = True,
+    -) -> t.Any:
+    +) -> V:
+    ````
+
+    This changes the behaviour in that you can no longer pass types that aren't the same type as the type you expect at the end. For example:
+
+    ```python
+    click.prompt("Iteration amount?", default="100", type=int)
+    ```
+
+    Would no longer work under the current implementation because `"100"` is not of the type `int`. In the old implementation this worked because default values still were passed as `int("100")` before being returned. The remaining question is then what behaviour we should go for.
+
+    You could say, "why" not keep the current implementation? Well we could, but it's not actually typed correctly and actually allows behaviour we don't account for. That behaviour is that `value_proc: t.Callable[[str], V] | None = None` accepts only `str` to convert to the target type. So technically you shouldn't be allowed to pass `Any` to it. However.... `ParamType.__call__`, which makes `ParamType` also a callable, is used to convert the `default` to the target `type` as well and that accepts `Any`, not `str`. So there's not really a strict contract anywhere.
+
+    To make the decision on this PR easier I propose the following options:
+
+    ## 1. Restrict `default` to same type (current implementation)
+
+    - Accept only the same type as the type passed in `type` in `default`.
+    - DO NOT pass `default` to `value_proc` or the constructor of `type`.
+
+    ```diff
+     def prompt(
+         text: str,
+    -    default: t.Any | None = None,
+    +    default: V | None = None,
+         hide_input: bool = False,
+         confirmation_prompt: bool | str = False,
+    -    type: ParamType[t.Any] | t.Any | None = None,
+    -    value_proc: t.Callable[[str], t.Any] | None = None,
+    +    type: ParamType[V] | V | None = None,
+    +    value_proc: t.Callable[[str], V] | None = None,
+         prompt_suffix: str = ": ",
+         show_default: bool | str = True,
+         err: bool = False,
+         show_choices: bool = True,
+    -) -> t.Any:
+    +) -> V:
+    ````
+
+
+    ## 2. Public API typing change (or correction) with unlikely users
+
+    - Accept the same type as the type passed in `type` in `default` and also `str`.
+    - If `default` type is different from the type of `type`, pass it to `value_proc` or the constructor of `type` to convert it.
+    	- Make `ParamType.__call__` also onyl accept `str`, not `Any`.
+
+    ```diff
+     def prompt(
+         text: str,
+    -    default: t.Any | None = None,
+    +    default: V | str | None = None,
+         hide_input: bool = False,
+         confirmation_prompt: bool | str = False,
+    -    type: ParamType[t.Any] | t.Any | None = None,
+    -    value_proc: t.Callable[[str], t.Any] | None = None,
+    +    type: ParamType[V] | V | None = None,
+    +    value_proc: t.Callable[[str], V] | None = None,
+         prompt_suffix: str = ": ",
+         show_default: bool | str = True,
+         err: bool = False,
+         show_choices: bool = True,
+    -) -> t.Any:
+    +) -> V:
+    ````
+
+    ```diff
+        @t.overload
+        def __call__(
+            self,
+            value: None,
+            param: Parameter | None = None,
+            ctx: Context | None = None,
+        ) -> None: ...
+
+        @t.overload
+        def __call__(
+            self,
+    -       value: t.Any,
+    +       value: str,
+            param: Parameter | None = None,
+            ctx: Context | None = None,
+        ) -> ParamTypeValue: ...
+
+        def __call__(
+            self,
+    -       value: t.Any,
+    +       value: str,
+            param: Parameter | None = None,
+            ctx: Context | None = None,
+        ) -> ParamTypeValue | None:
+            if value is not None:
+                return self.convert(value, param, ctx)
+            return None
+
+        def convert(
+            self,
+    -       value: t.Any,
+    +       value: str,
+    		param: Parameter | None,
+    		ctx: Context | None,
+        ) -> ParamTypeValue:
+
+    ```
+
+
+    ## 3. Change `value_proc` to accept `Any`
+
+    - Accept `Any` in `default`, keeping the same accepted type as before.
+    - If `default` type is different from the type of `type`, pass it to `value_proc` or the constructor of `type` to convert it.
+
+    ```diff
+     def prompt(
+         text: str,
+    -    default: t.Any | None = None,
+    +    default: V | t.Any | None = None,
+         hide_input: bool = False,
+         confirmation_prompt: bool | str = False,
+    -    type: ParamType[t.Any] | t.Any | None = None,
+    -    value_proc: t.Callable[[str], t.Any] | None = None,
+    +    type: ParamType[V] | V | None = None,
+    +    value_proc: t.Callable[[t.Any], V] | None = None,
+         prompt_suffix: str = ": ",
+         show_default: bool | str = True,
+         err: bool = False,
+         show_choices: bool = True,
+    -) -> t.Any:
+    +) -> V:
+    ````
+
+    # My preference?
+
+    Even though I've implemented the first option, I think the second option makes the most sense. I don't think there's a usecase for accepting beyond `str` for parsing.
+
+
+  requirements:
+    - id: R1
+      text: "Implement the feature request in GOAL exactly as stated; the GOAL text is the upstream PR/issue verbatim. Acceptance is the upstream project's own hidden tests for this exact feature: they must go from FAIL to PASS."
+    - id: R2
+      text: "The existing regression suite must stay green: .venv/bin/python -m pytest tests -q -p no:cacheprovider."
+    - id: R3
+      text: "The measuring surface is read-only: do not create or modify anything under tests/, nor root-level conftest.py, pyproject.toml, setup.cfg, setup.py, pytest.ini or tox.ini."
+    - id: R4
+      text: Fully offline; no new dependencies. Everything needed is preinstalled in ./.venv.
+constraints:
+  forbidden:
+    - "tests/ and public_tests/ are READ-ONLY: the regression suite is a measuring instrument; modifying it is treated exactly like forging results."
+    - "Root-level pytest extension points are READ-ONLY: conftest.py, pyproject.toml, setup.cfg, setup.py, pytest.ini, tox.ini. Creating or editing them fails the run."
+    - No network access at any time.
+budgets:
+  semantics: per_round
+  max_rounds: 3
+  max_model_calls: 30
+  max_commands: 100
+  max_patch_files: 15
+  max_patch_lines: 1500
+  max_wall_time_minutes: 60
+  max_input_tokens_total: 600000
+  max_output_tokens_total: 80000
+acceptance:
+  public_test_command:
+    - python
+    - -m
+    - pytest
+    - tests
+    - -q
+    - -p
+    - "no:cacheprovider"
+  hidden_oracle_command:
+    - python
+    - -m
+    - pytest
+    - "<ORACLE_ABS>"
+    - -q
+    - -p
+    - "no:cacheprovider"
+task_shape:
+  form: postcutoff-delta
+  delta_nodes: 1
+  single_module: true
+failure_taxonomy_expected:
+  - DESIGN_MISMATCH
+  - IMPL_INCOMPLETE
+  - REGRESSION_BROKEN
+  - NO_SUBMISSION
+  - INSTRUMENT_TAMPERED
+  - HARNESS_FAILURE
+  - PROVIDER_FAILURE
+task_family: HB-PCDELTA
+adoption_shape: UPSTREAM_FEATURE_DELTA

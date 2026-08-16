@@ -39,7 +39,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from repoproof.adoption.repair.failure_packet import FailurePacket, build_failure_packets
 from repoproof.adoption.repair.repair_budget import RepairBudget
@@ -371,6 +371,34 @@ class HostInfo(BaseModel):
     # env_baseline_hash 记账 —— 缺省仍要求它在(那是第一宿主的既有纪律),
     # 契约可声明 false 表示"这个宿主的环境基线由别处保证"。
     require_wheelhouse_manifest: bool = True
+    # 测量三跑的 PATH 语义(G7,B10 同款换宿主复发:sqlglot test_lazy_load
+    # 起裸 `python` 子进程,本机 PATH 无裸 python → 基线 1149/1150 恒 BLOCKED;
+    # 准入量具早已 venv/bin 前置——M66f 钉着,harness 的钦定套件跑法没有同款,
+    # 两把尺子两个答案)。声明 true = 回归/公开面按"激活 venv"语义跑
+    # (会话 venv/bin 前置进 PATH);缺省 false = 既有宿主行为一字不变。
+    path_prepend_venv_bin: bool = False
+    # PII 出口扫描的范畴(G5,2026-08-16 实测):该闸守的是**用户宿主的个人
+    # 数据**不进 agent 工作区;对公开 OSS 上游树,上游测试夹具里的假邮箱/
+    # 样例号码(click test_defaults 的 a@b.com、sqlglot 方言测试的 SQL 样例)
+    # 是**按构造公开**的内容,命中即拒跑是范畴错配。声明 public-oss-tree =
+    # 跳过扫描并在事件里如实记 SKIPPED;缺省 user-host 行为一字不变。
+    pii_scan_profile: str = "user-host"
+    # oracle 进程的 env 净化(2026-08-16 可搬运性审查 blocking [1a]):历史行为
+    # 给 oracle 注 PYTHONPATH=<宿主根>(OfferClaw 的 oracle 靠它 import 宿主
+    # 模块)。但 PYTHONPATH 在 site 处理时刻就上 sys.path —— 宿主根下一个
+    # sitecustomize.py 会在**判卷解释器的起点**被自动 import,agent 可借此
+    # 改写判卷读数(含 h1 守卫自身)。delta 任务的 oracle 不需要宿主上
+    # sys.path(驱动器自带 sys.path.insert,宿主包经 .venv 装),声明 true =
+    # 不注 PYTHONPATH 且禁 user-site;缺省 false = 既有宿主行为一字不变。
+    oracle_env_sanitized: bool = False
+
+    @field_validator("pii_scan_profile")
+    @classmethod
+    def _known_pii_profile(cls, v: str) -> str:
+        if v not in {"user-host", "public-oss-tree"}:
+            raise ValueError(f"未知 pii_scan_profile:{v!r}"
+                             "(可选:public-oss-tree | user-host)")
+        return v
 
 
 class HostSourceRepo(BaseModel):
@@ -491,7 +519,12 @@ class HostContract(BaseModel):
     task_version: str
     kind: str
     host: HostInfo
-    source_repo: HostSourceRepo
+    # ---- G1(HB-PCDELTA-1,2026-08-16):source_repo 可选 ----
+    # delta 形态宿主即上游。复用 upstream-cache 会把**含答案 commit 的 git
+    # 历史**复制进会话(一条 `git log -p` 即满分),所以这类任务不声明
+    # source_repo,harness 相应跳过上游快照的核验与注入。缺省行为不变:
+    # 既有契约全都声明了 source_repo,None 只在新契约里出现。
+    source_repo: HostSourceRepo | None = None
     capability: HostCapability
     constraints: HostConstraints = HostConstraints()
     budgets: HostBudgets
@@ -503,6 +536,20 @@ class HostContract(BaseModel):
     runtime_profile: str = "rt-inprocess-v1"
     task_family: str = ""
     adoption_shape: str = "DEPENDENCY_INTEGRATION"
+    # ---- G2:提示档口 ----
+    # 提示文字住在代码里(可钉死、可变异),契约只选档。缺省 offerclaw-v1
+    # 逐字节等于既有提示(金标哈希在 tests/test_hb_task_glue.py)。
+    prompt_profile: str = "offerclaw-v1"
+
+    @field_validator("prompt_profile")
+    @classmethod
+    def _known_prompt_profile(cls, v: str) -> str:
+        known = {"offerclaw-v1", "hb-delta-v1"}
+        if v not in known:
+            # 打错字必须炸在加载期 —— 否则一个 typo 会静默落回缺省档,
+            # 而缺省档的提示对 delta 宿主句句是假话。
+            raise ValueError(f"未知 prompt_profile:{v!r}(可选:{sorted(known)})")
+        return v
 
     @classmethod
     def load(cls, path: Path) -> tuple["HostContract", str]:
@@ -936,8 +983,38 @@ def _read_substitutes(host_copy: Path) -> dict[str, str]:
     return subs
 
 
+def _pii_scan_required(contract: HostContract) -> bool:
+    """PII 出口扫描要不要跑 —— 唯一判定点(G5)。
+
+    只有显式声明 public-oss-tree 才跳;任何其他值(含缺省)都扫。抽成纯
+    函数是为了让"全宿主静默跳扫"这个失效方向有人守(变异 M70b)。
+    """
+    return contract.host.pii_scan_profile != "public-oss-tree"
+
+
+def source_commit_of(contract: HostContract) -> str:
+    """台账 source_commit 的唯一来源(G1)。
+
+    没有 source_repo 时如实落宿主 commit —— 源即宿主。不落 UNKNOWN:
+    这个 commit 是真实存在且已核验过的,装不知道反而是假话。
+    """
+    if contract.source_repo is not None:
+        return contract.source_repo.resolved_commit
+    return contract.host.commit
+
+
 def build_host_prompt(contract: HostContract, *, wheel_note: str) -> str:
-    """契约 → agent 提示的唯一投影(不含任何 oracle/隐藏信息)。"""
+    """契约 → agent 提示的唯一投影(不含任何 oracle/隐藏信息)。
+
+    双档(G2):offerclaw-v1 = 既有文本逐字节不变(金标哈希钉死);
+    hb-delta-v1 = post-cutoff delta 形态,一句 OfferClaw 的话都不许说。
+    """
+    if contract.prompt_profile == "hb-delta-v1":
+        return _build_delta_prompt(contract, wheel_note=wheel_note)
+    if contract.source_repo is None:
+        raise HostRunError(
+            "offerclaw-v1 档口的提示要陈述 ../upstream,而契约没有 source_repo "
+            "—— 无上游的任务请声明 prompt_profile: hb-delta-v1")
     cap = contract.capability
     req_lines = [f"[{r.id}] {' '.join(r.text.split())}" for r in cap.requirements]
     forbidden = [f"- {' '.join(f.split())}" for f in contract.constraints.forbidden]
@@ -995,6 +1072,70 @@ def build_host_prompt(contract: HostContract, *, wheel_note: str) -> str:
     return "\n\n".join(parts)
 
 
+def _build_delta_prompt(contract: HostContract, *, wheel_note: str) -> str:
+    """hb-delta-v1 档口(HB-PCDELTA-1,预注册 §4 裁决 A:盲攻同视野)。
+
+    对提示的三条纪律:
+    1. **不说第一宿主的话**:无 OfferClaw、无 ../upstream、无 requirements.txt
+       (重放从契约 setup_commands 重建,提示说 requirements.txt 就是教一条
+       不存在的路);
+    2. **先教后杀**(附录一第 4 条):验收语义类别公开 —— 上游同 PR 自带的
+       隐藏验收测试 FAIL→PASS、回归全绿;验收实例(文件/节点名/内容)隐藏;
+    3. H9-c 工作区边界照教,截断与靶向读取的忠告照教(与执行器行为一致,
+       不是宿主专属)。
+    """
+    cap = contract.capability
+    req_lines = [f"[{r.id}] {' '.join(r.text.split())}" for r in cap.requirements]
+    forbidden = [f"- {' '.join(f.split())}" for f in contract.constraints.forbidden]
+    b = contract.budgets
+    public_cmd = " ".join(contract.acceptance.public_test_command)
+    parts = [
+        "You are implementing an accepted feature request in a REAL open-source\n"
+        f"project ({contract.host.repo}). You work directly inside the project\n"
+        "tree as it stood just before this feature landed upstream.",
+        f"GOAL\n{cap.statement.strip()}",
+        "REQUIREMENTS (each is verified)\n" + "\n".join(req_lines),
+        "YOUR ENVIRONMENT\n"
+        "- You start in the project root (a disposable snapshot; git is\n"
+        "  available and the baseline is already committed).\n"
+        "- ./.venv              project virtualenv: the package is installed\n"
+        "  editable with its test dependencies and pytest preinstalled.\n"
+        "- Regression suite (MUST stay green) — run it yourself:\n"
+        f"    {public_cmd}\n"
+        f"- pip is OFFLINE: it resolves ONLY from a local wheel index ({wheel_note}).\n"
+        "  The task needs nothing beyond what is preinstalled.\n"
+        "- Command outputs beyond ~8000 chars are TRUNCATED (head+tail) with a notice.\n"
+        "  Read files in targeted ranges (sed -n '120,180p' FILE, grep -n PATTERN FILE)\n"
+        "  instead of dumping whole files — every char you read is re-sent on every\n"
+        "  later call and burns your per-round token allowance quadratically.",
+        "HARD RULES\n" + "\n".join(forbidden)
+        + "\n- Do not modify anything under ./tests or ./public_tests. The regression\n"
+          "  suite is a measuring instrument; changing it is treated exactly like\n"
+          "  forging results."
+        + "\n- STAY INSIDE THE WORKSPACE. Everything you need is here in ./ .\n"
+          "  Do NOT read anything else on this machine — no filesystem-wide\n"
+          "  sweeps (find / ...), and never touch the benchmark tree, reference\n"
+          "  solutions or hidden acceptance material. Such commands are DENIED,\n"
+          "  and referencing that material ends the run.",
+        "BUDGETS\n"
+        + (f"- PER ROUND (reset each round): model calls {b.max_model_calls}, "
+           f"executed commands {b.max_commands}, "
+           f"input/output token allowance {b.max_input_tokens_total}/{b.max_output_tokens_total}; "
+           if b.per_round else
+           f"- WHOLE RUN (single pool, no per-round reset): model calls {b.max_model_calls}, "
+           f"executed commands {b.max_commands}, "
+           f"input/output token allowance {b.max_input_tokens_total}/{b.max_output_tokens_total}; ")
+        + f"patch budget: {b.max_patch_files} files / {b.max_patch_lines} lines (whole run); "
+        f"wall time: {b.max_wall_time_minutes} minutes (whole run).\n"
+        "Acceptance is judged AFTER you finish by the upstream project's own\n"
+        "hidden acceptance tests for this exact feature: they must go from FAIL\n"
+        "to PASS, and the regression suite must stay green. You cannot see them;\n"
+        "there is no partial credit for claims.\n"
+        "When done, submit with: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT",
+    ]
+    return "\n\n".join(parts)
+
+
 class _Session:
     """一次装配好的宿主会话(主 run 与 clean replay 各一个)。"""
 
@@ -1032,10 +1173,12 @@ class HostGuidedRunner:
         for p in (self.oracle_src, self.public_tests_src):
             if not p.is_dir():
                 raise HostRunError(f"任务包目录缺失:{p}")
-        self.upstream_src = (
+        # G1:无 source_repo 的任务(delta 形态,宿主即上游)没有上游快照 ——
+        # 复用 upstream-cache 会把含答案 commit 的历史带进会话。
+        self.upstream_src: Path | None = (
             self.project_root / "upstream-cache"
             / f"upstream-{self.contract.source_repo.resolved_commit[:12]}"
-        )
+        ) if self.contract.source_repo is not None else None
         # 轮仓路径。缺省仍是 `wheelhouse-offerclaw-<commit7>`(第一宿主的历史
         # 命名,九个现存轮仓都叫这个,改名等于让全部历史发次无法复现);
         # 第二宿主在契约里声明自己的 `host.wheelhouse_path`。
@@ -1057,16 +1200,18 @@ class HostGuidedRunner:
 
     # ------------------------------------------------------------ 静态核验
     def _verify_static_resources(self) -> None:
-        if not self.upstream_src.is_dir():
-            raise HostRunError(
-                f"上游固定快照缺失:{self.upstream_src}(引导期先克隆并 detach)")
-        head = subprocess.run(  # noqa: S603 — 固定 argv,只读查询
-            ["git", "-C", str(self.upstream_src), "rev-parse", "HEAD"],
-            capture_output=True, text=True, check=False)
-        if head.stdout.strip() != self.contract.source_repo.resolved_commit:
-            raise HostRunError(
-                f"上游快照 HEAD {head.stdout.strip()[:12]} != 契约 pinned "
-                f"{self.contract.source_repo.resolved_commit[:12]}")
+        # G1:无 source_repo → 无上游快照可核,跳过上游两查;轮仓照查。
+        if self.upstream_src is not None:
+            if not self.upstream_src.is_dir():
+                raise HostRunError(
+                    f"上游固定快照缺失:{self.upstream_src}(引导期先克隆并 detach)")
+            head = subprocess.run(  # noqa: S603 — 固定 argv,只读查询
+                ["git", "-C", str(self.upstream_src), "rev-parse", "HEAD"],
+                capture_output=True, text=True, check=False)
+            if head.stdout.strip() != self.contract.source_repo.resolved_commit:
+                raise HostRunError(
+                    f"上游快照 HEAD {head.stdout.strip()[:12]} != 契约 pinned "
+                    f"{self.contract.source_repo.resolved_commit[:12]}")
         if not self.wheelhouse.is_dir():
             raise HostRunError(f"冻结 wheelhouse 缺失:{self.wheelhouse}")
         manifest = self.wheelhouse / "wheelhouse_manifest.json"
@@ -1229,12 +1374,20 @@ class HostGuidedRunner:
         snap = prepare_host_snapshot(
             self.host_copy, root / "host",
             substitutes=_read_substitutes(self.host_copy))
-        pii = scan_for_pii(root / "host")
-        if pii:
-            backend.destroy(session)
-            raise HostRunError(f"PII 出口扫描命中 {len(pii)} 条,拒绝开跑:{pii[:3]}")
-        shutil.copytree(self.upstream_src, root / "upstream", symlinks=False,
-                        ignore=shutil.ignore_patterns("__pycache__"))
+        pii_scan_note = "user-host"
+        if not _pii_scan_required(self.contract):
+            # G5:公开 OSS 树按构造不含用户数据(来源 = 封存池,D5 窗口审计
+            # 在案);上游夹具的假邮箱会让该闸恒红。跳过要**如实入事件**,
+            # 不许静默 —— 跳过和通过在证据里必须长得不一样。
+            pii_scan_note = "SKIPPED_PUBLIC_OSS_TREE"
+        else:
+            pii = scan_for_pii(root / "host")
+            if pii:
+                backend.destroy(session)
+                raise HostRunError(f"PII 出口扫描命中 {len(pii)} 条,拒绝开跑:{pii[:3]}")
+        if self.upstream_src is not None:      # G1:delta 形态无上游区
+            shutil.copytree(self.upstream_src, root / "upstream", symlinks=False,
+                            ignore=shutil.ignore_patterns("__pycache__"))
         shutil.copytree(self.public_tests_src, root / "host" / "public_tests",
                         ignore=shutil.ignore_patterns("__pycache__"))
         # T3 批 1 实证修复:任务包 fixtures 是公开测试面的一部分(公开
@@ -1246,6 +1399,14 @@ class HostGuidedRunner:
                             dirs_exist_ok=True,
                             ignore=shutil.ignore_patterns("__pycache__"))
         s = _Session(backend, session, root, ".venv/bin/python")
+        # G6(F0 彩排第 1 抓,2026-08-16):delta 宿主的交付树是纯净 V(无
+        # .git —— 字节码条款同源:攻击者视野里也没有);S0 提交机制需要仓,
+        # 就地补一个空仓。既有宿主(bench 副本自带 .git)不走此分支。
+        if not (root / "host" / ".git").is_dir():
+            r = self._git(s, "init", "-q")
+            if r.exit_code != 0:
+                backend.destroy(session)
+                raise HostRunError(f"git init 失败:{r.stderr.decode(errors='replace')[-300:]}")
         r = self._git(s, "add", "-A")
         if r.exit_code != 0:
             backend.destroy(session)
@@ -1259,6 +1420,7 @@ class HostGuidedRunner:
         ev(f"host.session_assembled.{label}", actor="harness", payload={
             "files": snap["files"], "excluded": len(snap["excluded"]),
             "substituted": snap["substituted"], "pii_hits": 0,
+            "pii_scan": pii_scan_note,
             "base_commit": s.base_commit,
         })
         return s
@@ -1360,7 +1522,8 @@ class HostGuidedRunner:
         xml_name = "rp_reg.xml"
         (s.root / xml_name).unlink(missing_ok=True)
         argv = [*argv, "--junitxml", f"../{xml_name}"]
-        res = s.backend.exec(s.id, argv, timeout_s=timeout_s, workdir="host")
+        res = s.backend.exec(s.id, argv, timeout_s=timeout_s, workdir="host",
+                             env=self._measure_env(s))
         stdout = res.stdout.decode(errors="replace")
         return {"exit_code": res.exit_code, "stdout": stdout,
                 **self._pytest_counts(s, xml_name, stdout)}
@@ -1369,6 +1532,21 @@ class HostGuidedRunner:
         """嵌套计量注入(增强③):只对 harness 自己发起的套件生效。"""
         return {"RP_METER_DIR": str(self.store.run_dir / "nested_meter"),
                 "RP_METER_TAG": tag}
+
+    def _measure_env(self, s: _Session) -> dict[str, str]:
+        """测量跑(回归/公开面)的 PATH 语义(G7)。
+
+        契约声明 path_prepend_venv_bin 时把会话 venv/bin 前置 —— 与准入
+        量具 venv_env() 同款(B10),否则钦定套件里裸 `python` 子进程按
+        机器巧合红绿。缺省空 dict = 既有行为逐字节不变。oracle 子跑不走
+        这里:delta_oracle_lib 自带同款前置。
+        """
+        if not self.contract.host.path_prepend_venv_bin:
+            return {}
+        import os as _os
+
+        return {"PATH": f"{s.root / 'host' / '.venv' / 'bin'}:"
+                        f"{_os.environ.get('PATH', '')}"}
 
     def _public_argv(self) -> list[str]:
         """公开面命令 —— **读契约**。
@@ -1392,7 +1570,8 @@ class HostGuidedRunner:
             s.id,
             [s.venv_py, *self._public_argv(),
              "--junitxml", "../rp_public.xml"],
-            timeout_s=timeout_s, workdir="host", env=self._meter_env(meter_tag))
+            timeout_s=timeout_s, workdir="host",
+            env={**self._measure_env(s), **self._meter_env(meter_tag)})
         junit = parse_junit_xml(xml_path.read_bytes() if xml_path.exists() else None)
         junit["pytest_exit"] = res.exit_code
         junit["stdout_tail"] = res.stdout.decode(errors="replace")[-600:]
@@ -1403,12 +1582,20 @@ class HostGuidedRunner:
         """隐藏验收:oracle 目录在会话外(run_dir 下),路径只在 harness 手里。"""
         xml_name = "rp_oracle.xml"
         (s.root / xml_name).unlink(missing_ok=True)
+        # env 净化(契约 oracle_env_sanitized,blocking [1a]):PYTHONPATH 指宿主
+        # 根时,根下 sitecustomize.py 会在判卷解释器起点被自动 import —— 外层
+        # 判卷进程若被它污染,H1 守卫在被改写的解释器里跑,等于没守。宿主根
+        # 路径本身照注(那是数据,不是 import 面)。
+        if self.contract.host.oracle_env_sanitized:
+            pythonpath_env = {"PYTHONNOUSERSITE": "1"}
+        else:
+            pythonpath_env = {"PYTHONPATH": str(s.root / "host")}
         res = s.backend.exec(
             s.id,
             [s.venv_py, "-m", "pytest", str(oracle_snap), "-q", "-p", "no:cacheprovider",
              "--junitxml", f"../{xml_name}"],
             timeout_s=timeout_s, workdir="host",
-            env={"PYTHONPATH": str(s.root / "host"),
+            env={**pythonpath_env,
                  # 宿主根。OfferClaw 的 oracle 读 OFFERCLAW_HOST_ROOT,别的宿主
                  # 读别的名字 —— 两个都注,多注一个无害,少注一个会让 oracle
                  # 在自己家里找不到路。
@@ -2424,7 +2611,7 @@ class HostGuidedRunner:
             "task_version": self.contract.task_version,
             "harness_commit": harness_commit,
             "host_commit": self.contract.host.commit,
-            "source_commit": self.contract.source_repo.resolved_commit,
+            "source_commit": source_commit_of(self.contract),
             "model": model_name,
             "provider": "openai-compatible" if preflight else "fake",
             "provider_config_hash": (preflight.provider_config_sha256
@@ -2571,6 +2758,61 @@ def run_host_guided_cli(
     return {"blocked": False, "preflight": None, "report": report}
 
 
+def _fake_setup_steps(src_control: Path) -> list[dict]:
+    """冒烟的环境准备步骤:**每任务清单**,不猜(G3 重构时原样搬出,逻辑未动)。
+
+    为什么不能有通用装法(逐条实测,2026-08-14):
+      - `pip install -e ../upstream` 对三任务全灭 —— 钉版 wheelhouse 里
+        没有 `hatchling`,PEP 517 editable 构建离线起不来;
+      - `pip install <distribution>` 只有 T1 碰巧能成 —— wheelhouse 里
+        `fastapi_mcp` 有轮子,`open_deep_research` / `browser_use` 各 0 个;
+      - T2 即便把上游装进去,`langchain` 伞包仍不在 wheelhouse(只有
+        `langchain_core`/`langgraph`),真实通关发次是自己写兼容垫片的;
+      - T3 历史 PASS 发次的 pip **每一条都失败**,它是自写 `browser_use/`
+        包过的关 —— 那正是 T3v6 要堵的洗白路径,不能当正控范本。
+
+    结论:上游可得性是**每任务的偶然事实**,写在任务包里才对;写在
+    harness 代码里,就是原实现"把 T1 的 fastapi-mcp / mcp<2.0 钉死"那个
+    病的翻版 —— 只是换了个更体面的形状。
+
+    缺清单 → 显式失败(与缺控制组目录同一条纪律:不猜、不静默降级)。
+    """
+    steps: list[dict] = []
+    setup = src_control / "smoke_setup.txt"
+    if not setup.is_file():
+        # 负控回落到**正控的**清单。这不是图省事:负控与正控必须在**同一个
+        # 环境**里跑,环境不同就不成对照 —— 那样红的可能是环境而不是判据。
+        # 所以回落目标只有一个、且是那个唯一的参照系。
+        shared = src_control.parent / "positive" / "smoke_setup.txt"
+        if shared.is_file():
+            setup = shared
+    if not setup.is_file():
+        raise ValueError(
+            f"控制组没有环境清单,冒烟无从做起:{setup}\n"
+            "冒烟脚本不替任务猜上游怎么装 —— 钉版可得性是每任务的偶然事实"
+            "(实测:editable 装法三任务全灭;pip install <名> 只有 T1 能成)。"
+            "请在任务包里写清单,一行一条命令。")
+    # `#!BLOCKED: <理由>` —— 该任务的正控在钉版环境下**不可能绿**,冒烟带
+    # 诊断拒跑。为什么不是"跑出一发 FAIL 就完了":那会在台账里留下一条
+    # 看起来和模型失败同型的记录,而它其实是**环境不可满足**,两者的含义
+    # 完全相反(前者说模型不行,后者说这道题在这个环境里没有正确答案)。
+    # 格式:命令块之间用单独一行 `---` 分隔(块内保留换行,故 heredoc 可用);
+    # 块外的 `#` 开头行是注释。用显式分隔符而不是空行,是因为 heredoc 正文
+    # 里本来就可能有空行。
+    raw = setup.read_text(encoding="utf-8")
+    for line in raw.splitlines():
+        if line.strip().startswith("#!BLOCKED:"):
+            raise ValueError(
+                f"正控在钉版环境下不可满足,冒烟拒跑:{src_control}\n"
+                + line.strip()[len("#!BLOCKED:"):].strip())
+    for block in raw.split("\n---\n"):
+        cmd = "\n".join(ln for ln in block.splitlines()
+                        if not ln.lstrip().startswith("#")).strip()
+        if cmd:
+            steps.append({"actions": [{"command": cmd}]})
+    return steps
+
+
 def _fake_script(kind: str, runner: HostGuidedRunner) -> list[dict]:
     """冒烟脚本。positive 脚本读取**该任务自己的**正控参考实现(harness 侧
     冒烟专用;正式 run 走真实模型,正控内容永不进入其提示或环境)。
@@ -2617,6 +2859,28 @@ def _fake_script(kind: str, runner: HostGuidedRunner) -> list[dict]:
             "冒烟必须有真实控制组 —— 拒绝静默退回 noop(那会让冒烟"
             "'通过'而其实什么都没验)")
 
+    def _setup_steps() -> list[dict]:
+        return _fake_setup_steps(src_control)
+
+    # G3(HB-PCDELTA-1,2026-08-16):patch 形态。控制组给的是一个现成补丁
+    # (controls/<名>/apply.patch),不是"复制 .py + 挂载"。delta 任务的正控
+    # = 上游 answer 实现原样施加(测试 hunk 已剥),负控 = 惰性/破坏补丁;
+    # 它们没有 mount 符号,也绝不该往 rag_api.py 里追加任何东西 —— 那两步
+    # 是第一宿主的形状,硬走会 SystemExit / 污染交付。环境清单纪律照旧
+    # (缺清单显式失败;负控回落正控清单)。
+    patch_file = src_control / "apply.patch"
+    if patch_file.is_file():
+        steps = _setup_steps()
+        body = patch_file.read_text(encoding="utf-8").rstrip("\n")
+        steps.append({"actions": [{"command":
+                      "cat > _rp_control.patch <<'RP_PATCH_EOF'\n"
+                      + body + "\nRP_PATCH_EOF"}]})
+        steps.append({"actions": [{"command":
+                      "git apply _rp_control.patch && rm _rp_control.patch"}]})
+        steps.append({"actions": [{"command":
+                      "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]})
+        return steps
+
     # 与 build_control_tree 用同一套挂载发现 —— 两处各写一份必然漂移
     import importlib.util as _iu
 
@@ -2626,56 +2890,7 @@ def _fake_script(kind: str, runner: HostGuidedRunner) -> list[dict]:
     _spec.loader.exec_module(_bct)
     module, mount_fn, _block = _bct.mount_of(src_control)
 
-    steps: list[dict] = []
-    # 环境准备:**每任务清单**,不猜。
-    #
-    # 为什么不能有通用装法(逐条实测,2026-08-14):
-    #   - `pip install -e ../upstream` 对三任务全灭 —— 钉版 wheelhouse 里
-    #     没有 `hatchling`,PEP 517 editable 构建离线起不来;
-    #   - `pip install <distribution>` 只有 T1 碰巧能成 —— wheelhouse 里
-    #     `fastapi_mcp` 有轮子,`open_deep_research` / `browser_use` 各 0 个;
-    #   - T2 即便把上游装进去,`langchain` 伞包仍不在 wheelhouse(只有
-    #     `langchain_core`/`langgraph`),真实通关发次是自己写兼容垫片的;
-    #   - T3 历史 PASS 发次的 pip **每一条都失败**,它是自写 `browser_use/`
-    #     包过的关 —— 那正是 T3v6 要堵的洗白路径,不能当正控范本。
-    #
-    # 结论:上游可得性是**每任务的偶然事实**,写在任务包里才对;写在
-    # harness 代码里,就是原实现"把 T1 的 fastapi-mcp / mcp<2.0 钉死"那个
-    # 病的翻版 —— 只是换了个更体面的形状。
-    #
-    # 缺清单 → 显式失败(与缺控制组目录同一条纪律:不猜、不静默降级)。
-    setup = src_control / "smoke_setup.txt"
-    if not setup.is_file():
-        # 负控回落到**正控的**清单。这不是图省事:负控与正控必须在**同一个
-        # 环境**里跑,环境不同就不成对照 —— 那样红的可能是环境而不是判据。
-        # 所以回落目标只有一个、且是那个唯一的参照系。
-        shared = src_control.parent / "positive" / "smoke_setup.txt"
-        if shared.is_file():
-            setup = shared
-    if not setup.is_file():
-        raise ValueError(
-            f"控制组没有环境清单,冒烟无从做起:{setup}\n"
-            "冒烟脚本不替任务猜上游怎么装 —— 钉版可得性是每任务的偶然事实"
-            "(实测:editable 装法三任务全灭;pip install <名> 只有 T1 能成)。"
-            "请在任务包里写清单,一行一条命令。")
-    # `#!BLOCKED: <理由>` —— 该任务的正控在钉版环境下**不可能绿**,冒烟带
-    # 诊断拒跑。为什么不是"跑出一发 FAIL 就完了":那会在台账里留下一条
-    # 看起来和模型失败同型的记录,而它其实是**环境不可满足**,两者的含义
-    # 完全相反(前者说模型不行,后者说这道题在这个环境里没有正确答案)。
-    # 格式:命令块之间用单独一行 `---` 分隔(块内保留换行,故 heredoc 可用);
-    # 块外的 `#` 开头行是注释。用显式分隔符而不是空行,是因为 heredoc 正文
-    # 里本来就可能有空行。
-    raw = setup.read_text(encoding="utf-8")
-    for line in raw.splitlines():
-        if line.strip().startswith("#!BLOCKED:"):
-            raise ValueError(
-                f"正控在钉版环境下不可满足,冒烟拒跑:{src_control}\n"
-                + line.strip()[len("#!BLOCKED:"):].strip())
-    for block in raw.split("\n---\n"):
-        cmd = "\n".join(ln for ln in block.splitlines()
-                        if not ln.lstrip().startswith("#")).strip()
-        if cmd:
-            steps.append({"actions": [{"command": cmd}]})
+    steps = _setup_steps()
 
     # 落**全部** .py,不只是挂载模块 —— `build_control_tree.build()` 就是
     # `for f in sorted(src_control.glob("*.py"))`。只落一个的话,带辅助模块的

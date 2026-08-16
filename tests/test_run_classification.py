@@ -346,9 +346,14 @@ def test_k11_the_heldout_prose_is_derived_from_data_not_written_down():
     spec.loader.exec_module(mod)
 
     d = mod.compute(REPO)
-    assert d["hosts_covered"] == ["zhangyi-nb1/offerclaw"], d["hosts_covered"]
+    # 2026-08-16 HB-PCDELTA-1 F0 电池入账,delta 宿主进台账 —— 旧钉值
+    # ["zhangyi-nb1/offerclaw"] 的世界状态合法翻页,K11 那句"第二宿主未建"
+    # 按设计当场自毁(这正是本测试合成段考的行为,真台账先兑现了)。
+    assert d["hosts_covered"] == ["pallets/click", "tobymao/sqlglot",
+                                  "zhangyi-nb1/offerclaw"], d["hosts_covered"]
     note = d["_denominators"]["heldout_model_evaluation_runs"]
-    assert "第二宿主未建" in note, "现在确实还没建,这句该在"
+    assert "第二宿主未建" not in note, "宿主已入账,这句必须消失"
+    assert "pallets/click" in note
 
     # 合成一个"已经建了第二宿主"的台账,那句话必须自己消失
     import json

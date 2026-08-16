@@ -1,0 +1,8 @@
+diff --git a/src/click/formatting.py b/src/click/formatting.py
+--- a/src/click/formatting.py
++++ b/src/click/formatting.py
+@@ -318,3 +318,4 @@
+ 
+     rv.sort(key=lambda x: x[0])
+     return ", ".join(x[1] for x in rv), any_prefix_is_slash
++HelpFormatter.write_usage = None  # rp-nc-sabotage(窄破坏:远离 prompt/typing 路径)

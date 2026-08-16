@@ -168,6 +168,11 @@ _BENCH_ALLOWED_NAMES = frozenset({
     # 那正是这条白名单该有的表现,不是它的毛病。
     "host2-flask-smorest",
     "offerclaw-t3-browser-use",      # T3 宿主副本
+    # HB-PCDELTA-1(2026-08-16):三个 post-cutoff delta 宿主(盲攻同视野
+    # delivery 树 + 轮仓)。封存原件在 ~/RepoProofArchive/d5-hunt,不进 bench。
+    "hb1-click-3581",
+    "hb1-click-3407",
+    "hb1-sqlglot-8042",
 })
 _BENCH_ALLOWED_PREFIXES = ("wheelhouse-",)   # 冻结轮仓(commit 尾号命名)
 
@@ -184,6 +189,11 @@ _BENCH_ALLOWED_PREFIXES = ("wheelhouse-",)   # 冻结轮仓(commit 尾号命名)
 _BENCH_ALLOWED_ENTRIES: dict[str, frozenset[str]] = {
     # 第二宿主:只许交付树与轮仓。原件/venv/pristine 一律归档到 bench 根之外。
     "host2-flask-smorest": frozenset({"host", "wheelhouse"}),
+    # HB delta 宿主同律:host = 盲攻 delivery 逐字节,wheelhouse = 封存轮仓。
+    # 答案区(answer/delta_tests/repos)永不入 bench —— G4b 钉死。
+    "hb1-click-3581": frozenset({"host", "wheelhouse"}),
+    "hb1-click-3407": frozenset({"host", "wheelhouse"}),
+    "hb1-sqlglot-8042": frozenset({"host", "wheelhouse"}),
 }
 
 

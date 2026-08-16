@@ -51,3 +51,11 @@ page_facts_jobs/
 # 一道 held-out 题的答案不能躺在公开的基准仓里(当时 129 个 commit 未推,
 # 侥幸没漏出去)。完整件在 ~/RepoProofArchive/host2/,不进版本控制。
 docs/evidence/host2_discrimination/naive_plugins.py
+
+# HB-PCDELTA-1 物化件(答案承载,repo_scan 铁律:答案不进公开仓)。
+# 上游 post 测试原文与 answer patch 由 scripts/build_hb1_task_packages.py
+# 从封存池 ~/RepoProofArchive/d5-hunt 就地物化;manifest 只载 sha256,
+# oracle 驱动器缺料 fail-closed 拒判(delta_oracle_lib H0)。
+benchmarks/v2/tasks/hb1_*/oracle/post_tests/
+benchmarks/v2/tasks/hb1_*/controls/positive/apply.patch
+benchmarks/v2/tasks/hb1_*/controls/nc_regression_break/apply.patch

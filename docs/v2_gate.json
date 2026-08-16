@@ -2,7 +2,7 @@
   "_denominators": {
     "all_valid_run_outcomes": "全部有效发次里的 PASS 数(含机制消融)",
     "development_baseline_runs": "开发套件上的常规发次(**全台账口径**,不限阶段;新前缀的发次也会进这个数)",
-    "heldout_model_evaluation_runs": "未见任务能力评测 —— **第二宿主未建,恒为 0**",
+    "heldout_model_evaluation_runs": "未见任务能力评测(已扣除冒烟/探索/无效/机制四类);台账里的宿主:['pallets/click', 'tobymao/sqlglot', 'zhangyi-nb1/offerclaw']",
     "heldout_passes": "held-out 里的通过数 —— 其余三类都有分子,只给分母会让人自己配一个",
     "mechanism_ablation_runs": "E1/AR 机制与判据实验 —— 不计能力",
     "passes": "阶段闸门数 —— 存在性证明(任务可判且可过),**不是能力率**",
@@ -13,7 +13,7 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 32,
+    "all_valid_run_outcomes": 35,
     "assisted_repair_runs": 14,
     "development_baseline_runs": 60,
     "exploratory": 7,
@@ -74,8 +74,8 @@
       }
     ],
     "provisional_evidence_runs": 3,
-    "smoke": 37,
-    "smoke_passes": 9,
+    "smoke": 45,
+    "smoke_passes": 12,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -113,9 +113,17 @@
       "t3-sidecar-page-facts-v1-20260815-161121",
       "t3-sidecar-page-facts-v1-20260815-161452",
       "t3-sidecar-page-facts-v1-20260815-191858",
-      "t3-sidecar-page-facts-v1-20260815-192046"
+      "t3-sidecar-page-facts-v1-20260815-192046",
+      "hb1-click-3581-20260816-141025",
+      "hb1-click-3581-20260816-141339",
+      "hb1-click-3581-20260816-141541",
+      "hb1-click-3581-20260816-141620",
+      "hb1-sqlglot-8042-20260816-141940",
+      "hb1-click-3407-20260816-142557",
+      "hb1-click-3407-20260816-142711",
+      "hb1-click-3407-20260816-142806"
     ],
-    "total": 122,
+    "total": 130,
     "treatment_delivered_runs": 3,
     "treatment_not_delivered_runs": 3
   },
@@ -126,11 +134,13 @@
     "T4": false
   },
   "hosts_covered": [
+    "pallets/click",
+    "tobymao/sqlglot",
     "zhangyi-nb1/offerclaw"
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "bb6140455447ff6496627a8ea09ed3f79dc2ccd10f23a3c19c26b69f5dd4ed3a"
+    "runs_jsonl_sha256": "f6428f14e24f20c16eb5b3cdd70a72cf359286e2d8da8219587974200f7c2d3d"
   },
   "stages": {
     "T1": {

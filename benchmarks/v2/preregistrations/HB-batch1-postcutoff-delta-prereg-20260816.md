@@ -224,3 +224,58 @@ max_output_tokens_total: 80000
   (若触发)另报计划再跑;
 - 批报唯一事实源:`benchmarks/v2/reports/HB-PCDELTA-1-report-<date>.md`,
   数字只出脚本。
+
+---
+
+## 附录一(2026-08-16,出题工程侦察后;正文一字不动,判据 J1–J7 与停批线未触碰)
+
+1. **测量协议统一 pytest**。§3 表格"钦定跑法 click=pytest / sqlglot=
+   `python -m unittest`"一行按此读:发次侧公开面/回归/隐藏 delta 判定
+   **全部走 pytest**(pytest 原生收集 unittest 用例)。依据:冻结的 delta
+   节点 ID(`docs/evidence/d5_hunt/hygiene/*.json`)与全部准入基线数字均为
+   pytest 形态产出;`python -m unittest` 仅是 v2 卫生判据 120s 计时线的
+   测量出处,不是发次协议。
+2. **harness 冻结点语义**。§8"本预注册定稿提交时的 HEAD"按 PQ 先例
+   (修订 A/B)读:出题工程必然新增任务包与接线代码,**开跑前**的修订
+   允许且逐条留痕(本附录 + 状态条目);冻结自**报计划开跑**那一刻的
+   HEAD 起绝对生效,批期间一字不动。判据措辞(§6)自初版起未改。
+3. **§7 分类块补显式声明**:`host_modification_mode: PRISTINE`(交付树
+   = 盲攻 delivery 树逐字节,零挖空零改动)。台账联判代码里 PRISTINE 在
+   放行集,此前靠缺省值通过,现改为显式写。
+4. **§4"delta 测试的存在…隐藏"的语义澄清**:指工作区与可见面不含任何
+   delta 试件线索(文件/节点名/内容),**不指**向模型隐瞒"存在隐藏验收"
+   这一事实 —— 契约与提示明说"验收由上游同 PR 自带的隐藏测试判定,
+   回归须全绿"(先教后杀:验收语义类别公开,验收实例隐藏)。盲攻者
+   同样知道此协议(method.txt 在案),视野等价不破。
+5. **sqlglot-8042 泄漏扫描补跑入 §10 前置**:`leak-scan-round2.json` 仅
+   含两条 click 记录,8042 的 method.txt 所称扫描查无记录 —— 补跑剥离
+   自证并落盘,绿了才算 J4 前置满足。
+6. **负控"空提交"的实现形态**:采用**惰性提交**(patch 只创建一个与题
+   无关的标记文件)而非零字节 patch —— 零字节 patch 会撞 harness 冻结/
+   重放边界,产生与判据无关的 HARNESS_FAILURE 噪声;惰性提交同样满足
+   "不解题的提交必 FAIL"的负控语义(delta 全红)。控制组 docstring 逐条
+   声明期望红点。
+7. **交付树的权威来源更正**(部署自证抓出,2026-08-16):封存的
+   `attacks/<id>/delivery` 实为**盲攻者的提交终态树**(含攻击者自笔的
+   实现尝试,3581 的 decorators.py 内有完整攻击件),不是给攻击者的输入。
+   照它部署会把失败攻击连同交付给受测模型(8042 等于站在 4/5 起跑)。
+   **交付树 := 盲攻输入视野重构 V** —— 路径集 = delivery ∩ parent_tree
+   (剔除攻击者新建),内容一律取 parent_tree 版;两条交叉验证:V 路径集
+   须恰等于 parent − `.github/**` − manifest.test_files(8042 另减
+   CHANGELOG.md),且 delivery 与 V 的全部差异逐条归因为攻击者自笔
+   (`attacker_residue` 留痕)。泄漏扫描按 round2 自校准法(parent 已有
+   指纹剔除)后须零命中。受污染树上的首轮基线测量作废,重构后重测。
+   **字节码条款**(交叉验证绊线首触发,2026-08-16):两条推导双双剔除
+   `__pycache__/**` 与 `*.pyc`,V 一律不含字节码 —— 被剥测试文件的
+   parent 侧 .pyc 是指向隐藏 oracle 的结构性箭头且可反编译;攻击者实际
+   视野本就无字节码,会话快照排除清单亦同向。
+8. **量具面守卫入契约公开面**(先教后杀):隐藏 oracle 起跑时核验
+   tests/ 子树与根级 pytest 扩展点(conftest.py、pyproject.toml、
+   setup.cfg、setup.py、pytest.ini、tox.ini)与出题态逐字节一致 ——
+   守的不只是改测试,还有"根 conftest 猴补丁致全套件假绿"这条伪造路。
+   这些路径在契约 forbidden 与提示里**先教**,教了才有资格杀;判红归
+   attribution=agent,reason=TESTS_TREE_MODIFIED/GUARDED_FILE_MODIFIED,
+   J3 归因落**附录新增类 `INSTRUMENT_TAMPERED`**(attribution=agent)。
+   它不落 §6 六类任何一格,也不触发"说不清作废"条款 —— 该条款针对的是
+   harness 说不清,而量具面被动是说得清的攻击形态;契约
+   `failure_taxonomy_expected` 已声明此类(先教后杀闭环)。
