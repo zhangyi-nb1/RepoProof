@@ -204,3 +204,55 @@ def test_never_reports_below_the_hook_and_never_fabricates_zero() -> None:
     quiet.query(_msgs(20))
     assert quiet.seen is False and silent_totals["seen"] is False
     assert quiet.inner.calls == 2, "用量未知不是停跑的理由(终局也不以 UNKNOWN 杀)"
+
+
+def test_run_level_hook_counts_a_streaming_request_once() -> None:
+    """H7-f:流式双终态事件不得翻倍 run 级读数(HB-DSENTRY-1 批报 §4)。
+
+    实录反例:deepseek 流式路对同一请求派发两枚带 usage 的 success 事件
+    (末 chunk 自带全额 usage + 组装完毕的 complete_streaming_response 又
+    带同一份;单调用探针 66 枚逐 chunk usage=None + 2 枚终态满额)。回调
+    桶不去重 → 台账 input_tokens 虚高 1.30×/1.50×(571,266/807,266 vs
+    供方计费 439,486/538,107)。执法(同步记账)不受影响 —— 病只在
+    run 级汇总口径,但台账读数必须是供方计费口径。"""
+    from types import SimpleNamespace
+
+    from repoproof.runner.host_guided import make_usage_cb
+
+    totals = {"in": 0, "out": 0, "seen": False}
+    cb = make_usage_cb(totals)
+    usage = SimpleNamespace(prompt_tokens=14_000, completion_tokens=200)
+
+    # 逐 chunk 事件 usage=None:不触桶
+    for _ in range(3):
+        cb({"litellm_call_id": "req-1"}, SimpleNamespace(usage=None), None, None)
+    assert totals == {"in": 0, "out": 0, "seen": False}
+
+    # 同一请求两枚终态(末 chunk 满额 usage + 组装响应同一份)→ 只记一次
+    cb({"litellm_call_id": "req-1"}, SimpleNamespace(usage=usage), None, None)
+    cb({"litellm_call_id": "req-1"}, SimpleNamespace(usage=usage), None, None)
+    assert (totals["in"], totals["out"]) == (14_000, 200), "同请求第二枚终态事件翻倍了读数"
+
+    # id 藏在 litellm_params 里的派发形态,同样按请求去重
+    cb({"litellm_params": {"litellm_call_id": "req-1"}}, SimpleNamespace(usage=usage), None, None)
+    assert totals["in"] == 14_000
+
+    # 不同请求照常累加(gpt 非流式单枚事件即此形态)
+    cb({"litellm_call_id": "req-2"}, SimpleNamespace(usage=usage), None, None)
+    assert (totals["in"], totals["out"]) == (28_000, 400)
+    assert totals["seen"] is True
+
+
+def test_run_level_hook_without_call_id_keeps_counting() -> None:
+    """H7-f 边界 = H7-e 的不许少报:拿不到 litellm_call_id 的事件不去重、
+    不静默丢 —— 宁可维持旧行为(可能虚高)也不许漏记。"""
+    from types import SimpleNamespace
+
+    from repoproof.runner.host_guided import make_usage_cb
+
+    totals = {"in": 0, "out": 0, "seen": False}
+    cb = make_usage_cb(totals)
+    usage = SimpleNamespace(prompt_tokens=1_000, completion_tokens=10)
+    cb({}, SimpleNamespace(usage=usage), None, None)
+    cb(None, SimpleNamespace(usage=usage), None, None)
+    assert (totals["in"], totals["out"]) == (2_000, 20), "无 id 事件被丢弃 = 少报"

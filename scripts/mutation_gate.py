@@ -2380,6 +2380,17 @@ MUTATIONS: list[dict] = [
         "expected_catcher": [
             "test_ledger_provider_label_comes_from_provider_type_not_a_literal"],
     },
+    {
+        "id": "M77a-usage-cb-streaming-dedupe-dead",
+        "lesson": "run 级 usage 回调的按请求去重死了 —— deepseek 流式双终态"
+                  "事件重新翻倍台账读数(HB-DSENTRY-1 批报 §4 的病复发,"
+                  "1.30×/1.50× 虚高)",
+        "file": _HD,
+        "old": '        if call_id is not None:\n            if call_id in seen_call_ids:\n                return\n            seen_call_ids.add(call_id)',
+        "new": '        if call_id is not None:\n            if False:\n                return\n            seen_call_ids.add(call_id)',
+        "catchers": _T_TE,
+        "expected_catcher": ["test_run_level_hook_counts_a_streaming_request_once"],
+    },
 ]
 
 

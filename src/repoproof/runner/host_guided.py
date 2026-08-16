@@ -80,6 +80,36 @@ def hard_signals(*, collected_ok: bool, policy_violations: int,
     return (collected_ok, policy_violations == 0, regression_failed == 0, passed)
 
 
+def make_usage_cb(token_totals: dict):
+    """run 级 token 汇总回调(挂 litellm success_callback)。
+
+    流式路(deepseek)对**同一请求**派发两枚带 usage 的 success 事件:
+    末 chunk 自带全额 usage,组装出的 complete_streaming_response 又带
+    同一份(HB-DSENTRY-1 批报 §4,单调用探针:66 枚逐 chunk usage=None
+    + 2 枚终态满额;台账虚高 1.30×/1.50×,异步竞态使之非严格 2×)。
+    按 litellm_call_id 去重:同一请求只记先到的一枚(两枚数值相同)。
+    无 id 的事件按旧行为计数,不静默丢;非流式(gpt 路)单枚事件不受
+    影响。执法与轮桶不走此路(同步记账,LESSONS #39 H7-a/H7-d)。
+    """
+    seen_call_ids: set = set()
+
+    def _usage_cb(kwargs, completion_response, start_time, end_time):  # noqa: ANN001
+        usage = getattr(completion_response, "usage", None)
+        if not usage:
+            return
+        k = kwargs or {}
+        call_id = k.get("litellm_call_id") or (k.get("litellm_params") or {}).get("litellm_call_id")
+        if call_id is not None:
+            if call_id in seen_call_ids:
+                return
+            seen_call_ids.add(call_id)
+        token_totals["seen"] = True
+        token_totals["in"] += getattr(usage, "prompt_tokens", 0) or 0
+        token_totals["out"] += getattr(usage, "completion_tokens", 0) or 0
+
+    return _usage_cb
+
+
 def projection_mode() -> str:
     """投影模式:off(E0)/ prune(S2 确定性折叠)/ window(S2' 滑动窗口)。
 
@@ -1837,14 +1867,8 @@ class HostGuidedRunner:
                 # 只用于 run 级汇总。轮桶不再由它写:回调落地时下一轮可能
                 # 已经开始,会把上一轮的 token 记到下一轮头上(LESSONS #39
                 # H7-d)。执法与轮桶都走 TokenBudgetedModel 的同步记账。
-                def _usage_cb(kwargs, completion_response, start_time, end_time):  # noqa: ANN001
-                    usage = getattr(completion_response, "usage", None)
-                    if usage:
-                        token_totals["seen"] = True
-                        token_totals["in"] += getattr(usage, "prompt_tokens", 0) or 0
-                        token_totals["out"] += getattr(usage, "completion_tokens", 0) or 0
-
-                _litellm.success_callback = [_usage_cb]
+                # 流式双终态事件按请求去重见 make_usage_cb 文档串。
+                _litellm.success_callback = [make_usage_cb(token_totals)]
                 _cto = call_timeout_s()          # 修订⑤:单调用超时
                 if provider.PROVIDER_TYPE == "deepseek-native":
                     # P-D 直连通道:key/base 走 env(serialize 永不落盘),
