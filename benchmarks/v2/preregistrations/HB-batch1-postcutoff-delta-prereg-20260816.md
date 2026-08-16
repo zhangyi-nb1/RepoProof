@@ -202,19 +202,34 @@ max_output_tokens_total: 80000
 
 - [x] 待裁 A/B 落定(2026-08-16 用户裁 A/A),本文定稿;冻结 = 本文
       提交之时(harness commit 记台账);
-- [ ] **出题工程**:3 个任务包/契约从封存件生成(封存件只读引用,一个
-      字节不动);delta 接线;干净重放路径通;
-- [ ] **可搬运性审查**(#43)每题一次 —— 公开面按裁决 A 冻结后审:
-      金丝雀/密度/工件结构类判据不得可搬运;
-- [ ] **F0 电池**每题:正控(`--fake` 施 answer/full.patch → 必须 PASS:
+- [x] **出题工程**:3 个任务包/契约由 `scripts/build_hb1_task_packages.py`
+      唯一产出(封存池 `~/RepoProofArchive/d5-hunt` 零写);delta 接线为
+      harness 自写驱动器 + 上游测试原文(判据内容 100% 上游,D1 严口径);
+      干净重放路径通(F0 正控三题重放一致);
+- [x] **可搬运性审查**(#43)每题一次 —— 判 **"有 blocking"**,两条零实现
+      伪绿通道(根级 `sitecustomize.py` / 子目录 conftest 全局插件),
+      已修完并落钉,详见**附录一第 9 条**;
+- [x] **F0 电池**每题:正控(`--fake` 施 answer/full.patch → 必须 PASS:
       delta 全绿 + 回归零破坏 + 重放一致)+ 负控 **3**(惰性提交 →
       `IMPL_INCOMPLETE`;只破坏回归的 patch → `REGRESSION_BROKEN`;
       根级 sitecustomize 伪绿 → `INSTRUMENT_TAMPERED`,附录一第 9 条)。
       首题全链兼任本形态实弹彩排,撞出的管线缺陷修完才进下一题;
-- [ ] 变异闸门 100% + 全量测试绿 + `check_public_claims` 绿 + 红绿证据
-      (新钉死随出题工程入册);
-- [ ] `verify_sealed`:d5-hunt 封存件完好,数字与 admission-round2 一致;
-- [ ] 受测模型知识截止核录(§5 尾注)。
+      **实测(批 `HB-PCDELTA1-F0-R2`,12 发,`hb_batch_criteria.py` 裁定)**:
+      3581 `3/3 · 0/3 · 3/3 · 0/3`、3407 `1/1 · 0/1 · 1/1 · 0/1`、
+      8042 `5/5 · 0/5 · 5/5 · 0/5`,四形态归因逐发对位,零例外;
+      篡改负控三题均由 `GUARDED_FILE_MODIFIED:sitecustomize.py` 拦下
+      (拦的是篡改,不是"没写实现");
+- [x] 变异闸门 **195/195**(声明归因 195、未声明 0)+ 全量测试
+      **906 passed / 20 skipped** + `check_public_claims` `{"ok": true}`
+      + 红绿证据 `docs/evidence/redgreen/ba770705a0fe.txt` VERDICT VALID。
+      **如实标注**:该红绿件的 RED 段是"驱动器文件在 base 上不存在"型的
+      import 红,证的是"件是新的";**真正隔离本次缺陷的证据是变异闸门
+      M72a-j** —— 它们把修复逐条变异掉,由声明的那条钉死当场抓住;
+- [x] `verify_sealed` 等效项:`prepare_hb1_hosts.py --hosts` 幂等复验,
+      三宿主 host **verify-only 逐字节对得上**(139/152/354 条构造自证
+      恰好相等,攻击者残迹留痕不变),封存池只读未动;**并附带证明 F0
+      电池未污染 bench 宿主**(含篡改负控 —— 载荷只落会话副本);
+- [ ] 受测模型知识截止核录(§5 尾注)—— **开跑前最后一项,待办**。
 
 ## §11 跑法与成本封套
 

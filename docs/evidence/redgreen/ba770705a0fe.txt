@@ -1,0 +1,47 @@
+fix commit : ba770705a0fe033ee0fdb9d7f9414a9f94b1b601
+base commit: 91aa46fd47eabd5f04da6fce987e0ec5347bc8b8
+nodes      : 4
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=4
+  test_u9_planted_sitecustomize_is_visible: error-at-collection
+  test_u9b_judging_subprocess_drops_inherited_pythonpath: error-at-collection
+  test_u10_subdir_conftest_global_plugin_is_out_of_collection: error-at-collection
+  test_u11_guard_subtree_equals_collection_subtree: error-at-collection
+
+-- base 段收集错误(按文件重跑取证)--
+  [tests.test_delta_oracle_lib] E   ModuleNotFoundError: No module named 'delta_oracle_lib'
+
+==================================== ERRORS ====================================
+_______________ ERROR collecting tests/test_delta_oracle_lib.py ________________
+ImportError while importing test module '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen__3eeaz7y/tree/tests/test_delta_oracle_lib.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.12/3.12.5/Frameworks/Python.framework/Versions/3.12/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_delta_oracle_lib.py:17: in <module>
+    from delta_oracle_lib import (  # noqa: E402
+E   ModuleNotFoundError: No module named 'delta_oracle_lib'
+=========================== short test summary info ============================
+ERROR tests/test_delta_oracle_lib.py
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen__3eeaz7y/tree/tests/test_delta_oracle_lib.py::test_u9_planted_sitecustomize_is_visible
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen__3eeaz7y/tree/tests/test_delta_oracle_lib.py::test_u9b_judging_subprocess_drops_inherited_pythonpath
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen__3eeaz7y/tree/tests/test_delta_oracle_lib.py::test_u10_subdir_conftest_global_plugin_is_out_of_collection
+
+ERROR: found no collectors for /private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen__3eeaz7y/tree/tests/test_delta_oracle_lib.py::test_u11_guard_subtree_equals_collection_subtree
+
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_u9_planted_sitecustomize_is_visible: passed
+  test_u9b_judging_subprocess_drops_inherited_pythonpath: passed
+  test_u10_subdir_conftest_global_plugin_is_out_of_collection: passed
+  test_u11_guard_subtree_equals_collection_subtree: passed
+....                                                                     [100%]
+
+
+VERDICT: VALID

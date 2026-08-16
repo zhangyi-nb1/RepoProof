@@ -251,7 +251,8 @@ def main() -> int:
         if bad:
             print("SELFTEST INVALID:\n" + "\n".join(bad))
             return 2
-        print("SELFTEST OK: 三形态冒烟各归各位")
+        print(f"SELFTEST OK: 四形态冒烟各归各位 + "
+              f"{len(SYNTHETIC_BRANCHES)} 支合成分支活检全对")
     print(json.dumps(result, ensure_ascii=False, indent=1) if a.json else
           "\n".join(f"{e['run_id']}  {e['verdict']}  j3={e['j3']}  "
                     f"delta={e['delta_green']}/{e['delta_total']}"
