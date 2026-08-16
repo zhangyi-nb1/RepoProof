@@ -16,6 +16,30 @@ PASS = "PASS"
 FAILED_AS_EXPECTED = "FAILED_AS_EXPECTED"
 
 
+def classify_negative_control(nodes: list[dict], must_fail_nodes: list[str]) -> str:
+    """负控一次运行 → 判词。负控必须**真红**才算"拦下了作弊"。
+
+    2026-08-16(HB 首发 skipped≠failed 同病扫查):原式把"非 passed"
+    一律记作失败,于是一个因平台标记 / 导入失败而被 **跳过** 的必红用例
+    会冒充 ``FAILED_AS_EXPECTED`` —— 控制这一轮根本没考,却发了一张
+    "已验证"的证书。这是与首发缺陷反方向的同一个病:那边把跳过当红,
+    这边把跳过当"红得正是时候"。两处都要 fail-closed。
+    """
+    failed_nodes = {n["node_id"] for n in nodes if n["outcome"] in ("failed", "error")}
+    skipped_nodes = {n["node_id"] for n in nodes if n["outcome"] == "skipped"}
+    hit = [m for m in must_fail_nodes if any(m in n for n in failed_nodes)]
+    if failed_nodes and len(hit) == len(must_fail_nodes):
+        return FAILED_AS_EXPECTED
+    skipped_must = sorted(m for m in must_fail_nodes
+                          if any(m in n for n in skipped_nodes))
+    if skipped_must:
+        # 把"跳过"写进判词本身,不让它混进 NOT_REJECTED 之类的别的病名。
+        return f"MUST_FAIL_NODE_SKIPPED:{skipped_must}"
+    if not failed_nodes:
+        return "NOT_REJECTED"
+    return f"WRONG_NODES:missing={sorted(set(must_fail_nodes) - set(hit))}"
+
+
 def run_controls_battery(
     project_root: Path,
     contract: TaskContract,
@@ -56,13 +80,7 @@ def run_controls_battery(
         summary["positive_control"] = f"FAIL:exit={pos['exit_code']}"
 
     for nc in spec.controls.negatives:
-        failed_nodes = {n["node_id"] for n in _run(nc.path).get("nodes", []) if n["outcome"] != "passed"}
-        hit = [m for m in nc.must_fail_nodes if any(m in n for n in failed_nodes)]
-        if failed_nodes and len(hit) == len(nc.must_fail_nodes):
-            summary[f"negative_control_{nc.label}"] = FAILED_AS_EXPECTED
-        elif not failed_nodes:
-            summary[f"negative_control_{nc.label}"] = "NOT_REJECTED"
-        else:
-            missing = sorted(set(nc.must_fail_nodes) - set(hit))
-            summary[f"negative_control_{nc.label}"] = f"WRONG_NODES:missing={missing}"
+        nc_nodes = _run(nc.path).get("nodes", [])
+        summary[f"negative_control_{nc.label}"] = classify_negative_control(
+            nc_nodes, nc.must_fail_nodes)
     return summary

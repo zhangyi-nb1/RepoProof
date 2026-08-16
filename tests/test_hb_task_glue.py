@@ -319,28 +319,25 @@ def test_g9a_skipped_is_neither_passed_nor_failed():
     by = {n["node_id"].split("::")[1]: n["outcome"] for n in j["nodes"]}
     assert by == {"a": "passed", "b": "skipped", "c": "failed"}
 
-    # 修复后的口径(host_guided 轮内三式)
-    nodes = j["nodes"]
-    failed = [n["node_id"] for n in nodes if n["outcome"] not in ("passed", "skipped")]
-    passed = sum(1 for n in nodes if n["outcome"] == "passed")
-    skipped = sum(1 for n in nodes if n["outcome"] == "skipped")
-    assert len(failed) == 1 and failed[0].endswith("::c")
-    assert (passed, skipped) == (1, 1)
+    # 修复后的口径:走真函数,不在测试里另抄一份判别式
+    from repoproof.verification.junit import split_public_outcomes
+    s = split_public_outcomes(j["nodes"])
+    assert len(s.failed_nodes) == 1 and s.failed_nodes[0].endswith("::c")
+    assert (s.passed, s.skipped) == (1, 1)
 
 
 def test_g9b_no_failure_packet_is_fabricated_for_skips():
     """首发实测的真形态:26 个 Windows-only 用例在 macOS 恒 skip → 修复前
     每轮凭空喂 26 个'去修 getchar windows'的失败包,吃掉模型真预算。"""
     from repoproof.runner.guided_repair import build_failure_packets
-    from repoproof.verification.junit import parse_junit_xml
+    from repoproof.verification.junit import parse_junit_xml, split_public_outcomes
     cases = [("real_bug", "failed")] + [(f"getchar_windows_{i}", "skipped") for i in range(26)]
     nodes = parse_junit_xml(_junit_bytes(cases))["nodes"]
-    failed = [n["node_id"] for n in nodes if n["outcome"] not in ("passed", "skipped")]
-    details = {n["node_id"]: n.get("message", "") for n in nodes
-               if n["outcome"] not in ("passed", "skipped")}
-    packets = build_failure_packets(failed, details)
+    s = split_public_outcomes(nodes)
+    packets = build_failure_packets(s.failed_nodes, s.details)
     assert len(packets) == 1, f"skip 造出了假失败包:{len(packets)} 个"
     assert "getchar" not in str(packets)
+    assert s.skipped == 26                      # 排除了,但没丢
 
 
 def test_g9c_round_record_carries_the_skip_count():
@@ -350,6 +347,92 @@ def test_g9c_round_record_carries_the_skip_count():
     assert "public_skipped" in RepairRoundRecord.model_fields
     assert RepairRoundRecord(round_index=1).public_skipped is None   # 旧发次不追溯
     assert RepairRoundRecord(round_index=1, public_skipped=26).to_dict()["public_skipped"] == 26
+
+
+def test_g9d_the_split_is_one_shared_function_not_two_copies():
+    """同病扫查:v1(guided_repair)与 host_guided 是同一处置的两条路。
+    只修被首发撞到的那一条,等于把同一个坑留在隔壁等下一次撞。
+    钉的是**函数真实返回值**,不是源码文本(M72f 的教训:文本断言会被
+    注释里的同名词喂饱而漏掉真突变)。"""
+    from repoproof.runner.guided_repair import split_public_outcomes as v1
+    from repoproof.runner.host_guided import split_public_outcomes as v2
+    assert v1 is v2, "两条修复路各拿一份拷贝 = 下次只修一边"
+
+    nodes = [{"node_id": "t::ok", "outcome": "passed", "message": ""},
+             {"node_id": "t::win", "outcome": "skipped", "message": ""},
+             {"node_id": "t::bug", "outcome": "failed", "message": "boom"}]
+    s = v1(nodes)
+    assert s.failed_nodes == ["t::bug"]        # skipped 不进失败
+    assert s.details == {"t::bug": "boom"}     # 也不进失败明细
+    assert (s.passed, s.skipped) == (1, 1)     # 也不进通过,且留痕
+
+
+def _ast_of(rel: str):
+    import ast
+    return ast.parse((REPO / rel).read_text(encoding="utf-8"))
+
+
+def _calls_named(tree, name: str) -> int:
+    import ast
+    return sum(1 for n in ast.walk(tree)
+               if isinstance(n, ast.Call) and getattr(n.func, "id", None) == name)
+
+
+def _has_not_passed_compare(tree) -> bool:
+    """AST 里是否还留着 `<expr> != "passed"` 这条判别式。用 AST 而非字符串:
+    M72f 的教训是文本断言会被注释里的同名词喂饱,从而漏掉真突变。"""
+    import ast
+    for n in ast.walk(tree):
+        if (isinstance(n, ast.Compare) and len(n.ops) == 1
+                and isinstance(n.ops[0], ast.NotEq)
+                and isinstance(n.comparators[0], ast.Constant)
+                and n.comparators[0].value == "passed"):
+            return True
+    return False
+
+
+def test_g9d3_neither_repair_path_keeps_a_local_copy_of_the_buggy_predicate():
+    """接线钉(M72j 同型):共享函数存在 ≠ 调用点在用它。
+    任一条修复路把判别式抄回本地,这条就必须红。"""
+    for rel in ("src/repoproof/runner/host_guided.py",
+                "src/repoproof/runner/guided_repair.py"):
+        tree = _ast_of(rel)
+        assert _calls_named(tree, "split_public_outcomes") >= 1, f"{rel} 不再走共享口径"
+        assert not _has_not_passed_compare(tree), f'{rel} 抄回了 != "passed"'
+
+
+def test_g9e2_the_battery_routes_through_the_shared_classifier():
+    tree = _ast_of("src/repoproof/harness/controls_battery.py")
+    assert _calls_named(tree, "classify_negative_control") >= 1
+    assert not _has_not_passed_compare(tree), "负控判词抄回了 != \"passed\""
+
+
+def test_g9d2_the_v1_round_record_keeps_the_skip_count():
+    from repoproof.adoption.repair.repair_loop import RoundResult
+    assert RoundResult(adapter_snapshot="x", passed=0).skipped is None   # 旧轮不追溯
+    assert RoundResult(adapter_snapshot="x", passed=0, skipped=26).skipped == 26
+
+
+def test_g9e_a_skipped_must_fail_node_is_not_a_fired_control():
+    """反方向的假绿:负控的必红用例若被 skip(平台标记 / 导入失败),
+    旧式 `!= passed` 会把它记成 FAILED_AS_EXPECTED —— 控制根本没考,
+    却发了一张"已验证"的证书。必须 fail-closed。"""
+    from repoproof.harness.controls_battery import (
+        FAILED_AS_EXPECTED,
+        PASS,
+        classify_negative_control,
+    )
+    must = ["test_cheat"]
+    red = [{"node_id": "t::test_cheat", "outcome": "failed"}]
+    skip = [{"node_id": "t::test_cheat", "outcome": "skipped"}]
+    green = [{"node_id": "t::test_cheat", "outcome": "passed"}]
+
+    assert classify_negative_control(red, must) == FAILED_AS_EXPECTED
+    assert classify_negative_control(green, must) == "NOT_REJECTED"
+
+    verdict = classify_negative_control(skip, must)
+    assert verdict not in (PASS, FAILED_AS_EXPECTED), "跳过冒充了'控制已生效'"
+    assert "SKIPPED" in verdict, verdict          # 病名必须说出口,不许混进别的桶
 
 
 # ---------------------------------------------------------------- G4 bench 白名单

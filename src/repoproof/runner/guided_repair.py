@@ -45,7 +45,7 @@ from repoproof.runner.baseline import (
     make_read_only,
 )
 from repoproof.verification import completion_gate
-from repoproof.verification.junit import parse_junit_xml
+from repoproof.verification.junit import parse_junit_xml, split_public_outcomes
 from repoproof.verification.verifiers import (
     REPLAY_MODE_BASELINE,
     REPLAY_MODE_CLEAN,
@@ -377,10 +377,13 @@ class GuidedRepairRunner(AgentRunner):
                     junit = _run_public_tests()
                     nodes = junit.get("nodes", [])
                     collected_ok = bool(junit.get("junit_present")) and not junit.get("junit_parse_error")
-                    failed_nodes = [n["node_id"] for n in nodes if n["outcome"] != "passed"]
-                    details = {n["node_id"]: n.get("message", "") for n in nodes
-                               if n["outcome"] != "passed"}
-                    passed = sum(1 for n in nodes if n["outcome"] == "passed")
+                    # 与 host_guided 共用同一口径(skipped 三分):原式
+                    # `!= "passed"` 只在"公开面 0 skip"的宿主上碰巧等价于
+                    # `== "failed"`;公开面一旦是上游自带套件(带平台 skip),
+                    # 就会给模型喂**凭空捏造的失败包**。
+                    split = split_public_outcomes(nodes)
+                    failed_nodes, details = list(split.failed_nodes), dict(split.details)
+                    passed, skipped = split.passed, split.skipped
                     scope_req = extract_scope_change(result.submission)
                     diff_lines = sum(
                         len(p.read_text(encoding="utf-8", errors="replace").splitlines())
@@ -396,6 +399,7 @@ class GuidedRepairRunner(AgentRunner):
                         commands_used=result.commands_used,
                         scope_change_request=scope_req,
                         collected_ok=collected_ok,
+                        skipped=skipped,
                         policy_violations=result.denied_count,
                         regression_failed=0,   # v1:consumer 只读,回归风险为零,最终隐藏验证兜底
                         within_budget=result.exit_status not in

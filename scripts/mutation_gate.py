@@ -56,6 +56,9 @@ EVIDENCE_DIR = REPO / "docs" / "evidence" / "mutation_gate"
 _BR = "src/repoproof/persistence/bench_records.py"
 _HG = "src/repoproof/harness/host_guard.py"
 _HD = "src/repoproof/runner/host_guided.py"
+_GR = "src/repoproof/runner/guided_repair.py"
+_JUNIT = "src/repoproof/verification/junit.py"
+_CTRLB = "src/repoproof/harness/controls_battery.py"
 _RL = "src/repoproof/adoption/repair/repair_loop.py"
 _RG = "scripts/redgreen.py"
 _FP = "src/repoproof/adoption/repair/failure_packet.py"
@@ -2150,11 +2153,11 @@ MUTATIONS: list[dict] = [
     # ---- M73:skipped ≠ failed(HB pilot 首发当场抓出的量具三分法塌陷)----
     {
         "id": "M73a-skipped-counted-as-failed",
-        "lesson": "轮内退回 `outcome != passed` → 平台性 skip 被当成失败,每轮凭空"
+        "lesson": "共享口径退回 `outcome != passed` → 平台性 skip 被当成失败,每轮凭空"
                   "生成 FailurePacket 喂给模型,吃掉真预算去追不存在的失败",
-        "file": _HD,
-        "old": '                failed_nodes = [n["node_id"] for n in nodes\n                                if n["outcome"] not in ("passed", "skipped")]',
-        "new": '                failed_nodes = [n["node_id"] for n in nodes\n                                if n["outcome"] != "passed"]',
+        "file": _JUNIT,
+        "old": '    failed_nodes = [n["node_id"] for n in nodes\n                    if n["outcome"] not in ("passed", "skipped")]',
+        "new": '    failed_nodes = [n["node_id"] for n in nodes\n                    if n["outcome"] != "passed"]',
         "catchers": _T_HTG,
         "expected_catcher": ["test_g9b_no_failure_packet_is_fabricated_for_skips"],
     },
@@ -2162,7 +2165,7 @@ MUTATIONS: list[dict] = [
         "id": "M73b-skipped-laundered-into-passed",
         "lesson": "另一侧的塌陷:skip 记进 passed → '跳过'冒充'通过',"
                   "公开面读数虚高,判据被跳过的用例喂假绿",
-        "file": "src/repoproof/verification/junit.py",
+        "file": _JUNIT,
         "old": '            elif case.find("skipped") is not None:\n                outcome = "skipped"',
         "new": '            elif case.find("skipped") is not None:\n                outcome = "passed"',
         "catchers": _T_HTG,
@@ -2172,11 +2175,74 @@ MUTATIONS: list[dict] = [
         "id": "M73c-skip-count-silently-dropped",
         "lesson": "排除 skipped 却不留痕 → '跳过数暴涨'(把失败用例改成 skip)"
                   "这件事从证据里彻底消失,等于把刚拆的洞换个地方开",
-        "file": "src/repoproof/runner/guided_repair.py",
+        "file": _GR,
         "old": "    public_skipped: int | None = None",
         "new": "    _public_skipped_removed: int | None = None",
         "catchers": _T_HTG,
         "expected_catcher": ["test_g9c_round_record_carries_the_skip_count"],
+    },
+    # ---- M74:同病扫查(v1 修复路 + 负控电池)----
+    {
+        "id": "M74a-shared-split-drops-the-skip-count",
+        "lesson": "共享口径把 skipped 计数写死 0 → 排除了但没留痕,"
+                  "'把失败用例改成 skip 让它隐身'这条路重新打开",
+        "file": _JUNIT,
+        "old": '        skipped=sum(1 for n in nodes if n["outcome"] == "skipped"),',
+        "new": "        skipped=0,",
+        "catchers": _T_HTG,
+        "expected_catcher": ["test_g9d_the_split_is_one_shared_function_not_two_copies"],
+    },
+    {
+        "id": "M74b-v1-path-keeps-its-own-copy-of-the-predicate",
+        "lesson": "v1 修复路把判别式抄回本地(不再走共享口径)→ 只修被撞到的"
+                  "那一条,同一个坑留在隔壁等下次撞;接线钉必须红",
+        "file": _GR,
+        "old": "                    split = split_public_outcomes(nodes)\n                    failed_nodes, details = list(split.failed_nodes), dict(split.details)",
+        "new": '                    failed_nodes = [n["node_id"] for n in nodes if n["outcome"] != "passed"]\n                    details = {n["node_id"]: n.get("message", "") for n in nodes if n["outcome"] != "passed"}\n                    split = split_public_outcomes(nodes)',
+        "catchers": _T_HTG,
+        "expected_catcher": [
+            "test_g9d3_neither_repair_path_keeps_a_local_copy_of_the_buggy_predicate"],
+    },
+    {
+        "id": "M74c-host-path-keeps-its-own-copy-of-the-predicate",
+        "lesson": "host 修复路(首发撞出缺陷的那条)把判别式抄回本地 —— "
+                  "共享函数还在、调用点已旁路,是最容易滑回去的形态",
+        "file": _HD,
+        "old": "                split = split_public_outcomes(nodes)\n                failed_nodes = list(split.failed_nodes)",
+        "new": '                split = split_public_outcomes(nodes)\n                failed_nodes = [n["node_id"] for n in nodes if n["outcome"] != "passed"]',
+        "catchers": _T_HTG,
+        "expected_catcher": [
+            "test_g9d3_neither_repair_path_keeps_a_local_copy_of_the_buggy_predicate"],
+    },
+    {
+        "id": "M74d-skipped-must-fail-node-counts-as-a-fired-control",
+        "lesson": "反方向假绿:负控的必红用例被 skip(平台标记/导入失败)却记成 "
+                  "FAILED_AS_EXPECTED —— 控制这轮根本没考,却发了'已验证'的证书",
+        "file": _CTRLB,
+        "old": '    failed_nodes = {n["node_id"] for n in nodes if n["outcome"] in ("failed", "error")}',
+        "new": '    failed_nodes = {n["node_id"] for n in nodes if n["outcome"] != "passed"}',
+        "catchers": _T_HTG,
+        "expected_catcher": ["test_g9e_a_skipped_must_fail_node_is_not_a_fired_control"],
+    },
+    {
+        "id": "M74e-skipped-control-hides-inside-not-rejected",
+        "lesson": "必红用例被跳过时不报病名,混进 NOT_REJECTED —— 诊断被抹平,"
+                  "'这次没考'和'考了但没拦住'两种病成了同一个字",
+        "file": _CTRLB,
+        "old": '        return f"MUST_FAIL_NODE_SKIPPED:{skipped_must}"',
+        "new": '        return "NOT_REJECTED"',
+        "catchers": _T_HTG,
+        "expected_catcher": ["test_g9e_a_skipped_must_fail_node_is_not_a_fired_control"],
+    },
+    {
+        "id": "M74f-battery-bypasses-the-shared-classifier",
+        "lesson": "电池不再调判词函数,自己写回一份旧逻辑 → 函数上的全部行为"
+                  "钉死被旁路(M72j 同型接线突变)",
+        "file": _CTRLB,
+        "old": "        summary[f\"negative_control_{nc.label}\"] = classify_negative_control(\n            nc_nodes, nc.must_fail_nodes)",
+        "new": "        summary[f\"negative_control_{nc.label}\"] = (\n            FAILED_AS_EXPECTED\n            if any(n[\"outcome\"] != \"passed\" for n in nc_nodes) else \"NOT_REJECTED\")",
+        "catchers": _T_HTG,
+        "expected_catcher": ["test_g9e2_the_battery_routes_through_the_shared_classifier"],
     },
 ]
 

@@ -41,6 +41,9 @@ class RoundResult(BaseModel):
     scope_change_request: str | None = None
     # RFC-008 §11.3 排序输入(默认值 = 与旧行为等价)
     collected_ok: bool = True        # 测试是否成功收集(崩溃轮不算成功)
+    # skipped 既不算通过也不算失败(见 host_guided 同名字段)。留 None =
+    # 未测量,不追溯改写旧轮读数。
+    skipped: int | None = None
     policy_violations: int = 0       # 本轮策略拒绝数(**本轮增量**,不是累计)
     regression_failed: int = 0       # 宿主回归失败数
     within_budget: bool = True       # 本轮未超 Patch/Token/Command 预算

@@ -2287,3 +2287,69 @@ smoke 桶,**heldout 分母仍为 0**(冒烟不计模型表现);
 
 **当前站位**:§10 七项已勾六项,余"受测模型知识截止核录"一项 ——
 **卡在等用户给两个日期,不是卡在工程**。
+
+## 状态 · 2026-08-16 · HB 首发中止:量具三分法塌陷(skipped 被当成 failed)
+
+**用户裁定"先跑第 1 发再报"后开跑,首发第 1 轮当场撞出 harness 缺陷,
+按 §11 停跑修复,该发作废重来。**
+
+**读数自相矛盾即是证据**:同一棵树、同一套件,公开面 `public_failed=26`
+而回归面 `regression_failed=0`;契约基线原文 `1588 passed, 26 skipped,
+0 failed`。两个数不可能同时对。
+
+**真因**(host_guided.py 轮内统计):`n["outcome"] != "passed"` 把
+`skipped` 归进失败。26 个 Windows-only 用例在 macOS 上恒 skip,于是
+**26 个凭空捏造的 FailurePacket 被喂给模型**,要求它去修
+`getchar windows[True-h]` —— 这在 macOS 上根本不存在可修之处。
+第 1 轮 30 调用打满 `LimitsExceeded`;第 2 轮开局仍 26 包,
+`TokenBudgetExhausted`。**受测模型的预算被 harness 引去追鬼**,
+该发不是对模型的有效测量,而是对 harness 自己的测量。
+
+**为什么第一宿主没炸**:OfferClaw 公开面是手写 `public_tests/`,公开面
+skip 数 = 0,`!= "passed"` 恰好恒等于 `== "failed"`;HB 公开面**就是上游
+自带回归套件**(3581 = 26 skip / 3407 = 25 skip),前提静默失效。
+**今天第三次同科**(前两次:根 `sitecustomize` 抢在 pytest 之前、
+子目录 `conftest` 全局插件伪造)—— #43 可搬运性论题的第三个实例:
+首宿主上成立的隐含前提,换棵上游树即失效,且失效时不报错、只出错数。
+
+**处置**:当场 `pkill` 中止 —— 无 `report.json`、未入 `runs.jsonl`、
+成本封套不计。修复后从零重跑第 1 发。
+
+**修复**:公开面轮内改 passed / failed / **skipped 三分**,skipped 两边
+都不沾;`public_skipped` 记入 `RepairRoundRecord` 与 `repair.round.end`
+—— **排除但不静默丢弃**。若只排除不留痕,"把失败用例改成 skip"这条
+路径就会从证据里消失,等于把刚拆的洞挪个地方重开。字段取 `int | None`,
+默认 `None` = 未测量,**不追溯改写旧发次读数**。
+
+**不开新洞**:制造 skip 必须改 `tests/` 或根 `conftest.py`,二者已在契约
+`forbidden` 先教,且被 H1 逐字节守卫 + `tampered_public_tests` 双杀。
+
+**钉死**:G9a(三分法)/ G9b(不为 skip 造假失败包)/ G9c(跳过数留痕);
+变异 +3(M73a-c),其中 **M73b 钉另一侧塌陷** —— 把 skip 洗成 passed
+让跳过冒充通过。预注册附录一第 11 条归档。
+
+**连带**:F0 电池在修复后的 HEAD 上**全量重跑**,保证"冻结的 harness"
+与"跑过电池的 harness"逐字节同一。
+
+**同病扫查(2026-08-16 续)**:不止修被撞到的那一处 —— 按 `outcome`
+判别式全仓扫查,另找到两处同科:
+
+- **v1 修复路 `guided_repair.py` 轮内**同式同病。两条修复路现共用
+  `verification/junit.py::split_public_outcomes` 单一口径(带 skipped
+  计数),不留两份拷贝;
+- **负控电池 `controls_battery.py` 是反方向的同一个病**:原式把"非
+  passed"一律记作失败,于是一个因平台标记 / 导入失败而**被跳过**的必红
+  用例会冒充 `FAILED_AS_EXPECTED` —— 该负控这轮**根本没考**,却发了一张
+  "已验证"的证书。**比首发那条更危险**:首发那条制造噪声,这条制造
+  **没有验证过的信心**。改为必须真红,必红用例被跳过时单列判词
+  `MUST_FAIL_NODE_SKIPPED:[...]`,不混进 `NOT_REJECTED`(病名要说出口)。
+
+**审过但明确不改**:`baseline.py::_junit_failed` 同样是 `!= "passed"`,
+但它跑的是 harness 自己手写的 oracle,那里任何 skip 都意味着 oracle 没
+干活,记作不通过正是应有的 fail-closed 语义 —— 与"上游套件的平台性
+skip"不是一回事。
+
+**钉法进化**:接线钉改用 **AST** 而非源码字符串 —— M72f 的教训是文本
+断言会被注释里的同名词喂饱。现断言两条修复路**都调**共享函数、且 AST
+里**不再存在** `!= "passed"` 比较式。变异 +6(M74a-f),含"共享函数还
+在、调用点已旁路"这一最易滑回的形态。变异总数 204。

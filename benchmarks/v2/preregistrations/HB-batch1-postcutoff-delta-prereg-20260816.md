@@ -392,3 +392,77 @@ max_output_tokens_total: 80000
    API 查询条件 `merged>=2026-06-01` 保证,见 hunt 预注册 §判据 1)。
    **§5 知识截止硬门通过,两模型均不出局。**
    记忆通道前提(delta 合并于知识截止之后 → 权重里不可能有)成立。
+11. **首发中止并停修:量具三分法塌陷(skipped 被当成 failed)**。按 §11
+   "harness 缺陷 → 停修(钉死 + 预注册附录)→ 复测该模型 → 继续"归档。
+
+   **发现现场**:执行序第 1 发(click-3581 × gpt-5.5,run
+   `hb1-click-3581-20260816-174209`)第 1 轮轮末读数
+   `public_passed=1588 / public_failed=26 / regression_passed=1588 /
+   regression_failed=0`。**同一棵树、同一套件,公开面报 26 红而回归面报
+   0 红**;契约基线原文即 `1588 passed, 26 skipped, 0 failed`。
+
+   **真因**(`src/repoproof/runner/host_guided.py` 轮内统计):
+   `failed_nodes = [n for n in nodes if n["outcome"] != "passed"]` ——
+   `skipped` 不是 `"passed"`,于是 26 个 Windows-only 用例(macOS 上恒
+   skip)被计成失败,经 `build_failure_packets` 变成 **26 个凭空捏造的
+   `FailurePacket`** 喂回模型(要求其"修正 `getchar windows[True-h]`
+   的断言语义适配"—— 在 macOS 上无从修起)。第 1 轮 30 次模型调用打满
+   `LimitsExceeded`,第 2 轮开局仍 26 包、退出 `TokenBudgetExhausted`。
+   **受测模型的真实预算被本 harness 引去追不存在的失败**,故该发不是
+   对模型的有效测量。
+
+   **处置**:当场中止(`pkill`),**无 `report.json`、未入 `runs.jsonl`、
+   成本封套不计**,记录未被污染;修复后**从零重跑第 1 发**。
+
+   **为什么第一宿主没炸(可搬运性,#43 同科第三例)**:OfferClaw 的公开面
+   是手写 `public_tests/`,公开面 skip 数 = 0,故 `!= "passed"` 恒等于
+   `== "failed"`;HB 的公开面**就是上游自带回归套件**(3581 = 26 skip /
+   3407 = 25 skip),假设静默失效。与本日两条 blocking(根 `sitecustomize`、
+   子目录 `conftest` 全局插件)同一病理:**首宿主上成立的隐含前提,换棵
+   上游树即失效,且失效时不报错、只出错数**。
+
+   **修复**:公开面轮内改为 passed / failed / **skipped 三分**,skipped
+   两边都不沾;并把 `public_skipped` 记入 `RepairRoundRecord` 与
+   `repair.round.end` trace —— **排除但不静默丢弃**,否则"跳过数暴涨"
+   (把失败用例改成 skip)将从证据里消失,等于把刚拆的洞换个地方开。
+   `public_skipped` 取 `int | None`,默认 `None` = 未测量,**不追溯改写
+   旧发次读数**。
+
+   **不开新洞的依据**:制造一个 skip 必须改 `tests/` 或根 `conftest.py`,
+   二者均已在契约 `forbidden` 中**先教**,且被 H1 逐字节守卫与
+   `tampered_public_tests` 双杀 —— 排除 skipped 不给受测方任何新手段。
+
+   **自证**:钉死 G9a(三分法:skipped 既不入 passed 也不入 failed)、
+   G9b(不为 skip 捏造 `FailurePacket`)、G9c(跳过数留痕入轮记录);
+   变异 +3(M73a-c),其中 M73b 钉的是**另一侧塌陷** —— 把 skip 洗成
+   passed 让跳过冒充通过。全套件 909 绿。
+
+   **同病扫查(不止修被撞到的那一处)**:按 `outcome` 判别式全仓扫查,
+   另找到两处同科:
+
+   - **v1 修复路(`guided_repair.py` 轮内)**同式同病。两条修复路现共用
+     `verification/junit.py::split_public_outcomes` **单一口径**(带
+     `PublicOutcomes.skipped` 计数),不留两份拷贝;
+   - **负控电池(`controls_battery.py`)是反方向的同一个病**:原式把
+     "非 passed"一律记作失败,于是一个因平台标记 / 导入失败而**被跳过**
+     的必红用例会冒充 `FAILED_AS_EXPECTED` —— 该负控这一轮**根本没考**,
+     却发了一张"已验证"的证书。这比首发那条更危险:首发那条制造噪声,
+     这条制造**没有验证过的信心**。改为必须真红(`failed`/`error`),
+     必红用例被跳过时单列判词 `MUST_FAIL_NODE_SKIPPED:[...]`,既不算
+     合格也不混进 `NOT_REJECTED`(病名要说出口)。
+
+   **审过但明确不改的一处**:`baseline.py::_junit_failed` 同样用
+   `!= "passed"`,但它跑的是 **harness 自己手写的 oracle**
+   (`test_capability.py` / `test_regression.py`),那里出现任何 skip 都
+   意味着 oracle 没干活,记作不通过正是应有的 fail-closed 语义 —— 与
+   "上游套件的平台性 skip"不是一回事,故不动。
+
+   **钉法**:接线钉用 **AST** 而非源码字符串(M72f 的教训:文本断言会被
+   注释里的同名词喂饱)—— 断言两条修复路**都调**共享函数、且 AST 里
+   **不再存在** `!= "passed"` 这条比较式。变异 +6(M74a-f),含"共享函数
+   还在、调用点已旁路"这一最易滑回的形态。
+
+   **对既有证据的影响**:§10 F0 电池 12 发的判据落点不受影响(判定走
+   `passed` / 回归面 / policy,不读 `public_failed`),但**电池在修复后
+   的 HEAD 上全量重跑**以保证"冻结的 harness"与"跑过电池的 harness"
+   逐字节同一;结论见 §10。

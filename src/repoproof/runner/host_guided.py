@@ -274,7 +274,7 @@ from repoproof.runner.guided_repair import (
     render_packets,
 )
 from repoproof.verification import completion_gate
-from repoproof.verification.junit import parse_junit_xml
+from repoproof.verification.junit import parse_junit_xml, split_public_outcomes
 from repoproof.verification.verifiers import (
     REPLAY_MODE_CLEAN,
     parse_pytest,
@@ -2017,12 +2017,10 @@ class HostGuidedRunner:
                 # 不开新洞:skip 只能由改 tests/ 或根 conftest 制造,二者都在
                 # 契约 forbidden 里先教、且被 H1 逐字节守卫与 tampered_public
                 # _tests 双杀 —— 排除 skipped 不给"跳过即隐身"留路。
-                failed_nodes = [n["node_id"] for n in nodes
-                                if n["outcome"] not in ("passed", "skipped")]
-                details = {n["node_id"]: n.get("message", "") for n in nodes
-                           if n["outcome"] not in ("passed", "skipped")}
-                passed = sum(1 for n in nodes if n["outcome"] == "passed")
-                skipped = sum(1 for n in nodes if n["outcome"] == "skipped")
+                split = split_public_outcomes(nodes)
+                failed_nodes = list(split.failed_nodes)
+                details = dict(split.details)
+                passed, skipped = split.passed, split.skipped
 
                 regr = self._run_regression(s)
                 reg_failed = regr["failed_checks"] + max(0, expected_reg - regr["passed_checks"])

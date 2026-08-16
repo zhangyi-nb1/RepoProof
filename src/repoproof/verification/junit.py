@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from typing import NamedTuple
 
 
 def parse_junit_xml(data: bytes | None) -> dict:
@@ -110,4 +111,34 @@ def check_test_completion(
             "extra_nodes": extra_nodes,
             "totals": totals,
         },
+    )
+
+
+class PublicOutcomes(NamedTuple):
+    """公开面轮内读数的**三分**结果。skipped 单列 —— 既不入 passed
+    也不入 failed(HB 首发实测:26 个 Windows-only 用例在 macOS 恒 skip,
+    旧式 `outcome != "passed"` 把它们变成 26 个凭空捏造的失败包)。"""
+
+    failed_nodes: list[str]
+    details: dict[str, str]
+    passed: int
+    skipped: int
+
+
+def split_public_outcomes(nodes: list[dict]) -> PublicOutcomes:
+    """把 junit 节点分成 passed / failed / skipped 三堆。
+
+    唯一口径,host_guided 与 guided_repair 两条修复路共用 —— 只修被撞到的
+    那一条,等于把同一个坑留在隔壁。skipped 被排除出失败,但**计数留痕**:
+    若只排除不留痕,"把失败用例改成 skip"这条路径就从证据里消失了。
+    """
+    failed_nodes = [n["node_id"] for n in nodes
+                    if n["outcome"] not in ("passed", "skipped")]
+    details = {n["node_id"]: n.get("message", "") for n in nodes
+               if n["outcome"] not in ("passed", "skipped")}
+    return PublicOutcomes(
+        failed_nodes=failed_nodes,
+        details=details,
+        passed=sum(1 for n in nodes if n["outcome"] == "passed"),
+        skipped=sum(1 for n in nodes if n["outcome"] == "skipped"),
     )
