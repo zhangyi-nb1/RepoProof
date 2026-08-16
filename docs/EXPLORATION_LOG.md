@@ -2446,3 +2446,34 @@ Calibration,对 DeepSeek 是入门题)与 WH 弱模型臂,通道侧前提已齐�
 下一步 HB 批预注册需要 DeepSeek V4-Pro **知识截止日期**(先例:用户
 核录),8042 merge 下界 2026-06-01 的 §5 硬门照走;K6/K12 实台账钉
 (恰 6/2)届时必转红,逼当批显式重审两道硬门 —— 设计如此。
+
+## 状态 · 2026-08-17 · HB-DSENTRY-1 两发跑毕出批报:deepseek 入门档 0/5×2,NO_SUBMISSION 形态首录
+
+**批果**(冻结 `b50d6c0`,批报 `benchmarks/v2/reports/
+HB-DSENTRY-1-report-20260817.md`):sqlglot-8042 × deepseek-v4-pro ×
+两 DQ 合格 profile,照序连跑,**两发均 FAIL,J3=NO_SUBMISSION,delta
+0/5(并排盲攻上界 4/5)**。行为形状一致:回归面全程绿(1150=基线,
+零破坏)、30 调用打满未提交、五个 pivot 系 delta 节点全红。J2 存在性
+本批未见(0/2,N=2 null 分量弱,不外推)。同题随档语境:gpt-5.5/5.6
+各一发 PASS_ADAPTED(5/5,14–16 调用内提交)—— 入门档两 profile 均
+未过,NO_SUBMISSION(打满不提交)是 deepseek 侧首个可复核行为观察,
+要不要配更长 call 预算/提交提示强化属新批预注册议题,本批不改不补。
+
+**消融**(J6 记录不外推):线上实差 = temperature(0/1.0)+ top_p
+(unset/0.95),reasoning_effort high|max 被 litellm 同折为
+thinking:enabled(预注册 §5 已声明);MAX 侧供方计费读入 +22%
+(538,107 vs 439,486),与思考链更长一致;verdict/J3/delta 逐项同。
+
+**台账 token 虚高(如实公示,批报 §4)**:台账 input_tokens 571,266/
+807,266 vs 逐调用供方 usage 求和 439,486/538,107(1.30×/1.50×)。
+病名探针定案:litellm deepseek 流式路对同一请求派发两枚带 usage 终态
+success 事件,异步回调桶重复计数。执法权威 = 同步记账(#39 H7),两
+发同步口径均 <600K/轮墙、budget.exhausted 零 —— 判定未受扭曲。封套按
+供方计费口径判:2 发读入 977,593 ≤1.2M ✓。虚高数不采信不改台账。
+**批后修复项:回调按请求去重(或流式路改读同步口径)+ 钉 + 变异**。
+
+**完整性**:F0 四形态各归各位 + SELFTEST OK;宿主三轮 verify-only 全
+绿,封存池零写,任务包 ba77070 零改动;两道硬门(oracle=上游自带套件
+/host=PRISTINE)按 K6/K12 转红指示逐发重审后钉更新为 **8/2**(仍恰好
+等于);旁挂 29 行;heldout 分母 6→8。彩排(t1,EXPLORATORY)六项布
+线判据全绿后才开批,R2 真丢失=0 的"假 bug"追查录预注册附录一。

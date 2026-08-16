@@ -197,23 +197,25 @@ def test_unclassified_runs_default_to_capability_denominator(tmp_path):
 
 
 def test_real_ledger_reports_exactly_the_preregistered_heldout_runs():
-    """K6(2026-08-16 更新,按本钉旧文自己的指示):Held-out 分母 = 6。
+    """K6(2026-08-17 更新,按本钉旧文自己的指示):Held-out 分母 = 8。
 
-    旧钉:T1–T3 全是开发套件,分母恒 0;转红即"第二宿主建成,更新本判据
-    而不是绕过它"。此刻 HB-PCDELTA-1 落账:第二/三宿主(pallets/click、
-    tobymao/sqlglot)上 6 发计分,全部满足两道硬门(oracle=
-    UPSTREAM_OWN_TEST_SUITE、host=PRISTINE 父树),旁挂 6 行为冻结预注册
-    的机械转录(basis 里自曝落笔时点)。
+    钉史:恒 0 →(HB-PCDELTA-1,6 发)6 →(HB-DSENTRY-1,2 发)8。每次
+    转红都按规矩当批显式重审两道硬门再更新:DSENTRY 两发 oracle=
+    UPSTREAM_OWN_TEST_SUITE(任务包自 ba77070 零改动,批后 git 核对)、
+    host=PRISTINE(批前批后 verify-only 逐字节对得上,354 条);旁挂 2 行
+    为冻结预注册(b50d6c0)的机械转录。分子不变:DSENTRY 两发均 FAIL
+    (j3=NO_SUBMISSION,delta 0/5,盲攻上界 4/5 随档)。
 
     钉成**恰好等于**而非 ≥:下一批 HB 落账时本钉必须转红,逼着当批像
     这次一样显式过一遍两道硬门,而不是让分母静默上爬。"""
     got = count_passes(REPO)
 
-    assert got["heldout_model_evaluation_runs"] == 6, (
-        "Held-out 分母 ≠ 6 —— 新 HB 批落账了?按本钉的规矩显式重审再更新;"
+    assert got["heldout_model_evaluation_runs"] == 8, (
+        "Held-out 分母 ≠ 8 —— 新 HB 批落账了?按本钉的规矩显式重审再更新;"
         "或有人把不该计的发次标成了 Held-out")
     assert got["heldout_passes"] == 2, (
-        "Held-out 分子 ≠ 2(HB-PCDELTA-1:8042 双模型 PASS_ADAPTED)")
+        "Held-out 分子 ≠ 2(HB-PCDELTA-1:8042 双模型 PASS_ADAPTED;"
+        "HB-DSENTRY-1 零 PASS)")
 
 
 def test_classification_sidecar_loads_from_the_real_repo():
@@ -410,14 +412,14 @@ def test_k12_our_own_oracle_can_never_be_counted_as_heldout(tmp_path):
     assert _n() == 0, "没声明 oracle 来源就算 held-out —— 默认必须是不算"
     assert _n(oracle_authorship="SOMETHING_ELSE") == 0, "无法识别的来源必须按不算处理"
 
-    # 真台账口径(2026-08-16 更新,与 K6 同步):T1–T3(我们写的 oracle)
-    # 仍一发不计;计入的只能是 HB-PCDELTA-1 的 6 发,且**逐发**真过两道
-    # 硬门 —— 不只钉数字,钉性质:任何一发 heldout 行若不是外部 oracle +
-    # 未加语义宿主,这里必须红。
+    # 真台账口径(2026-08-17 更新,与 K6 同步):T1–T3(我们写的 oracle)
+    # 仍一发不计;计入的只能是 HB-PCDELTA-1 的 6 发 + HB-DSENTRY-1 的
+    # 2 发,且**逐发**真过两道硬门 —— 不只钉数字,钉性质:任何一发
+    # heldout 行若不是外部 oracle + 未加语义宿主,这里必须红。
     from repoproof.persistence.bench_records import classify_runs
 
     real = [r for r in classify_runs(REPO) if r["counts_toward_heldout_benchmark"]]
-    assert len(real) == 6, f"真台账 heldout 发次 {len(real)} ≠ 6(HB-PCDELTA-1)"
+    assert len(real) == 8, f"真台账 heldout 发次 {len(real)} ≠ 8(PCDELTA 6 + DSENTRY 2)"
     for r in real:
         assert r["oracle_authorship"] == ORACLE_AUTHORSHIP_EXTERNAL, r["run_id"]
         assert str(r["run_id"]).startswith("hb1-"), (
