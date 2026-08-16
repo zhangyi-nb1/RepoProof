@@ -2397,3 +2397,29 @@ K6/K12 的实台账零钉按其旧文自身指示更新(K6 原话:"第二宿主�
 **收口实测**:全套件(批收尾后 HEAD)**914 passed / 20 skipped,exit=0**
 (数字自 junit 式点计数,非目测;`-q` 与 addopts 里的 `-q` 叠成 `-qq`
 吞了汇总行,已知晓)。
+
+## 状态 · 2026-08-16 · P-D 开工:deepseek-native 适配器落地,DQ canary 冒烟 A 撞出自家协议坑已修
+
+**适配器**(commit `4383681`):`DeepSeekProviderConfig`(PROVIDER_TYPE=
+deepseek-native,top_p/reasoning_effort/reasoning_passback 全进 normalized()
+→ §55 两候选 profile 各得独立 provider_config_sha256,单变量可比哈希层
+背书)+ `DeepSeekNativeModel`(LitellmModel 子类,只改消息卫生 R1-R5 与
+SSE 流式 R4,retry/FormatError/记账骨架与 GPT 六发同源)。env 分流
+REPOPROOF_PROVIDER=deepseek-native(REPOPROOF_DS_PROFILE 显式点名,无
+静默默认);host_guided 构造分支 deepseek key 绝不进 OPENAI_* env(AST
+接线钉)。22 钉 + M75a-l 12 条声明归因(闸门 216 后台跑着)。
+
+**捎带抓的雷**:litellm DEV 模式 import 时全量 load_dotenv CWD .env ——
+真 key 静默入环境 + 测试间连接池泄漏(UI 池测试实测被污染)。
+LITELLM_MODE=PRODUCTION 三处钉死(适配器 import 前 / host_guided /
+tests/conftest.py)。全套件 934 绿 / 20 skip。
+
+**DQ canary 冒烟 A**(ENGINEERING_SMOKE,不算 DQ):2/6 —— C1 双 PASS,
+C2/C3 四格 FormatError。诊断:客户端解析层(API 全 200,**reasoning
+回传被官方接受**,连通性/preflight/usage 全好),病根是 canary 让收尾轮
+"裸文本作答"而 mini 协议每轮必须 tool_call —— canary 与自家栈打架,
+非 provider 缺陷。修复:C2/C3 改全工具轮(echo DQ_C2_DONE / echo
+REPORT:<token>),FormatError 病名提取补上(str() 为空,得掏 messages)。
+实测记录:GET /models = [deepseek-v4-flash, deepseek-v4-pro],条目无版本
+元数据(alias 级);temperature 0 与 1.0 官方均接受;思考链逐轮在场。
+冒烟 B(修复版)跑着;预注册草稿就位,冻结等冒烟 B + 闸门 216/216。
