@@ -1,0 +1,83 @@
+{
+  "_what": "oracle 卫生电池判决(v2 判据,prereg-v2 §1/§3;判定钉死 H1–H5)",
+  "candidate": "click-3407",
+  "runs": [
+    {
+      "passed": 1917,
+      "failed": 0,
+      "skipped": 26
+    },
+    {
+      "passed": 1917,
+      "failed": 0,
+      "skipped": 26
+    },
+    {
+      "passed": 1917,
+      "failed": 0,
+      "skipped": 26
+    },
+    {
+      "passed": 1917,
+      "failed": 0,
+      "skipped": 26
+    },
+    {
+      "passed": 1917,
+      "failed": 0,
+      "skipped": 26
+    },
+    {
+      "passed": 1917,
+      "failed": 0,
+      "skipped": 26
+    },
+    {
+      "passed": 1917,
+      "failed": 0,
+      "skipped": 26
+    }
+  ],
+  "skip_set_run1": [
+    "tests.test_chain::test_group_chaining",
+    "tests.test_termui::test_editor_windows_path_normalization[plain notepad]",
+    "tests.test_termui::test_editor_windows_path_normalization[quoted path with flag]",
+    "tests.test_termui::test_getchar_special_key_windows[\\x00-a]",
+    "tests.test_termui::test_getchar_special_key_windows[\\x00-b]",
+    "tests.test_termui::test_getchar_special_key_windows[\\xe0-c]",
+    "tests.test_termui::test_getchar_windows[False- ]",
+    "tests.test_termui::test_getchar_windows[False-H]",
+    "tests.test_termui::test_getchar_windows[False-\\u5b57]",
+    "tests.test_termui::test_getchar_windows[False-\\xc0]",
+    "tests.test_termui::test_getchar_windows[False-\\xe0H]",
+    "tests.test_termui::test_getchar_windows[False-\\xe0R]",
+    "tests.test_termui::test_getchar_windows[False-\\xe9]",
+    "tests.test_termui::test_getchar_windows[False-h]",
+    "tests.test_termui::test_getchar_windows[True- ]",
+    "tests.test_termui::test_getchar_windows[True-H]",
+    "tests.test_termui::test_getchar_windows[True-\\u5b57]",
+    "tests.test_termui::test_getchar_windows[True-\\xc0]",
+    "tests.test_termui::test_getchar_windows[True-\\xe0H]",
+    "tests.test_termui::test_getchar_windows[True-\\xe0R]",
+    "tests.test_termui::test_getchar_windows[True-\\xe9]",
+    "tests.test_termui::test_getchar_windows[True-h]",
+    "tests.test_termui::test_getchar_windows_exceptions[\\x03-KeyboardInterrupt]",
+    "tests.test_termui::test_getchar_windows_exceptions[\\x1a-EOFError]",
+    "tests.test_testing::test_capture_fd_windows_error",
+    "tests.test_types::test_path_surrogates"
+  ],
+  "canonical_seconds": 1.92,
+  "delta_nodes": [
+    "tests.test_types::test_param_type_input_parameter_defaults_at_runtime"
+  ],
+  "delta_stray_names": [],
+  "post_run": {
+    "passed": 1921,
+    "failed": [],
+    "skipped": 26
+  },
+  "verdict": {
+    "ok": true,
+    "problems": []
+  }
+}

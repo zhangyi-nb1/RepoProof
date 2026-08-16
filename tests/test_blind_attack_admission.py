@@ -68,12 +68,28 @@ def test_b1_score_comes_from_junit_counts_with_failed_nodes() -> None:
     assert s["failed_nodes"] == ["tests.test_x::test_b"]
 
 
-def test_b1b_skips_refuse_the_measurement() -> None:
-    """oracle 卫生前提:skipped ≠ 0 的一跑不配当分母,也不配当分子。"""
+def test_b1b_delta_node_skips_refuse_but_platform_skips_do_not() -> None:
+    """v2 卫生判据(用户裁决 b,prereg-v2 §1.1):skip 不再单跑即拒 ——
+    要防的病是"判官随环境变",平台常量 skip 由电池的集合稳定线(S-a)
+    另行把守。单跑层面只拦 **delta 节点被 skip**(S-b:隐藏 oracle 必须
+    无条件判卷,skip 的 delta 节点让 FAIL_TO_PASS 不可验)。"""
     bam = _load("blind_attack_admission.py")
-    s = bam.score_from_junit(_JUNIT_SKIPPED)
-    problems = bam.measurement_problems(baseline=s)
-    assert any("skip" in p.lower() for p in problems), problems
+    s = bam.score_from_junit(_JUNIT_SKIPPED)             # test_b skipped
+    assert bam.measurement_problems(baseline=s) == []
+    p = bam.measurement_problems(
+        baseline=s, delta_nodes=frozenset({"tests.test_x::test_b"}))
+    assert any("skip" in x.lower() for x in p), p
+
+
+def test_b12_skipped_nodes_are_outside_numerator_and_denominator() -> None:
+    """S-c:skip 节点进不了任何分子分母 —— 测得面 = total − skipped。
+    否则 25 条平台 skip 会把分母虚增、把 ratio 压低,烂候选显得可测。"""
+    bam = _load("blind_attack_admission.py")
+    baseline = bam.score_from_junit(_JUNIT_SKIPPED)      # 2 total / 1 passed / 1 skip
+    attacked = bam.score_from_junit(_JUNIT_SKIPPED)
+    attack = bam.build_attack(baseline=baseline, attacked=attacked,
+                              method="m", residual_kinds=frozenset())
+    assert (attack.total, attack.passed) == (1, 1)
 
 
 def test_b2_dirty_baseline_refuses_no_ratio() -> None:

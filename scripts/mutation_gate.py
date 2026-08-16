@@ -1025,7 +1025,7 @@ MUTATIONS: list[dict] = [
         "lesson": "基线上就绿的 delta 测试不拒 → FAIL_TO_PASS 不再被实测,"
                   "'parent 树上就能过的新行为'混进分母,ratio 虚低,烂候选准入",
         "file": _BAM,
-        "old": "    green_deltas = sorted(set(delta_nodes) - red)",
+        "old": "    green_deltas = sorted(set(delta_nodes) - red - skipped_nodes)",
         "new": "    green_deltas = []",
         "catchers": _T_BAM,
         "expected_catcher": ["test_b7_delta_baseline_must_red_exactly_the_delta_set"],
@@ -1035,8 +1035,8 @@ MUTATIONS: list[dict] = [
         "lesson": "全套件分母改读攻击后 junit → 攻击件打崩收集期,节点数缩水,"
                   "分母跟着缩 —— 被测方决定分母(U3 的老病,第三次出现)",
         "file": _BAM,
-        "old": '        return BlindAttack(total=baseline["total"], passed=attacked["passed"],',
-        "new": '        return BlindAttack(total=attacked["total"], passed=attacked["passed"],',
+        "old": '        return BlindAttack(total=baseline["total"] - baseline["skipped"],',
+        "new": '        return BlindAttack(total=attacked["total"] - attacked["skipped"],',
         "catchers": _T_BAM,
         "expected_catcher": ["test_b6_denominator_is_the_baseline_total"],
     },
@@ -1049,6 +1049,29 @@ MUTATIONS: list[dict] = [
         "new": '        env.setdefault(k, "http://127.0.0.1:9")',
         "catchers": _T_BAM,
         "expected_catcher": ["test_b4_subprocess_env_is_forced_offline"],
+    },
+    # ---- M67:v2 卫生判据(用户裁决 b,prereg-v2 §1.1)。skip 从"单跑即拒"
+    # 改为"集合稳定 + delta 零 skip + 出分母";这两条守改线后的新语义。
+    {
+        "id": "M67a-delta-node-skip-not-refused",
+        "lesson": "S-b 被拆:delta 节点被 skip 也照常测 → 隐藏 oracle 拒绝判卷"
+                  "的候选混进池子,FAIL_TO_PASS 成了没验过的宣称",
+        "file": _BAM,
+        "old": "    delta_skipped = sorted(set(delta_nodes) & skipped_nodes)",
+        "new": "    delta_skipped = []",
+        "catchers": _T_BAM,
+        "expected_catcher": ["test_b1b_delta_node_skips_refuse_but_platform_skips_do_not"],
+    },
+    {
+        "id": "M67b-skips-back-inside-the-denominator",
+        "lesson": "S-c 被拆:skip 回到分母 → 25 条平台 skip 虚增分母压低 ratio,"
+                  "烂候选显得可测(与 M66b 同锚不同病:那条是分母来源,这条是"
+                  "分母口径)",
+        "file": _BAM,
+        "old": '        return BlindAttack(total=baseline["total"] - baseline["skipped"],',
+        "new": '        return BlindAttack(total=baseline["total"],',
+        "catchers": _T_BAM,
+        "expected_catcher": ["test_b12_skipped_nodes_are_outside_numerator_and_denominator"],
     },
     {
         "id": "M66f-venv-bin-not-on-the-subprocess-path",

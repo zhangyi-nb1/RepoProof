@@ -54,9 +54,10 @@ def score_from_junit(data: bytes) -> dict:
     出来:它是残差分类的原料,不许省。
     """
     root = ET.fromstring(data.decode("utf-8", errors="replace"))
-    total = skipped = 0
+    total = 0
     failed_nodes: list[str] = []
     passed_nodes: list[str] = []
+    skipped_nodes: list[str] = []
     for suite in root.iter("testsuite"):
         for case in suite.iter("testcase"):
             total += 1
@@ -64,12 +65,14 @@ def score_from_junit(data: bytes) -> dict:
             if case.find("failure") is not None or case.find("error") is not None:
                 failed_nodes.append(node)
             elif case.find("skipped") is not None:
-                skipped += 1
+                skipped_nodes.append(node)
             else:
                 passed_nodes.append(node)
-    return {"total": total, "passed": len(passed_nodes), "skipped": skipped,
+    return {"total": total, "passed": len(passed_nodes),
+            "skipped": len(skipped_nodes),
             "failed_nodes": sorted(failed_nodes),
-            "passed_nodes": sorted(passed_nodes)}
+            "passed_nodes": sorted(passed_nodes),
+            "skipped_nodes": sorted(skipped_nodes)}
 
 
 def measurement_problems(*, baseline: dict,
@@ -77,20 +80,22 @@ def measurement_problems(*, baseline: dict,
     """基线这一跑配不配当尺子。不配 → 拒绝测量,不产出 ratio。
 
     两种形态:
-    - 全套件形态(SEAM 彩排):基线必须全绿零 skip;
+    - 全套件形态(SEAM 彩排):基线必须全绿(skip 见下);
     - delta 形态(post-cutoff 猎取,`delta_nodes` = PR 新增测试):基线必须
       **恰好** delta 集全红、其余全绿 —— 这同时就是 FAIL_TO_PASS 的实测验证。
       少红 = 该 delta 在 parent 树上就能过(量不到东西);多红 = 旧套件在
       parent 树上就有病(尺子不干净)。
+
+    skip(v2 卫生判据,用户裁决 b,prereg-v2 §1.1):不再单跑即拒 —— 病是
+    "判官随环境变",平台常量 skip(click 25 条四环境分毫不动的实测)由电池
+    的集合稳定线 S-a 把守。这里只拦 S-b:**delta 节点被 skip** = 隐藏 oracle
+    拒绝判卷,FAIL_TO_PASS 不可验。
     """
     problems: list[str] = []
     if baseline["total"] <= 0:
         problems.append("基线一条测试都没收集到 —— 没有分母")
-    if baseline["skipped"]:
-        problems.append(
-            f"基线有 {baseline['skipped']} 条 skipped —— oracle 卫生前提被破"
-            "(host2 选型时'零 skip'是入选理由,量的时候不能自己破)")
     red = set(baseline["failed_nodes"])
+    skipped_nodes = set(baseline.get("skipped_nodes", ()))
     if delta_nodes is None:
         if red:
             problems.append(
@@ -99,7 +104,12 @@ def measurement_problems(*, baseline: dict,
         return problems
     if not delta_nodes:
         problems.append("delta 集为空 —— 没有分母,这个候选量不到东西")
-    green_deltas = sorted(set(delta_nodes) - red)
+    delta_skipped = sorted(set(delta_nodes) & skipped_nodes)
+    if delta_skipped:
+        problems.append(
+            f"delta 节点被 skip:{delta_skipped} —— 隐藏 oracle 必须无条件"
+            "判卷(S-b),skip 的 delta 节点让 FAIL_TO_PASS 不可验")
+    green_deltas = sorted(set(delta_nodes) - red - skipped_nodes)
     if green_deltas:
         problems.append(
             f"delta 测试在 parent 树上就绿:{green_deltas} —— "
@@ -123,7 +133,10 @@ def build_attack(*, baseline: dict, attacked: dict, method: str,
     不算分)。旧套件的绿不进分子:那是回归面,不是能力面。
     """
     if delta_nodes is None:
-        return BlindAttack(total=baseline["total"], passed=attacked["passed"],
+        # S-c:skip 进不了分母 —— 测得面 = total − skipped(25 条平台 skip
+        # 虚增分母会把 ratio 压低,烂候选显得可测)
+        return BlindAttack(total=baseline["total"] - baseline["skipped"],
+                           passed=attacked["passed"],
                            method=method, residual_kinds=residual_kinds)
     won = delta_nodes & set(attacked.get("passed_nodes", ()))
     return BlindAttack(total=len(delta_nodes), passed=len(won),
