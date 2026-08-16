@@ -1,0 +1,36 @@
+{
+  "_what": "一发盲攻的测量记录 —— held-out 准入判据的输入与判决",
+  "candidate": "click-3581",
+  "mode": "delta",
+  "baseline": {
+    "total": 1710,
+    "passed": 1681,
+    "skipped": 26
+  },
+  "delta_nodes": [
+    "tests.test_basic::test_custom_version_option[args0]",
+    "tests.test_basic::test_custom_version_option[args1]",
+    "tests.test_basic::test_custom_version_option_receives_context"
+  ],
+  "attacked_passed": 0,
+  "denominator": 3,
+  "ratio": 0.0,
+  "failed_nodes": [
+    "tests.test_basic::test_custom_version_option[args0]",
+    "tests.test_basic::test_custom_version_option[args1]",
+    "tests.test_basic::test_custom_version_option_receives_context"
+  ],
+  "regression_broken": [],
+  "residual_kinds": [
+    "behavior"
+  ],
+  "method": "盲攻协议(delta 形态,click-3581,2026-08-16,prereg-v2 §5):\n攻击者 = Claude Fable 5 子代理,单发,与出题方(pallets)无涉。\n输入 = 交付树(parent 剥 .git/.github/CHANGES,PR 触碰的测试文件整体移除,\n其余旧测试保留)+ 题面(PR 正文与关联 issue 原文)。click 无运行时依赖,\n未配 deps venv;允许用系统 python3 做语法/导入检查。\n禁:隐藏 oracle(delta 测试)、post 实现、后续历史、网络、给定路径之外的\n文件系统、运行任何测试、迭代。\nprep 自证:答案指纹自校准扫描(parent 已有行不算指纹)命中 0,种植自证过\n(docs/evidence/d5_hunt/leak-scan-round2.json)。\n评分:blind_attack_admission.py delta 形态(B1-B12 钉死),分母 = 电池\n实测 delta 集;delta 合并于 2026-06/07(晚于攻击者知识截止 2026-01),\n记忆通道结构性关闭 —— 这是本形态与 SEAM 彩排的本质差别。\n",
+  "digests": {
+    "pristine_tree": "sha256:70428ee0aa6c375f84f4fe72d13e81806eb11816fa5c43e9e97100bda1f10218",
+    "attacked_src": "sha256:f46eb4f21fa359333d88bb463581c67534ab76857fee4a16f1f734036ef2b308"
+  },
+  "verdict": {
+    "ok": true,
+    "reasons": []
+  }
+}

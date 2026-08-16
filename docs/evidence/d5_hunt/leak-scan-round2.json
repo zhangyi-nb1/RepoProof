@@ -1,0 +1,14 @@
+{
+ "click-3407": {
+  "fingerprints_calibrated": 39,
+  "leak_hits": [],
+  "selfcheck_planted_detected": true,
+  "note": "自校准:parent 已有行不算指纹(攻击者合法可见整棵 parent)"
+ },
+ "click-3581": {
+  "fingerprints_calibrated": 32,
+  "leak_hits": [],
+  "selfcheck_planted_detected": true,
+  "note": "自校准:parent 已有行不算指纹(攻击者合法可见整棵 parent)"
+ }
+}

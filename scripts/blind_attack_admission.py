@@ -161,6 +161,7 @@ def build_record(*, candidate: str, baseline: dict, attacked: dict, method: str,
                      "skipped": baseline["skipped"]},
         "delta_nodes": sorted(delta_nodes) if delta_nodes else [],
         "attacked_passed": attack.passed,
+        "denominator": attack.total,
         "ratio": attack.ratio,
         "failed_nodes": attacked["failed_nodes"],
         # 攻击件砸了旧套件 → 单列,不掺进 ratio(掺进去的话,一个把回归面
@@ -226,8 +227,19 @@ def main() -> int:
     ap.add_argument("--candidate", required=True)
     ap.add_argument("--pristine", required=True, help="纯净树(含上游自带测试)")
     ap.add_argument("--wheelhouse", required=True)
-    ap.add_argument("--seam-rel", required=True, help="被攻击文件在树内的相对路径")
-    ap.add_argument("--attacked-file", required=True, help="攻击者写完的那份文件")
+    # 全套件形态(SEAM 彩排):单文件替换
+    ap.add_argument("--seam-rel", default="", help="被攻击文件在树内的相对路径")
+    ap.add_argument("--attacked-file", default="", help="攻击者写完的那份文件")
+    # delta 形态(post-cutoff 猎取):攻击是多文件的 —— 叠攻击者交付树的 src 子树
+    ap.add_argument("--attacked-src-dir", default="",
+                    help="delta 形态:攻击者交付树根(其 --src-rel 子树整体叠上)")
+    ap.add_argument("--src-rel", default="src", help="叠加的相对子树(缺省 src)")
+    ap.add_argument("--delta-post-dir", default="",
+                    help="delta 形态:PR 测试件的 post 版本目录(基线前先铺)")
+    ap.add_argument("--hygiene-record", default="",
+                    help="delta 形态:电池判决 JSON,取其 delta_nodes 当分母")
+    ap.add_argument("--pretend-version", default="",
+                    help="SETUPTOOLS_SCM_PRETEND_VERSION(无 .git 树的 scm 仓)")
     ap.add_argument("--method-file", required=True, help="盲攻协议原文(纯文本)")
     ap.add_argument("--extras", default="",
                     help="被测包自己的 extras 名(如 tests)—— 测试侧依赖用上游"
@@ -239,10 +251,21 @@ def main() -> int:
     a = ap.parse_args()
 
     pristine = Path(a.pristine).expanduser()
-    attacked_file = Path(a.attacked_file).expanduser()
+    delta_mode = bool(a.attacked_src_dir)
+    if delta_mode == bool(a.attacked_file):
+        print("两种形态选一:--seam-rel/--attacked-file(全套件)或 "
+              "--attacked-src-dir/--delta-post-dir/--hygiene-record(delta)",
+              file=sys.stderr)
+        return 2
+    delta_nodes = None
+    if delta_mode:
+        hyg = json.loads(Path(a.hygiene_record).expanduser().read_text(encoding="utf-8"))
+        delta_nodes = frozenset(hyg["delta_nodes"])
     method = Path(a.method_file).expanduser().read_text(encoding="utf-8")
     kinds = frozenset(k.strip() for k in a.residual_kinds.split(",") if k.strip())
     env = offline_env(dict(__import__("os").environ))
+    if a.pretend_version:
+        env["SETUPTOOLS_SCM_PRETEND_VERSION"] = a.pretend_version
 
     with tempfile.TemporaryDirectory(prefix="rp_admission_") as td:
         tree = Path(td) / "tree"
@@ -252,8 +275,19 @@ def main() -> int:
         # 的话 digest 混进构建残渣,与 git 内容对不上、外人无从复算(彩排实测:
         # 同一提交三次跑出三个 digest,全是残渣在漂)。现在这个值可由
         # `git archive <commit>` 展开后按同法重算核对。
-        digests = {"pristine_tree": _digest_tree(tree),
-                   "attacked_file": _sha256_file(attacked_file)}
+        digests = {"pristine_tree": _digest_tree(tree)}
+        if delta_mode:
+            src_overlay = Path(a.attacked_src_dir).expanduser() / a.src_rel
+            digests["attacked_src"] = _digest_tree(src_overlay)
+            # 基线在铺完 delta 测试件之后跑(B7:恰红 delta 集 = FAIL_TO_PASS 实测)
+            for f in sorted(Path(a.delta_post_dir).expanduser().rglob("*")):
+                if f.is_file():
+                    rel = f.relative_to(Path(a.delta_post_dir).expanduser())
+                    dest_f = tree / rel
+                    dest_f.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(f, dest_f)
+        else:
+            digests["attacked_file"] = _sha256_file(Path(a.attacked_file).expanduser())
         venv = Path(td) / "venv"
         _run([sys.executable, "-m", "venv", str(venv)], cwd=Path(td), env=env)
         target = f"{tree}[{a.extras}]" if a.extras else str(tree)
@@ -266,20 +300,32 @@ def main() -> int:
             return 2
 
         baseline = score_from_junit(_pytest_junit(venv, tree, env))
-        problems = measurement_problems(baseline=baseline)
+        problems = measurement_problems(baseline=baseline, delta_nodes=delta_nodes)
         if problems:
             print("拒绝测量 —— 基线不配当尺子:", file=sys.stderr)
             for p in problems:
                 print("  -", p, file=sys.stderr)
             return 2
-        print(f"基线:{baseline['passed']}/{baseline['total']} 全绿零 skip ✓")
+        print(f"基线合格(总 {baseline['total']} / 绿 {baseline['passed']} / "
+              f"skip {baseline['skipped']})✓")
 
-        shutil.copyfile(attacked_file, tree / a.seam_rel)
+        if delta_mode:
+            # 攻击是多文件的:叠攻击者交付树的 src 子树(只覆盖,不删除)
+            src_overlay = Path(a.attacked_src_dir).expanduser() / a.src_rel
+            for f in sorted(src_overlay.rglob("*")):
+                if f.is_file() and "__pycache__" not in f.parts:
+                    rel = f.relative_to(src_overlay)
+                    dest_f = tree / a.src_rel / rel
+                    dest_f.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(f, dest_f)
+        else:
+            shutil.copyfile(Path(a.attacked_file).expanduser(), tree / a.seam_rel)
         attacked = score_from_junit(_pytest_junit(venv, tree, env))
 
     record = build_record(candidate=a.candidate, baseline=baseline,
                           attacked=attacked, method=method,
-                          residual_kinds=kinds, digests=digests)
+                          residual_kinds=kinds, digests=digests,
+                          delta_nodes=delta_nodes)
     out_dir = Path(a.out_dir).expanduser()
     out_dir.mkdir(parents=True, exist_ok=True)
     dest = out_dir / f"{a.candidate}.json"
@@ -287,7 +333,7 @@ def main() -> int:
                     encoding="utf-8")
 
     v = record["verdict"]
-    print(f"盲攻:{record['attacked_passed']}/{baseline['total']} "
+    print(f"盲攻:{record['attacked_passed']}/{record['denominator']} "
           f"= {record['ratio']:.1%};失败 {len(record['failed_nodes'])} 条")
     print("判决:" + ("**准入**" if v["ok"] else "**判死**"))
     for reason in v["reasons"]:
