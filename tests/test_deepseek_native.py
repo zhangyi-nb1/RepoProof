@@ -381,6 +381,38 @@ def test_wiring_deepseek_model_constructed_inside_the_eq_branch():
     ), "DeepSeekNativeModel(+build_model_kwargs) 必须由 == 分支守卫"
 
 
+def test_ledger_provider_label_comes_from_provider_type_not_a_literal():
+    """台账通道归属:provider_label 按 PROVIDER_TYPE 出值(fake 冒烟例外);
+    _finish 里不许再出现写死的 "openai-compatible" 字面量,且每个
+    _finish 调用点都必须经 provider_label 传 provider_type —— deepseek
+    发次记成 openai-compatible 就是静默换模的台账端。"""
+    import ast
+
+    from repoproof.runner.host_guided import provider_label
+
+    assert provider_label(None) == "fake"
+    assert provider_label(_provider()) == "deepseek-native"
+    oa = ProviderConfig(provider="openai-compatible", model_name="m",
+                        api_base="b", api_key="k")
+    assert provider_label(oa) == "openai-compatible"
+
+    tree = _host_guided_ast()
+    finish_def = next(n for n in ast.walk(tree)
+                      if isinstance(n, ast.FunctionDef) and n.name == "_finish")
+    literals = [n for n in ast.walk(finish_def)
+                if isinstance(n, ast.Constant) and n.value == "openai-compatible"]
+    assert not literals, "_finish 内禁止写死通道字面量"
+    call_sites = [n for n in ast.walk(tree)
+                  if isinstance(n, ast.Call)
+                  and isinstance(n.func, ast.Attribute) and n.func.attr == "_finish"]
+    assert call_sites, "找不到 _finish 调用点"
+    for c in call_sites:
+        kw = {k.arg: k.value for k in c.keywords}
+        v = kw.get("provider_type")
+        assert (isinstance(v, ast.Call) and isinstance(v.func, ast.Name)
+                and v.func.id == "provider_label"), "调用点必须经 provider_label"
+
+
 def test_wiring_openai_env_only_fed_in_the_not_deepseek_branch():
     """OPENAI_API_KEY/BASE 只允许在 `PROVIDER_TYPE != "deepseek-native"`
     分支体内赋值(deepseek 的 key 绝不进错通道变量);deepseek 分支须

@@ -2211,6 +2211,7 @@ class HostGuidedRunner:
                     records=records, public_by_round=public_by_round,
                     regression_by_round=regression_by_round,
                     run_order=run_order, run_index=run_index, batch=batch, model_name=model_name,
+                    provider_type=provider_label(provider),
                     preflight=preflight, budget_exhausted=budget_exhausted,
                     gate_reasons=["AI 请求范围变更,已暂停等待用户决定:"
                                   + str(repair_summary["pending_scope_change"])],
@@ -2408,6 +2409,7 @@ class HostGuidedRunner:
                 agent_metrics=agent_metrics, repair_summary={}, records=[],
                 public_by_round=[], regression_by_round=[],
                 run_order=run_order, run_index=run_index, batch=batch, model_name=model_name,
+                provider_type=provider_label(provider),
                 preflight=preflight, budget_exhausted=None,
                 gate_reasons=[f"BENCH_ROOT_CONTAMINATED:{exc.strays[:5]}(零预算清场后重跑)"],
                 t0=t0)
@@ -2419,6 +2421,7 @@ class HostGuidedRunner:
                 agent_metrics=agent_metrics, repair_summary={}, records=[],
                 public_by_round=[], regression_by_round=[],
                 run_order=run_order, run_index=run_index, batch=batch, model_name=model_name,
+                provider_type=provider_label(provider),
                 preflight=preflight, budget_exhausted=None,
                 gate_reasons=["HOST_BASELINE_UNHEALTHY:宿主基线不达标,未消耗任何模型预算"],
                 t0=t0)
@@ -2510,6 +2513,7 @@ class HostGuidedRunner:
             records=records, public_by_round=public_by_round,
             regression_by_round=regression_by_round,
             run_order=run_order, run_index=run_index, batch=batch, model_name=model_name,
+            provider_type=provider_label(provider),
             preflight=preflight, budget_exhausted=budget_exhausted,
             gate_reasons=gate.reasons, t0=t0,
             adaptation_manifest=adaptation_manifest,
@@ -2563,7 +2567,7 @@ class HostGuidedRunner:
         *, agent_metrics: dict, repair_summary: dict,
         records: list[RepairRoundRecord], public_by_round: list[int],
         regression_by_round: list[int], run_order, run_index, batch: str,
-        model_name: str,
+        model_name: str, provider_type: str,
         preflight: PreflightResult | None, budget_exhausted: str | None,
         gate_reasons: list[str], t0: float,
         adaptation_manifest: AdaptationManifest | None = None,
@@ -2655,7 +2659,10 @@ class HostGuidedRunner:
             "host_commit": self.contract.host.commit,
             "source_commit": source_commit_of(self.contract),
             "model": model_name,
-            "provider": "openai-compatible" if preflight else "fake",
+            # 通道归属来自 ProviderConfig.PROVIDER_TYPE,不许写死 ——
+            # deepseek 发次记成 openai-compatible 就是"跑的通道和台账
+            # 写的通道不是一个"(M75i 的台账端;M76a 在钉)。
+            "provider": provider_type,
             "provider_config_hash": (preflight.provider_config_sha256
                                      if preflight else "UNKNOWN"),
             # 执行侧四面指纹(S1):provider 面见上一行,其余三面 + 代际 +
@@ -2712,6 +2719,14 @@ class HostGuidedRunner:
         append_run(self.project_root, record)
         ev("bench.recorded", actor="harness", payload={"runs_jsonl": "benchmarks/v2/runs.jsonl"})
         return report
+
+
+def provider_label(provider) -> str:
+    """台账 provider 归属:通道类型取 ProviderConfig.PROVIDER_TYPE,
+    不许写死字面量 —— deepseek 发次记成 openai-compatible 就是"跑的
+    通道和台账写的通道不是一个"(静默换模的台账端)。fake 冒烟无
+    provider,如实记 fake。"""
+    return provider.PROVIDER_TYPE if provider is not None else "fake"
 
 
 class _BaselineUnhealthy(Exception):

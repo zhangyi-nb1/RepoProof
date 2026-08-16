@@ -2369,6 +2369,17 @@ MUTATIONS: list[dict] = [
         "catchers": _T_DSN,
         "expected_catcher": ["test_wiring_openai_env_only_fed_in_the_not_deepseek_branch"],
     },
+    {
+        "id": "M76a-ledger-provider-hardcoded-back",
+        "lesson": "台账 provider 归属退化回写死字面量 —— deepseek 发次记成 "
+                  "openai-compatible,跑的通道和台账写的通道不是一个(静默换模台账端)",
+        "file": _HD,
+        "old": '    return provider.PROVIDER_TYPE if provider is not None else "fake"',
+        "new": '    return "openai-compatible" if provider is not None else "fake"',
+        "catchers": _T_DSN,
+        "expected_catcher": [
+            "test_ledger_provider_label_comes_from_provider_type_not_a_literal"],
+    },
 ]
 
 

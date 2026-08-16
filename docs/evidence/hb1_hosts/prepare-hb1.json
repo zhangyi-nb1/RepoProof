@@ -99,6 +99,17 @@
       ],
       "round": 2,
       "utc": "2026-08-16T13:01:50+00:00"
+    },
+    {
+      "argv": [
+        "scripts/prepare_hb1_hosts.py",
+        "--hosts"
+      ],
+      "stages": [
+        "hosts"
+      ],
+      "round": 2,
+      "utc": "2026-08-16T15:00:13+00:00"
     }
   ],
   "hosts": {
