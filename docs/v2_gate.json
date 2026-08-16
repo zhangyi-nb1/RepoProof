@@ -15,7 +15,7 @@
   "all_runs": {
     "all_valid_run_outcomes": 41,
     "assisted_repair_runs": 14,
-    "development_baseline_runs": 60,
+    "development_baseline_runs": 61,
     "exploratory": 7,
     "exploratory_passes": 0,
     "exploratory_run_ids": [
@@ -147,7 +147,7 @@
       "hb1-sqlglot-8042-20260816-190401",
       "hb1-sqlglot-8042-20260816-192825"
     ],
-    "total": 154,
+    "total": 155,
     "treatment_delivered_runs": 3,
     "treatment_not_delivered_runs": 3
   },
@@ -164,7 +164,7 @@
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "2e7396a3bade7ca397964a340b388b584a84ca0cf5d52a9f3970f5c77ac9fb85"
+    "runs_jsonl_sha256": "8cdae2395101953c52f57d92cb8aeb35995833eae97ef1e2b4cfdb948d6a0901"
   },
   "stages": {
     "T1": {
