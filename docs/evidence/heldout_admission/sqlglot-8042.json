@@ -1,0 +1,36 @@
+{
+  "_what": "一发盲攻的测量记录 —— held-out 准入判据的输入与判决",
+  "candidate": "sqlglot-8042",
+  "mode": "delta",
+  "baseline": {
+    "total": 1199,
+    "passed": 1194,
+    "skipped": 0
+  },
+  "delta_nodes": [
+    "tests.test_lineage.TestLineage::test_chained_pivots",
+    "tests.test_lineage.TestLineage::test_chained_pivots_consuming_alias_columns",
+    "tests.test_lineage.TestLineage::test_chained_pivots_mixed",
+    "tests.test_lineage.TestLineage::test_chained_pivots_through_cte",
+    "tests.test_lineage.TestLineage::test_chained_pivots_with_alias_columns"
+  ],
+  "attacked_passed": 4,
+  "denominator": 5,
+  "ratio": 0.8,
+  "failed_nodes": [
+    "tests.test_lineage.TestLineage::test_chained_pivots_mixed"
+  ],
+  "regression_broken": [],
+  "residual_kinds": [
+    "behavior"
+  ],
+  "method": "盲攻协议(delta 形态,sqlglot-8042,2026-08-16,prereg-v2 §5):\n攻击者 = Claude Fable 5 子代理,单发,与出题方(tobymao/sqlglot)无涉。\n输入 = 交付树(parent 剥 .git/.github/CHANGES,tests/test_lineage.py 整体\n移除,其余旧测试保留)+ 题面(PR 正文原文)。sqlglot 无运行时依赖,允许用\n系统 python3 做语法/导入检查。\n禁:隐藏 oracle(delta 测试)、post 实现、后续历史、网络、给定路径之外的\n文件系统、运行任何测试、迭代。\nprep 自证:答案指纹自校准扫描命中 0(leak-scan-round2.json)。\n评分:blind_attack_admission.py delta 形态,分母 = 电池实测 delta 集(5);\ndelta 合并于 2026-08-06,晚于攻击者知识截止,记忆通道结构性关闭。\n",
+  "digests": {
+    "pristine_tree": "sha256:d4088366e757bb8bf204df4ea1ad3695d9938f745f54292364d199efebbba929",
+    "attacked_src": "sha256:e0dc2e97f73c83bc2bf4d219cf783f0ab68010ce0fd2782bfa81ed8589a4c956"
+  },
+  "verdict": {
+    "ok": true,
+    "reasons": []
+  }
+}

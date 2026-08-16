@@ -1,0 +1,60 @@
+{
+  "_what": "oracle 卫生电池判决(v2 判据,prereg-v2 §1/§3;判定钉死 H1–H5)",
+  "candidate": "sqlglot-8036",
+  "runs": [
+    {
+      "passed": 1161,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1161,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1161,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1161,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1161,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1161,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1161,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "skip_set_run1": [],
+  "canonical_seconds": 88.87,
+  "delta_nodes": [
+    "tests.dialects.test_bigquery.TestBigQuery::test_week"
+  ],
+  "delta_stray_names": [
+    "tests.dialects.test_bigquery.TestBigQuery::test_week"
+  ],
+  "post_run": {
+    "passed": 1161,
+    "failed": [],
+    "skipped": 0
+  },
+  "verdict": {
+    "ok": false,
+    "problems": [
+      "delta 红集合含非 PR 新增的测试名:['tests.dialects.test_bigquery.TestBigQuery::test_week'] —— 红的不只是新测试,delta 集不干净"
+    ]
+  }
+}

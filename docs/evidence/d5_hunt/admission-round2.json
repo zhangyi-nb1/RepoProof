@@ -1,0 +1,62 @@
+{
+ "_what": "D5 第二轮准入判决(v2 卫生判据,prereg-v2;封存池重审,零联网)",
+ "adjudication": "用户裁决 (b):以首轮实测重冻 v2 卫生判据,然后再开窗",
+ "outcome": "准入 3 / 判死 6(+click-3645 v1 死案不重审);触发线'合格<3 开新窗'不触发,窗口授权留存",
+ "admitted": [
+  {
+   "candidate": "click-3581",
+   "delta_nodes": 3,
+   "blind_attack": "0/3 = 0%",
+   "regression_broken": 0,
+   "residual": "行为:上游选包装产消息(callback(ctx)->str+内部 echo/exit),攻击者赌原生回调转发;题面容纳两案,唯隐藏测试知道答案"
+  },
+  {
+   "candidate": "click-3407",
+   "delta_nodes": 1,
+   "blind_attack": "0/1 = 0%",
+   "regression_broken": 0,
+   "residual": "行为:PEP 696 双 TypeVar 泛型机制(__class_getitem__ 回填)",
+   "caveat": "1 节点 oracle = 1 bit,单薄;题面作者自列三选项歧义大 —— 出题时须带此说明"
+  },
+  {
+   "candidate": "sqlglot-8042",
+   "delta_nodes": 5,
+   "blind_attack": "4/5 = 80%",
+   "regression_broken": 0,
+   "residual": "行为:test_chained_pivots_mixed(混合链的链内引用解析/去重策略分岔,攻击者自报赌点命中)",
+   "note": "最有质感的档案:深度实现拿回 4/5,残差落在攻击者明知没把握的设计岔路上"
+  }
+ ],
+ "dead": [
+  {
+   "candidate": "click-3637",
+   "reason": "delta 测试文件 parent 上不可收集(模块级 import 新符号)——节点级 FAIL_TO_PASS 不可测"
+  },
+  {
+   "candidate": "click-3678",
+   "reason": "PR 改写既有测试期望(4 条 stray)——严口径 delta 集不干净"
+  },
+  {
+   "candidate": "sqlglot-8025",
+   "reason": "夹具驱动:PR 的'新增测试'是 .sql fixture 行,红的是既有函数名(stray)"
+  },
+  {
+   "candidate": "sqlglot-8041",
+   "reason": "同上族:test_qualify_columns 既有函数红(stray)"
+  },
+  {
+   "candidate": "sqlglot-8024",
+   "reason": "新测试文件连 post 树上都收集不了(::tests.test_anonymize)+ stray"
+  },
+  {
+   "candidate": "sqlglot-8036",
+   "reason": "PR 改写既有测试(test_bigquery::test_week stray)"
+  }
+ ],
+ "observations_for_v3_not_applied": [
+  "第二轮主死因(6/6)全是 delta 集语义:改既有测试 / 夹具驱动套件 / import 耦合新符号。'新增测试函数'这个 delta 定义排除了真实 PR 的三大常见形态;v3 若想提高产率,需定义 modified-test delta、fixture 行级 delta、文件级 FAIL_TO_PASS 的语义 —— 各自都有可推导性/污染面代价,须用户裁",
+  "产率实测:封存池 10 → 卫生 4 → 准入 3(30%)。猎取批量 5-10 的纪律再次自证",
+  "驱动器 --extra-packages 缺口由 B2/B7 拒测暴露(第 4 次 fail-closed 立功):缺依赖 → 收集中断 → delta 节点两头不见,曾被误判'parent 上就绿'"
+ ],
+ "next": "可出题池 = 3。出题(模型发次)另立预注册;窗口授权留存未用。"
+}

@@ -240,6 +240,10 @@ def main() -> int:
                     help="delta 形态:电池判决 JSON,取其 delta_nodes 当分母")
     ap.add_argument("--pretend-version", default="",
                     help="SETUPTOOLS_SCM_PRETEND_VERSION(无 .git 树的 scm 仓)")
+    ap.add_argument("--extra-packages", default="",
+                    help="测试面额外依赖(逗号分隔;sqlglot 实测:缺 duckdb/pandas"
+                         " → 收集期崩 → pytest 中断收集 → delta 节点两头不见,"
+                         "被误判'parent 上就绿'。B2/B7 拒了测量才暴露)")
     ap.add_argument("--method-file", required=True, help="盲攻协议原文(纯文本)")
     ap.add_argument("--extras", default="",
                     help="被测包自己的 extras 名(如 tests)—— 测试侧依赖用上游"
@@ -291,9 +295,10 @@ def main() -> int:
         venv = Path(td) / "venv"
         _run([sys.executable, "-m", "venv", str(venv)], cwd=Path(td), env=env)
         target = f"{tree}[{a.extras}]" if a.extras else str(tree)
+        extra_pkgs = [p for p in a.extra_packages.split(",") if p.strip()]
         r = _run([str(venv / "bin" / "pip"), "install", "-q", "--no-index",
                   "--find-links", str(Path(a.wheelhouse).expanduser()),
-                  "-e", target, "pytest"], cwd=Path(td), env=env)
+                  "-e", target, "pytest", *extra_pkgs], cwd=Path(td), env=env)
         if r.returncode != 0:
             print("离线建环境失败(轮仓不全?):\n" + (r.stdout + r.stderr)[-600:],
                   file=sys.stderr)

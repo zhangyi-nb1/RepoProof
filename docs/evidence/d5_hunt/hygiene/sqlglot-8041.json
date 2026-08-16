@@ -1,0 +1,61 @@
+{
+  "_what": "oracle 卫生电池判决(v2 判据,prereg-v2 §1/§3;判定钉死 H1–H5)",
+  "candidate": "sqlglot-8041",
+  "runs": [
+    {
+      "passed": 1192,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1192,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1192,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1192,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1192,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1192,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1192,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "skip_set_run1": [],
+  "canonical_seconds": 78.54,
+  "delta_nodes": [
+    "tests.test_optimizer.TestOptimizer::test_qualify_columns",
+    "tests.test_optimizer.TestOptimizer::test_unpivot_cte_annotate_types"
+  ],
+  "delta_stray_names": [
+    "tests.test_optimizer.TestOptimizer::test_qualify_columns"
+  ],
+  "post_run": {
+    "passed": 1193,
+    "failed": [],
+    "skipped": 0
+  },
+  "verdict": {
+    "ok": false,
+    "problems": [
+      "delta 红集合含非 PR 新增的测试名:['tests.test_optimizer.TestOptimizer::test_qualify_columns'] —— 红的不只是新测试,delta 集不干净"
+    ]
+  }
+}
