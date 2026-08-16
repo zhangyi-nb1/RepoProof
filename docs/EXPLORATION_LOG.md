@@ -2423,3 +2423,26 @@ REPORT:<token>),FormatError 病名提取补上(str() 为空,得掏 messages)。
 实测记录:GET /models = [deepseek-v4-flash, deepseek-v4-pro],条目无版本
 元数据(alias 级);temperature 0 与 1.0 官方均接受;思考链逐轮在场。
 冒烟 B(修复版)跑着;预注册草稿就位,冻结等冒烟 B + 闸门 216/216。
+
+## 状态 · 2026-08-16 · DQ record 6/6 PASS:deepseek-native 通道资格拿下,8042 档入场解锁
+
+**DQ_RECORD**(冻结点 `769a7dc`,证据 `docs/evidence/dq_deepseek/
+canaries-dq_record-20260816T143551Z.json`):**6/6 全 PASS,dq_status=
+PASS**。双 profile preflight PROVIDER_READY(native);C1 动作解析 +
+usage 双向非零(记账契约点);C2 三轮全工具收束,reasoning 回传逐轮被
+官方接受且逐轮在场(3/3);C3 8000 字符观察(= 生产 obs_cap)REPORT
+动作逐字命中针值。temperature 0 / 1.0 官方均接受,无降级。封套:
+in 8,853 / out 929 / 墙钟 21.3s(封套 ≤200K/≤50K/≤30min)。
+GET /models = [deepseek-v4-flash, deepseek-v4-pro],命中条目无版本
+元数据 → alias 级记录。哈希绑定:证据 harness_commit = 冻结提交,
+profile sha 与预注册 §3 逐字一致(58d4388e / 38bb9045)。
+
+**记账**:DQ 属 Provider 层资格,不落 runs.jsonl、不动 v2_gate 计数、
+不计模型表现(§11);证据文件即台账。两 profile 消融差异(usage/墙钟
+均在噪声量级)记录不外推;正选 profile 裁定归后续批预注册。
+
+**解锁**:§8.2 最低目标 —— DeepSeek V4-Pro 从 8042 档进场(对 GPT 是
+Calibration,对 DeepSeek 是入门题)与 WH 弱模型臂,通道侧前提已齐。
+下一步 HB 批预注册需要 DeepSeek V4-Pro **知识截止日期**(先例:用户
+核录),8042 merge 下界 2026-06-01 的 §5 硬门照走;K6/K12 实台账钉
+(恰 6/2)届时必转红,逼当批显式重审两道硬门 —— 设计如此。

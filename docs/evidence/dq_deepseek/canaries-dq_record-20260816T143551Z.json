@@ -1,0 +1,467 @@
+{
+  "kind": "DQ_DEEPSEEK_CANARIES",
+  "run_kind": "DQ_RECORD",
+  "test_mode": "DQ",
+  "timestamp_utc": "2026-08-16T14:35:51Z",
+  "harness_commit": "769a7dc06efe822c7e40ce79d55ca5e7c7752fdc",
+  "adapter_sha256": "402a6a135df558ac5a287faf02edae783caae58c7eeb24b1c75c6a74fa253c2b",
+  "litellm_version": "1.91.4",
+  "model_requested": "deepseek-v4-pro",
+  "models_endpoint": {
+    "ids": [
+      "deepseek-v4-flash",
+      "deepseek-v4-pro"
+    ],
+    "requested": "deepseek-v4-pro",
+    "requested_listed": true,
+    "requested_entry": {
+      "id": "deepseek-v4-pro",
+      "object": "model",
+      "owned_by": "deepseek"
+    }
+  },
+  "obs_cap_chars": 8000,
+  "max_tokens": 4000,
+  "max_rounds": 4,
+  "profiles": [
+    {
+      "profile": "DS-NATIVE-HIGH-DET",
+      "provider_config_sha256": "58d4388e0626b4c921a65171fca8d1f4d415dcbfa380637841190a2dae2b3e50",
+      "preflight": {
+        "status": "PROVIDER_READY",
+        "provider_config_sha256": "58d4388e0626b4c921a65171fca8d1f4d415dcbfa380637841190a2dae2b3e50",
+        "model_name": "deepseek-v4-pro",
+        "api_base": "https://<redacted-host>",
+        "action_protocol": "native",
+        "temperature": "0",
+        "preflight_calls": 1,
+        "preflight_input_tokens": 378,
+        "preflight_output_tokens": 74,
+        "preflight_cost": "UNKNOWN",
+        "preflight_wall_time_s": 1.3,
+        "evidence": [
+          "native action parsed: 'echo PREFLIGHT_OK'"
+        ]
+      },
+      "canaries": [
+        {
+          "canary": "C1-single-tool",
+          "status": "PASS",
+          "reason": "",
+          "checks": {
+            "action_parsed": true,
+            "command_echoes_token": true,
+            "usage_prompt_positive": true,
+            "usage_completion_positive": true
+          },
+          "usage": {
+            "in": 383,
+            "out": 62
+          },
+          "wall_s": 2.0,
+          "transcript": [
+            {
+              "role": "assistant",
+              "content": {
+                "head": "",
+                "chars": 0,
+                "sha256": null
+              },
+              "reasoning_present": true,
+              "reasoning": {
+                "head": "The user wants me to run exactly: echo DQ_C1_OK",
+                "chars": 47,
+                "sha256": "9ea44a3c5e34875cc1d679b5c0f44e292a9b716007b2e6ba08c8742e50afe765"
+              },
+              "tool_calls": [
+                {
+                  "id": "call_00_OHhR2TJg2DxqbEKabJaF7386",
+                  "name": "bash",
+                  "arguments_head": "{\"command\": \"echo DQ_C1_OK\"}"
+                }
+              ],
+              "finish_hint": null
+            }
+          ],
+          "profile": "DS-NATIVE-HIGH-DET"
+        },
+        {
+          "canary": "C2-multiturn-reasoning-passback",
+          "status": "PASS",
+          "reason": "",
+          "checks": {
+            "multi_round_tool_loop": true,
+            "done_step_reached": true,
+            "no_protocol_error": true
+          },
+          "rounds": 3,
+          "tool_rounds": 3,
+          "reasoning_rounds_observed": 3,
+          "usage": {
+            "in": 1620,
+            "out": 191
+          },
+          "wall_s": 5.7,
+          "transcript": [
+            {
+              "role": "assistant",
+              "content": {
+                "head": "",
+                "chars": 0,
+                "sha256": null
+              },
+              "reasoning_present": true,
+              "reasoning": {
+                "head": "We need respond with tool call for step 1 only, per instructions \"One command per step.\" Need run echo DQ_C2_STEP1 first.",
+                "chars": 121,
+                "sha256": "bd43e480fc90b774c32d4a15cc9c8ee5346998c10eebd5f9417e88ccb27e58da"
+              },
+              "tool_calls": [
+                {
+                  "id": "call_00_OBk0I7nbDt2MiDwHgmRg9664",
+                  "name": "bash",
+                  "arguments_head": "{\"command\": \"echo DQ_C2_STEP1\"}"
+                }
+              ],
+              "finish_hint": null
+            },
+            {
+              "role": "assistant",
+              "content": {
+                "head": "",
+                "chars": 0,
+                "sha256": null
+              },
+              "reasoning_present": true,
+              "reasoning": {
+                "head": "Now step 2.",
+                "chars": 11,
+                "sha256": "c2d7868dcaad0a8991bfed2cdc9cb9d33ba79471dde7616eaf490d5deb75fd94"
+              },
+              "tool_calls": [
+                {
+                  "id": "call_00_7Y3D5eGt5gyUE1JKSwKe0233",
+                  "name": "bash",
+                  "arguments_head": "{\"command\": \"echo DQ_C2_STEP2\"}"
+                }
+              ],
+              "finish_hint": null
+            },
+            {
+              "role": "assistant",
+              "content": {
+                "head": "",
+                "chars": 0,
+                "sha256": null
+              },
+              "reasoning_present": true,
+              "reasoning": {
+                "head": "Now step 3.",
+                "chars": 11,
+                "sha256": "8b3df5902b09490a3619bc78c73f63cd5c84c3380b1eb87117701c705c8a92bb"
+              },
+              "tool_calls": [
+                {
+                  "id": "call_00_YuinDPLtaN1pWHrTvr749092",
+                  "name": "bash",
+                  "arguments_head": "{\"command\": \"echo DQ_C2_DONE\"}"
+                }
+              ],
+              "finish_hint": null
+            }
+          ],
+          "profile": "DS-NATIVE-HIGH-DET"
+        },
+        {
+          "canary": "C3-long-observation",
+          "status": "PASS",
+          "reason": "",
+          "checks": {
+            "tool_call_round1": true,
+            "needle_echoed_verbatim": true
+          },
+          "observation": {
+            "chars": 8000,
+            "sha256": "3137e6b52aaffdc7d1507b31f42e99efcfb3c856b5118dc2978ba6ba43ea6921",
+            "simulated": true
+          },
+          "usage": {
+            "in": 2413,
+            "out": 202
+          },
+          "wall_s": 3.5,
+          "transcript": [
+            {
+              "role": "assistant",
+              "content": {
+                "head": "",
+                "chars": 0,
+                "sha256": null
+              },
+              "reasoning_present": true,
+              "reasoning": {
+                "head": "We need run bash commands. The user asks to run `cat service.log` with bash tool. Output ends with line DQ_C3_NEEDLE_VALUE=<token>. Then report it by running exactly `echo REPORT:<token>`. We need use",
+                "chars": 262,
+                "sha256": "ab9e584ba16862ba449bb940901c3928ee1ac1fbdc347c3ac15a877810a0b727"
+              },
+              "tool_calls": [
+                {
+                  "id": "call_00_6Zk6cMl0pjGE6an50AQv6865",
+                  "name": "bash",
+                  "arguments_head": "{\"command\": \"cat service.log\"}"
+                }
+              ],
+              "finish_hint": null
+            },
+            {
+              "role": "assistant",
+              "content": {
+                "head": "",
+                "chars": 0,
+                "sha256": null
+              },
+              "reasoning_present": true,
+              "reasoning": {
+                "head": "The output ends with DQ_C3_NEEDLE_VALUE=81df4b9253b9. Now run exactly echo REPORT:81df4b9253b9.",
+                "chars": 95,
+                "sha256": "39c025c04f54f44250f8b5dca2f99bbca8a9bc46f501fae95d75e0c47b2555cc"
+              },
+              "tool_calls": [
+                {
+                  "id": "call_00_LunoE6fZpA2FBY6psg3Y6685",
+                  "name": "bash",
+                  "arguments_head": "{\"command\": \"echo REPORT:81df4b9253b9\"}"
+                }
+              ],
+              "finish_hint": null
+            }
+          ],
+          "profile": "DS-NATIVE-HIGH-DET"
+        }
+      ]
+    },
+    {
+      "profile": "DS-NATIVE-MAX-OFFICIAL-LIKE",
+      "provider_config_sha256": "38bb904540acfc10b4be9e40582332c06a7b3e20d9182144a7ea172e4910d95e",
+      "preflight": {
+        "status": "PROVIDER_READY",
+        "provider_config_sha256": "38bb904540acfc10b4be9e40582332c06a7b3e20d9182144a7ea172e4910d95e",
+        "model_name": "deepseek-v4-pro",
+        "api_base": "https://<redacted-host>",
+        "action_protocol": "native",
+        "temperature": "1.0",
+        "preflight_calls": 1,
+        "preflight_input_tokens": 378,
+        "preflight_output_tokens": 62,
+        "preflight_cost": "UNKNOWN",
+        "preflight_wall_time_s": 1.4,
+        "evidence": [
+          "native action parsed: 'echo PREFLIGHT_OK'"
+        ]
+      },
+      "canaries": [
+        {
+          "canary": "C1-single-tool",
+          "status": "PASS",
+          "reason": "",
+          "checks": {
+            "action_parsed": true,
+            "command_echoes_token": true,
+            "usage_prompt_positive": true,
+            "usage_completion_positive": true
+          },
+          "usage": {
+            "in": 383,
+            "out": 66
+          },
+          "wall_s": 1.4,
+          "transcript": [
+            {
+              "role": "assistant",
+              "content": {
+                "head": "",
+                "chars": 0,
+                "sha256": null
+              },
+              "reasoning_present": true,
+              "reasoning": {
+                "head": "The user wants me to run exactly: echo DQ_C1_OK. Simple command.",
+                "chars": 64,
+                "sha256": "36b04aece4f204d3881ed34a0b031f1c28f370005f66a82db8db384a8bc7d89e"
+              },
+              "tool_calls": [
+                {
+                  "id": "call_00_ICTaifRmOK423BWoh0IC4021",
+                  "name": "bash",
+                  "arguments_head": "{\"command\": \"echo DQ_C1_OK\"}"
+                }
+              ],
+              "finish_hint": null
+            }
+          ],
+          "profile": "DS-NATIVE-MAX-OFFICIAL-LIKE"
+        },
+        {
+          "canary": "C2-multiturn-reasoning-passback",
+          "status": "PASS",
+          "reason": "",
+          "checks": {
+            "multi_round_tool_loop": true,
+            "done_step_reached": true,
+            "no_protocol_error": true
+          },
+          "rounds": 3,
+          "tool_rounds": 3,
+          "reasoning_rounds_observed": 3,
+          "usage": {
+            "in": 1646,
+            "out": 220
+          },
+          "wall_s": 4.4,
+          "transcript": [
+            {
+              "role": "assistant",
+              "content": {
+                "head": "",
+                "chars": 0,
+                "sha256": null
+              },
+              "reasoning_present": true,
+              "reasoning": {
+                "head": "We need respond to user instruction. We must use bash tool on every turn. Step 1 run echo DQ_C2_STEP1. One command per step. Need invoke bash.",
+                "chars": 142,
+                "sha256": "1e664b38e51eb98017d99612232cc40482102cb4b67cf70fabe39b002c8993bc"
+              },
+              "tool_calls": [
+                {
+                  "id": "call_00_7FEQYlCQ0d7u4XxMuBiJ9696",
+                  "name": "bash",
+                  "arguments_head": "{\"command\": \"echo DQ_C2_STEP1\"}"
+                }
+              ],
+              "finish_hint": null
+            },
+            {
+              "role": "assistant",
+              "content": {
+                "head": "",
+                "chars": 0,
+                "sha256": null
+              },
+              "reasoning_present": true,
+              "reasoning": {
+                "head": "We saw output. Now step 2: run echo DQ_C2_STEP2.",
+                "chars": 48,
+                "sha256": "9b2f12dd5c02e9f85addc44354ebc9628c67ee1032511702ca5233d6325c0eba"
+              },
+              "tool_calls": [
+                {
+                  "id": "call_00_BXgSssWyBOZZk8lJlpRt7901",
+                  "name": "bash",
+                  "arguments_head": "{\"command\": \"echo DQ_C2_STEP2\"}"
+                }
+              ],
+              "finish_hint": null
+            },
+            {
+              "role": "assistant",
+              "content": {
+                "head": "",
+                "chars": 0,
+                "sha256": null
+              },
+              "reasoning_present": true,
+              "reasoning": {
+                "head": "Now step 3: run echo DQ_C2_DONE.",
+                "chars": 32,
+                "sha256": "5c90f18391240df80154bcefb706d6be1717359b3c42443a76599d875121d4a6"
+              },
+              "tool_calls": [
+                {
+                  "id": "call_00_7IuPPFtTNNhAC6FSvSeb2261",
+                  "name": "bash",
+                  "arguments_head": "{\"command\": \"echo DQ_C2_DONE\"}"
+                }
+              ],
+              "finish_hint": null
+            }
+          ],
+          "profile": "DS-NATIVE-MAX-OFFICIAL-LIKE"
+        },
+        {
+          "canary": "C3-long-observation",
+          "status": "PASS",
+          "reason": "",
+          "checks": {
+            "tool_call_round1": true,
+            "needle_echoed_verbatim": true
+          },
+          "observation": {
+            "chars": 8000,
+            "sha256": "3dd6edb1e73e23fbc15baa37439f9e640299258dad3f9e4fb9781d2179eb7c03",
+            "simulated": true
+          },
+          "usage": {
+            "in": 2408,
+            "out": 188
+          },
+          "wall_s": 4.3,
+          "transcript": [
+            {
+              "role": "assistant",
+              "content": {
+                "head": "",
+                "chars": 0,
+                "sha256": null
+              },
+              "reasoning_present": true,
+              "reasoning": {
+                "head": "We need run cat service.log using bash tool. We need follow instruction: first run cat service.log, see output ending with DQ_C3_NEEDLE_VALUE=<token>. Then report by running exactly echo REPORT:<token",
+                "chars": 267,
+                "sha256": "ef05e43181b9ff200924155fe6918ebc3495f707687cdd60a3ee032b96bfeacb"
+              },
+              "tool_calls": [
+                {
+                  "id": "call_00_DULBPRclQHlGnybcKrPe2566",
+                  "name": "bash",
+                  "arguments_head": "{\"command\": \"cat service.log\"}"
+                }
+              ],
+              "finish_hint": null
+            },
+            {
+              "role": "assistant",
+              "content": {
+                "head": "",
+                "chars": 0,
+                "sha256": null
+              },
+              "reasoning_present": true,
+              "reasoning": {
+                "head": "Output ends with DQ_C3_NEEDLE_VALUE=6fb5ce661b03. Need run exactly echo REPORT:<token>.",
+                "chars": 87,
+                "sha256": "cb3cb4f5e23eccc3a3760cdc2d8a461927af5520507789f456da95152d8d292b"
+              },
+              "tool_calls": [
+                {
+                  "id": "call_00_Ylt811Tj7hwo3jjByLpc5465",
+                  "name": "bash",
+                  "arguments_head": "{\"command\": \"echo REPORT:6fb5ce661b03\"}"
+                }
+              ],
+              "finish_hint": null
+            }
+          ],
+          "profile": "DS-NATIVE-MAX-OFFICIAL-LIKE"
+        }
+      ]
+    }
+  ],
+  "verdict": {
+    "dq_status": "PASS",
+    "cells_expected": 6,
+    "cells_run": 6,
+    "cells_passed": 6,
+    "failed_cells": []
+  }
+}
