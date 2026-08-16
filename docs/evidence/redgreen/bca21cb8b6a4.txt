@@ -1,0 +1,62 @@
+fix commit : bca21cb8b6a425809a12a9a9fd19ef34b2e93980
+base commit: a38f4c6643608487f049e46ab612e6c917d0dfd6
+nodes      : 7
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_b1b_delta_node_skips_refuse_but_platform_skips_do_not: failed
+  test_b12_skipped_nodes_are_outside_numerator_and_denominator: failed
+  test_h1_stability_compares_sets_not_counts: failed
+  test_h2_canonical_timing_line_is_120s_single_shot: failed
+  test_h3_parent_side_judgement_is_the_drivers_not_a_copy: failed
+  test_h4_post_tree_must_green_the_delta_and_break_nothing: failed
+  test_h5_fewer_than_two_runs_refuses: failed
+: [Errno 2] No such file or directory: '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_eyjzvvq9/tree/scripts/oracle_hygiene.py'
+
+<frozen importlib._bootstrap_external>:1186: FileNotFoundError
+_____________________ test_h5_fewer_than_two_runs_refuses ______________________
+
+    def test_h5_fewer_than_two_runs_refuses() -> None:
+>       oh = _load("oracle_hygiene.py")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_oracle_hygiene.py:105: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_oracle_hygiene.py:29: in _load
+    spec.loader.exec_module(mod)
+<frozen importlib._bootstrap_external>:991: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1128: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x108eaa030>
+path = '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_eyjzvvq9/tree/scripts/oracle_hygiene.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp_redgreen_eyjzvvq9/tree/scripts/oracle_hygiene.py'
+
+<frozen importlib._bootstrap_external>:1186: FileNotFoundError
+=========================== short test summary info ============================
+FAILED tests/test_blind_attack_admission.py::test_b1b_delta_node_skips_refuse_but_platform_skips_do_not
+FAILED tests/test_blind_attack_admission.py::test_b12_skipped_nodes_are_outside_numerator_and_denominator
+FAILED tests/test_oracle_hygiene.py::test_h1_stability_compares_sets_not_counts
+FAILED tests/test_oracle_hygiene.py::test_h2_canonical_timing_line_is_120s_single_shot
+FAILED tests/test_oracle_hygiene.py::test_h3_parent_side_judgement_is_the_drivers_not_a_copy
+FAILED tests/test_oracle_hygiene.py::test_h4_post_tree_must_green_the_delta_and_break_nothing
+FAILED tests/test_oracle_hygiene.py::test_h5_fewer_than_two_runs_refuses - Fi...
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_b1b_delta_node_skips_refuse_but_platform_skips_do_not: passed
+  test_b12_skipped_nodes_are_outside_numerator_and_denominator: passed
+  test_h1_stability_compares_sets_not_counts: passed
+  test_h2_canonical_timing_line_is_120s_single_shot: passed
+  test_h3_parent_side_judgement_is_the_drivers_not_a_copy: passed
+  test_h4_post_tree_must_green_the_delta_and_break_nothing: passed
+  test_h5_fewer_than_two_runs_refuses: passed
+.......                                                                  [100%]
+
+
+VERDICT: VALID
