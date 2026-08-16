@@ -77,6 +77,10 @@ class RepairRoundRecord(BaseModel):
     diff_lines: int = 0
     public_passed: int = 0
     public_failed: int = 0
+    # skipped 单列(2026-08-16):它既不是通过也不是失败,混进任一侧都会
+    # 撒谎 —— 混进 failed 会凭空生成 FailurePacket(HB pilot 首发实测 26 个),
+    # 混进 passed 会让"跳过"冒充"通过"。默认 None = 未测量(旧发次不追溯)。
+    public_skipped: int | None = None
     regression_passed: int | None = None   # v1:seam consumer 只读,回归在最终隐藏验证
     regression_failed: int | None = None
     policy_violations: int = 0

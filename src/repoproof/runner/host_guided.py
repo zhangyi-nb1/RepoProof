@@ -2005,10 +2005,24 @@ class HostGuidedRunner:
                 junit = self._run_public(s, meter_tag=f"public_round{idx}")
                 nodes = junit.get("nodes", [])
                 collected_ok = bool(junit.get("junit_present")) and not junit.get("junit_parse_error")
-                failed_nodes = [n["node_id"] for n in nodes if n["outcome"] != "passed"]
+                # skipped ≠ failed(2026-08-16,HB pilot 首发当场抓出)。
+                # 原式 `outcome != "passed"` 把 **skipped 也算成失败**:click
+                # 上游套件有 26 个 Windows-only 用例在 macOS 恒 skip,于是每轮
+                # 凭空生成 26 个 FailurePacket 喂给模型("修好 getchar windows"
+                # ——在 macOS 上无从修起),模型拿真预算去追不存在的失败。
+                # 为什么第一宿主没炸:OfferClaw 的公开面是手写的
+                # `public_tests/`(0 skip),HB 的公开面是**上游自带回归套件**
+                # (25-26 skip)—— 又一次"首宿主上成立的假设换棵树就失效",
+                # 与本日两条 blocking 同科。
+                # 不开新洞:skip 只能由改 tests/ 或根 conftest 制造,二者都在
+                # 契约 forbidden 里先教、且被 H1 逐字节守卫与 tampered_public
+                # _tests 双杀 —— 排除 skipped 不给"跳过即隐身"留路。
+                failed_nodes = [n["node_id"] for n in nodes
+                                if n["outcome"] not in ("passed", "skipped")]
                 details = {n["node_id"]: n.get("message", "") for n in nodes
-                           if n["outcome"] != "passed"}
+                           if n["outcome"] not in ("passed", "skipped")}
                 passed = sum(1 for n in nodes if n["outcome"] == "passed")
+                skipped = sum(1 for n in nodes if n["outcome"] == "skipped")
 
                 regr = self._run_regression(s)
                 reg_failed = regr["failed_checks"] + max(0, expected_reg - regr["passed_checks"])
@@ -2068,6 +2082,7 @@ class HostGuidedRunner:
                     public_passed=passed,
                     public_failed=len([n for n in failed_nodes
                                        if not n.startswith("host_regression")]),
+                    public_skipped=skipped,
                     regression_passed=regr["passed_checks"],
                     regression_failed=reg_failed,
                     policy_violations=pol_count,
@@ -2092,6 +2107,7 @@ class HostGuidedRunner:
                 ev("repair.round.end", actor="harness", payload={
                     "round": idx, "public_passed": passed,
                     "public_failed": len(failed_nodes),
+                    "public_skipped": skipped,
                     "regression_passed": regr["passed_checks"],
                     "tampered_public_tests": tampered,
                     "denied_this_round": denied_round,

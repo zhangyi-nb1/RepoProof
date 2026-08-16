@@ -2147,6 +2147,37 @@ MUTATIONS: list[dict] = [
         "catchers": _T_HTG,
         "expected_catcher": ["test_g8d_run_oracle_uses_the_branching_env_not_a_literal"],
     },
+    # ---- M73:skipped ≠ failed(HB pilot 首发当场抓出的量具三分法塌陷)----
+    {
+        "id": "M73a-skipped-counted-as-failed",
+        "lesson": "轮内退回 `outcome != passed` → 平台性 skip 被当成失败,每轮凭空"
+                  "生成 FailurePacket 喂给模型,吃掉真预算去追不存在的失败",
+        "file": _HD,
+        "old": '                failed_nodes = [n["node_id"] for n in nodes\n                                if n["outcome"] not in ("passed", "skipped")]',
+        "new": '                failed_nodes = [n["node_id"] for n in nodes\n                                if n["outcome"] != "passed"]',
+        "catchers": _T_HTG,
+        "expected_catcher": ["test_g9b_no_failure_packet_is_fabricated_for_skips"],
+    },
+    {
+        "id": "M73b-skipped-laundered-into-passed",
+        "lesson": "另一侧的塌陷:skip 记进 passed → '跳过'冒充'通过',"
+                  "公开面读数虚高,判据被跳过的用例喂假绿",
+        "file": "src/repoproof/verification/junit.py",
+        "old": '            elif case.find("skipped") is not None:\n                outcome = "skipped"',
+        "new": '            elif case.find("skipped") is not None:\n                outcome = "passed"',
+        "catchers": _T_HTG,
+        "expected_catcher": ["test_g9a_skipped_is_neither_passed_nor_failed"],
+    },
+    {
+        "id": "M73c-skip-count-silently-dropped",
+        "lesson": "排除 skipped 却不留痕 → '跳过数暴涨'(把失败用例改成 skip)"
+                  "这件事从证据里彻底消失,等于把刚拆的洞换个地方开",
+        "file": "src/repoproof/runner/guided_repair.py",
+        "old": "    public_skipped: int | None = None",
+        "new": "    _public_skipped_removed: int | None = None",
+        "catchers": _T_HTG,
+        "expected_catcher": ["test_g9c_round_record_carries_the_skip_count"],
+    },
 ]
 
 

@@ -298,6 +298,60 @@ def test_g8d_run_oracle_uses_the_branching_env_not_a_literal():
     assert "PYTHONPATH" not in seg                # 字面量只许活在那个函数里
 
 
+# ------------------------------------------- G9 skipped ≠ failed(HB pilot 首发抓)
+
+
+def _junit_bytes(cases: list[tuple[str, str]]) -> bytes:
+    """合成 junitxml:(用例名, 结局) → 字节。结局 passed/failed/skipped。"""
+    body = []
+    for name, outcome in cases:
+        inner = {"passed": "", "failed": '<failure message="boom"/>',
+                 "skipped": '<skipped message="win only"/>'}[outcome]
+        body.append(f'<testcase classname="tests.test_x" name="{name}">{inner}</testcase>')
+    return (f'<testsuite tests="{len(cases)}">' + "".join(body) + "</testsuite>").encode()
+
+
+def test_g9a_skipped_is_neither_passed_nor_failed():
+    """量具的三分法必须守住:skipped 混进 failed 会凭空造 FailurePacket,
+    混进 passed 会让'跳过'冒充'通过'。两边都不许沾。"""
+    from repoproof.verification.junit import parse_junit_xml
+    j = parse_junit_xml(_junit_bytes([("a", "passed"), ("b", "skipped"), ("c", "failed")]))
+    by = {n["node_id"].split("::")[1]: n["outcome"] for n in j["nodes"]}
+    assert by == {"a": "passed", "b": "skipped", "c": "failed"}
+
+    # 修复后的口径(host_guided 轮内三式)
+    nodes = j["nodes"]
+    failed = [n["node_id"] for n in nodes if n["outcome"] not in ("passed", "skipped")]
+    passed = sum(1 for n in nodes if n["outcome"] == "passed")
+    skipped = sum(1 for n in nodes if n["outcome"] == "skipped")
+    assert len(failed) == 1 and failed[0].endswith("::c")
+    assert (passed, skipped) == (1, 1)
+
+
+def test_g9b_no_failure_packet_is_fabricated_for_skips():
+    """首发实测的真形态:26 个 Windows-only 用例在 macOS 恒 skip → 修复前
+    每轮凭空喂 26 个'去修 getchar windows'的失败包,吃掉模型真预算。"""
+    from repoproof.runner.guided_repair import build_failure_packets
+    from repoproof.verification.junit import parse_junit_xml
+    cases = [("real_bug", "failed")] + [(f"getchar_windows_{i}", "skipped") for i in range(26)]
+    nodes = parse_junit_xml(_junit_bytes(cases))["nodes"]
+    failed = [n["node_id"] for n in nodes if n["outcome"] not in ("passed", "skipped")]
+    details = {n["node_id"]: n.get("message", "") for n in nodes
+               if n["outcome"] not in ("passed", "skipped")}
+    packets = build_failure_packets(failed, details)
+    assert len(packets) == 1, f"skip 造出了假失败包:{len(packets)} 个"
+    assert "getchar" not in str(packets)
+
+
+def test_g9c_round_record_carries_the_skip_count():
+    """skipped 不许静默丢弃 —— 排除它的同时必须留痕,否则'跳过数暴涨'
+    这件事从证据里彻底消失。"""
+    from repoproof.runner.guided_repair import RepairRoundRecord
+    assert "public_skipped" in RepairRoundRecord.model_fields
+    assert RepairRoundRecord(round_index=1).public_skipped is None   # 旧发次不追溯
+    assert RepairRoundRecord(round_index=1, public_skipped=26).to_dict()["public_skipped"] == 26
+
+
 # ---------------------------------------------------------------- G4 bench 白名单
 
 
