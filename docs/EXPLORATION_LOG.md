@@ -2393,3 +2393,7 @@ K6/K12 的实台账零钉按其旧文自身指示更新(K6 原话:"第二宿主�
 
 **批报**:benchmarks/v2/reports/HB-PCDELTA-1-report-20260816.md(唯一
 事实源)。宿主批后幂等复验 verify-only 全绿,封存池零写。
+
+**收口实测**:全套件(批收尾后 HEAD)**914 passed / 20 skipped,exit=0**
+(数字自 junit 式点计数,非目测;`-q` 与 addopts 里的 `-q` 叠成 `-qq`
+吞了汇总行,已知晓)。
