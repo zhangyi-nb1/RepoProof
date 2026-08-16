@@ -1051,6 +1051,17 @@ MUTATIONS: list[dict] = [
         "expected_catcher": ["test_b4_subprocess_env_is_forced_offline"],
     },
     {
+        "id": "M66f-venv-bin-not-on-the-subprocess-path",
+        "lesson": "venv/bin 不再前置进 PATH → 套件里裸 `python` 起的子进程解析"
+                  "不到(sqlglot test_lazy_load 实测 FileNotFoundError),基线在"
+                  "我们这红、在上游 CI 绿 —— 错在量具,账记给套件",
+        "file": _BAM,
+        "old": '    out["PATH"] = f"{venv / \'bin\'}:{out.get(\'PATH\', \'\')}"',
+        "new": '    out["PATH"] = out.get("PATH", "")',
+        "catchers": _T_BAM,
+        "expected_catcher": ["test_b10_venv_bin_is_prepended_to_the_subprocess_path"],
+    },
+    {
         "id": "M66d-regression-greens-blended-into-the-ratio",
         "lesson": "delta 分子不再与 delta 集求交 → 旧套件的绿全进分子,"
                   "回归面冒充能力面,ratio 能超过 1",

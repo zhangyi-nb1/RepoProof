@@ -1,0 +1,70 @@
+{
+ "_what": "D5 网络窗口清单 —— 猎取与封存的完整审计链(预注册 HB-postcutoff-delta-hunt-prereg-20260816)",
+ "adjudication": "用户 2026-08-16 裁 D5:批准联网猎取,按预注册执行",
+ "window_open": "2026-08-16 03:59:29 +0800",
+ "window_close": "2026-08-16 04:31:00 +0800",
+ "in_window_actions": [
+  "GitHub API 供给普查(12 仓 merged>=2026-06-01 计数 + license)",
+  "逐 PR 机械过滤(filter_prs.py,F2-F5/F9;审计单全留痕:*__*.json)",
+  "克隆 4 仓入答案区(click/pluggy/more-itertools/sqlglot,均带 .git)",
+  "题面拉取(PR 正文 + 正文引用的 issue 原文,statements/*.md)",
+  "候选包抽取(parent=merge^ 本地解析;git archive 无 .git;delta 测试件与答案分区)",
+  "轮仓构建 + 离线安装验证(两修:flit_core<4 补拉;sqlglot 无 .git 树需 SETUPTOOLS_SCM_PRETEND_VERSION)"
+ ],
+ "supply_survey": {
+  "tobymao/sqlglot": 297,
+  "py-pdf/pypdf": "103(license SPDX=NOASSERTION,F6 判死)",
+  "pallets/click": 36,
+  "more-itertools/more-itertools": 36,
+  "pytest-dev/pluggy": 25,
+  "python-attrs/attrs": 18,
+  "marshmallow-code/marshmallow": 15,
+  "pallets/werkzeug": 9,
+  "Textualize/rich": 1,
+  "encode/httpx": 0,
+  "pallets/jinja": 0,
+  "encode/starlette": "查询 422(未复查,供给未知)"
+ },
+ "qualifier_counts": {
+  "tobymao/sqlglot": "13(采样 200/297)",
+  "pallets/click": "7(全量 36)",
+  "pytest-dev/pluggy": "1(全量 25)",
+  "more-itertools/more-itertools": "1(全量 36)",
+  "marshmallow-code/marshmallow": "0(全量 15)",
+  "python-attrs/attrs": "0(全量 18)"
+ },
+ "assembly_rule_appendix": "预注册 §1 只定'2–3 仓、5–10 候选',未细化拼装。按 §7 记附录:取合格数前二的仓(sqlglot 13、click 7),仓内按 merged_at 倒序,轮转取满 10(5+5)。理由:合并时间越晚离一切知识截止越远(本形态的核心属性);双仓保出题方多样。选择全程未读实现 diff 内容、未跑任何测试、未评可攻性。",
+ "selected": {
+  "sqlglot": [
+   8042,
+   8025,
+   8041,
+   8024,
+   8036
+  ],
+  "click": [
+   3407,
+   3637,
+   3678,
+   3581,
+   3645
+  ]
+ },
+ "not_taken": {
+  "click-3582/3533": "轮转序后段(merged 更早),超出 10 上限",
+  "sqlglot 其余 8 条合格": "轮转序后段",
+  "pluggy-617 / more-itertools-1216": "拼装规则取前二仓;包已抽好留档,不入候选池",
+  "pypdf": "license SPDX=NOASSERTION,F6 机械判死"
+ },
+ "sealed_layout": {
+  "repos/": "4 个完整克隆(答案区,含 .git;不入 bench 根)",
+  "candidates/<repo>-<pr>/": "parent_tree(无 .git)/ delta_tests(post + tests.patch)/ answer(full.patch)/ statement.md / manifest.json",
+  "wheelhouse/<repo>/": "含构建后端;离线安装双仓已验",
+  "statements/": "题面原文"
+ },
+ "install_notes": {
+  "click": "pip install --no-index --find-links wheelhouse/click -e parent_tree pytest",
+  "sqlglot": "同上,另需 env SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0(setup.py 直调 get_version,无视 fallback;env 是 harness 旋钮,不动树)"
+ },
+ "discipline": "封存不重下;窗口后一切离线;准入(prep 自证/卫生/基线/盲攻/评分/判决)按预注册 §3 逐候选执行"
+}

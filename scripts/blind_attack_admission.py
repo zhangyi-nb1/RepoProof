@@ -188,12 +188,21 @@ def _run(argv: list[str], *, cwd: Path, env: dict, timeout: int = 900) -> subpro
                           text=True, timeout=timeout)
 
 
+def venv_env(venv: Path, env: dict) -> dict:
+    """venv/bin 前置进 PATH —— 套件常用裸 `python` 起子进程(sqlglot 的
+    test_lazy_load 实测),不前置的话这类测试在我们这红、在上游 CI 绿,
+    错在量具不在套件。激活式 venv 本来就做这件事。"""
+    out = dict(env)
+    out["PATH"] = f"{venv / 'bin'}:{out.get('PATH', '')}"
+    return out
+
+
 def _pytest_junit(venv: Path, tree: Path, env: dict) -> bytes:
     xml = tree / "_rp_admission_junit.xml"
     xml.unlink(missing_ok=True)
     _run([str(venv / "bin" / "python"), "-m", "pytest", "-q",
           "-p", "no:cacheprovider", "--junitxml", str(xml)],
-         cwd=tree, env=env)
+         cwd=tree, env=venv_env(venv, env))
     data = xml.read_bytes() if xml.exists() else b""
     xml.unlink(missing_ok=True)
     return data
@@ -209,7 +218,8 @@ def main() -> int:
     ap.add_argument("--method-file", required=True, help="盲攻协议原文(纯文本)")
     ap.add_argument("--extras", default="",
                     help="被测包自己的 extras 名(如 tests)—— 测试侧依赖用上游"
-                         "自己的声明装,不猜(彩排实测:漏装 PyYAML → 基线拒测)")
+                         "自己的声明装,不猜(彩排实测:漏装 PyYAML → 基线拒测,"
+                         "B2 fail-closed)")
     ap.add_argument("--residual-kinds", default="",
                     help="残差分类标签,逗号分隔;分类之前先跑一遍拿 failed_nodes")
     ap.add_argument("--out-dir", default=str(EVIDENCE_DIR))
@@ -225,6 +235,12 @@ def main() -> int:
         tree = Path(td) / "tree"
         shutil.copytree(pristine, tree,
                         ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"))
+        # digest 在**装依赖之前**取:editable 安装会把 egg-info 写进树里,装完再算
+        # 的话 digest 混进构建残渣,与 git 内容对不上、外人无从复算(彩排实测:
+        # 同一提交三次跑出三个 digest,全是残渣在漂)。现在这个值可由
+        # `git archive <commit>` 展开后按同法重算核对。
+        digests = {"pristine_tree": _digest_tree(tree),
+                   "attacked_file": _sha256_file(attacked_file)}
         venv = Path(td) / "venv"
         _run([sys.executable, "-m", "venv", str(venv)], cwd=Path(td), env=env)
         target = f"{tree}[{a.extras}]" if a.extras else str(tree)
@@ -245,8 +261,6 @@ def main() -> int:
             return 2
         print(f"基线:{baseline['passed']}/{baseline['total']} 全绿零 skip ✓")
 
-        digests = {"pristine_tree": _digest_tree(tree),
-                   "attacked_file": _sha256_file(attacked_file)}
         shutil.copyfile(attacked_file, tree / a.seam_rel)
         attacked = score_from_junit(_pytest_junit(venv, tree, env))
 

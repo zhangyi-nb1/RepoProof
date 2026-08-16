@@ -1,0 +1,85 @@
+{
+ "_what": "D5 首轮猎取的离线准入判决 —— 预注册 HB-postcutoff-delta-hunt-prereg-20260816 §3/§6",
+ "outcome": "VALID_NULL:2 仓 10 候选全部死于 ② oracle 卫生组;盲攻阶段零发",
+ "verdicts": [
+  {
+   "candidate": "sqlglot-8042",
+   "stage": "②卫生/F7-耗时",
+   "measured": "钦定跑法(python -m unittest)单发 60.84s;另 pytest 全套 65.7s(1193 passed 零 skip)",
+   "line": "≤60s",
+   "verdict": "DEAD"
+  },
+  {
+   "candidate": "sqlglot-8025",
+   "stage": "②卫生/F7-耗时",
+   "measured": "80.55s(OK)",
+   "line": "≤60s",
+   "verdict": "DEAD"
+  },
+  {
+   "candidate": "sqlglot-8041",
+   "stage": "②卫生/F7-耗时",
+   "measured": "78.54s(OK)",
+   "line": "≤60s",
+   "verdict": "DEAD"
+  },
+  {
+   "candidate": "sqlglot-8024",
+   "stage": "②卫生/F7-耗时",
+   "measured": "78.85s(OK)",
+   "line": "≤60s",
+   "verdict": "DEAD"
+  },
+  {
+   "candidate": "sqlglot-8036",
+   "stage": "②卫生/F7-耗时",
+   "measured": "88.87s(OK)",
+   "line": "≤60s",
+   "verdict": "DEAD"
+  },
+  {
+   "candidate": "click-3407",
+   "stage": "②卫生/零skip",
+   "measured": "1917 passed / 25 skipped / 1 xfailed / 1.92s",
+   "line": "skip=0",
+   "verdict": "DEAD"
+  },
+  {
+   "candidate": "click-3637",
+   "stage": "②卫生/零skip",
+   "measured": "1901 passed / 25 skipped",
+   "line": "skip=0",
+   "verdict": "DEAD"
+  },
+  {
+   "candidate": "click-3678",
+   "stage": "②卫生/零skip",
+   "measured": "1893 passed / 25 skipped",
+   "line": "skip=0",
+   "verdict": "DEAD"
+  },
+  {
+   "candidate": "click-3581",
+   "stage": "②卫生/零skip",
+   "measured": "1681 passed / 25 skipped",
+   "line": "skip=0",
+   "verdict": "DEAD"
+  },
+  {
+   "candidate": "click-3645",
+   "stage": "②卫生/基线不可测",
+   "measured": "收集错误:上游 filterwarnings=error × pytest9 parametrize 弃用(修复晚于该 parent);封存轮仓仅 pytest 9.0.2,封存不重下",
+   "line": "基线可测且全绿",
+   "verdict": "DEAD"
+  }
+ ],
+ "protocol_notes": [
+  "sqlglot 计时按预声明协议:每候选钦定跑法单发一次,>60s 判死不重试;8042 曾以 pytest 65.7s 首测,后按 D1(套件按上游自带定义)改量钦定跑法复测 60.84s,两测皆越线",
+  "click skip 死因经尽职核查:25 条全为平台条件跳过(msvcrt×21/Windows 专属×3/非 UTF-8 FS×1),非轮仓缺件;四环境电池(COLUMNS/TZ/LANG/TMPDIR)skip 集分毫不动"
+ ],
+ "observations_for_future_refreeze_not_applied": [
+  "零 skip 绝对线源自 host2 选型的挑仓奢侈;对活跃跨平台仓,平台常量 skip 几乎必然存在。实测显示其 skip 集在四环境下完全稳定 —— 未来 v2 判据可考虑'skip 集稳定 + delta 节点零 skip',需用户重新冻结,本轮不适用",
+  "60s 线是便利性界限而非完整性界限;sqlglot 三候选落在 78-89s。改线要新的冻结,不是现场放宽"
+ ],
+ "next": "候选池归零。再猎取需新的网络窗口(新 D 裁决)或用户重冻卫生判据后按 §6 重开一轮(新预注册)。"
+}

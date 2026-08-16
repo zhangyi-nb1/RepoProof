@@ -197,6 +197,16 @@ def test_b9_regression_breakage_is_listed_not_blended() -> None:
     assert rec["regression_broken"] == ["tests.test_x::test_a"]
 
 
+def test_b10_venv_bin_is_prepended_to_the_subprocess_path() -> None:
+    """套件常用裸 `python` 起子进程(sqlglot 的 test_lazy_load 实测)——
+    不把 venv/bin 前置进 PATH,这类测试在我们这红、在上游 CI 绿,基线
+    永远不干净,而且错在量具不在套件。激活式 venv 本来就做这件事。"""
+    bam = _load("blind_attack_admission.py")
+    env = bam.venv_env(Path("/fake/venv"), {"PATH": "/usr/bin", "X": "1"})
+    assert env["PATH"] == "/fake/venv/bin:/usr/bin"
+    assert env["X"] == "1"
+
+
 def test_b5_verdict_goes_through_the_admission_judge_not_a_copy() -> None:
     """阈值与判决逻辑只有一份 —— 驱动器里复制一份的话,原件改动后复制品
     静默漂移(M58a 的形状:两处各说各话,谁也不知道谁在生效)。"""
