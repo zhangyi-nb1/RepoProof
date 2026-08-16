@@ -1,0 +1,32 @@
+fix commit : b4da3e88e95be85bf6b2238ef3fdadf9c3c3e526
+base commit: 2ddf022c6ff2ea83c24f67e2be0d137807fac78e
+nodes      : 1
+
+== RED(base 源码 × fix 测试;期望全 FAIL) ==
+pytest exit=1
+  test_b10_venv_bin_is_prepended_to_the_subprocess_path: failed
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_b10_venv_bin_is_prepended_to_the_subprocess_path _____________
+
+    def test_b10_venv_bin_is_prepended_to_the_subprocess_path() -> None:
+        """套件常用裸 `python` 起子进程(sqlglot 的 test_lazy_load 实测)——
+        不把 venv/bin 前置进 PATH,这类测试在我们这红、在上游 CI 绿,基线
+        永远不干净,而且错在量具不在套件。激活式 venv 本来就做这件事。"""
+        bam = _load("blind_attack_admission.py")
+>       env = bam.venv_env(Path("/fake/venv"), {"PATH": "/usr/bin", "X": "1"})
+              ^^^^^^^^^^^^
+E       AttributeError: module 'blind_attack_admission' has no attribute 'venv_env'
+
+tests/test_blind_attack_admission.py:205: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_blind_attack_admission.py::test_b10_venv_bin_is_prepended_to_the_subprocess_path
+
+
+== GREEN(fix 源码 × fix 测试;期望全 PASS) ==
+pytest exit=0
+  test_b10_venv_bin_is_prepended_to_the_subprocess_path: passed
+.                                                                        [100%]
+
+
+VERDICT: VALID

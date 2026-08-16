@@ -116,3 +116,26 @@ delta 测试件、`__pycache__` 及全部字节码、`.pth`/`.egg-link`、CHANGE
 `tests/test_blind_attack_admission.py`(B1–B9)。delta 模式(③⑤ 的
 delta 语义)以合成钉死 B7–B9 覆盖;其首次真实运行发生在第一个真实候选上,
 **该候选不得因此当选** —— 首个候选兼任 delta 模式的实弹彩排。
+
+---
+
+## 附录一(2026-08-16,D5 已裁并执行;正文一字不动)
+
+1. **拼装规则细化**(§1 只定"2–3 仓、5–10 候选",未定拼装):取合格数前二
+   的仓,仓内按 merged_at 倒序,轮转取满 10(实际 sqlglot 5 + click 5)。
+   理由与全过程审计:`docs/evidence/d5_hunt/window_manifest.json`。选择全程
+   未读实现 diff、未跑测试、未评可攻性。
+2. **量具三修**(修的都是量具,判据一字未动;每次都是 B2 先拒了测量才查出):
+   venv/bin 前置进子进程 PATH(B10 钉死 + M66f 变异;sqlglot `test_lazy_load`
+   用裸 `python` 起子进程,实测 FileNotFoundError);`--extras` 按上游自己的
+   声明装测试侧依赖(flask-smorest 漏 PyYAML 实测);pristine digest 取样移到
+   装依赖之前 —— 修后记录值与 `git archive <commit>` 展开重算值全等,
+   第三方可独立复核。
+3. **首轮结果**:`docs/evidence/d5_hunt/admission-round1.json` ——
+   **VALID_NULL**,2 仓 10 候选全部死于 ② 卫生组(sqlglot×5 计时线、
+   click×4 零 skip、click-3645 基线不可测),盲攻阶段零发。§6 有效 null
+   成立(N=10 ≥ 5)。
+4. **再冻结素材**(仅记录,本轮不适用):零 skip 绝对线在活跃跨平台仓上
+   近不可满足(click 25 条平台 skip 四环境分毫不动 —— 病是"判官随环境
+   变",而它们是常量);60s 是便利线非完整性线(sqlglot 60.84–88.9s)。
+   任何改线须以本轮实测为据、由用户重新冻结成 v2 预注册。

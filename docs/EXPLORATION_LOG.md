@@ -2075,3 +2075,49 @@ U3 第三次);离线是跑出来的(死端口代理 + PIP_NO_INDEX);判决只 im
 
 **下一步只等 D5**:开窗前置(预注册 §7/§8)已满足 —— 流水线彩排全绿、
 预注册冻结。裁了就能拉;不裁,主线在这站住。
+
+## 状态条目 · 2026-08-16(续)· D5 窗口执行 + 首轮准入 VALID_NULL:10 候选全灭于卫生组,盲攻零发
+
+**裁决**:用户裁 D5,批准联网猎取,按冻结预注册执行
+(`HB-postcutoff-delta-hunt-prereg-20260816.md`,附录一记全部窗口后事项)。
+
+**窗口**(03:59–04:31,32 分钟,全程审计入
+`docs/evidence/d5_hunt/window_manifest.json`):12 仓供给普查 → 逐 PR 机械
+过滤(F2–F5/F9,审计单全留痕;pypdf 因 SPDX=NOASSERTION 死于 F6)→
+拼装(§1 未定细则,附录记:前二仓 × merged_at 倒序 × 轮转取 10 ——
+sqlglot 13 合格取 5、click 7 合格取 5;选择全程不读 diff、不跑测试、
+不评可攻性)→ 封存 221M(4 克隆答案区 / 10 候选包 / 双轮仓 / 题面原文)
+→ 离线安装双仓验证(窗口内两修:flit_core<4 补拉;sqlglot 的 setup.py
+直调 get_version 无视 fallback,无 .git 树需 SETUPTOOLS_SCM_PRETEND_VERSION)
+→ 关窗,此后全离线。
+
+**首轮准入(§3,判决入 `docs/evidence/d5_hunt/admission-round1.json`)**:
+
+| 候选 | 死因 | 实测 |
+|---|---|---|
+| sqlglot ×5 | ② F7 计时线(≤60s) | 钦定跑法单发 60.84 / 78.5–88.9s,预声明不重试 |
+| click ×4 | ② 零 skip | 25 条平台 skip(msvcrt×21 等),四环境集分毫不动 |
+| click-3645 | ② 基线不可测 | filterwarnings=error × pytest9 弃用,修复晚于 parent;封存不重下 |
+
+**VALID_NULL 成立**(N=10 ≥ 5):这个 null 量到的是"host2 挑仓级卫生
+标准在活跃真仓上的可满足性"——近于零。再冻结素材已入附录一第 4 条
+(零 skip → skip 集稳定性?60s 便利线?),**本轮一条线都没动**;
+改线需用户以新实测重冻 v2。候选池归零,下一步两条路都要裁:新窗口重猎,
+或先重冻卫生判据再猎。
+
+**量具三修**(全部是 B2 先拒了测量才暴露的,判据一字未动):
+1. venv/bin 前置子进程 PATH(sqlglot `test_lazy_load` 裸 `python` 实测
+   FileNotFoundError)—— 钉死 B10 + 变异 M66f,红绿 VALID(`b4da3e88e95b`);
+2. `--extras` 按上游自己的声明装测试依赖(flask-smorest 漏 PyYAML 实测);
+3. pristine digest 取样移到装依赖**之前** —— egg-info 曾混进 digest,同一
+   提交三跑三个值;修后记录值与 `git archive 3451351` 展开重算**全等**,
+   第三方可独立复核。顺带清了纯净件里的历史残渣(复现期 egg-info /
+   .pytest_cache),现纯净件 git status 为空。
+
+**彩排终局**(补昨条):盲攻 **554/554 = 100.0% → 判死**。新攻击者把
+pagination 连"1 个布尔守卫"残差都盲写对了,高于穷举五攻的 546 ——
+LESSONS #46 第 **6** 次独立复现;准入判据拦下的正是这种题。
+
+**数字**:测试 815 passed / 20 skipped 零回归;变异 166 → **167**(M66f),
+`b4da3e8` 上 **167/167 全捕、声明归因 167、错位 0**;红绿 VALID;
+check_public_claims 绿。
