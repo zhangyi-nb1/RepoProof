@@ -1577,25 +1577,30 @@ class HostGuidedRunner:
         junit["stdout_tail"] = res.stdout.decode(errors="replace")[-600:]
         return junit
 
+    def _oracle_import_env(self, s: _Session) -> dict[str, str]:
+        """判卷进程的 **import 面** env(契约 oracle_env_sanitized,blocking [1a])。
+
+        PYTHONPATH 指宿主根时,根下一个 sitecustomize.py 会在**判卷解释器的
+        起点**被自动 import(site 处理期,早于 pytest 的一切配置)—— 判卷进程
+        一旦被它污染,连 H1 量具面守卫都在被改写的解释器里跑,等于没守。
+        声明净化 = 不注 PYTHONPATH 且禁 user-site(usercustomize 同型通道)。
+        宿主根**路径**照注(那是数据,不是 import 面),故不在此函数里。
+        """
+        if self.contract.host.oracle_env_sanitized:
+            return {"PYTHONNOUSERSITE": "1"}
+        return {"PYTHONPATH": str(s.root / "host")}
+
     def _run_oracle(self, s: _Session, oracle_snap: Path, *, timeout_s: int = 600,
                     meter_tag: str = "oracle_capability") -> dict:
         """隐藏验收:oracle 目录在会话外(run_dir 下),路径只在 harness 手里。"""
         xml_name = "rp_oracle.xml"
         (s.root / xml_name).unlink(missing_ok=True)
-        # env 净化(契约 oracle_env_sanitized,blocking [1a]):PYTHONPATH 指宿主
-        # 根时,根下 sitecustomize.py 会在判卷解释器起点被自动 import —— 外层
-        # 判卷进程若被它污染,H1 守卫在被改写的解释器里跑,等于没守。宿主根
-        # 路径本身照注(那是数据,不是 import 面)。
-        if self.contract.host.oracle_env_sanitized:
-            pythonpath_env = {"PYTHONNOUSERSITE": "1"}
-        else:
-            pythonpath_env = {"PYTHONPATH": str(s.root / "host")}
         res = s.backend.exec(
             s.id,
             [s.venv_py, "-m", "pytest", str(oracle_snap), "-q", "-p", "no:cacheprovider",
              "--junitxml", f"../{xml_name}"],
             timeout_s=timeout_s, workdir="host",
-            env={**pythonpath_env,
+            env={**self._oracle_import_env(s),
                  # 宿主根。OfferClaw 的 oracle 读 OFFERCLAW_HOST_ROOT,别的宿主
                  # 读别的名字 —— 两个都注,多注一个无害,少注一个会让 oracle
                  # 在自己家里找不到路。

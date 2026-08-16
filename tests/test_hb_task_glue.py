@@ -269,16 +269,33 @@ def test_g8b_declared_contract_drops_pythonpath():
     assert c.host.oracle_env_sanitized is True
 
 
-def test_g8c_run_oracle_env_branches_on_the_flag():
-    """判卷进程的 env 是伪绿通道的闸:声明后不许再出现 PYTHONPATH,
-    且必须禁 user-site(usercustomize 是同型通道)。"""
+def test_g8c_oracle_import_env_branches_on_the_flag():
+    """判卷进程的 import 面 env 是伪绿通道的闸(读真返回值,不读源码文本:
+    源码断言会被"注释里还留着这个词"糊弄过去 —— M72f 逃逸实测)。"""
+    from repoproof.runner.host_guided import HostGuidedRunner
+    s = SimpleNamespace(root=Path("/tmp/x"))
+
+    r = object.__new__(HostGuidedRunner)          # 缺省:既有宿主行为不变
+    r.contract = HostContract.model_validate(_delta_contract_dict())
+    assert r._oracle_import_env(s) == {"PYTHONPATH": "/tmp/x/host"}
+
+    d = _delta_contract_dict()
+    d["host"]["oracle_env_sanitized"] = True
+    r2 = object.__new__(HostGuidedRunner)
+    r2.contract = HostContract.model_validate(d)
+    env = r2._oracle_import_env(s)
+    assert "PYTHONPATH" not in env                # 宿主根不进 import 面
+    assert env["PYTHONNOUSERSITE"] == "1"         # usercustomize 同型通道也堵
+
+
+def test_g8d_run_oracle_uses_the_branching_env_not_a_literal():
+    """接线钉死:_run_oracle 必须**用**那个函数,不许自己再写一份字面量
+    (两处各写一份必然漂移,且旁路掉上面的行为钉死)。"""
     src = (Path(__file__).resolve().parents[1]
            / "src/repoproof/runner/host_guided.py").read_text(encoding="utf-8")
-    seg = src.split("def _run_oracle")[1].split("def ")[0]
-    assert "oracle_env_sanitized" in seg
-    assert '"PYTHONNOUSERSITE": "1"' in seg
-    # PYTHONPATH 只许出现在未净化的那一支里
-    assert seg.count('"PYTHONPATH"') == 1
+    seg = src.split("def _run_oracle")[1].split("\n    def ")[0]
+    assert "self._oracle_import_env(s)" in seg
+    assert "PYTHONPATH" not in seg                # 字面量只许活在那个函数里
 
 
 # ---------------------------------------------------------------- G4 bench 白名单

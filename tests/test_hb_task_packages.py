@@ -124,6 +124,18 @@ def test_p5_negative_controls_shape():
         assert "src/" not in tamper and "sqlglot/" not in tamper  # 零实现
 
 
+def test_p5b_tamper_control_on_disk_equals_generator_constant():
+    """盘上件 = 生成器常量。只验盘上件的话,把生成器里的载荷掏空也没人知道
+    (M72i 逃逸实测)—— 负控还在、牙没了,拦下的就只是一个空文件。"""
+    sys.path.insert(0, str(REPO / "scripts"))
+    from build_hb1_task_packages import NC_TAMPER_PATCH
+    assert "runtest" in NC_TAMPER_PATCH and "lambda" in NC_TAMPER_PATCH
+    for pkg in PKGS:
+        on_disk = (TASKS / pkg / "controls/nc_instrument_tamper/apply.patch"
+                   ).read_text(encoding="utf-8")
+        assert on_disk == NC_TAMPER_PATCH, f"{pkg} 篡改负控与生成器漂移,重跑生成器"
+
+
 @pytest.mark.parametrize("rel", [
     "oracle/post_tests/tests/anything.py",
     "controls/positive/apply.patch",

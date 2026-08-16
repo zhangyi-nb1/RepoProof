@@ -120,6 +120,21 @@ def test_v12_synthetic_branches_cover_every_j3_class():
     assert None in covered                   # 绿路(不落归因)也要有一支
 
 
+def test_v12b_selftest_actually_runs_the_biopsy(monkeypatch):
+    """表在≠考了(M72f 同型逃逸):selftest 若不遍历合成表,判错也无人知。
+    往表里塞一支**必然判错**的期望,selftest 必须点名它。"""
+    import hb_batch_criteria as m
+    facts = {"verdict": "FAIL", "delta_nodes": ["a::b"], "cap_failing": ["x"],
+             "cap_total": 5, "scoring_unavailable": False, "reg_passed": 100,
+             "reg_baseline": 100, "provider_failure": False, "submitted": True,
+             "impl_touched": True, "suite_timeout": False}
+    monkeypatch.setattr(m, "SYNTHETIC_BRANCHES",
+                        [("NO_SUCH_CLASS", facts)])   # 真判 DESIGN_MISMATCH
+    bad = m.selftest({"smoke_controls": []})
+    assert any("合成分支判错" in b for b in bad), \
+        "selftest 没跑合成活检 —— 表在,但没人考"
+
+
 def test_v13_suite_timeout_is_split_out_of_harness_failure():
     """agent 代码能拖慢套件。超时若归 HARNESS_FAILURE,蓄意超时就能刷连败
     去撞停批线 1 把整批停掉 —— 单列成类,不入连败计数(附录一第 9 条)。"""

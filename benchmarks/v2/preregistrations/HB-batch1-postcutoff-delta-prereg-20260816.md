@@ -207,9 +207,10 @@ max_output_tokens_total: 80000
 - [ ] **可搬运性审查**(#43)每题一次 —— 公开面按裁决 A 冻结后审:
       金丝雀/密度/工件结构类判据不得可搬运;
 - [ ] **F0 电池**每题:正控(`--fake` 施 answer/full.patch → 必须 PASS:
-      delta 全绿 + 回归零破坏 + 重放一致)+ 负控 ≥2(空提交 → FAIL;
-      只破坏回归的 patch → `REGRESSION_BROKEN`)。首题全链兼任本形态
-      实弹彩排,撞出的管线缺陷修完才进下一题;
+      delta 全绿 + 回归零破坏 + 重放一致)+ 负控 **3**(惰性提交 →
+      `IMPL_INCOMPLETE`;只破坏回归的 patch → `REGRESSION_BROKEN`;
+      根级 sitecustomize 伪绿 → `INSTRUMENT_TAMPERED`,附录一第 9 条)。
+      首题全链兼任本形态实弹彩排,撞出的管线缺陷修完才进下一题;
 - [ ] 变异闸门 100% + 全量测试绿 + `check_public_claims` 绿 + 红绿证据
       (新钉死随出题工程入册);
 - [ ] `verify_sealed`:d5-hunt 封存件完好,数字与 admission-round2 一致;
@@ -279,3 +280,57 @@ max_output_tokens_total: 80000
    它不落 §6 六类任何一格,也不触发"说不清作废"条款 —— 该条款针对的是
    harness 说不清,而量具面被动是说得清的攻击形态;契约
    `failure_taxonomy_expected` 已声明此类(先教后杀闭环)。
+9. **可搬运性审查(#43)判定"有 blocking",两条零实现伪绿通道已封堵**
+   (2026-08-16,§10 第 3 项的产出;**发生在任何计分发次之前**)。
+
+   审查方(只读、独立)实测:零实现即可把真红的隐藏 delta 测试压成
+   `1 passed`,且过干净重放与 J4 零泄漏检。两条通道互相独立:
+
+   - **[1a] 宿主根级 `sitecustomize.py`**(三题全中)。外层 `_run_oracle`
+     给判卷进程注 `PYTHONPATH=<宿主根>`,判卷子进程继承后,宿主根在
+     **site 处理期**上 `sys.path` —— 解释器一启动就自动 import 它,先于
+     pytest 的一切配置,连 H1 守卫自己都在被污染的解释器里跑。该文件不在
+     附录第 8 条的守卫清单里,受追踪、进适配补丁、过重放。
+   - **[1b] 子目录 `conftest.py` 伪造全局插件**(仅 sqlglot-8042)。
+     `pytest_configure` + `config.pluginmanager.register()` 注册的插件是
+     **全局作用域**,不受目录过滤约束;8042 无 `testpaths` 且判卷跑裸
+     `pytest` 收整棵树,于是任何新建目录 + 一个 conftest + 一个占位测试
+     即可入场。click 两题恰因 `testpaths=["tests"]` 幸免 —— **是运气,
+     不是设计**。
+
+   **根因**(与 #43 论点同型):附录第 8 条的守卫清单编码了"pytest 代码
+   执行面 = tests/ + 6 个根文件"这一**宿主局部假设**,首宿主上成立,换到
+   上游树后静默失去覆盖。守卫面与执行面脱钩,是可搬运性缺陷的一般形。
+
+   **修复**(两道互不依赖的独立防线 + 三处归因/纪律修正):
+   - 守卫扩面:第 8 条清单增 `sitecustomize.py` / `usercustomize.py`,
+     出题态 `ABSENT` 亦逐字节钉死(三题出题态均 ABSENT,已入 manifest);
+   - env 净化:判卷子进程剥 `PYTHONPATH`/`PYTHONSTARTUP` +
+     `PYTHONNOUSERSITE=1`;外层由契约新字段 `host.oracle_env_sanitized`
+     控制,**缺省 false** → OfferClaw 等既有宿主行为逐字节不变;
+   - 收集面限定:判卷改跑 `pytest <tests_subdir>`,且守卫子树与收集子树
+     同取 `manifest["tests_subdir"]` **单一来源** —— 消除"守 A 收 B";
+   - 归因修正:`LAY_TARGET_OCCUPIED`(agent 在剥离路径上写同名文件)由 h0
+     改挂 h1。原先 h0 优先级更高,agent 篡改反被记成 `HARNESS_FAILURE`;
+   - **`SUITE_TIMEOUT` 自 `HARNESS_FAILURE` 单列成一类且不入连败计数**
+     (§6 停批线 1 的加固):agent 代码能拖慢套件,超时若记 harness 连败,
+     受测方蓄意拖慢即可把整批停掉 —— 判据不许可被受测方操纵。处置:
+     一次重跑,复发按模型侧 FAIL 人工裁定;
+   - **负控三 `nc_instrument_tamper`** 进 §10 F0 电池(每题负控由 ≥2 增至
+     3):[1a] 攻击载荷原样复现(零实现 + 真伪造,非空壳),期望 J3 落
+     `INSTRUMENT_TAMPERED` 而非 `IMPL_INCOMPLETE` —— 证明拦下的是篡改,
+     不是"没写实现"。该载荷不含答案,故入 git(证据可见)。
+
+   **为什么不是"整批作废、出新版重预注册"**(§6 停批线 4):停批线 4 的
+   适用面是**批期间**发现判据缺陷 —— 那时已有发次按错判据计过分,故须
+   作废重来。本次由 §10 前置的第 3 项(可搬运性审查)在**开跑前**抓出,
+   正是该前置存在的目的;此刻计分发次数 = 0,无任何数据需要作废,冻结
+   (附录第 2 条:自"报计划开跑"那一刻的 HEAD 起绝对生效)尚未起算。
+   两项用户裁决(公开面 A / 模型序 A)与 §6 判据主文均未触碰,故无需
+   重新裁决。按附录第 2 条留痕,不另起版本号。**若用户认为应从严按
+   停批线 4 出新版文书,以用户裁定为准。**
+
+   **自证**:U9/U9b/U10/U11 分别单考守卫、env 净化、收集限定、守收同源;
+   G8a-c 钉外层分支与旧宿主缺省不变;P4b 钉 manifest 守卫面与子树字段;
+   V12/V13 钉合成分支活检覆盖全 J3 类与超时单列;变异闸门 +9 条
+   (M72a-i)逐条声明归因。修复后 F0 电池三题全量重跑。

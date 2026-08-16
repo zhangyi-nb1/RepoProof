@@ -2102,10 +2102,10 @@ MUTATIONS: list[dict] = [
         "lesson": "外层 _run_oracle 忽略契约声明,照旧注 PYTHONPATH=<宿主根> → "
                   "H1 守卫自己就在被污染的解释器里跑,守卫等于没守",
         "file": _HD,
-        "old": "        if self.contract.host.oracle_env_sanitized:",
-        "new": "        if False:",
+        "old": '            return {"PYTHONNOUSERSITE": "1"}\n        return {"PYTHONPATH": str(s.root / "host")}',
+        "new": '            pass\n        return {"PYTHONPATH": str(s.root / "host")}',
         "catchers": _T_HTG,
-        "expected_catcher": ["test_g8c_run_oracle_env_branches_on_the_flag"],
+        "expected_catcher": ["test_g8c_oracle_import_env_branches_on_the_flag"],
     },
     {
         "id": "M72g-suite-timeout-folded-into-harness-failure",
@@ -2125,7 +2125,7 @@ MUTATIONS: list[dict] = [
         "old": "    for want_j3, facts in SYNTHETIC_BRANCHES:",
         "new": "    for want_j3, facts in []:",
         "catchers": _T_HBC,
-        "expected_catcher": ["test_v12_synthetic_branches_cover_every_j3_class"],
+        "expected_catcher": ["test_v12b_selftest_actually_runs_the_biopsy"],
     },
     {
         "id": "M72i-tamper-control-payload-hollowed",
@@ -2135,7 +2135,17 @@ MUTATIONS: list[dict] = [
         "old": '    "    _rp.Function.runtest = lambda self: None   # 每个用例都不执行 = 全绿",',
         "new": '    "    pass",',
         "catchers": _T_HTP,
-        "expected_catcher": ["test_p5_negative_controls_shape"],
+        "expected_catcher": ["test_p5b_tamper_control_on_disk_equals_generator_constant"],
+    },
+    {
+        "id": "M72j-run-oracle-rewrites-the-env-literal-inline",
+        "lesson": "_run_oracle 不再调那个分支函数,自己写回一份 PYTHONPATH 字面量 → "
+                  "契约声明形同虚设,且旁路掉函数上的全部行为钉死",
+        "file": _HD,
+        "old": "            env={**self._oracle_import_env(s),",
+        "new": '            env={"PYTHONPATH": str(s.root / "host"),',
+        "catchers": _T_HTG,
+        "expected_catcher": ["test_g8d_run_oracle_uses_the_branching_env_not_a_literal"],
     },
 ]
 
