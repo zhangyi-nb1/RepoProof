@@ -2364,3 +2364,32 @@ skip 被误记进 failed,判据不读该字段故落点未变,但轮内反馈通
 电池未污染 bench;`check_public_claims` `{"ok": true}`,台账 +12 全为
 冒烟(smoke 57→69,heldout 分母未动)。**首发从零重跑自修复后 HEAD
 起算,harness 冻结点随之重立。**
+
+## 状态 · 2026-08-16 · HB-PCDELTA-1 六发跑毕:紧题=盲攻上界,松题双 PASS,heldout 分母首次非零
+
+**六发结果**(执行序,J 表并排盲攻上界):3581 双模型 0/3(=上界,
+DESIGN_MISMATCH×2);3407 双模型 0/1(=上界;5.6 落 IMPL_INCOMPLETE ——
+oracle 铺入 PR post 测试后 delta 外三红,外层回归过是因为跑的父树自带
+版本,量具无恙判据照写;5.5 落 DESIGN_MISMATCH);**8042 双模型 5/5
+> 上界 4/5,双双 PASS_ADAPTED + clean replay PASS** —— statement 在
+宽题上足以补上盲攻缺的那个判别节点。
+
+**过程要点**:序 2(5.6)先做 git 考古(cat-file merge SHA / log --all /
+fsck --unreachable)企图捞 PR 原文,被密封交付挡回(单提交仓,无远端
+无游离对象)—— 密封设计首次被真模型踹门,实弹通过。模型间结论零差异,
+过程差异(5.6 取证+卫生三件套,5.5 快省)记录不外推。
+
+**封套**:in 1,906,021(52.9%)/ out 56,320(11.7%)/ 墙钟 53.4min /
+运行 6+1 中止 ≤12。批期间(冻结点 0818d35 后)harness 零事件。
+
+**heldout 记账打通**:发现 6 发计分被 v2_gate 记进 development_baseline
+而 heldout 恒 0 —— 旁挂 `run_classifications.jsonl` 无 HB 行。补 6 行
+(两道硬门齐:UPSTREAM_OWN_TEST_SUITE + PRISTINE;PRE_REGISTERED,
+落笔时点 basis 自曝,内容逐项可从冻结预注册推出,无一晚于开跑决定)。
+K6/K12 的实台账零钉按其旧文自身指示更新(K6 原话:"第二宿主建成时
+更新本判据而不是绕过它"),钉**恰好 6/2** —— 下一批 HB 落账必转红,
+逼当批显式重审两道硬门。`v2_gate.json` heldout 0→6 / passes 0→2,
+**本仓第一批非零 held-out 能力读数**。
+
+**批报**:benchmarks/v2/reports/HB-PCDELTA-1-report-20260816.md(唯一
+事实源)。宿主批后幂等复验 verify-only 全绿,封存池零写。

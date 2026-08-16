@@ -196,15 +196,24 @@ def test_unclassified_runs_default_to_capability_denominator(tmp_path):
     assert got["passes"] == 1 and got["development_baseline_runs"] == 2
 
 
-def test_real_ledger_reports_zero_heldout_runs():
-    """K6:T1–T3 全是开发套件,Held-out 能力分母目前必须为 0。
+def test_real_ledger_reports_exactly_the_preregistered_heldout_runs():
+    """K6(2026-08-16 更新,按本钉旧文自己的指示):Held-out 分母 = 6。
 
-    转红 = 有人把开发套件上的发次标成了 Held-out,或者第二宿主已经建成
-    (那时该更新本判据,而不是绕过它)。"""
+    旧钉:T1–T3 全是开发套件,分母恒 0;转红即"第二宿主建成,更新本判据
+    而不是绕过它"。此刻 HB-PCDELTA-1 落账:第二/三宿主(pallets/click、
+    tobymao/sqlglot)上 6 发计分,全部满足两道硬门(oracle=
+    UPSTREAM_OWN_TEST_SUITE、host=PRISTINE 父树),旁挂 6 行为冻结预注册
+    的机械转录(basis 里自曝落笔时点)。
+
+    钉成**恰好等于**而非 ≥:下一批 HB 落账时本钉必须转红,逼着当批像
+    这次一样显式过一遍两道硬门,而不是让分母静默上爬。"""
     got = count_passes(REPO)
 
-    assert got["heldout_model_evaluation_runs"] == 0, (
-        "出现了标为 Held-out 的发次 —— 第二宿主建成了?那就更新本判据")
+    assert got["heldout_model_evaluation_runs"] == 6, (
+        "Held-out 分母 ≠ 6 —— 新 HB 批落账了?按本钉的规矩显式重审再更新;"
+        "或有人把不该计的发次标成了 Held-out")
+    assert got["heldout_passes"] == 2, (
+        "Held-out 分子 ≠ 2(HB-PCDELTA-1:8042 双模型 PASS_ADAPTED)")
 
 
 def test_classification_sidecar_loads_from_the_real_repo():
@@ -401,8 +410,18 @@ def test_k12_our_own_oracle_can_never_be_counted_as_heldout(tmp_path):
     assert _n() == 0, "没声明 oracle 来源就算 held-out —— 默认必须是不算"
     assert _n(oracle_authorship="SOMETHING_ELSE") == 0, "无法识别的来源必须按不算处理"
 
-    # 现有 T1–T3 全部是我们写的 oracle,真台账里这个数必须仍是 0
-    assert count_passes(REPO)["heldout_model_evaluation_runs"] == 0
+    # 真台账口径(2026-08-16 更新,与 K6 同步):T1–T3(我们写的 oracle)
+    # 仍一发不计;计入的只能是 HB-PCDELTA-1 的 6 发,且**逐发**真过两道
+    # 硬门 —— 不只钉数字,钉性质:任何一发 heldout 行若不是外部 oracle +
+    # 未加语义宿主,这里必须红。
+    from repoproof.persistence.bench_records import classify_runs
+
+    real = [r for r in classify_runs(REPO) if r["counts_toward_heldout_benchmark"]]
+    assert len(real) == 6, f"真台账 heldout 发次 {len(real)} ≠ 6(HB-PCDELTA-1)"
+    for r in real:
+        assert r["oracle_authorship"] == ORACLE_AUTHORSHIP_EXTERNAL, r["run_id"]
+        assert str(r["run_id"]).startswith("hb1-"), (
+            f"非 HB 批发次混进 heldout:{r['run_id']}")
 
 
 def test_k20_harness_enriched_hosts_can_never_be_heldout(tmp_path):
