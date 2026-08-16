@@ -1817,9 +1817,16 @@ class HostGuidedRunner:
             if model_factory is None:
                 assert provider is not None and preflight is not None
                 _os.environ.setdefault("MSWEA_COST_TRACKING", "ignore_errors")
-                _os.environ["OPENAI_API_KEY"] = provider.api_key
-                _os.environ["OPENAI_API_BASE"] = provider.api_base
-                _os.environ["OPENAI_BASE_URL"] = provider.api_base
+                # litellm DEV 模式 import 时会把 CWD .env 全量 load_dotenv
+                # 进程 env(秘密静默入环境,配置来源失守)。Gate 4A:官方
+                # 运行只读宿主显式 env —— 生产侧钉死 PRODUCTION。
+                _os.environ.setdefault("LITELLM_MODE", "PRODUCTION")
+                if provider.PROVIDER_TYPE != "deepseek-native":
+                    # openai-compatible 通道才喂 OPENAI_* env;deepseek 的
+                    # key 绝不进错通道的变量(下方分支自设 DEEPSEEK_*)。
+                    _os.environ["OPENAI_API_KEY"] = provider.api_key
+                    _os.environ["OPENAI_API_BASE"] = provider.api_base
+                    _os.environ["OPENAI_BASE_URL"] = provider.api_base
                 import litellm as _litellm
                 from minisweagent.models.litellm_model import LitellmModel
                 from minisweagent.models.litellm_textbased_model import LitellmTextbasedModel
@@ -1838,14 +1845,30 @@ class HostGuidedRunner:
                         token_totals["out"] += getattr(usage, "completion_tokens", 0) or 0
 
                 _litellm.success_callback = [_usage_cb]
-                model_cls = (LitellmTextbasedModel
-                             if preflight.action_protocol == "textbased" else LitellmModel)
-                mkwargs = {"temperature": 0} if preflight.temperature == "0" else {}
                 _cto = call_timeout_s()          # 修订⑤:单调用超时
-                if _cto is not None:
-                    mkwargs["timeout"] = _cto
-                inner_model = model_cls(model_name=f"openai/{provider.model_name}",
-                                        model_kwargs=mkwargs)
+                if provider.PROVIDER_TYPE == "deepseek-native":
+                    # P-D 直连通道:key/base 走 env(serialize 永不落盘),
+                    # 旋钮由 provider 哈希层背书(build_model_kwargs 同源)。
+                    from repoproof.agents.deepseek_native import (
+                        DeepSeekNativeModel,
+                        build_model_kwargs,
+                    )
+
+                    _os.environ["DEEPSEEK_API_KEY"] = provider.api_key
+                    _os.environ["DEEPSEEK_API_BASE"] = provider.api_base
+                    inner_model = DeepSeekNativeModel(
+                        model_name=f"deepseek/{provider.model_name}",
+                        model_kwargs=build_model_kwargs(provider, _cto),
+                        reasoning_passback=provider.reasoning_passback,
+                    )
+                else:
+                    model_cls = (LitellmTextbasedModel
+                                 if preflight.action_protocol == "textbased" else LitellmModel)
+                    mkwargs = {"temperature": 0} if preflight.temperature == "0" else {}
+                    if _cto is not None:
+                        mkwargs["timeout"] = _cto
+                    inner_model = model_cls(model_name=f"openai/{provider.model_name}",
+                                            model_kwargs=mkwargs)
 
                 def make_budget_model(totals_dict: dict) -> TokenBudgetedModel:
                     return TokenBudgetedModel(

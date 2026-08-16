@@ -704,8 +704,30 @@ def provider_from_env() -> ProviderConfig:
     REPOPROOF_API_BASE / REPOPROOF_API_KEY / REPOPROOF_MODEL
     (compatible aliases REPOPROOF_BASE_URL / REPOPROOF_MODEL_NAME).
     RepoProof never reads any other project's .env; the key never
-    reaches the repo, trace or artifacts."""
+    reaches the repo, trace or artifacts.
+
+    REPOPROOF_PROVIDER=deepseek-native 切到 P-D 直连通道:改读
+    REPOPROOF_DEEPSEEK_BASE / REPOPROOF_DEEPSEEK_KEY,模型取
+    REPOPROOF_MODEL(缺省 REPOPROOF_DEEPSEEK_DEFAULT),profile 必须由
+    REPOPROOF_DS_PROFILE 显式点名(§55 两候选,无静默默认)。"""
     import os
+
+    if os.environ.get("REPOPROOF_PROVIDER") == "deepseek-native":
+        from repoproof.agents.deepseek_native import build_deepseek_provider
+
+        base = os.environ.get("REPOPROOF_DEEPSEEK_BASE")
+        key = os.environ.get("REPOPROOF_DEEPSEEK_KEY")
+        model = os.environ.get("REPOPROOF_MODEL") or os.environ.get("REPOPROOF_DEEPSEEK_DEFAULT")
+        profile = os.environ.get("REPOPROOF_DS_PROFILE")
+        pairs = (("REPOPROOF_DEEPSEEK_BASE", base), ("REPOPROOF_DEEPSEEK_KEY", key),
+                 ("REPOPROOF_MODEL|REPOPROOF_DEEPSEEK_DEFAULT", model),
+                 ("REPOPROOF_DS_PROFILE", profile))
+        missing = [n for n, v in pairs if not v]
+        if missing:
+            raise RuntimeError(f"deepseek provider env vars missing: {missing}")
+        return build_deepseek_provider(
+            profile=profile, api_base=base, api_key=key, model_name=model
+        )
 
     base = os.environ.get("REPOPROOF_API_BASE") or os.environ.get("REPOPROOF_BASE_URL")
     key = os.environ.get("REPOPROOF_API_KEY")

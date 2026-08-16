@@ -124,6 +124,9 @@ _MG = "scripts/mutation_gate.py"
 _T_MA = ["tests/test_mutation_attribution.py"]
 _BAM = "scripts/blind_attack_admission.py"
 _T_BAM = ["tests/test_blind_attack_admission.py"]
+_DSN = "src/repoproof/agents/deepseek_native.py"
+_AR = "src/repoproof/runner/agent_run.py"
+_T_DSN = ["tests/test_deepseek_native.py"]
 
 CANARY = {
     "id": "C0-plumbing-canary",
@@ -2243,6 +2246,128 @@ MUTATIONS: list[dict] = [
         "new": "        summary[f\"negative_control_{nc.label}\"] = (\n            FAILED_AS_EXPECTED\n            if any(n[\"outcome\"] != \"passed\" for n in nc_nodes) else \"NOT_REJECTED\")",
         "catchers": _T_HTG,
         "expected_catcher": ["test_g9e2_the_battery_routes_through_the_shared_classifier"],
+    },
+    # ---- M75:deepseek-native 适配器五条卫生规则(P-D §6)----
+    {
+        "id": "M75a-null-assistant-content-goes-to-the-wire",
+        "lesson": "R1 失守:assistant content=null 原样上行 —— 官方拒 null,"
+                  "多轮工具循环第二发起步就 400,DQ 的'协议按官方语义跑'塌",
+        "file": _DSN,
+        "old": '                if m.get("content") is None:\n                    m["content"] = ""                       # R1',
+        "new": '                if False:\n                    m["content"] = ""                       # R1',
+        "catchers": _T_DSN,
+        "expected_catcher": ["test_prepare_tool_loop_keeps_reasoning_only_with_tool_calls"],
+    },
+    {
+        "id": "M75b-strip-mode-still-passes-reasoning-back",
+        "lesson": "R2 失守(strip 向):声明剥除 reasoning 的 profile 实际在回传"
+                  " —— 消融两臂的'单变量'是假的,哈希背书的可比性名存实亡",
+        "file": _DSN,
+        "old": '                if self.config.reasoning_passback != "tool_loop" or not in_tool_loop:\n                    m.pop("reasoning_content", None)        # R2',
+        "new": '                if False:\n                    m.pop("reasoning_content", None)        # R2',
+        "catchers": _T_DSN,
+        "expected_catcher": ["test_prepare_strip_mode_never_passes_reasoning_back"],
+    },
+    {
+        "id": "M75c-tool-loop-reasoning-silently-dropped",
+        "lesson": "R2 失守(tool_loop 向):思考模式工具轮的 reasoning 被剥 ——"
+                  "官方语义要求回传,剥了模型每轮重想,DQ 资格测的不是官方协议",
+        "file": _DSN,
+        "old": '                if self.config.reasoning_passback != "tool_loop" or not in_tool_loop:\n                    m.pop("reasoning_content", None)        # R2',
+        "new": '                if True:\n                    m.pop("reasoning_content", None)        # R2',
+        "catchers": _T_DSN,
+        "expected_catcher": ["test_prepare_tool_loop_keeps_reasoning_only_with_tool_calls"],
+    },
+    {
+        "id": "M75d-assistant-whitelist-bypassed",
+        "lesson": "R5 失守:model_dump 的脏字段(function_call/provider_specific"
+                  "_fields/index)整包上行 —— 兼容层今天容忍明天 400,协议面漂移",
+        "file": _DSN,
+        "old": "                m = {k: msg[k] for k in self._ASSISTANT_KEEP if k in msg}",
+        "new": '                m = {k: v for k, v in msg.items() if k != "extra"}',
+        "catchers": _T_DSN,
+        "expected_catcher": ["test_prepare_tool_loop_keeps_reasoning_only_with_tool_calls"],
+    },
+    {
+        "id": "M75e-stream-quietly-turned-off",
+        "lesson": "R4 失守:非流式长调用 —— 长 observation 任务撞网关空闲超时,"
+                  "错误形状变成'随机超时',canary-3 的结论失去对象",
+        "file": _DSN,
+        "old": "            stream=True,",
+        "new": "            stream=False,",
+        "catchers": _T_DSN,
+        "expected_catcher": ["test_query_streams_with_usage_and_owned_call_surface"],
+    },
+    {
+        "id": "M75f-usage-dropped-from-the-stream",
+        "lesson": "include_usage 丢失 → extra.response.usage 缺席 → "
+                  "TokenBudgetedModel 同步记账读 0,预算执法瞎了(H7-a 同型)",
+        "file": _DSN,
+        "old": '            stream_options={"include_usage": True},',
+        "new": "            stream_options=None,",
+        "catchers": _T_DSN,
+        "expected_catcher": ["test_query_streams_with_usage_and_owned_call_surface"],
+    },
+    {
+        "id": "M75g-forbidden-kwargs-guard-emptied",
+        "lesson": "R3 失守:tool_choice/stream 等适配器专属 kwargs 可从配置"
+                  "混入 —— 官方思考模式不兼容 tool_choice,静默混入即静默换协议",
+        "file": _DSN,
+        "old": "        bad = [k for k in FORBIDDEN_MODEL_KWARGS if k in self.config.model_kwargs]",
+        "new": "        bad = [k for k in () if k in self.config.model_kwargs]",
+        "catchers": _T_DSN,
+        "expected_catcher": ["test_forbidden_model_kwargs_rejected_at_construction"],
+    },
+    {
+        "id": "M75h-hash-blind-to-a-behavior-knob",
+        "lesson": "normalized() 把 reasoning_effort 写死 → 两条消融 profile 的"
+                  "provider_config_sha256 不再随旋钮变 —— 单变量可比性失去哈希背书",
+        "file": _DSN,
+        "old": '            "reasoning_effort": self.reasoning_effort,',
+        "new": '            "reasoning_effort": "high",',
+        "catchers": _T_DSN,
+        "expected_catcher": [
+            "test_two_ablation_profiles_hash_differently_single_variable_comparable"],
+    },
+    {
+        "id": "M75i-env-router-never-reaches-deepseek",
+        "lesson": "REPOPROOF_PROVIDER=deepseek-native 被无视,静默落回 openai 路"
+                  " —— 跑的通道和台账写的通道不是一个(静默换模同型)",
+        "file": _AR,
+        "old": '    if os.environ.get("REPOPROOF_PROVIDER") == "deepseek-native":',
+        "new": "    if False:",
+        "catchers": _T_DSN,
+        "expected_catcher": ["test_provider_from_env_deepseek_branch"],
+    },
+    {
+        "id": "M75j-reasoning-salvage-dead",
+        "lesson": "builder 版本丢 reasoning 时的兜底死了 —— 存档消息缺思考链,"
+                  "canary-2 的回传判定失去证据来源",
+        "file": _DSN,
+        "old": '        if reasoning_parts and not getattr(message, "reasoning_content", None):\n            message.reasoning_content = "".join(reasoning_parts)',
+        "new": '        if False:\n            message.reasoning_content = "".join(reasoning_parts)',
+        "catchers": _T_DSN,
+        "expected_catcher": ["test_reasoning_salvage_when_builder_drops_it"],
+    },
+    {
+        "id": "M75k-model-construction-guard-flipped",
+        "lesson": "host_guided 构造分支条件翻转 —— deepseek provider 走 openai"
+                  "构造、openai 走 deepseek:接线钉(AST)必须当场红",
+        "file": _HD,
+        "old": '                if provider.PROVIDER_TYPE == "deepseek-native":',
+        "new": '                if provider.PROVIDER_TYPE != "deepseek-native":',
+        "catchers": _T_DSN,
+        "expected_catcher": ["test_wiring_deepseek_model_constructed_inside_the_eq_branch"],
+    },
+    {
+        "id": "M75l-deepseek-key-fed-into-openai-env",
+        "lesson": "OPENAI_* env 喂料守卫翻转 —— deepseek 的 key 进错通道变量,"
+                  "秘密跨通道 + litellm 误路由的双重隐患",
+        "file": _HD,
+        "old": '                if provider.PROVIDER_TYPE != "deepseek-native":',
+        "new": '                if provider.PROVIDER_TYPE == "deepseek-native":',
+        "catchers": _T_DSN,
+        "expected_catcher": ["test_wiring_openai_env_only_fed_in_the_not_deepseek_branch"],
     },
 ]
 
