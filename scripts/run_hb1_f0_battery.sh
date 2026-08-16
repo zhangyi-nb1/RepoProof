@@ -14,11 +14,11 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 PY=.venv/bin/python
-BATCH=HB-PCDELTA1-F0-R2          # R2 = 审查 blocking 修复后的重跑
+BATCH=HB-PCDELTA1-F0-R3          # R3 = skipped≠failed 同病扫查修复后的重跑
 FORMS=(positive control:nc_null_submission control:nc_regression_break control:nc_instrument_tamper)
 TASKS=(hb1_click_3581 hb1_click_3407 hb1_sqlglot_8042)
 
-mkdir -p /tmp/rp_f0_r2
+mkdir -p /tmp/rp_f0_r3
 idx=0
 for t in "${TASKS[@]}"; do
   for f in "${FORMS[@]}"; do
@@ -28,10 +28,10 @@ for t in "${TASKS[@]}"; do
     $PY -m repoproof.cli host-run \
         --contract "benchmarks/v2/tasks/$t/contract.yaml" \
         --fake "$f" --batch "$BATCH" --run-order 0 --run-index "$idx" \
-        > "/tmp/rp_f0_r2/$tag.log" 2>&1
+        > "/tmp/rp_f0_r3/$tag.log" 2>&1
     rc=$?
-    echo "    exit=$rc  日志 /tmp/rp_f0_r2/$tag.log"
-    tail -3 "/tmp/rp_f0_r2/$tag.log" | sed 's/^/    /'
+    echo "    exit=$rc  日志 /tmp/rp_f0_r3/$tag.log"
+    tail -3 "/tmp/rp_f0_r3/$tag.log" | sed 's/^/    /'
   done
   echo "=== $t 四形态跑完 ==="
 done

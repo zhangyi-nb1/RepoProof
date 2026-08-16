@@ -13,7 +13,7 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 38,
+    "all_valid_run_outcomes": 41,
     "assisted_repair_runs": 14,
     "development_baseline_runs": 60,
     "exploratory": 7,
@@ -74,8 +74,8 @@
       }
     ],
     "provisional_evidence_runs": 3,
-    "smoke": 57,
-    "smoke_passes": 15,
+    "smoke": 69,
+    "smoke_passes": 18,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -133,9 +133,21 @@
       "hb1-sqlglot-8042-20260816-161631",
       "hb1-sqlglot-8042-20260816-162600",
       "hb1-sqlglot-8042-20260816-163238",
-      "hb1-sqlglot-8042-20260816-165602"
+      "hb1-sqlglot-8042-20260816-165602",
+      "hb1-click-3581-20260816-184058",
+      "hb1-click-3581-20260816-184137",
+      "hb1-click-3581-20260816-184203",
+      "hb1-click-3581-20260816-184240",
+      "hb1-click-3407-20260816-184307",
+      "hb1-click-3407-20260816-184342",
+      "hb1-click-3407-20260816-184408",
+      "hb1-click-3407-20260816-184508",
+      "hb1-sqlglot-8042-20260816-184536",
+      "hb1-sqlglot-8042-20260816-185557",
+      "hb1-sqlglot-8042-20260816-190401",
+      "hb1-sqlglot-8042-20260816-192825"
     ],
-    "total": 142,
+    "total": 154,
     "treatment_delivered_runs": 3,
     "treatment_not_delivered_runs": 3
   },
@@ -152,7 +164,7 @@
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "ce52d32769fdf521def06a9c2b7764a4e0404ac5196e5e084785360bbd03940a"
+    "runs_jsonl_sha256": "2e7396a3bade7ca397964a340b388b584a84ca0cf5d52a9f3970f5c77ac9fb85"
   },
   "stages": {
     "T1": {
