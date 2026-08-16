@@ -86,6 +86,8 @@ _DOL = "scripts/delta_oracle_lib.py"
 _T_DOL = ["tests/test_delta_oracle_lib.py"]
 _HBC = "scripts/hb_batch_criteria.py"
 _T_HBC = ["tests/test_hb_batch_criteria.py"]
+_TBC = "scripts/batch_criteria.py"
+_T_BCP3 = ["tests/test_batch_criteria_p3.py"]
 _BTP = "scripts/build_hb1_task_packages.py"
 _T_HTP = ["tests/test_hb_task_packages.py"]
 _T_HTG = ["tests/test_hb_task_glue.py"]
@@ -2379,6 +2381,27 @@ MUTATIONS: list[dict] = [
         "catchers": _T_DSN,
         "expected_catcher": [
             "test_ledger_provider_label_comes_from_provider_type_not_a_literal"],
+    },
+    {
+        "id": "M78a-p3-fatal-explains-clause-dead",
+        "lesson": "P3 的\"本轮 fatal 解释\"分支死了 —— 批 15 序 4 形态"
+                  "(denied=0、pol=1、本轮 upstream fatal)重新被误报为跨轮"
+                  "继承,合议再次被误报拖垮",
+        "file": _TBC,
+        "old": '    return violations <= len(fatal_violations or [])',
+        "new": '    return False',
+        "catchers": _T_BCP3,
+        "expected_catcher": ["test_own_round_fatal_explains_violations"],
+    },
+    {
+        "id": "M78b-p3-inheritance-detection-dead",
+        "lesson": "P3 的继承侦测整体短路成恒过 —— denied 跨轮漏进下一轮的"
+                  "真形态(P3 存在的全部意义)从此漏网",
+        "file": _TBC,
+        "old": '    if violations == 0 or violations == denied:\n        return True',
+        "new": '    if True:\n        return True',
+        "catchers": _T_BCP3,
+        "expected_catcher": ["test_true_inheritance_shape_still_caught"],
     },
     {
         "id": "M77a-usage-cb-streaming-dedupe-dead",

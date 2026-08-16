@@ -63,6 +63,23 @@ def _verdict(hits: list[bool], detail: list[str]) -> tuple[str, list[str]]:
     return (PASS if all(hits) else FAIL), detail
 
 
+def p3_round_ok(denied: int, violations: int, fatal_violations: list | None) -> bool:
+    """P3(denied 不跨轮继承)的单轮判定。
+
+    继承嫌疑 = 本轮 policy_violations 多于本轮自己能解释的来源。本轮能
+    解释的:① 零违规;② pol == denied(即便计入,记的也是本轮的,
+    "denied 不该计入"由 Q1 另行追究);③ 本轮自产的致命违规
+    (fatal_violations,verification 时点检出,非 denied 来源)。
+
+    批 15 实录(2026-08-17,序 4 r2/r3):denied=0 而 pol=1,来源是本轮
+    的 upstream 就地改动(fatal_violations=["upstream"])—— 旧启发式把
+    它误报为跨轮继承;批 10–14 无此形态,P3 当时未被检验。真继承的形状
+    (denied=0、pol>0、本轮 fatal 解释不了)仍然照抓。"""
+    if violations == 0 or violations == denied:
+        return True
+    return violations <= len(fatal_violations or [])
+
+
 def adjudicate(batch: str) -> dict:
     runs = load_batch(batch)
     facts = {r["run_order"]: (r, round_facts(REPO / "runs" / r["run_id"])) for r in runs}
@@ -73,8 +90,10 @@ def adjudicate(batch: str) -> dict:
     for o, (_run, rounds) in sorted(facts.items()):
         for f in rounds:
             d, pol = f["end"]["denied_this_round"], f["record"]["policy_violations"]
-            p3.append(pol == d or pol == 0)
-            p3d.append(f"order-{o} r{f['round']}: 本轮 denied={d} → policy_violations={pol}")
+            fat = f["end"].get("fatal_violations") or []
+            p3.append(p3_round_ok(d, pol, fat))
+            p3d.append(f"order-{o} r{f['round']}: 本轮 denied={d} → policy_violations={pol}"
+                       + (f"(本轮 fatal={fat} 解释)" if pol and pol != d else ""))
             if d >= 1:
                 q1.append(pol == 0)
                 q1d.append(f"order-{o} r{f['round']}: denied={d} → policy_violations={pol}"
