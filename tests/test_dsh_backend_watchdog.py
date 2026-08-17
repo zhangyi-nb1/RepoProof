@@ -49,7 +49,9 @@ def _job(tmp: Path) -> dict:
 # 请求洪流:先起一个 argv 带记号的孩子(强杀必须连它一起),然后每 0.12s
 # 一条 request/header,~4s 后自终结并给出合法单行 result。
 _FLOOD = r"""
-child=subprocess.Popen(["/bin/sh","-c","exec sleep 300 # "+ev])
+child=subprocess.Popen(["/bin/sh","-c","exec sleep 300 # "+ev],
+    stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)  # 不攥父管道:
+    # 否则执法变异世界里 worker 退了孩子还举着写端,communicate 等满 300s
 os.makedirs(os.path.dirname(ev),exist_ok=True)
 f=open(ev,"a")
 f.write('{"method":"session.event","payload":{"sessionId":"s","event":{"seq":0,"time":0,"type":"turn/start","data":{"turn":1}}}}\n');f.flush()
