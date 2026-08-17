@@ -1,5 +1,14 @@
 # HB-PCDELTA-1 批报(2026-08-16)
 
+> **后加脚注(2026-08-17 晚,原文一字未改)· 本批结论不受影响,但"1 轮"
+> 一词须防误读。**8042 上两发的 `rounds_run=1`(合约 `max_rounds=3`)
+> **是 harness 停轮缺陷造成的上限,不是模型效率的证据** ——
+> `repair_loop.py:162-169` 在公开面基线全绿的任务上第 1 轮结束必然停。
+> 本批两发第一轮即 `PASS_ADAPTED`(gpt-5.5 30 调用 / gpt-5.6 20 调用),
+> **停轮没有削减任何已达成的结果,PASS 结论与 delta 5/5 读数全部成立**;
+> 只是"一轮即解"不可被引用为效率读数。详见
+> `benchmarks/v2/reports/WH-PILOT-1-stop-report-20260817.md` §3 末段。
+
 **本批唯一事实源**(预注册 §11)。测试模式:**HB**(Held-out Benchmark,
 计分);预注册 `benchmarks/v2/preregistrations/HB-batch1-postcutoff-delta-prereg-20260816.md`
 (判据主文一字未动,工程留痕见其附录一)。

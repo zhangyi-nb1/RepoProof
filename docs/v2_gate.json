@@ -14,7 +14,7 @@
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
     "all_valid_run_outcomes": 54,
-    "assisted_repair_runs": 28,
+    "assisted_repair_runs": 30,
     "development_baseline_runs": 68,
     "exploratory": 8,
     "exploratory_passes": 0,
@@ -38,7 +38,7 @@
       "t3-offerclaw-browser-use-v6-20260814-002139"
     ],
     "mechanism_ablation_passes": 13,
-    "mechanism_ablation_runs": 20,
+    "mechanism_ablation_runs": 22,
     "pass_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260810-000405",
       "t1-offerclaw-fastapi-mcp-v1-20260810-002354",
@@ -54,7 +54,7 @@
       "hb1-sqlglot-8042-20260816-204138"
     ],
     "passes": 12,
-    "post_hoc_classified_runs": 5,
+    "post_hoc_classified_runs": 7,
     "profile_qualification_runs": 4,
     "provisional_evidence": [
       {
@@ -166,9 +166,9 @@
       "hb1-sqlglot-8042-20260817-140108",
       "hb1-sqlglot-8042-20260817-141419"
     ],
-    "total": 185,
+    "total": 187,
     "treatment_delivered_runs": 6,
-    "treatment_not_delivered_runs": 3
+    "treatment_not_delivered_runs": 4
   },
   "gate_met": {
     "T1": true,
@@ -183,7 +183,7 @@
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "0df5df85a477e6d11070188aba0a3af78ab17a8cd73282a1b3a469e3e8e06ffd"
+    "runs_jsonl_sha256": "801a2587e090ff2ae67db89b82aa4a04ceb30a49df9b5610dd1de27556396a10"
   },
   "stages": {
     "T1": {

@@ -1,5 +1,34 @@
 # HB-DSENTRY-1 批报(2026-08-17)
 
+> ## ⚠ 后加警示(2026-08-17 晚,**原文一字未改**)
+>
+> **本批的 `0/5 × 2 发 NO_SUBMISSION` 是预算受限,不是能力受限。那两个
+> 读数量的是 harness 停轮规则造成的送达上限,不是 deepseek-v4-pro 在这道
+> 题上的能力。**
+>
+> 缺陷:`repair_loop.py:162-169` 的停轮条件 `STOP_ALL_PUBLIC_PASS`
+> **不看 `exit_status`、也不看有无交付物**。8042 的公开面(宿主回归套)
+> 在基线就是 1150/1150 全绿(delta 藏在隐藏 oracle 里),故第 1 轮结束
+> 必然命中"公开面全绿 → 收工"。本批两发因此 `rounds_run=1`(合约
+> `max_rounds=3`),**只拿到合约总额 3×30=90 调用的 33%**,
+> `exit_status=LimitsExceeded` 且 `adaptation_present=false`。
+>
+> 同变量对照(WH-PILOT-1,同模型 / 同 profile HIGH-DET / 同任务 /
+> 同契约 sha `15591cb6…`,**唯一变量是送达调用量**):
+>
+> | | 本批序 1 | WH-PILOT-1 minimal 臂 |
+> |---|---|---|
+> | 送达调用 | **30** | **55** |
+> | patch 字节 | **0** | 5,486 |
+> | delta | **0/5** | **5/5**(高于盲攻上界 4/5) |
+>
+> **故 §1 的 delta 读数、§2 的"打满未提交"、以及"入门档两 profile 均未过"
+> 一句,均不得再被引用为该模型的能力证据。**修停轮缺陷后需重跑方能恢复该题
+> 对 DeepSeek 的能力读数。held-out 台账分母含此二发。
+>
+> 详见 `benchmarks/v2/reports/WH-PILOT-1-stop-report-20260817.md` §3。
+> **以下原文保持发布时原样,不修订 —— 修订会抹掉"当时是这么读的"这个事实。**
+
 - **模式:HB**(TESTPLAN §11,第二次真实使用);预注册
   `HB-DSENTRY-1-prereg-20260816.md`,**冻结点 `b50d6c0`**(预注册提交
   即冻结;F0 四形态与两计分发的 `harness_commit` 逐发 = 冻结点,已核)
