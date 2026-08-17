@@ -25,7 +25,10 @@ PROFILE_ID = "rt-dsh-minimal-0.1.0rc6-v1"
 PROFILE = register_profile(RuntimeProfile(
     id=PROFILE_ID,
     topology="in_process",
-    lifecycle="experimental",
+    # candidate 依据:2026-08-17 晋级判决(G1 不适用 + G5 变异证据
+    # 3df07a6e1b7c,252/252 零逃逸零错位),留痕在
+    # docs/evidence/profile_lifecycle/promotions.jsonl(P6 钉一致性)
+    lifecycle="candidate",
     summary=(
         "封存 DSH minimal runtime(0.1.0rc6)作不可信 AgentBackend;"
         "candidate 仅证机制站得住,不代表真实模型可用"

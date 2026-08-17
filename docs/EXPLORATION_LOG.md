@@ -2761,3 +2761,24 @@ C7 双发隔离(A 的 shell 变量与文件 B 一概不见,session id 互异)。
 **五、下一步**:F0 四形电池走 B-dsh 代际 + promote candidate 走仓内
 profile 机制;然后阶段 7 DQ-SDK(真 DEEPSEek key 由用户注入,AI 不经手)
 与阶段 8 等总额桥接批预注册。M-DSH 已 251(M82×2+M83×2+M84×4+M85×2+M86×4)。
+
+## 状态 · 2026-08-17 · DSH 阶段 6 关闭:rt-dsh-minimal-0.1.0rc6-v1 晋级 candidate
+
+报告阶段 6 三条通过条件逐一兑现:**C1-C15 全钉死**(15/15,含三条实测
+修正:请求计数周期化、usage 累加律、墙钟刀 EPERM 回退);**关键变异
+100% 捕获**(M82×2/M83×2/M84×4/M85×2/M86×4/M87×1 = M-DSH 15 枚,三轮
+全量闸门 250/250→251/251→252/252 全声明归因零逃逸,证据逐 HEAD 入库);
+**profile 晋级 candidate 走仓内机制**(promote_profile --record:G1
+in_process 不适用 + G5 证据 3df07a6e1b7c 有效,留痕 promotions.jsonl,
+lifecycle 字段同步翻牌,P6 钉一致性)。
+
+**划界(报告原话,写死在 summary/D2 钉/RUNTIME-MODES.md 三处)**:
+candidate 只证机制站得住,**不代表真实模型可用**。真模型可用是
+qualified(G6 真实发次 ≥2 模型 + ≥1 诚实通过、G7 无未决假通过)的事。
+
+**下一步**:阶段 7 DQ-SDK —— **硬前提:真 DEEPSEEK_API_KEY 由用户注入,
+AI 不经手**;两个已 DQ 合格 profile 跑低成本确定性任务,结果不计
+held-out。阶段 8 桥接批 E1-DSH-MINIMAL-BRIDGE-1 预注册(sqlglot-8042、
+等总额、送达 ≥80% 停批线、counts_toward_model_capability=false);
+runner 侧 B-dsh 集成、逐任务 F0 四形电池(报告 §17.1)与批层变异
+M-DSH-13..16 随桥接批落地。

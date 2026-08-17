@@ -314,3 +314,28 @@ canary 到 candidate 的含义要划清:**机制站得住**(拓扑成立、诚�
 误杀、八条攻击各红各位、变异全捕);**不含**"真模型跑得动" —— 我们的
 adapter 是照着判据写的,那叫出题人自己会做,不叫题目可解。要往 qualified
 走,得等 T3-SIDECAR v1 上的真实发次。
+
+## rt-dsh-minimal-0.1.0rc6-v1(DSH minimal 作不可信 AgentBackend)
+
+**这是 backend=dsh 发次的 runtime 身份**(台账 `runtime_profile_id` 列),
+与 `backend_id` 是正交两轴:backend 说"agent 环归谁跑"(mini-swe / dsh),
+profile 说"跑在哪套封存交付上"。id 钉死 runtime 版本 0.1.0rc6 —— 换版本
+= 发新 id,不就地改语义。拓扑记 in_process:任务上游(若有)在 workspace
+venv 里由模型自己调,无 sidecar 回执面;DSH 自身的进程隔离(拓扑闸/环境
+闸/预算刀/进程组强杀)是 backend 轴的执行语义,不改变上游交付方式。
+
+**candidate 资格的依据**(阶段 6,全部零模型):
+- C1-C15 金丝雀全钉死:版本匹配、text-only 全栈、工具环真执行(单/多步
+  bash、持久壳、editor 四命令逐字节)、session 隔离、500 重试形状(恰 2
+  次)、畸形回包快败、挂死吃墙钟刀、无 diff/有 diff、假 PASS 无通道、
+  session JSONL 篡改碰不到可信汇、伪造终态 usage 点名不累加。
+- M-DSH 变异 M82×2 / M83×2 / M84×4 / M85×2 / M86×4 / M87×1 全捕、
+  全声明归因、零逃逸(证据按 HEAD 入库 docs/evidence/mutation_gate/)。
+- 晋级判据走仓内机制(G1 in_process 不适用 + G5 变异证据有效期),
+  留痕在 docs/evidence/profile_lifecycle/promotions.jsonl。
+
+**candidate 到此为止的含义,划界与 sidecar 那套同律:机制站得住,
+不代表真实模型可用。** DSH 的 final_response / finish_reason / 会话
+JSONL 永远不产生 PASS(N9/N10 + C13 钉死);真模型跑不跑得动是
+qualified 的问题 —— 要等阶段 7 DQ-SDK 真实发次(真 key 由用户注入,
+AI 不经手),且按报告约定不计 held-out 能力。
