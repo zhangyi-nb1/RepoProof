@@ -2626,6 +2626,19 @@ MUTATIONS: list[dict] = [
             "test_b5_each_degradation_is_named_and_not_readable_as_no_difference"],
     },
     {
+        "id": "M89a-dsh-run-ledgered-under-contract-default-runtime",
+        "lesson": "dsh 发次的台账 runtime_profile_id 回落契约缺省 —— agent 段"
+                  "明明跑在封存 DSH runtime,列却写 rt-inprocess-v1(假话),"
+                  "G6 按列挂靠恒读 0,晋级判据永不可满足(DQ-SDK-1 发 1/发 2"
+                  "实证作废两行,M-DSH-17)",
+        "file": _HD,
+        "old": '        rt_id = (backend_composition or {}).get("runtime_profile_id")\n        if not rt_id:\n            raise ValueError(\n                "backend=dsh 但组合指纹缺 runtime_profile_id —— 台账列不许猜")',
+        "new": '        rt_id = rp.id\n        if not rt_id:\n            raise ValueError(\n                "backend=dsh 但组合指纹缺 runtime_profile_id —— 台账列不许猜")',
+        "catchers": _T_DBR,
+        "expected_catcher": [
+            "test_r3_dsh_run_ledger_binds_to_sealed_runtime_profile"],
+    },
+    {
         "id": "M77a-usage-cb-streaming-dedupe-dead",
         "lesson": "run 级 usage 回调的按请求去重死了 —— deepseek 流式双终态"
                   "事件重新翻倍台账读数(HB-DSENTRY-1 批报 §4 的病复发,"

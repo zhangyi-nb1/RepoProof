@@ -304,3 +304,42 @@ def test_r2_dsh_receipt_block_not_delivered_and_verdict_source() -> None:
     out = dsh_receipt_block(["⑥可信事件汇里没有任何 DSH runtime 事件"], [])
     assert out["fidelity_verdict"] == TREATMENT_NOT_DELIVERED
     assert out["rounds"] == []
+
+
+# ------------------------------------------- R3:台账 runtime_profile_id(挂靠面)
+#
+# DQ-SDK-1 实证(2026-08-18):dsh 发次的台账列从契约缺省转录成
+# rt-inprocess-v1(假话 —— agent 段跑在封存 runtime),而 G6 恰按此列
+# 挂靠,晋级判据恒读 0。列与代际标签必须记"实际跑了什么"。
+
+_CONTRACT_TOTAL = Path(__file__).resolve().parents[1] / (
+    "benchmarks/v2/tasks/hb1_sqlglot_8042/contract-dsh-total.yaml")
+
+
+def test_r3_dsh_run_ledger_binds_to_sealed_runtime_profile() -> None:
+    from repoproof.runner.host_guided import HostContract, _exec_profile_fields
+
+    contract, _sha = HostContract.load(_CONTRACT_TOTAL)
+    comp = {"runtime_profile_id": "rt-dsh-minimal-0.1.0rc6-v1",
+            "backend_id": "dsh", "model": "deepseek-v4-pro"}
+    out = _exec_profile_fields(contract, None, backend="dsh",
+                               backend_composition=comp)
+    assert out["runtime_profile_id"] == "rt-dsh-minimal-0.1.0rc6-v1"
+    assert out["backend_id"] == "dsh"
+    # 代际标签与单列同源:标签串里必须带封存 runtime,而不是契约缺省
+    assert "rt-dsh-minimal-0.1.0rc6-v1" in out["exec_generation"]
+    assert "rt-inprocess-v1" not in out["exec_generation"]
+
+
+def test_r3_dsh_without_composition_refuses_to_guess() -> None:
+    import pytest
+
+    from repoproof.runner.host_guided import HostContract, _exec_profile_fields
+
+    contract, _sha = HostContract.load(_CONTRACT_TOTAL)
+    with pytest.raises(ValueError, match="不许猜"):
+        _exec_profile_fields(contract, None, backend="dsh",
+                             backend_composition=None)
+    # mini-swe 臂行为不变:仍按契约声明落列(历史发次的那条老路)
+    out = _exec_profile_fields(contract, None)
+    assert out["runtime_profile_id"] == "rt-inprocess-v1"

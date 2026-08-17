@@ -306,8 +306,21 @@ def _exec_profile_fields(contract, preflight, budgets=None, *,
     from repoproof.execution.runtime_profiles import profile_of_contract
 
     rp = profile_of_contract(contract)
+    # B-dsh 臂:台账列与代际标签记**实际跑了什么** —— agent 段在封存 DSH
+    # runtime,id 取准入时现物校验过的组合指纹(单一事实源 = 封存清单),
+    # 不取契约缺省声明(那是 mini-swe 臂的话)。DQ-SDK-1 实证(2026-08-18):
+    # 缺这步,dsh 发次挂 rt-inprocess-v1,G6 按列挂靠恒读 0,发 1/发 2
+    # 两行因此声明作废(预注册附录四)。backend 同时传入 —— 代际标签的
+    # 输入必须与单列同源,不许"列写 dsh、标签还按缺省 backend 算"。
+    if backend == "dsh":
+        rt_id = (backend_composition or {}).get("runtime_profile_id")
+        if not rt_id:
+            raise ValueError(
+                "backend=dsh 但组合指纹缺 runtime_profile_id —— 台账列不许猜")
+    else:
+        rt_id = rp.id
     out = profile_hashes(tool=tool, context=context, budget=budget, repo=repo,
-                         runtime_profile=rp.id)
+                         runtime_profile=rt_id, backend=backend)
     # WH 臂单列可读字段(不入哈希):分析要能直接按臂分组,而不是去解析
     # 代际标签串 —— 与 runtime_profile_id 单列同一条理由。
     out["harness_mode"] = hmode

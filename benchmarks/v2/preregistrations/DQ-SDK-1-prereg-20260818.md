@@ -140,3 +140,39 @@ qualified 只证明:**这套封存组合 + 真 DeepSeek 模型,能把 RepoProof
 3. **翻牌应对(执行层,不改 preflight 语义)**:启动封装对"preflight
    即 BLOCKED 且 PROVIDER_TIMEOUT"的结果自动隔 120s 重启,单发次至多
    4 次;每次启动的 preflight 判定原样留痕。连 4 次撞窗 → 中止请示。
+
+## 附录四(仪器缺陷停修:台账列回落契约缺省 —— 发 1/发 2 废行,重跑占满上限)
+
+1. **缺陷(M-DSH-17)**:`_exec_profile_fields` 把台账 `runtime_profile_id`
+   一律取 `profile_of_contract(contract).id`(= 契约缺省 `rt-inprocess-v1`),
+   B-dsh 发次 agent 段实跑封存 DSH runtime,列却写错;`backend` 亦未进
+   代际标签输入。后果:G6 按列挂靠恒读 0,晋级判据永不可满足。发现路径:
+   发 1 落账后 `evaluate_promotion` 预检,G6=0 与现场矛盾。
+2. **废行声明(不回填、不改写,台账只追加)**:
+   `hb1-sqlglot-8042-20260818-015442`(发 1,v4-pro)与 `…-022656`
+   (发 2,v4-flash)两行 `runtime_profile_id=rt-inprocess-v1` 出生即错,
+   **不作 rt-dsh-minimal-0.1.0rc6-v1 的 G6/G6b 证据**;行体如实保留。
+   时间线取证(机械):发 2 封装 attempt 1 于 02:26:52 一发即中,进程
+   彼时导入修复前代码;修复落盘 mtime 02:30:09。旁证局限入账:
+   `instrumentation_fingerprint` 修复前后同值 —— 该面不覆盖
+   runner/host_guided.py;面成员变更属分析面仪式,不在批中做。
+3. **修 + 钉 + 变异**:backend=dsh 时 id 取准入现物校验过的组合指纹
+   `runtime_profile_id`(单一事实源 = 封存清单),缺则 ValueError 拒
+   (台账列不许猜);`backend` 同步传入 `profile_hashes`。钉
+   `test_r3_dsh_run_ledger_binds_to_sealed_runtime_profile` /
+   `test_r3_dsh_without_composition_refuses_to_guess`;登记 M89a。
+   **M89a 在 HEAD 4a0a73e 全量门判 STALE 属预期正确**(门在 HEAD
+   worktree 施变、主树零触碰,修复未提交 → 旧串 0 次;同理发 2 与门
+   并发亦无导入污染)。修复提交后全量门须 257/257,证据按
+   `{HEAD[:12]}.json` 惯例另行提交。
+4. **重跑序(§5 停规执行)**:发 3 = 序 1 从零重跑(8042×v4-pro)、
+   发 4 = 序 2 从零重跑(8042×v4-flash),占运行位 4/5 —— **上限打满**;
+   若仍无诚实 PASS,序 3 后备无位可用 → 阶段 7 如实 FAIL,中止请示,
+   不加位、不挪门。
+5. **工程读数(诊断,不判)**:发 2 能力检查 8/9(仅
+   `test_h2_no_regression_broken` 挂)、回归 1150/1150,归因
+   `budget_overrun:logical_requests`(91 撞 90),usage in 76,471 /
+   out 51,678(reasoning 24,776),墙 22.2 分 —— 两模型同为请求重 /
+   token 轻,请求轴是 DSH 臂在等总额映射下的绑定约束(批报展开)。
+   封套累计:in ≈184.8K / 8M,out ≈169.0K / 500K,墙 ≈85 / 180 分,
+   余量覆盖发 3/发 4。
