@@ -136,7 +136,80 @@ def projector_or_none():
     return project_window if mode == "window" else project
 
 
-def _exec_profile_fields(contract, preflight) -> dict:
+# ------------------------------------------------------------ WH 两臂(D4)
+#
+# 方案文档 §7.2 把 H2 写成十件套(投影 / 持久 shell / 编辑器 / capsule /
+# 需求状态板 / FailurePacket v2 / 最佳态 / 靶向公开测试 / context reset)。
+# 盘上实况:其中**六件不存在** —— S3/S4 判 NO_EXPOSURE 从未建,S5 判
+# BLOCKED(状态板会主动给错误正信号),S2′ 两批消融后对 GPT 代际归档关闭
+# (默认 off)。照那张清单实现 = 为一次消融临时造六个没有独立证据的机制,
+# 与"先冻结判据、再测"正相反。
+#
+# 故两臂按**盘上真有的东西**定义,差集恰是 harness 今天所谓"引导"的全部:
+#   guided (H2) = 当前默认:多轮编排 + 每轮结构化失败包 + 最佳态回滚 +
+#                 轮抬头(含 scope-change 协议)
+#   minimal(H0) = 冻结契约 + 单 Agent + 受控 bash + 公开测试(agent 自己
+#                 跑,原始输出)+ 独立终局验证 + 同等总额度
+# 安全面两臂**逐字相同**(策略执法、预算硬墙、越界拒绝、终局六层验证、
+# 干净重放),差的只有引导 —— 否则测出来的是"安全网",不是"引导增益"。
+
+
+def harness_mode() -> str:
+    """WH 臂:`guided`(默认)/ `minimal`。
+
+    缺省与拼错一律回落 guided —— 未知取值不许静默把发次降成最小臂
+    (fail-closed 到当前行为,同 projection_mode)。
+    """
+    import os
+
+    raw = os.environ.get("REPOPROOF_HARNESS_MODE", "").strip().lower()
+    return "minimal" if raw == "minimal" else "guided"
+
+
+def effective_budgets(b: "HostBudgets", mode: str | None = None) -> "HostBudgets":
+    """最小臂的**等总额**换算:轮数收成 1,每轮额度乘回原轮数。
+
+    §7 的题面是"相同任务和相同总预算"。per_round 语义下总额 = 每轮 ×
+    轮数,所以最小臂单轮必须拿满原来的总和,否则测的是"少给了三分之二
+    额度",不是"没给引导"。`semantics="total"`(v1)本就是全 run 额度,
+    只收轮数不乘 —— 乘了就是白送两倍。
+
+    patch/wall **不乘**(HostBudgets 原文:两者恒为全 run):它们约束的是
+    交付物形态与墙钟,不是努力量;两臂的验收必须逐字同一条线。
+    """
+    if (mode or harness_mode()) != "minimal" or b.max_rounds <= 1:
+        return b
+    scale = b.max_rounds if b.per_round else 1
+    return b.model_copy(update={
+        "max_rounds": 1,
+        "max_model_calls": b.max_model_calls * scale,
+        "max_commands": b.max_commands * scale,
+        "max_input_tokens_total": b.max_input_tokens_total * scale,
+        "max_output_tokens_total": b.max_output_tokens_total * scale,
+    })
+
+
+# 最小臂的抬头:只留安全句,去掉"修复轮/失败包/最佳态回滚/scope-change"
+# 四样 —— 那四样在最小臂都不存在,照发就是教一条不存在的路(#33 先教后
+# 杀的反面:不许教做不到的事)。"不许编造测试结果"是安全面不是引导面,
+# 两臂必须都有。
+_MINIMAL_HEADER = (
+    "\n\n==== SINGLE PASS ====\n"
+    "You get one pass on this host working tree. Run the public acceptance\n"
+    "tests and the host regression suite yourself whenever you want to know\n"
+    "where you stand; the harness will not summarise them for you between\n"
+    "attempts. Never invent test results.\n"
+)
+
+
+def round_guidance(mode: str, *, idx: int, max_rounds: int, marker: str) -> str:
+    """轮抬头 —— 引导面的全部文本落点,故抽成函数以便单独钉死。"""
+    if mode == "minimal":
+        return _MINIMAL_HEADER
+    return _ROUND_HEADER.format(idx=idx, max_rounds=max_rounds, marker=marker)
+
+
+def _exec_profile_fields(contract, preflight, budgets=None) -> dict:
     """执行侧三面指纹 + 代际 + 代码内容指纹(EXECUTOR-UPGRADE-PLAN S1)。
 
     取值全部来自**本次发次真正生效的配置**,不是文档里写的意图:
@@ -145,7 +218,10 @@ def _exec_profile_fields(contract, preflight) -> dict:
     代际标签由 profiles.exec_generation 自动推导 —— 不靠人记得改。"""
     from repoproof.agents.profiles import profile_hashes
 
-    b = contract.budgets
+    # 预算面读**本次真正生效的**额度(最小臂已换算),不是契约里写的意图
+    # —— 与本函数开头那条纪律同一条;记契约值就等于两臂指纹相同,消融
+    # 分不了池。
+    b = budgets if budgets is not None else contract.budgets
     cap = obs_cap()
     tool = {
         "action_protocol": (preflight.action_protocol if preflight else "fake"),
@@ -157,6 +233,12 @@ def _exec_profile_fields(contract, preflight) -> dict:
         "policy": "full-history-resend",
         "obs_char_cap": cap,
     }
+    hmode = harness_mode()
+    if hmode != "guided":
+        # 只在非默认臂**加键**(同投影那条的写法):guided 臂的三面指纹
+        # 与历史发次逐字节相同,不追溯改写(判据 F5);最小臂天然分池。
+        context["guidance"] = "none"
+        tool["harness_mode"] = hmode
     mode = projection_mode()
     if mode != "off":
         # 开了投影就**自动**离开 E0(profiles.exec_generation 据此推导);
@@ -191,6 +273,9 @@ def _exec_profile_fields(contract, preflight) -> dict:
     rp = profile_of_contract(contract)
     out = profile_hashes(tool=tool, context=context, budget=budget, repo=repo,
                          runtime_profile=rp.id)
+    # WH 臂单列可读字段(不入哈希):分析要能直接按臂分组,而不是去解析
+    # 代际标签串 —— 与 runtime_profile_id 单列同一条理由。
+    out["harness_mode"] = hmode
     # 语义分面(2026-08-14):与粗粒度 exec_fingerprint **并存**。后者是 S1
     # 留下的值,历史发次绑着它,不追溯改写(判据 F5);新发次两个都记,
     # 严格 A/B 只看相关面(判据 F4)。
@@ -1033,14 +1118,15 @@ def source_commit_of(contract: HostContract) -> str:
     return contract.host.commit
 
 
-def build_host_prompt(contract: HostContract, *, wheel_note: str) -> str:
+def build_host_prompt(contract: HostContract, *, wheel_note: str,
+                      budgets=None) -> str:
     """契约 → agent 提示的唯一投影(不含任何 oracle/隐藏信息)。
 
     双档(G2):offerclaw-v1 = 既有文本逐字节不变(金标哈希钉死);
     hb-delta-v1 = post-cutoff delta 形态,一句 OfferClaw 的话都不许说。
     """
     if contract.prompt_profile == "hb-delta-v1":
-        return _build_delta_prompt(contract, wheel_note=wheel_note)
+        return _build_delta_prompt(contract, wheel_note=wheel_note, budgets=budgets)
     if contract.source_repo is None:
         raise HostRunError(
             "offerclaw-v1 档口的提示要陈述 ../upstream,而契约没有 source_repo "
@@ -1048,7 +1134,9 @@ def build_host_prompt(contract: HostContract, *, wheel_note: str) -> str:
     cap = contract.capability
     req_lines = [f"[{r.id}] {' '.join(r.text.split())}" for r in cap.requirements]
     forbidden = [f"- {' '.join(f.split())}" for f in contract.constraints.forbidden]
-    b = contract.budgets
+    # 提示里的额度必须是**生效额度**:最小臂说"3 轮 30 调用"而实际单轮
+    # 90 调用,等于拿假数字规划,那是量具在骗被测方。
+    b = budgets if budgets is not None else contract.budgets
     parts = [
         "You are integrating a capability from a pinned open-source repo into a\n"
         "REAL host project (OfferClaw). You work directly inside the host tree.",
@@ -1102,7 +1190,8 @@ def build_host_prompt(contract: HostContract, *, wheel_note: str) -> str:
     return "\n\n".join(parts)
 
 
-def _build_delta_prompt(contract: HostContract, *, wheel_note: str) -> str:
+def _build_delta_prompt(contract: HostContract, *, wheel_note: str,
+                        budgets=None) -> str:
     """hb-delta-v1 档口(HB-PCDELTA-1,预注册 §4 裁决 A:盲攻同视野)。
 
     对提示的三条纪律:
@@ -1117,7 +1206,7 @@ def _build_delta_prompt(contract: HostContract, *, wheel_note: str) -> str:
     cap = contract.capability
     req_lines = [f"[{r.id}] {' '.join(r.text.split())}" for r in cap.requirements]
     forbidden = [f"- {' '.join(f.split())}" for f in contract.constraints.forbidden]
-    b = contract.budgets
+    b = budgets if budgets is not None else contract.budgets   # 同上:生效额度
     public_cmd = " ".join(contract.acceptance.public_test_command)
     parts = [
         "You are implementing an accepted feature request in a REAL open-source\n"
@@ -1725,7 +1814,12 @@ class HostGuidedRunner:
         except Exception:  # noqa: BLE001 — 快照失败只关闭清扫,不阻断 run
             self._browser_pids_before = None
         contract = self.contract
-        b = contract.budgets
+        # WH 两臂:guided 臂 `effective_budgets` 恒等返回契约原对象,故本行
+        # 对既有全部发次是恒等变换(任务包一字不动,§39)。最小臂在此换算
+        # 成"单轮 × 等总额",此后全流程(提示、step_limit、RepairLoop、
+        # 指纹、台账)共用这一份 —— 生效值只有一个来源。
+        self._harness_mode = harness_mode()
+        b = effective_budgets(contract.budgets, self._harness_mode)
         # 冒烟发次的名字带上**跑的是哪一个脚本**。原来全叫 `fake-scripted`,
         # 于是台账里 `--fake noop`、`--fake positive`、七个负控长得一模一样 ——
         # "冒烟 10 发通过 4 发"这句话说不出任何东西。前缀仍是 `fake`,
@@ -1912,7 +2006,8 @@ class HostGuidedRunner:
                 model = model_factory(token_totals)
 
             base_prompt = build_host_prompt(
-                contract, wheel_note=f"wheelhouse {self.wheelhouse.name}")
+                contract, wheel_note=f"wheelhouse {self.wheelhouse.name}",
+                budgets=b)
             prompt_sha = sha256_bytes(base_prompt.encode())
             ev("agent.prompt", actor="harness",
                payload={"sha256": prompt_sha, "chars": len(base_prompt)})
@@ -1972,8 +2067,8 @@ class HostGuidedRunner:
 
                 round_prompt = (
                     base_prompt
-                    + _ROUND_HEADER.format(idx=idx, max_rounds=b.max_rounds,
-                                           marker=SCOPE_MARKER)
+                    + round_guidance(self._harness_mode, idx=idx,
+                                     max_rounds=b.max_rounds, marker=SCOPE_MARKER)
                     + render_packets(packets)
                 )
                 mback = MiniSWEBackend(
@@ -2692,7 +2787,9 @@ class HostGuidedRunner:
             # 执行侧四面指纹(S1):provider 面见上一行,其余三面 + 代际 +
             # 代码内容指纹在这里。拆开记是为了 E1 消融能单变量归因 ——
             # 一个大 hash 只说"配置变了",拆开才说"变的是哪一面"。
-            **_exec_profile_fields(self.contract, preflight),
+            **_exec_profile_fields(self.contract, preflight,
+                                   effective_budgets(self.contract.budgets,
+                                                     getattr(self, "_harness_mode", None))),
             "run_index": run_index,
             "run_order": run_order,
             # 批次归属:探索性加发打 EXPLORATORY_UNPREREGISTERED,闸门不计
@@ -2703,7 +2800,10 @@ class HostGuidedRunner:
             # 会自动进 stages.T3。`append_run` 缺它直接拒收。
             "host_id": self.contract.host.repo,
             "guided": True,
-            "max_rounds": self.contract.budgets.max_rounds,
+            # 生效轮数,不是契约意图值(最小臂恒 1)。guided 臂两者相等,
+            # 历史行读数不变。
+            "max_rounds": effective_budgets(
+                self.contract.budgets, getattr(self, "_harness_mode", None)).max_rounds,
             "rounds_used": rounds_used,
             "model_calls": agent_metrics.get("model_calls"),
             "commands": agent_metrics.get("commands"),

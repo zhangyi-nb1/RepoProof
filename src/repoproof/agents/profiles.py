@@ -94,9 +94,14 @@ def exec_generation(*, context: dict, tool: dict, runtime_profile: str = "") -> 
     suffix = ""
     if runtime_profile and runtime_profile != "rt-inprocess-v1":
         suffix = f"+{runtime_profile}"
-    if not steps:
-        return E0 + suffix
-    return "E1-" + "+".join(sorted(set(steps))) + suffix
+    # WH 最小臂(H0):引导面被**摘掉**,不是执行器增强 —— 所以它不进
+    # `steps`(进了就成 "E1-H0",读起来像加了一步,正好反了)。单列后缀,
+    # 于是 guided 臂的标签逐字节不变,而两臂在任何按代际分组的地方天然
+    # 不混池(同 runtime_profile 那条的理由)。
+    gen = E0 if not steps else "E1-" + "+".join(sorted(set(steps)))
+    if context.get("guidance") == "none":
+        gen += "-H0"
+    return gen + suffix
 
 
 def profile_hashes(*, tool: dict, context: dict, budget: dict,

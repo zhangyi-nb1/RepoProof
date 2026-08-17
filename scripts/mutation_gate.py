@@ -110,6 +110,7 @@ _T_CF = ["tests/test_constraint_feedback.py"]
 _T_PI = ["tests/test_process_independence.py"]
 _T_RC = ["tests/test_root_cause_packets.py"]
 _T_TE = ["tests/test_token_enforcement.py"]
+_T_WH = ["tests/test_wh_harness_modes.py"]
 _T_PS = ["tests/test_public_surface_integrity.py"]
 _PO = "src/repoproof/harness/policy.py"
 _EV = "src/repoproof/agents/repoproof_env.py"
@@ -2441,6 +2442,60 @@ MUTATIONS: list[dict] = [
         "catchers": _T_TE,
         "expected_catcher": [
             "test_every_run_level_usage_hook_shares_the_deduping_implementation"],
+    },
+    {
+        "id": "M80a-harness-mode-fallback-inverted",
+        "lesson": "WH 臂选择的回落方向反转 —— 环境变量拼错/没设即静默"
+                  "把发次降成最小臂,而两臂读数会被当同一池分析",
+        "file": _HD,
+        "old": '    return "minimal" if raw == "minimal" else "guided"',
+        "new": '    return "guided" if raw == "guided" else "minimal"',
+        "catchers": _T_WH,
+        "expected_catcher": ["test_unknown_harness_mode_falls_back_to_guided"],
+    },
+    {
+        "id": "M80b-minimal-arm-underfunded",
+        "lesson": "最小臂的等总额换算死了 —— 单轮只拿到原来每轮的额度,"
+                  "这一发比的成了「额度被砍三分之二」,不是「没给引导」",
+        "file": _HD,
+        "old": '    scale = b.max_rounds if b.per_round else 1',
+        "new": '    scale = 1',
+        "catchers": _T_WH,
+        "expected_catcher": [
+            "test_minimal_arm_keeps_the_total_effort_budget_identical"],
+    },
+    {
+        "id": "M80c-minimal-arm-relaxed-patch-limit",
+        "lesson": "换算把交付物上限也乘了 —— 最小臂获准交三倍大的补丁,"
+                  "两臂验收不再是同一条线",
+        "file": _HD,
+        "old": '        "max_output_tokens_total": b.max_output_tokens_total * scale,\n    })',
+        "new": '        "max_output_tokens_total": b.max_output_tokens_total * scale,\n'
+               '        "max_patch_lines": b.max_patch_lines * scale,\n    })',
+        "catchers": _T_WH,
+        "expected_catcher": [
+            "test_minimal_arm_does_not_relax_deliverable_or_wall_limits"],
+    },
+    {
+        "id": "M80d-wh-arms-share-a-generation-label",
+        "lesson": "代际标签不再区分最小臂 —— 两臂在任何按代际分组的地方"
+                  "静默合池(与 E0/E1 混池同型的错)",
+        "file": _PR,
+        "old": '    if context.get("guidance") == "none":\n        gen += "-H0"',
+        "new": '    if False:\n        gen += "-H0"',
+        "catchers": _T_WH,
+        "expected_catcher": ["test_two_arms_do_not_share_a_pool"],
+    },
+    {
+        "id": "M80e-minimal-arm-taught-guidance-it-lacks",
+        "lesson": "最小臂照发 guided 轮抬头 —— 教它修复轮/失败包/最佳态"
+                  "回滚/scope-change 四样它根本没有的东西(#33 的反面)",
+        "file": _HD,
+        "old": '    if mode == "minimal":\n        return _MINIMAL_HEADER',
+        "new": '    if False:\n        return _MINIMAL_HEADER',
+        "catchers": _T_WH,
+        "expected_catcher": [
+            "test_guidance_text_is_the_whole_difference_and_safety_is_not"],
     },
 ]
 
