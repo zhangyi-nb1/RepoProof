@@ -446,14 +446,11 @@ class AgentRunner(_Runner):
 
                 token_totals = {"in": 0, "out": 0, "seen": False}
 
-                def _usage_cb(kwargs, completion_response, start_time, end_time):  # noqa: ANN001
-                    usage = getattr(completion_response, "usage", None)
-                    if usage:
-                        token_totals["seen"] = True
-                        token_totals["in"] += getattr(usage, "prompt_tokens", 0) or 0
-                        token_totals["out"] += getattr(usage, "completion_tokens", 0) or 0
+                # 去重实现共用 host_guided 那一份(H7-f/H7-g):流式路对同一
+                # 请求派两枚带 usage 的终态事件,各写各的回调 = 各自翻倍。
+                from repoproof.runner.host_guided import make_usage_cb
 
-                _litellm.success_callback = [_usage_cb]
+                _litellm.success_callback = [make_usage_cb(token_totals)]
                 if preflight.action_protocol == "textbased":
                     model_cls = LitellmTextbasedModel
                 else:

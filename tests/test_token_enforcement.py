@@ -256,3 +256,47 @@ def test_run_level_hook_without_call_id_keeps_counting() -> None:
     cb({}, SimpleNamespace(usage=usage), None, None)
     cb(None, SimpleNamespace(usage=usage), None, None)
     assert (totals["in"], totals["out"]) == (2_000, 20), "无 id 事件被丢弃 = 少报"
+
+
+def test_every_run_level_usage_hook_shares_the_deduping_implementation() -> None:
+    """H7-g 同病扫查:run 级用量记账**只许有一份实现**,注册处一律同源。
+
+    H7-f 修的是 host_guided 那一份,而同一段回调在仓里有**三份逐字复制**
+    (`agent_run` / `guided_repair` 各一份,HB-DSENTRY-1 批后扫查实录)。
+    只修被本批踩到的那份 = 病还在,换条发次路径即复发 —— 与 #43 同型:
+    守卫编码了"只有这条路会走到"的局部假设,换路即静默失去覆盖。
+
+    故判据挂**结构**不挂某一份行为:累加实现恰一份(去重的那份),每个
+    非空 `success_callback` 注册处都经 `make_usage_cb`。空注册(卸钩子)
+    不在此列。
+    """
+    import re
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[1] / "src" / "repoproof"
+    files = sorted(src.rglob("*.py"))
+    assert files, "源树一个文件都没扫到 —— 钉自身失效,不许算过"
+
+    accum = re.compile(r'totals\["(?:in|out)"\]\s*\+=')
+    registration = re.compile(r"success_callback\s*=\s*\[([^\]]*)\]")
+
+    accum_files: set[str] = set()
+    registrations: list[tuple[str, str]] = []
+    for f in files:
+        text = f.read_text(encoding="utf-8")
+        rel = f.relative_to(src).as_posix()
+        for i, line in enumerate(text.splitlines(), 1):
+            if accum.search(line):
+                accum_files.add(f"{rel}:{i}")
+        for m in registration.finditer(text):
+            body = m.group(1).strip()
+            if body:
+                registrations.append((f"{rel}:{text[:m.start()].count(chr(10)) + 1}", body))
+
+    assert accum_files == {"runner/host_guided.py:107", "runner/host_guided.py:108"}, (
+        f"run 级用量累加出现在 {sorted(accum_files)} —— 复制一份实现就是"
+        "复制一份未去重的旧病;唯一允许的落点是 make_usage_cb 内部"
+    )
+    assert registrations, "一处 success_callback 注册都没扫到 —— 钉自身失效"
+    strays = [site for site, body in registrations if "make_usage_cb" not in body]
+    assert not strays, f"这些注册处绕开了去重实现:{strays}"

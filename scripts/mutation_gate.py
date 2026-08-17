@@ -2414,6 +2414,34 @@ MUTATIONS: list[dict] = [
         "catchers": _T_TE,
         "expected_catcher": ["test_run_level_hook_counts_a_streaming_request_once"],
     },
+    {
+        "id": "M79a-agent-run-usage-cb-reinlined",
+        "lesson": "v1 发次路把 run 级用量回调重新内联成不去重的旧实现 —— "
+                  "H7-f 只修得了 host_guided 落地的那份,换条路即复发",
+        "file": _AR,
+        "old": '                _litellm.success_callback = [make_usage_cb(token_totals)]',
+        "new": '                _litellm.success_callback = ['
+               '                    lambda k, r, s, e: token_totals.update('
+               '                        {"seen": True,'
+               '                         "in": token_totals["in"] + (getattr(getattr(r, "usage", None), "prompt_tokens", 0) or 0)})]',
+        "catchers": _T_TE,
+        "expected_catcher": [
+            "test_every_run_level_usage_hook_shares_the_deduping_implementation"],
+    },
+    {
+        "id": "M79b-guided-repair-usage-cb-reinlined",
+        "lesson": "多轮修复路把 run 级用量回调重新内联成不去重的旧实现 —— "
+                  "同 M79a,第三条发次路径上的同一份病",
+        "file": _GR,
+        "old": '                    _litellm.success_callback = [make_usage_cb(token_totals)]',
+        "new": '                    _litellm.success_callback = ['
+               '                        lambda k, r, s, e: token_totals.update('
+               '                            {"seen": True,'
+               '                             "in": token_totals["in"] + (getattr(getattr(r, "usage", None), "prompt_tokens", 0) or 0)})]',
+        "catchers": _T_TE,
+        "expected_catcher": [
+            "test_every_run_level_usage_hook_shares_the_deduping_implementation"],
+    },
 ]
 
 
