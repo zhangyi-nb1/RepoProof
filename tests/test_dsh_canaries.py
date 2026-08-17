@@ -1,0 +1,133 @@
+"""DSH 金丝雀 C1-C2(DSH 阶段 6 开口;C3-C15 随后续窗口逐条落地)。
+
+**冻结判据**:
+
+- C1 **版本匹配**:封存 venv 里 SDK 与 runtime 的 importlib 版本必须都是
+  钉住的 0.1.0rc6 —— venv 被人 pip 升级过一枚,资格即作废。反例:SDK
+  0.1.0rc7 混进来,行为漂移全算到"模型不稳定"头上。
+- C2 **text-only turn 全栈**:本地 SSE 假端点(127.0.0.1,不出网)喂一个
+  OpenAI 形状的流式回包,整条链(run_dsh_worker → worker → SDK → runtime
+  → events.jsonl → normalize)必须:归因 ok、finish=completed、
+  final_response 逐字、trace 对账平、**usage_totals 与假端点计费逐字相等**
+  (可对账),零孤儿。反例:usage 翻倍或蒸发 —— 等总额桥接批的预算轴
+  当场失真。
+
+**协议事实**(2026-08-17 实测,记录于台账阶段 6 开口条):runtime 打
+`POST {base}/chat/completions`(无 /v1),强制 SSE;usage 出现在
+assistant/message 事件(camelCase),turn/end 不带。
+"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+
+import pytest
+
+from repoproof.agents.dsh_backend import DshBudget, run_dsh_worker
+
+REPO = Path(__file__).resolve().parents[1]
+RT_ROOT = Path.home() / "RepoProofRuntimes" / "rt-dsh-minimal-0.1.0rc6-v1"
+SEALED_PY = RT_ROOT / ".venv" / "bin" / "python"
+
+needs_runtime = pytest.mark.skipif(
+    not SEALED_PY.exists(),
+    reason="封存 runtime 不在本机(scripts/provision_dsh_runtime.py --go)")
+
+_FAKE_KEY = "sk-canary-invalid-0000"   # 字面假值,非任何真实凭据
+_USAGE = {"prompt_tokens": 12, "completion_tokens": 5, "total_tokens": 17}
+
+
+@needs_runtime
+def test_c1_sdk_and_runtime_versions_match_pins() -> None:
+    out = subprocess.run(
+        [str(SEALED_PY), "-c",
+         "import importlib.metadata as m;"
+         "print(m.version('deepseek-harness-sdk'));"
+         "print(m.version('deepseek-harness-runtime-bin'))"],
+        capture_output=True, text=True, timeout=60)
+    assert out.returncode == 0, out.stderr[-500:]
+    assert out.stdout.split() == ["0.1.0rc6", "0.1.0rc6"]
+
+
+def _chunk(delta: dict, finish=None, usage=None) -> str:
+    c = {"id": "chatcmpl-fake", "object": "chat.completion.chunk", "created": 1,
+         "model": "deepseek-v4-flash",
+         "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]}
+    if usage is not None:
+        c["usage"] = usage
+    return "data: " + json.dumps(c, ensure_ascii=False) + "\n\n"
+
+
+class _FakeDeepSeek:
+    """本地 SSE 假端点:脚本化回包 + 请求留痕。127.0.0.1 独占,不出网。"""
+
+    def __init__(self) -> None:
+        self.requests: list[dict] = []
+        outer = self
+
+        class H(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, *a):  # noqa: N802
+                pass
+
+            def do_POST(self):  # noqa: N802
+                n = int(self.headers.get("Content-Length") or 0)
+                body = self.rfile.read(n).decode("utf-8", "replace")
+                outer.requests.append(
+                    {"path": self.path, "body": json.loads(body or "{}")})
+                payload = (_chunk({"role": "assistant", "content": "你好"})
+                           + _chunk({"content": ",收到。"})
+                           + _chunk({}, finish="stop", usage=_USAGE)
+                           + "data: [DONE]\n\n").encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+
+        self.srv = HTTPServer(("127.0.0.1", 0), H)
+        self.base_url = f"http://127.0.0.1:{self.srv.server_port}"
+
+    def __enter__(self) -> "_FakeDeepSeek":
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        return self
+
+    def __exit__(self, *a) -> None:
+        self.srv.shutdown()
+        self.srv.server_close()
+
+
+@needs_runtime
+def test_c2_text_only_turn_full_stack(tmp_path: Path) -> None:
+    (tmp_path / "ws").mkdir()
+    job = {"prompt": "打个招呼。", "workspace": str(tmp_path / "ws"),
+           "events_path": str(tmp_path / "ev" / "events.jsonl"),
+           "session_root": str(tmp_path / "sess"),
+           "cordis": str(RT_ROOT / "config" / "minimal.upstream.0.1.0rc6.cordis.yml"),
+           "request_timeout_seconds": 60.0}
+    with _FakeDeepSeek() as fake:
+        job["env"] = {"DEEPSEEK_BASE_URL": fake.base_url}
+        r = run_dsh_worker(job, worker_python=SEALED_PY,
+                           budget=DshBudget(max_wall_seconds=120,
+                                            max_logical_requests=10),
+                           extra_env={"DEEPSEEK_API_KEY": _FAKE_KEY})
+        assert fake.requests and fake.requests[0]["path"] == "/chat/completions"
+        assert fake.requests[0]["body"]["stream"] is True
+    assert (r.attribution, r.killed, r.orphan_count) == ("ok", False, 0)
+    assert r.result["finish_reason"] == "completed"
+    assert r.result["final_response"] == "你好,收到。"
+    assert r.trace.ok, r.trace.problems
+    assert r.selfcheck_problems == []
+    assert r.trace.usage_totals == {"input_tokens": 12, "output_tokens": 5}, \
+        "与假端点计费必须逐字相等 —— 可对账"
+    assert r.trace.counters["logical_requests"] == 1
+    # 尾账:events 汇在返回后不再增长(无后台残余)
+    size = Path(job["events_path"]).stat().st_size
+    time.sleep(0.6)
+    assert Path(job["events_path"]).stat().st_size == size
