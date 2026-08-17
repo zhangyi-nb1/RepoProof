@@ -2522,6 +2522,38 @@ MUTATIONS: list[dict] = [
         "expected_catcher": ["test_n5_env_gate_strips_parent_secrets"],
     },
     {
+        "id": "M86a-dsh-errored-cycles-dropped-from-requests",
+        "lesson": "逻辑请求公式丢了失败周期 —— 重试至死的调用不入请求账,"
+                  "预算轴对失败风暴失明(E5 修正:request/header 只发首枚,"
+                  "周期 = assistant/message 或 turn/end(error) 落地)",
+        "file": _DEV,
+        "old": '    c["logical_requests"] = c["assistant_messages"] + c["errored_turns"]',
+        "new": '    c["logical_requests"] = c["assistant_messages"]',
+        "catchers": _T_DEV,
+        "expected_catcher": ["test_e5_requests_vs_attempts"],
+    },
+    {
+        "id": "M86b-dsh-retries-dropped-from-attempts",
+        "lesson": "物理尝试公式丢了重试 —— 重试风暴在账面消失,attempts 恒等"
+                  "requests,'请求与尝试分开数'名存实亡(E5 判据后半)",
+        "file": _DEV,
+        "old": '    c["llm_attempts"] = c["logical_requests"] + c["retries"]',
+        "new": '    c["llm_attempts"] = c["logical_requests"]',
+        "catchers": _T_DEV,
+        "expected_catcher": ["test_e5_requests_vs_attempts"],
+    },
+    {
+        "id": "M86c-dsh-multi-message-usage-overwritten",
+        "lesson": "工具环同 turn 多枚 message 的计费被覆盖不累加 —— 多步任务"
+                  "只记最后一次调用的 tokens,等总额桥接批的预算读数系统性"
+                  "偏低(E3 增补,C3 实测逼出的累加律)",
+        "file": _DEV,
+        "old": '                    usage_by_turn[key][k] = usage_by_turn[key].get(k, 0) + v',
+        "new": '                    usage_by_turn[key][k] = v',
+        "catchers": _T_DEV,
+        "expected_catcher": ["test_e3_terminal_usage_wins_no_double_count"],
+    },
+    {
         "id": "M77a-usage-cb-streaming-dedupe-dead",
         "lesson": "run 级 usage 回调的按请求去重死了 —— deepseek 流式双终态"
                   "事件重新翻倍台账读数(HB-DSENTRY-1 批报 §4 的病复发,"

@@ -9,10 +9,13 @@
 一律进 `problems` 点名 —— PASS 相关的消费方必须要求 `ok`(problems 为空);
 诊断性消费(崩溃归因)允许带着 problems 读计数。
 
-**usage 双计守则**(H7 同型,批 13 流式双终态的病):同一 turn 里
-assistant/message 与 turn/end 都带 usage 时,**只认 turn/end**(终态权威),
-message 侧记 note 不入总账 —— 阶段 6 C15(duplicate terminal usage)踩的
-就是这条。事件级重复由 (session, seq) 身份去重承担。
+**usage 双计守则**(H7 同型,批 13 流式双终态的病;2026-08-17 C3 实测修正):
+工具环里同一 turn 有多枚 assistant/message,**每枚是独立一次 LLM 调用的
+计费,逐枚累加** —— 这不是双计。双计有两种真形:同 turn 的 turn/end
+第二次带 usage(终态重复,定罪);message 侧与 turn/end 都带 usage 时
+只认 turn/end(终态权威,message 侧记 note 不入总账)—— 阶段 6 C15
+(duplicate terminal usage)踩的就是这条。事件级重复由 (session, seq)
+身份去重承担。
 """
 
 from __future__ import annotations
@@ -66,9 +69,9 @@ def normalize(raw_lines: list[str]) -> DshTrace:
     current_turn = None
     # usage 按 (turn, 来源) 暂存,收尾时执行终态权威裁决
     usage_by_turn: dict[tuple, dict] = {}
-    c = {"session_events": 0, "status_updates": 0, "logical_requests": 0,
-         "llm_attempts": 0, "assistant_messages": 0, "turn_starts": 0,
-         "turn_ends": 0, "retries": 0}
+    c = {"session_events": 0, "status_updates": 0, "request_headers": 0,
+         "assistant_messages": 0, "turn_starts": 0, "turn_ends": 0,
+         "errored_turns": 0, "retries": 0}
     last_status = None
 
     for i, ln in enumerate(raw_lines):
@@ -105,7 +108,9 @@ def normalize(raw_lines: list[str]) -> DshTrace:
         # 计数在判重之后:被点名的行进 problems 不进账,对账才平(E4)
         c["session_events"] += 1
         if seq < last_seq:
-            t.problems.append(f"行 {i}:seq 乱序 {seq} < {last_seq}")
+            # 不用"行 N:"前缀 —— 该前缀专指"此行未成 record"(对账约定),
+            # 乱序行仍入 records
+            t.problems.append(f"seq 乱序:{seq} < {last_seq}(行 {i})")
         seen_seq.add(seq)
         last_seq = max(last_seq, seq)
         data = ev.get("data") if isinstance(ev.get("data"), dict) else {}
@@ -116,11 +121,12 @@ def normalize(raw_lines: list[str]) -> DshTrace:
         elif etype == "turn/end":
             c["turn_ends"] += 1
             current_turn = data.get("turn", current_turn)
+            reason = data.get("reason")
+            if isinstance(reason, dict) and reason.get("kind") == "error":
+                c["errored_turns"] += 1
         elif etype == "request/header":
-            c["logical_requests"] += 1
-            c["llm_attempts"] += 1
+            c["request_headers"] += 1
         elif etype == "llm/retry-started":
-            c["llm_attempts"] += 1
             c["retries"] += 1
         elif etype == "assistant/message":
             c["assistant_messages"] += 1
@@ -131,11 +137,16 @@ def normalize(raw_lines: list[str]) -> DshTrace:
         if u:
             src = "turn_end" if etype == "turn/end" else "message"
             key = (rec["turn"], src)
-            if key in usage_by_turn:
-                t.problems.append(
-                    f"行 {i}:turn {rec['turn']} 的 {src} 侧第二次带 usage —— 终态双计")
+            if key not in usage_by_turn:
+                usage_by_turn[key] = dict(u)
+            elif src == "turn_end":
+                t.problems.append(f"终态双计:turn {rec['turn']} 的 turn/end"
+                                  f" 第二次带 usage(行 {i})")
             else:
-                usage_by_turn[key] = u
+                # 工具环(C3 实测):同 turn 每枚 message = 独立一次 LLM
+                # 调用的计费,逐枚累加,不是双计
+                for k, v in u.items():
+                    usage_by_turn[key][k] = usage_by_turn[key].get(k, 0) + v
             rec["usage"] = u
         t.records.append(rec)
 
@@ -149,6 +160,14 @@ def normalize(raw_lines: list[str]) -> DshTrace:
         for k, v in u.items():
             totals[k] = totals.get(k, 0) + v
     t.usage_totals = totals
+
+    # 请求计数的经验修正(2026-08-17,C3 实测):request/header **只在首次
+    # 调用发射**(疑似配置回显),后续 LLM 调用不再带 —— 按它数请求会把
+    # 两次调用数成一次。周期 = 一次走完的 LLM 调用:成功以 assistant/message
+    # 落地,失败以 turn/end(error) 收尾;llm/retry-started 是周期内追加的
+    # 物理尝试。预算轴一律吃这两个派生值,request_headers 只作信息。
+    c["logical_requests"] = c["assistant_messages"] + c["errored_turns"]
+    c["llm_attempts"] = c["logical_requests"] + c["retries"]
 
     # seq 空洞:0..last_seq 应稠密(实测 runtime 从 0 起稠密编号)
     if last_seq >= 0:
@@ -168,7 +187,9 @@ def normalize(raw_lines: list[str]) -> DshTrace:
 
 def selfcheck(trace: DshTrace) -> list[str]:
     """raw/normalized 对账:每条原始行要么成了 record,要么在 problems 里
-    被点名 —— 不许有第三种去向(静默蒸发)。返回违规清单,空 = 账平。"""
+    被点名 —— 不许有第三种去向(静默蒸发)。返回违规清单,空 = 账平。
+    约定:"行 N:"前缀专指"此行未成 record";成了 record 的毛病(乱序、
+    终态双计)用别的措辞,否则这里重复计入、账反而不平。"""
     out = []
     accounted = len(trace.records) + sum(
         1 for p in trace.problems if p.startswith("行 "))

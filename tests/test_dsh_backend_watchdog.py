@@ -46,8 +46,9 @@ def _job(tmp: Path) -> dict:
             "session_root": str(tmp / "sess"), "cordis": str(tmp / "ws")}
 
 
-# 请求洪流:先起一个 argv 带记号的孩子(强杀必须连它一起),然后每 0.12s
-# 一条 request/header,~4s 后自终结并给出合法单行 result。
+# 调用洪流:先起一个 argv 带记号的孩子(强杀必须连它一起),然后每 0.12s
+# 一条 assistant/message(= 一次完成的 LLM 调用;E5 修正后请求计数吃它,
+# 不吃只发首枚的 request/header),~4s 后自终结并给出合法单行 result。
 _FLOOD = r"""
 child=subprocess.Popen(["/bin/sh","-c","exec sleep 300 # "+ev],
     stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)  # 不攥父管道:
@@ -56,7 +57,7 @@ os.makedirs(os.path.dirname(ev),exist_ok=True)
 f=open(ev,"a")
 f.write('{"method":"session.event","payload":{"sessionId":"s","event":{"seq":0,"time":0,"type":"turn/start","data":{"turn":1}}}}\n');f.flush()
 for i in range(1,30):
-    f.write('{"method":"session.event","payload":{"sessionId":"s","event":{"seq":%d,"time":0,"type":"request/header","data":{}}}}\n'%i);f.flush()
+    f.write('{"method":"session.event","payload":{"sessionId":"s","event":{"seq":%d,"time":0,"type":"assistant/message","data":{"turn":1}}}}\n'%i);f.flush()
     time.sleep(0.12)
 print('{"protocol":"dsh-worker-v1","ok":true,"error_kind":null}')
 """
