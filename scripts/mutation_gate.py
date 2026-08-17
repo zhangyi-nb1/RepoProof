@@ -90,6 +90,8 @@ _WHC = "scripts/wh_batch_criteria.py"
 _T_WHC = ["tests/test_wh_batch_criteria.py"]
 _TBC = "scripts/batch_criteria.py"
 _T_BCP3 = ["tests/test_batch_criteria_p3.py"]
+_TDP = "scripts/provision_dsh_runtime.py"
+_T_DPP = ["tests/test_dsh_provisioning_pins.py"]
 _BTP = "scripts/build_hb1_task_packages.py"
 _T_HTP = ["tests/test_hb_task_packages.py"]
 _T_HTG = ["tests/test_hb_task_glue.py"]
@@ -2405,6 +2407,27 @@ MUTATIONS: list[dict] = [
         "new": '    if True:\n        return True',
         "catchers": _T_BCP3,
         "expected_catcher": ["test_true_inheritance_shape_still_caught"],
+    },
+    {
+        "id": "M82a-dsh-supplychain-hash-check-dead",
+        "lesson": "DSH 供应链的 hash 比对死了 —— 被重传/被改的 wheel 或"
+                  "cordis 配置照样封存,'钉版 runtime'从此只是名字"
+                  "(指导文档 M-DSH-01/02 对应仓内条目)",
+        "file": _TDP,
+        "old": '        if got != want:',
+        "new": '        if False:',
+        "catchers": _T_DPP,
+        "expected_catcher": ["test_pins_fail_closed_on_tamper"],
+    },
+    {
+        "id": "M82b-dsh-supplychain-missing-file-tolerated",
+        "lesson": "钉死物缺失被静默跳过 —— '还没下载'与'被删了'都读成"
+                  "'没问题',fail-open 正是供应链检查最危险的失效方向",
+        "file": _TDP,
+        "old": '            problems.append(f"缺失:{rel}")\n            continue',
+        "new": '            continue',
+        "catchers": _T_DPP,
+        "expected_catcher": ["test_missing_pinned_file_fails"],
     },
     {
         "id": "M77a-usage-cb-streaming-dedupe-dead",
