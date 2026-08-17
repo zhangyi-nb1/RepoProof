@@ -172,6 +172,7 @@ _FACE_MAP: tuple[tuple[str, str], ...] = (
     ("agents/repoproof_env.py", "executor_semantics"),       # 工具行为/命令执行
     ("agents/token_budget.py", "executor_semantics"),        # 运行预算
     ("agents/backend.py", "executor_semantics"),             # agent 循环
+    ("agents/dsh_worker.py", "executor_semantics"),          # DSH 外来循环(阶段 3)
     ("harness/budget.py", "executor_semantics"),
     ("harness/policy.py", "executor_semantics"),             # 哪些命令被拒
     ("harness/prompt_manifest.py", "executor_semantics"),    # 模型可见提示

@@ -2624,3 +2624,44 @@ HB-PCDELTA-1 结论不受影响(两发第一轮即 PASS),但其"1 轮"是上限�
 `E0` vs `E0-H0` 落位正确);②**停轮缺陷是被对照臂逼出来的** —— 没有最小臂
 和等总额换算,"30 调用打满零提交"会继续被读成"模型不行",对照臂的价值在此
 兑现了一次;③开跑前补的两处判据缺口与变异闸门 233→237 不随作废带走。
+
+## 状态 · 2026-08-17 · DSH 集成线开跑:阶段 0-3 落地,不可信执行平面首次闭环
+
+**零、指令与站位**。用户指令:结合官方 DeepSeek Harness(DSH)SDK 既有模块
+加速开发,WH 修复线暂停(其待办仍在上一条 §六,不随暂停丢失)。架构裁决
+见 `docs/adr/ADR-DSH-MINIMAL-AGENT-BACKEND.md`(4848c78):DSH minimal 组合
+只作**不可信 AgentBackend** 候选,裁决平面(契约冻结/隐藏 oracle/验证器/
+干净重放/Completion Gate/台账)全部仓内冻结 —— DSH 的 `final_response`/
+`finish_reason`/会话 JSONL 永不产生 PASS。首轮严格 minimal:无 compaction/
+subagent/web/skills。
+
+**一、供应链(阶段 1,a4cb97a + 证据 943fcdb)**。九枚钉死物(SDK+runtime
+wheel、5 枚依赖闭包 wheel、cordis 组合、LICENSE)全 sha256 对 PyPI 官方
+JSON 与官方仓 commit `47f94385…` 实核后封存 `~/RepoProofRuntimes/
+rt-dsh-minimal-0.1.0rc6-v1`(断网 `pip --no-index` 可重建;首跑 pip 解出
+未钉依赖被 fail-closed 拒装,补齐 5 枚后过 —— 检查有牙的实证)。`--verify`
+双向核封存件与仓内参考副本;变异 M82a/b(hash 比对死/缺文件容忍)+ 4 钉;
+闸门 239/239 全捕。
+
+**二、backend 轴(阶段 2,4efe2e1)**。`exec_generation`/`profile_hashes`
+增缺省参 `backend`(缺省 mini-swe,E0/E0-H0/E1-… 逐字节不变,旧钉即等价
+回归)。非缺省在任何 S 步推导前离场自成 `B-{backend}` 族 —— S2-S5 规则读的
+是 mini-swe 配置面,DSH 的 editor 照推会得**假 S4** 混进 E 族互比。-H0/
++runtime 后缀拼法跨族共用;backend 不进三面内容哈希,分池靠代际族 +
+`backend_id` 列(bench_records 允许表同步,历史行缺失 = mini-swe;与
+`execution_backend`=local-worktree 是两个轴)。钉 B1-B4 + M83a/b(241)。
+
+**三、worker 闭环(阶段 3,本提交)**。`agents/dsh_worker.py` 跑在封存
+venv(只 import deepseek_harness,裁决平面拓扑不可见),协议 dsh-worker-v1:
+stdin 单 JSON spec(路径必须绝对;**spec 传 key 直接拒** —— key 只经进程
+环境注入,AI 不经手)/stdout 恰好一行 result/退出码 0·2·3·4·143;通知逐条
+flush 进宿主侧 events.jsonl(可信汇,DSH 自己的 JSONL 只作诊断)。实测:
+好 cordis + 不可达 base_url(127.0.0.1:9,不出网)→ runtime 起、19 条通知、
+`turn/end reason.kind=error`、退 0 无孤儿;坏 cordis → transport 族退 3
+不是 unexpected;两发 session id fresh。钉 W1-W4(6/6)。
+
+**四、阶段 4 的原料已看清**:`request/header` 带全量请求配置(请求计数
+基准;缺省 system prompt/maxTokens 256000/reasoningEffort high 都在里面,
+桥接批预注册须钉)、`turn/end.reason` 归因、`llm/retry` 可见;usage 字段
+要等真实回包 —— 阶段 6 本地假 DeepSeek 端点的活。下一步:事件适配 +
+usage 去重(H7 同型)+ 预算 watchdog + 进程组强杀。
