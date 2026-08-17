@@ -2715,3 +2715,49 @@ usage_totals {12,5} 与假端点计费逐字相等 ——「与 provider usage �
 bash、持久 shell、editor 四操作、session 隔离),C13-C15(假 PASS/JSONL
 篡改/流式 usage 双计 —— 双计正好踩 M84a 的活体面);C1 版本核对无模型;
 F0 四形电池 + promote candidate 走仓内机制。M-DSH 变异随各 C 落地。
+
+## 状态 · 2026-08-17 · DSH 阶段 6:C3-C7 工具环全通,两条量具修正被实测逼出
+
+**一、两条修正(都朝紧,都 dated)**:
+1. **请求计数周期化**(E5 修正):C3 实测发现 `request/header` 只在
+   session 首次 LLM 调用发射(疑似配置回显)—— 旧公式按它数请求,工具环
+   的第 2 次起调用全漏。改:周期 = 一次走完的 LLM 调用,成功以
+   `assistant/message` 落地、失败以 `turn/end(reason.kind=error)` 收尾;
+   `logical_requests = assistant_messages + errored_turns`,
+   `llm_attempts = logical_requests + retries`;request_headers 降信息位。
+2. **usage 累加律**(E3 增补):工具环同 turn 多枚 assistant/message
+   **各自计费,逐枚累加不是双计**;真双计 = turn/end 第二次带 usage
+   (定罪不累加)。顺手把 selfcheck 的「行 N:」前缀收窄为「此行未成
+   record」专用记号(乱序/终态双计等"成 record 的毛病"换措辞),对账才平。
+
+**二、C3-C7 全首跑即过**(封存 runtime × 脚本化 SSE 假端点,127.0.0.1):
+C3 单次 bash 真执行(`$((6*7))`→42 以 role=tool 回传第 2 发,回显冒充
+执行不可能过);C4 两步观察齐全序不乱;C5 持久壳(裸赋值活到下一步);
+C6 editor create/view/str_replace/insert 终态逐字节 `gamma\ndelta\nbeta\n`;
+C7 双发隔离(A 的 shell 变量与文件 B 一概不见,session id 互异)。
+假端点脚本化:每 POST 弹一条 script({"text"} 或 {"tool","args"}),
+全量留存请求体 —— 断言直接读回传的 messages,不猜。
+
+**三、变异 M86a/b/c**(失败周期丢账/重试丢账/多枚计费被覆盖),提交前
+手动预验三枚均一击毙命;登记簿 250。提交 d258692,全量闸门后台开跑。
+
+**四、C8-C15 同窗口落地(金丝雀 15/15 全通)+ 两个真发现**:
+1. **C8/C9 实测钉**:HTTP 500 → 重试恰 2 次(共 3 POST)后 turn 报错,
+   retries=2/attempts=3 —— E5 场景 b 的假设fixture被实测逐字确认;畸形
+   SSE → 零重试快败。两者 worker 协议面都干净(退 0、idle、对账平)。
+2. **C10 逼出刀的加固**:墙钟刀首次砍真 runtime-bin,macOS killpg 对
+   含特定状态成员的组整体抛 EPERM —— 旧刀只容忍 ESRCH,当场碎。修:
+   EPERM 回退 pgrep -g 逐成员点杀 + 组长补刀(落不下的刀等于没有刀);
+   G5 新钉(monkeypatch EPERM)+ M86d(回退环死)。
+3. **M86d 两轮哑弹逼出 pgrep 记号真相**:macOS /bin/sh 对单条简单命令做
+   **隐式 exec**,`sh -c "sleep … # 记号"`(带不带 exec 都一样)终态
+   argv 只剩干净 sleep,注释记号永远不可见 —— G1 的孤儿 pgrep 断言自
+   出生起空转。修:记号孩子改 python 直启、记号做真实 argv 参数;G1 的
+   清点断言首次真正生效,M86d 第三轮验证一击毙命。
+4. C11-C15:不动手零变更/动手可采/假 PASS 无通道(result 键集恰为协议
+   清单)/session JSONL 篡改碰不到可信汇/伪造终态 usage 点名不累加。
+   闸门 250/250(冻结点 d258692,17.4 分钟)证据已入库。
+
+**五、下一步**:F0 四形电池走 B-dsh 代际 + promote candidate 走仓内
+profile 机制;然后阶段 7 DQ-SDK(真 DEEPSEek key 由用户注入,AI 不经手)
+与阶段 8 等总额桥接批预注册。M-DSH 已 251(M82×2+M83×2+M84×4+M85×2+M86×4)。

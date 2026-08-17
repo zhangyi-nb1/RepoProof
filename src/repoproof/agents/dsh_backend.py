@@ -83,10 +83,23 @@ class DshRunReport:
 
 
 def _kill_group(pid: int) -> None:
+    """SIGKILL 整组。macOS 对含特定状态成员的组会整体抛 EPERM(2026-08-17
+    C10 实测:墙钟刀首次砍真 runtime-bin 就撞上)—— 落不下的刀等于没有刀,
+    回退为 pgrep -g 列组员逐个点杀,组长再补一刀。"""
     try:
         os.killpg(pid, signal.SIGKILL)
+        return
     except ProcessLookupError:
+        return
+    except PermissionError:
         pass
+    got = subprocess.run(["pgrep", "-g", str(pid)], capture_output=True, text=True)
+    members = [int(x) for x in got.stdout.split()] if got.returncode == 0 else []
+    for member in {*members, pid}:
+        try:
+            os.kill(member, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
 
 
 def _read_new_lines(path: Path, offset: int, buf: str) -> tuple[list[str], int, str]:

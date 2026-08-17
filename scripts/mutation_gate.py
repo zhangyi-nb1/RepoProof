@@ -2554,6 +2554,17 @@ MUTATIONS: list[dict] = [
         "expected_catcher": ["test_e3_terminal_usage_wins_no_double_count"],
     },
     {
+        "id": "M86d-dsh-eperm-kill-fallback-dead",
+        "lesson": "EPERM 回退刀死了 —— macOS 对真 runtime-bin 的组 killpg"
+                  "整体抛 EPERM(C10 实测),刀举到一半收回,超限的 runtime"
+                  "成孤儿继续打模型;'落不下的刀等于没有刀'",
+        "file": _DBK,
+        "old": '    for member in {*members, pid}:',
+        "new": '    for member in []:',
+        "catchers": _T_DWD,
+        "expected_catcher": ["test_g5_eperm_fallback_still_kills_group"],
+    },
+    {
         "id": "M77a-usage-cb-streaming-dedupe-dead",
         "lesson": "run 级 usage 回调的按请求去重死了 —— deepseek 流式双终态"
                   "事件重新翻倍台账读数(HB-DSENTRY-1 批报 §4 的病复发,"

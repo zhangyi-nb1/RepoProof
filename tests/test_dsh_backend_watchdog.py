@@ -13,6 +13,10 @@
   或把 worker 的错误归因覆盖成自己的。
 - G4 **协议破点名**:stdout 不是恰好一行带 protocol 标识的 result →
   `worker_protocol_breach`。反例:拿日志第一行当 result 解析。
+- G5 **EPERM 打不折刀**(2026-08-17 C10 实测逼出):macOS 对含特定状态
+  成员的进程组 killpg 会整体抛 EPERM(真 runtime-bin 触发)→ 必须回退
+  pgrep -g 逐个点杀,组照样死、零孤儿。反例:EPERM 当"杀过了"—— 刀
+  举到一半收回,超限的 runtime 继续打模型。
 
 **假 worker 纪律**:全部自终结(≤4s)—— 执法变异(检查被打死)只能让
 断言红,不许让闸门挂在 communicate 上等一个不会退出的进程。
@@ -49,10 +53,14 @@ def _job(tmp: Path) -> dict:
 # 调用洪流:先起一个 argv 带记号的孩子(强杀必须连它一起),然后每 0.12s
 # 一条 assistant/message(= 一次完成的 LLM 调用;E5 修正后请求计数吃它,
 # 不吃只发首枚的 request/header),~4s 后自终结并给出合法单行 result。
+# 记号孩子不经 shell:macOS /bin/sh 对单条简单命令做隐式 exec,连不带
+# exec 的 `sh -c "sleep … # 记号"` 都会把自己替换成干净的 sleep,注释
+# 记号永远进不了终态 argv,pgrep -f 恒扑空(M86d 哑弹两轮实测)。python
+# 直启,记号做真实 argv 参数才可见。20s:变异世界漏杀也自灭。
 _FLOOD = r"""
-child=subprocess.Popen(["/bin/sh","-c","exec sleep 300 # "+ev],
+child=subprocess.Popen([sys.executable,"-c","import sys,time;time.sleep(20)",ev],
     stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)  # 不攥父管道:
-    # 否则执法变异世界里 worker 退了孩子还举着写端,communicate 等满 300s
+    # 否则执法变异世界里 worker 退了孩子还举着写端,communicate 等到它死
 os.makedirs(os.path.dirname(ev),exist_ok=True)
 f=open(ev,"a")
 f.write('{"method":"session.event","payload":{"sessionId":"s","event":{"seq":0,"time":0,"type":"turn/start","data":{"turn":1}}}}\n');f.flush()
@@ -115,6 +123,26 @@ def test_g3_clean_run_not_touched(tmp_path: Path) -> None:
     assert r.trace.ok, r.trace.problems
     assert r.selfcheck_problems == []
     assert r.result and r.result["ok"] is True
+
+
+def test_g5_eperm_fallback_still_kills_group(tmp_path: Path, monkeypatch) -> None:
+    import repoproof.agents.dsh_backend as dbk
+
+    def _eperm(pid, sig):
+        raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr(dbk.os, "killpg", _eperm)
+    job = _job(tmp_path)
+    fake = _fake(tmp_path, _FLOOD)
+    r = run_dsh_worker(job, worker_python=sys.executable,
+                       budget=DshBudget(max_logical_requests=3),
+                       extra_env={"FAKE_EVENTS": job["events_path"]},
+                       worker_argv=[sys.executable, str(fake)])
+    assert r.attribution == "budget_overrun:logical_requests"
+    assert r.orphan_count == 0, "EPERM 回退没把组杀干净"
+    got = subprocess.run(["pgrep", "-f", job["events_path"]],
+                         capture_output=True, text=True)
+    assert got.returncode != 0, f"回退刀漏了成员:{got.stdout}"
 
 
 def test_g4_protocol_breach_named(tmp_path: Path) -> None:
