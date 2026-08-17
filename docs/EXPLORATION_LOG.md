@@ -2691,3 +2691,27 @@ events/session 指进仓树或封存池 → 开跑前拒;oracle/验证器/台账
 回包)驱动真 runtime 工具环 —— C2-C7 拿真实 usage/工具事件形状,C13-C15
 踩伪造与双计;C1 版本核对无模型即可。PQ-DSH candidate 晋级走仓内
 promote_profile 机制。
+
+## 状态 · 2026-08-17 · DSH 阶段 6 开口:LLM 线协议实测拿全,C2 全栈打通
+
+**一、协议事实(本地记录器 + SSE 假端点实测,127.0.0.1 不出网)**:
+runtime 打 `POST {DEEPSEEK_BASE_URL}/chat/completions`(**无 /v1 前缀**,
+base 原样拼);**强制流式**(`Accept: text/event-stream`,body
+`stream:true` + `stream_options`);body 键:max_tokens/messages/model/
+reasoning_effort/stream/stream_options/thinking/tools(minimal 组合下
+tools×2 = bash + editor);鉴权 Authorization 头;UA
+`deepseek-harness/0.1.0-rc.6`。OpenAI 形状 SSE chunk + `data: [DONE]`
+即可喂饱。
+
+**二、C2(text-only turn)全栈通**:worker 退 0、`finish=completed`、
+final_response 由流式块拼装;**usage 落在 `assistant/message` 事件
+(camelCase inputTokens/outputTokens),turn/end 不带** —— 阶段 4 提取器
+双拼法 + message 侧回退恰好覆盖;normalize 过真 trace:ok、对账平、
+usage_totals {12,5} 与假端点计费逐字相等 ——「与 provider usage 可对账」
+首份活体证明。
+
+**三、下一步(下个窗口)**:假端点收编进 tests/helpers(SSE 脚本化多轮
+回包:tool_calls → observation → 终答);C3-C7 工具环金丝雀(单/多步
+bash、持久 shell、editor 四操作、session 隔离),C13-C15(假 PASS/JSONL
+篡改/流式 usage 双计 —— 双计正好踩 M84a 的活体面);C1 版本核对无模型;
+F0 四形电池 + promote candidate 走仓内机制。M-DSH 变异随各 C 落地。
