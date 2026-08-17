@@ -13,7 +13,7 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 54,
+    "all_valid_run_outcomes": 55,
     "assisted_repair_runs": 30,
     "development_baseline_runs": 68,
     "exploratory": 8,
@@ -77,8 +77,8 @@
       }
     ],
     "provisional_evidence_runs": 3,
-    "smoke": 85,
-    "smoke_passes": 25,
+    "smoke": 86,
+    "smoke_passes": 26,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -164,9 +164,10 @@
       "hb1-sqlglot-8042-20260817-134406",
       "hb1-sqlglot-8042-20260817-135405",
       "hb1-sqlglot-8042-20260817-140108",
-      "hb1-sqlglot-8042-20260817-141419"
+      "hb1-sqlglot-8042-20260817-141419",
+      "hb1-sqlglot-8042-20260818-003100"
     ],
-    "total": 187,
+    "total": 188,
     "treatment_delivered_runs": 6,
     "treatment_not_delivered_runs": 4
   },
@@ -183,7 +184,7 @@
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "801a2587e090ff2ae67db89b82aa4a04ceb30a49df9b5610dd1de27556396a10"
+    "runs_jsonl_sha256": "3aa322ec2cfee60c76bd8dc8885a0feaf607b893f10fa7b422b17a4c751ac2ef"
   },
   "stages": {
     "T1": {

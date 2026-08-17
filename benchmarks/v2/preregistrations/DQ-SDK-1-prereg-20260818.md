@@ -104,3 +104,21 @@ qualified 只证明:**这套封存组合 + 真 DeepSeek 模型,能把 RepoProof
    PROVIDER_READY(native,1 调用,378/69,0.9s)。base 只记 redacted
    summary;key 注入 = shell `source .env`,值不进上下文 / argv / 工件
    (用户 2026-08-18 授权代注入,纪律原文见 EXPLORATION_LOG 本批段)。
+
+## 附录二(停修留痕,判据零改动)
+
+1. **F0 冒烟(计划内)**:total 变体契约 fake-positive 全链
+   PASS_ADAPTED(run `hb1-sqlglot-8042-20260818-003100`,
+   batch=DQ-SDK-1-F0)。
+2. **发 1(运行 1/5,HARNESS_FAILURE)**:8042 × v4-pro × dsh,agent 环 /
+   验证 / oracle / 重放全走完,**台账记录装配处 NameError**
+   (`_finish` 引 `run()` 局部名 `dsh_round_infos`;R1 只钉 module 函数、
+   F0 走 mini-swe 条件分支,均未覆盖此行)→ 发次未落账,如实弃置
+   (run 目录 `hb1-sqlglot-8042-20260818-004959` 留作现场)。工程读数
+   (诊断,不判):worker 归因 `budget_overrun:logical_requests`
+   (91 撞 90),usage in 46,294 / out 52,612(+reasoning 28,541)——
+   消耗形状与 mini-swe 臂截然不同(请求多而 token 轻),留待批报分析。
+   **修**:回执块独立成签名传参纯函数 `dsh_receipt_block`(跨方法自由
+   变量类结构性消灭),判读走 dsh_bridge.fidelity_verdict 不另写第二套;
+   **钉**:`test_r2_dsh_receipt_block_*` ×2。判据、预算、发次序零改动;
+   发 1 按 §5 停规从零重跑(运行 2/5)。

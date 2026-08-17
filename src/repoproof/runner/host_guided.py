@@ -1304,6 +1304,30 @@ class _Session:
         self.venv_py = venv_py  # 会话内 venv python(相对 host 的路径)
 
 
+def dsh_receipt_block(fidelity_missing: list, round_infos: list[dict]) -> dict:
+    """B-dsh 台账回执块(记录装配的唯一来源)。
+
+    独立成签名传参的函数不是整洁癖:装配发生在 _finish,而逐轮回执产自
+    run() —— 跨方法引用局部名在 DQ-SDK-1 发 1 当场 NameError(链条全走完
+    只差落账,2026-08-18)。签名把数据流钉死;送达判读走 dsh_bridge 的
+    fidelity_verdict(M88d 钉的那份判读律),不另写第二套。
+    """
+    from repoproof.agents.dsh_bridge import fidelity_verdict
+
+    v = fidelity_verdict(list(fidelity_missing))
+    return {
+        "fidelity_missing": list(fidelity_missing),
+        "fidelity_verdict": v or "DELIVERED",
+        "rounds": [{
+            "attribution": i["attribution"],
+            "session_id": i["session_id"],
+            "logical_requests": i["counters"].get("logical_requests"),
+            "usage": i["usage"],
+            "fidelity_missing": i.get("fidelity_missing", []),
+        } for i in round_infos],
+    }
+
+
 def run_dsh_round(*, workspace: Path, side_dir: Path, prompt: str,
                   budgets: "HostBudgets", model_name: str, api_base: str,
                   api_key: str, runtime_root: Path | None = None,
@@ -2221,7 +2245,11 @@ class HostGuidedRunner:
             repair_dir = self.store.run_dir / "repair"
             repair_dir.mkdir(exist_ok=True)
             metrics_acc = {"model_calls": 0, "commands": 0, "denied": 0}
-            dsh_round_infos: list[dict] = []   # B-dsh 臂逐轮回执(记录装配用)
+            # B-dsh 臂逐轮回执。挂 self 而非局部:记录装配在 _finish(另一个
+            # 方法),局部名过不去 —— DQ-SDK-1 发 1 实测在收尾 NameError,
+            # 链条全走完只差落账(2026-08-18,预注册附录二)。
+            dsh_round_infos: list[dict] = []
+            self._dsh_round_infos = dsh_round_infos
             last_exit: dict = {"status": None, "exhausted": None}
             per_round_usage: list[tuple[int, int]] = []
             expected_reg = _expected_regression_passed(contract.host.regression_baseline)
@@ -3067,20 +3095,10 @@ class HostGuidedRunner:
             # B-dsh 臂回执(阶段 8):送达判读与逐轮归因入台账 —— 批分析
             # 据此算送达率(<80% 停批),TREATMENT_NOT_DELIVERED 的发次
             # 不得读作 H0/H1 无差异。mini-swe 发次无此键(不写空壳)。
-            **({"dsh": {
-                "fidelity_missing": list(
-                    getattr(self, "_dsh_fidelity_missing", [])),
-                "fidelity_verdict": (
-                    "TREATMENT_NOT_DELIVERED"
-                    if getattr(self, "_dsh_fidelity_missing", []) else "DELIVERED"),
-                "rounds": [{
-                    "attribution": i["attribution"],
-                    "session_id": i["session_id"],
-                    "logical_requests": i["counters"].get("logical_requests"),
-                    "usage": i["usage"],
-                    "fidelity_missing": i.get("fidelity_missing", []),
-                } for i in dsh_round_infos],
-            }} if getattr(self, "_backend", "mini-swe") == "dsh" else {}),
+            **({"dsh": dsh_receipt_block(
+                getattr(self, "_dsh_fidelity_missing", []),
+                getattr(self, "_dsh_round_infos", []))}
+               if getattr(self, "_backend", "mini-swe") == "dsh" else {}),
         }
         append_run(self.project_root, record)
         ev("bench.recorded", actor="harness", payload={"runs_jsonl": "benchmarks/v2/runs.jsonl"})

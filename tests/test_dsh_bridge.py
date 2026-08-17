@@ -270,3 +270,37 @@ def test_r1_run_dsh_round_end_to_end_over_fake_endpoint(tmp_path: Path) -> None:
         budget=info["budget"], host_budgets=_Total(),
         seen_session_ids=set(), job=info["job"], expected_workspace=ws)
     assert missing == []
+
+
+# ------------------------------------------------- R2:台账回执块(装配面)
+#
+# DQ-SDK-1 发 1 实证(2026-08-18):agent 环、验证、oracle 全走完,记录
+# 装配在 _finish 引 run() 局部名 NameError,发次没落账。回执块自此独立
+# 成签名传参的纯函数 —— 这两条钉形状与判读来源。
+
+def test_r2_dsh_receipt_block_delivered_shape() -> None:
+    from repoproof.runner.host_guided import dsh_receipt_block
+
+    info = {"attribution": "ok", "session_id": "s-1",
+            "counters": {"logical_requests": 7},
+            "usage": {"input_tokens": 24, "output_tokens": 10},
+            "fidelity_missing": []}
+    out = dsh_receipt_block([], [info])
+    assert out == {
+        "fidelity_missing": [],
+        "fidelity_verdict": "DELIVERED",
+        "rounds": [{"attribution": "ok", "session_id": "s-1",
+                    "logical_requests": 7,
+                    "usage": {"input_tokens": 24, "output_tokens": 10},
+                    "fidelity_missing": []}],
+    }
+
+
+def test_r2_dsh_receipt_block_not_delivered_and_verdict_source() -> None:
+    """缺项判读必须走 dsh_bridge.fidelity_verdict(M88d 钉那份),
+    不许在装配处另写第二套判读。"""
+    from repoproof.runner.host_guided import dsh_receipt_block
+
+    out = dsh_receipt_block(["⑥可信事件汇里没有任何 DSH runtime 事件"], [])
+    assert out["fidelity_verdict"] == TREATMENT_NOT_DELIVERED
+    assert out["rounds"] == []
