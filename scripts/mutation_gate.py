@@ -86,6 +86,8 @@ _DOL = "scripts/delta_oracle_lib.py"
 _T_DOL = ["tests/test_delta_oracle_lib.py"]
 _HBC = "scripts/hb_batch_criteria.py"
 _T_HBC = ["tests/test_hb_batch_criteria.py"]
+_WHC = "scripts/wh_batch_criteria.py"
+_T_WHC = ["tests/test_wh_batch_criteria.py"]
 _TBC = "scripts/batch_criteria.py"
 _T_BCP3 = ["tests/test_batch_criteria_p3.py"]
 _BTP = "scripts/build_hb1_task_packages.py"
@@ -2496,6 +2498,69 @@ MUTATIONS: list[dict] = [
         "catchers": _T_WH,
         "expected_catcher": [
             "test_guidance_text_is_the_whole_difference_and_safety_is_not"],
+    },
+    {
+        "id": "M81a-wh-guardrails-stop-outranking-gain",
+        "lesson": "护栏不再先于增益判 —— 拿回归破坏/假 PASS 换来的 delta"
+                  "会被判成 GAIN(方向朝松,最坏的一种错)",
+        "file": _WHC,
+        "old": '    if breaches:\n        out.update(verdict=INVALID, reasons=breaches)\n        return out',
+        "new": '    if False:\n        out.update(verdict=INVALID, reasons=breaches)\n        return out',
+        "catchers": _T_WHC,
+        "expected_catcher": ["test_guardrails_outrank_any_gain"],
+    },
+    {
+        "id": "M81b-wh-two-thirds-line-collapsed",
+        "lesson": "次判据的 ≥2/3 线塌成 ≥1 —— 三发里侥幸赢一发即被读成"
+                  "WEAK_GAIN",
+        "file": _WHC,
+        "old": '    need = (2 * len(pairs) + 2) // 3',
+        "new": '    need = 1',
+        "catchers": _T_WHC,
+        "expected_catcher": ["test_one_of_three_is_not_two_thirds"],
+    },
+    {
+        "id": "M81c-wh-adverse-direction-dropped",
+        "lesson": "反向判决被摘掉 —— 最小臂更优时不再报 ADVERSE,判据"
+                  "只会报喜(S2′ 两批的价值恰在敢判否决)",
+        "file": _WHC,
+        "old": '    if m_wins >= need:',
+        "new": '    if False:',
+        "catchers": _T_WHC,
+        "expected_catcher": ["test_adverse_is_reported_symmetrically"],
+    },
+    {
+        "id": "M81d-wh-unequal-arms-compared-anyway",
+        "lesson": "两臂发次数不等也照比 —— 3 比 2,而缺的那发可能正是"
+                  "没跑完/被中止的那发",
+        "file": _WHC,
+        "old": '    if per_arm["guided"]["n"] != per_arm["minimal"]["n"] or per_arm["guided"]["n"] == 0:',
+        "new": '    if False:',
+        "catchers": _T_WHC,
+        "expected_catcher": ["test_unequal_arms_are_invalid_not_compared"],
+    },
+    {
+        "id": "M81e-wh-pairs-sorted-by-score",
+        "lesson": "配对改按分数排序而非执行序 —— 两臂各自的最好成绩被配成"
+                  "对子,事后择优(p-hacking 的机器版)",
+        "file": _WHC,
+        "old": '    gd = [d for _, d in sorted(per_arm["guided"]["delta"])]\n'
+               '    md = [d for _, d in sorted(per_arm["minimal"]["delta"])]',
+        "new": '    gd = sorted((d for _, d in per_arm["guided"]["delta"]), reverse=True)\n'
+               '    md = sorted((d for _, d in per_arm["minimal"]["delta"]), reverse=True)',
+        "catchers": _T_WHC,
+        "expected_catcher": ["test_pairs_follow_execution_order_not_sorted_scores"],
+    },
+    {
+        "id": "M81f-wh-null-loses-its-wording-lock",
+        "lesson": "null 判决不再自带措辞铁律 —— 措辞纪律退回靠人记得,"
+                  "而 NO_GAIN_IN_PILOT 被写成「harness 无增益」只是时间问题",
+        "file": _WHC,
+        "old": '    reasons.append("措辞铁律:本判决不得写成「harness 无增益」—— n=3、单题、"\n'
+               '                   "低于方案文档 §7.3 最小规模")',
+        "new": '    pass',
+        "catchers": _T_WHC,
+        "expected_catcher": ["test_null_verdict_carries_its_own_wording_lock"],
     },
 ]
 
