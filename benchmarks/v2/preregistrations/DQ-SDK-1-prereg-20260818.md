@@ -121,4 +121,22 @@ qualified 只证明:**这套封存组合 + 真 DeepSeek 模型,能把 RepoProof
    **修**:回执块独立成签名传参纯函数 `dsh_receipt_block`(跨方法自由
    变量类结构性消灭),判读走 dsh_bridge.fidelity_verdict 不另写第二套;
    **钉**:`test_r2_dsh_receipt_block_*` ×2。判据、预算、发次序零改动;
-   发 1 按 §5 停规从零重跑(运行 2/5)。
+   发 1 按 §5 停规从零重跑。
+
+## 附录三(基建事件与计数口径,续跑前声明)
+
+1. **供应商翻牌实录(2026-08-18 01:33–01:52)**:发 1 两次重启动均在
+   preflight 即 BLOCKED(PROVIDER_TIMEOUT,30s 探针超时,零 agent 活动、
+   零 token、零台账行);期间独立探针 01:36 同超时(附 litellm 远程价目
+   表拉取同刻超时)、01:38–01:51 六连 PROVIDER_READY(1–2s)、01:57 复又
+   READY —— 一般出网全程正常(github 0.7s/apple 0.2s)。判:DeepSeek
+   端点分钟级翻牌,preflight 单发无重试(按设计,不静默降级)撞窗即挡。
+2. **计数口径(声明,非改判据)**:§5 的"运行上限 5"约束的是**进入
+   agent 阶段的运行**(有 run 目录、有消耗、可归因)—— 其立意是封顶
+   API 消耗与防"加发凑门"。preflight 即 BLOCKED 的启动(零消耗、零
+   发次工件)记**基建事件**,入本附录不占运行位。至此:运行 1/5
+   (NameError 那发,91 请求);基建事件 2 起;工程探针 preflight 合计
+   9 次(≈3.4K in,计入封套)。
+3. **翻牌应对(执行层,不改 preflight 语义)**:启动封装对"preflight
+   即 BLOCKED 且 PROVIDER_TIMEOUT"的结果自动隔 120s 重启,单发次至多
+   4 次;每次启动的 preflight 判定原样留痕。连 4 次撞窗 → 中止请示。
