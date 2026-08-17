@@ -49,6 +49,10 @@ REQUIRED_FIELDS = (
     # 串里 —— 分析时要能直接按 profile 分组,不必去解析标签字符串。
     # 历史行无此字段 = rt-inprocess-v1(那时只有这一种拓扑)。
     "runtime_profile_id",
+    # Agent backend 轴(DSH 阶段 2,2026-08-17)。谁在跑 agent 循环 ——
+    # 与 execution_backend(命令落地基底,local-worktree)是两个轴。
+    # 历史行无此字段 = mini-swe(那时只有这一个循环)。
+    "backend_id",
     # 宿主身份(C 轨,2026-08-15)。阶段闸门是**第一宿主**上的存在性证明,
     # 而阶段归属一直靠 task_id 前缀 —— 第二宿主的 `t3-<新宿主>-…` 会自动
     # 进 stages.T3。历史行无此字段 = 第一宿主(那时只有这一个)。

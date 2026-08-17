@@ -125,6 +125,7 @@ _CP = "src/repoproof/agents/context_projector.py"
 _T_WP = ["tests/test_window_projection.py"]
 _PR = "src/repoproof/agents/profiles.py"
 _T_EP = ["tests/test_exec_profiles.py"]
+_T_AB = ["tests/test_agent_backend_axis.py"]
 _VC = "scripts/validate_controls.py"
 _T_VM = ["tests/test_control_validation_matrix.py"]
 _MG = "scripts/mutation_gate.py"
@@ -2428,6 +2429,28 @@ MUTATIONS: list[dict] = [
         "new": '            continue',
         "catchers": _T_DPP,
         "expected_catcher": ["test_missing_pinned_file_fails"],
+    },
+    {
+        "id": "M83a-backend-generation-collapses-to-e0",
+        "lesson": "外来 backend 的代际分支死了 —— DSH 发次照 mini-swe 规则"
+                  "推标签,editor 被误读成 'S4' 混进 E 族与真消融互比,"
+                  "单变量归因作废(ADR §3 判据 B2)",
+        "file": _PR,
+        "old": '    if backend != DEFAULT_BACKEND:',
+        "new": '    if False:',
+        "catchers": _T_AB,
+        "expected_catcher": ["test_b2_foreign_backend_own_family_never_e_family"],
+    },
+    {
+        "id": "M83b-backend-id-column-hardcoded-default",
+        "lesson": "backend_id 列被硬编码成缺省 —— DSH 发次在分析层与"
+                  "mini-swe 发次静默合池,代际串成了唯一防线(判据 B4"
+                  "要的是列级分池,不是靠解析标签字符串)",
+        "file": _PR,
+        "old": '        "backend_id": backend,',
+        "new": '        "backend_id": DEFAULT_BACKEND,',
+        "catchers": _T_AB,
+        "expected_catcher": ["test_b4_backend_id_column_and_hash_invariance"],
     },
     {
         "id": "M77a-usage-cb-streaming-dedupe-dead",

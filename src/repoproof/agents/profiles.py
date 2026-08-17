@@ -45,6 +45,16 @@ _EXEC_ROOT = ("src", "repoproof")
 _E0_CONTEXT_POLICY = "full-history-resend"
 _E0_TOOLS = ("bash",)
 
+# Agent backend 轴(ADR-DSH-MINIMAL-AGENT-BACKEND §3):谁在跑 agent 循环。
+# 缺省 = 仓内 mini-swe 循环,即既有全部发次;非缺省(如 dsh-minimal)是
+# **另一族被测系统**,代际自成 B-{backend} 族,不派生 E0/E1 —— S2-S5 的
+# 推导规则读的是 mini-swe 的配置面,对外来 backend 全部失真:DSH minimal
+# 带 str_replace_editor,照推会得 "S4",但那不是"我们给执行器加了一步",
+# 是人家本来就长那样。backend 不进三面内容哈希(分池由代际族 +
+# backend_id 列承担)—— 拌进去的话,同一份工具配置在两个 backend 下
+# hash 不同,跨 backend 对读"工具面是否相同"就不可能了。
+DEFAULT_BACKEND = "mini-swe"
+
 
 def _hash(obj: dict) -> str:
     """稳定哈希:排序键 + 紧凑分隔符。不含时间、路径、插入序。"""
@@ -69,12 +79,25 @@ def exec_fingerprint(repo: Path) -> str:
     return _hash({"files": items})
 
 
-def exec_generation(*, context: dict, tool: dict, runtime_profile: str = "") -> str:
+def exec_generation(*, context: dict, tool: dict, runtime_profile: str = "",
+                    backend: str = DEFAULT_BACKEND) -> str:
     """代际标签,**从内容推导**。
 
     不接受调用方声明 —— 上了 spill 却忘了改标签,E0 与 E1 的数据就会混进
     同一个池子,而"E0/E1 永不互比"是硬规则(§2 规则 1)。标签里带上是哪
     一步带来的差异,便于批报直接引用。"""
+    if backend != DEFAULT_BACKEND:
+        # 外来 backend 在任何 S 步推导之前离场:B 族与 E 族永不互比。
+        # -H0 与 +runtime_profile 的拼法与主族共用 —— 后缀语义是跨族不变量
+        # (摘引导、交付拓扑,对哪族都是同一个问题)。
+        gen = f"B-{backend}"
+        if context.get("guidance") == "none":
+            gen += "-H0"
+        # 写法刻意与主族那句不同:登记簿要求每条变异旧串在文件里唯一
+        # (test_mutation_registry_not_stale),M51a 钉的是主族那句。
+        if runtime_profile not in ("", "rt-inprocess-v1"):
+            gen += f"+{runtime_profile}"
+        return gen
     steps = []
     if context.get("spill_threshold_chars") or context.get("prune_policy"):
         steps.append("S2")
@@ -105,7 +128,8 @@ def exec_generation(*, context: dict, tool: dict, runtime_profile: str = "") -> 
 
 
 def profile_hashes(*, tool: dict, context: dict, budget: dict,
-                   repo: Path | None = None, runtime_profile: str = "") -> dict:
+                   repo: Path | None = None, runtime_profile: str = "",
+                   backend: str = DEFAULT_BACKEND) -> dict:
     """四面里本模块负责的三面 + 指纹 + 代际,一次给全。
 
     provider 面不在这里 —— 它由 provider_gate 在 preflight 时算好并冻结,
@@ -115,10 +139,13 @@ def profile_hashes(*, tool: dict, context: dict, budget: dict,
         "context_profile_hash": _hash(context),
         "budget_profile_hash": _hash(budget),
         "exec_generation": exec_generation(context=context, tool=tool,
-                                           runtime_profile=runtime_profile),
+                                           runtime_profile=runtime_profile,
+                                           backend=backend),
         # 上游交付拓扑(A1)。单独一个字段而不是只藏在代际串里 —— 分析时
         # 要能直接按 profile 分组,而不是去解析标签字符串。
         "runtime_profile_id": runtime_profile or "rt-inprocess-v1",
+        # Agent backend 轴,同一条理由单列成列(缺省 = 既有全部发次)。
+        "backend_id": backend,
     }
     if repo is not None:
         out["exec_fingerprint"] = exec_fingerprint(repo)
