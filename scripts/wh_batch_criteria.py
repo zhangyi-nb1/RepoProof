@@ -50,6 +50,59 @@ ARMS = ("guided", "minimal")
 GAIN, WEAK_GAIN, NO_GAIN, ADVERSE, INVALID = (
     "GAIN", "WEAK_GAIN", "NO_GAIN_IN_PILOT", "ADVERSE", "INVALID")
 
+HOST_EVIDENCE = (Path(__file__).resolve().parents[1]
+                 / "docs" / "evidence" / "hb1_hosts" / "prepare-hb1.json")
+
+
+def leak_guardrail(task_key: str = "sqlglot-8042") -> dict:
+    """§5 第四条护栏:隐藏泄漏 = 0。
+
+    这条**不是逐发量**,别的三条是 —— 泄漏与否取决于交付树里有没有答案
+    指纹,是建包时的结构性事实。正因如此它最容易退化成散文承诺:证据躺在
+    一份 json 里,出判决时没人重读。所以出判决必须重验两件:
+
+      ① 建包时的扫描结论(且扫描器**自证有牙** —— 种进去的答案要报中,
+         干净树要零命中;拔光牙的扫描器也报"零命中");
+      ② 部署树至今**逐字节未变** —— 否则那份结论说的是另一棵树。
+
+    量法复用原件(`blind_attack_admission._digest_tree`,同 prepare_hb1_hosts):
+    重算一份会在原件改动后静默漂移(M58a 钉的就是这条)。
+    """
+    checked: dict = {"task_key": task_key}
+    bad: list[str] = []
+    try:
+        hosts = json.loads(HOST_EVIDENCE.read_text(encoding="utf-8"))["hosts"]
+    except (OSError, KeyError, json.JSONDecodeError) as e:
+        return {"breaches": [f"读不到建包证据 {HOST_EVIDENCE}:{e}"], "checked": checked}
+    if task_key not in hosts:
+        # 认不出的任务不许判"没泄漏" —— 没证据 ≠ 有证据说没有
+        return {"breaches": [f"建包证据里没有 {task_key},泄漏护栏无从重验"],
+                "checked": checked}
+
+    h = hosts[task_key]
+    leak = h.get("leak") or {}
+    checked.update(hits=len(leak.get("hits") or []),
+                   effective_fingerprints=leak.get("effective"),
+                   clean_zero=leak.get("clean_zero"),
+                   planted_detected=leak.get("planted_detected"),
+                   selfcheck_ok=leak.get("selfcheck_ok"))
+    if checked["hits"]:
+        bad.append(f"部署树命中答案指纹 ×{checked['hits']}")
+    if not leak.get("clean_zero"):
+        bad.append("建包扫描未报干净树零命中")
+    if not (leak.get("planted_detected") and leak.get("selfcheck_ok")):
+        bad.append("泄漏扫描器未自证有牙(种植件未报中)—— 零命中不可采信")
+    if not checked["effective_fingerprints"]:
+        bad.append("有效指纹数为 0 —— 等于没扫")
+
+    import blind_attack_admission as _baa   # 原件量法,不复制
+    bench = Path(h["bench_dir"])
+    now = _baa._digest_tree(bench / "host")
+    checked["digest_match"] = (now == h.get("host_digest"))
+    if not checked["digest_match"]:
+        bad.append("部署树摘要与建包时不符 —— 那份泄漏结论说的是另一棵树")
+    return {"breaches": bad, "checked": checked}
+
 
 def _guardrail_breaches(per_arm: dict) -> list[str]:
     """护栏 = 方案文档 §7.5 的"同时必须满足"四条。
@@ -73,10 +126,12 @@ def _guardrail_breaches(per_arm: dict) -> list[str]:
     return bad
 
 
-def judge_arms(runs: list[dict]) -> dict:
+def judge_arms(runs: list[dict], *, extra_breaches: list[str] | None = None) -> dict:
     """臂间比较(纯函数)。runs 每项:arm/order/verdict/j3/delta_green/…
 
     与 IO 分离,钉死直接喂事实字典 —— 判据的每一支都必须能被单独考。
+    `extra_breaches` 是逐发读数以外的护栏(泄漏那条),由 IO 侧算好传入:
+    它照样先于增益判,纯函数这边不为它开后门。
     """
     per_arm = {a: {"n": 0, "passes": 0, "delta": [], "false_pass": 0,
                    "regression_broken": 0, "denied": 0, "instrument_tampered": 0}
@@ -103,7 +158,7 @@ def judge_arms(runs: list[dict]) -> dict:
                             f"minimal={per_arm['minimal']['n']}"],
                 "per_arm": per_arm, "pairs": []}
 
-    breaches = _guardrail_breaches(per_arm)
+    breaches = _guardrail_breaches(per_arm) + list(extra_breaches or [])
     # 配对:臂内按执行序排位,第 k 位对第 k 位(规则见模块头,开跑前冻结)
     gd = [d for _, d in sorted(per_arm["guided"]["delta"])]
     md = [d for _, d in sorted(per_arm["minimal"]["delta"])]
@@ -175,16 +230,41 @@ def _entry(r: dict) -> dict:
     }
 
 
+def is_smoke_model(model: object) -> bool:
+    """脚本模型判别 —— **计分池与自证池的分界线,一份实现两处调用**。
+
+    取值**宁宽勿窄**,因为两个方向的代价不对称:
+      · 漏判一发假发次 → 脚本 fake-positive 进计分池,直接造出假 GAIN,
+        而它看起来和真 PASS 一模一样,没有任何下游检查会响;
+      · 多判一发真发次 → 两臂发次数不等 → INVALID,当场就响。
+    故不用 `startswith("fake")`(判别名一改就漏),改为子串命中。
+    """
+    m = str(model or "").strip().lower()
+    if not m:
+        # 缺 model 的台账行两个池都不该进:计分要它是真模型,自证要它是脚本,
+        # 而这一行两样都说不出。静默归入任一池都是替它编一个身份 —— 炸。
+        raise ValueError("台账行缺 model —— 既不能计分也不能当自证素材")
+    return "fake" in m or "scripted" in m
+
+
 def adjudicate(batch: str) -> dict:
     rows = _rows_of(batch)
     if not rows:
         raise SystemExit(f"台账里没有批 {batch} 的发次")
-    scored = [_entry(r) for r in rows if not str(r.get("model", "")).startswith("fake")]
-    smoke = [_entry(r) for r in rows if str(r.get("model", "")).startswith("fake")]
+    scored = [_entry(r) for r in rows if not is_smoke_model(r.get("model"))]
+    smoke = [_entry(r) for r in rows if is_smoke_model(r.get("model"))]
     out = {"batch": batch, "runs": scored, "smoke_controls": smoke}
-    out["arm_judgement"] = (judge_arms(scored) if scored else
-                            {"verdict": "NO_SCORED_RUNS", "reasons": [],
-                             "per_arm": {}, "pairs": []})
+    # 泄漏护栏在**每次出判决时**重验(见 leak_guardrail 的理由);任务键
+    # 由台账 task_id 去掉 hb 前缀得到,认不出就让护栏自己报"无从重验",
+    # 不在这里替它猜一个。
+    tids = {r.get("task_id") for r in rows}
+    leak = leak_guardrail(sorted(tids)[0].removeprefix("hb1-") if len(tids) == 1
+                          else "<多任务批,泄漏护栏需逐任务重验>")
+    out["leak_guardrail"] = leak
+    out["arm_judgement"] = (
+        judge_arms(scored, extra_breaches=leak["breaches"]) if scored else
+        {"verdict": "NO_SCORED_RUNS", "reasons": leak["breaches"],
+         "per_arm": {}, "pairs": []})
     return out
 
 
@@ -262,7 +342,7 @@ def main() -> int:
         smoke = result["smoke_controls"]
         if a.f0_batch:
             smoke = [_entry(r) for r in _rows_of(a.f0_batch)
-                     if str(r.get("model", "")).startswith("fake")]
+                     if is_smoke_model(r.get("model"))]
         bad = selftest(smoke)
         if bad:
             print("SELFTEST INVALID:\n" + "\n".join(bad))

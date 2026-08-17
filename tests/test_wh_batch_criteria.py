@@ -141,6 +141,88 @@ def test_pairs_follow_execution_order_not_sorted_scores() -> None:
     assert out["verdict"] == "NO_GAIN_IN_PILOT"
 
 
+def test_leak_guardrail_is_reverified_not_promised() -> None:
+    """X9:§5 第四条护栏(隐藏泄漏 = 0)出判决时必须**重算**,不是抄结论。
+
+    这条最容易退化成散文承诺 —— 它不是逐发量,证据躺在建包 json 里,没人
+    重读也不会有任何东西变红。故钉的是"重验发生过"的痕迹:扫描器自证有牙
+    + 有效指纹非零 + 部署树摘要至今相符。只回一个空 breaches 的实现过不了。
+    """
+    from wh_batch_criteria import leak_guardrail
+
+    out = leak_guardrail("sqlglot-8042")
+    assert out["breaches"] == [], out["breaches"]
+    c = out["checked"]
+    assert c["hits"] == 0
+    assert c["effective_fingerprints"] and c["effective_fingerprints"] > 0, "等于没扫"
+    assert c["clean_zero"] and c["planted_detected"] and c["selfcheck_ok"], \
+        "扫描器没自证有牙 —— 拔光牙的扫描器也报零命中"
+    assert c["digest_match"], "部署树变了,那份泄漏结论说的是另一棵树"
+
+
+def test_unknown_task_never_reads_as_no_leak() -> None:
+    """X9 反面:认不出的任务不许判"没泄漏"。没证据 ≠ 有证据说没有。"""
+    from wh_batch_criteria import leak_guardrail
+
+    assert leak_guardrail("no-such-task-9999")["breaches"], "无证据却读成干净"
+
+
+def test_leak_breach_outranks_any_gain() -> None:
+    """X9 序:泄漏护栏与另外三条同级 —— 先于增益判,且不因增益漂亮而让路。"""
+    from wh_batch_criteria import judge_arms
+
+    strong = [_r("guided", 1, 5, is_pass=True), _r("minimal", 1, 0)]
+    assert judge_arms(strong)["verdict"] == "GAIN"          # 无泄漏时确实是 GAIN
+    out = judge_arms(strong, extra_breaches=["部署树命中答案指纹 ×3"])
+    assert out["verdict"] == "INVALID", out
+    assert any("答案指纹" in r for r in out["reasons"])
+
+
+def test_smoke_split_fails_toward_excluding_not_scoring() -> None:
+    """X8:计分池 / 自证池的分界线,失败方向必须朝**排除**。
+
+    两个方向的代价不对称到不能对称处理:脚本 fake-positive 若漏进计分池,
+    它长得和真 PASS 一模一样,直接造出假 GAIN 且没有下游检查会响;真发次
+    若被误排除,两臂发次数不等 → INVALID,当场就响。
+
+    故判别名换个写法(`scripted-fake:` / `FAKE-` / 中间带 fake)都必须仍
+    判为脚本 —— `startswith("fake")` 那种写法漏的正是这些。
+    """
+    from wh_batch_criteria import is_smoke_model
+
+    for m in ("fake-scripted:positive", "fake-scripted:control:nc_null_submission",
+              "scripted-fake:positive", "FAKE-scripted:positive",
+              "deepseek-v4-pro-fake", "scripted-noop"):
+        assert is_smoke_model(m), f"{m} 该判脚本却没判"
+    for m in ("deepseek-v4-pro", "gpt-5.5", "gpt-5.6"):
+        assert not is_smoke_model(m), f"{m} 是真模型却被判成脚本"
+    # 缺 model 的行不许被"选一个方向"消化掉 —— 归计分池是假 GAIN 的入口,
+    # 归自证池是拿一行来历不明的记录去证明检查器有牙。两样都不行,只能炸。
+    for missing in (None, "", "   "):
+        with pytest.raises(ValueError):
+            is_smoke_model(missing)
+
+
+def test_the_smoke_split_has_exactly_one_implementation() -> None:
+    """X8 结构面:分界线只许有一份实现。
+
+    这是 usage 回调那次的同型病 —— 同一个谓词抄三份(计分池、自证池、
+    `--f0-batch` 路),改其中一份,另两份静默走旧语义,而"哪份被走到"取决
+    于命令行参数。故钉实现份数,不钉某一处的行为。
+    """
+    import re
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[1] / "scripts" / "wh_batch_criteria.py"
+    text = src.read_text(encoding="utf-8")
+    body = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
+    # 文档串里允许提旧写法(讲为什么不用它),代码里不许再出现
+    code = re.sub(r'"""(?:.|\n)*?"""', "", body)
+    assert 'startswith("fake")' not in code, "分界线又出现了第二份实现"
+    assert code.count("def is_smoke_model") == 1
+    assert code.count("is_smoke_model(") >= 4, "调用处少于三处 + 定义,可能有漏网的内联判别"
+
+
 def test_run_attribution_is_reused_not_reimplemented() -> None:
     """WH 不重写逐发归因:同族任务上两份判据慢慢分叉,没人会发现。"""
     import hb_batch_criteria

@@ -2562,6 +2562,48 @@ MUTATIONS: list[dict] = [
         "catchers": _T_WHC,
         "expected_catcher": ["test_null_verdict_carries_its_own_wording_lock"],
     },
+    {
+        "id": "M81g-wh-smoke-split-narrowed-back-to-prefix",
+        "lesson": "计分池/自证池的分界线退回前缀匹配 —— 判别名换个写法"
+                  "(「scripted-fake:」)就漏,漏进去的脚本 fake-positive "
+                  "长得和真 PASS 一模一样,直接造出假 GAIN 且下游无人会响",
+        "file": _WHC,
+        "old": '    return "fake" in m or "scripted" in m',
+        "new": '    return m.startswith("fake")',
+        "catchers": _T_WHC,
+        "expected_catcher": ["test_smoke_split_fails_toward_excluding_not_scoring"],
+    },
+    {
+        "id": "M81h-wh-missing-model-silently-scored",
+        "lesson": "缺 model 的台账行不再炸,而是默默归入计分池 —— "
+                  "替一行来历不明的记录编了个「真模型」身份,这正是假 GAIN 的入口",
+        "file": _WHC,
+        "old": '        raise ValueError("台账行缺 model —— 既不能计分也不能当自证素材")',
+        "new": '        return False',
+        "catchers": _T_WHC,
+        "expected_catcher": ["test_smoke_split_fails_toward_excluding_not_scoring"],
+    },
+    {
+        "id": "M81i-wh-leak-breach-dropped-before-gain",
+        "lesson": "泄漏护栏传进来却不参与判决 —— §5 四条护栏里唯一不是逐发量的"
+                  "那条被降级成摆设,而它恰恰是最容易退化成散文承诺的一条",
+        "file": _WHC,
+        "old": "    breaches = _guardrail_breaches(per_arm) + list(extra_breaches or [])",
+        "new": "    breaches = _guardrail_breaches(per_arm)",
+        "catchers": _T_WHC,
+        "expected_catcher": ["test_leak_breach_outranks_any_gain"],
+    },
+    {
+        "id": "M81j-wh-unknown-task-reads-as-clean",
+        "lesson": "建包证据里认不出的任务被读成「没泄漏」—— 没证据当成"
+                  "有证据说没有,泄漏护栏对任何新任务自动失效",
+        "file": _WHC,
+        "old": '        return {"breaches": [f"建包证据里没有 {task_key},泄漏护栏无从重验"],\n'
+               '                "checked": checked}',
+        "new": '        return {"breaches": [], "checked": checked}',
+        "catchers": _T_WHC,
+        "expected_catcher": ["test_unknown_task_never_reads_as_no_leak"],
+    },
 ]
 
 
