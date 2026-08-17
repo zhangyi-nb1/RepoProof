@@ -173,6 +173,7 @@ _FACE_MAP: tuple[tuple[str, str], ...] = (
     ("agents/token_budget.py", "executor_semantics"),        # 运行预算
     ("agents/backend.py", "executor_semantics"),             # agent 循环
     ("agents/dsh_worker.py", "executor_semantics"),          # DSH 外来循环(阶段 3)
+    ("agents/dsh_backend.py", "executor_semantics"),         # DSH 预算长牙处(阶段 4)
     ("harness/budget.py", "executor_semantics"),
     ("harness/policy.py", "executor_semantics"),             # 哪些命令被拒
     ("harness/prompt_manifest.py", "executor_semantics"),    # 模型可见提示
@@ -209,6 +210,7 @@ _FACE_MAP: tuple[tuple[str, str], ...] = (
     ("adoption/delivery/", "verifier"),                      # apply/rollback 完整性
     # ---- 量具面:改它**不改变被测系统** ----
     ("agents/profiles.py", "instrumentation"),               # 指纹自己
+    ("agents/dsh_events.py", "instrumentation"),             # DSH 事件记账(阶段 4)
     ("agents/fake_model.py", "instrumentation"),             # 冒烟脚本
     ("harness/trace.py", "instrumentation"),                 # 记账
     ("harness/artifacts.py", "instrumentation"),

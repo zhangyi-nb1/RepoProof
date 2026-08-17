@@ -126,6 +126,10 @@ _T_WP = ["tests/test_window_projection.py"]
 _PR = "src/repoproof/agents/profiles.py"
 _T_EP = ["tests/test_exec_profiles.py"]
 _T_AB = ["tests/test_agent_backend_axis.py"]
+_DEV = "src/repoproof/agents/dsh_events.py"
+_DBK = "src/repoproof/agents/dsh_backend.py"
+_T_DEV = ["tests/test_dsh_events.py"]
+_T_DWD = ["tests/test_dsh_backend_watchdog.py"]
 _VC = "scripts/validate_controls.py"
 _T_VM = ["tests/test_control_validation_matrix.py"]
 _MG = "scripts/mutation_gate.py"
@@ -2451,6 +2455,48 @@ MUTATIONS: list[dict] = [
         "new": '        "backend_id": DEFAULT_BACKEND,',
         "catchers": _T_AB,
         "expected_catcher": ["test_b4_backend_id_column_and_hash_invariance"],
+    },
+    {
+        "id": "M84a-dsh-terminal-usage-double-counted",
+        "lesson": "DSH 终态权威裁决死了 —— message 与 turn/end 两侧 usage"
+                  "都入总账,tokens 翻倍(批 13 _usage_cb 流式双终态的病在"
+                  "新 backend 复发;指导文档阶段 4 首条通过条件)",
+        "file": _DEV,
+        "old": '        if src == "message" and (turn, "turn_end") in usage_by_turn:',
+        "new": '        if False:',
+        "catchers": _T_DEV,
+        "expected_catcher": ["test_e3_terminal_usage_wins_no_double_count"],
+    },
+    {
+        "id": "M84b-dsh-duplicate-seq-tolerated",
+        "lesson": "事件级去重死了 —— runtime 重发的 request/header 照单入账,"
+                  "请求数虚高,watchdog 会按错账提前杀发",
+        "file": _DEV,
+        "old": '        if seq in seen_seq:',
+        "new": '        if False:',
+        "catchers": _T_DEV,
+        "expected_catcher": ["test_e1_duplicate_seq_fail_closed"],
+    },
+    {
+        "id": "M84c-dsh-budget-axes-enforcement-dead",
+        "lesson": "计数轴执法死了 —— 请求/tokens 越限不再落刀,总预算退化成"
+                  "记账建议;'超限后无后台继续调用模型'失守",
+        "file": _DBK,
+        "old": '        if cap is not None and got > cap:',
+        "new": '        if False:',
+        "catchers": _T_DWD,
+        "expected_catcher": ["test_g1_request_overrun_kills_group_and_stops_growth"],
+    },
+    {
+        "id": "M84d-dsh-wall-clock-knife-dead",
+        "lesson": "墙钟刀死了 —— 卡死的 runtime 无限占席,批次墙钟由最慢一发"
+                  "决定;SDK 无内建墙钟(Session.run 阻塞到 idle),外部刀是"
+                  "唯一的刀",
+        "file": _DBK,
+        "old": '        if budget.max_wall_seconds is not None and wall > budget.max_wall_seconds:',
+        "new": '        if False:',
+        "catchers": _T_DWD,
+        "expected_catcher": ["test_g2_wall_overrun_same_knife"],
     },
     {
         "id": "M77a-usage-cb-streaming-dedupe-dead",
