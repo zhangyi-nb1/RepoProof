@@ -66,6 +66,27 @@ def bridge_budget(hb) -> DshBudget:
     )
 
 
+# 封存 runtime 的缺省落点(阶段 1 供应链固化的产物;runtime_manifest.json
+# 是路径与版本的唯一权威,本模块不猜文件名)。
+DEFAULT_RUNTIME_ROOT = Path.home() / "RepoProofRuntimes" / "rt-dsh-minimal-0.1.0rc6-v1"
+
+
+def _manifest_and_cordis(root: Path) -> tuple[dict, str]:
+    manifest = json.loads((root / "runtime_manifest.json").read_text(encoding="utf-8"))
+    pins: dict[str, str] = manifest["extras"]["pins"]
+    cordis_keys = [k for k in pins if k.endswith(".cordis.yml")]
+    if len(cordis_keys) != 1:
+        raise ValueError(f"封存清单里 cordis 钉不是恰好一条:{cordis_keys}")
+    return manifest, cordis_keys[0]
+
+
+def runtime_paths(runtime_root: str | Path = DEFAULT_RUNTIME_ROOT) -> tuple[Path, Path]:
+    """封存根 → (worker_python, cordis)。全按清单现物解析,不硬编码文件名。"""
+    root = Path(runtime_root)
+    manifest, cordis_rel = _manifest_and_cordis(root)
+    return Path(manifest["python_executable"]), root / cordis_rel
+
+
 def composition_fingerprint(runtime_root: str | Path, *, model: str,
                             system_prompt: str = DSH_SYSTEM_PROMPT,
                             max_tokens: int = DSH_MAX_TOKENS,
@@ -77,13 +98,9 @@ def composition_fingerprint(runtime_root: str | Path, *, model: str,
     现场,不认清单的一面之词。
     """
     root = Path(runtime_root)
-    manifest = json.loads((root / "runtime_manifest.json").read_text(encoding="utf-8"))
+    manifest, cordis_rel = _manifest_and_cordis(root)
     versions = {p["distribution"]: p["version"] for p in manifest["pinned"]}
     pins: dict[str, str] = manifest["extras"]["pins"]
-    cordis_keys = [k for k in pins if k.endswith(".cordis.yml")]
-    if len(cordis_keys) != 1:
-        raise ValueError(f"封存清单里 cordis 钉不是恰好一条:{cordis_keys}")
-    cordis_rel = cordis_keys[0]
     actual = hashlib.sha256((root / cordis_rel).read_bytes()).hexdigest()
     if actual != pins[cordis_rel]:
         raise ValueError(

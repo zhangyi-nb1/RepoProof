@@ -293,9 +293,13 @@ def test_every_run_level_usage_hook_shares_the_deduping_implementation() -> None
             if body:
                 registrations.append((f"{rel}:{text[:m.start()].count(chr(10)) + 1}", body))
 
-    assert accum_files == {"runner/host_guided.py:107", "runner/host_guided.py:108"}, (
-        f"run 级用量累加出现在 {sorted(accum_files)} —— 复制一份实现就是"
-        "复制一份未去重的旧病;唯一允许的落点是 make_usage_cb 内部"
+    # 恰两个被祝福的去重实现:make_usage_cb(litellm 路,按 call_id 去重)
+    # 与 absorb_dsh_usage(B-dsh 路,可信 events 汇经 normalize() 的 usage 律
+    # 已在入口去重)。多一处 = 复制一份未去重的旧病。
+    assert accum_files == {"runner/host_guided.py:107", "runner/host_guided.py:108",
+                           "runner/host_guided.py:121", "runner/host_guided.py:122"}, (
+        f"run 级用量累加出现在 {sorted(accum_files)} —— 允许的落点只有"
+        " make_usage_cb 与 absorb_dsh_usage 两个去重实现的内部"
     )
     assert registrations, "一处 success_callback 注册都没扫到 —— 钉自身失效"
     strays = [site for site, body in registrations if "make_usage_cb" not in body]

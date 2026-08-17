@@ -110,6 +110,20 @@ def make_usage_cb(token_totals: dict):
     return _usage_cb
 
 
+def absorb_dsh_usage(token_totals: dict, usage: dict) -> None:
+    """B-dsh 臂的 run 级用量落账 —— 第二个(也是最后一个)被钉允许的落点。
+
+    与 make_usage_cb 同为 token_totals 累加的合法实现(test_token_enforcement
+    的单实现钉逐行点名这两处)。来源是可信 events 汇经 normalize() 的
+    usage 律(逐枚累加/终态权威/伪造双计点名,M86a-c 钉),**入口已去重**;
+    这里只做落账,不做第二套去重逻辑。
+    """
+    token_totals["in"] += int(usage.get("input_tokens", 0))
+    token_totals["out"] += int(usage.get("output_tokens", 0))
+    if usage:
+        token_totals["seen"] = True
+
+
 def projection_mode() -> str:
     """投影模式:off(E0)/ prune(S2 确定性折叠)/ window(S2' 滑动窗口)。
 
@@ -209,53 +223,74 @@ def round_guidance(mode: str, *, idx: int, max_rounds: int, marker: str) -> str:
     return _ROUND_HEADER.format(idx=idx, max_rounds=max_rounds, marker=marker)
 
 
-def _exec_profile_fields(contract, preflight, budgets=None) -> dict:
+def _exec_profile_fields(contract, preflight, budgets=None, *,
+                         backend: str = "mini-swe",
+                         backend_composition: dict | None = None) -> dict:
     """执行侧三面指纹 + 代际 + 代码内容指纹(EXECUTOR-UPGRADE-PLAN S1)。
 
     取值全部来自**本次发次真正生效的配置**,不是文档里写的意图:
     工具面读 obs_cap() 与实际动作协议,上下文面读同一个 cap 与当前投影
     策略,预算面读契约 budgets 全量。E1 各步上线时只需在这里补字段,
-    代际标签由 profiles.exec_generation 自动推导 —— 不靠人记得改。"""
+    代际标签由 profiles.exec_generation 自动推导 —— 不靠人记得改。
+
+    backend(DSH 阶段 8):B-dsh 臂的工具/上下文面记 DSH 组合的真身,
+    缺省 mini-swe 分支逐字节不动(判据 F5:历史指纹不追溯漂移)。"""
     from repoproof.agents.profiles import profile_hashes
 
     # 预算面读**本次真正生效的**额度(最小臂已换算),不是契约里写的意图
     # —— 与本函数开头那条纪律同一条;记契约值就等于两臂指纹相同,消融
     # 分不了池。
     b = budgets if budgets is not None else contract.budgets
-    cap = obs_cap()
-    tool = {
-        "action_protocol": (preflight.action_protocol if preflight else "fake"),
-        "tools": ["bash"],
-        "obs_char_cap": cap,
-    }
-    context = {
-        # E0:mini-swe DefaultAgent 每轮重发完整历史,单条观察头尾截断
-        "policy": "full-history-resend",
-        "obs_char_cap": cap,
-    }
+    if backend == "dsh":
+        # B-dsh 臂:不读 mini-swe 的 obs_cap/投影/引导旋钮 —— 那些机制不在
+        # 这条臂上,读了就是把别的臂的配置记成自己的(两臂必须分池,
+        # M-DSH-14 的指纹面)。composition 指纹整份入 context 面哈希:
+        # 组合任何一键变(版本/cordis/三缺省/model),context 指纹跟着变。
+        tool = {
+            "action_protocol": "dsh-minimal-v1",
+            "tools": ["bash", "str_replace_editor"],
+            "obs_char_cap": None,
+        }
+        context = {
+            "policy": "dsh-runtime-native",
+            "composition": dict(backend_composition or {}),
+        }
+    else:
+        cap = obs_cap()
+        tool = {
+            "action_protocol": (preflight.action_protocol if preflight else "fake"),
+            "tools": ["bash"],
+            "obs_char_cap": cap,
+        }
+        context = {
+            # E0:mini-swe DefaultAgent 每轮重发完整历史,单条观察头尾截断
+            "policy": "full-history-resend",
+            "obs_char_cap": cap,
+        }
     hmode = harness_mode()
-    if hmode != "guided":
-        # 只在非默认臂**加键**(同投影那条的写法):guided 臂的三面指纹
-        # 与历史发次逐字节相同,不追溯改写(判据 F5);最小臂天然分池。
-        context["guidance"] = "none"
-        tool["harness_mode"] = hmode
-    mode = projection_mode()
-    if mode != "off":
-        # 开了投影就**自动**离开 E0(profiles.exec_generation 据此推导);
-        # 标签与开关同源,不存在"开了却仍标 E0"的漂移(S1 判据 P4 的现场版)。
-        # 两种模式的 context 指纹必须不同 —— 它们是两个机制,不能混池。
-        from repoproof.agents.context_projector import (
-            SUPERSEDE_MIN_CHARS,
-            WINDOW_READS,
-        )
+    if backend != "dsh":
+        if hmode != "guided":
+            # 只在非默认臂**加键**(同投影那条的写法):guided 臂的三面指纹
+            # 与历史发次逐字节相同,不追溯改写(判据 F5);最小臂天然分池。
+            context["guidance"] = "none"
+            tool["harness_mode"] = hmode
+        mode = projection_mode()
+        if mode != "off":
+            # 开了投影就**自动**离开 E0(profiles.exec_generation 据此推导);
+            # 标签与开关同源,不存在"开了却仍标 E0"的漂移(S1 判据 P4 的现场版)。
+            # 两种模式的 context 指纹必须不同 —— 它们是两个机制,不能混池。
+            from repoproof.agents.context_projector import (
+                SUPERSEDE_MIN_CHARS,
+                WINDOW_READS,
+            )
 
-        if mode == "window":
-            context["prune_policy"] = "window-v1"
-            context["window_reads"] = WINDOW_READS
-            context["lossy"] = True
-        else:
-            context["prune_policy"] = "deterministic-v1"
-            context["supersede_min_chars"] = SUPERSEDE_MIN_CHARS
+            if mode == "window":
+                context["prune_policy"] = "window-v1"
+                context["window_reads"] = WINDOW_READS
+                context["lossy"] = True
+            else:
+                context["prune_policy"] = "deterministic-v1"
+                context["supersede_min_chars"] = SUPERSEDE_MIN_CHARS
     budget = {
         "semantics": b.semantics, "max_rounds": b.max_rounds,
         "max_model_calls": b.max_model_calls, "max_commands": b.max_commands,
@@ -276,6 +311,9 @@ def _exec_profile_fields(contract, preflight, budgets=None) -> dict:
     # WH 臂单列可读字段(不入哈希):分析要能直接按臂分组,而不是去解析
     # 代际标签串 —— 与 runtime_profile_id 单列同一条理由。
     out["harness_mode"] = hmode
+    # Agent backend 单列(DSH 阶段 8):bench_records 的第三锁按它裁能力池
+    # 资格。历史行缺列 = mini-swe;新行两臂都显式落,不再靠 UNKNOWN 回填。
+    out["backend_id"] = backend
     # 语义分面(2026-08-14):与粗粒度 exec_fingerprint **并存**。后者是 S1
     # 留下的值,历史发次绑着它,不追溯改写(判据 F5);新发次两个都记,
     # 严格 A/B 只看相关面(判据 F4)。
@@ -1266,6 +1304,88 @@ class _Session:
         self.venv_py = venv_py  # 会话内 venv python(相对 host 的路径)
 
 
+def run_dsh_round(*, workspace: Path, side_dir: Path, prompt: str,
+                  budgets: "HostBudgets", model_name: str, api_base: str,
+                  api_key: str, runtime_root: Path | None = None,
+                  request_timeout_s: float | None = None,
+                  session_id: str | None = None) -> tuple["AgentRunResult", dict]:
+    """B-dsh 臂的一轮(模块级,可脱离 runner 独测):job 装配 → 封存
+    worker → 回执适配成 AgentRunResult(DSH 阶段 8)。
+
+    - workspace = 会话工作树(与 H0 同一棵);events/session 落 side_dir
+      (工作树**外**)—— 落进工作树会被轮末 `git add -A` 收进适配 diff;
+    - key 只在内存经 extra_env 传给 worker 进程环境(allowlist 之外全拦),
+      不进本进程 os.environ、不落 argv/日志/回执;
+    - 适配纪律:n_model_calls = logical_requests(周期计数,E5),
+      commands_used = bash tool/call 计数,cost 恒 "UNKNOWN"(DSH 无
+      费率读数,绝不写 0 冒充);submission 仅诊断,不产生 PASS。
+    """
+    from repoproof.agents.backend import AgentRunResult
+    from repoproof.agents.dsh_backend import run_dsh_worker
+    from repoproof.agents.dsh_bridge import (
+        DEFAULT_RUNTIME_ROOT,
+        DSH_MAX_TOKENS,
+        DSH_SYSTEM_PROMPT,
+        bridge_budget,
+        composition_fingerprint,
+        runtime_paths,
+    )
+
+    rt_root = Path(runtime_root or DEFAULT_RUNTIME_ROOT)
+    worker_py, cordis = runtime_paths(rt_root)
+    side_dir.mkdir(parents=True, exist_ok=True)
+    job: dict = {
+        "prompt": prompt,
+        "workspace": str(workspace),
+        "events_path": str(side_dir / "events.jsonl"),
+        "session_root": str(side_dir / "sessions"),
+        "cordis": str(cordis),
+        "model": model_name,
+        "system_prompt": DSH_SYSTEM_PROMPT,
+        "max_tokens": DSH_MAX_TOKENS,
+        "env": {"DEEPSEEK_BASE_URL": api_base},
+    }
+    if request_timeout_s is not None:
+        job["request_timeout_seconds"] = request_timeout_s
+    if session_id:
+        job["session_id"] = session_id
+    budget = bridge_budget(budgets)
+    report = run_dsh_worker(job, worker_python=worker_py, budget=budget,
+                            extra_env={"DEEPSEEK_API_KEY": api_key})
+
+    c = report.trace.counters
+    u = report.trace.usage_totals
+    bash_calls = sum(1 for r in report.trace.records
+                     if r.get("type") == "tool/call" and r.get("tool") == "bash")
+    ok = report.attribution == "ok" and bool((report.result or {}).get("ok"))
+    result = AgentRunResult(
+        exit_status="submitted" if ok else f"dsh:{report.attribution}",
+        # DSH 的终答仅诊断(落 run_dir 回执),不进 submission ——
+        # N10:裁决树对它零消费,PASS 只走隐藏 oracle+验证器+干净重放。
+        submission="",
+        n_model_calls=int(c.get("logical_requests", 0)),
+        cost="UNKNOWN",
+        trajectory_path=None,
+        commands_used=bash_calls,
+        denied_count=0,
+    )
+    sid = report.trace.session_id or (report.result or {}).get("session_id")
+    info = {
+        "job": job,
+        "budget": budget,
+        "report": report,
+        "fingerprint": composition_fingerprint(rt_root, model=model_name),
+        "usage": dict(u),
+        "counters": dict(c),
+        "attribution": report.attribution,
+        "session_id": sid,
+        "events_path": job["events_path"],
+        "selfcheck_problems": list(report.selfcheck_problems),
+        "trace_problems": list(report.trace.problems),
+    }
+    return result, info
+
+
 class HostGuidedRunner:
     """宿主级 guided runner。所有 exec 走 LocalWorktreeBackend(净化环境/
     假 HOME/护栏/cwd 钉死焊在后端);oracle 路径永不进入会话与 agent 环境。"""
@@ -1794,6 +1914,59 @@ class HostGuidedRunner:
         return {"files": files, "total_files": len(files), "total_lines": lines}
 
     # ------------------------------------------------------------------ 主流程
+    def _run_dsh_round(self, s, idx: int, prompt: str, b: "HostBudgets",
+                       provider) -> tuple["AgentRunResult", dict]:
+        """B-dsh 臂一轮的 runner 壳:调模块级 run_dsh_round,当场把回执两件
+        (events 汇、worker result)拷进 run_dir(会话树随 run 清理,证据
+        不能跟着走),并对本轮做 treatment fidelity 判读(阶段 8,§17.3)。
+        """
+        from repoproof.agents.dsh_bridge import (
+            fidelity_verdict,
+            treatment_fidelity,
+        )
+
+        result, info = run_dsh_round(
+            workspace=s.root, side_dir=s.root.parent / f"_dsh_round{idx}",
+            prompt=prompt, budgets=b, model_name=provider.model_name,
+            api_base=provider.api_base, api_key=provider.api_key,
+            runtime_root=getattr(self, "_dsh_runtime_root", None),
+            request_timeout_s=call_timeout_s(),
+        )
+        ev_src = Path(info["events_path"])
+        if ev_src.exists():
+            shutil.copy2(ev_src, self.store.run_dir / f"dsh_events_round{idx}.jsonl")
+        (self.store.run_dir / f"dsh_result_round{idx}.json").write_text(
+            json.dumps({"attribution": info["attribution"],
+                        "result": info["report"].result,
+                        "counters": info["counters"], "usage": info["usage"],
+                        "selfcheck_problems": info["selfcheck_problems"],
+                        "trace_problems": info["trace_problems"],
+                        "killed": info["report"].killed,
+                        "orphan_count": info["report"].orphan_count},
+                       ensure_ascii=False, indent=2, sort_keys=True),
+            encoding="utf-8")
+        # 送达判读:①②③对照准入时算的组合指纹(预注册冻结值的批层复核在
+        # 批分析做);⑦的"本批已见"目前是"本发已见"(跨轮不许复用会话)。
+        missing = treatment_fidelity(
+            report=info["report"], fingerprint=info["fingerprint"],
+            expected_fingerprint=getattr(self, "_dsh_composition",
+                                         info["fingerprint"]),
+            budget=info["budget"], host_budgets=b,
+            seen_session_ids=set(getattr(self, "_dsh_session_ids", [])),
+            job=info["job"], expected_workspace=s.root)
+        if info["session_id"]:
+            self._dsh_session_ids.append(info["session_id"])
+        self._dsh_fidelity_missing.extend(m for m in missing
+                                          if m not in self._dsh_fidelity_missing)
+        info["fidelity_missing"] = missing
+        info["fidelity_verdict"] = fidelity_verdict(missing)
+        self.store.append_event("dsh.round", actor="harness", payload={
+            "round": idx, "attribution": info["attribution"],
+            "session_id": info["session_id"], "usage": info["usage"],
+            "logical_requests": info["counters"].get("logical_requests"),
+            "fidelity_missing": missing})
+        return result, info
+
     def run(
         self,
         provider: ProviderConfig | None,
@@ -1938,7 +2111,40 @@ class HostGuidedRunner:
             )
             token_totals = {"in": 0, "out": 0, "seen": False}   # 累计(记账)
             make_budget_model = None
-            if model_factory is None:
+            if model_factory is None and getattr(self, "_backend", "mini-swe") == "dsh":
+                # B-dsh 臂(阶段 8):宿主侧不建模型对象 —— agent 环归封存
+                # worker,预算由父侧 watchdog 执法(dsh_backend),token 记账
+                # 从可信 events 汇回填。provider 准入照走(模型身份与费率面
+                # 和 H0 同源);key 只在内存传给 worker 环境(allowlist 之外
+                # 全拦),不进 os.environ、不落 argv/日志。
+                assert provider is not None and preflight is not None
+                # 写成 ptype 中转不是风格偏好:M75l 变异钉的旧串是
+                # `if provider.PROVIDER_TYPE != "deepseek-native":`,同文重现
+                # 会破坏登记簿"旧串恰一次"的可变异性。
+                ptype = provider.PROVIDER_TYPE
+                if ptype != "deepseek-native":
+                    raise ValueError(
+                        f"B-dsh 桥接臂只接 deepseek-native provider,实得 "
+                        f"{ptype!r} —— DSH runtime 只说 DeepSeek "
+                        "协议,换通道 = 换了被测组合")
+                from repoproof.agents.dsh_bridge import (
+                    DEFAULT_RUNTIME_ROOT,
+                    bridge_budget,
+                    composition_fingerprint,
+                )
+
+                # 两道 fail-fast 都要在建会话之前:per_round 语义拒绝
+                # (等总额无从定义)与 cordis 现物校验(封存被动过就不开跑)。
+                bridge_budget(b)
+                self._dsh_runtime_root = Path(
+                    _os.environ.get("REPOPROOF_DSH_RUNTIME_ROOT",
+                                    str(DEFAULT_RUNTIME_ROOT))).expanduser()
+                self._dsh_composition = composition_fingerprint(
+                    self._dsh_runtime_root, model=provider.model_name)
+                self._dsh_session_ids: list = []
+                self._dsh_fidelity_missing: list = []
+                model = None
+            elif model_factory is None:
                 assert provider is not None and preflight is not None
                 _os.environ.setdefault("MSWEA_COST_TRACKING", "ignore_errors")
                 # litellm DEV 模式 import 时会把 CWD .env 全量 load_dotenv
@@ -2015,6 +2221,7 @@ class HostGuidedRunner:
             repair_dir = self.store.run_dir / "repair"
             repair_dir.mkdir(exist_ok=True)
             metrics_acc = {"model_calls": 0, "commands": 0, "denied": 0}
+            dsh_round_infos: list[dict] = []   # B-dsh 臂逐轮回执(记录装配用)
             last_exit: dict = {"status": None, "exhausted": None}
             per_round_usage: list[tuple[int, int]] = []
             expected_reg = _expected_regression_passed(contract.host.regression_baseline)
@@ -2071,16 +2278,26 @@ class HostGuidedRunner:
                                      max_rounds=b.max_rounds, marker=SCOPE_MARKER)
                     + render_packets(packets)
                 )
-                mback = MiniSWEBackend(
-                    model=round_model, env=env,
-                    step_limit=step_limit,
-                    cost_limit=Budgets().monetary_soft_cap_usd,
-                    output_path=self.store.run_dir / f"trajectory_round{idx}.json",
-                )
                 # H1(LESSONS #33):env.denied_count 是会话生命周期累计值;
                 # 排序只许看**本轮增量**,否则一轮违规拖累后续所有轮。
                 denied_before = env.denied_count
-                result = mback.run_task(round_prompt)
+                if getattr(self, "_backend", "mini-swe") == "dsh":
+                    # B-dsh 臂:agent 环归封存 worker;token 记账回填自可信
+                    # events 汇(worker 自述不算数)。dsh 臂只走 total 语义
+                    # (准入时 bridge_budget 已把 per_round 拒了),故写
+                    # token_totals 即写本轮桶。
+                    result, dsh_round = self._run_dsh_round(
+                        s, idx, round_prompt, b, provider)
+                    dsh_round_infos.append(dsh_round)
+                    absorb_dsh_usage(token_totals, dsh_round.get("usage") or {})
+                else:
+                    mback = MiniSWEBackend(
+                        model=round_model, env=env,
+                        step_limit=step_limit,
+                        cost_limit=Budgets().monetary_soft_cap_usd,
+                        output_path=self.store.run_dir / f"trajectory_round{idx}.json",
+                    )
+                    result = mback.run_task(round_prompt)
                 last_exit["status"] = result.exit_status
                 last_exit["exhausted"] = getattr(round_model, "exhausted", None)
                 metrics_acc["model_calls"] += result.n_model_calls
@@ -2095,7 +2312,12 @@ class HostGuidedRunner:
                                       or getattr(round_model, "seen", False))})
                     per_round_usage.append((r_in, r_out))
                 else:
-                    metrics_acc["commands"] = env.commands_used
+                    # dsh 臂的命令数来自 trace 的 bash tool/call 计数 —— env
+                    # 不在那条臂上跑命令,读它就是拿 0 冒充测量值。
+                    metrics_acc["commands"] = (
+                        metrics_acc["commands"] + result.commands_used
+                        if getattr(self, "_backend", "mini-swe") == "dsh"
+                        else env.commands_used)
                 metrics_acc["denied"] = env.denied_count
 
                 self._git(s, "add", "-A")
@@ -2789,7 +3011,10 @@ class HostGuidedRunner:
             # 一个大 hash 只说"配置变了",拆开才说"变的是哪一面"。
             **_exec_profile_fields(self.contract, preflight,
                                    effective_budgets(self.contract.budgets,
-                                                     getattr(self, "_harness_mode", None))),
+                                                     getattr(self, "_harness_mode", None)),
+                                   backend=getattr(self, "_backend", "mini-swe"),
+                                   backend_composition=getattr(
+                                       self, "_dsh_composition", None)),
             "run_index": run_index,
             "run_order": run_order,
             # 批次归属:探索性加发打 EXPLORATORY_UNPREREGISTERED,闸门不计
@@ -2839,6 +3064,23 @@ class HostGuidedRunner:
                       "leftover_new_pids": sweep_report.get("leftover_new_pids", []),
                       **({"error": sweep_report["error"]}
                          if "error" in sweep_report else {})}),
+            # B-dsh 臂回执(阶段 8):送达判读与逐轮归因入台账 —— 批分析
+            # 据此算送达率(<80% 停批),TREATMENT_NOT_DELIVERED 的发次
+            # 不得读作 H0/H1 无差异。mini-swe 发次无此键(不写空壳)。
+            **({"dsh": {
+                "fidelity_missing": list(
+                    getattr(self, "_dsh_fidelity_missing", [])),
+                "fidelity_verdict": (
+                    "TREATMENT_NOT_DELIVERED"
+                    if getattr(self, "_dsh_fidelity_missing", []) else "DELIVERED"),
+                "rounds": [{
+                    "attribution": i["attribution"],
+                    "session_id": i["session_id"],
+                    "logical_requests": i["counters"].get("logical_requests"),
+                    "usage": i["usage"],
+                    "fidelity_missing": i.get("fidelity_missing", []),
+                } for i in dsh_round_infos],
+            }} if getattr(self, "_backend", "mini-swe") == "dsh" else {}),
         }
         append_run(self.project_root, record)
         ev("bench.recorded", actor="harness", payload={"runs_jsonl": "benchmarks/v2/runs.jsonl"})
@@ -2878,6 +3120,7 @@ def run_host_guided_cli(
     batch: str = "UNKNOWN",
     wheelhouse: Path | None = None,
     keep_session: bool = False,
+    backend: str = "mini-swe",
 ) -> dict:
     """准入 → 预检 → 宿主级 guided 运行。
 
@@ -2922,9 +3165,17 @@ def run_host_guided_cli(
             return {"blocked": True, "preflight": pf.summary(),
                     "agent_model_call_count": 0}
         runner = HostGuidedRunner(contract_path, project_root, wheelhouse=wheelhouse)
+        runner._backend = backend         # B-dsh 臂开关(阶段 8);缺省 mini-swe
         report = runner.run(provider, pf, run_order=run_order, run_index=run_index,
                             batch=batch, keep_session=keep_session)
         return {"blocked": False, "preflight": pf.summary(), "report": report}
+    if backend != "mini-swe":
+        # fake 通路是 mini-swe 环里的脚本化模型;dsh 臂的四形电池走脚本化
+        # 假端点 + 真 worker 环(dsh_fake_provider),是另一条通路 —— 混着
+        # 跑会把"判据面自检"记成"dsh 臂发次"。声明式拒绝,不静默换道。
+        raise ValueError(
+            f"--fake 只走 mini-swe 通路(实得 backend={backend!r});"
+            "dsh 臂的 F0 四形走脚本化假端点彩排,不共用 fake 开关")
     runner = HostGuidedRunner(contract_path, project_root, wheelhouse=wheelhouse)
     runner._fake_mode = fake          # 台账里要看得出跑的是哪一个冒烟脚本
 

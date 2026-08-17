@@ -214,3 +214,59 @@ def test_b6_backend_third_lock_dsh_rows_never_count(tmp_path: Path) -> None:
     assert out["r-dsh-1"]["counts_toward_model_capability"] is False
     assert out["r-dsh-1"]["counts_toward_heldout_benchmark"] is False
     assert out["r-old-1"]["counts_toward_model_capability"] is True
+
+
+# ---------------------------------------------------------------- 层 2 集成缝
+
+_RT_ROOT = Path.home() / "RepoProofRuntimes" / "rt-dsh-minimal-0.1.0rc6-v1"
+
+needs_runtime = pytest.mark.skipif(
+    not (_RT_ROOT / ".venv" / "bin" / "python").exists(),
+    reason="封存 DSH runtime 不在本机")
+
+
+@needs_runtime
+def test_r1_run_dsh_round_end_to_end_over_fake_endpoint(tmp_path: Path) -> None:
+    """runner 缝的活钉:模块级 run_dsh_round 走真 worker 环 + 脚本化假端点
+    (127.0.0.1,假 key 字面量,不出网)。编辑器写盘可收割、回执适配纪律
+    (calls=logical、commands=bash 计数、cost=UNKNOWN)、指纹/会话齐全。"""
+    from repoproof.agents.dsh_fake_provider import FakeDeepSeekProvider
+    from repoproof.runner.host_guided import run_dsh_round
+
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    out_file = str(ws / "out.txt")
+
+    class _Total(_HB):
+        max_wall_time_minutes = 3
+
+    with FakeDeepSeekProvider([
+        {"tool": "str_replace_editor",
+         "args": {"command": "create", "path": out_file, "file_text": "hola\n"}},
+        {"text": "done"},
+    ]) as fake:
+        result, info = run_dsh_round(
+            workspace=ws, side_dir=tmp_path / "side", prompt="写 out.txt。",
+            budgets=_Total(), model_name="deepseek-v4-flash",
+            api_base=fake.base_url, api_key="sk-canary-invalid-0000",
+            runtime_root=_RT_ROOT, request_timeout_s=60.0)
+
+    assert (ws / "out.txt").read_text(encoding="utf-8") == "hola\n"
+    assert result.exit_status == "submitted"
+    assert result.n_model_calls == 2          # 周期计数(E5):两次走完的调用
+    assert result.commands_used == 0          # 无 bash,只有编辑器
+    assert result.cost == "UNKNOWN"           # DSH 无费率读数,绝不写 0 冒充
+    assert result.denied_count == 0
+    assert info["attribution"] == "ok"
+    assert info["session_id"]
+    assert info["usage"] == {"input_tokens": 24, "output_tokens": 10}
+    assert info["fingerprint"]["backend_id"] == "dsh"
+    assert Path(info["events_path"]).exists()
+    assert info["trace_problems"] == [] and info["selfcheck_problems"] == []
+    # fidelity 九项对着真回执全绿(⑧ 用同一份 HostBudgets 重算恒等)
+    missing = treatment_fidelity(
+        report=info["report"], fingerprint=info["fingerprint"],
+        expected_fingerprint=dict(info["fingerprint"]),
+        budget=info["budget"], host_budgets=_Total(),
+        seen_session_ids=set(), job=info["job"], expected_workspace=ws)
+    assert missing == []

@@ -139,6 +139,12 @@ def main(argv: list[str] | None = None) -> int:
                              "用来验判据在**失败侧**的行为,那是矩阵看不到的一段)")
     p_host.add_argument("--keep-session", action="store_true",
                         help="debug: keep the session tree on disk after the run")
+    p_host.add_argument("--backend", default="mini-swe",
+                        choices=["mini-swe", "dsh"],
+                        help="agent backend(DSH 阶段 8):mini-swe = 仓内环(缺省,"
+                             "既有全部发次);dsh = 封存 DSH minimal runtime 作不可信"
+                             "AgentBackend(B-dsh 代际,只接 deepseek-native provider,"
+                             "发次不计模型能力池)")
 
     args = parser.parse_args(argv)
 
@@ -378,6 +384,7 @@ def main(argv: list[str] | None = None) -> int:
                 batch=args.batch,
                 wheelhouse=args.wheelhouse,
                 keep_session=args.keep_session,
+                backend=args.backend,
             )
         except Exception as exc:
             try:

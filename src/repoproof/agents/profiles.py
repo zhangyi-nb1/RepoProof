@@ -214,6 +214,7 @@ _FACE_MAP: tuple[tuple[str, str], ...] = (
     # ---- 量具面:改它**不改变被测系统** ----
     ("agents/profiles.py", "instrumentation"),               # 指纹自己
     ("agents/dsh_events.py", "instrumentation"),             # DSH 事件记账(阶段 4)
+    ("agents/dsh_fake_provider.py", "instrumentation"),      # 脚本化假端点(F0/AR 载具)
     ("agents/fake_model.py", "instrumentation"),             # 冒烟脚本
     ("harness/trace.py", "instrumentation"),                 # 记账
     ("harness/artifacts.py", "instrumentation"),

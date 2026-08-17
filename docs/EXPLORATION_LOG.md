@@ -2782,3 +2782,33 @@ held-out。阶段 8 桥接批 E1-DSH-MINIMAL-BRIDGE-1 预注册(sqlglot-8042、
 等总额、送达 ≥80% 停批线、counts_toward_model_capability=false);
 runner 侧 B-dsh 集成、逐任务 F0 四形电池(报告 §17.1)与批层变异
 M-DSH-13..16 随桥接批落地。
+
+## 状态 · 2026-08-17 · DSH 阶段 8 层 2:runner 侧 B-dsh 集成 + R1 活钉 + 预注册草案
+
+层 1(007a422:桥接件三合一 + backend 第三锁 + M88×4)之上,本层把 B-dsh
+臂接进 HostGuidedRunner 主循环(阶段 8 不依赖真 key 的部分至此收齐):
+
+- `--backend dsh`(cli→run_host_guided_cli→runner):准入即验 provider
+  必须 deepseek-native(换通道 = 换被测组合)、`bridge_budget` 等总额
+  fail-fast、`composition_fingerprint` 现场复核封存;`--fake`×dsh 互斥是
+  **声明拒绝** —— F0 四形电池走 mini-swe 通路,判据面与 backend 无关。
+- `run_dsh_round`:events/session 落 run 树**外侧邻位**(躲开轮末
+  `git add -A` 的收割),证据事后拷回 run_dir;适配纪律 ——
+  n_model_calls=logical_requests(周期计数,E5)、commands=bash tool/call
+  如实计、cost="UNKNOWN" 不冒充 0、**submission=""**(N10:final_response
+  仅诊断,裁决树零消费)。逐轮 fidelity 九项判读进台账 dsh 回执块。
+- usage 落账走新的 `absorb_dsh_usage`(可信 events 汇入口已去重,只落账);
+  token 单实现钉如实扩为**恰两个**去重实现,逐行点名。
+- R1 活钉 `test_r1_run_dsh_round_end_to_end_over_fake_endpoint`:真封存
+  worker + 脚本化假端点(`dsh_fake_provider` 自金丝雀晋级 src 件)端到端
+  —— editor 写文件、计数适配逐项、fidelity missing==[]。搬移实测教训:
+  SSE usage **必须线格式 snake_case**,凭记忆写成事件侧 camelCase 当场
+  打崩 runtime chunk 解析(单变量证实;"created" 缺失被容忍)。
+- 预注册草案 `E1-DSH-MINIMAL-BRIDGE-1-prereg-DRAFT-20260817.md`:等总额
+  映射表、组合三缺省逐字、fidelity 九项 + 送达<80% 停批线 + "未送达不得
+  读作无差异"、发次序 F0四形→彩排→H0/H1 n=1→fidelity 闸→n=3×2(8 计分
+  发)。**冻结前置 = 阶段 7 DQ-SDK 真模型通过(真 key 用户注入,AI 不经手)。**
+
+全量套件:除 `test_smoke_chain_end_to_end` 一发**环境性红**外全绿 ——
+main_dir_integrity 抓到邻仓 offerclaw(chroma_db)被并发进程写入,守卫
+无辜,单跑复验两次全绿;该测对邻仓并发写天然敏感,已知限制先入账。
