@@ -13,9 +13,9 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 55,
-    "assisted_repair_runs": 30,
-    "development_baseline_runs": 70,
+    "all_valid_run_outcomes": 56,
+    "assisted_repair_runs": 34,
+    "development_baseline_runs": 68,
     "exploratory": 8,
     "exploratory_passes": 0,
     "exploratory_run_ids": [
@@ -167,7 +167,7 @@
       "hb1-sqlglot-8042-20260817-141419",
       "hb1-sqlglot-8042-20260818-003100"
     ],
-    "total": 190,
+    "total": 192,
     "treatment_delivered_runs": 6,
     "treatment_not_delivered_runs": 4
   },
@@ -184,7 +184,7 @@
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "11fddea82faec74233e6fe3d420ca7bcd858c0a1c0e1278fdcf1f6f668b8c15b"
+    "runs_jsonl_sha256": "31409e2f0c74d6576cbda8e754a014faa8bfcda29030e1b9400d73fdb1f806cb"
   },
   "stages": {
     "T1": {

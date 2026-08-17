@@ -235,6 +235,9 @@ MECHANISM_PURPOSES = frozenset({
 # **散文说不算,代码算了** —— 这正是 process-independence 要防的那种缝。
 QUALIFICATION_PURPOSES = frozenset({
     "RUNTIME_PROFILE_QUALIFICATION",   # PQ:profile 资格审(G6/G7)
+    "BACKEND_QUALIFICATION",           # DQ-SDK:agent backend 真模型资格审
+                                       # (DQ-SDK-1,G6/G6b/G7 —— 同为资格
+                                       # 审语义,不充闸门、不计模型能力)
 })
 
 # 阶段闸门的扣除面 = 机制类 ∪ 资格审类。

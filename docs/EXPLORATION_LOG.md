@@ -2812,3 +2812,28 @@ M-DSH-13..16 随桥接批落地。
 全量套件:除 `test_smoke_chain_end_to_end` 一发**环境性红**外全绿 ——
 main_dir_integrity 抓到邻仓 offerclaw(chroma_db)被并发进程写入,守卫
 无辜,单跑复验两次全绿;该测对邻仓并发写天然敏感,已知限制先入账。
+
+## 状态 · 2026-08-18 · DSH 阶段 7 关闭:DQ-SDK-1 真模型资格 → rt-dsh-minimal-0.1.0rc6-v1 qualified
+
+- **注入纪律(用户 2026-08-18 授权代注入,原文记录)**:每条启动命令前缀
+  `set -a && source .env && set +a` —— 键值只走 shell→进程 env,全程不读取、
+  不回显、不进 argv / 日志 / 工件;base URL 只以 redacted summary 出现;
+  测试内 fake key 一律字面假值。既有"模型 env 由用户注入、AI 不经手"条款
+  按此次授权修订为"AI 可执行注入,值不进上下文"。
+- **批果**:运行 5/5 恰好打满,零加发(NameError 弃置发 + 发 1/发 2 废行
+  + 发 3 FAIL 能力 8/9 + 发 4 **PASS_ADAPTED** 能力 9/9、回归 1150/1150、
+  replay PASS、fidelity DELIVERED)。终判机械 ok=True:G6=2 模型
+  (v4-pro / v4-flash)、G6b=1 发诚实通过、G7 清。
+- **两处仪器缺陷被真跑打出并钉死**(预注册附录二/四):①落账 NameError
+  (dsh 回执块引跨方法自由变量)→ `dsh_receipt_block` 签名传参纯函数
+  + R2 钉×2;②台账 runtime_profile_id 回落契约缺省(G6 按列挂靠恒读 0)
+  → dsh 臂改记准入组合指纹(缺则拒)+ backend 进代际标签 + R3 钉×2
+  + M89a。全量门 **257/257**(证据 `313f9a6288c2.json`;前置 256/257
+  @ 4a0a73e 系 M89a 靶修未提交时的预期 STALE,如实并陈)。
+- **消耗形状(阶段 8 必须正视)**:四次落账真跑逐发 logical_requests=91
+  撞 90 上限(**含 PASS 发** —— 工件先于掐断完成,裁决树不读 finish_reason,
+  N10)。DSH 臂请求重 / token 轻(≈55-77K in/发 对 mini-swe 臂 0.55-1.7M),
+  等总额 ×3 映射下请求轴是绑定约束;桥接批预算映射在 E1 预注册冻结时
+  处理,不回头改本批判据。
+- 供应商分钟级翻牌实录 + 基建事件计数口径 + 重试封装见附录三;封套决算
+  in ≈300K / 8M、out ≈270K / 500K、墙 ≈136 / 180 分。
