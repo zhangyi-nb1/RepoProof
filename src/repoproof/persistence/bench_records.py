@@ -240,6 +240,13 @@ QUALIFICATION_PURPOSES = frozenset({
 # 阶段闸门的扣除面 = 机制类 ∪ 资格审类。
 NON_GATEABLE_PURPOSES = MECHANISM_PURPOSES | QUALIFICATION_PURPOSES
 
+# Agent backend 基线(DSH 阶段 8,M-DSH-13)。能力池与 held-out 只收基线
+# 循环的发次:换 agent 循环 = 换执行语义 = 另一道题(与 runtime profile
+# 永不互比同律)。历史行缺列/UNKNOWN = mini-swe(backend_id 字段注释的
+# 既定语义:那时只有这一个循环)。放开一个新 backend 进能力池必须改这行
+# 代码 —— 显式 diff,不是分类旁挂里一句自述。
+BASELINE_BACKEND = "mini-swe"
+
 
 def load_classifications(project_root: str | Path) -> dict[str, dict]:
     """→ {run_id: 分类记录}。文件缺失即空 —— 未分类的历史发次按常规处理。"""
@@ -293,12 +300,20 @@ def classify_runs(project_root: str | Path) -> list[dict]:
     rows = []
     for r in adjudicated_runs(project_root):
         c = cls.get(r.get("run_id"), {})
+        # backend 第三锁(M-DSH-13,2026-08-17):非基线 backend 的发次不入
+        # 能力池、不入 held-out,**分类文件说什么都不算**(自述不能自证,
+        # 与下面 oracle 两道锁同款结构)。B-dsh 桥接批只回答机制效应
+        # (counts_toward_mechanism_effect 走自己的轴),不回答"模型多能干"。
+        backend = r.get("backend_id", UNKNOWN)
+        baseline_backend = backend in (BASELINE_BACKEND, UNKNOWN)
         rows.append({
             **r,
             "test_mode": c.get("test_mode", "UNCLASSIFIED"),
             "run_purpose": c.get("run_purpose", "CAPABILITY_EVALUATION"),
             "task_seen": c.get("task_seen", True),
-            "counts_toward_model_capability": c.get("counts_toward_model_capability", True),
+            "counts_toward_model_capability": bool(
+                c.get("counts_toward_model_capability", True)
+                and baseline_backend),
             # 严口径闸门,**两道**:
             #   ① oracle 必须是外部来的(测试文本不是我们写的);
             #   ② harness 对宿主的改动必须只是挖空,不许加语义 —— 否则上游测试
@@ -306,6 +321,7 @@ def classify_runs(project_root: str | Path) -> list[dict]:
             # 分类文件说 true 也不算:自述不能自证。
             "counts_toward_heldout_benchmark": bool(
                 c.get("counts_toward_heldout_benchmark", False)
+                and baseline_backend
                 and c.get("oracle_authorship") == ORACLE_AUTHORSHIP_EXTERNAL
                 and c.get("host_modification_mode", HOST_MOD_PRISTINE)
                 in _HELDOUT_OK_HOST_MODS),

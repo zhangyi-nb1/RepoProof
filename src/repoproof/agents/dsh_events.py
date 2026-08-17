@@ -133,6 +133,10 @@ def normalize(raw_lines: list[str]) -> DshTrace:
 
         rec = {"raw_index": i, "kind": "event", "seq": seq, "type": etype,
                "turn": data.get("turn", current_turn)}
+        if etype == "tool/call":
+            # fidelity ④ 的证据面(阶段 8):工具名落 trace。字段名 name 是
+            # 2026-08-17 假端点探针实测(data_keys 含 name/callId/arguments)。
+            rec["tool"] = data.get("name")
         u = _extract_usage(data)
         if u:
             src = "turn_end" if etype == "turn/end" else "message"

@@ -174,6 +174,9 @@ _FACE_MAP: tuple[tuple[str, str], ...] = (
     ("agents/backend.py", "executor_semantics"),             # agent 循环
     ("agents/dsh_worker.py", "executor_semantics"),          # DSH 外来循环(阶段 3)
     ("agents/dsh_backend.py", "executor_semantics"),         # DSH 预算长牙处(阶段 4)
+    # 桥接件归 executor 面的裁决点:bridge_budget 决定 H1 臂跑在什么总额下
+    # (= 改运行预算)。fidelity/指纹虽是量具,F1 一模一面,按主导语义归。
+    ("agents/dsh_bridge.py", "executor_semantics"),          # 等总额映射(阶段 8)
     ("harness/budget.py", "executor_semantics"),
     ("harness/policy.py", "executor_semantics"),             # 哪些命令被拒
     ("harness/prompt_manifest.py", "executor_semantics"),    # 模型可见提示

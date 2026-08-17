@@ -128,8 +128,10 @@ _T_EP = ["tests/test_exec_profiles.py"]
 _T_AB = ["tests/test_agent_backend_axis.py"]
 _DEV = "src/repoproof/agents/dsh_events.py"
 _DBK = "src/repoproof/agents/dsh_backend.py"
+_DBR = "src/repoproof/agents/dsh_bridge.py"
 _T_DEV = ["tests/test_dsh_events.py"]
 _T_DWD = ["tests/test_dsh_backend_watchdog.py"]
+_T_DBR = ["tests/test_dsh_bridge.py"]
 _T_DIC = ["tests/test_dsh_isolation_controls.py"]
 _T_DPR = ["tests/test_dsh_profile.py"]
 _VC = "scripts/validate_controls.py"
@@ -2576,6 +2578,52 @@ MUTATIONS: list[dict] = [
         "new": '    # M87a 变异态:DSH profile 被除名',
         "catchers": _T_DPR,
         "expected_catcher": ["test_d1_dsh_profile_registered_and_lazily_reachable"],
+    },
+    {
+        "id": "M88a-dsh-backend-third-lock-dead",
+        "lesson": "DSH 发次的能力/held-out 第三锁死了 —— 分类旁挂一句自述"
+                  "就能把 B-dsh 桥接发次计入'模型多能干',机制批的 PASS"
+                  "混进能力池(M-DSH-13;与首批 PQ 抬 T3 通过数同款病:"
+                  "散文说不算,代码算了)",
+        "file": _BR,
+        "old": '                c.get("counts_toward_model_capability", True)\n'
+               '                and baseline_backend),',
+        "new": '                c.get("counts_toward_model_capability", True)),',
+        "catchers": _T_DBR,
+        "expected_catcher": ["test_b6_backend_third_lock_dsh_rows_never_count"],
+    },
+    {
+        "id": "M88b-dsh-fingerprint-drops-field",
+        "lesson": "组合指纹掉字段 —— reasoning_effort 从指纹里消失,换了"
+                  "推理档位的发次与冻结组合算同一签名,批间不可比而台账"
+                  "看不出(M-DSH-14)",
+        "file": _DBR,
+        "old": '        "reasoning_effort": reasoning_effort,',
+        "new": '        # M88b 变异态:reasoning_effort 不入指纹',
+        "catchers": _T_DBR,
+        "expected_catcher": ["test_b3_fingerprint_keys_and_composition_defaults"],
+    },
+    {
+        "id": "M88c-dsh-budget-minutes-as-seconds",
+        "lesson": "等总额预算映射把分钟当秒 —— H1 臂墙钟只有 H0 的 1/60,"
+                  "臂间差异全被预算不等吃掉,还被读作后端效应(M-DSH-15)",
+        "file": _DBR,
+        "old": '        max_wall_seconds=hb.max_wall_time_minutes * 60.0,',
+        "new": '        max_wall_seconds=hb.max_wall_time_minutes,',
+        "catchers": _T_DBR,
+        "expected_catcher": ["test_b1_budget_mapping_is_equal_total"],
+    },
+    {
+        "id": "M88d-dsh-fidelity-check-dead",
+        "lesson": "treatment fidelity 判读死了,九项全缺也报送达 —— 治疗"
+                  "未送达的发次被读成 H0/H1 无差异,送达 <80% 的停批线"
+                  "永不触发(M-DSH-16)",
+        "file": _DBR,
+        "old": '    return missing',
+        "new": '    return []',
+        "catchers": _T_DBR,
+        "expected_catcher": [
+            "test_b5_each_degradation_is_named_and_not_readable_as_no_difference"],
     },
     {
         "id": "M77a-usage-cb-streaming-dedupe-dead",
