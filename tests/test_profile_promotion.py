@@ -57,6 +57,12 @@ def _register_browser_profile():
 
 BROWSER = _register_browser_profile()
 
+from repoproof.execution.runtime_profiles import profile as _lazy_profile  # noqa: E402
+
+# DSH profile 经 _LAZY_DEFS 惰性路径拉进 known_profiles 的可见范围 ——
+# 不拉,P6 对它就是静默跳过,而"没被检查"长得跟"检查通过"一模一样。
+DSH = _lazy_profile("rt-dsh-minimal-0.1.0rc6-v1")
+
 from repoproof.execution.profile_promotion import (  # noqa: E402
     LIFECYCLE_ORDER,
     MIN_HONEST_PASSES,

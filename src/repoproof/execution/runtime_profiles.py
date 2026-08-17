@@ -122,6 +122,7 @@ _LAZY_DEFS: dict[str, str] = {
     "rt-sidecar-browser-v1": "benchmarks/v2/sidecar_browser/profile.py",
     "rt-sidecar-canary-v1": "benchmarks/v2/sidecar_conformance/profile.py",
     "rt-sidecar-markdown-it-v1": "benchmarks/v2/receipt_controls/sidecar.py",
+    "rt-dsh-minimal-0.1.0rc6-v1": "benchmarks/v2/dsh_minimal/profile.py",
 }
 
 

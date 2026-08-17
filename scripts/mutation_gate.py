@@ -131,6 +131,7 @@ _DBK = "src/repoproof/agents/dsh_backend.py"
 _T_DEV = ["tests/test_dsh_events.py"]
 _T_DWD = ["tests/test_dsh_backend_watchdog.py"]
 _T_DIC = ["tests/test_dsh_isolation_controls.py"]
+_T_DPR = ["tests/test_dsh_profile.py"]
 _VC = "scripts/validate_controls.py"
 _T_VM = ["tests/test_control_validation_matrix.py"]
 _MG = "scripts/mutation_gate.py"
@@ -2563,6 +2564,18 @@ MUTATIONS: list[dict] = [
         "new": '    for member in []:',
         "catchers": _T_DWD,
         "expected_catcher": ["test_g5_eperm_fallback_still_kills_group"],
+    },
+    {
+        "id": "M87a-dsh-profile-delisted",
+        "lesson": "DSH profile 从惰性白名单除名 —— promotion 留痕悬空,"
+                  "阶段 7 的 G6 无从按 runtime_profile_id 挂靠真实发次,"
+                  "而'查无此 profile'长得跟'从没做过'一模一样(白名单是"
+                  "对外承诺清单,少一条承诺与多一条同样要抓)",
+        "file": _RTP,
+        "old": '    "rt-dsh-minimal-0.1.0rc6-v1": "benchmarks/v2/dsh_minimal/profile.py",',
+        "new": '    # M87a 变异态:DSH profile 被除名',
+        "catchers": _T_DPR,
+        "expected_catcher": ["test_d1_dsh_profile_registered_and_lazily_reachable"],
     },
     {
         "id": "M77a-usage-cb-streaming-dedupe-dead",

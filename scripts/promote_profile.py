@@ -40,6 +40,7 @@ _SUITE_PROFILES = (
     ("benchmarks/v2/sidecar_conformance/profile.py", "suite_canary_profile"),
     ("benchmarks/v2/sidecar_browser/profile.py", "suite_browser_profile"),
     ("benchmarks/v2/receipt_controls/sidecar.py", "suite_mdit_profile"),
+    ("benchmarks/v2/dsh_minimal/profile.py", "suite_dsh_profile"),
 )
 
 
