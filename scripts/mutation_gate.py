@@ -130,6 +130,7 @@ _DEV = "src/repoproof/agents/dsh_events.py"
 _DBK = "src/repoproof/agents/dsh_backend.py"
 _T_DEV = ["tests/test_dsh_events.py"]
 _T_DWD = ["tests/test_dsh_backend_watchdog.py"]
+_T_DIC = ["tests/test_dsh_isolation_controls.py"]
 _VC = "scripts/validate_controls.py"
 _T_VM = ["tests/test_control_validation_matrix.py"]
 _MG = "scripts/mutation_gate.py"
@@ -2497,6 +2498,28 @@ MUTATIONS: list[dict] = [
         "new": '        if False:',
         "catchers": _T_DWD,
         "expected_catcher": ["test_g2_wall_overrun_same_knife"],
+    },
+    {
+        "id": "M85a-dsh-topology-gate-dead",
+        "lesson": "拓扑闸死了 —— workspace/events/session 可以指进仓树或"
+                  "封存池,不可信平面直接落在 oracle/验证器/台账头上;"
+                  "'拓扑阻止'退化成'但愿没人配错'(指导文档阶段 5 N1-N3)",
+        "file": _DBK,
+        "old": '            if p == root or root in p.parents:',
+        "new": '            if False:',
+        "catchers": _T_DIC,
+        "expected_catcher": ["test_n123_trusted_plane_roots_rejected"],
+    },
+    {
+        "id": "M85b-dsh-env-gate-passes-everything",
+        "lesson": "环境闸全放行 —— 父进程的别家 key/token/仓路径全量下灌"
+                  "到不可信平面(模型驱动的 bash 一条 env 就能看见);"
+                  "最小泄漏面失守(阶段 5 N5)",
+        "file": _DBK,
+        "old": '    env = {k: os.environ[k] for k in _ENV_ALLOWLIST if k in os.environ}',
+        "new": '    env = dict(os.environ)',
+        "catchers": _T_DIC,
+        "expected_catcher": ["test_n5_env_gate_strips_parent_secrets"],
     },
     {
         "id": "M77a-usage-cb-streaming-dedupe-dead",

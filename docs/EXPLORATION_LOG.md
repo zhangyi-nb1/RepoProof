@@ -2665,3 +2665,29 @@ flush 进宿主侧 events.jsonl(可信汇,DSH 自己的 JSONL 只作诊断)。�
 桥接批预注册须钉)、`turn/end.reason` 归因、`llm/retry` 可见;usage 字段
 要等真实回包 —— 阶段 6 本地假 DeepSeek 端点的活。下一步:事件适配 +
 usage 去重(H7 同型)+ 预算 watchdog + 进程组强杀。
+
+## 状态 · 2026-08-17 · DSH 阶段 4-5:可信 trace 立账,预算长牙,负控十项落钉
+
+**一、阶段 4(2371d0f)**。dsh_events(量具):(session,seq) 去重 fail
+closed、空洞/乱序/终态丢失点名、同 turn 双侧 usage 只认 turn/end(H7 同
+型)、逻辑请求与物理尝试分开数、selfcheck 不许第三种去向。dsh_backend
+(执行语义):总额四轴 + 墙钟增量对账,越限 SIGKILL 整组 —— "超限后无
+后台继续调用模型"是拓扑保证;归因 强杀 > worker 自报 > 协议破。真栈组合
+探针:17 事件对账平、1 逻辑请求 3 物理尝试(2 retry)、零孤儿。钉 E×7 +
+G×4(假 worker 全自终结,执法变异只能红断言不许挂闸门);M84a-d(245)。
+
+**二、阶段 5(本提交)**。可执行的边界先立两道闸:拓扑闸(workspace/
+events/session 指进仓树或封存池 → 开跑前拒;oracle/验证器/台账全在仓树,
+拒入仓树 = N1-N3 同闸)、环境闸(allowlist 只 PATH/HOME/TMPDIR + 显式
+注入;别家 key/token 不下灌 = N5)。N4 stateless 钉;N6 组合面无逃生舱
+(docker/web/subagent 全文不现,skills 显式关死,compaction 只在缺席
+声明句);N7/N8 封存件现场逐枚对钉;N9/N10 伪造通道在裁决树**零消费**
+(结构钉:DSH 会话 JSONL 与 final_response 无任何下游)。macOS 系统注入
+(__CF_USER_TEXT_ENCODING/LC_CTYPE)白名单外单列容忍。M85a/b(247)。
+**范围诚实**:首轮无容器,cwd 不是沙箱;证明的是声明过的边界,OS 级
+容器化按 ADR 列后续。
+
+**三、下一步(阶段 6 开口)**:本地假 DeepSeek 端点(http 记录器 + 脚本化
+回包)驱动真 runtime 工具环 —— C2-C7 拿真实 usage/工具事件形状,C13-C15
+踩伪造与双计;C1 版本核对无模型即可。PQ-DSH candidate 晋级走仓内
+promote_profile 机制。

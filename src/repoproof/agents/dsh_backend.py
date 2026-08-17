@@ -24,6 +24,39 @@ from repoproof.agents.dsh_events import DshTrace, normalize, selfcheck
 
 WORKER = Path(__file__).with_name("dsh_worker.py")
 
+# ---- 拓扑闸(阶段 5)。不可信平面的一切落点必须离开裁决面与封存池:
+# 仓树(oracle 判据、验证器源码、台账、证据都在里面)与 d5-hunt 封存池。
+# cwd 不是沙箱(ADR §4),但**我们递出去的路径**是我们的责任 —— 这道闸
+# 拦的是"配置手滑把 workspace 指进仓里"这一最近的失效方向。
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _forbidden_roots() -> tuple[Path, ...]:
+    return (_REPO_ROOT, Path.home() / "RepoProofArchive")
+
+
+def _assert_job_topology(job: dict) -> None:
+    for key in ("workspace", "events_path", "session_root"):
+        p = Path(job[key]).resolve()
+        for root in _forbidden_roots():
+            if p == root or root in p.parents:
+                raise ValueError(
+                    f"{key} 指进受保护根 {root} —— 不可信执行平面不得落在"
+                    f"裁决面/封存池里:{p}")
+
+
+# 环境 allowlist(阶段 5,N5):worker(及其子孙 runtime、模型驱动的 bash)
+# 继承的环境**只有**这三枚 + 调用方显式传入的(如 DEEPSEEK_API_KEY,由
+# 用户注入、AI 不经手)。父进程的其余环境 —— 别家 provider 的 key、token、
+# 仓路径 —— 一律不过闸。
+_ENV_ALLOWLIST = ("PATH", "HOME", "TMPDIR")
+
+
+def worker_env(extra: dict | None = None) -> dict:
+    env = {k: os.environ[k] for k in _ENV_ALLOWLIST if k in os.environ}
+    env.update(extra or {})
+    return env
+
 
 @dataclass
 class DshBudget:
@@ -95,13 +128,11 @@ def run_dsh_worker(job: dict, *, worker_python: str | Path,
     """
     budget = budget or DshBudget()
     assert "api_key" not in job, "key 只经进程环境注入,不进 job spec(铁律)"
+    _assert_job_topology(job)
     events_path = Path(job["events_path"])
     events_path.parent.mkdir(parents=True, exist_ok=True)
 
-    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-           "HOME": os.environ.get("HOME", "/tmp"),
-           "TMPDIR": os.environ.get("TMPDIR", "/tmp"),
-           **(extra_env or {})}
+    env = worker_env(extra_env)
     argv = worker_argv or [str(worker_python), str(WORKER)]
     proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True,
