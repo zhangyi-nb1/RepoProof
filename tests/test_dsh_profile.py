@@ -39,11 +39,17 @@ def test_d1_dsh_profile_registered_and_lazily_reachable() -> None:
     assert p.lifecycle in ("experimental", "candidate", "qualified"), p.lifecycle
 
 
-def test_d2_candidate_disclaimer_is_in_the_summary() -> None:
+def test_d2_tier_disclaimer_is_in_the_summary() -> None:
+    # 每一级都有自己的过度解读,划界语跟级走(阶段 6 报告条件的延续;
+    # qualified 依据 DQ-SDK-1 批,promotions.jsonl 留痕):candidate 防
+    # "DeepSeek 能跑了",qualified 防"能力主张 / DSH 更好"。新级别必须
+    # 在这里声明自己的划界语,否则 KeyError 当场拦下。
     p = profile(DSH_PROFILE_ID)
-    assert "不代表真实模型可用" in p.summary, (
-        "划界语丢了 —— candidate 会被读成'DeepSeek 能跑了',"
-        "两级承诺塌成一级(报告阶段 6 通过条件)")
+    required = {"candidate": "不代表真实模型可用",
+                "qualified": "不是能力主张"}[p.lifecycle]
+    assert required in p.summary, (
+        "划界语丢了 —— 层级承诺会被读成上一级没给的东西"
+        f"(lifecycle={p.lifecycle} 要求『{required}』)")
 
 
 def test_d3_candidate_checks_are_exactly_g1_na_plus_g5() -> None:

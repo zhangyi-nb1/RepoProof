@@ -14,6 +14,12 @@ dsh),profile 说的是"跑在哪套封存交付上"。id 里钉着 runtime 版�
 qualified 那一级的问题(G6 真实发次 + G7 无未决假通过),要等阶段 7
 用户注入真 key 的 DQ-SDK 发次。这句划界写在这里,是报告阶段 6 通过
 条件的一部分,不许省。
+
+2026-08-18 DQ-SDK-1 批达成 **qualified**:G6=2 模型(deepseek-v4-pro /
+deepseek-v4-flash)、G6b=1 发诚实通过(PASS_ADAPTED 9/9 + replay PASS +
+fidelity DELIVERED)、G7 清。划界不变:qualified 只证明这套封存组合真模型
+能把全链诚实跑通且一发真过一道真任务(资格发次四口径全 false),不是
+能力主张,更不是 DSH 优于 mini-swe 的证据(那是阶段 8 桥接批的研究问题)。
 """
 
 from __future__ import annotations
@@ -26,11 +32,13 @@ PROFILE = register_profile(RuntimeProfile(
     id=PROFILE_ID,
     topology="in_process",
     # candidate 依据:2026-08-17 晋级判决(G1 不适用 + G5 变异证据
-    # 3df07a6e1b7c,252/252 零逃逸零错位),留痕在
+    # 3df07a6e1b7c,252/252 零逃逸零错位);qualified 依据:2026-08-18
+    # DQ-SDK-1 批(G6=2 模型 + G6b=1 诚实通过 + G7 清)。两次留痕均在
     # docs/evidence/profile_lifecycle/promotions.jsonl(P6 钉一致性)
-    lifecycle="candidate",
+    lifecycle="qualified",
     summary=(
         "封存 DSH minimal runtime(0.1.0rc6)作不可信 AgentBackend;"
-        "candidate 仅证机制站得住,不代表真实模型可用"
+        "qualified 仅证真模型全链诚实跑通且一发真过(DQ-SDK-1),"
+        "不是能力主张"
     ),
 ))
