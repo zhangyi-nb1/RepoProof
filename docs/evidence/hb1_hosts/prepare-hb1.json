@@ -9,7 +9,7 @@
   "python": "3.12.5",
   "argv": [
     "scripts/prepare_hb1_hosts.py",
-    "--hosts"
+    "--all"
   ],
   "invocations": [
     {
@@ -132,6 +132,19 @@
       ],
       "round": 2,
       "utc": "2026-08-16T17:02:34+00:00"
+    },
+    {
+      "argv": [
+        "scripts/prepare_hb1_hosts.py",
+        "--all"
+      ],
+      "stages": [
+        "hosts",
+        "measure",
+        "leak"
+      ],
+      "round": 2,
+      "utc": "2026-08-18T06:21:58+00:00"
     }
   ],
   "hosts": {
@@ -451,7 +464,7 @@
         }
       },
       "verify_ok": true,
-      "host_mode": "verify-only",
+      "host_mode": "redeployed",
       "bench_dir_entries": [
         "host",
         "wheelhouse"
