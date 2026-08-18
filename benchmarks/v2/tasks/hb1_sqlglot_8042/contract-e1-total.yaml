@@ -1,0 +1,109 @@
+# hb1-sqlglot-8042 的 E1 桥接批变体(E1-DSH-MINIMAL-BRIDGE-1 专用)。
+#
+# 与 contract-dsh-total.yaml(v1-dsh-total)唯一差异:max_model_calls 90→500。
+# 依据(DQ-SDK-1 附录五实证,预注册 E1 §5 展开):四次真跑逐发
+# logical_requests=91 撞 90 上限(含 PASS 发),彼时 token 信封仅用 3-4%
+# (55-77K / 1.8M)—— calls 轴的 90 来自 mini-swe 环的机制常数(30/轮×3),
+# 把它当资源上限强加给请求重/token 轻的 DSH 臂,恰是臂中立的反面。
+# 本变体把 calls 轴改为**两臂同值的逃逸后备**(500 > 墙钟可及的
+# ~180-240 请求),运营约束回到真正的资源轴:token 双轴 + 墙钟 + commands
+# ——四轴两臂逐字同值。跑飞保护仍在:max_llm_attempts=logical×3、
+# commands 300、墙钟 60 分。其余各节与 v1-dsh-total 逐字一致。
+task_id: hb1-sqlglot-8042
+task_version: v1-e1-total
+kind: host_integrated
+prompt_profile: hb-delta-v1
+host:
+  repo: tobymao/sqlglot
+  commit: 00ca3ed452a5a315447ede73c75e70520dd11e68
+  copy_path: ~/RepoProofBench/hb1-sqlglot-8042/host
+  regression_command:
+    - .venv/bin/python
+    - -m
+    - pytest
+    - tests
+    - -q
+    - -p
+    - "no:cacheprovider"
+  regression_baseline: "1150 passed, 0 skipped, 0 failed"
+  setup_commands:
+    - [python3, -m, venv, .venv]
+    - [env, SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0, .venv/bin/pip, install, -q, --no-index, -e, ., pytest, duckdb, pandas, python-dateutil, pytz, typing_extensions]
+  health_checks:
+    - command:
+        - .venv/bin/python
+        - -c
+        - import sqlglot
+  host_root_env: HB_DELTA_HOST_ROOT
+  wheelhouse_path: ~/RepoProofBench/hb1-sqlglot-8042/wheelhouse
+  require_wheelhouse_manifest: false
+  pii_scan_profile: public-oss-tree
+  oracle_env_sanitized: true
+  path_prepend_venv_bin: true
+capability:
+  statement: |+
+    # tobymao/sqlglot PR #8042: fix(lineage)!: trace columns through chained (UN)PIVOT operators
+
+    merged_at: 2026-08-06T10:47:17Z
+    merge_commit: cb4a8214605bf038c185a6b09d2541ff39475650
+    base: c164cce9341eae08dcf3d4a43fc53e49fb69d59e
+
+    ## PR 正文
+
+    Lineage only handled a single pivot per source. This folds the whole (UN)PIVOT chain when mapping output columns back to their sources, matching how the optimizer resolves chains since #8032.
+
+  requirements:
+    - id: R1
+      text: "Implement the feature request in GOAL exactly as stated; the GOAL text is the upstream PR/issue verbatim. Acceptance is the upstream project's own hidden tests for this exact feature: they must go from FAIL to PASS."
+    - id: R2
+      text: "The existing regression suite must stay green: .venv/bin/python -m pytest tests -q -p no:cacheprovider."
+    - id: R3
+      text: "The measuring surface is read-only: do not create or modify anything under tests/, nor root-level conftest.py, pyproject.toml, setup.cfg, setup.py, pytest.ini or tox.ini."
+    - id: R4
+      text: Fully offline; no new dependencies. Everything needed is preinstalled in ./.venv.
+constraints:
+  forbidden:
+    - "tests/ and public_tests/ are READ-ONLY: the regression suite is a measuring instrument; modifying it is treated exactly like forging results."
+    - "Root-level pytest extension points are READ-ONLY: conftest.py, pyproject.toml, setup.cfg, setup.py, pytest.ini, tox.ini. Creating or editing them fails the run."
+    - No network access at any time.
+budgets:
+  semantics: total
+  max_rounds: 1
+  max_model_calls: 500
+  max_commands: 300
+  max_patch_files: 15
+  max_patch_lines: 1500
+  max_wall_time_minutes: 60
+  max_input_tokens_total: 1800000
+  max_output_tokens_total: 240000
+acceptance:
+  public_test_command:
+    - python
+    - -m
+    - pytest
+    - tests
+    - -q
+    - -p
+    - "no:cacheprovider"
+  hidden_oracle_command:
+    - python
+    - -m
+    - pytest
+    - "<ORACLE_ABS>"
+    - -q
+    - -p
+    - "no:cacheprovider"
+task_shape:
+  form: postcutoff-delta
+  delta_nodes: 5
+  single_module: true
+failure_taxonomy_expected:
+  - DESIGN_MISMATCH
+  - IMPL_INCOMPLETE
+  - REGRESSION_BROKEN
+  - NO_SUBMISSION
+  - INSTRUMENT_TAMPERED
+  - HARNESS_FAILURE
+  - PROVIDER_FAILURE
+task_family: HB-PCDELTA
+adoption_shape: UPSTREAM_FEATURE_DELTA
