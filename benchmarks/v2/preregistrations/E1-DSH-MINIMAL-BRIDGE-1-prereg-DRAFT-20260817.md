@@ -36,8 +36,10 @@ DSH minimal 组合**,对"能不能把这道修复任务做绿"的机制效应是
 
 ## 4. 臂间同一性(相同项清单)
 
-同:模型 profile(阶段 7 冻结时钉具体 model 名与旋钮;基线候选
-deepseek-v4-pro)、任务包(一字不动)、宿主 base commit、提示知识面
+同:模型 profile(**用户 2026-08-18 定:双模型都进** —— deepseek-v4-pro
+与 deepseek-v4-flash 各跑满 n,两模型内部两臂对照,模型是分层因子不是
+自变量;两名均在 DQ-SDK-1 达成 qualified 的同一封存组合上跑过真发次)、
+任务包(一字不动)、宿主 base commit、提示知识面
 (同一份 host prompt 文本)、上游工件与 wheelhouse、网络策略(provider API
 为正常通道)、**总额预算**(§5)、验证器与隐藏 oracle、干净重放、计分与
 Completion Gate。
