@@ -143,6 +143,8 @@ _T_BAM = ["tests/test_blind_attack_admission.py"]
 _DSN = "src/repoproof/agents/deepseek_native.py"
 _AR = "src/repoproof/runner/agent_run.py"
 _T_DSN = ["tests/test_deepseek_native.py"]
+_HS = "src/repoproof/harness/host_snapshot.py"
+_T_HS = ["tests/test_host_snapshot.py"]
 
 CANARY = {
     "id": "C0-plumbing-canary",
@@ -2637,6 +2639,39 @@ MUTATIONS: list[dict] = [
         "catchers": _T_DBR,
         "expected_catcher": [
             "test_r3_dsh_run_ledger_binds_to_sealed_runtime_profile"],
+    },
+    # ---- M90:P0 观测管理 v1.1 + 越区硬隔离(2026-08-20)----
+    {
+        "id": "M90a-window-cd-prefix-blind",
+        "lesson": "v1.1 的 cd 剥离死了 —— deepseek-v4-flash 惯用 `cd /路径 && "
+                  "sed …` 带路,分类器复归 v1 零激活(E1-DSH 代 2 两发实证:"
+                  "025342/060627 折 0 条,in-token 全额贴墙)",
+        "file": _CP,
+        "old": "    for _ in range(3):",
+        "new": "    for _ in range(0):",
+        "catchers": _T_WP,
+        "expected_catcher": ["test_cd_prefixed_read_chains_are_folded"],
+    },
+    {
+        "id": "M90b-window-policy-version-stuck",
+        "lesson": "分类器语义改了版号不改 —— window 发次的 context 指纹与 v1 "
+                  "混池,消融分不了代(profiles 的指纹面靠这个串区分机制)",
+        "file": _CP,
+        "old": 'WINDOW_POLICY = "window-v1.1"',
+        "new": 'WINDOW_POLICY = "window-v1"',
+        "catchers": _T_WP,
+        "expected_catcher": ["test_manifest_declares_lossiness"],
+    },
+    {
+        "id": "M90c-snapshot-copies-master-readonly-bit",
+        "lesson": "快照落权归一死了 —— 母树锁写后 copy2 把只读位带进会话,"
+                  "agent 改不动任何文件,'隔离'静默变成'瘫痪'",
+        "file": _HS,
+        "old": "        out.chmod(out.stat().st_mode | 0o200)",
+        "new": "        out.chmod(out.stat().st_mode | 0o000)",
+        "catchers": _T_HS,
+        "expected_catcher": [
+            "test_snapshot_from_locked_master_is_owner_writable"],
     },
     {
         "id": "M77a-usage-cb-streaming-dedupe-dead",

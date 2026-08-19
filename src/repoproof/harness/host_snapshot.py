@@ -108,6 +108,9 @@ def prepare_host_snapshot(
         out = dstp / rel
         out.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(p, out)
+        # 母树锁写后 copy2 会把只读位一并带进快照,而 agent 修的正是这些
+        # 文件 —— 落权归一回属主可写(只加 u+w,exec 位等原样保留)。
+        out.chmod(out.stat().st_mode | 0o200)
         n += 1
 
     substituted = []

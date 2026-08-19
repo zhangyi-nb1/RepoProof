@@ -107,10 +107,12 @@ def test_alignment_audit_does_not_flag_trailing_submit(tmp_path):
 def test_legacy_measurer_differs_only_in_cmd_of():
     """X3:修前量具与修后量具的差别只在 `_cmd_of`,窗口规则同一套。
 
-    构造:链式两命令,前一条 tool 挡住回看。修前必漏,修后必中。"""
+    构造:链式两命令,前一条 tool 挡住回看。修前必漏,修后必中。
+    分隔样本用 `mkdir -p x`(非读取):v1.1 起 `pwd` 已入读取集
+    (2026-08-20),再用它当"错配后不可折"的锚就锚不住了。"""
     msgs: list[dict] = []
     for _ in range(RP.WINDOW_READS + 3):
-        msgs.append(_msg("assistant", actions=[{"command": "pwd"},
+        msgs.append(_msg("assistant", actions=[{"command": "mkdir -p x"},
                                                {"command": "sed -n '1,50p' a.py"}]))
         msgs.append(_msg("tool"))
         msgs.append(_msg("tool"))

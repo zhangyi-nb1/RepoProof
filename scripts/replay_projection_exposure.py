@@ -117,12 +117,14 @@ def selfcheck() -> list[str]:
     bad: list[str] = []
 
     # (1) 链式命令 —— 修后必须命中,修前必须漏。这正是批 14 零激活的形状。
+    # 分隔样本用 `mkdir -p x`(非读取):v1.1 起 `pwd` 已入读取集
+    # (2026-08-20),错配到它也可折,合成用例就失去区分力。
     chain = []
     for _ in range(WINDOW_READS + 3):
-        chain.append(_msg("assistant", actions=[{"command": "pwd"},
+        chain.append(_msg("assistant", actions=[{"command": "mkdir -p x"},
                                                 {"command": "sed -n '1,50p' a.py"}]))
-        chain.append(_msg("tool"))          # ← pwd 的结果
-        chain.append(_msg("tool"))          # ← sed 的结果(修前会被错配成 pwd)
+        chain.append(_msg("tool"))          # ← mkdir 的结果
+        chain.append(_msg("tool"))          # ← sed 的结果(修前会被错配成 mkdir)
     _, mf = project_window(chain)
     if not mf.get("folded_messages"):
         bad.append("自证(1):链式命令下修后量具仍未命中 —— 折叠规则或 _cmd_of 有问题")

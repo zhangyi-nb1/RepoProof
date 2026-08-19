@@ -182,7 +182,9 @@ def test_manifest_declares_lossiness():
     _, mf = project_window(msgs)
 
     assert mf["lossy"] is True, "有损投影没标 lossy —— 后来者会当成零风险"
-    assert mf["policy"] == "window-v1"
+    # 版号钉死用字面量:分类器语义一变必须换号(v1.1 = cd 剥离 + pwd 入集,
+    # 2026-08-20);这里若只 assert 等于常量,版号漂移永远考不出来。
+    assert mf["policy"] == "window-v1.1"
     assert mf["window"] == WINDOW_READS
 
 
@@ -200,3 +202,60 @@ def test_determinism():
     msgs = _hist(*_reads(WINDOW_READS + 4))
 
     assert project_window(msgs)[0] == project_window(msgs)[0]
+
+
+# ---------------------------------------------------------------- v1.1 判据
+# E1-DSH 代 2 离线重放(2026-08-20):deepseek-v4-flash 六发里两发零激活
+# (025342/060627)—— flash 每条命令都带 `cd /绝对路径 &&/;` 导航前缀,
+# 链首段是 cd,v1 白名单永不命中。与批 14 gpt-5.6 链式零激活同构:
+# 分类器覆盖缺口。v1.1 只修分类(剥 cd 前缀 + pwd 入集),折叠规则不动。
+
+
+def test_cd_prefixed_read_chains_are_folded():
+    """v1.1:`cd <路径> && sed …` 是读取 —— cd 只是带路,零输出。
+
+    反例(v1 实测):flash 两发 -0%,离线重放 v1.1 后 -18.8%/-24.8%。"""
+    ws = "/tmp/sessions/rp-host-agent-x/host"
+    msgs = _hist(*[(f"cd {ws} && sed -n '1,50p' f{i}.py", "b" + "x" * 3000)
+                   for i in range(WINDOW_READS + 3)])
+
+    out, mf = project_window(msgs)
+
+    assert len(_folded(out)) == 3, (
+        f"cd 前缀的读取链没被折(应折 3,实折 {len(_folded(out))})—— "
+        "v1 零激活缺口复发")
+    assert all(f["command"].startswith("cd ") for f in mf["folded"])
+
+
+def test_cd_prefixed_exec_chains_are_never_folded():
+    """v1.1 的安全边界:cd 剥离不放行执行型 —— 否决作用于整条原始命令。"""
+    chain = "cd /tmp/ws/host && .venv/bin/python -m pytest public_tests/ -q"
+    msgs = _hist((chain, "FAILED " + "y" * 9000), *_reads(WINDOW_READS + 3))
+
+    out, mf = project_window(msgs)
+    bodies = [m["content"] for m in out if m["role"] == "tool"]
+
+    assert bodies[0].startswith("FAILED"), (
+        "cd 前缀的 pytest 链被折了 —— 剥离把执行型否决也剥掉了")
+    assert all("pytest" not in f["command"] for f in mf["folded"])
+
+
+def test_fallback_cd_and_semicolon_chains_are_read(  # flash 实录开局形态
+):
+    """v1.1:`cd X 2>/dev/null || cd ~; pwd; ls -la` 也算读取(pwd 入集)。"""
+    msgs = _hist(*[(f"cd /w{i} 2>/dev/null || cd ~; pwd; ls -la", "L" + "x" * 3000)
+                   for i in range(WINDOW_READS + 2)])
+
+    out, _ = project_window(msgs)
+
+    assert len(_folded(out)) == 2, "兜底 cd + 分号链的读取没被识别"
+
+
+def test_quoted_cd_arguments_are_not_stripped():
+    """引号一出现就不剥:带引号的 cd 参数超出机械判断的把握,宁可不折。"""
+    msgs = _hist(*[(f'cd "/some dir/x{i}" && rm -rf build', "o" + "x" * 3000)
+                   for i in range(WINDOW_READS + 3)])
+
+    out, _ = project_window(msgs)
+
+    assert not _folded(out), "带引号的 cd 段被剥了 —— 超出把握范围还在折"

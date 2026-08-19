@@ -120,3 +120,27 @@ def test_pii_scan_skips_dependency_dirs(tmp_path) -> None:
     (tmp_path / "profile.md").write_text("联系:13800138000\n", encoding="utf-8")
     hits = scan_for_pii(tmp_path)                            # 真实信号仍被抓
     assert len(hits) == 1 and hits[0]["path"] == "profile.md"
+
+
+def test_snapshot_from_locked_master_is_owner_writable(tmp_path: Path) -> None:
+    """落权归一(P0 越区硬隔离,2026-08-20):母树锁写后 copy2 会把只读位
+    带进快照,而 agent 修的正是这些文件 —— 快照文件必须归一回属主可写,
+    其余位(组/他人、exec)原样保留;源文件一位不动。
+
+    反例:不归一的话,锁母树的那天起所有发次的 agent 都改不动代码,
+    "隔离"就变成了"瘫痪",没人敢开锁写。"""
+    src = _fake_host(tmp_path)
+    (src / "app" / "run.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+    (src / "app" / "run.sh").chmod(0o555)          # 只读 + exec(锁写形态)
+    (src / "app" / "main.py").chmod(0o444)         # 纯只读
+    prepare_host_snapshot(src, tmp_path / "snap")
+    snap = tmp_path / "snap"
+
+    m = (snap / "app" / "main.py").stat().st_mode
+    r = (snap / "app" / "run.sh").stat().st_mode
+    assert m & 0o200, "只读母树的快照文件不可写 —— agent 改不动代码"
+    assert m & 0o077 == 0o044, "归一多动了组/他人位"
+    assert r & 0o200 and r & 0o111, "exec 位没保住 —— 脚本快照跑不起来"
+    # 源树一位不动(母树是证据面,快照工序只读它)
+    assert (src / "app" / "main.py").stat().st_mode & 0o777 == 0o444
+    assert (src / "app" / "run.sh").stat().st_mode & 0o777 == 0o555

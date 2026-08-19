@@ -281,11 +281,14 @@ def _exec_profile_fields(contract, preflight, budgets=None, *,
             # 两种模式的 context 指纹必须不同 —— 它们是两个机制,不能混池。
             from repoproof.agents.context_projector import (
                 SUPERSEDE_MIN_CHARS,
+                WINDOW_POLICY,
                 WINDOW_READS,
             )
 
             if mode == "window":
-                context["prune_policy"] = "window-v1"
+                # 版号同源取自投影模块:分类器语义一变(v1→v1.1),这里的
+                # context 指纹自动跟着变 —— 不存在"行为改了、指纹还混池"。
+                context["prune_policy"] = WINDOW_POLICY
                 context["window_reads"] = WINDOW_READS
                 context["lossy"] = True
             else:

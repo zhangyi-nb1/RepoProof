@@ -12,9 +12,13 @@
 - **发次后**:再核一次,把破坏归因到刚结束的那一发(会话装配总在
   破坏之前,所以"发前绿 + 发后红"唯一指向本发的 worker)。
 
+P0 起(2026-08-20)加**锁态执法**:母树须由 lock_bench_hosts.py 锁写
+(全树零写位),未锁同样拒绝发车 —— 摘要是检测面,锁写是预防面,
+发车纪律两道都要绿。锁不影响摘要:`_digest_tree` 只算路径 + 内容。
+
 量法复用原件(prepare_hb1_hosts 同款):`blind_attack_admission._digest_tree`
 对整树内容寻址,清单 = docs/evidence/hb1_hosts/prepare-hb1.json(建包自证)。
-只读,零副作用;不符退出码 1,前置缺失退出码 2。
+只读,零副作用;不符/未锁退出码 1,前置缺失退出码 2。
 
 用法:
     .venv/bin/python scripts/check_host_digest.py            # 全部三宿主
@@ -57,6 +61,20 @@ def check(cids: list[str] | None = None) -> int:
         ok = now == h["host_digest"]
         print(f"[digest] {cid}: {'一致 ✓' if ok else '**不符 ✗ —— 停批,先查再修**'}")
         bad += 0 if ok else 1
+        # 锁态执法:host 与 wheelhouse 全树零写位才放行(预防面)。
+        import stat as _stat
+        for sub in ("host", "wheelhouse"):
+            d = Path(h["bench_dir"]) / sub
+            if not d.is_dir():
+                continue
+            writable = sum(
+                1 for p in [d, *sorted(d.rglob("*"))]
+                if not p.is_symlink()
+                and _stat.S_IMODE(p.stat().st_mode) & 0o222)
+            locked = writable == 0
+            print(f"[lock] {cid}/{sub}: "
+                  f"{'已锁 ✓' if locked else f'**可写条目 {writable} ✗ —— 未锁写,先 lock_bench_hosts.py lock**'}")
+            bad += 0 if locked else 1
     return 1 if bad else 0
 
 

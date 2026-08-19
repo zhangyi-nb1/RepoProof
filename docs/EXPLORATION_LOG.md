@@ -2886,3 +2886,31 @@ main_dir_integrity 抓到邻仓 offerclaw(chroma_db)被并发进程写入,守卫
   预注册附录三、v2_gate 再生。欠账不变:full-runner×dsh 假端点常驻钉
   批后补;越区硬隔离留代际工程。阶段 8 至此**关闭**,DSH 集成线全程
   (阶段 0-8)完结。
+
+## 状态 · 2026-08-20 · P0 落地:观测管理 window-v1.1 + 越区硬隔离(零 API)+ 全程报告
+
+- **报告**:`docs/DSH-INTEGRATION-REPORT.md` —— DSH 集成线(阶段 0-8)
+  全程汇总:时间线、DQ/E1 两批实录、E5 机制发现、GPT 无数据划界、
+  暴露问题与规划。汇总件,与预注册/台账冲突处以后者为准。
+- **观测管理(P0-A)**:E1 代 2 六发 H0 轨迹零模型重放
+  (`scripts/replay_projection_dsh_h0.py`,自证 4 条 + 偏移对齐零错位)
+  打出 v1 读取分类器在 deepseek-v4-flash 两发**零激活**(025342/060627,
+  flash 惯用 `cd /路径 && sed …` 带路,链首 cd 白名单永不命中 —— 与批 14
+  gpt-5.6 链式零激活同构)。**window-v1.1** = 剥链首 cd 导航段 + pwd 入
+  读取集,折叠规则与安全边界一字未动;版号同源(WINDOW_POLICY → manifest
+  与 context 指纹)。证据 `docs/evidence/projection_exposure/
+  replay-E1-DSH-H0-window-v11.json`:激活 4/6 → 6/6,总输入(估)
+  -19.1% → **-26.7%**,v1.1 无一发比 v1 差,门槛全过。旋钮缺省 off = E0
+  逐字节不变;**在线真模型资格发待用户 API 授权**。
+- **越区硬隔离(P0-B,附录二登记的代际工程)**:①母树锁写
+  `scripts/lock_bench_hosts.py` —— 三宿主 host+wheelhouse 全树 749 条
+  去写位(目录也锁:代 1 越区是建新文件),摘要不含权限位,锁前后
+  host_digest 同值;②快照落权归一 —— copy2 后补 u+w,锁写母树照常出
+  可写快照(端到端探针 357 文件零只读);③绊线扩面 ——
+  `check_host_digest.py` 发车双面执法 = 摘要一致 + 全树零写位,任一红
+  拒发,三宿主现绿。重建包工序:unlock → prepare → lock → 绊线。
+- **资格件**:钉死 +7(v1.1 判据 5 + 版号字面量钉改 1 + 快照落权 1)、
+  变异体 +3(M90a/b/c,共 260)、暴露重放旧量具分隔样本 pwd→mkdir
+  (v1.1 起 pwd 入读取集,旧锚失效)。全量套件与变异门见收口提交。
+- 边界:S2′ 重跑仍在用户暂缓清单上 —— 本代零模型调用,在线消融与 GPT
+  基线批均另行请批。

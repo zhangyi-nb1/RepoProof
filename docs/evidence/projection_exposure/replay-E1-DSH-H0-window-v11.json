@@ -1,0 +1,118 @@
+{
+  "_what": "window-v1.1 读取分类器的零模型离线重放:E1-DSH 代 2 六发 H0(mini-swe×DeepSeek)轨迹,v1/v1.1 对照;口径与在线 TokenBudgetedModel 投影同义,token 估算与在线预算执法同尺",
+  "_selfcheck": "4 条合成用例通过(cd 链修后中修前漏/cd+pytest 两边不折/窗口内不折/入参不改)",
+  "window_reads": 8,
+  "window_policy": "window-v1.1",
+  "runs": [
+    {
+      "run_id": "hb1-sqlglot-8042-20260819-015406",
+      "model_calls": 52,
+      "activations_v1": 45,
+      "activations_v11": 45,
+      "folded_msgs_v1": 595,
+      "folded_msgs_v11": 595,
+      "est_input_tokens_base": 1854753,
+      "est_input_tokens_v1": 1209471,
+      "est_input_tokens_v11": 1209471,
+      "saved_pct_v1": 34.8,
+      "saved_pct_v11": 34.8,
+      "model": "deepseek-v4-pro"
+    },
+    {
+      "run_id": "hb1-sqlglot-8042-20260819-025342",
+      "model_calls": 57,
+      "activations_v1": 0,
+      "activations_v11": 48,
+      "folded_msgs_v1": 0,
+      "folded_msgs_v11": 787,
+      "est_input_tokens_base": 1825347,
+      "est_input_tokens_v1": 1825347,
+      "est_input_tokens_v11": 1481779,
+      "saved_pct_v1": 0.0,
+      "saved_pct_v11": 18.8,
+      "model": "deepseek-v4-flash"
+    },
+    {
+      "run_id": "hb1-sqlglot-8042-20260819-035456",
+      "model_calls": 56,
+      "activations_v1": 45,
+      "activations_v11": 47,
+      "folded_msgs_v1": 439,
+      "folded_msgs_v11": 532,
+      "est_input_tokens_base": 1854501,
+      "est_input_tokens_v1": 1447330,
+      "est_input_tokens_v11": 1423622,
+      "saved_pct_v1": 22.0,
+      "saved_pct_v11": 23.2,
+      "model": "deepseek-v4-pro"
+    },
+    {
+      "run_id": "hb1-sqlglot-8042-20260819-042457",
+      "model_calls": 51,
+      "activations_v1": 44,
+      "activations_v11": 44,
+      "folded_msgs_v1": 514,
+      "folded_msgs_v11": 514,
+      "est_input_tokens_base": 1848235,
+      "est_input_tokens_v1": 1401901,
+      "est_input_tokens_v11": 1401901,
+      "saved_pct_v1": 24.1,
+      "saved_pct_v11": 24.1,
+      "model": "deepseek-v4-pro"
+    },
+    {
+      "run_id": "hb1-sqlglot-8042-20260819-060627",
+      "model_calls": 60,
+      "activations_v1": 0,
+      "activations_v11": 52,
+      "folded_msgs_v1": 0,
+      "folded_msgs_v11": 892,
+      "est_input_tokens_base": 1820971,
+      "est_input_tokens_v1": 1820971,
+      "est_input_tokens_v11": 1370272,
+      "saved_pct_v1": 0.0,
+      "saved_pct_v11": 24.8,
+      "model": "deepseek-v4-flash"
+    },
+    {
+      "run_id": "hb1-sqlglot-8042-20260819-062049",
+      "model_calls": 56,
+      "activations_v1": 49,
+      "activations_v11": 49,
+      "folded_msgs_v1": 1394,
+      "folded_msgs_v11": 1450,
+      "est_input_tokens_base": 1858864,
+      "est_input_tokens_v1": 1249130,
+      "est_input_tokens_v11": 1218110,
+      "saved_pct_v1": 32.8,
+      "saved_pct_v11": 34.5,
+      "model": "deepseek-v4-flash"
+    }
+  ],
+  "totals": {
+    "est_input_tokens_base": 11062671,
+    "est_input_tokens_v1": 8954150,
+    "est_input_tokens_v11": 8105155
+  },
+  "alignment_audit": {
+    "blocks": 332,
+    "aligned": 332,
+    "trailing_submit_no_result": 0,
+    "risky_misalignments": 0,
+    "examples": [],
+    "verdict": "偏移映射可靠(零处可能错位)"
+  },
+  "gate": {
+    "every_run_activates_under_v11": true,
+    "zero_activation_runs_v1": [
+      "hb1-sqlglot-8042-20260819-025342",
+      "hb1-sqlglot-8042-20260819-060627"
+    ],
+    "total_saved_pct_v1": 19.1,
+    "total_saved_pct_v11": 26.7,
+    "v11_not_worse_anywhere": true,
+    "offset_mapping_reliable": true,
+    "all_pass": true
+  },
+  "_boundary": "离线重放只证明送达与量级(激活覆盖 + send 侧输入节省),不证明对判决结果的影响方向;v1.1 在线真模型资格发另行请批"
+}

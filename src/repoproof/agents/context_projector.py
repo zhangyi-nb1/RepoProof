@@ -159,22 +159,49 @@ def project(messages: list[dict]) -> tuple[list[dict], dict]:
 #
 # 基线六发实测:工具正文 1,092,488 字符里读取型占 70%、执行型 25%。
 # 只折读取型仍拿得到绝大部分收益,却不碰最危险的那一类。
+#
+# v1.1(2026-08-20,E1-DSH 代 2 六发 H0 轨迹离线重放实证):读取分类器学会
+# 剥掉链首的 `cd <路径> &&/;` 导航段,并把 `pwd` 纳入读取集。v1 在
+# deepseek-v4-flash 上两发**零激活**(025342/060627)—— flash 惯用
+# `cd /绝对路径 && sed …` 逐条带路,链首段是 cd,白名单永远不命中。这与
+# 批 14 gpt-5.6 链式命令零激活同构:分类器覆盖缺口,不是折叠规则问题。
+# 折叠规则与安全边界(执行型一票否决作用于整条原始命令、窗口保底、最后
+# 一次不折)一字未动。证据:docs/evidence/projection_exposure/
+# replay-E1-DSH-H0-window-v11.json(总节省 -19.1% → -26.7%,激活 4/6 → 6/6,
+# 零激活两发修到 -18.8%/-24.8%,v1.1 无一发比 v1 差)。
 
 WINDOW_READS = 8          # 保留最近这么多条读取型结果的正文(实验起点,非最优值)
+# 策略版号:分类器语义一变就换号 —— context_profile 与 manifest 都从这里取,
+# 不许"行为改了、指纹还混池"(host_guided 装配 context 时同源引用)。
+WINDOW_POLICY = "window-v1.1"
 
 _READ_CMD = re.compile(
-    r"^\s*(sed|cat|head|tail|grep|rg|ls|find|wc|nl|awk"
+    r"^\s*(sed|cat|head|tail|grep|rg|ls|find|wc|nl|awk|pwd"
     r"|git\s+(diff|show|log|status))\b")
 _EXEC_CMD = re.compile(
     r"pytest|pip\s+install|python\s+-m|\.venv/bin/python\s|npm\s|make\s|\bbuild\b")
+# 链首的 cd 导航段(允许 `cd A || cd B` 兜底形),后随 && 或 ;。引号一出现
+# 就不再匹配 —— 带引号的 cd 参数超出机械判断的把握范围,宁可不剥不折。
+_CD_SEG = re.compile(
+    r"""^\s*cd\s+[^;&|"']+?(?:\|\|\s*cd\s+[^;&|"']+?)?(?:&&|;)\s*""")
 
 
 def _is_foldable_read(cmd: str) -> bool:
     """只有读取型才可折。执行型出现在链里任何位置都一票否决 ——
-    `sed -n ... && pytest` 这种链的输出里含着测试结果,折了就是折修复依据。"""
+    `sed -n ... && pytest` 这种链的输出里含着测试结果,折了就是折修复依据。
+
+    v1.1:白名单匹配前先剥链首的 cd 导航段(至多三层)。cd 本身零输出,
+    这条结果是什么由它后面的命令决定;执行型否决仍作用于**整条原始命令**,
+    剥离只影响白名单,不影响否决。"""
     if not cmd or _EXEC_CMD.search(cmd):
         return False
-    return bool(_READ_CMD.match(cmd.split("&&")[0].strip()))
+    body = cmd
+    for _ in range(3):
+        m = _CD_SEG.match(body)
+        if not m:
+            break
+        body = body[m.end():]
+    return bool(_READ_CMD.match(re.split(r"&&|;", body, maxsplit=1)[0].strip()))
 
 
 def project_window(messages: list[dict], *, window: int = WINDOW_READS
@@ -206,7 +233,7 @@ def project_window(messages: list[dict], *, window: int = WINDOW_READS
         folded_items.append({"msg_index": i, "rule": "window",
                              "chars": len(body), "command": cmd})
 
-    return out, {"policy": "window-v1",
+    return out, {"policy": WINDOW_POLICY,
                  "lossy": True,
                  "window": window,
                  "messages_in": len(messages),
