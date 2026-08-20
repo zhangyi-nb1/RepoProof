@@ -26,6 +26,28 @@ from repoproof.agents.dsh_backend import DshBudget
 
 BACKEND_ID = "dsh"
 
+# 上游协议真身(GPT×DSH,2026-08-20)。runtime 永远说 deepseek 线;它对面
+# 站的是谁必须进指纹 —— 换上游 = 换被测组合,台账列不许猜(M-DSH-17 同律)。
+UPSTREAM_DEEPSEEK = "deepseek-native"
+UPSTREAM_GPT_SHIM = "openai-compatible+dsh_gpt_shim"
+
+
+def upstream_protocol_for_provider(ptype: str) -> str:
+    """provider 通道 → dsh 臂上游协议真身(准入单一事实源,M92c 面)。
+
+    - deepseek-native:runtime 直连 deepseek 端点(DQ/E1 既证组合);
+    - openai-compatible:必须经 dsh_gpt_shim 回环转译(runtime 不会说
+      openai 方言;直连会静默变成另一个未声明的组合)。
+    其余通道拒绝 —— 不猜、不降级。
+    """
+    if ptype == "deepseek-native":
+        return UPSTREAM_DEEPSEEK
+    if ptype == "openai-compatible":
+        return UPSTREAM_GPT_SHIM
+    raise ValueError(
+        f"B-dsh 桥接臂不认识 provider 通道 {ptype!r} —— 上游真身无从声明,"
+        "拒绝把未知组合记进台账")
+
 # 组合三缺省(指导报告钉进预注册的值;fingerprint 必含,B3 钉键集)。
 # 这些是 DSH minimal 组合的**有效值**声明 —— reasoning_effort 是 SDK
 # 0.1.0rc6 的内部缺省,我们的 config 面设不了它,声明进指纹的意义是:
@@ -90,7 +112,8 @@ def runtime_paths(runtime_root: str | Path = DEFAULT_RUNTIME_ROOT) -> tuple[Path
 def composition_fingerprint(runtime_root: str | Path, *, model: str,
                             system_prompt: str = DSH_SYSTEM_PROMPT,
                             max_tokens: int = DSH_MAX_TOKENS,
-                            reasoning_effort: str = DSH_REASONING_EFFORT) -> dict:
+                            reasoning_effort: str = DSH_REASONING_EFFORT,
+                            upstream_protocol: str = UPSTREAM_DEEPSEEK) -> dict:
     """DSH 组合的**有效面指纹**(M-DSH-14 面),供 exec profile 哈希与预注册冻结。
 
     版本与 cordis 哈希取自封存清单 `runtime_manifest.json`(供应链权威),
@@ -116,6 +139,9 @@ def composition_fingerprint(runtime_root: str | Path, *, model: str,
         "system_prompt": system_prompt,
         "max_tokens": max_tokens,
         "reasoning_effort": reasoning_effort,
+        # 第 10 键(2026-08-20):runtime 对面站的是谁。GPT 组合若在这里
+        # 扮成 deepseek,DQ 的 qualified 背书会被静默冒领(M92a 面)。
+        "upstream_protocol": upstream_protocol,
     }
 
 

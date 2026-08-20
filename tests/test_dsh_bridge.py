@@ -26,10 +26,13 @@ from repoproof.agents.dsh_bridge import (
     DSH_SYSTEM_PROMPT,
     RETRY_ATTEMPT_FACTOR,
     TREATMENT_NOT_DELIVERED,
+    UPSTREAM_DEEPSEEK,
+    UPSTREAM_GPT_SHIM,
     bridge_budget,
     composition_fingerprint,
     fidelity_verdict,
     treatment_fidelity,
+    upstream_protocol_for_provider,
 )
 from repoproof.agents.dsh_events import DshTrace
 from repoproof.persistence.bench_records import classify_runs
@@ -93,11 +96,13 @@ def _runtime_root(tmp: Path, *, break_cordis: bool = False) -> Path:
 
 
 def test_b3_fingerprint_keys_and_composition_defaults(tmp_path: Path) -> None:
-    """键集**恰好**九枚(少一枚 = M-DSH-14 的指纹缺字段),三缺省逐字入指纹。"""
+    """键集**恰好**十枚(少一枚 = M-DSH-14 的指纹缺字段),三缺省逐字入指纹;
+    第 10 键 upstream_protocol(2026-08-20)缺省 = deepseek 直连。"""
     fp = composition_fingerprint(_runtime_root(tmp_path), model="deepseek-v4-pro")
     assert set(fp) == {
         "backend_id", "runtime_profile_id", "sdk_version", "runtime_bin_version",
         "cordis_sha256", "model", "system_prompt", "max_tokens", "reasoning_effort",
+        "upstream_protocol",
     }
     assert fp["backend_id"] == BACKEND_ID == "dsh"
     assert fp["runtime_profile_id"] == "rt-dsh-minimal-0.1.0rc6-v1"
@@ -106,9 +111,31 @@ def test_b3_fingerprint_keys_and_composition_defaults(tmp_path: Path) -> None:
         == "You are a helpful software engineer assistant."
     assert fp["max_tokens"] == DSH_MAX_TOKENS == 256000
     assert fp["reasoning_effort"] == DSH_REASONING_EFFORT == "high"
+    assert fp["upstream_protocol"] == UPSTREAM_DEEPSEEK == "deepseek-native"
     assert fp["cordis_sha256"] == hashlib.sha256(
         (_runtime_root(tmp_path / "again") / "config" / "mini.cordis.yml")
         .read_bytes()).hexdigest()
+
+
+def test_b3c_fingerprint_records_upstream_truth_not_a_disguise(
+        tmp_path: Path) -> None:
+    """B3c(M92a 面):upstream_protocol 参数必须逐字进指纹 —— GPT 组合若在
+    指纹里扮成 deepseek,DQ 的 qualified 背书会被静默冒领。"""
+    fp = composition_fingerprint(_runtime_root(tmp_path), model="gpt-5.5",
+                                 upstream_protocol=UPSTREAM_GPT_SHIM)
+    assert fp["upstream_protocol"] == UPSTREAM_GPT_SHIM \
+        == "openai-compatible+dsh_gpt_shim"
+    assert fp["model"] == "gpt-5.5"
+
+
+def test_b7_upstream_protocol_for_provider_single_source(
+) -> None:
+    """B7(M92c 面):通道→上游真身的单源判定 —— openai-compatible 必须
+    映到 shim 协议(直连会静默变成未声明组合);未知通道拒绝不猜。"""
+    assert upstream_protocol_for_provider("deepseek-native") == UPSTREAM_DEEPSEEK
+    assert upstream_protocol_for_provider("openai-compatible") == UPSTREAM_GPT_SHIM
+    with pytest.raises(ValueError, match="不认识 provider 通道"):
+        upstream_protocol_for_provider("anthropic")
 
 
 def test_b3b_fingerprint_refuses_tampered_cordis(tmp_path: Path) -> None:

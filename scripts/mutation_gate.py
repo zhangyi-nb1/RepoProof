@@ -2688,6 +2688,46 @@ MUTATIONS: list[dict] = [
         "expected_catcher": [
             "test_g2_text_turn_sse_shape_matches_the_pinned_wire_format"],
     },
+    # ---- M92:GPT×DSH host-run 接线(2026-08-20)----
+    {
+        "id": "M92a-dsh-fingerprint-disguises-gpt-as-deepseek",
+        "lesson": "组合指纹无视 upstream_protocol 参数恒写 deepseek —— GPT "
+                  "组合在台账里扮成 DQ qualified 的 deepseek 组合,资格背书"
+                  "被静默冒领,批间混池(M-DSH-17 台账列不许猜的同门)",
+        "file": _DBR,
+        "old": '        "upstream_protocol": upstream_protocol,',
+        "new": '        "upstream_protocol": UPSTREAM_DEEPSEEK,',
+        "catchers": _T_DBR,
+        "expected_catcher": [
+            "test_b3c_fingerprint_records_upstream_truth_not_a_disguise"],
+    },
+    {
+        "id": "M92b-dsh-shim-leaks-real-key-into-worker",
+        "lesson": "shim 在链路里时 worker 环境却拿到真上游 key —— 真 key 进"
+                  "不可信 worker 的进程环境与事件面,key 纪律(值只在 host "
+                  "进程内进 shim)整条失守",
+        "file": _HD,
+        "old": '            job["env"] = {"DEEPSEEK_BASE_URL": shim.base_url}\n'
+               '            report = run_dsh_worker(job, worker_python=worker_py, budget=budget,\n'
+               '                                    extra_env={"DEEPSEEK_API_KEY": RUNTIME_FAKE_KEY})',
+        "new": '            job["env"] = {"DEEPSEEK_BASE_URL": shim.base_url}\n'
+               '            report = run_dsh_worker(job, worker_python=worker_py, budget=budget,\n'
+               '                                    extra_env={"DEEPSEEK_API_KEY": api_key})',
+        "catchers": _T_GS,
+        "expected_catcher": [
+            "test_gs3_run_dsh_round_with_gpt_shim_end_to_end"],
+    },
+    {
+        "id": "M92c-dsh-openai-channel-mapped-to-direct-connect",
+        "lesson": "通道判定把 openai-compatible 映成 deepseek 直连 —— runtime "
+                  "拿 deepseek 线直怼 GPT 端点,若端点碰巧容忍 stream 旗标,"
+                  "组合静默变成'未声明的直连',指纹与线上真相分家",
+        "file": _DBR,
+        "old": '    if ptype == "openai-compatible":\n        return UPSTREAM_GPT_SHIM',
+        "new": '    if ptype == "openai-compatible":\n        return UPSTREAM_DEEPSEEK',
+        "catchers": _T_DBR,
+        "expected_catcher": ["test_b7_upstream_protocol_for_provider_single_source"],
+    },
     {
         "id": "M90c-snapshot-copies-master-readonly-bit",
         "lesson": "快照落权归一死了 —— 母树锁写后 copy2 把只读位带进会话,"

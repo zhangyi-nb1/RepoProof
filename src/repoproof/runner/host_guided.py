@@ -1348,7 +1348,9 @@ def run_dsh_round(*, workspace: Path, side_dir: Path, prompt: str,
                   budgets: "HostBudgets", model_name: str, api_base: str,
                   api_key: str, runtime_root: Path | None = None,
                   request_timeout_s: float | None = None,
-                  session_id: str | None = None) -> tuple["AgentRunResult", dict]:
+                  session_id: str | None = None,
+                  upstream_protocol: str | None = None
+                  ) -> tuple["AgentRunResult", dict]:
     """B-dsh 臂的一轮(模块级,可脱离 runner 独测):job 装配 → 封存
     worker → 回执适配成 AgentRunResult(DSH 阶段 8)。
 
@@ -1356,6 +1358,9 @@ def run_dsh_round(*, workspace: Path, side_dir: Path, prompt: str,
       (工作树**外**)—— 落进工作树会被轮末 `git add -A` 收进适配 diff;
     - key 只在内存经 extra_env 传给 worker 进程环境(allowlist 之外全拦),
       不进本进程 os.environ、不落 argv/日志/回执;
+    - upstream_protocol(2026-08-20,GPT×DSH):UPSTREAM_GPT_SHIM 时在本
+      进程起 dsh_gpt_shim 回环转译 —— 真 key 只进 shim,worker 只拿
+      RUNTIME_FAKE_KEY 假字面量(M92b 面);缺省 deepseek 直连不变;
     - 适配纪律:n_model_calls = logical_requests(周期计数,E5),
       commands_used = bash tool/call 计数,cost 恒 "UNKNOWN"(DSH 无
       费率读数,绝不写 0 冒充);submission 仅诊断,不产生 PASS。
@@ -1366,10 +1371,18 @@ def run_dsh_round(*, workspace: Path, side_dir: Path, prompt: str,
         DEFAULT_RUNTIME_ROOT,
         DSH_MAX_TOKENS,
         DSH_SYSTEM_PROMPT,
+        UPSTREAM_DEEPSEEK,
+        UPSTREAM_GPT_SHIM,
         bridge_budget,
         composition_fingerprint,
         runtime_paths,
     )
+
+    upstream_protocol = upstream_protocol or UPSTREAM_DEEPSEEK
+    if upstream_protocol not in (UPSTREAM_DEEPSEEK, UPSTREAM_GPT_SHIM):
+        raise ValueError(
+            f"run_dsh_round 不认识上游协议 {upstream_protocol!r} —— "
+            "组合真身无从声明,拒跑")
 
     rt_root = Path(runtime_root or DEFAULT_RUNTIME_ROOT)
     worker_py, cordis = runtime_paths(rt_root)
@@ -1390,8 +1403,25 @@ def run_dsh_round(*, workspace: Path, side_dir: Path, prompt: str,
     if session_id:
         job["session_id"] = session_id
     budget = bridge_budget(budgets)
-    report = run_dsh_worker(job, worker_python=worker_py, budget=budget,
-                            extra_env={"DEEPSEEK_API_KEY": api_key})
+    shim_shapes: list[dict] | None = None
+    if upstream_protocol == UPSTREAM_GPT_SHIM:
+        from repoproof.agents.dsh_gpt_shim import RUNTIME_FAKE_KEY, DshGptShim
+
+        # shim 生命周期 = 本轮:真 key 只在 host 进程内进 shim 构造参数;
+        # worker 环境只见假字面量。shim 超时须罩住 runtime 单请求超时,
+        # 否则 runtime 还在等、shim 先掐,归因会错到上游头上。
+        shim_timeout = ((request_timeout_s + 60.0) if request_timeout_s
+                        else 360.0)
+        with DshGptShim(api_base, api_key, model_name,
+                        timeout_s=shim_timeout,
+                        expected_inbound_key=RUNTIME_FAKE_KEY) as shim:
+            job["env"] = {"DEEPSEEK_BASE_URL": shim.base_url}
+            report = run_dsh_worker(job, worker_python=worker_py, budget=budget,
+                                    extra_env={"DEEPSEEK_API_KEY": RUNTIME_FAKE_KEY})
+            shim_shapes = list(shim.requests)
+    else:
+        report = run_dsh_worker(job, worker_python=worker_py, budget=budget,
+                                extra_env={"DEEPSEEK_API_KEY": api_key})
 
     c = report.trace.counters
     u = report.trace.usage_totals
@@ -1414,7 +1444,10 @@ def run_dsh_round(*, workspace: Path, side_dir: Path, prompt: str,
         "job": job,
         "budget": budget,
         "report": report,
-        "fingerprint": composition_fingerprint(rt_root, model=model_name),
+        "fingerprint": composition_fingerprint(
+            rt_root, model=model_name, upstream_protocol=upstream_protocol),
+        "upstream_protocol": upstream_protocol,
+        "shim_requests": shim_shapes,
         "usage": dict(u),
         "counters": dict(c),
         "attribution": report.attribution,
@@ -1971,6 +2004,9 @@ class HostGuidedRunner:
             api_base=provider.api_base, api_key=provider.api_key,
             runtime_root=getattr(self, "_dsh_runtime_root", None),
             request_timeout_s=call_timeout_s(),
+            # 上游真身来自准入判定的单一事实源(fingerprint ③ 对照的就是
+            # 准入指纹,这里若另猜一遍会造出两套真相)。
+            upstream_protocol=getattr(self, "_dsh_upstream_protocol", None),
         )
         ev_src = Path(info["events_path"])
         if ev_src.exists():
@@ -1982,7 +2018,11 @@ class HostGuidedRunner:
                         "selfcheck_problems": info["selfcheck_problems"],
                         "trace_problems": info["trace_problems"],
                         "killed": info["report"].killed,
-                        "orphan_count": info["report"].orphan_count},
+                        "orphan_count": info["report"].orphan_count,
+                        # GPT×DSH:上游真身 + shim 形状记录(无正文无头;
+                        # inbound_fake_key 布尔见证"真 key 未进 worker")
+                        "upstream_protocol": info["upstream_protocol"],
+                        "shim_requests": info["shim_requests"]},
                        ensure_ascii=False, indent=2, sort_keys=True),
             encoding="utf-8")
         # 送达判读:①②③对照准入时算的组合指纹(预注册冻结值的批层复核在
@@ -2162,16 +2202,19 @@ class HostGuidedRunner:
                 # `if provider.PROVIDER_TYPE != "deepseek-native":`,同文重现
                 # 会破坏登记簿"旧串恰一次"的可变异性。
                 ptype = provider.PROVIDER_TYPE
-                if ptype != "deepseek-native":
-                    raise ValueError(
-                        f"B-dsh 桥接臂只接 deepseek-native provider,实得 "
-                        f"{ptype!r} —— DSH runtime 只说 DeepSeek "
-                        "协议,换通道 = 换了被测组合")
                 from repoproof.agents.dsh_bridge import (
                     DEFAULT_RUNTIME_ROOT,
                     bridge_budget,
                     composition_fingerprint,
+                    upstream_protocol_for_provider,
                 )
+
+                # 通道→上游真身的单源判定(2026-08-20,GPT×DSH):
+                # deepseek-native 直连照旧;openai-compatible 经 dsh_gpt_shim
+                # 回环转译;其余通道在函数里拒绝。判定结果整链单源 ——
+                # 组合指纹(准入)与 run_dsh_round(逐轮)都吃这一个值,
+                # 不存在"指纹说 deepseek、线上走 GPT"的两套真相(M-DSH-17)。
+                self._dsh_upstream_protocol = upstream_protocol_for_provider(ptype)
 
                 # 两道 fail-fast 都要在建会话之前:per_round 语义拒绝
                 # (等总额无从定义)与 cordis 现物校验(封存被动过就不开跑)。
@@ -2180,7 +2223,8 @@ class HostGuidedRunner:
                     _os.environ.get("REPOPROOF_DSH_RUNTIME_ROOT",
                                     str(DEFAULT_RUNTIME_ROOT))).expanduser()
                 self._dsh_composition = composition_fingerprint(
-                    self._dsh_runtime_root, model=provider.model_name)
+                    self._dsh_runtime_root, model=provider.model_name,
+                    upstream_protocol=self._dsh_upstream_protocol)
                 self._dsh_session_ids: list = []
                 self._dsh_fidelity_missing: list = []
                 model = None

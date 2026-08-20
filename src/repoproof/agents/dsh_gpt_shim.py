@@ -39,6 +39,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 # (completion_tokens_details 等)不透传,runtime 没为它们验证过。
 _USAGE_KEYS = ("prompt_tokens", "completion_tokens", "total_tokens")
 
+# shim 在链路里时,runtime(不可信 worker)只拿这个假字面量当 DEEPSEEK_API_KEY
+# —— 真 key 永不进 worker 进程环境(M92b 面)。host_guided.run_dsh_round 与
+# 全栈测试同源引用,不各写各的字面量。
+RUNTIME_FAKE_KEY = "sk-dsh-shim-loopback-0000"
+
 
 def _sse_chunk(model: str, delta: dict, finish: str | None = None,
                usage: dict | None = None) -> str:
@@ -88,11 +93,16 @@ class DshGptShim:
     不存消息正文、不存任何请求头 —— key 与提示都不落在这份记录里。"""
 
     def __init__(self, upstream_base: str, upstream_key: str, upstream_model: str,
-                 *, timeout_s: float = 240.0) -> None:
+                 *, timeout_s: float = 240.0,
+                 expected_inbound_key: str | None = None) -> None:
         self.upstream_base = upstream_base.rstrip("/")
         self._key = upstream_key
         self.upstream_model = upstream_model
         self.timeout_s = timeout_s
+        # 入站 key 见证(值级无害):给定期望假字面量时,每条记录多一个布尔
+        # `inbound_fake_key` —— False 意味着 runtime 拿到的不是假 key,真 key
+        # 漏进了不可信 worker(M92b 面)。只记布尔,不存任何 key 值。
+        self._expected_inbound = expected_inbound_key
         self.requests: list[dict] = []
         outer = self
 
@@ -121,6 +131,10 @@ class DshGptShim:
                        "model_in": body.get("model"),
                        "stream_in": body.get("stream"),
                        "n_messages": len(body.get("messages") or [])}
+                if outer._expected_inbound is not None:
+                    auth = self.headers.get("Authorization") or ""
+                    rec["inbound_fake_key"] = (
+                        auth == f"Bearer {outer._expected_inbound}")
                 outer.requests.append(rec)
                 # deepseek 线 → openai 非流式:剥流式旗标、换模型名。
                 body.pop("stream", None)

@@ -269,3 +269,106 @@ def test_gs2_tool_loop_really_executes_through_shim(tmp_path: Path) -> None:
         f"必须是真执行不是回显:{obs and obs[0]['content']!r}"
     assert r.trace.counters["logical_requests"] == 2
     assert r.trace.usage_totals == {"input_tokens": 24, "output_tokens": 10}
+
+
+# ------------------------------------------- GS3:host-run 接线(run_dsh_round)
+
+
+class _HB:
+    """HostBudgets 鸭型替身(与 test_dsh_bridge 同款,total 语义)。"""
+    semantics = "total"
+    max_rounds = 2
+    max_model_calls = 40
+    max_commands = 120
+    max_patch_files = 8
+    max_patch_lines = 800
+    max_wall_time_minutes = 3
+    max_input_tokens_total = 900_000
+    max_output_tokens_total = 120_000
+
+
+@needs_runtime
+def test_gs3_run_dsh_round_with_gpt_shim_end_to_end(tmp_path: Path) -> None:
+    """GS3(接线钉,2026-08-20):模块级 run_dsh_round × UPSTREAM_GPT_SHIM。
+
+    证四件事:①shim 生命周期在轮内,编辑器写盘可收割、回执适配纪律不变;
+    ②指纹换脸 —— upstream_protocol 与 model=gpt-5.5 都进指纹(M92a 面);
+    ③key 纪律 —— 上游只见上游 key,worker 只见 RUNTIME_FAKE_KEY(shim 的
+    inbound_fake_key 布尔见证,M92b 面),上游 key 不落回执两件;
+    ④job.model=gpt-5.5(非 deepseek 名)走通封存 runtime 到线上。"""
+    from repoproof.agents.dsh_bridge import UPSTREAM_GPT_SHIM, treatment_fidelity
+    from repoproof.runner.host_guided import run_dsh_round
+
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    out_file = str(ws / "out.txt")
+    with _FakeOpenAI([
+        {"tool": "str_replace_editor",
+         "args": {"command": "create", "path": out_file, "file_text": "hola\n"}},
+        {"text": "done"},
+    ]) as up:
+        result, info = run_dsh_round(
+            workspace=ws, side_dir=tmp_path / "side", prompt="写 out.txt。",
+            budgets=_HB(), model_name="gpt-5.5",
+            api_base=up.base_url, api_key=_FAKE_UPSTREAM_KEY,
+            runtime_root=RT_ROOT, request_timeout_s=60.0,
+            upstream_protocol=UPSTREAM_GPT_SHIM)
+
+    # ① 判决面回执与适配纪律
+    assert (ws / "out.txt").read_text(encoding="utf-8") == "hola\n"
+    assert result.exit_status == "submitted" and result.cost == "UNKNOWN"
+    assert info["attribution"] == "ok" and info["session_id"]
+    assert info["trace_problems"] == [] and info["selfcheck_problems"] == []
+    # ② 指纹换脸:上游真身入指纹,不许扮 deepseek
+    assert info["upstream_protocol"] == UPSTREAM_GPT_SHIM
+    assert info["fingerprint"]["upstream_protocol"] == UPSTREAM_GPT_SHIM
+    assert info["fingerprint"]["model"] == "gpt-5.5"
+    # ③ key 纪律:上游只见上游 key;worker 只见假字面量(布尔见证);
+    #    上游 key 不落 events 回执
+    assert up.requests and all(
+        q["auth"] == f"Bearer {_FAKE_UPSTREAM_KEY}" for q in up.requests)
+    assert info["shim_requests"] and all(
+        s["inbound_fake_key"] for s in info["shim_requests"]), \
+        "worker 侧 Authorization 不是假字面量 —— 真 key 漏进了不可信 worker"
+    assert _FAKE_UPSTREAM_KEY.encode() not in Path(info["events_path"]).read_bytes()
+    # ④ 非 deepseek 模型名全程走通:job.model → runtime → 线上 model_in
+    assert all(s["model_in"] == "gpt-5.5" for s in info["shim_requests"])
+    assert all(q["body"]["model"] == "gpt-5.5" for q in up.requests)
+    # fidelity 九项对着 shim 组合全绿(预注册冻结值 = 同指纹时)
+    missing = treatment_fidelity(
+        report=info["report"], fingerprint=info["fingerprint"],
+        expected_fingerprint=dict(info["fingerprint"]),
+        budget=info["budget"], host_budgets=_HB(),
+        seen_session_ids=set(), job=info["job"], expected_workspace=ws)
+    assert missing == []
+
+
+def test_gs3b_deepseek_admission_fingerprint_would_catch_shim_swap(
+        tmp_path: Path) -> None:
+    """GS3b(零 runtime):若准入按 deepseek 直连冻结、逐轮却走了 shim,
+    fidelity ③ 必须点名指纹不一致 —— 两套真相在批层立刻可见。"""
+    from repoproof.agents.dsh_bridge import (
+        UPSTREAM_DEEPSEEK,
+        UPSTREAM_GPT_SHIM,
+        treatment_fidelity,
+    )
+
+    # 借 test_dsh_bridge 的假封存根构造两份只差 upstream_protocol 的指纹
+    from tests.test_dsh_bridge import _HB as _BHB
+    from tests.test_dsh_bridge import _report, _runtime_root
+
+    from repoproof.agents.dsh_bridge import bridge_budget, composition_fingerprint
+
+    root = _runtime_root(tmp_path)
+    fp_shim = composition_fingerprint(root, model="gpt-5.5",
+                                      upstream_protocol=UPSTREAM_GPT_SHIM)
+    fp_ds = composition_fingerprint(root, model="gpt-5.5",
+                                    upstream_protocol=UPSTREAM_DEEPSEEK)
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    missing = treatment_fidelity(
+        report=_report(), fingerprint=fp_shim, expected_fingerprint=fp_ds,
+        budget=bridge_budget(_BHB()), host_budgets=_BHB(),
+        seen_session_ids=set(), job={"workspace": str(ws)},
+        expected_workspace=ws)
+    assert any("③" in m and "upstream_protocol" in m for m in missing)
