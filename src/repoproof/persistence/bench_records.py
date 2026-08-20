@@ -238,6 +238,9 @@ QUALIFICATION_PURPOSES = frozenset({
     "BACKEND_QUALIFICATION",           # DQ-SDK:agent backend 真模型资格审
                                        # (DQ-SDK-1,G6/G6b/G7 —— 同为资格
                                        # 审语义,不充闸门、不计模型能力)
+    "OBSERVATION_POLICY_QUALIFICATION",  # WV:观测策略(投影旋钮)在线
+                                       # 资格审(WV11-GPT-QUAL-1)—— 同为
+                                       # 资格审语义,不充闸门、不计模型能力
 })
 
 # 阶段闸门的扣除面 = 机制类 ∪ 资格审类。
@@ -475,6 +478,11 @@ def count_passes(project_root: str | Path, task_prefix: str | None = None) -> di
             1 for r in rows if r["treatment_assigned"] and r["treatment_activated"] is False),
         "profile_qualification_runs": sum(
             1 for r in rows if r["counts_toward_profile_qualification"]),
+        # 观测策略资格发(WV):扣除要可见 —— 如实计数不挑选,被扣掉的
+        # 发次得有自己的格,不许消失在"没进 passes"的沉默里。
+        "observation_policy_qualification_runs": sum(
+            1 for r in rows
+            if r["run_purpose"] == "OBSERVATION_POLICY_QUALIFICATION"),
         "post_hoc_classified_runs": sum(
             1 for r in rows
             if r["classification_timing"] == "POST_HOC_TAXONOMY_CORRECTION"),

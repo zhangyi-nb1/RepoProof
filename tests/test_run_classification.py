@@ -131,6 +131,32 @@ def test_k7_profile_qualification_does_not_count_toward_the_stage_gate(tmp_path)
     assert got["total"] == 3 and got["all_valid_run_outcomes"] == 3
 
 
+_WV = {"test_mode": "AR", "run_purpose": "OBSERVATION_POLICY_QUALIFICATION",
+       "task_seen": True, "counts_toward_mechanism_effect": False}
+
+
+def test_k7c_observation_policy_qualification_does_not_count_toward_the_stage_gate(tmp_path):
+    """K7c(R4,2026-08-21):观测策略资格审(window-v1.1 投影在线资格,
+    WV11-GPT-QUAL-1)不充闸门。K7 的病提前防:登记进 QUALIFICATION_PURPOSES
+    必须是**代码**,预注册散文说"不计"不算数 —— 散文说不算,代码算了
+    (2026-08-15 四发 PQ 抬高 T3 的原病)。同时钉住不许错记成机制消融或
+    profile 资格审 —— 那两格各有自己的含义。"""
+    root = _write(tmp_path,
+                  [_run("cap"), _run("wv1"), _run("wv2")],
+                  [_cls("wv1", **_WV), _cls("wv2", **_WV)])
+
+    got = count_passes(root)
+
+    assert got["passes"] == 1, (
+        f"观测策略资格发被计进阶段闸门了,passes={got['passes']} —— "
+        "资格审自己把闸门抬高了")
+    assert got["observation_policy_qualification_runs"] == 2
+    assert got["mechanism_ablation_runs"] == 0, "WV 被错记成机制消融"
+    assert got["profile_qualification_runs"] == 0, "WV 被错记成 profile 资格审"
+    # 如实计数不挑选:总数仍是 3,扣除只作用在 passes 上
+    assert got["total"] == 3 and got["all_valid_run_outcomes"] == 3
+
+
 def test_k7b_the_real_ledger_keeps_pq_out_of_t3(tmp_path):
     """K7 在**真台账**上的现场:2026-08-15 那四发 PQ 一个都不许进 T3 passes。
 

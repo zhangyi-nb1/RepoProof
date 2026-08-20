@@ -76,6 +76,9 @@ def compute(project_root: Path = REPO) -> dict:
             "post_hoc_classified_runs": "分类发生在看到结果之后(自曝,防伪装成预注册)",
             "profile_qualification_runs": "PQ:runtime profile 资格审 —— "
                                           "**不充闸门、不计模型能力**",
+            "observation_policy_qualification_runs": "WV:观测策略(投影旋钮)"
+                                          "在线资格审 —— **不充闸门、不计"
+                                          "模型能力**",
             "provisional_evidence_runs": "证据已降级 —— **仍计入 passes(未被改判)**,"
                                          "但引用时必须带上 caveat;见 provisional_evidence",
         },

@@ -2771,6 +2771,19 @@ MUTATIONS: list[dict] = [
         "expected_catcher": [
             "test_e2b_cache_detail_aliases_absorbed_only_when_present"],
     },
+    # ---- M94:观测策略资格审登记(R4,2026-08-21)----
+    {
+        "id": "M94a-observation-policy-qualification-counts-toward-gate",
+        "lesson": "WV 资格发的登记从 QUALIFICATION_PURPOSES 里掉了 —— 资格审"
+                  "发次照常充阶段闸门,2026-08-15 四发 PQ 抬高 T3 的病在新"
+                  "purpose 上原样复发(散文说不算,代码算了)",
+        "file": _BR,
+        "old": '    "OBSERVATION_POLICY_QUALIFICATION",  # WV:观测策略(投影旋钮)在线',
+        "new": '    # "OBSERVATION_POLICY_QUALIFICATION",  # WV:观测策略(投影旋钮)在线',
+        "catchers": _T_RCL,
+        "expected_catcher": [
+            "test_k7c_observation_policy_qualification_does_not_count_toward_the_stage_gate"],
+    },
     {
         "id": "M90c-snapshot-copies-master-readonly-bit",
         "lesson": "快照落权归一死了 —— 母树锁写后 copy2 把只读位带进会话,"

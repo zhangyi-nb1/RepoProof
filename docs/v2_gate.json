@@ -5,6 +5,7 @@
     "heldout_model_evaluation_runs": "未见任务能力评测(已扣除冒烟/探索/无效/机制四类);台账里的宿主:['pallets/click', 'tobymao/sqlglot', 'zhangyi-nb1/offerclaw']",
     "heldout_passes": "held-out 里的通过数 —— 其余三类都有分子,只给分母会让人自己配一个",
     "mechanism_ablation_runs": "E1/AR 机制与判据实验 —— 不计能力",
+    "observation_policy_qualification_runs": "WV:观测策略(投影旋钮)在线资格审 —— **不充闸门、不计模型能力**",
     "passes": "阶段闸门数 —— 存在性证明(任务可判且可过),**不是能力率**",
     "post_hoc_classified_runs": "分类发生在看到结果之后(自曝,防伪装成预注册)",
     "profile_qualification_runs": "PQ:runtime profile 资格审 —— **不充闸门、不计模型能力**",
@@ -39,6 +40,7 @@
     ],
     "mechanism_ablation_passes": 18,
     "mechanism_ablation_runs": 38,
+    "observation_policy_qualification_runs": 0,
     "pass_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260810-000405",
       "t1-offerclaw-fastapi-mcp-v1-20260810-002354",
@@ -204,6 +206,7 @@
       "invalidated_run_ids": [],
       "mechanism_ablation_passes": 0,
       "mechanism_ablation_runs": 0,
+      "observation_policy_qualification_runs": 0,
       "pass_run_ids": [
         "t1-offerclaw-fastapi-mcp-v1-20260810-000405",
         "t1-offerclaw-fastapi-mcp-v1-20260810-002354"
@@ -248,6 +251,7 @@
       ],
       "mechanism_ablation_passes": 13,
       "mechanism_ablation_runs": 18,
+      "observation_policy_qualification_runs": 0,
       "pass_run_ids": [
         "t2-offerclaw-open-deep-research-v4-20260812-234005",
         "t2-offerclaw-open-deep-research-v4-20260813-000737",
@@ -302,6 +306,7 @@
       ],
       "mechanism_ablation_passes": 0,
       "mechanism_ablation_runs": 2,
+      "observation_policy_qualification_runs": 0,
       "pass_run_ids": [
         "t3-offerclaw-browser-use-v5-20260811-182535",
         "t3-offerclaw-browser-use-v5-20260813-032919",
@@ -371,6 +376,7 @@
       "invalidated_run_ids": [],
       "mechanism_ablation_passes": 0,
       "mechanism_ablation_runs": 0,
+      "observation_policy_qualification_runs": 0,
       "pass_run_ids": [],
       "passes": 0,
       "post_hoc_classified_runs": 0,
