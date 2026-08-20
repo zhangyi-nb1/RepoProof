@@ -2914,3 +2914,28 @@ main_dir_integrity 抓到邻仓 offerclaw(chroma_db)被并发进程写入,守卫
   (v1.1 起 pwd 入读取集,旧锚失效)。全量套件与变异门见收口提交。
 - 边界:S2′ 重跑仍在用户暂缓清单上 —— 本代零模型调用,在线消融与 GPT
   基线批均另行请批。
+
+## 状态 · 2026-08-20 · GPT×DSH 协议适配层落地 + 在线探针全过(端点恢复实证)
+
+- **端点恢复核实**:本地 GPT(openai-compatible,LAN,base 脱敏)
+  GET /models 200(在列 gpt-5.5/5.6 系);真实最小补全 200(gpt-5.5,
+  usage 带 reasoning 明细);tools 探针 200(原生 tool_calls,
+  finish=tool_calls)。
+- **适配层**:`src/repoproof/agents/dsh_gpt_shim.py`(model_profile 面,
+  与 deepseek_native 同类)—— 127.0.0.1 回环 shim:收 DSH 的 deepseek 线
+  (POST /chat/completions 无 /v1、stream:true),剥流式旗标走**非流式**
+  上游,回程合成金丝雀钉死的 SSE 线格式(usage 三键投影,model 回填上游
+  真名,不许扮 deepseek);错误原状态码透传;key 只经构造参数→上游请求头,
+  记录只存形状(无正文无头)。
+- **测试**:G1-G6 单体(假 openai 上游:换名/剥流式/key 只上不下/线格式
+  同构/错误透传/记录不携密)+ GS1-GS2 全栈(真封存 runtime → shim →
+  假上游:文本回合 + 工具环真执行,usage 逐字对账)—— 19/19 绿。
+- **在线探针**(`scripts/dsh_gpt_line_probe.py`,仪器适配测试,不计模型
+  表现、不产生台账行):A 文本回合 GPT_LINE_OK 原样回(1 请求,usage
+  732/24);B 工具回合 bash 真执行(2 请求,终答 RP_GPT_42 = echo
+  $((6*7)) 真输出)—— attribution/trace/usage 全干净,六项 checks 全过。
+  证据 `docs/evidence/dsh_gpt_adapter/line-probe-20260820.json`。
+- **边界(划界语)**:GPT×DSH 组合**未经 DQ 资格批** —— qualified 只背书
+  deepseek 组合;计分批之前须走自己的资格流程与预注册(G6/G6b 同款),
+  且 host-run 接线(backend_composition 记 GPT 上游真身)未动,批前另立。
+  变异体 +2(M91a/b,共 262)。

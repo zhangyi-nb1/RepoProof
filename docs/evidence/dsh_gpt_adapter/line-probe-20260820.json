@@ -1,0 +1,80 @@
+{
+  "_what": "GPT×DSH 线协议在线探针:封存 runtime → dsh_gpt_shim → 本地 GPT;仪器适配测试,不计模型表现,不产生台账行",
+  "date": "20260820",
+  "upstream": {
+    "protocol": "openai-compatible",
+    "base": "«REDACTED-LAN-ENDPOINT»",
+    "model": "gpt-5.5"
+  },
+  "runtime": "rt-dsh-minimal-0.1.0rc6-v1",
+  "probes": [
+    {
+      "probe": "A-text",
+      "ok": true,
+      "finish_reason": "completed",
+      "final_response": "GPT_LINE_OK",
+      "attribution": "ok",
+      "killed": false,
+      "orphan_count": 0,
+      "trace_ok": true,
+      "trace_problems": [],
+      "usage_totals": {
+        "input_tokens": 732,
+        "output_tokens": 24
+      },
+      "logical_requests": 1,
+      "shim_requests": [
+        {
+          "path": "/chat/completions",
+          "model_in": "deepseek-v4-flash",
+          "stream_in": true,
+          "n_messages": 2,
+          "upstream_status": 200
+        }
+      ],
+      "workspace_files": []
+    },
+    {
+      "probe": "B-tool",
+      "ok": true,
+      "finish_reason": "completed",
+      "final_response": "RP_GPT_42",
+      "attribution": "ok",
+      "killed": false,
+      "orphan_count": 0,
+      "trace_ok": true,
+      "trace_problems": [],
+      "usage_totals": {
+        "input_tokens": 1539,
+        "output_tokens": 37
+      },
+      "logical_requests": 2,
+      "shim_requests": [
+        {
+          "path": "/chat/completions",
+          "model_in": "deepseek-v4-flash",
+          "stream_in": true,
+          "n_messages": 2,
+          "upstream_status": 200
+        },
+        {
+          "path": "/chat/completions",
+          "model_in": "deepseek-v4-flash",
+          "stream_in": true,
+          "n_messages": 4,
+          "upstream_status": 200
+        }
+      ],
+      "workspace_files": []
+    }
+  ],
+  "checks": {
+    "A_clean": true,
+    "A_says_ok": true,
+    "A_usage_seen": true,
+    "B_clean": true,
+    "B_tool_loop": true,
+    "B_real_exec": true
+  },
+  "all_pass": true
+}

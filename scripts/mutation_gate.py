@@ -145,6 +145,8 @@ _AR = "src/repoproof/runner/agent_run.py"
 _T_DSN = ["tests/test_deepseek_native.py"]
 _HS = "src/repoproof/harness/host_snapshot.py"
 _T_HS = ["tests/test_host_snapshot.py"]
+_GS = "src/repoproof/agents/dsh_gpt_shim.py"
+_T_GS = ["tests/test_dsh_gpt_shim.py"]
 
 CANARY = {
     "id": "C0-plumbing-canary",
@@ -2661,6 +2663,30 @@ MUTATIONS: list[dict] = [
         "new": 'WINDOW_POLICY = "window-v1"',
         "catchers": _T_WP,
         "expected_catcher": ["test_manifest_declares_lossiness"],
+    },
+    # ---- M91:GPT×DSH 协议适配层(2026-08-20)----
+    {
+        "id": "M91a-shim-forwards-stream-flag-upstream",
+        "lesson": "shim 忘剥 stream 旗标 —— 上游按流式回 SSE,shim 却当"
+                  "非流式 JSON 解析,GPT×DSH 线在真端点上当场崩",
+        "file": _GS,
+        "old": '                body.pop("stream", None)',
+        "new": '                body.pop("stream_x", None)',
+        "catchers": _T_GS,
+        "expected_catcher": [
+            "test_g1_model_swapped_stream_stripped_key_only_upstream"],
+    },
+    {
+        "id": "M91b-shim-leaks-upstream-usage-extensions",
+        "lesson": "usage 不投影三键而是整份透传 —— completion_tokens_details "
+                  "等扩展键进 deepseek 线,runtime 没为它们验证过(线格式是"
+                  "打崩点,2026-08-17 单变量实测的同一条命门)",
+        "file": _GS,
+        "old": "    usage = {k: int(usage_in.get(k, 0) or 0) for k in _USAGE_KEYS}",
+        "new": "    usage = dict(usage_in)",
+        "catchers": _T_GS,
+        "expected_catcher": [
+            "test_g2_text_turn_sse_shape_matches_the_pinned_wire_format"],
     },
     {
         "id": "M90c-snapshot-copies-master-readonly-bit",

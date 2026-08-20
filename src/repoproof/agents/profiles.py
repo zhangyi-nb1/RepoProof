@@ -189,6 +189,7 @@ _FACE_MAP: tuple[tuple[str, str], ...] = (
     # ---- 模型面 ----
     ("agents/provider_gate.py", "model_profile"),
     ("agents/deepseek_native.py", "model_profile"),   # P-D 直连协议层(§6)
+    ("agents/dsh_gpt_shim.py", "model_profile"),      # DSH→openai 协议适配层(GPT×DSH)
     # ---- 验证面:独立验证与完整性扫描 ----
     ("verification/", "verifier"),
     # 上游执行回执(A0):它判定"什么算真的用了上游",是判据不是执行器。
