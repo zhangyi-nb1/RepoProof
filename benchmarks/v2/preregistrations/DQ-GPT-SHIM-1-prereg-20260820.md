@@ -123,3 +123,53 @@ out 240,000 / wall 3,600s)。选它的理由:E1G 镜像批(§DRAFT)将用同一
 3. **变异体手验**:M92a/b/c 逐一施变 → 声明凶手当场红 → 还原复绿
    (M92b 首轮手验因还原脚本误用 git checkout 冲掉未提交接线,已按
    逆向替换重做三枚,结果不受染)。
+
+## 附录二(2026-08-20 · 批毕机械转录:资格 FAIL,批关闭)
+
+### 执行留痕
+
+- 批开跑前置:全量变异门 **265/265 全捕**(证据 7b5bc93cec42.json,
+  d3d2b27 提交)。F0(fake-positive × E1 契约,152824)PASS_ADAPTED。
+- 三发照冻结序 15:43-17:20 跑毕,**零缺陷重跑、绊线全绿**(每发前后
+  digest+锁态双面),端点健康探每发前 200。
+
+### 三发结果(隐藏 oracle 9 道)
+
+| 发 | 模型 | 判决 | 归因 | 请求 | in/out tok | fidelity | K1 |
+|---|---|---|---|---|---|---|---|
+| 1(154315) | gpt-5.5 | FAIL 8/9 | budget_overrun:input_tokens(1,831,594,溢 1.75%) | 61 | 1.832M / 49.2K | DELIVERED | 61/61 |
+| 2(161822) | gpt-5.6 | FAIL 8/9 | **ok**(自然完成,21.5 分) | 51 | 1.577M / 29.9K | DELIVERED | 51/51 |
+| 3(165239) | gpt-5.5 | FAIL 8/9 | budget_overrun:input_tokens(1,803,749,溢 0.2%) | 63 | 1.804M / 44.3K | DELIVERED | 64/64(1 在途无状态=被杀形状) |
+
+三发**同一败象**:5 道链式 pivot delta 节点全修好,唯欠
+`test_h2_no_regression_broken`(砸既有回归)—— 与 E1-DSH 批主导失败模式
+(8/12 发)同款。
+
+### 四道门判读(机械)
+
+- **G6g ✗**:attribution=ok 且 DELIVERED 的只有 gpt-5.6 一个 model
+  (发 2);gpt-5.5 两发均越线被杀。
+- **G6bg ✗**:零 PASS。
+- **G7 ✓**:无未决 INVALIDATED_FALSE_PASS。
+- **K1 ✓**:176/176 条 shim 记录 inbound_fake_key=true —— 真 key 全程
+  未进不可信 worker。
+
+**判决:资格如实 FAIL —— E1G-GPT-BRIDGE-1 维持 DRAFT,不冻结、不加发、
+不换判据。** 分类旁挂 3 行已转录(四口径全 false)。
+
+### 机制观察(判读上界:单任务 seen、n≤2/模型,不得读作组合优劣)
+
+1. **消耗形状**:GPT×DSH 是 token 重臂(1.58-1.83M in / 51-64 请求),
+   贴 in-token 墙 —— 与 deepseek×DSH(E1:≤73.6K in / 106-183 请求,
+   token 轻)形状相反。**仪器警示**:两端点 usage 语义可能不同
+   (deepseek 缓存命中计数疑异),跨模型 usage 不可直接比较。
+2. **DSH 臂预算执法语义**:父侧 watchdog 越线即杀(事后),溢出
+   0.2-1.75% 如实入 PolicyVerifier 红;H0 臂 TokenBudgetedModel 是
+   调用前拒绝 —— 两臂执法点不同属既知"换循环 = 换执行语义"。
+3. 8/9 的一致性(三发同欠同一道)说明组合把模型能力真实送到了判决面
+   —— 机械线(接线/指纹/回执/K1/绊线)零缺陷,FAIL 是模型侧读数。
+
+### 封套决算
+
+运行 4/5(F0 + 3 资格发)≤ 上限;墙钟累计 ≈70.4 min ≤ 3h;
+in ≈5.21M ≤ 6M;out ≈123K ≤ 1M。全部在封套内。
