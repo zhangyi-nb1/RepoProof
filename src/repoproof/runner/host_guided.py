@@ -1350,6 +1350,20 @@ def dsh_receipt_block(fidelity_missing: list, round_infos: list[dict]) -> dict:
     }
 
 
+def refusal_attribution(attribution: str, refusals: int) -> str:
+    """前置预算闸的归因覆写(R6,2026-08-21;纯函数,dsh_receipt_block 同款)。
+
+    shim 发前拒绝(429 budget_refused)后,runtime 侧的自然终态是重试
+    尽头的错误或"若无其事"的收尾 —— 两者都不是真死因,照抄会把"预算闸
+    拦下了"记成"worker 坏了/正常完成"。只在 watchdog 杀发(budget_overrun/
+    wall_overrun)与协议破裂**没有**先说话时覆写:那两类是更硬的事实,
+    不许被拒绝数遮住。"""
+    if refusals and (attribution == "ok"
+                     or attribution.startswith("worker_error")):
+        return "budget_refused:input_tokens"
+    return attribution
+
+
 def run_dsh_round(*, workspace: Path, side_dir: Path, prompt: str,
                   budgets: "HostBudgets", model_name: str, api_base: str,
                   api_key: str, runtime_root: Path | None = None,
@@ -1410,6 +1424,7 @@ def run_dsh_round(*, workspace: Path, side_dir: Path, prompt: str,
         job["session_id"] = session_id
     budget = bridge_budget(budgets)
     shim_shapes: list[dict] | None = None
+    shim_refusals = 0
     if upstream_protocol == UPSTREAM_GPT_SHIM:
         from repoproof.agents.dsh_gpt_shim import RUNTIME_FAKE_KEY, DshGptShim
 
@@ -1420,11 +1435,15 @@ def run_dsh_round(*, workspace: Path, side_dir: Path, prompt: str,
                         else 360.0)
         with DshGptShim(api_base, api_key, model_name,
                         timeout_s=shim_timeout,
-                        expected_inbound_key=RUNTIME_FAKE_KEY) as shim:
+                        expected_inbound_key=RUNTIME_FAKE_KEY,
+                        max_input_tokens=budget.max_input_tokens) as shim:
             job["env"] = {"DEEPSEEK_BASE_URL": shim.base_url}
             report = run_dsh_worker(job, worker_python=worker_py, budget=budget,
                                     extra_env={"DEEPSEEK_API_KEY": RUNTIME_FAKE_KEY})
             shim_shapes = list(shim.requests)
+            shim_refusals = shim.refused_pre_budget
+        report.attribution = refusal_attribution(report.attribution,
+                                                 shim_refusals)
     else:
         report = run_dsh_worker(job, worker_python=worker_py, budget=budget,
                                 extra_env={"DEEPSEEK_API_KEY": api_key})
@@ -1454,6 +1473,7 @@ def run_dsh_round(*, workspace: Path, side_dir: Path, prompt: str,
             rt_root, model=model_name, upstream_protocol=upstream_protocol),
         "upstream_protocol": upstream_protocol,
         "shim_requests": shim_shapes,
+        "shim_refusals": shim_refusals,
         "usage": dict(u),
         "counters": dict(c),
         "attribution": report.attribution,

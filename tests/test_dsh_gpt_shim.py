@@ -254,6 +254,46 @@ def test_g7b_usage_detail_projection_pure_shapes():
     assert usage_detail_projection({"prompt_tokens": "many"}) == {}
 
 
+def test_g8_pre_dispatch_budget_gate_refuses_before_upstream():
+    """G8(R6 前置预算闸):已耗(上游报的真值)+ 估计 超上限 → 429
+    type=budget_refused,**超额调用不出门**(上游看不到第二发);记录携
+    refused_pre_budget/estimate_tokens/cum_prompt_tokens、无 upstream_status。
+    动机:DQ-GPT-SHIM-1 两发 gpt-5.5 把 1.8M 的最后一发打完才被 watchdog
+    事后杀 —— 溢出那次上游调用是白花的真钱。缺省 max_input_tokens=None
+    闸关,既有行为不变(G1-G7 全在 None 下跑)。"""
+    big = {"prompt_tokens": 900, "completion_tokens": 5, "total_tokens": 905}
+    with _FakeOpenAI([{"text": "ok", "usage": big}]) as up, \
+            DshGptShim(up.base_url, _FAKE_UPSTREAM_KEY, "gpt-test",
+                       max_input_tokens=1000) as shim:
+        s1, _ = _post_like_runtime(shim.base_url, dict(_BODY))
+        s2, body2 = _post_like_runtime(shim.base_url, dict(_BODY))
+
+    assert s1 == 200 and s2 == 429
+    assert json.loads(body2)["error"]["type"] == "budget_refused"
+    assert len(up.requests) == 1, "被拒的调用不许打到上游"
+    r1, r2 = shim.requests
+    assert "refused_pre_budget" not in r1 and r1["upstream_status"] == 200
+    assert r2["refused_pre_budget"] is True
+    assert r2["cum_prompt_tokens"] == 900
+    assert r2["estimate_tokens"] >= 900, "估计须不低于上次真值(全史重发朝紧)"
+    assert "upstream_status" not in r2 and "usage" not in r2
+    assert shim.refused_pre_budget == 1
+
+
+def test_g8b_refusal_attribution_pure_shapes():
+    """G8b(纯函数):归因覆写只吃 ok / worker_error:*;watchdog 杀发与
+    协议破裂是更硬的事实,不许被拒绝数遮住;零拒绝不覆写。"""
+    from repoproof.runner.host_guided import refusal_attribution as ra
+
+    assert ra("ok", 3) == "budget_refused:input_tokens"
+    assert ra("worker_error:llm", 1) == "budget_refused:input_tokens"
+    assert ra("budget_overrun:input_tokens", 5) == "budget_overrun:input_tokens"
+    assert ra("wall_overrun", 2) == "wall_overrun"
+    assert ra("worker_protocol_breach", 2) == "worker_protocol_breach"
+    assert ra("worker_unexpected", 2) == "worker_unexpected"
+    assert ra("ok", 0) == "ok"
+
+
 # ---------------------------------------------------------------- 全栈(封存 runtime)
 def _run_full_stack(tmp: Path, scripts: list[dict], prompt: str):
     from repoproof.agents.dsh_backend import DshBudget, run_dsh_worker
@@ -380,6 +420,45 @@ def test_gs3_run_dsh_round_with_gpt_shim_end_to_end(tmp_path: Path) -> None:
         budget=info["budget"], host_budgets=_HB(),
         seen_session_ids=set(), job=info["job"], expected_workspace=ws)
     assert missing == []
+
+
+@needs_runtime
+def test_gs4_pre_budget_gate_full_stack_refuses_and_attributes(
+        tmp_path: Path) -> None:
+    """GS4(R6 全栈钉):封存 runtime × 前置预算闸 —— 第一发上游调用报
+    prompt_tokens=50K(上限 60K,watchdog 事后轴此刻还不会杀),第二发
+    被 shim 发前拒(50K+est≥50K > 60K),**超额调用不出门**:上游恰好只
+    见 1 次请求;拒绝进 info["shim_refusals"],归因覆写为
+    budget_refused:input_tokens。先跑后钉的观察记录(2026-08-21):封存
+    runtime 对持续 429 重试 2 次(共 3 次被拒)后自行报错退出 —— 没有
+    重试风暴,logical_requests watchdog(上限 40)不会先说话。"""
+    from repoproof.agents.dsh_bridge import UPSTREAM_GPT_SHIM
+    from repoproof.runner.host_guided import run_dsh_round
+
+    class _HBTiny(_HB):
+        max_input_tokens_total = 60_000
+
+    big = {"prompt_tokens": 50_000, "completion_tokens": 5,
+           "total_tokens": 50_005}
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    out_file = str(ws / "out.txt")
+    with _FakeOpenAI([
+        {"tool": "str_replace_editor",
+         "args": {"command": "create", "path": out_file, "file_text": "x\n"},
+         "usage": big},
+    ]) as up:
+        result, info = run_dsh_round(
+            workspace=ws, side_dir=tmp_path / "side", prompt="写 out.txt。",
+            budgets=_HBTiny(), model_name="gpt-5.5",
+            api_base=up.base_url, api_key=_FAKE_UPSTREAM_KEY,
+            runtime_root=RT_ROOT, request_timeout_s=60.0,
+            upstream_protocol=UPSTREAM_GPT_SHIM)
+
+    assert len(up.requests) == 1, "被拒的调用不许打到上游"
+    assert info["shim_refusals"] >= 1
+    assert info["attribution"] == "budget_refused:input_tokens"
+    assert result.exit_status == "dsh:budget_refused:input_tokens"
 
 
 def test_gs3b_deepseek_admission_fingerprint_would_catch_shim_swap(

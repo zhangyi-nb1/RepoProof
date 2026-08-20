@@ -2784,6 +2784,35 @@ MUTATIONS: list[dict] = [
         "expected_catcher": [
             "test_k7c_observation_policy_qualification_does_not_count_toward_the_stage_gate"],
     },
+    # ---- M95:shim 前置预算闸(R6,2026-08-21)----
+    {
+        "id": "M95a-shim-pre-budget-gate-dead",
+        "lesson": "前置预算闸死了 —— 超额调用照旧出门打到上游,DQ-GPT-SHIM-1 "
+                  "两发 gpt-5.5 被 watchdog 事后杀前白花的那次真钱调用原样"
+                  "复发;'发前拒'静默退化回'发后杀'",
+        "file": _GS,
+        "old": "                if outer.max_input_tokens is not None:",
+        "new": "                if False and outer.max_input_tokens is not None:",
+        "catchers": _T_GS,
+        "expected_catcher": [
+            "test_g8_pre_dispatch_budget_gate_refuses_before_upstream",
+            "test_gs4_pre_budget_gate_full_stack_refuses_and_attributes"],
+    },
+    {
+        "id": "M95b-refusal-attribution-override-dead",
+        "lesson": "拒绝归因覆写死了 —— shim 明明发前拒了,台账归因却停在 "
+                  "worker_error:*,'为什么死'读不出'预算闸拒的',省钱机制"
+                  "在判读面隐形",
+        "file": _HD,
+        "old": '    if refusals and (attribution == "ok"\n'
+               '                     or attribution.startswith("worker_error")):',
+        "new": '    if False and refusals and (attribution == "ok"\n'
+               '                     or attribution.startswith("worker_error")):',
+        "catchers": _T_GS,
+        "expected_catcher": [
+            "test_g8b_refusal_attribution_pure_shapes",
+            "test_gs4_pre_budget_gate_full_stack_refuses_and_attributes"],
+    },
     {
         "id": "M90c-snapshot-copies-master-readonly-bit",
         "lesson": "快照落权归一死了 —— 母树锁写后 copy2 把只读位带进会话,"

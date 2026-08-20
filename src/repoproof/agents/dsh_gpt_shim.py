@@ -120,7 +120,8 @@ class DshGptShim:
 
     def __init__(self, upstream_base: str, upstream_key: str, upstream_model: str,
                  *, timeout_s: float = 240.0,
-                 expected_inbound_key: str | None = None) -> None:
+                 expected_inbound_key: str | None = None,
+                 max_input_tokens: int | None = None) -> None:
         self.upstream_base = upstream_base.rstrip("/")
         self._key = upstream_key
         self.upstream_model = upstream_model
@@ -129,6 +130,17 @@ class DshGptShim:
         # `inbound_fake_key` —— False 意味着 runtime 拿到的不是假 key,真 key
         # 漏进了不可信 worker(M92b 面)。只记布尔,不存任何 key 值。
         self._expected_inbound = expected_inbound_key
+        # 前置预算闸(R6,2026-08-21):watchdog 的 input 轴是**事后**越线
+        # 即杀 —— DQ-GPT-SHIM-1 两发 gpt-5.5 把 1.8M 上限的最后一发打完才
+        # 死,溢出的那次上游调用是白花的真钱。shim 居中能在**派发前**算
+        # "已耗(上游报的真值)+ 本次估计"并拒绝(429,type=budget_refused),
+        # 超额调用不出门。估计 = max(body_bytes//4, 上次真值 prompt_tokens)
+        # —— DSH 全史重发,下一发 ≥ 上一发,朝紧不朝松。None = 闸关。
+        self.max_input_tokens = max_input_tokens
+        self._budget_lock = threading.Lock()
+        self._cum_prompt_tokens = 0
+        self._last_prompt_tokens = 0
+        self.refused_pre_budget = 0
         self.requests: list[dict] = []
         outer = self
 
@@ -162,6 +174,25 @@ class DshGptShim:
                     rec["inbound_fake_key"] = (
                         auth == f"Bearer {outer._expected_inbound}")
                 outer.requests.append(rec)
+                # 前置预算闸(R6):派发前拒,超额调用不出门。
+                if outer.max_input_tokens is not None:
+                    with outer._budget_lock:
+                        est = max(n // 4, outer._last_prompt_tokens)
+                        cum = outer._cum_prompt_tokens
+                        refuse = cum + est > outer.max_input_tokens
+                        if refuse:
+                            outer.refused_pre_budget += 1
+                    if refuse:
+                        rec["refused_pre_budget"] = True
+                        rec["estimate_tokens"] = est
+                        rec["cum_prompt_tokens"] = cum
+                        err = json.dumps({"error": {
+                            "message": "shim: input token budget would be "
+                                       f"exceeded (cum {cum} + est {est} > "
+                                       f"{outer.max_input_tokens})",
+                            "type": "budget_refused"}}).encode()
+                        self._reply(429, err, "application/json")
+                        return
                 # deepseek 线 → openai 非流式:剥流式旗标、换模型名。
                 body.pop("stream", None)
                 body.pop("stream_options", None)
@@ -170,6 +201,11 @@ class DshGptShim:
                 rec["upstream_status"] = status
                 if urec:
                     rec["usage"] = urec
+                    with outer._budget_lock:
+                        pt = int(urec.get("prompt_tokens", 0) or 0)
+                        outer._cum_prompt_tokens += pt
+                        if pt:
+                            outer._last_prompt_tokens = pt
                 self._reply(status, payload, ctype)
 
         self.srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
