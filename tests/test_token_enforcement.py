@@ -304,3 +304,61 @@ def test_every_run_level_usage_hook_shares_the_deduping_implementation() -> None
     assert registrations, "一处 success_callback 注册都没扫到 —— 钉自身失效"
     strays = [site for site, body in registrations if "make_usage_cb" not in body]
     assert not strays, f"这些注册处绕开了去重实现:{strays}"
+
+
+# ---------------------------------------------------------- 缓存细目(R5 仪器)
+class _CacheReportingInner:
+    """脚本化 usage 序列(R5):每次 query 依序回一份 usage dict。"""
+
+    def __init__(self, usages: list[dict]) -> None:
+        self.usages = list(usages)
+        self.calls = 0
+
+    def query(self, messages, **kwargs):  # noqa: ANN001, ARG002
+        u = self.usages[self.calls]
+        self.calls += 1
+        return {"role": "assistant", "content": "ok",
+                "extra": {"actions": [], "response": {"usage": u}}}
+
+
+def test_cached_tokens_accounted_only_when_reported() -> None:
+    """R5:openai 嵌套细目与 deepseek 平铺键都入账;从未报过 → cached_in
+    为 None(UNKNOWN,不造零);报过之后缺席的调用不搅账。"""
+    from repoproof.agents.token_budget import TokenBudgetedModel
+
+    totals = {"in": 0, "out": 0, "seen": False}
+    inner = _CacheReportingInner([
+        {"prompt_tokens": 100, "completion_tokens": 5,
+         "prompt_tokens_details": {"cached_tokens": 60}},
+        {"prompt_tokens": 100, "completion_tokens": 5},              # 无细目
+        {"prompt_tokens": 100, "completion_tokens": 5,
+         "prompt_cache_hit_tokens": 30},                             # deepseek 平铺
+    ])
+    model = TokenBudgetedModel(inner=inner, totals=totals,
+                               max_input_tokens=10_000, max_output_tokens=10_000)
+    assert model.cached_in is None, "还没报过就该是 UNKNOWN"
+    for _ in range(3):
+        model.query(_msgs(10))
+    assert model.cached_in == 90
+    assert model.used_in == 300, "缓存记账不得搅动执法侧 used_in"
+
+    silent = TokenBudgetedModel(
+        inner=_CacheReportingInner([{"prompt_tokens": 10, "completion_tokens": 1}]),
+        totals={"in": 0, "out": 0, "seen": False},
+        max_input_tokens=10_000, max_output_tokens=10_000)
+    silent.query(_msgs(10))
+    assert silent.cached_in is None, "provider 没报缓存 → 不许造零"
+
+
+def test_absorb_dsh_usage_cache_detail_only_when_present() -> None:
+    """R5:B-dsh 落账 —— events 汇带 cache_read_tokens 才落 cache 键;
+    不带则桶里没有 cache_seen(与"造零"划清界)。"""
+    from repoproof.runner.host_guided import absorb_dsh_usage
+
+    bucket = {"in": 0, "out": 0, "seen": False}
+    absorb_dsh_usage(bucket, {"input_tokens": 50, "output_tokens": 7})
+    assert "cache_seen" not in bucket and "cache_read_in" not in bucket
+    absorb_dsh_usage(bucket, {"input_tokens": 50, "output_tokens": 7,
+                              "cache_read_tokens": 41})
+    assert bucket["cache_seen"] is True and bucket["cache_read_in"] == 41
+    assert bucket["in"] == 100 and bucket["out"] == 14

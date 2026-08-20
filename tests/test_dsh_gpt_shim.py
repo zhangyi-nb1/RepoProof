@@ -63,6 +63,7 @@ class _FakeOpenAI:
                                        "auth": self.headers.get("Authorization")})
                 s = (outer.scripts[i] if i < len(outer.scripts)
                      else {"text": "(脚本尽,兜底终答)"})
+                usage = dict(s.get("usage") or _USAGE)   # 脚本可注入自定义 usage(R5)
                 if "status" in s:
                     err = json.dumps({"error": {"message": "上游拒答",
                                                 "type": "server_error"}}).encode()
@@ -87,7 +88,7 @@ class _FakeOpenAI:
                     "model": body.get("model"),
                     "choices": [{"index": 0, "message": msg,
                                  "finish_reason": finish}],
-                    "usage": dict(_USAGE)}).encode()
+                    "usage": usage}).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(resp)))
@@ -202,7 +203,8 @@ def test_g5_synthesize_sse_edge_shapes():
 
 
 def test_g6_shim_records_carry_no_secrets_no_bodies():
-    """G6:shim 的 requests 记录只有形状 —— 无消息正文、无任何 key 值。"""
+    """G6:shim 的 requests 记录只有形状与用量 —— 无消息正文、无任何 key 值。
+    记录键闭集逐键枚举(R5 后含 usage 投影;usage 是计量不是内容)。"""
     with _FakeOpenAI([{"text": "hi"}]) as up, \
          DshGptShim(up.base_url, _FAKE_UPSTREAM_KEY, "gpt-test") as shim:
         _post_like_runtime(shim.base_url, dict(_BODY))
@@ -212,7 +214,44 @@ def test_g6_shim_records_carry_no_secrets_no_bodies():
     assert "打个招呼" not in blob, "记录携带了消息正文"
     (rec,) = shim.requests
     assert rec == {"path": "/chat/completions", "model_in": "deepseek-v4-flash",
-                   "stream_in": True, "n_messages": 1, "upstream_status": 200}
+                   "stream_in": True, "n_messages": 1, "upstream_status": 200,
+                   "usage": {"prompt_tokens": 12, "completion_tokens": 5,
+                             "total_tokens": 17, "reasoning_tokens": 3}}
+
+
+def test_g7_usage_details_recorded_only_what_endpoint_said():
+    """G7(R5 仪器):端点报什么记什么 —— reasoning 细目入记录;没报缓存
+    就**没有键**(不造零:这份记录的用途正是区分"端点没报"与"命中为 0")。
+    回程线格式不动(G2 的三键钉照旧管着模型可见面)。"""
+    rich = {"prompt_tokens": 1347, "completion_tokens": 18, "total_tokens": 1365,
+            "completion_tokens_details": {"reasoning_tokens": 11}}
+    bare = {"prompt_tokens": 9, "completion_tokens": 2, "total_tokens": 11}
+    with _FakeOpenAI([{"text": "ok", "usage": rich},
+                      {"text": "ok", "usage": bare}]) as up, \
+            DshGptShim(up.base_url, _FAKE_UPSTREAM_KEY, "gpt-test") as shim:
+        _post_like_runtime(shim.base_url, dict(_BODY))
+        _post_like_runtime(shim.base_url, dict(_BODY))
+
+    u0, u1 = (r["usage"] for r in shim.requests)
+    assert u0["prompt_tokens"] == 1347 and u0["reasoning_tokens"] == 11
+    assert "cached_tokens" not in u0 and "prompt_cache_hit_tokens" not in u0
+    assert u1 == {"prompt_tokens": 9, "completion_tokens": 2, "total_tokens": 11}
+
+
+def test_g7b_usage_detail_projection_pure_shapes():
+    """G7b(纯函数):openai 嵌套细目与 deepseek 平铺缓存键都认;空细目
+    不产键;非数值不入账。"""
+    from repoproof.agents.dsh_gpt_shim import usage_detail_projection
+
+    assert usage_detail_projection({}) == {}
+    got = usage_detail_projection({
+        "prompt_tokens": 10,
+        "prompt_tokens_details": {"cached_tokens": 7},
+        "prompt_cache_hit_tokens": 5, "prompt_cache_miss_tokens": 5})
+    assert got["cached_tokens"] == 7 and got["prompt_cache_hit_tokens"] == 5
+    assert got["prompt_cache_miss_tokens"] == 5 and got["prompt_tokens"] == 10
+    assert usage_detail_projection({"prompt_tokens_details": {}}) == {}
+    assert usage_detail_projection({"prompt_tokens": "many"}) == {}
 
 
 # ---------------------------------------------------------------- 全栈(封存 runtime)

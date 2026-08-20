@@ -122,6 +122,12 @@ def absorb_dsh_usage(token_totals: dict, usage: dict) -> None:
     token_totals["out"] += int(usage.get("output_tokens", 0))
     if usage:
         token_totals["seen"] = True
+    # 缓存细目(R5 仪器,2026-08-21):events 汇报了才落账,没报不造键 ——
+    # cache_seen 区分"runtime 没报"与"命中为 0"(跨端点 usage 悬案前向收口)。
+    if "cache_read_tokens" in usage:
+        token_totals["cache_read_in"] = (
+            token_totals.get("cache_read_in", 0) + int(usage["cache_read_tokens"]))
+        token_totals["cache_seen"] = True
 
 
 def projection_mode() -> str:
@@ -2613,6 +2619,13 @@ class HostGuidedRunner:
                 "output_tokens": token_totals["out"] if token_totals["seen"] else "UNKNOWN",
                 "agent_wall_s": round(time.monotonic() - t_agent, 1),
             }
+            # 缓存细目(R5 仪器):H0 同步记账(权威)或 B-dsh events 汇,
+            # 谁报了记谁;都没报不落键 —— report.json 老形状不变,不造零。
+            _cached = getattr(model, "cached_in", None)
+            if _cached is None and token_totals.get("cache_seen"):
+                _cached = int(token_totals.get("cache_read_in", 0))
+            if _cached is not None:
+                agent_metrics["cache_read_input_tokens"] = int(_cached)
             if model_factory is None:
                 import litellm as _litellm
                 _litellm.success_callback = []

@@ -82,6 +82,27 @@ def test_e2_gap_disorder_and_lost_terminal_named() -> None:
     assert any("idle" in p for p in t4.problems)
 
 
+def test_e2b_cache_detail_aliases_absorbed_only_when_present() -> None:
+    """R5 仪器:runtime 事件带缓存计数(deepseek 平铺拼法)就入 totals;
+    不带则键不存在 —— "没报"与"为 0"必须可区分,不造零。"""
+    lines = [
+        _ev(0, "turn/start", {"turn": 1}),
+        _ev(1, "request/header", {"header": {}}),
+        _ev(2, "assistant/message", {"turn": 1}),
+        _ev(3, "turn/end", {"turn": 1, "usage": {
+            "inputTokens": 10, "outputTokens": 5,
+            "prompt_cache_hit_tokens": 7, "prompt_cache_miss_tokens": 3}}),
+        _status("idle"),
+    ]
+    t = normalize(lines)
+    assert t.ok, t.problems
+    assert t.usage_totals == {"input_tokens": 10, "output_tokens": 5,
+                              "cache_read_tokens": 7, "cache_miss_tokens": 3}
+    # 不带缓存键的老形状:totals 恰两键,不长出缓存键
+    t2 = normalize(_good())
+    assert t2.usage_totals == {"input_tokens": 10, "output_tokens": 5}
+
+
 def test_e3_terminal_usage_wins_no_double_count() -> None:
     lines = [
         _ev(0, "turn/start", {"turn": 1}),

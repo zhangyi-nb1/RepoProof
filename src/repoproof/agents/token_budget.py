@@ -122,6 +122,31 @@ def _response_usage(response: Any) -> tuple[int, int] | None:
     return int(pin or 0), int(pout or 0)
 
 
+def _response_cached_tokens(response: Any) -> int | None:
+    """缓存命中输入 token(R5 仪器,2026-08-21):openai 嵌套细目
+    (prompt_tokens_details.cached_tokens)或 deepseek 平铺键
+    (prompt_cache_hit_tokens)。没报 → None —— "端点没说"与"命中为 0"
+    必须可区分,不造零。只记账,不进任何执法算式。"""
+    extra = response.get("extra") if isinstance(response, dict) else None
+    if not isinstance(extra, dict):
+        return None
+    raw = extra.get("response")
+    usage = raw.get("usage") if isinstance(raw, dict) else getattr(raw, "usage", None)
+    if usage is None:
+        return None
+    if isinstance(usage, dict):
+        det = usage.get("prompt_tokens_details")
+        v = det.get("cached_tokens") if isinstance(det, dict) else None
+        if v is None:
+            v = usage.get("prompt_cache_hit_tokens")
+    else:
+        det = getattr(usage, "prompt_tokens_details", None)
+        v = getattr(det, "cached_tokens", None) if det is not None else None
+        if v is None:
+            v = getattr(usage, "prompt_cache_hit_tokens", None)
+    return int(v) if isinstance(v, (int, float)) else None
+
+
 @dataclass
 class TokenBudgetedModel:
     """Model proxy: accounting + pre-call gate. The ONE loop stays in
@@ -147,6 +172,9 @@ class TokenBudgetedModel:
     max_call_in: int = 0
     observed_ratio: float = 0.0
     last_used_in: int = 0
+    # 缓存细目(R5 仪器):只记账不执法;provider 从未报过 → cached_in=None。
+    sync_cached_in: int = 0
+    cached_seen: bool = False
 
     @property
     def used_in(self) -> int:
@@ -156,6 +184,11 @@ class TokenBudgetedModel:
     @property
     def used_out(self) -> int:
         return max(self.sync_out, int(self.totals.get("out", 0) or 0))
+
+    @property
+    def cached_in(self) -> int | None:
+        """缓存命中输入累计;provider 从未报过 → None(UNKNOWN,不造零)。"""
+        return self.sync_cached_in if self.cached_seen else None
 
     @property
     def seen(self) -> bool:
@@ -201,6 +234,10 @@ class TokenBudgetedModel:
         )
 
     def _account(self, response: Any, est: int) -> None:
+        cached = _response_cached_tokens(response)
+        if cached is not None:
+            self.cached_seen = True
+            self.sync_cached_in += cached
         usage = _response_usage(response)
         if usage is None:
             return

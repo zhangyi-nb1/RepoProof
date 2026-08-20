@@ -1,0 +1,16 @@
+{
+ "_what": "R5 仪器前置探针(2026-08-21):本地 GPT 端点 usage 细目形状实测。两发同前缀(1347 tok)最小补全,只记 usage 对象;base URL 不入证据(注入纪律)。",
+ "design": "call2 与 call1 逐字同请求 —— 若端点做前缀缓存且报告细目,call2 应现 prompt_tokens_details.cached_tokens",
+ "model": "gpt-5.5",
+ "temperature": 0,
+ "calls": [
+  {"n": 1, "usage": {"prompt_tokens": 1347, "completion_tokens": 18, "total_tokens": 1365, "completion_tokens_details": {"reasoning_tokens": 11}}},
+  {"n": 2, "usage": {"prompt_tokens": 1347, "completion_tokens": 18, "total_tokens": 1365, "completion_tokens_details": {"reasoning_tokens": 11}}}
+ ],
+ "readings": [
+  "端点报 completion_tokens_details.reasoning_tokens(18 个补全 token 里 11 个是推理)—— R5 记录后 GPT 发次的推理占比可读",
+  "同前缀第二发无任何 prompt_tokens_details / 缓存字段 —— 该端点不报(疑不做)前缀缓存,输入按全价计",
+  "推论:DSH×GPT 的 1.58-1.83M 输入是全价输入(E5 方向反转的经济学根源);deepseek 侧 55-77K 是否含缓存前缀仍悬,由 R5 的 events 缓存别名前向收口"
+ ],
+ "boundary": "单端点单模型两发探针;只支撑仪器形状结论,不支撑任何性能/成本对比"
+}

@@ -39,6 +39,32 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 # (completion_tokens_details 等)不透传,runtime 没为它们验证过。
 _USAGE_KEYS = ("prompt_tokens", "completion_tokens", "total_tokens")
 
+
+def usage_detail_projection(usage: dict) -> dict:
+    """上游 usage → host 侧记录投影(R5 仪器,2026-08-21)。
+
+    只记端点**实际报告**的键,缺席即缺席、不造零 —— 这份记录的用途正是
+    区分"端点没报缓存"与"缓存命中为 0"(DQ-GPT-SHIM-1 附录二的跨端点
+    usage 语义警示要靠它前向收口)。认三类形状:扁平标准键、openai 嵌套
+    细目(prompt_tokens_details.cached_tokens / completion_tokens_details
+    .reasoning_tokens)、deepseek 平铺缓存键。2026-08-21 线上探针实测:
+    本地 GPT 端点报 reasoning_tokens(18 个补全里 11 个是推理),同前缀
+    重打第二发也**不报任何 prompt 缓存细目** —— 该端点输入是全价输入。
+    仅记录,不改回程线格式(模型可见面零变动)。
+    """
+    out: dict = {}
+    for k in ("prompt_tokens", "completion_tokens", "total_tokens",
+              "prompt_cache_hit_tokens", "prompt_cache_miss_tokens"):
+        if isinstance(usage.get(k), (int, float)):
+            out[k] = int(usage[k])
+    pd = usage.get("prompt_tokens_details")
+    if isinstance(pd, dict) and isinstance(pd.get("cached_tokens"), (int, float)):
+        out["cached_tokens"] = int(pd["cached_tokens"])
+    cd = usage.get("completion_tokens_details")
+    if isinstance(cd, dict) and isinstance(cd.get("reasoning_tokens"), (int, float)):
+        out["reasoning_tokens"] = int(cd["reasoning_tokens"])
+    return out
+
 # shim 在链路里时,runtime(不可信 worker)只拿这个假字面量当 DEEPSEEK_API_KEY
 # —— 真 key 永不进 worker 进程环境(M92b 面)。host_guided.run_dsh_round 与
 # 全栈测试同源引用,不各写各的字面量。
@@ -140,8 +166,10 @@ class DshGptShim:
                 body.pop("stream", None)
                 body.pop("stream_options", None)
                 body["model"] = outer.upstream_model
-                status, payload, ctype = outer._call_upstream(body)
+                status, payload, ctype, urec = outer._call_upstream(body)
                 rec["upstream_status"] = status
+                if urec:
+                    rec["usage"] = urec
                 self._reply(status, payload, ctype)
 
         self.srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
@@ -149,7 +177,7 @@ class DshGptShim:
         self.base_url = f"http://127.0.0.1:{self.srv.server_port}"
 
     # ---- 上游调用(唯一持 key 的路径;key 不出这个函数)----
-    def _call_upstream(self, body: dict) -> tuple[int, bytes, str]:
+    def _call_upstream(self, body: dict) -> tuple[int, bytes, str, dict | None]:
         req = urllib.request.Request(
             f"{self.upstream_base}/chat/completions",
             data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
@@ -163,18 +191,18 @@ class DshGptShim:
             raw = e.read()
             try:
                 json.loads(raw.decode("utf-8"))
-                return e.code, raw, "application/json"
+                return e.code, raw, "application/json", None
             except Exception:
                 err = json.dumps({"error": {"message": f"shim upstream http {e.code}",
                                             "type": "upstream_error"}}).encode()
-                return e.code, err, "application/json"
+                return e.code, err, "application/json", None
         except Exception as e:  # 超时/连接失败 —— 502,消息不带任何值内容
             err = json.dumps({"error": {"message": f"shim upstream unreachable: "
                                                    f"{type(e).__name__}",
                                         "type": "upstream_unreachable"}}).encode()
-            return 502, err, "application/json"
+            return 502, err, "application/json", None
         return 200, synthesize_sse(upstream, model=self.upstream_model), \
-            "text/event-stream"
+            "text/event-stream", usage_detail_projection(upstream.get("usage") or {})
 
     def __enter__(self) -> "DshGptShim":
         threading.Thread(target=self.srv.serve_forever, daemon=True).start()

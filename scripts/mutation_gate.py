@@ -2728,6 +2728,49 @@ MUTATIONS: list[dict] = [
         "catchers": _T_DBR,
         "expected_catcher": ["test_b7_upstream_protocol_for_provider_single_source"],
     },
+    # ---- M93:usage 细目仪器(R5,2026-08-21)----
+    {
+        "id": "M93a-shim-drops-endpoint-usage-record",
+        "lesson": "shim 收到上游 usage 却不落 record —— 端点明明报了细目"
+                  "(reasoning/缓存),host 账面上像'端点不报',跨端点 usage "
+                  "悬案(DQ-GPT-SHIM-1 附录二)永远收不了口",
+        "file": _GS,
+        "old": '                if urec:\n                    rec["usage"] = urec',
+        "new": '                if False:\n                    rec["usage"] = urec',
+        "catchers": _T_GS,
+        "expected_catcher": [
+            "test_g7_usage_details_recorded_only_what_endpoint_said",
+            "test_g6_shim_records_carry_no_secrets_no_bodies"],
+    },
+    {
+        "id": "M93b-cached-accumulation-dead-reports-fabricated-zero",
+        "lesson": "缓存细目累计死了但 seen 旗标还立 —— 端点报了缓存命中,"
+                  "cached_in 却读 0:'有缓存'被记成'零缓存',正是不造零"
+                  "纪律要防的反向病(缺席≠零,零也不许伪造)",
+        "file": _TB,
+        "old": '            self.cached_seen = True\n'
+               '            self.sync_cached_in += cached',
+        "new": '            self.cached_seen = True\n'
+               '            self.sync_cached_in += 0',
+        "catchers": _T_TE,
+        "expected_catcher": ["test_cached_tokens_accounted_only_when_reported"],
+    },
+    {
+        "id": "M93c-events-drops-deepseek-flat-cache-alias",
+        "lesson": "events 层缓存别名表删了 deepseek 平铺拼法 —— 线上 runtime "
+                  "报 prompt_cache_hit_tokens 被静默丢弃,'55-77K 输入疑含"
+                  "缓存前缀'的悬案在唯一能收口的记录点上失明",
+        "file": _DEV,
+        "old": '    ("cache_read_tokens", ("promptCacheHitTokens", "prompt_cache_hit_tokens",\n'
+               '                           "cacheReadTokens", "cache_read_tokens",\n'
+               '                           "cachedTokens", "cached_tokens")),',
+        "new": '    ("cache_read_tokens", ("promptCacheHitTokens",\n'
+               '                           "cacheReadTokens", "cache_read_tokens",\n'
+               '                           "cachedTokens", "cached_tokens")),',
+        "catchers": _T_DEV,
+        "expected_catcher": [
+            "test_e2b_cache_detail_aliases_absorbed_only_when_present"],
+    },
     {
         "id": "M90c-snapshot-copies-master-readonly-bit",
         "lesson": "快照落权归一死了 —— 母树锁写后 copy2 把只读位带进会话,"

@@ -29,6 +29,13 @@ _USAGE_KEYS = (
     ("input_tokens", ("inputTokens", "input_tokens", "promptTokens", "prompt_tokens")),
     ("output_tokens", ("outputTokens", "output_tokens", "completionTokens", "completion_tokens")),
     ("reasoning_tokens", ("reasoningTokens", "reasoning_tokens")),
+    # 缓存细目(R5 仪器,2026-08-21):runtime 事件若带缓存计数就入账,
+    # 不带则键不存在 —— "deepseek 55-77K 输入疑不含缓存前缀"的跨端点
+    # usage 悬案(DQ-GPT-SHIM-1 附录二警示)只能靠前向记录收口,不造零。
+    ("cache_read_tokens", ("promptCacheHitTokens", "prompt_cache_hit_tokens",
+                           "cacheReadTokens", "cache_read_tokens",
+                           "cachedTokens", "cached_tokens")),
+    ("cache_miss_tokens", ("promptCacheMissTokens", "prompt_cache_miss_tokens")),
 )
 
 
