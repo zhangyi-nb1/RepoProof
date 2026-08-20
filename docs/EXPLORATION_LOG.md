@@ -3021,3 +3021,28 @@ main_dir_integrity 抓到邻仓 offerclaw(chroma_db)被并发进程写入,守卫
 - 修复线收口:R3(分类学坐实盲区)→ R5(usage 细目 + 缓存真相修正)→
   R4(投影资格如实 FAIL,不默认开)→ R6(发前拒省真钱)已全部落地;
   R1/R2 蓝图冻结待执行。台账 216 行不变(R6 零 API 发次)。
+
+## 状态 · 2026-08-21 · V2GEN-GPT-BASE-1 批关闭:构造法 v2 代际 2/2 PASS(修复线 R1-R6 全链验证)
+
+- **R1/R2 落地(269ae23)**:构造法 v2 = (delivery∩parent−字节码)∪
+  (test_files∩parent),base 版 tests/test_lineage.py 留树可运行 —— 新宿主
+  hb1-sqlglot-8042-v2(355 文件,基线 1193/0/0,泄漏扫 0 中,锁写+绊线);
+  oracle lay v2 分支(base_files 驱动 save/覆写/放回 lay 前态,缺席记
+  BASE_FILE_MISSING 照判照复;v1 语义字面不变,四副本字节等);prompt v2
+  = hb-delta-v2 档口 + R5 隐藏节点**名单**宣示(名公开内容隐藏)+ R6 回归
+  网/保守性/一次性探针教导,教导全由契约 requirements 承载;e1-total v2
+  契约与 v1 预算四轴逐字同值。M96a-d + M68f/M70a 坐标更新六枚手验全杀,
+  门 **275/275 @ 269ae23**;bench 白名单两层显式登记 v2 宿主。
+- **V2GEN-GPT-BASE-1(冻结 44e4c69,E1 单臂观察)**:F0 PASS_ADAPTED +
+  F0b FAIL/REGRESSION_BROKEN(v2 判卷双侧验讫)→ **gpt-5.5 PASS_ADAPTED**
+  (delta 5/5,回归 1193/1193,37 调用/in 696K/cache 89%)+ **gpt-5.6
+  PASS_ADAPTED**(5/5,1193/1193,26 调用/in 428K/cache 90%),replay 全
+  PASS,封套全内(墙 58.5 分/in 1.12M)。
+- **机制三问全答**:① OLD_INTACT 消失(unpivot 两发存活,v1 曾 5/12 被
+  砸);② delta 仍达成 —— v1 FAIL 8/9 的 gpt-5.5 转 PASS;③ v1 12/12 全
+  砸的 multiple_pivoted **未再被砸** —— 按设计 §5 预写归 R2 教导面(R1 够
+  不着)。消耗形状:5.5 为跑满回归网付 2.0× in 买来转正;5.6 ≈1.0× 持平
+  吸收更大树。R5 线上第二读数:cache_read 89-90%。
+- 判读上界如实:机制修复验证非能力读数;seen 单任务 n=1;不与 v1 合池。
+  台账 220 行(+F0/F0b/发 1/发 2);分类 2 行;v2_gate 机械再生
+  (mechanism_ablation 40/20,smoke 91/30)。
