@@ -1,0 +1,14 @@
+{
+ "_what": "R5 仪器首批线上读数(WV11-GPT-QUAL-1,2026-08-21):真实多轮会话里本地 GPT 端点确实报 prompt 缓存细目 —— 修正同日冷探针的适用边界。",
+ "instrument": "token_budget._response_cached_tokens(H0 同步记账,litellm 应答对象;openai 嵌套 prompt_tokens_details.cached_tokens 或 deepseek 平铺 prompt_cache_hit_tokens 两认)→ report.json .agent.cache_read_input_tokens",
+ "readings": [
+  {"run_id": "hb1-sqlglot-8042-20260821-024123", "model": "gpt-5.5",
+   "input_tokens": 740587, "cache_read_input_tokens": 370176,
+   "cache_share": "50.0%"},
+  {"run_id": "hb1-sqlglot-8042-20260821-025641", "model": "gpt-5.6",
+   "input_tokens": 641851, "cache_read_input_tokens": 239616,
+   "cache_share": "37.3%"}
+ ],
+ "correction": "line-probe-usage-details-20260821.json 的读数二('同前缀第二发无任何 prompt 缓存字段')只对**两发冷探针**成立;真实多轮会话里端点报缓存细目且命中率可达 37-50%。该探针'推论'行里'GPT 输入按全价计'不成立于会话内多轮 —— 1.58-1.83M 的 DSH×GPT 输入里含多少缓存命中当时无仪器可读(R5 前),前向发次起可读。不造零纪律的正名:探针负读数当时如实记为'不报',没写死成 0,故本批读数落地即自然修正。",
+ "boundary": "n=2、单任务、单端点;只支撑'端点会报缓存细目'与命中率量级,不支撑跨模型/跨端点比较"
+}

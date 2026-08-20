@@ -184,3 +184,17 @@ def test_parse_multiline_list():
     r = parse_regression_broken(log)
     assert r["nodes"] == ["tests.test_thing.TestThing::test_old_intact",
                           "tests.test_thing.TestThing::test_brand_new"]
+
+
+def test_load_texts_missing_parent_tree_fails_closed(tmp_path):
+    """错的 --pool-candidate 必须炸,不许静默分类(2026-08-21 实测:空基线
+    把 STRIPPED_OLD_INTACT 判成 STRIPPED_NEW,整份分类学被毒而不自知)。"""
+    import pytest
+    from classify_regression_broken import load_texts
+
+    task = tmp_path / "task"
+    (task / "oracle").mkdir(parents=True)
+    (task / "oracle" / "delta_manifest.json").write_text(
+        '{"post_files": [], "delta_nodes": []}', encoding="utf-8")
+    with pytest.raises(SystemExit, match="parent_tree"):
+        load_texts(task, tmp_path / "no_such_candidate")

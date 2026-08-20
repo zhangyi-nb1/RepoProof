@@ -83,3 +83,47 @@ F0:8042 × `--fake positive` × `REPOPROOF_CONTEXT_PROJECTION=window`。
   的 12% 数值合池。
 - 裁决只走隐藏 oracle + 验证器 + 干净重放 + Completion Gate;台账
   cost 列如实(litellm 读数缺失时 UNKNOWN)。
+
+## 附录一(2026-08-21 · 批毕机械转录:F0+2/2 照冻结序跑毕,批关闭)
+
+### 三发结果
+
+| 发 | 模型 | 判决 | 调用 | in tok(其中 cache_read) | out | agent 墙 |
+|---|---|---|---|---|---|---|
+| F0(023054) | fake-scripted:positive | PASS_ADAPTED + replay PASS(smoke,不计) | — | — | — | — |
+| 1(024123) | gpt-5.5 | FAIL 8/9(唯欠 test_h2_no_regression_broken) | 48 | 740,587(370,176 = 50%) | 9.3K | 9.5 分 |
+| 2(025641) | gpt-5.6 | FAIL 8/9(唯欠同一道) | 44 | 641,851(239,616 = 37%) | 17.0K | 13.7 分 |
+
+零缺陷重跑;绊线(digest+双锁)每发前后全绿;健康探每发前 200 且目标
+模型在列。封套决算:运行 3/3 ≤3;墙钟累计 ≈50 min ≤1.5h;in 1.38M
+≤2M;out 26.3K ≤0.3M。全内。
+
+### 资格门判定:**FAIL —— QUALIFIED 不发**
+
+- **W1 仪器健康:过。** F0 绿(投影 env 不破管线;如实声明其不覆盖投影
+  本身);绊线/健康探/零缺陷如上。
+- **W2 激活:过。** 两发各 39 枚 `projection.applied`,payload.policy
+  全部 "window-v1.1",folded_messages 最高 11(单枚省 61,116 chars)——
+  旋钮在 GPT 通道上确实接通并折叠。
+- **W3 输入方向:不过(两发全逆)。** gpt-5.5:740,587 = off 基线
+  347,367 的 **2.1 倍**;gpt-5.6:641,851 = off 基线 427,149 的 **1.5
+  倍**。机制读数(n=1 级):折叠没有降低单发总输入,反而伴随调用数近
+  翻倍(23→48 / 24→44)—— 与"折走的上下文迫使模型重读"的解释相容。
+- **W4 判决如实:过。** 两发 FAIL 均由 CapabilityVerifier 9 道读数落
+  台账;FAIL 不触发重放(重放仅 PASS 侧),照判据。
+
+### 附带读数(判读上界内,n=1 级)
+
+- **行为侧**:off 基线 9/9 PASS 的 gpt-5.6 开投影后转 FAIL,砸的正是
+  剥离文件两节点(unpivot=STRIPPED_OLD_INTACT + multiple_pivoted=
+  STRIPPED_NEW);gpt-5.5 砸 unpivot 一节点。可见树桶仍为零(21 发累计)。
+  基线 gpt-5.6 的过关行为特征(主动探 test_lineage.py 缺失)在投影下
+  未再现 —— 方向与"折叠丢了关键线索"相容,n=1 不定罪。
+- **仪器侧(R5 首批线上读数)**:端点在真实多轮会话里**报 prompt 缓存
+  细目**(cache_read 37-50%)—— 同日冷探针(两发同前缀)的"不报缓存/
+  全价输入"读数只对冷测成立,证据文件 wv11-live-cache-reporting-
+  20260821.json 载修正;不造零纪律使该修正自然落地(探针负读数未被
+  写死成 0)。
+- **结论(资格审语义)**:window-v1.1 **不迁移**到 GPT×mini-swe 组合
+  (S2' 的 deepseek 六发降 12% 是彼组合的局部事实)—— 观测策略旋钮属
+  组合特定,R1/R2 新代际不默认开投影;若再议须另立资格批。

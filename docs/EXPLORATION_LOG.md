@@ -2962,3 +2962,35 @@ main_dir_integrity 抓到邻仓 offerclaw(chroma_db)被并发进程写入,守卫
   (deepseek 缓存计数),跨模型 usage 不可直接比较**(仪器警示)。
 - 判读上界:两批全部四口径 false;单任务 seen、n≤2/模型;不得读作
   "GPT×DSH 好坏"或"GPT vs DeepSeek"。分类旁挂 60 行,台账 216 行。
+
+## 状态 · 2026-08-21 · Harness 修复 R3/R5/R4 落地(分类学坐实盲区 + usage 细目仪器 + 投影资格批如实 FAIL)
+
+- **R3 台账细分(bbd5169)**:regression_broken 节点分类学 —— 19 发扫查
+  12 发砸回归**全部**落在剥离文件仅有的两节点(multiple_pivoted=
+  green-on-parent 新增 12/12、unpivot=base==post 旧测试 5/12),可见树
+  桶为零:两家模型族没有任何一发砸过自己能运行的测试。主败因坐实为
+  harness 侧对齐缺口(闸门杀的、循环够不着)。分类器纯函数核 14 测;
+  批后补 fail-closed:错 --pool-candidate(parent_tree 缺席)即炸 ——
+  2026-08-21 实测空基线把 OLD_INTACT 静默判成 STRIPPED_NEW(15 测)。
+- **R5 usage 细目仪器(53bfb00,门 268/268 全捕)**:三臂只记不判
+  (shim record usage 投影 / events 缓存别名 / H0 同步 cached_in)+
+  report.json .agent.cache_read_input_tokens;不造零(缺席≠零);模型
+  可见面与执法算术零变动;M93a/b/c 手验全杀。冷探针(两发同前缀)读
+  "端点不报缓存" —— **首批线上读数当日修正**:真实多轮会话里端点报
+  cache_read 37-50%(wv11-live-cache-reporting-20260821.json);
+  "DSH×GPT 1.58-1.83M 全价输入"推论只对冷测成立,前向发次起可读真值。
+- **R4 = WV11-GPT-QUAL-1(冻结 63936f0,批关闭本提交)**:AR 模式,
+  run_purpose=OBSERVATION_POLICY_QUALIFICATION **代码级**登记
+  (QUALIFICATION_PURPOSES + 独立计数列 + K7c 钉 + M94a 变异)——
+  passes 维持 12,两发资格发未充闸门(v2_gate diff 实证)。F0+2/2
+  照冻结序,绊线/健康探全绿,封套全内。**资格如实 FAIL(QUALIFIED
+  不发)**:W1/W2/W4 过(39+39 枚 projection.applied@window-v1.1,
+  折叠真发生),**W3 两发全逆** —— gpt-5.5 in 740K = off 基线 2.1 倍
+  (调用 23→48)、gpt-5.6 in 642K = 1.5 倍(24→44);且 off 基线 9/9
+  的 gpt-5.6 开投影转 FAIL 8/9(砸剥离文件两节点,21 发累计可见树桶
+  仍零)。结论:window-v1.1 属组合特定(deepseek 降 12% 不迁移),
+  R1/R2 新代际**不默认开投影**;再议须另立资格批。
+- 判读上界:资格审语义、单任务 seen、n=1/模型;不得读作能力/成功率/
+  跨模型结论。台账 216 行、分类旁挂 62 行;剩余修复主线 = R6(shim
+  前置预算闸,省被杀发次的真钱)→ R1/R2(新代际:剥离文件 base 版
+  留树 + prompt v2,须构造法 v2 + 新任务版本 + 新池,不回填)。

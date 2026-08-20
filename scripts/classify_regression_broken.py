@@ -194,7 +194,16 @@ def parse_regression_broken(log_text: str) -> dict:
 
 def load_texts(task_dir: Path, pool_candidate: Path) -> tuple[dict, dict, dict]:
     """manifest + post 原文(任务包物化件)+ base 原文(封存池 parent_tree,
-    只读)。base 缺文件 → 空串占位(见 classify_node)。"""
+    只读)。base 缺**单个文件** → 空串占位(PR 新增文件在基线本就不存在,
+    见 classify_node);但 parent_tree **目录整个缺席 = 路径给错**,必须
+    fail closed —— 2026-08-21 实测:错路径下空基线把 STRIPPED_OLD_INTACT
+    静默判成 STRIPPED_NEW,整份分类学被毒而不自知。"""
+    parent = pool_candidate / "parent_tree"
+    if not parent.is_dir():
+        raise SystemExit(
+            f"[classify_regression_broken] {parent} 不存在 —— "
+            "--pool-candidate 路径错了;缺基线树不许静默分类"
+            "(空基线会把一切节点判成 STRIPPED_NEW)")
     manifest = json.loads(
         (task_dir / "oracle" / "delta_manifest.json").read_text(encoding="utf-8"))
     post_text: dict[str, str] = {}
