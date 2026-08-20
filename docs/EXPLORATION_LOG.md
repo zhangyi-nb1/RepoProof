@@ -2994,3 +2994,30 @@ main_dir_integrity 抓到邻仓 offerclaw(chroma_db)被并发进程写入,守卫
   跨模型结论。台账 216 行、分类旁挂 62 行;剩余修复主线 = R6(shim
   前置预算闸,省被杀发次的真钱)→ R1/R2(新代际:剥离文件 base 版
   留树 + prompt v2,须构造法 v2 + 新任务版本 + 新池,不回填)。
+
+## 状态 · 2026-08-21 · R6 落地 + R1/R2 设计冻结(harness 修复线 R3-R6 全关,门 271/271)
+
+- **R6 shim 前置预算闸(fc926c7)**:DshGptShim(max_input_tokens=…)派发
+  前算"已耗真值累计 + max(body//4, 上次真值)"超限即 429(type=
+  budget_refused),**超额调用不出门** —— DQ-GPT-SHIM-1 两发 gpt-5.5 被
+  watchdog 事后杀前白花的那次真钱调用,此后不再发生。run_dsh_round 接线
+  budget.max_input_tokens;refusal_attribution 纯函数只在 watchdog 杀发
+  与协议破裂没先说话时把 ok/worker_error:* 覆写成
+  budget_refused:input_tokens;info["shim_refusals"] 入回执。GS4 全栈钉
+  先跑后钉:封存 runtime 对持续 429 重试 2 次(共 3 拒)后自行报错退出,
+  无重试风暴,归因/exit_status 全链 =dsh:budget_refused:input_tokens,
+  上游恰见 1 次请求。G8/G8b/GS4 + M95a/b 手验全杀;全套件绿;全量门
+  **271/271 全捕·声明归因 271·逃逸 0 @ fc926c7**(本提交附证据)。
+- **R1/R2 设计冻结(docs/R1R2-DELTA-V2-DESIGN.md,未实现)**:构造法
+  v2 = (delivery∩parent)∪(test_files∩parent),base 版测试留树;
+  delta_oracle_lib lay 步 manifest 驱动分支(base_files 键 → save/覆写/
+  还原;无键走 v1,三份副本钉不破);H1 tests_tree 守卫免费扩展到 base
+  文件;新包 hb1_sqlglot_8042_v2 + 新宿主 + 新池不回填,v1 全程不动。
+  prompt v2 三教:回归网宣示/量具面重申/隐藏节点**名单**宣示(名公开
+  内容隐藏)+ 语义保守。诚实预期:R1 只消 STRIPPED_OLD_INTACT 类
+  (5/12);multiple_pivoted(12/12 全砸)是答案承载不可约盲区,唯一
+  杠杆是 R2 教导面 —— 机制三问预写在设计 §4⑦。执行 = 下一场独立工程批
+  (①-⑦ 序),预注册另立现场冻结。
+- 修复线收口:R3(分类学坐实盲区)→ R5(usage 细目 + 缓存真相修正)→
+  R4(投影资格如实 FAIL,不默认开)→ R6(发前拒省真钱)已全部落地;
+  R1/R2 蓝图冻结待执行。台账 216 行不变(R6 零 API 发次)。
