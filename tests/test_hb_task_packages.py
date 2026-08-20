@@ -19,8 +19,13 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 PKGS = ["hb1_click_3581", "hb1_click_3407", "hb1_sqlglot_8042"]
+# 构造法 v2 代际(R1/R2,2026-08-21):共性钉(判卷器一致/答案不入仓/守卫
+# 面)对 v2 包同样生效;P3 的 v1 冻结值(profile/预算)不套 v2,另立 P3v2。
+PKGS_V2 = ["hb1_sqlglot_8042_v2"]
+ALL_PKGS = PKGS + PKGS_V2
 CIDS = {"hb1_click_3581": "click-3581", "hb1_click_3407": "click-3407",
-        "hb1_sqlglot_8042": "sqlglot-8042"}
+        "hb1_sqlglot_8042": "sqlglot-8042",
+        "hb1_sqlglot_8042_v2": "sqlglot-8042"}
 TASKS = REPO / "benchmarks/v2/tasks"
 
 sys.path.insert(0, str(REPO / "src"))
@@ -36,7 +41,7 @@ def _sha(p: Path) -> str:
 
 def test_p1_oracle_lib_copies_byte_equal_to_source():
     src = REPO / "scripts/delta_oracle_lib.py"
-    for pkg in PKGS:
+    for pkg in ALL_PKGS:
         copy = TASKS / pkg / "oracle/delta_oracle_lib.py"
         assert copy.is_file(), f"{pkg} 缺 oracle 驱动器副本"
         assert _sha(copy) == _sha(src), \
@@ -45,7 +50,7 @@ def test_p1_oracle_lib_copies_byte_equal_to_source():
 
 def test_p2_wrapper_and_conftest_identical_across_packages():
     for rel in ("oracle/test_hidden_delta.py", "oracle/conftest.py"):
-        shas = {_sha(TASKS / pkg / rel) for pkg in PKGS}
+        shas = {_sha(TASKS / pkg / rel) for pkg in ALL_PKGS}
         assert len(shas) == 1, f"{rel} 在三个任务包间不一致"
 
 
@@ -72,8 +77,43 @@ def test_p3_contracts_load_and_pin_prereg_values():
         assert c.capability.statement == stmt        # 题面原文,一字不动
 
 
+def test_p3v2_v2_contract_and_manifest_pins():
+    """构造法 v2 包(R1/R2,2026-08-21)冻结值:档口 hb-delta-v2、task_version
+    v2、manifest 带 construction_law/base_files(路径 ⊆ post_files 路径;base
+    内容是公开 parent 树文件,不在仓里,这里只核形状);R5 名单宣示逐字含
+    全部隐藏节点名(名公开内容隐藏),R6 教保守;statement 上游原文不动、
+    与 v1 包同源(题面只随上游,不随构造法)。"""
+    pkg = "hb1_sqlglot_8042_v2"
+    c, _ = HostContract.load(TASKS / pkg / "contract.yaml")
+    assert c.task_id == "hb1-sqlglot-8042-v2"
+    assert c.prompt_profile == "hb-delta-v2"
+    assert "task_version: v2" in (TASKS / pkg / "contract.yaml").read_text(
+        encoding="utf-8")
+    stmt = (TASKS / pkg / "statement.md").read_text(encoding="utf-8")
+    assert c.capability.statement == stmt
+    assert stmt == (TASKS / "hb1_sqlglot_8042" / "statement.md").read_text(
+        encoding="utf-8")
+    m = json.loads((TASKS / pkg / "oracle/delta_manifest.json")
+                   .read_text(encoding="utf-8"))
+    assert m["construction_law"] == "v2"
+    post_paths = {i["path"] for i in m["post_files"]}
+    assert m["base_files"], "v2 包必须带 base_files —— 空清单 = 宿主没按 v2 法建"
+    for b in m["base_files"]:
+        assert b["path"] in post_paths
+        assert len(b["sha256"]) == 64
+        int(b["sha256"], 16)                     # 合法十六进制
+    reqs = {r.id: r.text for r in c.capability.requirements}
+    assert set(reqs) == {"R1", "R2", "R3", "R4", "R5", "R6"}
+    for node in m["delta_nodes"]:
+        assert node in reqs["R5"], f"R5 名单缺 {node}"
+    assert "conservative" in reqs["R6"]
+    assert _expected_regression_passed(c.host.regression_baseline) > 0
+    b2 = c.budgets                                # contract.yaml 层与 v1 同值
+    assert (b2.semantics, b2.max_input_tokens_total) == ("per_round", 600000)
+
+
 def test_p4_manifest_nodes_match_frozen_hygiene_evidence():
-    for pkg in PKGS:
+    for pkg in ALL_PKGS:
         m = json.loads((TASKS / pkg / "oracle/delta_manifest.json")
                        .read_text(encoding="utf-8"))
         hyg = json.loads((REPO / "docs/evidence/d5_hunt/hygiene" /
@@ -91,7 +131,7 @@ def test_p4_manifest_nodes_match_frozen_hygiene_evidence():
 def test_p4b_manifest_pins_guard_and_collection_subtree():
     """守卫子树与判卷收集子树同取一个字段(审查 blocking [1b]);根级量具面
     必须含解释器启动面,且出题态是 ABSENT(有内容 = 出题时就带着后门)。"""
-    for pkg in PKGS:
+    for pkg in ALL_PKGS:
         m = json.loads((TASKS / pkg / "oracle/delta_manifest.json")
                        .read_text(encoding="utf-8"))
         assert m["tests_subdir"] == "tests"
@@ -105,7 +145,7 @@ def test_p4b_manifest_pins_guard_and_collection_subtree():
 
 
 def test_p5_negative_controls_shape():
-    for pkg in PKGS:
+    for pkg in ALL_PKGS:
         null_patch = (TASKS / pkg / "controls/nc_null_submission/apply.patch"
                       ).read_text(encoding="utf-8")
         assert "RP_NULL_SUBMISSION" in null_patch
@@ -130,7 +170,7 @@ def test_p5b_tamper_control_on_disk_equals_generator_constant():
     sys.path.insert(0, str(REPO / "scripts"))
     from build_hb1_task_packages import NC_TAMPER_PATCH
     assert "runtest" in NC_TAMPER_PATCH and "lambda" in NC_TAMPER_PATCH
-    for pkg in PKGS:
+    for pkg in ALL_PKGS:
         on_disk = (TASKS / pkg / "controls/nc_instrument_tamper/apply.patch"
                    ).read_text(encoding="utf-8")
         assert on_disk == NC_TAMPER_PATCH, f"{pkg} 篡改负控与生成器漂移,重跑生成器"
@@ -143,7 +183,7 @@ def test_p5b_tamper_control_on_disk_equals_generator_constant():
 ])
 def test_p6_materialized_answer_paths_are_gitignored(rel):
     """答案不进公开仓(repo_scan 铁律)—— 用 git 自己回答,不看 .gitignore 文本。"""
-    for pkg in PKGS:
+    for pkg in ALL_PKGS:
         r = subprocess.run(
             ["git", "-C", str(REPO), "check-ignore", "-q",
              f"benchmarks/v2/tasks/{pkg}/{rel}"],
@@ -183,7 +223,7 @@ def test_p8_answer_patch_filter_drops_all_test_segments():
 
 def test_p6b_committed_oracle_carries_no_upstream_test_bodies():
     """入 git 的 oracle 件里不得有上游测试函数体(manifest 只许载 sha256)。"""
-    for pkg in PKGS:
+    for pkg in ALL_PKGS:
         m = (TASKS / pkg / "oracle/delta_manifest.json").read_text(encoding="utf-8")
         for banned in ("def test_custom_version_option", "def test_chained_pivots",
                        "def test_param_type_input_parameter"):

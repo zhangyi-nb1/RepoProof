@@ -1,0 +1,39 @@
+{
+ "candidate": "sqlglot-8042",
+ "task_id": "hb1-sqlglot-8042-v2",
+ "delta_nodes": [
+  "tests.test_lineage.TestLineage::test_chained_pivots",
+  "tests.test_lineage.TestLineage::test_chained_pivots_consuming_alias_columns",
+  "tests.test_lineage.TestLineage::test_chained_pivots_mixed",
+  "tests.test_lineage.TestLineage::test_chained_pivots_through_cte",
+  "tests.test_lineage.TestLineage::test_chained_pivots_with_alias_columns"
+ ],
+ "post_files": [
+  {
+   "path": "tests/test_lineage.py",
+   "sha256": "20017cbe8b1c312dbe34c0d15bd382afd3fbe555142099f804641ad63f677788"
+  }
+ ],
+ "tests_tree_sha256": "1ff64f091ec3be553263e16bb93e6133f89f91766b0530697ba84acc18073b55",
+ "guarded_root_files": {
+  "conftest.py": "ABSENT",
+  "pyproject.toml": "ad29ac5fbe3393567134cee2e060480f146206d01536ce63c55df0027793309a",
+  "setup.cfg": "399372875088fb648f820f409d715aa28219d1886fba957dfc2848ecc5631942",
+  "setup.py": "d4e8760ad185211cbac4814ff9a7ede52556e02d9fd8acc6175a280959920f5a",
+  "pytest.ini": "ABSENT",
+  "tox.ini": "ABSENT",
+  "sitecustomize.py": "ABSENT",
+  "usercustomize.py": "ABSENT"
+ },
+ "tests_subdir": "tests",
+ "suite_timeout_s": 600,
+ "generated_by": "scripts/build_hb1_task_packages.py",
+ "note": "post_tests/ 与 controls/*/apply.patch 是物化件(答案承载,不入 git);缺料 fail-closed 拒判",
+ "construction_law": "v2",
+ "base_files": [
+  {
+   "path": "tests/test_lineage.py",
+   "sha256": "23546aefaf19b6946219c70120e1aa399865941440f0429653d614e1e788a769"
+  }
+ ]
+}

@@ -1,0 +1,8 @@
+diff --git a/sqlglot/time.py b/sqlglot/time.py
+--- a/sqlglot/time.py
++++ b/sqlglot/time.py
+@@ -686,3 +686,4 @@
+         "Zulu",
+     )
+ }
++format_time = None  # rp-nc-sabotage(窄破坏:远离 lineage/pivot 路径)

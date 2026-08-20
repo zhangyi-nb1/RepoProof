@@ -237,6 +237,53 @@ def test_construction_check_github_subtree_excluded_from_expectation():
     assert c["ok"] and c["expected_count"] == 1
 
 
+# ----------------------------------------- 构造法 v2(R1,2026-08-21)
+def test_construction_check_v2_keeps_base_test_files():
+    """law=v2:base 版测试文件并回 V(内容取 parent 版),期望推导不再减
+    test_files;extra_drop(CHANGELOG 泄漏轴)照旧剥。与 v1 同世界对照:
+    唯一差异 = tests/test_a.py 在 V 里。"""
+    m = _load()
+    parent = {"src/a.py", "src/b.py", "tests/test_a.py", "tests/test_keep.py",
+              ".github/ci.yml", "CHANGELOG.md", "README.md"}
+    delivery = {"src/a.py", "src/b.py", "tests/test_keep.py", "README.md",
+                "src/attacker_new_helper.py"}
+    c = m.construction_check(delivery, parent, ["tests/test_a.py"],
+                             extra_drop={"CHANGELOG.md"}, law="v2")
+    assert c["ok"], (c["missing_from_v"], c["unexpected_in_v"])
+    assert "tests/test_a.py" in c["v_paths"]
+    assert c["v_count"] == c["expected_count"] == 5
+    assert "CHANGELOG.md" not in c["v_paths"]
+    assert c["law"] == "v2"
+    # 同世界 v1 对照:base 测试文件不在 V(既有语义字面不变)
+    c1 = m.construction_check(delivery, parent, ["tests/test_a.py"],
+                              extra_drop={"CHANGELOG.md"})
+    assert c1["ok"] and "tests/test_a.py" not in c1["v_paths"]
+    assert c1["law"] == "v1"
+
+
+def test_construction_check_v2_does_not_invent_pr_new_test_files():
+    """v2 只并回 parent 里**存在**的测试文件 —— PR 新建的测试文件无 base
+    内容可铺,不得被发明出来。"""
+    m = _load()
+    parent = {"src/a.py", "tests/test_a.py"}
+    delivery = {"src/a.py"}
+    c = m.construction_check(delivery, parent,
+                             ["tests/test_a.py", "tests/test_brand_new.py"],
+                             law="v2")
+    assert c["ok"]
+    assert c["v_paths"] == ["src/a.py", "tests/test_a.py"]
+
+
+def test_construction_check_rejects_unknown_law():
+    m = _load()
+    try:
+        m.construction_check(set(), set(), [], law="v3")
+    except ValueError as e:
+        assert "v3" in str(e)
+    else:
+        raise AssertionError("未知构造法必须拒绝,不许静默走 v1")
+
+
 # ---------------------------------------------- P6 attacker_residue(逐条留痕)
 def test_attacker_residue_lists_added_and_modified():
     m = _load()

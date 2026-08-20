@@ -1,0 +1,102 @@
+task_id: hb1-sqlglot-8042-v2
+task_version: v2
+kind: host_integrated
+prompt_profile: hb-delta-v2
+host:
+  repo: tobymao/sqlglot
+  commit: 00ca3ed452a5a315447ede73c75e70520dd11e68
+  copy_path: ~/RepoProofBench/hb1-sqlglot-8042-v2/host
+  regression_command:
+    - .venv/bin/python
+    - -m
+    - pytest
+    - tests
+    - -q
+    - -p
+    - "no:cacheprovider"
+  regression_baseline: "1193 passed, 0 skipped, 0 failed"
+  setup_commands:
+    - [python3, -m, venv, .venv]
+    - [env, SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0, .venv/bin/pip, install, -q, --no-index, -e, ., pytest, duckdb, pandas, python-dateutil, pytz, typing_extensions]
+  health_checks:
+    - command:
+        - .venv/bin/python
+        - -c
+        - import sqlglot
+  host_root_env: HB_DELTA_HOST_ROOT
+  wheelhouse_path: ~/RepoProofBench/hb1-sqlglot-8042-v2/wheelhouse
+  require_wheelhouse_manifest: false
+  pii_scan_profile: public-oss-tree
+  oracle_env_sanitized: true
+  path_prepend_venv_bin: true
+capability:
+  statement: |+
+    # tobymao/sqlglot PR #8042: fix(lineage)!: trace columns through chained (UN)PIVOT operators
+
+    merged_at: 2026-08-06T10:47:17Z
+    merge_commit: cb4a8214605bf038c185a6b09d2541ff39475650
+    base: c164cce9341eae08dcf3d4a43fc53e49fb69d59e
+
+    ## PR 正文
+
+    Lineage only handled a single pivot per source. This folds the whole (UN)PIVOT chain when mapping output columns back to their sources, matching how the optimizer resolves chains since #8032.
+
+  requirements:
+    - id: R1
+      text: "Implement the feature request in GOAL exactly as stated; the GOAL text is the upstream PR/issue verbatim. Acceptance is the upstream project's own hidden tests for this exact feature: they must go from FAIL to PASS."
+    - id: R2
+      text: "The existing regression suite must stay green: .venv/bin/python -m pytest tests -q -p no:cacheprovider."
+    - id: R3
+      text: "The measuring surface is read-only: do not create or modify anything under tests/, nor root-level conftest.py, pyproject.toml, setup.cfg, setup.py, pytest.ini or tox.ini."
+    - id: R4
+      text: Fully offline; no new dependencies. Everything needed is preinstalled in ./.venv.
+    - id: R5
+      text: "The hidden acceptance nodes for this exact feature are (names public, contents hidden): tests.test_lineage.TestLineage::test_chained_pivots, tests.test_lineage.TestLineage::test_chained_pivots_consuming_alias_columns, tests.test_lineage.TestLineage::test_chained_pivots_mixed, tests.test_lineage.TestLineage::test_chained_pivots_through_cte, tests.test_lineage.TestLineage::test_chained_pivots_with_alias_columns. Your implementation must make these exact behaviors work."
+    - id: R6
+      text: "The visible tests/ tree is the project's own suite as it stood just before this feature landed (including the base version of the test file the hidden nodes extend). Run the full suite before submitting. The hidden grading suite ALSO contains additional tests of PRE-EXISTING behavior beyond the visible suite: keep every change semantically conservative, and verify the behavior you touch with your own throwaway probes (outside tests/) instead of relying only on the visible suite."
+constraints:
+  forbidden:
+    - "tests/ and public_tests/ are READ-ONLY: the regression suite is a measuring instrument; modifying it is treated exactly like forging results."
+    - "Root-level pytest extension points are READ-ONLY: conftest.py, pyproject.toml, setup.cfg, setup.py, pytest.ini, tox.ini. Creating or editing them fails the run."
+    - No network access at any time.
+budgets:
+  semantics: per_round
+  max_rounds: 3
+  max_model_calls: 30
+  max_commands: 100
+  max_patch_files: 15
+  max_patch_lines: 1500
+  max_wall_time_minutes: 60
+  max_input_tokens_total: 600000
+  max_output_tokens_total: 80000
+acceptance:
+  public_test_command:
+    - python
+    - -m
+    - pytest
+    - tests
+    - -q
+    - -p
+    - "no:cacheprovider"
+  hidden_oracle_command:
+    - python
+    - -m
+    - pytest
+    - "<ORACLE_ABS>"
+    - -q
+    - -p
+    - "no:cacheprovider"
+task_shape:
+  form: postcutoff-delta
+  delta_nodes: 5
+  single_module: true
+failure_taxonomy_expected:
+  - DESIGN_MISMATCH
+  - IMPL_INCOMPLETE
+  - REGRESSION_BROKEN
+  - NO_SUBMISSION
+  - INSTRUMENT_TAMPERED
+  - HARNESS_FAILURE
+  - PROVIDER_FAILURE
+task_family: HB-PCDELTA
+adoption_shape: UPSTREAM_FEATURE_DELTA

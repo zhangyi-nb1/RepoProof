@@ -719,7 +719,10 @@ class HostContract(BaseModel):
     @field_validator("prompt_profile")
     @classmethod
     def _known_prompt_profile(cls, v: str) -> str:
-        known = {"offerclaw-v1", "hb-delta-v1"}
+        # hb-delta-v2(R1/R2,2026-08-21):构造法 v2 代际 —— 提示骨架与 v1
+        # 同一投影函数,教导差异全部由契约 requirements/forbidden 承载
+        # (冻结、台账可见);档口串本身进指纹/台账,杜绝跨代合池。
+        known = {"offerclaw-v1", "hb-delta-v1", "hb-delta-v2"}
         if v not in known:
             # 打错字必须炸在加载期 —— 否则一个 typo 会静默落回缺省档,
             # 而缺省档的提示对 delta 宿主句句是假话。
@@ -1185,7 +1188,7 @@ def build_host_prompt(contract: HostContract, *, wheel_note: str,
     双档(G2):offerclaw-v1 = 既有文本逐字节不变(金标哈希钉死);
     hb-delta-v1 = post-cutoff delta 形态,一句 OfferClaw 的话都不许说。
     """
-    if contract.prompt_profile == "hb-delta-v1":
+    if contract.prompt_profile in ("hb-delta-v1", "hb-delta-v2"):
         return _build_delta_prompt(contract, wheel_note=wheel_note, budgets=budgets)
     if contract.source_repo is None:
         raise HostRunError(

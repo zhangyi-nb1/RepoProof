@@ -84,6 +84,14 @@ PREREG = ("benchmarks/v2/preregistrations/"
 
 CANDIDATES = ("click-3581", "click-3407", "sqlglot-8042")
 
+# 构造法 v2 代际(R1,2026-08-21;R1R2-DELTA-V2-DESIGN §2.2):base 版测试
+# 留树。vid = 证据键(check_host_digest.py 直接用它查),bench 独立目录,
+# v1 宿主/证据全程不动;封存源仍是真 cid。
+V2_TASKS = (
+    {"vid": "sqlglot-8042-v2", "cid": "sqlglot-8042",
+     "bench": "hb1-sqlglot-8042-v2", "law": "v2"},
+)
+
 ROUND = 2
 ROUND_REASON = (
     "第二轮:attacks/<id>/delivery 实测为攻击者终态树(第一轮泄漏扫描撞出,"
@@ -191,25 +199,39 @@ def is_bytecode(path: str) -> bool:
 
 
 def construction_check(delivery_paths, parent_paths, test_files,
-                       extra_drop=frozenset()) -> dict:
+                       extra_drop=frozenset(), law="v1") -> dict:
     """V 树构造的交叉验证一 —— 纯函数,tripwire 语义。
 
     两条独立推导(**双双剔除字节码**,裁决二)必须**恰好相等**:
-      推导 A(定义):V = delivery 路径集 ∩ parent 路径集 − 字节码;
-      推导 B(期望):parent − .github/** − manifest.test_files − extra_drop
-                     − 字节码。
+      law="v1"(缺省,字面不变):
+        推导 A(定义):V = delivery 路径集 ∩ parent 路径集 − 字节码;
+        推导 B(期望):parent − .github/** − manifest.test_files −
+                       extra_drop − 字节码。
+      law="v2"(R1,2026-08-21;R1R2-DELTA-V2-DESIGN §2.2):base 版测试
+      文件**留树** —— 封存 delivery 本就无测试文件,故推导 A 并回
+      (test_files ∩ parent),推导 B 不再减 test_files;内容仍一律取
+      parent 版,extra_drop(CHANGELOG 等 PR 叙述泄漏轴)照旧剥。
     不等 = 树里有未建模的差异(第一轮撞出攻击者终态、第二轮首跑撞出
     26/40/299 条 pycache 不对称,tripwire 两次都在干活),调用方必须
     停下报差异、不部署 —— 这里只判,不裁。V 的路径集随判决一起返回:
     部署方必须用**同一份**集合建树,不许自己再推一遍。
     """
-    v = {p for p in set(delivery_paths) & set(parent_paths)
+    if law not in ("v1", "v2"):
+        raise ValueError(f"未知构造法:{law!r}")
+    parent_set = set(parent_paths)
+    v = {p for p in set(delivery_paths) & parent_set
          if not is_bytecode(p)}
-    expected = {p for p in parent_paths
+    expected = {p for p in parent_set
                 if p != ".github" and not p.startswith(".github/")
                 and not is_bytecode(p)}
-    expected -= set(test_files) | set(extra_drop)
+    if law == "v2":
+        v |= {p for p in test_files
+              if p in parent_set and not is_bytecode(p)}
+        expected -= set(extra_drop)
+    else:
+        expected -= set(test_files) | set(extra_drop)
     return {"ok": v == expected,
+            "law": law,
             "v_count": len(v),
             "expected_count": len(expected),
             "v_paths": sorted(v),
@@ -288,7 +310,8 @@ def _run(argv: list[str], *, cwd: Path, env: dict,
 
 
 # ------------------------------------------------------------------ --hosts
-def stage_hosts(cid: str) -> dict:
+def stage_hosts(cid: str, *, bench_name: str | None = None,
+                law: str = "v1") -> dict:
     parent = ARCHIVE / "candidates" / cid / "parent_tree"
     delivery = ARCHIVE / "attacks" / cid / "delivery"
     repo_short = _manifest(cid)["repo"].split("/")[-1]
@@ -296,13 +319,14 @@ def stage_hosts(cid: str) -> dict:
     for src in (parent, delivery, src_wheel):
         if not src.is_dir():
             raise RuntimeError(f"封存源不在:{src}")
-    bench = BENCH_ROOT / f"hb1-{cid}"
+    bench = BENCH_ROOT / (bench_name or f"hb1-{cid}")
     host = bench / "host"
 
     parent_map, delivery_map = _file_map(parent), _file_map(delivery)
     check = construction_check(delivery_map, parent_map,
                                _manifest(cid)["test_files"],
-                               EXPECTED_EXTRA_DROP.get(cid, frozenset()))
+                               EXPECTED_EXTRA_DROP.get(cid, frozenset()),
+                               law=law)
     # 部署用的路径集 = 判决返回的那一份(单一事实源);证据里不重复存
     # 全列表 —— host_digest + file_count + 逐字节核对已足以复算。
     v_paths = check.pop("v_paths")
@@ -400,8 +424,8 @@ def stage_hosts(cid: str) -> dict:
 
 
 # --------------------------------------------------------------- --measure
-def stage_measure(cid: str) -> dict:
-    bench = BENCH_ROOT / f"hb1-{cid}"
+def stage_measure(cid: str, *, bench_name: str | None = None) -> dict:
+    bench = BENCH_ROOT / (bench_name or f"hb1-{cid}")
     host, wheel = bench / "host", bench / "wheelhouse"
     if not host.is_dir() or not wheel.is_dir():
         raise RuntimeError(f"{cid} 的 bench 宿主不在 —— 先跑 --hosts")
@@ -492,8 +516,8 @@ def _scan_tree(root: Path, fps: list[dict]) -> list[dict]:
     return hits
 
 
-def stage_leak(cid: str) -> dict:
-    host = BENCH_ROOT / f"hb1-{cid}" / "host"
+def stage_leak(cid: str, *, bench_name: str | None = None) -> dict:
+    host = BENCH_ROOT / (bench_name or f"hb1-{cid}") / "host"
     if not host.is_dir():
         raise RuntimeError(f"{cid} 的 bench host 不在 —— 先跑 --hosts")
     patch_text = (ARCHIVE / "candidates" / cid / "answer" / "full.patch"
@@ -552,6 +576,8 @@ def main() -> int:
                     help="校准后答案指纹扫 bench host + 双向自证")
     ap.add_argument("--all", dest="run_all", action="store_true",
                     help="依次 --hosts → --measure → --leak-scan")
+    ap.add_argument("--v2", action="store_true",
+                    help="只处理 V2_TASKS(构造法 v2 代际);v1 三宿主不动")
     a = ap.parse_args()
 
     stages = [name for flag, name in ((a.hosts or a.run_all, "hosts"),
@@ -590,19 +616,28 @@ def main() -> int:
 
     hosts_sec = evidence.setdefault("hosts", {})
     this_run_ok = True
+    targets = ([{"key": t["vid"], "cid": t["cid"], "bench": t["bench"],
+                 "law": t["law"]} for t in V2_TASKS]
+               if a.v2 else
+               [{"key": c, "cid": c, "bench": f"hb1-{c}", "law": "v1"}
+                for c in CANDIDATES])
     for stage in stages:                       # 阶段为外层:对每个 id 各做一遍
-        for cid in CANDIDATES:
-            entry = hosts_sec.setdefault(cid, {})
+        for t in targets:
+            entry = hosts_sec.setdefault(t["key"], {})
+            if t["law"] != "v1":               # v2 记录自带谱系,防跨代误读
+                entry["candidate_cid"] = t["cid"]
+                entry["construction_law"] = t["law"]
             if stage == "hosts":
-                res = stage_hosts(cid)
+                res = stage_hosts(t["cid"], bench_name=t["bench"],
+                                  law=t["law"])
                 entry.update(res)
                 this_run_ok &= res["verify_ok"]
             elif stage == "measure":
-                res = stage_measure(cid)
+                res = stage_measure(t["cid"], bench_name=t["bench"])
                 entry["baseline"] = res
                 this_run_ok &= res["status"] == "READY"
             else:
-                res = stage_leak(cid)
+                res = stage_leak(t["cid"], bench_name=t["bench"])
                 entry["leak"] = res
                 this_run_ok &= res["selfcheck_ok"] and not res["hits"]
 

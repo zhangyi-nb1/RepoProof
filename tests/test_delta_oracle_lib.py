@@ -223,3 +223,85 @@ def test_u11_guard_subtree_equals_collection_subtree(tmp_path):
     r = run_delta_oracle(oracle, host)
     assert "suite.test_x::test_x" in r["passed_nodes"]   # 收的也是 suite/
     assert "tests.test_old::test_old" not in r["passed_nodes"]
+
+
+# ---- 构造法 v2(R1,2026-08-21):base 版测试文件留树,lay 变 save/覆写/放回
+
+_BASE_BODY = "def test_kept_from_base():\n    assert True\n"
+
+
+def _mini_world_v2(tmp_path: Path, *, with_marker: bool) -> tuple[Path, Path]:
+    """v2 合成世界:delta 所在文件的 base 版**在树里**;post = base + 新测试。"""
+    host = tmp_path / "host"
+    (host / "tests").mkdir(parents=True)
+    (host / "tests" / "test_old.py").write_text(
+        "def test_old():\n    assert True\n", encoding="utf-8")
+    (host / "tests" / "test_feature.py").write_text(_BASE_BODY, encoding="utf-8")
+    if with_marker:
+        (host / "marker.txt").write_text("impl\n", encoding="utf-8")
+
+    post_body = ("from pathlib import Path\n\n\n" + _BASE_BODY
+                 + "\n\ndef test_new():\n    assert Path('marker.txt').exists()\n")
+    oracle = tmp_path / "oracle"
+    (oracle / "post_tests" / "tests").mkdir(parents=True)
+    (oracle / "post_tests" / "tests" / "test_feature.py").write_text(
+        post_body, encoding="utf-8")
+    manifest = {
+        "candidate": "mini-v2",
+        "construction_law": "v2",
+        "delta_nodes": ["tests.test_feature::test_new"],
+        "post_files": [{"path": "tests/test_feature.py",
+                        "sha256": _sha(post_body.encode())}],
+        "base_files": [{"path": "tests/test_feature.py",
+                        "sha256": _sha(_BASE_BODY.encode())}],
+        "tests_tree_sha256": _tree_digest(host),
+        "guarded_root_files": guarded_root_state(host),
+        "suite_timeout_s": 120,
+    }
+    (oracle / "delta_manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8")
+    return oracle, host
+
+
+def test_u12_v2_base_file_saved_overwritten_and_put_back(tmp_path):
+    """v2 正向:落点在场是应然(不是 LAY_TARGET_OCCUPIED)—— 判卷时铺 post,
+    判后放回 base 字节;base 里的旧测试与 post 里的新测试都真跑了。"""
+    oracle, host = _mini_world_v2(tmp_path, with_marker=True)
+    r = run_delta_oracle(oracle, host)
+    assert r["problems"] == [] and r["instrument_problems"] == []
+    assert r["node_detail"]["tests.test_feature::test_new"] == "PASSED"
+    assert "tests.test_feature::test_kept_from_base" in r["passed_nodes"]
+    assert r["regression_broken"] == []
+    assert r["restored_ok"]
+    assert (host / "tests" / "test_feature.py").read_text(
+        encoding="utf-8") == _BASE_BODY          # 放回的是 base,不是 post
+
+
+def test_u12b_v2_agent_modified_base_is_h1_red_but_still_judged(tmp_path):
+    """v2 下 agent 改了 base 测试文件:H1(tests_tree)红、归因 agent 侧,
+    判卷照跑不失明;判后放回的是 **lay 前态**(agent 的字节),digest 复核
+    语义不变 —— 篡改已由 H1 记账,还原不负责抹掉它。"""
+    oracle, host = _mini_world_v2(tmp_path, with_marker=True)
+    agent_body = _BASE_BODY + "\n\ndef test_agent_added():\n    assert True\n"
+    (host / "tests" / "test_feature.py").write_text(agent_body, encoding="utf-8")
+    r = run_delta_oracle(oracle, host)
+    assert any("TESTS_TREE_MODIFIED" in p for p in r["instrument_problems"])
+    assert not any("LAY_TARGET_OCCUPIED" in p for p in r["instrument_problems"])
+    assert r["node_detail"]["tests.test_feature::test_new"] == "PASSED"
+    assert r["restored_ok"]
+    assert (host / "tests" / "test_feature.py").read_text(
+        encoding="utf-8") == agent_body
+
+
+def test_u12c_v2_deleted_base_file_recorded_and_absence_restored(tmp_path):
+    """v2 下 agent 删了 base 测试文件:记 BASE_FILE_MISSING(h1 桶,与
+    tests_tree 摘要互证),照铺照判,判后撤走恢复缺席态。"""
+    oracle, host = _mini_world_v2(tmp_path, with_marker=True)
+    (host / "tests" / "test_feature.py").unlink()
+    r = run_delta_oracle(oracle, host)
+    assert any(p.startswith("BASE_FILE_MISSING:tests/test_feature.py")
+               for p in r["instrument_problems"])
+    assert any("TESTS_TREE_MODIFIED" in p for p in r["instrument_problems"])
+    assert r["node_detail"]["tests.test_feature::test_new"] == "PASSED"
+    assert r["restored_ok"]
+    assert not (host / "tests" / "test_feature.py").exists()

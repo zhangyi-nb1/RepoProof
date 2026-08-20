@@ -23,6 +23,10 @@
    与守卫面重合。
 4. **判后还原**:oracle 之后还要跑回归(_run_regression 在 oracle 之后),
    铺进去的 delta 文件必须撤干净,还原以 digest 复核,不以"我删了"为准。
+   构造法 v2(R1,2026-08-21):manifest 带 base_files 的路径按
+   save→覆写→放回 lay 前字节;无该键的 v1 manifest 语义字面不变
+   (LAY_TARGET_OCCUPIED 只对 v1 生效)。单一 master、manifest 驱动分支,
+   三份副本钉不破。
 
 结局语义(供 hb_batch_criteria 与人读):
   - test_h0_* 红  → 判卷器缺料,HARNESS_FAILURE,不计模型;其中 SUITE_TIMEOUT
@@ -153,13 +157,31 @@ def run_delta_oracle(oracle_dir: Path, host: Path) -> dict:
 
     tests_subdir = manifest.get("tests_subdir", "tests")
     pre_digest = tests_tree_digest(host, tests_subdir)
+    base_paths = {b["path"] for b in manifest.get("base_files", ())}
     laid: list[Path] = []
+    saved: dict[Path, bytes] = {}       # v2:lay 前字节,判后原样放回
     try:
         for item in manifest["post_files"]:
             src = oracle_dir / "post_tests" / item["path"]
             dst = host / item["path"]
-            if dst.exists():
-                # 出题剥离过的路径上不该有文件;有 = agent 写了同名文件。
+            if item["path"] in base_paths:
+                # 构造法 v2(R1,2026-08-21):base 版测试文件留树,落点在场
+                # 是应然 —— save 当前字节(不管是不是 base:agent 若改过,
+                # H1 的 tests_tree 摘要已红,这里照判照还原,归因不倒挂),
+                # 判后放回的是 **lay 前态**而非 base,pre/post digest 复核
+                # 语义因此不变。落点缺席 = agent 删了量具面文件,记 h1 后
+                # 照铺(判卷不因删除而失明),finally 撤走恢复缺席态。
+                if dst.is_file():
+                    saved[dst] = dst.read_bytes()
+                elif dst.exists():
+                    out["instrument_problems"].append(
+                        f"LAY_TARGET_OCCUPIED:{item['path']}(非常规文件占位)")
+                    return out
+                else:
+                    out["instrument_problems"].append(
+                        f"BASE_FILE_MISSING:{item['path']}")
+            elif dst.exists():
+                # v1:出题剥离过的路径上不该有文件;有 = agent 写了同名文件。
                 # 挂 instrument 桶(h1):这是 agent 动了量具面,不是判卷器
                 # 故障 —— 挂 problems(h0)会让归因倒挂成 HARNESS_FAILURE
                 # (审查 should-fix:h0 优先级高于 h1)。不覆盖 agent 的
@@ -223,7 +245,10 @@ def run_delta_oracle(oracle_dir: Path, host: Path) -> dict:
         return out
     finally:
         for f in laid:
-            f.unlink(missing_ok=True)
+            if f in saved:
+                f.write_bytes(saved[f])         # v2:放回 lay 前字节
+            else:
+                f.unlink(missing_ok=True)
         for f in laid:                          # 清铺入文件产生的空目录与缓存
             d = f.parent
             pyc = d / "__pycache__"

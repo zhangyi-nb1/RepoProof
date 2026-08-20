@@ -9,7 +9,9 @@
   "python": "3.12.5",
   "argv": [
     "scripts/prepare_hb1_hosts.py",
-    "--all"
+    "--measure",
+    "--leak-scan",
+    "--v2"
   ],
   "invocations": [
     {
@@ -145,6 +147,32 @@
       ],
       "round": 2,
       "utc": "2026-08-18T06:21:58+00:00"
+    },
+    {
+      "argv": [
+        "scripts/prepare_hb1_hosts.py",
+        "--hosts",
+        "--v2"
+      ],
+      "stages": [
+        "hosts"
+      ],
+      "round": 2,
+      "utc": "2026-08-20T20:37:41+00:00"
+    },
+    {
+      "argv": [
+        "scripts/prepare_hb1_hosts.py",
+        "--measure",
+        "--leak-scan",
+        "--v2"
+      ],
+      "stages": [
+        "measure",
+        "leak"
+      ],
+      "round": 2,
+      "utc": "2026-08-20T20:37:57+00:00"
     }
   ],
   "hosts": {
@@ -523,6 +551,109 @@
         },
         "status": "READY",
         "problems": []
+      }
+    },
+    "sqlglot-8042-v2": {
+      "candidate_cid": "sqlglot-8042",
+      "construction_law": "v2",
+      "source_parent_tree": "/Users/zhangronglei/RepoProofArchive/d5-hunt/candidates/sqlglot-8042/parent_tree",
+      "source_delivery": "/Users/zhangronglei/RepoProofArchive/d5-hunt/attacks/sqlglot-8042/delivery",
+      "source_wheelhouse": "/Users/zhangronglei/RepoProofArchive/d5-hunt/wheelhouse/sqlglot",
+      "bench_dir": "/Users/zhangronglei/RepoProofBench/hb1-sqlglot-8042-v2",
+      "construction_check": {
+        "ok": true,
+        "law": "v2",
+        "v_count": 355,
+        "expected_count": 355,
+        "missing_from_v": [],
+        "unexpected_in_v": []
+      },
+      "attacker_residue": {
+        "added": [],
+        "modified": [
+          "sqlglot/lineage.py"
+        ]
+      },
+      "wheelhouse_mode": "copied",
+      "wheelhouse_digest": "sha256:fb68fc2340082e113ccf31330b3db5cc611503d0e0d048c9840f2c2569370a78",
+      "wheelhouse_file_count": 16,
+      "deployed": true,
+      "host_mode": "redeployed",
+      "host_digest": "sha256:a54a7d0f84d68158990e4dbc5f1098a5b712ff99ebd2483c6adc18cc2cfc6017",
+      "file_count": 355,
+      "verify": {
+        "host_vs_V": {
+          "ok": true,
+          "missing": [],
+          "extra": [],
+          "mismatch": []
+        },
+        "wheelhouse": {
+          "ok": true,
+          "missing": [],
+          "extra": [],
+          "mismatch": []
+        }
+      },
+      "bench_dir_entries": [
+        "host",
+        "wheelhouse"
+      ],
+      "verify_ok": true,
+      "baseline": {
+        "total": 1193,
+        "passed": 1193,
+        "failed": 0,
+        "skipped": 0,
+        "failed_nodes": [],
+        "skip_nodes": [],
+        "recipe": {
+          "venv_python": "/Users/zhangronglei/Desktop/XIANGMU/RepoProof/.venv/bin/python",
+          "pip": [
+            "install",
+            "-q",
+            "--no-index",
+            "--find-links",
+            "/Users/zhangronglei/RepoProofBench/hb1-sqlglot-8042-v2/wheelhouse",
+            "-e",
+            "<tree>",
+            "pytest",
+            "duckdb",
+            "pandas",
+            "python-dateutil",
+            "pytz",
+            "typing_extensions"
+          ],
+          "env_extra": [
+            "SETUPTOOLS_SCM_PRETEND_VERSION"
+          ],
+          "pytest": [
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "--junitxml",
+            "<tmp>/junit.xml"
+          ]
+        },
+        "status": "READY",
+        "problems": []
+      },
+      "leak": {
+        "fingerprints_total": 51,
+        "calibrated_out": 6,
+        "calibrated_out_names": [
+          "sqlglot/lineage.py:columns: list[str] = []",
+          "sqlglot/lineage.py:columns = parent.this.named_selects",
+          "sqlglot/lineage.py:columns = cte_source.expression.named_se",
+          "sqlglot/lineage.py:columns = list(schema.column_names(paren",
+          "sqlglot/lineage.py:renames: dict[str, str] = {}",
+          "sqlglot/lineage.py:mapping: dict[str, list[exp.Column]] = {"
+        ],
+        "effective": 45,
+        "hits": [],
+        "planted_detected": true,
+        "clean_zero": true,
+        "selfcheck_ok": true
       }
     }
   },

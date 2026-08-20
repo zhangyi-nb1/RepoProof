@@ -84,6 +84,8 @@ _T_BCF = ["tests/test_browser_conformance.py"]
 # HB-PCDELTA-1 出题工程(2026-08-16)
 _DOL = "scripts/delta_oracle_lib.py"
 _T_DOL = ["tests/test_delta_oracle_lib.py"]
+_PHB = "scripts/prepare_hb1_hosts.py"
+_T_PHB = ["tests/test_prepare_hb1_hosts.py"]
 _HBC = "scripts/hb_batch_criteria.py"
 _T_HBC = ["tests/test_hb_batch_criteria.py"]
 _WHC = "scripts/wh_batch_criteria.py"
@@ -1965,8 +1967,10 @@ MUTATIONS: list[dict] = [
         "lesson": "delta 落点被占时直接覆盖 agent 文件 → 判完还原成 agent 没写过"
                   "的样子,篡改证据于无形",
         "file": _DOL,
-        "old": "            if dst.exists():",
-        "new": "            if False:",
+        "old": "            elif dst.exists():\n"
+               "                # v1:出题剥离过的路径上不该有文件;有 = agent 写了同名文件。",
+        "new": "            elif False:\n"
+               "                # v1:出题剥离过的路径上不该有文件;有 = agent 写了同名文件。",
         "catchers": _T_DOL,
         "expected_catcher": ["test_u8_lay_target_occupied_refuses"],
     },
@@ -2014,8 +2018,10 @@ MUTATIONS: list[dict] = [
         "lesson": "prompt_profile 打错字静默落回缺省档,而缺省档对 delta 宿主"
                   "句句是假话",
         "file": _HD,
-        "old": "        known = {\"offerclaw-v1\", \"hb-delta-v1\"}\n        if v not in known:",
-        "new": "        known = {\"offerclaw-v1\", \"hb-delta-v1\"}\n        if False:",
+        "old": "        known = {\"offerclaw-v1\", \"hb-delta-v1\", \"hb-delta-v2\"}\n"
+               "        if v not in known:",
+        "new": "        known = {\"offerclaw-v1\", \"hb-delta-v1\", \"hb-delta-v2\"}\n"
+               "        if False:",
         "catchers": _T_HTG,
         "expected_catcher": ["test_g2d_unknown_prompt_profile_refused"],
     },
@@ -2812,6 +2818,64 @@ MUTATIONS: list[dict] = [
         "expected_catcher": [
             "test_g8b_refusal_attribution_pure_shapes",
             "test_gs4_pre_budget_gate_full_stack_refuses_and_attributes"],
+    },
+    # ---- M96:构造法 v2 代际(R1/R2,2026-08-21)----
+    {
+        "id": "M96a-construction-law-v2-falls-back-to-v1",
+        "lesson": "构造法 v2 分支死了 —— --v2 静默按 v1 剥测试文件建树,"
+                  "base 版留树的整代设计名存实亡;宿主与 manifest.base_files "
+                  "分家,发次里 oracle 会把'应然在场'记成 BASE_FILE_MISSING",
+        "file": _PHB,
+        "old": '    if law == "v2":',
+        "new": '    if False and law == "v2":',
+        "catchers": _T_PHB,
+        "expected_catcher": [
+            "test_construction_check_v2_keeps_base_test_files"],
+    },
+    {
+        "id": "M96b-oracle-v2-lay-branch-dead-base-treated-as-occupied",
+        "lesson": "oracle lay 的 v2 分支死了 —— base_files 路径被当 v1 占位判"
+                  "LAY_TARGET_OCCUPIED 拒判:整个 v2 代际每一发都会把'构造"
+                  "即应然'错记成'agent 动了量具',归因全盘倒挂",
+        "file": _DOL,
+        "old": '            if item["path"] in base_paths:',
+        "new": '            if False and item["path"] in base_paths:',
+        "catchers": _T_DOL,
+        "expected_catcher": [
+            "test_u12_v2_base_file_saved_overwritten_and_put_back",
+            "test_u12b_v2_agent_modified_base_is_h1_red_but_still_judged",
+            "test_u12c_v2_deleted_base_file_recorded_and_absence_restored"],
+    },
+    {
+        "id": "M96c-oracle-v2-restore-deletes-instead-of-putting-back",
+        "lesson": "v2 还原分支死了 —— 判后把 base 测试文件撤走而不是放回:"
+                  "oracle 之后的回归在少了一个文件的树上跑,pre/post digest "
+                  "复核红(restored_ok=False),整发判决面被判卷器自己污染",
+        "file": _DOL,
+        "old": "            if f in saved:\n"
+               "                f.write_bytes(saved[f])         # v2:放回 lay 前字节\n"
+               "            else:\n"
+               "                f.unlink(missing_ok=True)",
+        "new": "            if False and f in saved:\n"
+               "                f.write_bytes(saved[f])         # v2:放回 lay 前字节\n"
+               "            else:\n"
+               "                f.unlink(missing_ok=True)",
+        "catchers": _T_DOL,
+        "expected_catcher": [
+            "test_u12_v2_base_file_saved_overwritten_and_put_back",
+            "test_u12b_v2_agent_modified_base_is_h1_red_but_still_judged"],
+    },
+    {
+        "id": "M96d-prompt-profile-v2-deregistered",
+        "lesson": "hb-delta-v2 从已知档口集掉了 —— v2 契约在加载期就炸,或"
+                  "更糟:若校验也松了,typo 静默落回缺省档,对 delta 宿主"
+                  "句句是假话的提示照发(档口注册与校验是一体两面)",
+        "file": _HD,
+        "old": '        known = {"offerclaw-v1", "hb-delta-v1", "hb-delta-v2"}',
+        "new": '        known = {"offerclaw-v1", "hb-delta-v1"}',
+        "catchers": _T_HTP,
+        "expected_catcher": [
+            "test_p3v2_v2_contract_and_manifest_pins"],
     },
     {
         "id": "M90c-snapshot-copies-master-readonly-bit",

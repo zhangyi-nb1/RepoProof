@@ -91,6 +91,33 @@ TASKS = [
     },
 ]
 
+# 构造法 v2 代际(R1/R2,2026-08-21;R1R2-DELTA-V2-DESIGN §2.2/§3):base 版
+# 测试文件留树(宿主由 prepare_hb1_hosts.py --v2 构建),manifest 加
+# base_files/construction_law 两键驱动 oracle lay 的 save/覆写/放回分支;
+# prompt 教导差异(R5/R6)进契约 requirements。v1 三包字面不变。
+TASKS_V2 = [
+    {
+        "pkg": "hb1_sqlglot_8042_v2",
+        "task_id": "hb1-sqlglot-8042-v2",
+        "cid": "sqlglot-8042",
+        "evidence_key": "sqlglot-8042-v2",
+        "construction_law": "v2",
+        "repo": "tobymao/sqlglot",
+        "parent": "00ca3ed452a5a315447ede73c75e70520dd11e68",
+        "bench": "hb1-sqlglot-8042-v2",
+        "host_root_env": "HB_DELTA_HOST_ROOT",
+        "pip_step": ["env", "SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0",
+                     ".venv/bin/pip", "install", "-q", "--no-index", "-e", ".",
+                     "pytest", "duckdb", "pandas", "python-dateutil", "pytz",
+                     "typing_extensions"],
+        "import_check": "import sqlglot",
+        "path_prepend_venv_bin": True,
+        "suite_timeout_s": 600,
+        "sabotage": {"file": "sqlglot/time.py",
+                     "line": "format_time = None  # rp-nc-sabotage(窄破坏:远离 lineage/pivot 路径)"},
+    },
+]
+
 REGRESSION_CMD = [".venv/bin/python", "-m", "pytest", "tests", "-q", "-p", "no:cacheprovider"]
 # 公开面命令按既有约定以 "python" 开头(_public_argv 剥它再前置会话 venv);
 # 写 .venv/bin/python 会被再叠一层解释器 → 公开面恒 0(F0 彩排第 3 抓)。
@@ -327,7 +354,8 @@ def build_task(t: dict, ev: dict) -> dict:
     pkg = TASKS_ROOT / t["pkg"]
     cand = ARCHIVE / "candidates" / t["cid"]
     host = BENCH / t["bench"] / "host"
-    rec = _rec_of(ev, t["cid"])
+    law = t.get("construction_law", "v1")
+    rec = _rec_of(ev, t.get("evidence_key", t["cid"]))
     hygiene = json.loads((HYGIENE / f"{t['cid']}.json").read_text(encoding="utf-8"))
     baseline = rec["baseline"]
     written: dict[str, str] = {}
@@ -342,12 +370,33 @@ def build_task(t: dict, ev: dict) -> dict:
     statement = (cand / "statement.md").read_text(encoding="utf-8")
     emit("statement.md", statement.encode())
 
+    # ---- 教导面(R2,只对 v2 加两条;statement 保持上游原文一字不动):
+    # R5 = 隐藏节点**名单**宣示 —— 节点名早已入公开 manifest,内容仍是答案;
+    # R6 = 回归网宣示 + 隐藏面保守性(multiple_pivoted 类 12/12 全砸的唯一
+    # 合法杠杆,R3 分类学 bbd5169)。
+    reqs = list(REQUIREMENTS)
+    if law == "v2":
+        nodes = ", ".join(hygiene["delta_nodes"])
+        reqs = reqs + [
+            {"id": "R5", "text": "The hidden acceptance nodes for this exact "
+             "feature are (names public, contents hidden): " + nodes + ". "
+             "Your implementation must make these exact behaviors work."},
+            {"id": "R6", "text": "The visible tests/ tree is the project's own "
+             "suite as it stood just before this feature landed (including the "
+             "base version of the test file the hidden nodes extend). Run the "
+             "full suite before submitting. The hidden grading suite ALSO "
+             "contains additional tests of PRE-EXISTING behavior beyond the "
+             "visible suite: keep every change semantically conservative, and "
+             "verify the behavior you touch with your own throwaway probes "
+             "(outside tests/) instead of relying only on the visible suite."},
+        ]
+
     # ---- 契约
     contract = {
         "task_id": t["task_id"],
-        "task_version": "v1",
+        "task_version": "v2" if law == "v2" else "v1",
         "kind": "host_integrated",
-        "prompt_profile": "hb-delta-v1",
+        "prompt_profile": "hb-delta-v2" if law == "v2" else "hb-delta-v1",
         "host": {
             "repo": t["repo"],
             "commit": t["parent"],
@@ -369,7 +418,7 @@ def build_task(t: dict, ev: dict) -> dict:
             **({"path_prepend_venv_bin": True}
                if t.get("path_prepend_venv_bin") else {}),
         },
-        "capability": {"statement": statement, "requirements": REQUIREMENTS},
+        "capability": {"statement": statement, "requirements": reqs},
         "constraints": {"forbidden": FORBIDDEN},
         "budgets": BUDGETS,
         "acceptance": {
@@ -412,6 +461,21 @@ def build_task(t: dict, ev: dict) -> dict:
         "note": ("post_tests/ 与 controls/*/apply.patch 是物化件(答案承载,"
                  "不入 git);缺料 fail-closed 拒判"),
     }
+    if law == "v2":
+        # base_files 驱动 oracle lay 的 save/覆写/放回分支;sha 取自宿主
+        # (构造交叉验证已证宿主 = parent 版)。base 内容是公开的 parent
+        # 树文件,sha 入 git 零答案暴露。空清单 = 宿主没按 v2 法建,炸。
+        arch_tf = json.loads((cand / "manifest.json")
+                             .read_text(encoding="utf-8"))["test_files"]
+        base_files = [{"path": tf,
+                       "sha256": _sha_bytes((host / tf).read_bytes())}
+                      for tf in arch_tf if (host / tf).is_file()]
+        if not base_files:
+            raise SystemExit(
+                f"{t['pkg']}: 构造法 v2 但宿主里没有任何 base 测试文件 —— "
+                "先 prepare_hb1_hosts.py --hosts --v2 重建宿主")
+        manifest["construction_law"] = "v2"
+        manifest["base_files"] = base_files
     emit("oracle/delta_manifest.json",
          (json.dumps(manifest, ensure_ascii=False, indent=1) + "\n").encode())
 
@@ -444,7 +508,7 @@ def main() -> int:
     args = ap.parse_args()
     ev = _load_round2_evidence()
     drift: list[str] = []
-    for t in TASKS:
+    for t in TASKS + TASKS_V2:
         if args.check:
             import tempfile
             with tempfile.TemporaryDirectory() as td:
