@@ -2939,3 +2939,26 @@ main_dir_integrity 抓到邻仓 offerclaw(chroma_db)被并发进程写入,守卫
   deepseek 组合;计分批之前须走自己的资格流程与预注册(G6/G6b 同款),
   且 host-run 接线(backend_composition 记 GPT 上游真身)未动,批前另立。
   变异体 +2(M91a/b,共 262)。
+
+## 状态 · 2026-08-20 · GPT 性能实测两批收官(DQ-GPT-SHIM-1 资格 FAIL + GPT-H0-E1TOTAL-1 基线)
+
+- **host-run 接线落地(7b5bc93,门 265/265 @ d3d2b27)**:指纹第 10 键
+  `upstream_protocol`(GPT 组合不许扮 deepseek)、`run_dsh_round` 轮内
+  shim 生命周期(真 key 只在 host 进程,worker 只见 RUNTIME_FAKE_KEY,
+  入站布尔见证 = K1)、通道→真身单源判定;GS3 全栈钉(封存 runtime
+  走通 gpt-5.5);M92a/b/c 手验全杀。
+- **DQ-GPT-SHIM-1(冻结 7b5bc93,批关闭 b6b10e6)**:F0 过;三发照序
+  15:43-17:20,零缺陷重跑、绊线全绿。**资格如实 FAIL**:G6bg 零 PASS;
+  G6g 仅 gpt-5.6 一发干净(attribution=ok 自然完成),gpt-5.5 两发
+  budget_overrun:input_tokens 越线被杀(1.83M/1.80M);G7/K1 绿
+  (176/176 假 key 见证)。三发全 8/9,唯欠 test_h2_no_regression_broken
+  —— 与 E1 主导败象同款。E1G-GPT-BRIDGE-1 维持 DRAFT 永不开跑;重走须
+  另立 DQ-GPT-SHIM-2。
+- **GPT-H0-E1TOTAL-1(冻结 b6b10e6,n=1/模型 pilot)**:gpt-5.5 FAIL
+  8/9(同一道回归检查,自然提交)· gpt-5.6 **PASS_ADAPTED 9/9 + 干净
+  重放**。定性:gpt-5.5 两臂同败同象(败因模型侧,臂无关);消耗形状
+  E5 再现且方向反转 —— GPT 时 H0 token 轻(347-427K)、DSH token 重
+  (1.58-1.83M 贴墙),deepseek 时相反;**跨端点 usage 语义存疑
+  (deepseek 缓存计数),跨模型 usage 不可直接比较**(仪器警示)。
+- 判读上界:两批全部四口径 false;单任务 seen、n≤2/模型;不得读作
+  "GPT×DSH 好坏"或"GPT vs DeepSeek"。分类旁挂 60 行,台账 216 行。

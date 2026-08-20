@@ -60,3 +60,28 @@ DQ-GPT-SHIM-1 §5;instrument 缺陷 → 停修 → 该发从零重跑,不回填�
   定性对照叙述。
 - 裁决只走隐藏 oracle + 验证器 + 干净重放 + Completion Gate;
   台账 cost 列如实(litellm 读数缺失时 UNKNOWN)。
+
+## 附录一(2026-08-20 · 批毕机械转录:2/2 照冻结序跑毕,批关闭)
+
+### 两发结果(隐藏 oracle 9 道)
+
+| 发 | 模型 | 判决 | 调用 | in/out tok | agent 墙 |
+|---|---|---|---|---|---|
+| 1(172546) | gpt-5.5 | FAIL 8/9(唯欠 test_h2_no_regression_broken) | 23 | 347K / 6.2K | 7.5 分 |
+| 2(174105) | gpt-5.6 | **PASS_ADAPTED 9/9 + clean replay PASS** | 24 | 427K / 14.0K | 10.9 分 |
+
+零缺陷重跑;绊线每发前后全绿;端点健康探全 200。封套决算:运行 2/3;
+墙钟累计 ≈30 min ≤ 2h;in 0.77M ≤ 4M;out 20.3K ≤ 0.6M。全内。
+
+### 定性对照(与 DQ-GPT-SHIM-1,判读上界内)
+
+同一 total 语义预算、同任务:
+- gpt-5.5:H0 与 DSH 臂**同败同象**(均 8/9 唯欠同一道回归检查)——
+  败因是模型侧行为,与 agent 循环无关(与 E1 对 deepseek 的结论同构);
+- gpt-5.6:H0 一发过(9/9+replay),DSH 臂一发 8/9 —— n=1 双向都撑不起
+  方向性结论,只记为观察;
+- 消耗形状:H0×GPT 是 token 轻臂(347-427K in / 23-24 调用),远离
+  1.8M 墙;DSH×GPT 是 token 重臂(1.58-1.83M in / 51-64 请求)——
+  同一模型换循环即换消耗形状,GPT 上重现 E5 机制发现(方向相反:
+  deepseek 时 DSH 轻 H0 重,GPT 时 DSH 重 H0 轻;含端点 usage 语义
+  仪器警示,见 DQ-GPT-SHIM-1 附录二)。
