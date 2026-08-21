@@ -86,3 +86,49 @@ DSH 发 budget_refused 属预写读数不属缺陷,不占重跑位。
   主张;Q2 若 PASS → 教导面可迁移 DSH 循环(单发方向读数);若败于
   回归类 → 教导面不足以覆盖 DSH 循环,如实记;若 budget_refused →
   悬置;不与 v1、不与 deepseek 合池。
+
+---
+
+## 附录:批结果转录(2026-08-21,机械转录不改判据)
+
+冻结点 aa43ba6;工程 2bd6892(门 275/275,证据 c7be971)。发序照 §4,
+绊线每发前后全绿(三宿主),健康探 200 双模型在列,零缺陷零重跑。
+
+冒烟 4/4 达期望:3581-v2 F0 PASS_ADAPTED(3/3)/ F0b FAIL/REGRESSION_BROKEN;
+3407-v2 F0 PASS_ADAPTED(1/1)/ F0b FAIL/REGRESSION_BROKEN —— 两新宿主判卷
+双侧验讫。
+
+| 发 | 组合 | 判决 | 读数 |
+|---|---|---|---|
+| 1 | 3581-v2 × gpt-5.5 × H0 | **PASS_ADAPTED**(3/3,回归零破坏)+ replay PASS | 16 调用 / in 176,786(cache 76%)/ 墙 3.0 分 |
+| 2 | 3581-v2 × gpt-5.6 × H0 | **PASS_ADAPTED**(3/3,回归零破坏)+ replay PASS | 21 调用 / in 222,200(cache 80%)/ 墙 5.7 分 |
+| 3 | 3407-v2 × gpt-5.5 × H0 | **FAIL / j3=DESIGN_MISMATCH**(delta 0/1,回归 1917/1917 零破坏) | 28 调用 / in 436,314(cache 70%) |
+| 4 | 3407-v2 × gpt-5.6 × H0 | **FAIL / j3=DESIGN_MISMATCH**(同一节点 0/1,回归零破坏) | 22 调用 / in 293,792(cache 82%) |
+| 5 | 8042-v2 × gpt-5.6 × **DSH** | **FAIL / j3=REGRESSION_BROKEN**(delta 5/5 绿,砸 test_multiple_pivoted_sources) | 52 调用 / in 1,753,290(贴 1.8M 轴)/ out 49K / 墙 29.5 分 |
+
+封套核销:计分 5/≤7;in 2.88M ≤6M;out 92K ≤0.6M;墙累计(计分 49.8 分
++ 冒烟)≈65 分 ≤4h —— 全内,零重跑位动用。
+
+**Q1 答(扩批坐实)**:v2 机制跨任务成立 —— H0 四发回归**全部零破坏**
+(可见+隐藏两面),历史盲区败象类在 H0 零复发。通过侧:3581 双模型
+PASS;失败侧:3407 双模型败**同一枚**隐藏节点
+(param_type_input_parameter_defaults_at_runtime),回归干净,j3=
+DESIGN_MISMATCH。归因(patch 与池内答案对读):3407 题面是上游**开放式
+设计讨论**(三选项 + 作者偏好),合并版真实设计(ParamType 第二类型参数
++ PEP 696 默认 + Python<3.13 `__class_getitem__` 运行期补默认)**不在
+题面文本里**;两模型均只按题面选项改 prompt() 签名层,谁也没有(也无从)
+重构出合并版设计 —— **题面欠定类,病灶在任务构造侧不在模型侧**。
+跨任务 tally(v2 代际 H0,与前批合述仅描述):gpt-5.5 与 gpt-5.6 各
+2/3 PASS,失败完全同源。
+
+**Q2 答(DSH 教导迁移)**:**不迁移**。同模型(gpt-5.6)×同任务
+(8042-v2)×同契约(同 R5/R6 教导)×同端点:H0 环 PASS_ADAPTED,DSH 环
+delta 5/5 全绿、可见回归干净,却砸掉 v1 历史盲区节点
+multiple_pivoted_sources(R3 分类器窄化单发复核:STRIPPED_NEW,证据
+V2GEN-GPT-EXT-1-dsh.json)——教导面写在契约里,H0 循环下起效,DSH 循环
+下不起效。消耗同差:DSH in 4.1×(1.75M vs 428K)、52 vs 26 调用。
+无 budget_refused(预写的悬置分支未触发,判读有效)。E5 机制
+"换循环=换消耗形状"延伸为**"换循环=换合规形状"**。观察发不授予资格。
+
+批性质注记:全部 seen、n=1/组合;失败侧两类均已归因(题面欠定 /
+循环合规不迁移),无 harness 缺陷发现;不作能力主张,不合池。

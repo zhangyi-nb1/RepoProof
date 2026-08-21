@@ -14,8 +14,8 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 67,
-    "assisted_repair_runs": 57,
+    "all_valid_run_outcomes": 71,
+    "assisted_repair_runs": 62,
     "development_baseline_runs": 68,
     "exploratory": 8,
     "exploratory_passes": 0,
@@ -38,8 +38,8 @@
       "t3-offerclaw-browser-use-v4-20260811-172615",
       "t3-offerclaw-browser-use-v6-20260814-002139"
     ],
-    "mechanism_ablation_passes": 20,
-    "mechanism_ablation_runs": 40,
+    "mechanism_ablation_passes": 22,
+    "mechanism_ablation_runs": 45,
     "observation_policy_qualification_runs": 2,
     "pass_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260810-000405",
@@ -79,8 +79,8 @@
       }
     ],
     "provisional_evidence_runs": 3,
-    "smoke": 91,
-    "smoke_passes": 30,
+    "smoke": 95,
+    "smoke_passes": 32,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -172,9 +172,13 @@
       "hb1-sqlglot-8042-20260820-152824",
       "hb1-sqlglot-8042-20260821-023054",
       "hb1-sqlglot-8042-v2-20260821-052928",
-      "hb1-sqlglot-8042-v2-20260821-053853"
+      "hb1-sqlglot-8042-v2-20260821-053853",
+      "hb1-click-3581-v2-20260821-183244",
+      "hb1-click-3581-v2-20260821-183321",
+      "hb1-click-3407-v2-20260821-183348",
+      "hb1-click-3407-v2-20260821-183426"
     ],
-    "total": 220,
+    "total": 229,
     "treatment_delivered_runs": 13,
     "treatment_not_delivered_runs": 4
   },
@@ -191,7 +195,7 @@
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "1ebaaa4bc88d33889b434e704ab8aa697444d2053f6378f595e43e9b44f08f84"
+    "runs_jsonl_sha256": "a51ee33eb340276414d83802a7615a646e8fe681407be2b0b909fe9b63346ac4"
   },
   "stages": {
     "T1": {

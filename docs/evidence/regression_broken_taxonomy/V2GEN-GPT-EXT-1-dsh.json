@@ -1,0 +1,43 @@
+{
+ "_what": "regression_broken 节点分类学(R3;判决零改动,纯台账细分)。桶语义见 scripts/classify_regression_broken.py docstring。",
+ "task_id": "hb1-sqlglot-8042-v2",
+ "delta_nodes": [
+  "tests.test_lineage.TestLineage::test_chained_pivots",
+  "tests.test_lineage.TestLineage::test_chained_pivots_consuming_alias_columns",
+  "tests.test_lineage.TestLineage::test_chained_pivots_mixed",
+  "tests.test_lineage.TestLineage::test_chained_pivots_through_cte",
+  "tests.test_lineage.TestLineage::test_chained_pivots_with_alias_columns"
+ ],
+ "post_files": [
+  "tests/test_lineage.py"
+ ],
+ "runs": [
+  {
+   "run_id": "hb1-sqlglot-8042-v2-20260821-185656",
+   "batch": null,
+   "model": null,
+   "verdict": null,
+   "nodes": [
+    "tests.test_lineage.TestLineage::test_multiple_pivoted_sources"
+   ],
+   "truncated": false,
+   "problem": null,
+   "taxonomy": {
+    "tests.test_lineage.TestLineage::test_multiple_pivoted_sources": "STRIPPED_NEW"
+   }
+  }
+ ],
+ "summary": {
+  "bucket_counts": {
+   "STRIPPED_NEW": 1
+  },
+  "node_histogram": {
+   "tests.test_lineage.TestLineage::test_multiple_pivoted_sources": {
+    "bucket": "STRIPPED_NEW",
+    "runs": 1
+   }
+  },
+  "runs_total": 1,
+  "runs_with_broken": 1
+ }
+}
