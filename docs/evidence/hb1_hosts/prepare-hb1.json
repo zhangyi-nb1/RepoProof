@@ -9,9 +9,12 @@
   "python": "3.12.5",
   "argv": [
     "scripts/prepare_hb1_hosts.py",
-    "--measure",
-    "--leak-scan",
-    "--v2"
+    "--v2",
+    "--all",
+    "--only",
+    "click-3581-v2",
+    "--only",
+    "click-3407-v2"
   ],
   "invocations": [
     {
@@ -173,6 +176,24 @@
       ],
       "round": 2,
       "utc": "2026-08-20T20:37:57+00:00"
+    },
+    {
+      "argv": [
+        "scripts/prepare_hb1_hosts.py",
+        "--v2",
+        "--all",
+        "--only",
+        "click-3581-v2",
+        "--only",
+        "click-3407-v2"
+      ],
+      "stages": [
+        "hosts",
+        "measure",
+        "leak"
+      ],
+      "round": 2,
+      "utc": "2026-08-21T10:02:03+00:00"
     }
   ],
   "hosts": {
@@ -650,6 +671,290 @@
           "sqlglot/lineage.py:mapping: dict[str, list[exp.Column]] = {"
         ],
         "effective": 45,
+        "hits": [],
+        "planted_detected": true,
+        "clean_zero": true,
+        "selfcheck_ok": true
+      }
+    },
+    "click-3581-v2": {
+      "candidate_cid": "click-3581",
+      "construction_law": "v2",
+      "source_parent_tree": "/Users/zhangronglei/RepoProofArchive/d5-hunt/candidates/click-3581/parent_tree",
+      "source_delivery": "/Users/zhangronglei/RepoProofArchive/d5-hunt/attacks/click-3581/delivery",
+      "source_wheelhouse": "/Users/zhangronglei/RepoProofArchive/d5-hunt/wheelhouse/click",
+      "bench_dir": "/Users/zhangronglei/RepoProofBench/hb1-click-3581-v2",
+      "construction_check": {
+        "ok": true,
+        "law": "v2",
+        "v_count": 140,
+        "expected_count": 140,
+        "missing_from_v": [],
+        "unexpected_in_v": []
+      },
+      "attacker_residue": {
+        "added": [],
+        "modified": [
+          "CHANGES.md",
+          "docs/api.md",
+          "docs/option-decorators.md",
+          "src/click/__init__.py",
+          "src/click/__pycache__/__init__.cpython-312.pyc",
+          "src/click/__pycache__/_compat.cpython-312.pyc",
+          "src/click/__pycache__/_utils.cpython-312.pyc",
+          "src/click/__pycache__/core.cpython-312.pyc",
+          "src/click/__pycache__/decorators.cpython-312.pyc",
+          "src/click/__pycache__/exceptions.cpython-312.pyc",
+          "src/click/__pycache__/formatting.cpython-312.pyc",
+          "src/click/__pycache__/globals.cpython-312.pyc",
+          "src/click/__pycache__/parser.cpython-312.pyc",
+          "src/click/__pycache__/termui.cpython-312.pyc",
+          "src/click/__pycache__/types.cpython-312.pyc",
+          "src/click/__pycache__/utils.cpython-312.pyc",
+          "src/click/decorators.py"
+        ]
+      },
+      "wheelhouse_mode": "copied",
+      "wheelhouse_digest": "sha256:fdbdd76a8cf2572c1a8824440aee8627e84a5379e9ed7931741806a525db7819",
+      "wheelhouse_file_count": 8,
+      "deployed": true,
+      "host_mode": "redeployed",
+      "host_digest": "sha256:6b51ba09cea940e9caf8ec16b938b3c33d3347766855424fd9c09fd37e7123a4",
+      "file_count": 140,
+      "verify": {
+        "host_vs_V": {
+          "ok": true,
+          "missing": [],
+          "extra": [],
+          "mismatch": []
+        },
+        "wheelhouse": {
+          "ok": true,
+          "missing": [],
+          "extra": [],
+          "mismatch": []
+        }
+      },
+      "bench_dir_entries": [
+        "host",
+        "wheelhouse"
+      ],
+      "verify_ok": true,
+      "baseline": {
+        "total": 1707,
+        "passed": 1681,
+        "failed": 0,
+        "skipped": 26,
+        "failed_nodes": [],
+        "skip_nodes": [
+          "tests.test_chain::test_group_chaining",
+          "tests.test_termui::test_editor_windows_path_normalization[plain notepad]",
+          "tests.test_termui::test_editor_windows_path_normalization[quoted path with flag]",
+          "tests.test_termui::test_getchar_special_key_windows[\\x00-a]",
+          "tests.test_termui::test_getchar_special_key_windows[\\x00-b]",
+          "tests.test_termui::test_getchar_special_key_windows[\\xe0-c]",
+          "tests.test_termui::test_getchar_windows[False- ]",
+          "tests.test_termui::test_getchar_windows[False-H]",
+          "tests.test_termui::test_getchar_windows[False-\\u5b57]",
+          "tests.test_termui::test_getchar_windows[False-\\xc0]",
+          "tests.test_termui::test_getchar_windows[False-\\xe0H]",
+          "tests.test_termui::test_getchar_windows[False-\\xe0R]",
+          "tests.test_termui::test_getchar_windows[False-\\xe9]",
+          "tests.test_termui::test_getchar_windows[False-h]",
+          "tests.test_termui::test_getchar_windows[True- ]",
+          "tests.test_termui::test_getchar_windows[True-H]",
+          "tests.test_termui::test_getchar_windows[True-\\u5b57]",
+          "tests.test_termui::test_getchar_windows[True-\\xc0]",
+          "tests.test_termui::test_getchar_windows[True-\\xe0H]",
+          "tests.test_termui::test_getchar_windows[True-\\xe0R]",
+          "tests.test_termui::test_getchar_windows[True-\\xe9]",
+          "tests.test_termui::test_getchar_windows[True-h]",
+          "tests.test_termui::test_getchar_windows_exceptions[\\x03-KeyboardInterrupt]",
+          "tests.test_termui::test_getchar_windows_exceptions[\\x1a-EOFError]",
+          "tests.test_testing::test_capture_fd_windows_error",
+          "tests.test_types::test_path_surrogates"
+        ],
+        "recipe": {
+          "venv_python": "/Users/zhangronglei/Desktop/XIANGMU/RepoProof/.venv/bin/python",
+          "pip": [
+            "install",
+            "-q",
+            "--no-index",
+            "--find-links",
+            "/Users/zhangronglei/RepoProofBench/hb1-click-3581-v2/wheelhouse",
+            "-e",
+            "<tree>",
+            "pytest"
+          ],
+          "env_extra": [],
+          "pytest": [
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "--junitxml",
+            "<tmp>/junit.xml"
+          ]
+        },
+        "status": "READY",
+        "problems": []
+      },
+      "leak": {
+        "fingerprints_total": 43,
+        "calibrated_out": 10,
+        "calibrated_out_names": [
+          "src/click/decorators.py:) -> t.Callable[[FC], FC]:",
+          "src/click/decorators.py::param param_decls: One or more option n",
+          "src/click/decorators.py::param kwargs: Extra arguments are passe",
+          "src/click/decorators.py:if not value or ctx.resilient_parsing:",
+          "src/click/decorators.py:param_decls = (\"--version\",)",
+          "src/click/decorators.py:kwargs.setdefault(\"is_flag\", True)",
+          "src/click/decorators.py:kwargs.setdefault(\"expose_value\", False)",
+          "src/click/decorators.py:kwargs.setdefault(\"is_eager\", True)",
+          "src/click/decorators.py:kwargs.setdefault(\"help\", _(\"Show the ve",
+          "src/click/decorators.py:return option(*param_decls, **kwargs)"
+        ],
+        "effective": 33,
+        "hits": [],
+        "planted_detected": true,
+        "clean_zero": true,
+        "selfcheck_ok": true
+      }
+    },
+    "click-3407-v2": {
+      "candidate_cid": "click-3407",
+      "construction_law": "v2",
+      "source_parent_tree": "/Users/zhangronglei/RepoProofArchive/d5-hunt/candidates/click-3407/parent_tree",
+      "source_delivery": "/Users/zhangronglei/RepoProofArchive/d5-hunt/attacks/click-3407/delivery",
+      "source_wheelhouse": "/Users/zhangronglei/RepoProofArchive/d5-hunt/wheelhouse/click",
+      "bench_dir": "/Users/zhangronglei/RepoProofBench/hb1-click-3407-v2",
+      "construction_check": {
+        "ok": true,
+        "law": "v2",
+        "v_count": 154,
+        "expected_count": 154,
+        "missing_from_v": [],
+        "unexpected_in_v": []
+      },
+      "attacker_residue": {
+        "added": [],
+        "modified": [
+          "CHANGES.md",
+          "src/click/__pycache__/__init__.cpython-312.pyc",
+          "src/click/__pycache__/_compat.cpython-312.pyc",
+          "src/click/__pycache__/_utils.cpython-312.pyc",
+          "src/click/__pycache__/core.cpython-312.pyc",
+          "src/click/__pycache__/decorators.cpython-312.pyc",
+          "src/click/__pycache__/exceptions.cpython-312.pyc",
+          "src/click/__pycache__/formatting.cpython-312.pyc",
+          "src/click/__pycache__/globals.cpython-312.pyc",
+          "src/click/__pycache__/parser.cpython-312.pyc",
+          "src/click/__pycache__/termui.cpython-312.pyc",
+          "src/click/__pycache__/types.cpython-312.pyc",
+          "src/click/__pycache__/utils.cpython-312.pyc",
+          "src/click/termui.py",
+          "src/click/types.py"
+        ]
+      },
+      "wheelhouse_mode": "copied",
+      "wheelhouse_digest": "sha256:fdbdd76a8cf2572c1a8824440aee8627e84a5379e9ed7931741806a525db7819",
+      "wheelhouse_file_count": 8,
+      "deployed": true,
+      "host_mode": "redeployed",
+      "host_digest": "sha256:5232b5b1cd96e27557f6136be85912571f2a5918f2d3b52787371c08faf3e2c7",
+      "file_count": 154,
+      "verify": {
+        "host_vs_V": {
+          "ok": true,
+          "missing": [],
+          "extra": [],
+          "mismatch": []
+        },
+        "wheelhouse": {
+          "ok": true,
+          "missing": [],
+          "extra": [],
+          "mismatch": []
+        }
+      },
+      "bench_dir_entries": [
+        "host",
+        "wheelhouse"
+      ],
+      "verify_ok": true,
+      "baseline": {
+        "total": 1943,
+        "passed": 1917,
+        "failed": 0,
+        "skipped": 26,
+        "failed_nodes": [],
+        "skip_nodes": [
+          "tests.test_chain::test_group_chaining",
+          "tests.test_termui::test_editor_windows_path_normalization[plain notepad]",
+          "tests.test_termui::test_editor_windows_path_normalization[quoted path with flag]",
+          "tests.test_termui::test_getchar_special_key_windows[\\x00-a]",
+          "tests.test_termui::test_getchar_special_key_windows[\\x00-b]",
+          "tests.test_termui::test_getchar_special_key_windows[\\xe0-c]",
+          "tests.test_termui::test_getchar_windows[False- ]",
+          "tests.test_termui::test_getchar_windows[False-H]",
+          "tests.test_termui::test_getchar_windows[False-\\u5b57]",
+          "tests.test_termui::test_getchar_windows[False-\\xc0]",
+          "tests.test_termui::test_getchar_windows[False-\\xe0H]",
+          "tests.test_termui::test_getchar_windows[False-\\xe0R]",
+          "tests.test_termui::test_getchar_windows[False-\\xe9]",
+          "tests.test_termui::test_getchar_windows[False-h]",
+          "tests.test_termui::test_getchar_windows[True- ]",
+          "tests.test_termui::test_getchar_windows[True-H]",
+          "tests.test_termui::test_getchar_windows[True-\\u5b57]",
+          "tests.test_termui::test_getchar_windows[True-\\xc0]",
+          "tests.test_termui::test_getchar_windows[True-\\xe0H]",
+          "tests.test_termui::test_getchar_windows[True-\\xe0R]",
+          "tests.test_termui::test_getchar_windows[True-\\xe9]",
+          "tests.test_termui::test_getchar_windows[True-h]",
+          "tests.test_termui::test_getchar_windows_exceptions[\\x03-KeyboardInterrupt]",
+          "tests.test_termui::test_getchar_windows_exceptions[\\x1a-EOFError]",
+          "tests.test_testing::test_capture_fd_windows_error",
+          "tests.test_types::test_path_surrogates"
+        ],
+        "recipe": {
+          "venv_python": "/Users/zhangronglei/Desktop/XIANGMU/RepoProof/.venv/bin/python",
+          "pip": [
+            "install",
+            "-q",
+            "--no-index",
+            "--find-links",
+            "/Users/zhangronglei/RepoProofBench/hb1-click-3407-v2/wheelhouse",
+            "-e",
+            "<tree>",
+            "pytest"
+          ],
+          "env_extra": [],
+          "pytest": [
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "--junitxml",
+            "<tmp>/junit.xml"
+          ]
+        },
+        "status": "READY",
+        "problems": []
+      },
+      "leak": {
+        "fingerprints_total": 61,
+        "calibrated_out": 10,
+        "calibrated_out_names": [
+          "src/click/termui.py:if isinstance(show_default, str):",
+          "src/click/termui.py:elif default is not None:",
+          "src/click/termui.py:hide_input: bool = False,",
+          "src/click/termui.py:confirmation_prompt: bool | str = False,",
+          "src/click/termui.py:prompt_suffix: str = \": \",",
+          "src/click/termui.py:show_default: bool | str = True,",
+          "src/click/termui.py:show_choices: bool = True,",
+          "src/click/termui.py:.. versionchanged:: 8.5.0",
+          "src/click/types.py:param: Parameter | None = None,",
+          "src/click/types.py:ctx: Context | None = None,"
+        ],
+        "effective": 51,
         "hits": [],
         "planted_detected": true,
         "clean_zero": true,

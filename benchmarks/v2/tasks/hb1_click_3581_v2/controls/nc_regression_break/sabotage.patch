@@ -1,0 +1,8 @@
+diff --git a/src/click/types.py b/src/click/types.py
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -1373,3 +1373,4 @@
+     default: str
+     range: str
+     required: str
++FloatRange.convert = None  # rp-nc-sabotage(窄破坏:远离 version option 路径)

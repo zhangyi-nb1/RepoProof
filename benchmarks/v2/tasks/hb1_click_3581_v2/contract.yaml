@@ -1,0 +1,279 @@
+task_id: hb1-click-3581-v2
+task_version: v2
+kind: host_integrated
+prompt_profile: hb-delta-v2
+host:
+  repo: pallets/click
+  commit: 16fc00e2f4a2717a521084f193709a6058afc693
+  copy_path: ~/RepoProofBench/hb1-click-3581-v2/host
+  regression_command:
+    - .venv/bin/python
+    - -m
+    - pytest
+    - tests
+    - -q
+    - -p
+    - "no:cacheprovider"
+  regression_baseline: "1681 passed, 26 skipped, 0 failed"
+  setup_commands:
+    - [python3, -m, venv, .venv]
+    - [.venv/bin/pip, install, -q, --no-index, -e, ., pytest]
+  health_checks:
+    - command:
+        - .venv/bin/python
+        - -c
+        - import click
+  host_root_env: HB_DELTA_HOST_ROOT
+  wheelhouse_path: ~/RepoProofBench/hb1-click-3581-v2/wheelhouse
+  require_wheelhouse_manifest: false
+  pii_scan_profile: public-oss-tree
+  oracle_env_sanitized: true
+capability:
+  statement: |+
+    # pallets/click PR #3581: Add `@custom_version_option`, freeze `@version_option`
+
+    merged_at: 2026-07-08T03:26:28Z
+    merge_commit: 94c191ca6c9598865fc5672b85cf138845b337d5
+    base: 16fc00e2f4a2717a521084f193709a6058afc693
+
+    ## PR 正文
+
+    This is an attempt to address the design discussion we started in #3527 about `@version_option` extensibility.
+
+    What's in this PR:
+    - A `.. note::` admonition to point to `@version_option` freeze.
+    - A new `@custom_version_option` that mirrors `@help_option` and `@version_option` and takes a callback for a custom message.
+
+    I did not take the class-based approach here, as it reminded me of the `HelpOption` class that I was too fast to add in #2563 (v8.1.8) then had to remove in #2832/#2840 (v8.2.0).
+
+    If I like the explicitness of the freeze admonition, I don't like the rest of the code: the naming of `@custom_version_option` and the apparent duplication with `@version_option`. But I produced this PR anyway to explore the effect of our policy and to have a concrete example to discuss.
+
+
+
+    ## 关联 issue #2832: Regression: Help option subclassing no longer works with verion 8.1.8 
+
+    Click 8.18 has a regression wrt. to help with Option subclasses.
+
+    This was found in this issue originally:
+    - https://github.com/aboutcode-org/scancode-toolkit/issues/4044
+
+    This was introduced in this PR by @kdeldycke :wave: :
+    - https://github.com/pallets/click/pull/2563
+
+    It breaks code that uses option subclasses. 
+
+
+    - This code works in 8.1.7 and  8.1.8 with no custom class
+    ```Python
+    import click
+
+    @click.command()
+    @click.help_option("-h", "--help")
+    def scancode():
+        """OK in pkg:pypi/click@8.1.8 and pkg:pypi/click@8.1.7"""
+        pass
+
+
+    if __name__ == "__main__":
+        scancode()
+    ```
+    and then with 8.1.7 and 8.1.8:
+    ```
+    $ python  works.py --help
+    Usage: works.py [OPTIONS]
+
+      Regression in pkg:pypi/click@8.1.8
+
+    Options:
+      -h, --help  Show this message and exit.
+    ```
+
+
+
+
+    - This code works in 8.1.7 and fails in 8.1.8 with a custom class
+    ```Python
+    import click
+
+
+    class PluggableCommandLineOption(click.Option):
+        pass
+
+
+    @click.command()
+    @click.help_option("-h", "--help", cls=PluggableCommandLineOption)
+    def scancode():
+        """Regression in pkg:pypi/click@8.1.8"""
+        pass
+
+
+    if __name__ == "__main__":
+        scancode()
+    ```
+
+    and then with 8.1.7
+    ```
+     python  failing.py --help
+    Usage: failing.py [OPTIONS]
+
+      Regression in pkg:pypi/click@8.1.8
+
+    Options:
+      -h, --help  Show this message and exit.
+
+
+    $ python  failing.py -h
+    Usage: failing.py [OPTIONS]
+
+      Regression in pkg:pypi/click@8.1.8
+
+    Options:
+      -h, --help  Show this message and exit.
+
+    ```
+
+    and then with 8.1.8
+    ```
+    $ python  failing.py -h
+    Error: Option '-h' requires an argument.
+
+
+    $ python  failing.py --help
+    Error: Option '--help' requires an argument.
+
+
+    ```
+
+
+
+    - This code works more or less in 8.1.7 and 8.1.8 with custom class and no "--help" option
+    ```Python
+    import click
+
+
+    class PluggableCommandLineOption(click.Option):
+        pass
+
+
+    @click.command()
+    @click.help_option("-h", cls=PluggableCommandLineOption)
+    def scancode():
+        """Regression in pkg:pypi/click@8.1.8"""
+        pass
+
+
+    if __name__ == "__main__":
+        scancode()
+
+    ```
+    and then with 8.1.7
+    ```
+    $ python  works2.py -h
+    Usage: works2.py [OPTIONS]
+
+      Regression in pkg:pypi/click@8.1.8
+
+    Options:
+      -h      Show this message and exit.
+      --help  Show this message and exit.
+    ```
+
+    and then with 8.1.7
+    ```
+    $ python  works2.py --help
+    Usage: works2.py [OPTIONS]
+
+      Regression in pkg:pypi/click@8.1.8
+
+    Options:
+      -h      Show this message and exit.
+      --help  Show this message and exit
+    ```
+
+    and then with 8.1.8
+    ```
+    $ python  works2.py -h
+    Error: Option '-h' requires an argument.
+
+    ```
+    and then with 8.1.8 note the changes in `-h TEXT`
+    ```
+    $ python  works2.py --help
+    Usage: works2.py [OPTIONS]
+
+      Regression in pkg:pypi/click@8.1.8
+
+    Options:
+      -h TEXT
+      --help   Show this message and exit.
+
+    ```
+
+
+
+
+
+    Environment:
+
+    - Python version: 3.9 to 3.11
+    - Click version: 8.1.8
+
+  requirements:
+    - id: R1
+      text: "Implement the feature request in GOAL exactly as stated; the GOAL text is the upstream PR/issue verbatim. Acceptance is the upstream project's own hidden tests for this exact feature: they must go from FAIL to PASS."
+    - id: R2
+      text: "The existing regression suite must stay green: .venv/bin/python -m pytest tests -q -p no:cacheprovider."
+    - id: R3
+      text: "The measuring surface is read-only: do not create or modify anything under tests/, nor root-level conftest.py, pyproject.toml, setup.cfg, setup.py, pytest.ini or tox.ini."
+    - id: R4
+      text: Fully offline; no new dependencies. Everything needed is preinstalled in ./.venv.
+    - id: R5
+      text: "The hidden acceptance nodes for this exact feature are (names public, contents hidden): tests.test_basic::test_custom_version_option[args0], tests.test_basic::test_custom_version_option[args1], tests.test_basic::test_custom_version_option_receives_context. Your implementation must make these exact behaviors work."
+    - id: R6
+      text: "The visible tests/ tree is the project's own suite as it stood just before this feature landed (including the base version of the test file the hidden nodes extend). Run the full suite before submitting. The hidden grading suite ALSO contains additional tests of PRE-EXISTING behavior beyond the visible suite: keep every change semantically conservative, and verify the behavior you touch with your own throwaway probes (outside tests/) instead of relying only on the visible suite."
+constraints:
+  forbidden:
+    - "tests/ and public_tests/ are READ-ONLY: the regression suite is a measuring instrument; modifying it is treated exactly like forging results."
+    - "Root-level pytest extension points are READ-ONLY: conftest.py, pyproject.toml, setup.cfg, setup.py, pytest.ini, tox.ini. Creating or editing them fails the run."
+    - No network access at any time.
+budgets:
+  semantics: per_round
+  max_rounds: 3
+  max_model_calls: 30
+  max_commands: 100
+  max_patch_files: 15
+  max_patch_lines: 1500
+  max_wall_time_minutes: 60
+  max_input_tokens_total: 600000
+  max_output_tokens_total: 80000
+acceptance:
+  public_test_command:
+    - python
+    - -m
+    - pytest
+    - tests
+    - -q
+    - -p
+    - "no:cacheprovider"
+  hidden_oracle_command:
+    - python
+    - -m
+    - pytest
+    - "<ORACLE_ABS>"
+    - -q
+    - -p
+    - "no:cacheprovider"
+task_shape:
+  form: postcutoff-delta
+  delta_nodes: 3
+  single_module: true
+failure_taxonomy_expected:
+  - DESIGN_MISMATCH
+  - IMPL_INCOMPLETE
+  - REGRESSION_BROKEN
+  - NO_SUBMISSION
+  - INSTRUMENT_TAMPERED
+  - HARNESS_FAILURE
+  - PROVIDER_FAILURE
+task_family: HB-PCDELTA
+adoption_shape: UPSTREAM_FEATURE_DELTA

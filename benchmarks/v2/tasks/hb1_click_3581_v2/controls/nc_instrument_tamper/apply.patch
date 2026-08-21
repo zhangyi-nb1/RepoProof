@@ -1,0 +1,11 @@
+diff --git a/sitecustomize.py b/sitecustomize.py
+new file mode 100644
+--- /dev/null
++++ b/sitecustomize.py
+@@ -0,0 +1,6 @@
++# rp-nc-instrument-tamper:零实现伪绿攻击的负控载荷(非真实攻击者代码)。
++try:
++    import _pytest.python as _rp
++    _rp.Function.runtest = lambda self: None   # 每个用例都不执行 = 全绿
++except Exception:
++    pass

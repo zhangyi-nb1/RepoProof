@@ -21,11 +21,13 @@ REPO = Path(__file__).resolve().parents[1]
 PKGS = ["hb1_click_3581", "hb1_click_3407", "hb1_sqlglot_8042"]
 # 构造法 v2 代际(R1/R2,2026-08-21):共性钉(判卷器一致/答案不入仓/守卫
 # 面)对 v2 包同样生效;P3 的 v1 冻结值(profile/预算)不套 v2,另立 P3v2。
-PKGS_V2 = ["hb1_sqlglot_8042_v2"]
+PKGS_V2 = ["hb1_sqlglot_8042_v2", "hb1_click_3581_v2", "hb1_click_3407_v2"]
 ALL_PKGS = PKGS + PKGS_V2
 CIDS = {"hb1_click_3581": "click-3581", "hb1_click_3407": "click-3407",
         "hb1_sqlglot_8042": "sqlglot-8042",
-        "hb1_sqlglot_8042_v2": "sqlglot-8042"}
+        "hb1_sqlglot_8042_v2": "sqlglot-8042",
+        "hb1_click_3581_v2": "click-3581",
+        "hb1_click_3407_v2": "click-3407"}
 TASKS = REPO / "benchmarks/v2/tasks"
 
 sys.path.insert(0, str(REPO / "src"))
@@ -83,33 +85,44 @@ def test_p3v2_v2_contract_and_manifest_pins():
     内容是公开 parent 树文件,不在仓里,这里只核形状);R5 名单宣示逐字含
     全部隐藏节点名(名公开内容隐藏),R6 教保守;statement 上游原文不动、
     与 v1 包同源(题面只随上游,不随构造法)。"""
-    pkg = "hb1_sqlglot_8042_v2"
-    c, _ = HostContract.load(TASKS / pkg / "contract.yaml")
-    assert c.task_id == "hb1-sqlglot-8042-v2"
-    assert c.prompt_profile == "hb-delta-v2"
-    assert "task_version: v2" in (TASKS / pkg / "contract.yaml").read_text(
-        encoding="utf-8")
-    stmt = (TASKS / pkg / "statement.md").read_text(encoding="utf-8")
-    assert c.capability.statement == stmt
-    assert stmt == (TASKS / "hb1_sqlglot_8042" / "statement.md").read_text(
-        encoding="utf-8")
-    m = json.loads((TASKS / pkg / "oracle/delta_manifest.json")
-                   .read_text(encoding="utf-8"))
-    assert m["construction_law"] == "v2"
-    post_paths = {i["path"] for i in m["post_files"]}
-    assert m["base_files"], "v2 包必须带 base_files —— 空清单 = 宿主没按 v2 法建"
-    for b in m["base_files"]:
-        assert b["path"] in post_paths
-        assert len(b["sha256"]) == 64
-        int(b["sha256"], 16)                     # 合法十六进制
-    reqs = {r.id: r.text for r in c.capability.requirements}
-    assert set(reqs) == {"R1", "R2", "R3", "R4", "R5", "R6"}
-    for node in m["delta_nodes"]:
-        assert node in reqs["R5"], f"R5 名单缺 {node}"
-    assert "conservative" in reqs["R6"]
-    assert _expected_regression_passed(c.host.regression_baseline) > 0
-    b2 = c.budgets                                # contract.yaml 层与 v1 同值
-    assert (b2.semantics, b2.max_input_tokens_total) == ("per_round", 600000)
+    for pkg in PKGS_V2:
+        v1_pkg = pkg[: -len("_v2")]
+        c, _ = HostContract.load(TASKS / pkg / "contract.yaml")
+        assert c.task_id == pkg.replace("_", "-")
+        assert c.prompt_profile == "hb-delta-v2"
+        assert "task_version: v2" in (TASKS / pkg / "contract.yaml").read_text(
+            encoding="utf-8")
+        stmt = (TASKS / pkg / "statement.md").read_text(encoding="utf-8")
+        assert c.capability.statement == stmt
+        assert stmt == (TASKS / v1_pkg / "statement.md").read_text(
+            encoding="utf-8")
+        m = json.loads((TASKS / pkg / "oracle/delta_manifest.json")
+                       .read_text(encoding="utf-8"))
+        assert m["construction_law"] == "v2"
+        post_paths = {i["path"] for i in m["post_files"]}
+        assert m["base_files"], "v2 包必须带 base_files —— 空清单 = 宿主没按 v2 法建"
+        for b in m["base_files"]:
+            assert b["path"] in post_paths
+            assert len(b["sha256"]) == 64
+            int(b["sha256"], 16)                 # 合法十六进制
+        reqs = {r.id: r.text for r in c.capability.requirements}
+        assert set(reqs) == {"R1", "R2", "R3", "R4", "R5", "R6"}
+        for node in m["delta_nodes"]:
+            assert node in reqs["R5"], f"R5 名单缺 {node}"
+        assert "conservative" in reqs["R6"]
+        assert _expected_regression_passed(c.host.regression_baseline) > 0
+        b2 = c.budgets                            # contract.yaml 层与 v1 同值
+        assert (b2.semantics, b2.max_input_tokens_total) == ("per_round", 600000)
+        # e1-total 变体:与 contract.yaml 恰差 task_version + 预算块,其余同
+        ce, _ = HostContract.load(TASKS / pkg / "contract-e1-total.yaml")
+        assert "task_version: v2-e1-total" in (
+            TASKS / pkg / "contract-e1-total.yaml").read_text(encoding="utf-8")
+        assert ce.capability.statement == stmt
+        assert {r.id: r.text for r in ce.capability.requirements} == reqs
+        assert (ce.budgets.semantics, ce.budgets.max_rounds,
+                ce.budgets.max_input_tokens_total,
+                ce.budgets.max_output_tokens_total) == ("total", 1, 1800000, 240000)
+        assert ce.host.regression_baseline == c.host.regression_baseline
 
 
 def test_p4_manifest_nodes_match_frozen_hygiene_evidence():

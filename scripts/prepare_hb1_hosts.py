@@ -90,6 +90,11 @@ CANDIDATES = ("click-3581", "click-3407", "sqlglot-8042")
 V2_TASKS = (
     {"vid": "sqlglot-8042-v2", "cid": "sqlglot-8042",
      "bench": "hb1-sqlglot-8042-v2", "law": "v2"},
+    # v2 扩批(2026-08-21,用户批准建议 1):click 两任务同法换代。
+    {"vid": "click-3581-v2", "cid": "click-3581",
+     "bench": "hb1-click-3581-v2", "law": "v2"},
+    {"vid": "click-3407-v2", "cid": "click-3407",
+     "bench": "hb1-click-3407-v2", "law": "v2"},
 )
 
 ROUND = 2
@@ -578,6 +583,9 @@ def main() -> int:
                     help="依次 --hosts → --measure → --leak-scan")
     ap.add_argument("--v2", action="store_true",
                     help="只处理 V2_TASKS(构造法 v2 代际);v1 三宿主不动")
+    ap.add_argument("--only", action="append", default=None, metavar="KEY",
+                    help="只处理指定目标键(v2 用 vid、v1 用 cid;可重复)——"
+                         "已锁定的既有宿主不必陪跑重建")
     a = ap.parse_args()
 
     stages = [name for flag, name in ((a.hosts or a.run_all, "hosts"),
@@ -621,6 +629,11 @@ def main() -> int:
                if a.v2 else
                [{"key": c, "cid": c, "bench": f"hb1-{c}", "law": "v1"}
                 for c in CANDIDATES])
+    if a.only:
+        unknown = set(a.only) - {t["key"] for t in targets}
+        if unknown:
+            ap.error(f"--only 含未知目标键:{sorted(unknown)}")
+        targets = [t for t in targets if t["key"] in a.only]
     for stage in stages:                       # 阶段为外层:对每个 id 各做一遍
         for t in targets:
             entry = hosts_sec.setdefault(t["key"], {})

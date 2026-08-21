@@ -176,6 +176,9 @@ _BENCH_ALLOWED_NAMES = frozenset({
     # R1/R2(2026-08-21):构造法 v2 宿主(base 版测试留树,基线 1193)。
     # 新代际新宿主,v1 副本不动;登记同样是有意识动作。
     "hb1-sqlglot-8042-v2",
+    # v2 扩批(2026-08-21,用户批准):click 两任务同法换代宿主。
+    "hb1-click-3581-v2",
+    "hb1-click-3407-v2",
 })
 _BENCH_ALLOWED_PREFIXES = ("wheelhouse-",)   # 冻结轮仓(commit 尾号命名)
 
@@ -198,6 +201,8 @@ _BENCH_ALLOWED_ENTRIES: dict[str, frozenset[str]] = {
     "hb1-click-3407": frozenset({"host", "wheelhouse"}),
     "hb1-sqlglot-8042": frozenset({"host", "wheelhouse"}),
     "hb1-sqlglot-8042-v2": frozenset({"host", "wheelhouse"}),
+    "hb1-click-3581-v2": frozenset({"host", "wheelhouse"}),
+    "hb1-click-3407-v2": frozenset({"host", "wheelhouse"}),
 }
 
 
