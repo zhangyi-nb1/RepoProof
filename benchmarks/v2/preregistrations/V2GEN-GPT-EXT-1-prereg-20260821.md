@@ -132,3 +132,43 @@ V2GEN-GPT-EXT-1-dsh.json)——教导面写在契约里,H0 循环下起效,DSH �
 
 批性质注记:全部 seen、n=1/组合;失败侧两类均已归因(题面欠定 /
 循环合规不迁移),无 harness 缺陷发现;不作能力主张,不合池。
+
+---
+
+## 更正(2026-08-21,证据载修正;上文附录原文不删,以此为准)
+
+**被更正的断言**:上文附录 Q2 段写"无 budget_refused(预写的悬置分支未
+触发,判读有效)",并据此把 Q2 结论下成"教导面**不迁移** DSH 循环"。
+**该断言为假,结论应按冻结预注册 §1 Q2 预写与 §5 停规悬置。**
+
+**复核实据(四处俱在,当时只查了缺席的两处)**:
+
+| 证据位 | 读数 |
+|---|---|
+| `report.json` `.agent.exit_status` | `dsh:budget_refused:input_tokens` |
+| `trace.jsonl` `dsh.round` / `repair.round.end` / `agent.end` | attribution / exit_status 同值 |
+| 台账行 `dsh.rounds[0].attribution` | `budget_refused:input_tokens` |
+| `dsh_result_round1.json` `shim_requests` | 54 条 = 51 放行 + **3 条 `refused_pre_budget`**(`cum_prompt_tokens` 1,753,290 + `estimate_tokens` 59,439 > 1,800,000) |
+
+**事实重述**:本发 51 次派发耗尽 in 1,753,290(cached 1,666,560 = 95.1%),
+第 52 次派发被 R6 前置预算闸拒发,封存 runtime 对持续 429 重试 2 次(共 3
+拒)后自行退出 —— 与 GS4 先跑后钉的观察形状逐条吻合。判卷发生在**掐断时
+的树态**:delta 5/5 绿、可见回归 1193/1193 干净、隐藏
+`multiple_pivoted_sources` 红。
+
+**判读更正**:
+1. **Q2 悬置不判**(冻结条款原文:"若先撞 in-token 轴…教导面问题**悬置
+   不判**,不读作教导失效")。agent 未自然收尾,掐断时的隐藏面红态不构成
+   "教导不迁移"的证据 —— 它同样可能是"还没走到自查那步"。
+2. 本发的**有效读数**改为预写的另一支:**DSH 全史重发 × v2 更大树 ×
+   total 1.8M 轴不相容** —— 51 发打满(均 34K/发,末发 56K,下发估 59K)。
+   这是**预算轴设计问题,harness 侧未关**,不是模型侧读数。
+3. 因此"harness 修复已到边界"这句话须收窄:**H0 臂到边界属实;DSH 臂的
+   预算轴仍是未关的 harness 问题。**
+
+**归因(我方报告纪律)**:当时只查 `report.json` 的 `.agent.shim_refusals`
+与顶层 `exit_status` 两处,见缺席即断言否定 —— 正是本项目 M69c 钉死的
+"『没量』与『量了没问题』长成一个样",这次发生在报告面而非代码面。
+仪器侧的诱因(回执面 `shim_refusals`/`cached_tokens` 不进 report.json 与
+台账 rounds)列入 P1-d 修补;判读侧的教训:**否定性断言须点名所查证据位,
+且至少覆盖回执/trace/台账三面。**

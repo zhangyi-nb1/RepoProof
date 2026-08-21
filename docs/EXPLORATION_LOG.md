@@ -3071,3 +3071,27 @@ main_dir_integrity 抓到邻仓 offerclaw(chroma_db)被并发进程写入,守卫
 - **新任务准入教训(池筛选判据)**:PR 正文为"开放式设计讨论"(多选项
   未定稿)的候选,其合并设计不可从文本推出 → 天然欠定,不宜作 delta
   任务;下轮猎池加此筛。台账 229 行;分类 7 行(累计);v2_gate 再生。
+
+## 更正 · 2026-08-21 · V2GEN-GPT-EXT-1 发 5(DSH)判读:Q2 悬置,非"教导不迁移"
+
+上一条状态里"Q2 答:教导面**不迁移** DSH 循环"与"无 budget_refused"为
+**误报**,以本条为准(原条目不删,证据载修正)。
+
+- **实据**:该发 `exit_status = dsh:budget_refused:input_tokens`(报告
+  `.agent`、trace `dsh.round`/`agent.end`、台账 `dsh.rounds[0]`、
+  `dsh_result_round1.json` 四处俱在)。51 次派发耗尽 in 1,753,290
+  (cached 1,666,560 = 95.1%),第 52 次被 R6 前置预算闸拒发
+  (cum 1,753,290 + est 59,439 > 1,800,000),runtime 重试 2 次共 3 拒后
+  退出 —— GS4 观察形状逐条复现。
+- **判读**:冻结预注册 §1 Q2 预写"若先撞 in-token 轴…悬置不判,不读作教导
+  失效" —— 故 **Q2 悬置**。掐断时树态(delta 5/5 绿、可见回归干净、隐藏
+  multiple_pivoted_sources 红)不构成教导迁移结论:agent 未自然收尾。
+- **有效读数改为**:**DSH 全史重发 × v2 更大树 × total 1.8M 轴不相容**
+  (51 发打满,均 34K/发、末发 56K、下发估 59K)—— **预算轴是未关的
+  harness 问题**。"harness 修复已到边界"须收窄为:**H0 臂到边界属实,
+  DSH 臂预算轴未关。**
+- **归因**:否定性断言只查了 report.json 两处缺席字段即下判(M69c 同型,
+  这次在报告面)。仪器诱因(shim_refusals/cached_tokens 不进 report.json
+  与台账 rounds)进 P1-d;判读纪律:**否定断言须点名证据位,且覆盖回执/
+  trace/台账三面**。
+- 分类行已按"后写覆盖前写"追加更正行(evidence_strength=SUSPENDED)。
