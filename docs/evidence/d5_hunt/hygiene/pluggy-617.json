@@ -1,0 +1,73 @@
+{
+  "_what": "oracle 卫生电池判决(v2 判据,prereg-v2 §1/§3;判定钉死 H1–H6)",
+  "candidate": "pluggy-617",
+  "statement_determinacy": {
+    "option_sections": 0,
+    "question_lines": 0,
+    "hedges": []
+  },
+  "runs": [
+    {
+      "passed": 139,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 139,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 139,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 139,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 139,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 139,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 139,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "skip_set_run1": [],
+  "wheelhouses": [
+    "/Users/zhangronglei/RepoProofArchive/d5-hunt/wheelhouse/pluggy",
+    "/Users/zhangronglei/RepoProofArchive/d5-hunt/wheelhouse/click",
+    "/Users/zhangronglei/RepoProofArchive/d5-hunt/wheelhouse/sqlglot"
+  ],
+  "canonical_seconds": 0.23,
+  "delta_nodes": [
+    "testing.test_details::test_dist_facade_identity_equality_and_hash",
+    "testing.test_details::test_dist_facade_list_attributes",
+    "testing.test_details::test_dist_facade_project_name_and_delegation",
+    "testing.test_pluginmanager::test_load_setuptools_instantiation"
+  ],
+  "delta_stray_names": [
+    "testing.test_details::test_dist_facade_list_attributes"
+  ],
+  "post_run": {
+    "passed": 141,
+    "failed": [],
+    "skipped": 0
+  },
+  "verdict": {
+    "ok": false,
+    "problems": [
+      "delta 红集合含非 PR 新增的测试名:['testing.test_details::test_dist_facade_list_attributes'] —— 红的不只是新测试,delta 集不干净"
+    ]
+  }
+}

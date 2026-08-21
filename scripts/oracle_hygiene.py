@@ -179,13 +179,20 @@ def _pytest_score(venv: Path, tree: Path, env: dict) -> dict:
     return score_from_junit(data)
 
 
-def _mkvenv(td: Path, name: str, tree: Path, wheelhouse: str, extras: str,
+def _mkvenv(td: Path, name: str, tree: Path, wheelhouses: list[str], extras: str,
             extra_packages: list[str], env: dict) -> Path | None:
+    """离线建环境。轮仓**可给多个**(2026-08-21):窗口期只逐仓建了各自的
+    运行依赖,构建后端(setuptools / setuptools_scm)只落在其中两仓 ——
+    pluggy 与 more-itertools 因此装不上。多给几个 find-links 全部指向**已封存**
+    的轮仓,是在封存件内部拼装,不违"封存不重下";补下载才是。"""
     venv = td / name
     _run([sys.executable, "-m", "venv", str(venv)], cwd=td, env=env)
     target = f"{tree}[{extras}]" if extras else str(tree)
+    links: list[str] = []
+    for w in wheelhouses:
+        links += ["--find-links", w]
     r = _run([str(venv / "bin" / "pip"), "install", "-q", "--no-index",
-              "--find-links", wheelhouse, "-e", target, "pytest",
+              *links, "-e", target, "pytest",
               *extra_packages], cwd=td, env=env)
     if r.returncode != 0:
         print("离线建环境失败:\n" + (r.stdout + r.stderr)[-500:], file=sys.stderr)
@@ -206,7 +213,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--candidate", required=True)
     ap.add_argument("--parent-tree", required=True)
-    ap.add_argument("--wheelhouse", required=True)
+    ap.add_argument("--wheelhouse", required=True, action="append",
+                    metavar="DIR", help="已封存轮仓(可重复;构建后端在别的仓时补上那一仓)")
     ap.add_argument("--extras", default="")
     ap.add_argument("--extra-packages", default="",
                     help="测试面额外依赖(逗号分隔,如 sqlglot 的 duckdb,pandas,…)")
@@ -233,7 +241,7 @@ def main() -> int:
         tree1 = td / "parent"
         shutil.copytree(parent, tree1,
                         ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"))
-        wh = str(Path(a.wheelhouse).expanduser())
+        wh = [str(Path(w).expanduser()) for w in a.wheelhouse]
         venv1 = _mkvenv(td, "venv1", tree1, wh, a.extras, extra_pkgs, env)
         if venv1 is None:
             return 2
@@ -308,6 +316,7 @@ def main() -> int:
         "runs": [{"passed": r["passed"], "failed": len(r["failed_nodes"]),
                   "skipped": r["skipped"]} for r in runs],
         "skip_set_run1": runs[0].get("skipped_nodes", []),
+        "wheelhouses": [str(Path(w).expanduser()) for w in a.wheelhouse],
         "canonical_seconds": a.canonical_seconds,
         "delta_nodes": sorted(delta_nodes),
         "delta_stray_names": stray,

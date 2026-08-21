@@ -1,0 +1,88 @@
+{
+  "_what": "D5 封存池第三轮盘点(P2 扩池起点;零联网,2026-08-21)——窗口期抽好但从未裁决的 4 个候选,逐个实测到判决",
+  "context": "窗口清单 not_taken 记:pluggy-617/more-itertools-1216『包已抽好留档,不入候选池』;click-3533/3582『轮转序后段,超出 10 上限』。P1 的 H6 闸上线后重审这 4 条。",
+  "protocol": "卫生电池 v2(H1–H6)逐条实跑;轮仓改为可给多个(封存件内部拼装,不重下);计时按钦定跑法单发。",
+  "candidates": [
+    {
+      "candidate": "pluggy-617",
+      "repo": "pytest-dev/pluggy",
+      "env": {
+        "wheelhouses": [
+          "pluggy",
+          "click",
+          "sqlglot"
+        ],
+        "pretend_version": "1.7.0",
+        "note": "pluggy 自己的轮仓无构建后端(setuptools/setuptools_scm),由 click/sqlglot 两仓封存件补齐;无 .git 树需 PRETEND_VERSION,且不能用 0.0.0(与 pytest 9.1.1 的 pluggy>=1 依赖冲突)"
+      },
+      "baseline": "139 passed / 0 failed / 0 skipped,七跑集合恒等",
+      "canonical_seconds": 0.23,
+      "delta_nodes": 4,
+      "stray": 1,
+      "post_tree": "141 passed / 0 failed",
+      "h6": "clean(0/0/[])",
+      "verdict": "DEAD(严口径)",
+      "cause": "stray 1/4:testing.test_details::test_dist_facade_list_attributes 是被 PR **改写**的既有测试,不是新增",
+      "value_if_admitted": "新宿主(第四个)、套件 0.23s、3 条新测试;除 delta 语义外全部判据全绿 —— 严口径下的**最接近的一次**"
+    },
+    {
+      "candidate": "more-itertools-1216",
+      "repo": "more-itertools/more-itertools",
+      "env": {
+        "wheelhouses": [
+          "more-itertools",
+          "click"
+        ],
+        "pretend_version": null,
+        "note": "构建后端由 click 仓封存件补齐"
+      },
+      "baseline": "732 passed / 0 failed / 0 skipped,七跑集合恒等",
+      "canonical_seconds": 9.07,
+      "delta_nodes": 1,
+      "stray": 1,
+      "post_tree": "731 passed / 0 failed",
+      "verdict": "DEAD",
+      "cause": "唯一的 delta 节点就是被改写的既有测试(全 stray)",
+      "value_if_admitted": "低:1 节点 = 1 bit(click-3407 同样的单薄),且该 bit 还是改期望而非新增行为"
+    },
+    {
+      "candidate": "click-3533",
+      "repo": "pallets/click",
+      "verdict": "BLOCKED(供给,非题目)",
+      "cause": "parent 树 pyproject 设 filterwarnings=['error'],封存轮仓只有 pytest 9.1.1,其 PytestRemovedIn10Warning 在 tests/test_basic.py 收集期即成错 —— 基线跑不出来",
+      "note": "全部四个封存轮仓中只有 pytest-9.1.1 一个版本;封存不重下 ⇒ 无解,除非加 -W 旋钮(会削弱树自身的错误纪律,不建议)"
+    },
+    {
+      "candidate": "click-3582",
+      "repo": "pallets/click",
+      "verdict": "BLOCKED(供给,非题目)",
+      "cause": "同 click-3533(同族老树)"
+    }
+  ],
+  "outcome": "可出题池不变:click-3581 + sqlglot-8042(click-3407 已按 P1-b 退役)。封存池在**严口径 + 封存不重下**两条约束下已抽干。",
+  "measured_bottleneck": "四条里两条死于 delta 语义(改既有测试)、两条死于轮仓供给(pytest 单版本)—— 都不是题目质量问题。第二轮观察『主死因全是 delta 集语义』在本轮再次复现:6/6 → 2/2。",
+  "offline_reserve_found": {
+    "_what": "封存 clone(带 .git)里还有未抽取的合格 PR —— 抽件可离线,题面不可",
+    "sqlglot": [
+      8018,
+      7953,
+      7924,
+      7892,
+      7929,
+      7883,
+      7847,
+      7855
+    ],
+    "click": [
+      3637,
+      3678,
+      3645
+    ],
+    "note": "parent_tree/delta_tests/answer 三件均可从封存 clone 离线抽出(merge_sha 已在审计单);**唯题面(PR 正文)未封存**,merge commit 消息只有 squash 摘要与中间提交列表,不含正文 —— 补题面需要一次极窄的联网动作(N 条 PR body + 引用 issue 原文)。click 三条已在第二轮判死,不重审。"
+  },
+  "decision_required": [
+    "选项1 窄窗口补题面:联网只取 8 条 sqlglot PR 正文,其余全离线;按上轮 30% 产率预估 2-3 个可出题,且 sqlglot 是现有最有质感的题族",
+    "选项2 放宽 delta 语义(v3)接纳『改既有测试』:立刻可救 pluggy-617(新宿主、0.23s、3 新 1 改);代价是可推导性与污染面,须改 oracle 判据",
+    "选项3 两者都做"
+  ]
+}
