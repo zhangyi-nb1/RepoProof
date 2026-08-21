@@ -68,6 +68,13 @@ TASKS = [
         "suite_timeout_s": 300,
         "sabotage": {"file": "src/click/formatting.py",
                      "line": "HelpFormatter.write_usage = None  # rp-nc-sabotage(窄破坏:远离 prompt/typing 路径)"},
+        # P1-b(2026-08-21):退出计分池。V2GEN-GPT-EXT-1 两发(gpt-5.5/5.6)
+        # 同一节点双 FAIL,读题面 vs 答案后定因**题面欠定** —— 隐藏节点要求
+        # ParamType 泛型化 + PEP 696 默认 + __class_getitem__ 运行期回填,
+        # 题面(三选项开放式讨论,结尾 "# My preference?")一个字没提。
+        # 保留任务包作探针(教导面改动后可复跑),但不再计分。
+        "task_status": "RETIRED",
+        "task_status_note": "题面欠定探针:隐藏节点要求的公共 API 形状不在题面内(V2GEN-GPT-EXT-1 双模型同节点 FAIL 定因);退出计分池,只作教导面回归探针",
     },
     {
         "pkg": "hb1_sqlglot_8042",
@@ -149,6 +156,13 @@ TASKS_V2 = [
         "suite_timeout_s": 300,
         "sabotage": {"file": "src/click/formatting.py",
                      "line": "HelpFormatter.write_usage = None  # rp-nc-sabotage(窄破坏:远离 prompt/typing 路径)"},
+        # P1-b(2026-08-21):退出计分池。V2GEN-GPT-EXT-1 两发(gpt-5.5/5.6)
+        # 同一节点双 FAIL,读题面 vs 答案后定因**题面欠定** —— 隐藏节点要求
+        # ParamType 泛型化 + PEP 696 默认 + __class_getitem__ 运行期回填,
+        # 题面(三选项开放式讨论,结尾 "# My preference?")一个字没提。
+        # 保留任务包作探针(教导面改动后可复跑),但不再计分。
+        "task_status": "RETIRED",
+        "task_status_note": "题面欠定探针:隐藏节点要求的公共 API 形状不在题面内(V2GEN-GPT-EXT-1 双模型同节点 FAIL 定因);退出计分池,只作教导面回归探针",
     },
 ]
 
@@ -431,6 +445,12 @@ def build_task(t: dict, ev: dict) -> dict:
         "task_version": "v2" if law == "v2" else "v1",
         "kind": "host_integrated",
         "prompt_profile": "hb-delta-v2" if law == "v2" else "hb-delta-v1",
+        # P1-b:退役声明只在声明了的任务上发射,其余包契约字节不变。
+        # 住在生成器里而不是手改 contract.yaml —— 手改会被下一次重生成
+        # 静默抹掉,而"退役题悄悄回到计分池"正是本字段要防的事。
+        **({"task_status": t["task_status"],
+            "task_status_note": t["task_status_note"]}
+           if t.get("task_status") else {}),
         "host": {
             "repo": t["repo"],
             "commit": t["parent"],

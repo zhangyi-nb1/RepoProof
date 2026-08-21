@@ -198,3 +198,39 @@ def test_load_texts_missing_parent_tree_fails_closed(tmp_path):
         '{"post_files": [], "delta_nodes": []}', encoding="utf-8")
     with pytest.raises(SystemExit, match="parent_tree"):
         load_texts(task, tmp_path / "no_such_candidate")
+
+
+# ------------------------------------------------- P1-d:批选发次必须按任务过滤
+# 2026-08-21 实测撞出:`--batch` 一次选了同批里九发,其中八发是别的任务 ——
+# 它们拿 --task-dir 那一份 manifest 分桶,桶名俱在、逐条是假话。跳过的必须
+# 落进证据(不静默丢),选空必须炸(不空判)。
+
+def _row(run_id: str, task_id: str, batch: str = "B1") -> dict:
+    return {"run_id": run_id, "task_id": task_id, "batch": batch,
+            "model": "gpt-5.6", "verdict": "FAIL",
+            "bundle_path": f"/tmp/{run_id}"}
+
+
+def test_batch_selection_filters_by_task_and_records_the_skips() -> None:
+    from classify_regression_broken import select_ledger_targets
+
+    rows = [_row("r1", "hb1-sqlglot-8042-v2"), _row("r2", "hb1-click-3581-v2"),
+            _row("r3", "hb1-sqlglot-8042-v2"), _row("r4", "hb1-click-3407-v2"),
+            _row("r5", "hb1-sqlglot-8042-v2", batch="OTHER")]
+    picked, skipped = select_ledger_targets(
+        rows, task_id="hb1-sqlglot-8042-v2", batches=["B1"])
+    assert [t["run_id"] for t in picked] == ["r1", "r3"]
+    # 别的任务的发次不是"没有",是"跳过了" —— 逐条留名
+    assert [s["run_id"] for s in skipped] == ["r2", "r4"]
+    assert {s["task_id"] for s in skipped} == {"hb1-click-3581-v2",
+                                               "hb1-click-3407-v2"}
+
+
+def test_batch_selection_returns_nothing_when_task_absent() -> None:
+    """任务/批对不上 → 选空(调用方据此 fail-closed 炸掉,不空判)。"""
+    from classify_regression_broken import select_ledger_targets
+
+    picked, skipped = select_ledger_targets(
+        [_row("r1", "hb1-click-3581-v2")], task_id="hb1-sqlglot-8042-v2",
+        batches=["B1"])
+    assert picked == [] and len(skipped) == 1

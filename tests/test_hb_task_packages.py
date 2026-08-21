@@ -241,3 +241,51 @@ def test_p6b_committed_oracle_carries_no_upstream_test_bodies():
         for banned in ("def test_custom_version_option", "def test_chained_pivots",
                        "def test_param_type_input_parameter"):
             assert banned not in m
+
+
+# ------------------------------------------------ P7:退役声明与生成器不漂移
+RETIRED_PKGS = {"hb1_click_3407", "hb1_click_3407_v2"}
+
+
+def _generator():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "build_hb1_task_packages", REPO / "scripts/build_hb1_task_packages.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_p7_retired_packages_declared_in_generator_and_emitted_contracts():
+    """P1-b(2026-08-21):click-3407 两代因**题面欠定**退出计分池。
+
+    退役的唯一声明处是生成器的 TASKS 表 —— 手改 contract.yaml 会被下一次
+    重生成静默抹掉,而"退役题悄悄回到计分池"正是这个字段要防的事。这里钉
+    两头一致:生成器声明了谁,盘上契约就必须是谁,一个不多一个不少。
+    """
+    gen = _generator()
+    declared = {t["pkg"] for t in (gen.TASKS + gen.TASKS_V2) if t.get("task_status")}
+    assert declared == RETIRED_PKGS, f"生成器声明的退役集变了:{declared}"
+    for pkg in ALL_PKGS:
+        contracts = [TASKS / pkg / "contract.yaml"]
+        e1 = TASKS / pkg / "contract-e1-total.yaml"
+        if e1.is_file():
+            contracts.append(e1)
+        for path in contracts:
+            c, _ = HostContract.load(path)
+            want = "RETIRED" if pkg in RETIRED_PKGS else "ACTIVE"
+            assert c.task_status == want, f"{path} 的 task_status 应为 {want}"
+            if want == "RETIRED":
+                assert "欠定" in c.task_status_note, "退役必须写明理由"
+
+
+def test_p7b_retirement_matches_the_statement_screen():
+    """退役与 H6 池级筛查同源:被判欠定的候选,其任务包必须已退役。"""
+    ev = json.loads((REPO / "docs/evidence/d5_hunt/statement_determinacy"
+                     / "pool_screen.json").read_text(encoding="utf-8"))
+    flagged = set(ev["flagged"])
+    for pkg in ALL_PKGS:
+        if CIDS[pkg] in flagged:
+            assert pkg in RETIRED_PKGS, (
+                f"{pkg} 的题面被 H6 判欠定,却还在计分池里")

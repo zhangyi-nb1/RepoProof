@@ -76,9 +76,15 @@
         "run_id": "t3-offerclaw-browser-use-v5-20260813-221616",
         "still_counted_in_passes": true,
         "strength": "PROVISIONAL_PENDING_UPSTREAM_RECEIPT"
+      },
+      {
+        "caveat": "Q2(教导面是否迁移 DSH 循环)按冻结预注册 §1/§5 预写条款**悬置不判**:本发撞 in-token 轴被 R6 前置预算闸掐断,非自然完成 —— 不得读作教导失效。",
+        "run_id": "hb1-sqlglot-8042-v2-20260821-185656",
+        "still_counted_in_passes": false,
+        "strength": "SUSPENDED"
       }
     ],
-    "provisional_evidence_runs": 3,
+    "provisional_evidence_runs": 4,
     "smoke": 95,
     "smoke_passes": 32,
     "smoke_run_ids": [

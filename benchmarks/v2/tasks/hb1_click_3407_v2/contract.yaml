@@ -2,6 +2,8 @@ task_id: hb1-click-3407-v2
 task_version: v2
 kind: host_integrated
 prompt_profile: hb-delta-v2
+task_status: RETIRED
+task_status_note: "题面欠定探针:隐藏节点要求的公共 API 形状不在题面内(V2GEN-GPT-EXT-1 双模型同节点 FAIL 定因);退出计分池,只作教导面回归探针"
 host:
   repo: pallets/click
   commit: cfa01eeb7894a408af70b29d28c0b24f8680f9fb

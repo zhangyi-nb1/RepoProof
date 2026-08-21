@@ -95,6 +95,10 @@ _T_BCP3 = ["tests/test_batch_criteria_p3.py"]
 _TDP = "scripts/provision_dsh_runtime.py"
 _T_DPP = ["tests/test_dsh_provisioning_pins.py"]
 _BTP = "scripts/build_hb1_task_packages.py"
+_OHY = "scripts/oracle_hygiene.py"
+_T_OHY = ["tests/test_oracle_hygiene.py"]
+_CRB = "scripts/classify_regression_broken.py"
+_T_CRB = ["tests/test_classify_regression_broken.py"]
 _T_HTP = ["tests/test_hb_task_packages.py"]
 _T_HTG = ["tests/test_hb_task_glue.py"]
 _VTR = "scripts/verify_task_receipts.py"
@@ -2876,6 +2880,97 @@ MUTATIONS: list[dict] = [
         "catchers": _T_HTP,
         "expected_catcher": [
             "test_p3v2_v2_contract_and_manifest_pins"],
+    },
+    # ---- M97:P1(退役闸 / 题面欠定 / 回执仪器 / 分类器任务过滤,2026-08-21)----
+    {
+        "id": "M97a-retired-task-launch-gate-dead",
+        "lesson": "退役题的开跑闸死了 —— 已知题面欠定、每跑必 FAIL 的题被"
+                  "顺手复跑并计进模型侧数字;退役等于只写在文档里的君子协定",
+        "file": _HD,
+        "old": '        if self.contract.task_status != "ACTIVE" and not allow_retired:',
+        "new": '        if False and not allow_retired:',
+        "catchers": _T_HD,
+        "expected_catcher": [
+            "test_retired_task_refuses_to_launch_and_leaves_no_run_dir"],
+    },
+    {
+        "id": "M97b-task-status-typo-falls-back-to-active",
+        "lesson": "task_status 的校验松了 —— 打错字(retired/RETIRE)静默落回"
+                  "ACTIVE,退役题悄悄回到计分池,而契约看上去写着退役",
+        "file": _HD,
+        "old": '        known = {"ACTIVE", "RETIRED"}\n        if v not in known:',
+        "new": '        known = {"ACTIVE", "RETIRED"}\n        if False:',
+        "catchers": _T_HD,
+        "expected_catcher": [
+            "test_active_is_the_default_and_typos_refuse_at_load"],
+    },
+    {
+        "id": "M97c-retired-runs-counted-as-model-performance",
+        "lesson": "批判据的退役分桶死了 —— 退役题的发次重新进 runs 与连败"
+                  "计数:已知的题目缺陷被算成模型失败,停批线也可能被它撞停",
+        "file": _HBC,
+        "old": '    return "retired_probes" if task_status != "ACTIVE" else "runs"',
+        "new": '    return "runs"',
+        "catchers": _T_HBC,
+        "expected_catcher": [
+            "test_v8_retired_task_runs_go_to_their_own_bucket"],
+    },
+    {
+        "id": "M97d-statement-determinacy-probe-dead",
+        "lesson": "H6 题面欠定探测死了 —— 讨论式 PR 正文(三选项 + '我倾向"
+                  "第二个?')重新可以入池当 delta 题面,答案却要求题面里根本"
+                  "没出现的设计收敛:每一发必 FAIL,而账上记成模型不行",
+        "file": _OHY,
+        "old": '    if (opts >= 2 and len(hedges) >= 1) or len(hedges) >= 3:',
+        "new": '    if False:',
+        "catchers": _T_OHY,
+        "expected_catcher": ["test_h6a_discussion_genre_statement_is_refused"],
+    },
+    {
+        "id": "M97e-unchecked-statement-reads-as-clean",
+        "lesson": "H6 的'没查≠干净'死了 —— 没给题面时判过:准入证据里"
+                  "'查了是 0'与'压根没查'长成同一个样(M69c 同型)",
+        "file": _OHY,
+        "old": '    if signals is None:\n        return False, ["题面未做欠定探测',
+        "new": '    if signals is None:\n        return True, ["题面未做欠定探测',
+        "catchers": _T_OHY,
+        "expected_catcher": ["test_h6c_unchecked_statement_is_not_clean"],
+    },
+    {
+        "id": "M97f-shim-usage-manufactures-zeros",
+        "lesson": "shim 用量的不造零死了 —— 上游没报 cached_tokens 时回执落"
+                  "cached_tokens=0:'没量'与'量了是零'再次长成一个样,而"
+                  "V2GEN-GPT-EXT-1 的误报正是这么来的",
+        "file": _HD,
+        "old": '    if cache_seen:\n        out["cached_tokens"] = cached',
+        "new": '    out["cached_tokens"] = cached',
+        "catchers": _T_DBR,
+        "expected_catcher": [
+            "test_p1d_shim_usage_totals_does_not_manufacture_zeros"],
+    },
+    {
+        "id": "M97g-shim-refusals-never-reach-the-receipt",
+        "lesson": "拒发计数进回执的那步死了 —— 预算闸拒发在 report/台账上"
+                  "无痕,报告面只能靠 exit_status 猜;这是 EXT-1 发 5 误报的"
+                  "仪器诱因本身",
+        "file": _HD,
+        "old": '        if r.get("refused_pre_budget"):\n            refused += 1\n            continue',
+        "new": '        if False:\n            refused += 1\n            continue',
+        "catchers": _T_DBR,
+        "expected_catcher": [
+            "test_p1d_shim_usage_totals_counts_dispatch_and_refusal"],
+    },
+    {
+        "id": "M97h-classifier-batch-selection-ignores-task",
+        "lesson": "分类器的按任务过滤死了 —— 一批多任务时,别的任务的发次拿"
+                  "本任务的 manifest 分桶:桶名俱在、逐条是假话,且跳过记录"
+                  "为空,读者看不出被混扫过",
+        "file": _CRB,
+        "old": '        if (row.get("task_id") or "") != task_id:',
+        "new": '        if False:',
+        "catchers": _T_CRB,
+        "expected_catcher": [
+            "test_batch_selection_filters_by_task_and_records_the_skips"],
     },
     {
         "id": "M90c-snapshot-copies-master-readonly-bit",

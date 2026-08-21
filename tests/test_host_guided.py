@@ -912,3 +912,53 @@ def test_k19_wheelhouse_path_is_declarable_and_defaults_unchanged():
     src = _runner_src()
     assert 'self.env_baseline_hash = "UNKNOWN"' in src, (
         "没有 manifest 却给了个看起来煞有介事的基线哈希")
+
+
+# ------------------------------------------------------- P1-b:退役题的开跑闸
+# 语义(2026-08-21,由 click-3407 题面欠定定因):RETIRED = 退出计分池但不
+# 销毁 —— 仍可作探针复跑,但**必须明写 allow_retired**。闸排在建店之前:
+# 被拒的调用不许留下 run 目录(LESSONS #35 · F3 同律)。
+
+def _retired_contract(tmp_path: Path, host_copy: Path) -> Path:
+    contract_dir = tmp_path / "task"
+    (contract_dir / "oracle").mkdir(parents=True)
+    (contract_dir / "public_tests").mkdir()
+    text = T1_CONTRACT.read_text(encoding="utf-8").replace(
+        "copy_path: ~/RepoProofBench/offerclaw-t1-fastapi-mcp",
+        f"copy_path: {host_copy}").replace(
+        "kind: host_integrated",
+        "kind: host_integrated\ntask_status: RETIRED\n"
+        "task_status_note: 题面欠定探针", 1)
+    c = contract_dir / "contract.yaml"
+    c.write_text(text, encoding="utf-8")
+    return c
+
+
+def test_retired_task_refuses_to_launch_and_leaves_no_run_dir(tmp_path: Path) -> None:
+    host_copy = tmp_path / "host_copy"
+    host_copy.mkdir()
+    c = _retired_contract(tmp_path, host_copy)
+    assert HostContract.load(c)[0].task_status == "RETIRED"
+    with pytest.raises(HostRunError, match="RETIRED"):
+        HostGuidedRunner(c, tmp_path)
+    assert not (tmp_path / "runs").exists(), "退役拒开后仍建了证据目录"
+
+
+def test_retired_task_runs_only_with_explicit_flag(tmp_path: Path) -> None:
+    """显式 allow_retired 时闸放行 —— 证据是它**换了个更晚的错**
+    (上游快照缺失,静态资源核验),而不是同一条退役拒绝。"""
+    host_copy = tmp_path / "host_copy"
+    host_copy.mkdir()
+    c = _retired_contract(tmp_path, host_copy)
+    with pytest.raises(HostRunError, match="上游固定快照缺失"):
+        HostGuidedRunner(c, tmp_path, allow_retired=True)
+
+
+def test_active_is_the_default_and_typos_refuse_at_load(tmp_path: Path) -> None:
+    assert _t1().task_status == "ACTIVE"        # 历史契约无此键 = ACTIVE
+    bad = tmp_path / "contract.yaml"
+    bad.write_text(T1_CONTRACT.read_text(encoding="utf-8").replace(
+        "kind: host_integrated", "kind: host_integrated\ntask_status: retired", 1),
+        encoding="utf-8")
+    with pytest.raises(Exception, match="task_status"):
+        HostContract.load(bad)      # 打错字必须炸,不许静默落回 ACTIVE

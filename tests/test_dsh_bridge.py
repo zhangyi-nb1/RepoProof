@@ -323,6 +323,58 @@ def test_r2_dsh_receipt_block_delivered_shape() -> None:
     }
 
 
+# ---------------------------------------------- P1-d:shim 用量进回执面(仪器)
+#
+# V2GEN-GPT-EXT-1 发 5 实证(2026-08-21):R6 前置预算闸拒发了 3 次、
+# exit_status = dsh:budget_refused:input_tokens,而 report.json 与台账
+# rounds 块里**一个字都没有** —— 报告面据此把"没查到"写成了"没发生"。
+# 病灶是仪器:shim 形状记录只活在 runtime 局部,没进回执。
+#   ①  拒发计数与上游用量进 rounds;
+#   ②  **不造零**:上游没报 cached_tokens 就不落该键(M69c 同律),
+#       deepseek 直连(无 shim)返回空 dict 而不是一排 0。
+
+def test_p1d_shim_usage_totals_counts_dispatch_and_refusal() -> None:
+    from repoproof.runner.host_guided import shim_usage_totals
+
+    out = shim_usage_totals([
+        {"usage": {"prompt_tokens": 100, "cached_tokens": 90}},
+        {"refused_pre_budget": True},
+        {"usage": {"prompt_tokens": 50, "cached_tokens": 40}},
+        {"refused_pre_budget": True},
+    ])
+    assert out == {"dispatched": 2, "refused_pre_budget": 2,
+                   "upstream_prompt_tokens": 150, "cached_tokens": 130}
+
+
+def test_p1d_shim_usage_totals_does_not_manufacture_zeros() -> None:
+    from repoproof.runner.host_guided import shim_usage_totals
+
+    assert shim_usage_totals(None) == {}          # 无 shim(直连)= 没量,不是 0
+    assert shim_usage_totals([]) == {}
+    # 上游没报 cached_tokens → 键缺席,而不是 0("没量"≠"量了是零")
+    out = shim_usage_totals([{"usage": {"prompt_tokens": 7}}])
+    assert "cached_tokens" not in out and out["upstream_prompt_tokens"] == 7
+
+
+def test_p1d_receipt_rounds_carry_shim_refusals_when_present() -> None:
+    from repoproof.runner.host_guided import dsh_receipt_block
+
+    info = {"attribution": "ok", "session_id": "s-1",
+            "counters": {"logical_requests": 2},
+            "usage": {"input_tokens": 24, "output_tokens": 10},
+            "fidelity_missing": [], "shim_refusals": 3,
+            "shim_requests": [{"usage": {"prompt_tokens": 100}},
+                              {"refused_pre_budget": True}]}
+    rec = dsh_receipt_block([], [info])["rounds"][0]
+    assert rec["shim_refusals"] == 3
+    assert rec["shim_usage"]["refused_pre_budget"] == 1
+    assert rec["shim_usage"]["dispatched"] == 1
+    # 无 shim 的发次形状不变(deepseek 直连的既有回执逐键不动)
+    plain = dsh_receipt_block([], [{k: v for k, v in info.items()
+                                    if k not in ("shim_refusals", "shim_requests")}])
+    assert "shim_usage" not in plain["rounds"][0]
+
+
 def test_r2_dsh_receipt_block_not_delivered_and_verdict_source() -> None:
     """缺项判读必须走 dsh_bridge.fidelity_verdict(M88d 钉那份),
     不许在装配处另写第二套判读。"""

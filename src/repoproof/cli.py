@@ -139,6 +139,10 @@ def main(argv: list[str] | None = None) -> int:
                              "用来验判据在**失败侧**的行为,那是矩阵看不到的一段)")
     p_host.add_argument("--keep-session", action="store_true",
                         help="debug: keep the session tree on disk after the run")
+    p_host.add_argument("--allow-retired", action="store_true",
+                        help="显式开跑已退出计分池的任务(contract.task_status=RETIRED)。"
+                             "退役题每跑必 FAIL 且原因已知(典型:题面欠定),"
+                             "只作探针用,发次不计模型表现;不带本旗标一律拒开")
     p_host.add_argument("--backend", default="mini-swe",
                         choices=["mini-swe", "dsh"],
                         help="agent backend(DSH 阶段 8):mini-swe = 仓内环(缺省,"
@@ -385,6 +389,7 @@ def main(argv: list[str] | None = None) -> int:
                 wheelhouse=args.wheelhouse,
                 keep_session=args.keep_session,
                 backend=args.backend,
+                allow_retired=args.allow_retired,
             )
         except Exception as exc:
             try:

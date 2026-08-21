@@ -1,0 +1,172 @@
+{
+  "_what": "封存池题面欠定筛查(H6 池级扫描;判定函数= oracle_hygiene 本体)",
+  "candidate_count": 14,
+  "candidates": [
+    {
+      "candidate": "click-3407",
+      "problems": [
+        "题面疑似**欠定**(H6):选项分节 3 处、对冲措辞 ['i think the second', 'my preference', 'opening question', 'remaining question', 'we could'] —— 讨论式 PR 正文不宜作 delta 任务题面,答案会要求题面里根本没出现的设计收敛(反例 click-3407)"
+      ],
+      "signals": {
+        "hedges": [
+          "i think the second",
+          "my preference",
+          "opening question",
+          "remaining question",
+          "we could"
+        ],
+        "option_sections": 3,
+        "question_lines": 1
+      },
+      "statement_sha256": "1e31aa0f99073a9a3c2824469450a513d232411d49900501f0e0ce36a0029d79",
+      "verdict": "UNDERDETERMINED"
+    },
+    {
+      "candidate": "click-3533",
+      "problems": [],
+      "signals": {
+        "hedges": [],
+        "option_sections": 0,
+        "question_lines": 0
+      },
+      "statement_sha256": "679abfaf8e7ff2193b812cee716ec903e577ce8921c5037cd441362983b5b9c1",
+      "verdict": "OK"
+    },
+    {
+      "candidate": "click-3581",
+      "problems": [],
+      "signals": {
+        "hedges": [],
+        "option_sections": 0,
+        "question_lines": 0
+      },
+      "statement_sha256": "188b4909d24242b2914ccfe470258b34a437f793a666207a8f1d6d2a39031244",
+      "verdict": "OK"
+    },
+    {
+      "candidate": "click-3582",
+      "problems": [],
+      "signals": {
+        "hedges": [],
+        "option_sections": 0,
+        "question_lines": 0
+      },
+      "statement_sha256": "d4804e2451b908b51c3a3a7fb1cbe4c6b8a0f225c19544cc807e49c59ab09239",
+      "verdict": "OK"
+    },
+    {
+      "candidate": "click-3637",
+      "problems": [],
+      "signals": {
+        "hedges": [],
+        "option_sections": 0,
+        "question_lines": 0
+      },
+      "statement_sha256": "1adb4baf71c0bbfe620afff093623a5000eda41f25bda3778665bc4b6f265874",
+      "verdict": "OK"
+    },
+    {
+      "candidate": "click-3645",
+      "problems": [],
+      "signals": {
+        "hedges": [],
+        "option_sections": 0,
+        "question_lines": 0
+      },
+      "statement_sha256": "32ba0faa84539f770093c3a843c0d32afe20229c6760384014bf7701833232c2",
+      "verdict": "OK"
+    },
+    {
+      "candidate": "click-3678",
+      "problems": [],
+      "signals": {
+        "hedges": [],
+        "option_sections": 0,
+        "question_lines": 0
+      },
+      "statement_sha256": "7f6a0fa0cd238dd817aa1942567c6ffd6cd37dfe77fcd8247a7b25a35f77a5e1",
+      "verdict": "OK"
+    },
+    {
+      "candidate": "more-itertools-1216",
+      "problems": [],
+      "signals": {
+        "hedges": [],
+        "option_sections": 0,
+        "question_lines": 0
+      },
+      "statement_sha256": "10bae581b033435c313d6c94d59ad5f10157b1d5c16f575b6af40ffc83ef8876",
+      "verdict": "OK"
+    },
+    {
+      "candidate": "pluggy-617",
+      "problems": [],
+      "signals": {
+        "hedges": [],
+        "option_sections": 0,
+        "question_lines": 0
+      },
+      "statement_sha256": "21c42dd170d9097a05790043198eabd574cd3f3cf8d5b7490472df4c5006ff58",
+      "verdict": "OK"
+    },
+    {
+      "candidate": "sqlglot-8024",
+      "problems": [],
+      "signals": {
+        "hedges": [],
+        "option_sections": 0,
+        "question_lines": 0
+      },
+      "statement_sha256": "0a60de65495e86180fdf339ad527c03148eba7b2ef1a41fab39874720331ea60",
+      "verdict": "OK"
+    },
+    {
+      "candidate": "sqlglot-8025",
+      "problems": [],
+      "signals": {
+        "hedges": [],
+        "option_sections": 0,
+        "question_lines": 0
+      },
+      "statement_sha256": "43007ab6324b235215fafe64711c287a22e2e480332bacebffb6543faef645c3",
+      "verdict": "OK"
+    },
+    {
+      "candidate": "sqlglot-8036",
+      "problems": [],
+      "signals": {
+        "hedges": [],
+        "option_sections": 0,
+        "question_lines": 0
+      },
+      "statement_sha256": "0c35306dc1761fbe80b0e7cbe8b8754e15c260826a4840e44b05d59cf84a97a8",
+      "verdict": "OK"
+    },
+    {
+      "candidate": "sqlglot-8041",
+      "problems": [],
+      "signals": {
+        "hedges": [],
+        "option_sections": 0,
+        "question_lines": 0
+      },
+      "statement_sha256": "8db0e5d7fbb75e07ceeed8ba513c9654cd51696fcfcba7aaab874ab95efe3a59",
+      "verdict": "OK"
+    },
+    {
+      "candidate": "sqlglot-8042",
+      "problems": [],
+      "signals": {
+        "hedges": [],
+        "option_sections": 0,
+        "question_lines": 0
+      },
+      "statement_sha256": "598baad308c60c75300a44ce0ae637272f1bd6145fface8c58a4eba0d4ba8d36",
+      "verdict": "OK"
+    }
+  ],
+  "flagged": [
+    "click-3407"
+  ],
+  "pool": "/Users/zhangronglei/RepoProofArchive/d5-hunt/candidates"
+}

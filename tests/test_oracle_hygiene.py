@@ -107,3 +107,81 @@ def test_h5_fewer_than_two_runs_refuses() -> None:
     ok, problems = oh.judge_hygiene(runs=[a], canonical_seconds=1.0,
                                     delta_baseline=None, delta_nodes=None, post_run=None)
     assert not ok and any("稳定" in p for p in problems), problems
+
+
+# ---------------------------------------------------------------- H6:题面欠定
+# 判据(P1-c,2026-08-21;由 click-3407 双模型 FAIL 定因成文):
+#   H6a 判死的是**体裁**不是难度 —— 选项分节 ≥2 且有对冲措辞,或对冲 ≥3 种;
+#   H6b 单一弱信号不判死(一句 "we could" 不等于题没定);
+#   H6c **没查 ≠ 干净**:signals=None 判死,不静默放行(M69c 同律);
+#   H6d 池级扫描器不复制判据(复制品会静默漂移,H3 同律);
+#   H6e 线是标定出来的:全池 14 候选实测只有 click-3407 命中,证据钉在
+#       docs/evidence/d5_hunt/statement_determinacy/pool_screen.json。
+
+_UNDERDETERMINED = """\
+Some background about the feature.
+
+### 1. Keep the current shape
+
+We could leave it alone.
+
+### 2. Parametrise the type
+
+I think the second one is nicer.
+
+### 3. Something else entirely
+
+My preference?
+"""
+
+_DETERMINATE = """\
+`show_version` should print the package version and exit.
+
+It must work when the command is invoked without a parent context.
+"""
+
+
+def test_h6a_discussion_genre_statement_is_refused() -> None:
+    oh = _load("oracle_hygiene.py")
+    sig = oh.statement_determinacy_signals(_UNDERDETERMINED)
+    assert sig["option_sections"] >= 2 and sig["hedges"]
+    ok, problems = oh.judge_statement_determinacy(sig)
+    assert not ok and any("欠定" in p for p in problems), problems
+
+
+def test_h6b_determinate_statement_passes_and_single_signal_does_not_kill() -> None:
+    oh = _load("oracle_hygiene.py")
+    ok, problems = oh.judge_statement_determinacy(
+        oh.statement_determinacy_signals(_DETERMINATE))
+    assert ok, problems
+    # 一句对冲 + 零选项分节 → 不判死(否则整池好题一起陪葬)
+    ok, problems = oh.judge_statement_determinacy(
+        oh.statement_determinacy_signals("We could add a flag here.\n"))
+    assert ok, problems
+
+
+def test_h6c_unchecked_statement_is_not_clean() -> None:
+    oh = _load("oracle_hygiene.py")
+    ok, problems = oh.judge_statement_determinacy(None)
+    assert not ok and any("没查" in p for p in problems), problems
+
+
+def test_h6d_pool_screener_holds_no_copy_of_the_judgement() -> None:
+    src = (REPO / "scripts" / "statement_determinacy_screen.py").read_text(
+        encoding="utf-8")
+    for name in ("def statement_determinacy_signals", "def judge_statement_determinacy",
+                 "option_sections\": len("):
+        assert name not in src, f"扫描器里出现了判据副本({name})—— 会静默漂移"
+
+
+def test_h6e_calibration_evidence_separates_the_pool() -> None:
+    import json
+
+    ev = json.loads((REPO / "docs/evidence/d5_hunt/statement_determinacy"
+                     / "pool_screen.json").read_text(encoding="utf-8"))
+    assert ev["candidate_count"] >= 14
+    assert ev["flagged"] == ["click-3407"], (
+        "标定证据变了:H6 的线是按'全池只有 click-3407 命中'定的,"
+        f"现在命中 {ev['flagged']} —— 线或池动了,要重新标定而不是改断言")
+    clean = [c for c in ev["candidates"] if c["verdict"] == "OK"]
+    assert all(c["signals"]["option_sections"] == 0 for c in clean)

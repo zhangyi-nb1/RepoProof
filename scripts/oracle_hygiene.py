@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""oracle 卫生电池 —— v2 卫生判据的执行器(prereg-v2 §1/§3;判定钉死 H1–H5)。
+"""oracle 卫生电池 —— v2 卫生判据的执行器(prereg-v2 §1/§3;判定钉死 H1–H6)。
 
-回答:这套上游套件配不配当 held-out 的尺子。判定是纯函数 `judge_hygiene`,
-跑套件的循环只搬数字:
+回答:这套上游套件配不配当 held-out 的尺子。判定是纯函数 `judge_hygiene`
+与 `judge_statement_determinacy`,跑套件的循环只搬数字:
 
     七跑(基准 ×3 + COLUMNS/TZ/LANG/TMPDIR 各 1)→ S-a 集合稳定
     + 钦定跑法单发计时(≤120s;首轮已测值按同协议沿用)
     + FAIL_TO_PASS 双向实测(parent+delta 恰红 delta 集;post 树全绿)
+    + H6 题面欠定探测(讨论式 PR 正文不宜作题面;--statement 必给)
     → 卫生判决,记录落 docs/evidence/d5_hunt/hygiene/
 
 用法(封存池重审):
@@ -17,6 +18,7 @@
         --delta-post-dir ~/RepoProofArchive/d5-hunt/candidates/sqlglot-8042/delta_tests/post \\
         --answer-patch ~/RepoProofArchive/d5-hunt/candidates/sqlglot-8042/answer/full.patch \\
         --tests-patch ~/RepoProofArchive/d5-hunt/candidates/sqlglot-8042/delta_tests/tests.patch \\
+        --statement ~/RepoProofArchive/d5-hunt/candidates/sqlglot-8042/statement.md \\
         --canonical-seconds 60.84 \\
         [--extra-packages duckdb,pandas,python-dateutil,pytz,typing_extensions] \\
         [--pretend-version 0.0.0]
@@ -62,6 +64,57 @@ venv_env = _bam.venv_env
 # 的成本上界。协议不变:静机、单发、预声明不重试。改线要新的实测 + 用户
 # 重新冻结,不是新的直觉。
 MAX_CANONICAL_SECONDS = 120
+
+
+# ---------------------------------------------------------------- H6:题面欠定
+# 由 click-3407 的实测教训成文(V2GEN-GPT-EXT-1,2026-08-21):两个模型在同一
+# 隐藏节点双 FAIL,读题面 vs 答案后定因 —— 隐藏节点要求 ParamType 泛型化 +
+# PEP 696 默认 + __class_getitem__ 运行期回填,而题面是一篇**三选项的开放式
+# 设计讨论**,结尾写着 "# My preference?"。这种题不是难,是**没定**:上游 PR
+# 正文当时还在征求意见,答案是讨论之后才收敛的,题面里没有那个收敛。
+#
+# 判据设计的两次修正(先量后定,不凭直觉):
+#   ① 最初想用"答案 patch 新增的公共标识符是否出现在题面"——**实测无判别
+#      力**:好题一样中(sqlglot-8042 漏 2 个、click-3581 漏 1 个)。题面本来
+#      就不该逐字给出实现标识符,这条会把整池好题一起判死。
+#   ② 改测**体裁标记**:选项分节 + 对冲措辞。全池 14 候选实测,只有
+#      click-3407 命中(3 选项分节 / 1 疑问行 / 5 种不同对冲措辞),其余 13
+#      条全为 0/0/0 —— 分离干净。
+# 线放在"选项分节 ≥2 且对冲 ≥1,或对冲 ≥3":单一信号不判死(一句 "we could"
+# 不代表题没定),两类信号叠加或对冲密集才判。
+_SD_OPTION = re.compile(r"(?m)^#{1,3}\s*(?:option\s*)?\d+[\.\)]\s+\S")
+_SD_QUESTION = re.compile(r"(?m)^.*\?\s*$")
+_SD_HEDGE = re.compile(
+    r"(?i)(remaining question|opening question|my preference|"
+    r"which (?:option|approach|one)|we could|should we|"
+    r"still (?:a|an) (?:open )?question|undecided|not sure|"
+    r"thoughts\?|what do you think|i think the (?:second|third|first))")
+
+
+def statement_determinacy_signals(text: str) -> dict:
+    """题面体裁信号(纯函数,只数不判)。计数与判据分开,是为了让证据面能
+    看见"查了、是 0",而不是只看见一个 ok。"""
+    return {
+        "option_sections": len(_SD_OPTION.findall(text)),
+        "question_lines": len(_SD_QUESTION.findall(text)),
+        "hedges": sorted({m.group(0).lower() for m in _SD_HEDGE.finditer(text)}),
+    }
+
+
+def judge_statement_determinacy(signals: dict | None) -> tuple[bool, list[str]]:
+    """H6 判决(纯函数)。signals=None 意为**没查**,判死 —— "没查"与"查了
+    干净"不许长成一个样(不造零,M69c 同律)。"""
+    if signals is None:
+        return False, ["题面未做欠定探测(H6 未查)—— 没查不等于干净,"
+                       "准入必须给 --statement"]
+    opts = signals["option_sections"]
+    hedges = signals["hedges"]
+    if (opts >= 2 and len(hedges) >= 1) or len(hedges) >= 3:
+        return False, [
+            f"题面疑似**欠定**(H6):选项分节 {opts} 处、对冲措辞 "
+            f"{sorted(hedges)} —— 讨论式 PR 正文不宜作 delta 任务题面,"
+            "答案会要求题面里根本没出现的设计收敛(反例 click-3407)"]
+    return True, []
 
 
 def _sets(run: dict) -> tuple:
@@ -162,6 +215,9 @@ def main() -> int:
     ap.add_argument("--tests-patch", required=True)
     ap.add_argument("--canonical-seconds", type=float, required=True,
                     help="钦定跑法单发实测值(首轮已测按协议沿用)")
+    ap.add_argument("--statement", required=True,
+                    help="候选题面文件(封存池 candidates/<cid>/statement.md)——"
+                         "H6 欠定探测的输入;必给,缺席即判死(没查≠干净)")
     ap.add_argument("--pretend-version", default="",
                     help="SETUPTOOLS_SCM_PRETEND_VERSION(无 .git 树的 scm 仓需要)")
     a = ap.parse_args()
@@ -227,6 +283,15 @@ def main() -> int:
     ok, problems = judge_hygiene(runs=runs, canonical_seconds=a.canonical_seconds,
                                  delta_baseline=delta_baseline,
                                  delta_nodes=delta_nodes, post_run=post_run)
+    # H6(P1-b/c,2026-08-21):题面欠定探测。判定仍是纯函数,main 只搬数字。
+    stmt_path = Path(a.statement).expanduser()
+    sd_signals = (statement_determinacy_signals(
+        stmt_path.read_text(encoding="utf-8", errors="replace"))
+        if stmt_path.is_file() else None)
+    sd_ok, sd_problems = judge_statement_determinacy(sd_signals)
+    if not sd_ok:
+        ok = False
+        problems += sd_problems
     if stray:
         ok = False
         problems.append(f"delta 红集合含非 PR 新增的测试名:{stray[:5]} —— "
@@ -236,8 +301,10 @@ def main() -> int:
         problems.append(f"答案 patch 应用失败:{apply_err}")
 
     record = {
-        "_what": "oracle 卫生电池判决(v2 判据,prereg-v2 §1/§3;判定钉死 H1–H5)",
+        "_what": "oracle 卫生电池判决(v2 判据,prereg-v2 §1/§3;判定钉死 H1–H6)",
         "candidate": a.candidate,
+        # 信号计数与判决分开落账:0/0/[] 是"查了、干净",键缺席才是"没查"
+        "statement_determinacy": sd_signals,
         "runs": [{"passed": r["passed"], "failed": len(r["failed_nodes"]),
                   "skipped": r["skipped"]} for r in runs],
         "skip_set_run1": runs[0].get("skipped_nodes", []),

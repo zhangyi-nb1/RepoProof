@@ -234,6 +234,32 @@ def classify_run_bundle(bundle: Path, *, manifest: dict,
     return {**parsed, "taxonomy": taxonomy}
 
 
+def select_ledger_targets(rows: list[dict], *, task_id: str,
+                          batches: list[str]) -> tuple[list[dict], list[dict]]:
+    """批选发次 → (选中, 因任务不符跳过)。纯函数,IO 在调用方。
+
+    批选**必须按任务过滤**(2026-08-21 实测撞出):一批里可以有多个任务,而
+    manifest/post/base 三份原文只来自 --task-dir 那一个 —— 别的任务的发次拿
+    这份 manifest 分桶,桶名俱在、逐条是假话(delta_nodes 对不上 → 一律
+    VISIBLE_TREE/STRIPPED_NEW)。跳过多少条必须落进证据,不静默丢。
+    """
+    picked: list[dict] = []
+    skipped: list[dict] = []
+    if not batches:
+        return picked, skipped
+    for row in rows:
+        if row.get("batch") not in batches:
+            continue
+        if (row.get("task_id") or "") != task_id:
+            skipped.append({"run_id": row["run_id"], "task_id": row.get("task_id")})
+            continue
+        picked.append({
+            "run_id": row["run_id"], "batch": row["batch"],
+            "model": row.get("model"), "verdict": row.get("verdict"),
+            "bundle": Path(row["bundle_path"]).expanduser()})
+    return picked, skipped
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--task-dir", required=True, type=Path)
@@ -254,14 +280,16 @@ def main(argv: list[str] | None = None) -> int:
     for b in a.run_bundle:
         targets.append({"run_id": b.name, "batch": None, "model": None,
                         "verdict": None, "bundle": b.expanduser()})
-    if a.batch:
-        for line in a.ledger.read_text(encoding="utf-8").splitlines():
-            row = json.loads(line)
-            if row.get("batch") in a.batch:
-                targets.append({
-                    "run_id": row["run_id"], "batch": row["batch"],
-                    "model": row.get("model"), "verdict": row.get("verdict"),
-                    "bundle": Path(row["bundle_path"]).expanduser()})
+    this_task = manifest.get("task_id") or task_dir.name
+    picked, skipped_other_task = select_ledger_targets(
+        [json.loads(ln) for ln in a.ledger.read_text(encoding="utf-8").splitlines() if ln],
+        task_id=this_task, batches=a.batch)
+    targets += picked
+    if a.batch and not targets:
+        raise SystemExit(
+            f"[classify_regression_broken] 批 {a.batch} 里没有 "
+            f"task_id={this_task} 的发次(跳过了 {len(skipped_other_task)} "
+            "条别的任务)—— --task-dir 与 --batch 对不上,不空判")
 
     runs = []
     counts: dict[str, int] = {}
@@ -279,9 +307,11 @@ def main(argv: list[str] | None = None) -> int:
     out = {
         "_what": ("regression_broken 节点分类学(R3;判决零改动,纯台账细分)。"
                   "桶语义见 scripts/classify_regression_broken.py docstring。"),
-        "task_id": manifest.get("task_id") or task_dir.name,
+        "task_id": this_task,
         "delta_nodes": manifest["delta_nodes"],
         "post_files": [i["path"] for i in manifest["post_files"]],
+        # 批选时被任务过滤刷掉的发次:落账才叫"筛过",不落就成了静默截断
+        "skipped_other_task": skipped_other_task,
         "runs": runs,
         "summary": {"bucket_counts": counts, "node_histogram": node_hist,
                     "runs_total": len(runs),

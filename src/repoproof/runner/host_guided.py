@@ -715,6 +715,25 @@ class HostContract(BaseModel):
     # 提示文字住在代码里(可钉死、可变异),契约只选档。缺省 offerclaw-v1
     # 逐字节等于既有提示(金标哈希在 tests/test_hb_task_glue.py)。
     prompt_profile: str = "offerclaw-v1"
+    # ---- P1-b(2026-08-21):计分池状态 ----
+    # 一道题被实测判定"题面欠定"(答案要求的公共 API 形状在题面里根本没
+    # 出现)之后,它每跑必 FAIL 且原因已知 —— 再拿它计分只会往模型侧的
+    # 数字里掺已知的题目缺陷。RETIRED = **退出计分池,但不销毁**:它仍是
+    # 一支有用的探针(教导面改动后可复跑看是否仍欠定),所以开跑不是禁止
+    # 而是**必须明写 allow_retired**,且台账逐行记状态、批判据另行分桶。
+    # 缺省 ACTIVE 逐字等于既有行为(历史契约无此键 = ACTIVE)。
+    task_status: str = "ACTIVE"
+    task_status_note: str = ""
+
+    @field_validator("task_status")
+    @classmethod
+    def _known_task_status(cls, v: str) -> str:
+        known = {"ACTIVE", "RETIRED"}
+        if v not in known:
+            # 与 prompt_profile 同律:打错字必须炸在加载期。静默落回 ACTIVE
+            # 等于把一道退役题悄悄放回计分池 —— 那正是本字段要防的事。
+            raise ValueError(f"未知 task_status:{v!r}(可选:{sorted(known)})")
+        return v
 
     @field_validator("prompt_profile")
     @classmethod
@@ -1329,6 +1348,40 @@ class _Session:
         self.venv_py = venv_py  # 会话内 venv python(相对 host 的路径)
 
 
+def shim_usage_totals(shim_requests: list[dict] | None) -> dict:
+    """shim 形状记录 → 回执面聚合(P1-d 仪器补漏,2026-08-21;纯函数)。
+
+    动机是一次**报告面误判**:V2GEN-GPT-EXT-1 发 5 被前置预算闸掐断,
+    `refused_pre_budget` 三条与 95.1% 的缓存命中都只躺在
+    `dsh_result_round1.json` 里 —— 回执面(report.json/台账 rounds)一个字
+    没有,查的人在缺席字段上读出了"没发生过"。数据在盘上不等于读数在面上。
+
+    不造零(R5 同律):没有 shim(deepseek 直连)返回空 dict;上游没报
+    cached_tokens 就不落该键 —— "没量"与"量了是零"不许长成一个样。
+    """
+    if not shim_requests:
+        return {}
+    dispatched = refused = 0
+    prompt = cached = 0
+    cache_seen = False
+    for r in shim_requests:
+        if r.get("refused_pre_budget"):
+            refused += 1
+            continue
+        dispatched += 1
+        u = r.get("usage") or {}
+        if isinstance(u.get("prompt_tokens"), (int, float)):
+            prompt += int(u["prompt_tokens"])
+        if isinstance(u.get("cached_tokens"), (int, float)):
+            cached += int(u["cached_tokens"])
+            cache_seen = True
+    out = {"dispatched": dispatched, "refused_pre_budget": refused,
+           "upstream_prompt_tokens": prompt}
+    if cache_seen:
+        out["cached_tokens"] = cached
+    return out
+
+
 def dsh_receipt_block(fidelity_missing: list, round_infos: list[dict]) -> dict:
     """B-dsh 台账回执块(记录装配的唯一来源)。
 
@@ -1336,20 +1389,32 @@ def dsh_receipt_block(fidelity_missing: list, round_infos: list[dict]) -> dict:
     run() —— 跨方法引用局部名在 DQ-SDK-1 发 1 当场 NameError(链条全走完
     只差落账,2026-08-18)。签名把数据流钉死;送达判读走 dsh_bridge 的
     fidelity_verdict(M88d 钉的那份判读律),不另写第二套。
+
+    2026-08-21 加两键(仅 shim 臂在场时落):`shim_refusals` 与
+    `shim_usage` —— 前置预算闸拒发过几次、上游真报的缓存命中多少,必须
+    出现在**读的人会看的那一面**,理由见 shim_usage_totals 的 docstring。
     """
     from repoproof.agents.dsh_bridge import fidelity_verdict
 
     v = fidelity_verdict(list(fidelity_missing))
-    return {
-        "fidelity_missing": list(fidelity_missing),
-        "fidelity_verdict": v or "DELIVERED",
-        "rounds": [{
+    rounds = []
+    for i in round_infos:
+        rec = {
             "attribution": i["attribution"],
             "session_id": i["session_id"],
             "logical_requests": i["counters"].get("logical_requests"),
             "usage": i["usage"],
             "fidelity_missing": i.get("fidelity_missing", []),
-        } for i in round_infos],
+        }
+        su = shim_usage_totals(i.get("shim_requests"))
+        if su:
+            rec["shim_refusals"] = i.get("shim_refusals", 0)
+            rec["shim_usage"] = su
+        rounds.append(rec)
+    return {
+        "fidelity_missing": list(fidelity_missing),
+        "fidelity_verdict": v or "DELIVERED",
+        "rounds": rounds,
     }
 
 
@@ -1499,10 +1564,20 @@ class HostGuidedRunner:
         *,
         runs_root: Path | None = None,
         wheelhouse: Path | None = None,
+        allow_retired: bool = False,
     ) -> None:
         self.project_root = Path(project_root)
         self.contract_path = Path(contract_path)
         self.contract, self.contract_sha = HostContract.load(self.contract_path)
+        # P1-b:退役题的开跑闸。放在建店之前(LESSONS #35 · F3 同律:被拒绝的
+        # 调用不许留下 run 目录)。不是禁止开跑,是**禁止不声明地开跑** ——
+        # 顺手复跑一条已知欠定的题、事后忘了它退役过,数字就脏了。
+        if self.contract.task_status != "ACTIVE" and not allow_retired:
+            raise HostRunError(
+                f"任务 {self.contract.task_id} 状态 {self.contract.task_status}"
+                f"(已退出计分池):{self.contract.task_status_note or '无备注'}。"
+                "要当探针复跑请显式 --allow-retired;该发不计模型表现。")
+        self.allow_retired = allow_retired
         self.task_dir = self.contract_path.parent
         self.host_copy = Path(self.contract.host.copy_path).expanduser().resolve()
         if is_protected(self.host_copy):
@@ -2069,11 +2144,14 @@ class HostGuidedRunner:
                                           if m not in self._dsh_fidelity_missing)
         info["fidelity_missing"] = missing
         info["fidelity_verdict"] = fidelity_verdict(missing)
+        _su = shim_usage_totals(info.get("shim_requests"))
         self.store.append_event("dsh.round", actor="harness", payload={
             "round": idx, "attribution": info["attribution"],
             "session_id": info["session_id"], "usage": info["usage"],
             "logical_requests": info["counters"].get("logical_requests"),
-            "fidelity_missing": missing})
+            "fidelity_missing": missing,
+            **({"shim_refusals": info.get("shim_refusals", 0),
+                "shim_usage": _su} if _su else {})})
         return result, info
 
     def run(
@@ -2647,6 +2725,17 @@ class HostGuidedRunner:
             _cached = getattr(model, "cached_in", None)
             if _cached is None and token_totals.get("cache_seen"):
                 _cached = int(token_totals.get("cache_read_in", 0))
+            if _cached is None:
+                # GPT×DSH:合成 SSE 只投影三键(C2 钉死的线形状不动),
+                # 缓存细目因此进不了 worker 的 usage 汇 —— 从 host 侧的
+                # shim 记录取。没报就不落键,照旧不造零。
+                _shim_cached = sum(
+                    t["cached_tokens"]
+                    for t in (shim_usage_totals(i.get("shim_requests"))
+                              for i in getattr(self, "_dsh_round_infos", []))
+                    if "cached_tokens" in t)
+                if _shim_cached:
+                    _cached = _shim_cached
             if _cached is not None:
                 agent_metrics["cache_read_input_tokens"] = int(_cached)
             if model_factory is None:
@@ -3109,6 +3198,13 @@ class HostGuidedRunner:
             "first_outcome": first_outcome or {},
             "postflight_sweep": sweep_report or "UNKNOWN",
             "runtime_browser_agent": nested_meter or "UNKNOWN",
+            # B-dsh 臂:回执块同时进 report.json —— 台账有而报告没有,读的人
+            # 就会在报告的缺席字段上读出"没发生"(2026-08-21 误判实录)。
+            # 同一个纯函数出两处,不写第二套装配。
+            **({"dsh": dsh_receipt_block(
+                getattr(self, "_dsh_fidelity_missing", []),
+                getattr(self, "_dsh_round_infos", []))}
+               if getattr(self, "_backend", "mini-swe") == "dsh" else {}),
         }
         self.store.save_json("report.json", report)
 
@@ -3120,6 +3216,9 @@ class HostGuidedRunner:
             "run_id": self.run_id,
             "task_id": self.contract.task_id,
             "task_version": self.contract.task_version,
+            # P1-b:开跑时的计分池状态逐行入账。契约日后再退役不会改写这一行,
+            # 所以"这发当时算不算数"与"这题现在算不算数"是两个可分的问题。
+            "task_status": self.contract.task_status,
             "harness_commit": harness_commit,
             "host_commit": self.contract.host.commit,
             "source_commit": source_commit_of(self.contract),
@@ -3235,6 +3334,7 @@ def run_host_guided_cli(
     wheelhouse: Path | None = None,
     keep_session: bool = False,
     backend: str = "mini-swe",
+    allow_retired: bool = False,
 ) -> dict:
     """准入 → 预检 → 宿主级 guided 运行。
 
@@ -3278,7 +3378,8 @@ def run_host_guided_cli(
         if not pf.ready:
             return {"blocked": True, "preflight": pf.summary(),
                     "agent_model_call_count": 0}
-        runner = HostGuidedRunner(contract_path, project_root, wheelhouse=wheelhouse)
+        runner = HostGuidedRunner(contract_path, project_root, wheelhouse=wheelhouse,
+                                  allow_retired=allow_retired)
         runner._backend = backend         # B-dsh 臂开关(阶段 8);缺省 mini-swe
         report = runner.run(provider, pf, run_order=run_order, run_index=run_index,
                             batch=batch, keep_session=keep_session)
@@ -3290,7 +3391,8 @@ def run_host_guided_cli(
         raise ValueError(
             f"--fake 只走 mini-swe 通路(实得 backend={backend!r});"
             "dsh 臂的 F0 四形走脚本化假端点彩排,不共用 fake 开关")
-    runner = HostGuidedRunner(contract_path, project_root, wheelhouse=wheelhouse)
+    runner = HostGuidedRunner(contract_path, project_root, wheelhouse=wheelhouse,
+                              allow_retired=allow_retired)
     runner._fake_mode = fake          # 台账里要看得出跑的是哪一个冒烟脚本
 
     from repoproof.agents.fake_model import FakeModel

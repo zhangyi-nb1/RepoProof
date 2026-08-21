@@ -25,6 +25,11 @@ J3 归因优先级(高 → 低;每发 FAIL 落且只落一类):
 DESIGN_MISMATCH 的"交付完整"机器代理 = 提交非空 ∧ 触及实现树(src/ 或
 包目录);引用它必须并排该题盲攻上界(J 表纪律,报告层执行)。
 
+J8(P1-b,2026-08-21):`contract.task_status != ACTIVE` 的任务,其发次落
+`retired_probes` 桶 —— 逐发仍可见(带 task_status),但不进 runs、不进连败
+计数、不进任何模型侧数字。退役是对**题目**缺陷的认定(典型:题面欠定),
+溯及既往:判据读契约当下的状态,不读发次当时的状态。
+
 用法:
   .venv/bin/python scripts/hb_batch_criteria.py <batch> [--json] [--selftest]
 """
@@ -163,12 +168,37 @@ def _delta_nodes_of(task_id: str) -> list[str]:
     return json.loads(mf.read_text(encoding="utf-8"))["delta_nodes"]
 
 
+def bucket_for(model: str, task_status: str) -> str:
+    """一发进哪个桶(J8,纯函数)。
+
+    退役题的**真实模型**发次落 `retired_probes` —— 不静默丢弃(逐发仍可见、
+    带退役理由),但不进 runs、不进连败计数、不进任何模型侧数字。
+
+    冒烟不受退役影响:脚本化冒烟是**检查器的自证素材**(四形态各归各位),
+    与题面定不定无关 —— 把它们也筛走只会让批自证缺素材,一分钱不多赚。
+    """
+    if model.startswith("fake"):
+        return "smoke_controls"
+    return "retired_probes" if task_status != "ACTIVE" else "runs"
+
+
+def _task_status_of(task_id: str) -> str:
+    """任务**当下**的计分池状态(P1-b)。读契约本体、复用模型的校验与缺省,
+    不在这里重写一份"缺省 ACTIVE" —— 判定副本会静默漂移(M58a 的形状)。"""
+    sys.path.insert(0, str(REPO / "src"))
+    from repoproof.runner.host_guided import HostContract   # noqa: PLC0415
+
+    pkg = task_id.replace("-", "_")
+    contract, _ = HostContract.load(REPO / "benchmarks/v2/tasks" / pkg / "contract.yaml")
+    return contract.task_status
+
+
 def adjudicate(batch: str) -> dict:
     rows = [json.loads(ln) for ln in RUNS_LEDGER.read_text().splitlines() if ln]
     rows = [r for r in rows if r.get("batch") == batch]
     if not rows:
         raise SystemExit(f"台账里没有批 {batch} 的发次")
-    out = {"batch": batch, "runs": [], "smoke_controls": [],
+    out = {"batch": batch, "runs": [], "smoke_controls": [], "retired_probes": [],
            "consecutive_harness_failures_max": 0}
     streak = mx = 0
     for r in rows:
@@ -177,8 +207,10 @@ def adjudicate(batch: str) -> dict:
         entry = {"run_id": r["run_id"], "model": r["model"],
                  "verdict": facts["verdict"], **cls,
                  "public_by_round": facts["public_by_round"]}
-        bucket = ("smoke_controls" if str(r["model"]).startswith("fake")
-                  else "runs")
+        status = _task_status_of(r["task_id"])
+        bucket = bucket_for(str(r["model"]), status)
+        if bucket == "retired_probes":
+            entry |= {"task_id": r["task_id"], "task_status": status}
         out[bucket].append(entry)
         if bucket == "runs":
             # SUITE_TIMEOUT 已单列成类,天然不入连败计数(附录一第 9 条)。
@@ -253,10 +285,14 @@ def main() -> int:
             return 2
         print(f"SELFTEST OK: 四形态冒烟各归各位 + "
               f"{len(SYNTHETIC_BRANCHES)} 支合成分支活检全对")
-    print(json.dumps(result, ensure_ascii=False, indent=1) if a.json else
-          "\n".join(f"{e['run_id']}  {e['verdict']}  j3={e['j3']}  "
-                    f"delta={e['delta_green']}/{e['delta_total']}"
-                    for e in result["runs"] + result["smoke_controls"]))
+    lines = [
+        f"{e['run_id']}  {e['verdict']}  j3={e['j3']}  "
+        f"delta={e['delta_green']}/{e['delta_total']}"
+        + ("  [RETIRED·不计分]" if bucket == "retired_probes" else "")
+        for bucket in ("runs", "smoke_controls", "retired_probes")
+        for e in result[bucket]]
+    print(json.dumps(result, ensure_ascii=False, indent=1) if a.json
+          else "\n".join(lines))
     return 0
 
 

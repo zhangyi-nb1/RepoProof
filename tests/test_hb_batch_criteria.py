@@ -146,3 +146,23 @@ def test_v13_suite_timeout_is_split_out_of_harness_failure():
     hit = classify_run({**base, "suite_timeout": True})
     assert hit["j3"] == "SUITE_TIMEOUT"
     assert any("重跑" in n for n in hit["notes"])
+
+
+# ------------------------------------------------------ J8:退役题不进计分桶
+def test_v8_retired_task_runs_go_to_their_own_bucket():
+    from hb_batch_criteria import bucket_for
+
+    assert bucket_for("gpt-5.6", "ACTIVE") == "runs"
+    assert bucket_for("fake-scripted:positive", "ACTIVE") == "smoke_controls"
+    assert bucket_for("gpt-5.6", "RETIRED") == "retired_probes"
+    # 冒烟不受退役影响:它是**检查器的**自证素材,与题面定不定无关 ——
+    # 一并筛走只会让批自证缺素材,一分钱不多赚
+    assert bucket_for("fake-scripted:positive", "RETIRED") == "smoke_controls"
+
+
+def test_v8b_retirement_status_is_read_from_the_contract_itself():
+    """状态读契约本体(复用模型的校验与缺省),不在判据里重写一份缺省。"""
+    from hb_batch_criteria import _task_status_of
+
+    assert _task_status_of("hb1-click-3407-v2") == "RETIRED"
+    assert _task_status_of("hb1-click-3581-v2") == "ACTIVE"

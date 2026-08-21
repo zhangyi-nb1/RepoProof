@@ -3095,3 +3095,38 @@ main_dir_integrity 抓到邻仓 offerclaw(chroma_db)被并发进程写入,守卫
   与台账 rounds)进 P1-d;判读纪律:**否定断言须点名证据位,且覆盖回执/
   trace/台账三面**。
 - 分类行已按"后写覆盖前写"追加更正行(evidence_strength=SUSPENDED)。
+
+## 状态 · 2026-08-21 · P1 收尾:退役闸 + 题面欠定闸 + 两处仪器补漏(零 API)
+
+EXT-1 批后的三处"经验没变成代码"补齐。全是判据/仪器面工程,不产生发次。
+
+- **P1-b 退役闸(click-3407 两代退出计分池)**:契约新增
+  `task_status`(ACTIVE/RETIRED,未知值加载期炸)+ `task_status_note`。
+  三处执法:① `HostGuidedRunner.__init__` 在**建店之前**拒开退役题,
+  除非显式 `--allow-retired`(探针复跑用,发次不计模型表现);② 台账逐行
+  记 `task_status`(开跑时状态),与"契约当下状态"两个问题可分;
+  ③ `hb_batch_criteria` 新增 J8:退役题的**真实模型**发次落
+  `retired_probes` 桶 —— 逐发仍可见、不进 runs/不进连败计数/不进任何模型
+  侧数字;冒烟不受影响(它是检查器自证素材,与题面定不定无关)。
+  退役声明的唯一住处是**生成器 TASKS 表**(手改 contract.yaml 会被下次
+  重生成静默抹掉),两头一致由 P7 钉死。
+  重跑 EXT-1 判据:3407 两发(gpt-5.5/5.6 各 1)移出计分,其余七发不动 ——
+  **该批已关闭的数字是退役前口径,不追改**;此后引用以本口径为准。
+- **P1-c 题面欠定闸(H6)**:准入电池新增纯函数
+  `statement_determinacy_signals` / `judge_statement_determinacy`,
+  `--statement` 改必给(缺席判死:**没查 ≠ 干净**)。判据是**体裁**不是
+  难度 —— 选项分节 ≥2 且有对冲措辞,或对冲 ≥3 种。
+  两次修正留痕:先试"答案新增公共标识符是否出现在题面",**实测无判别力**
+  (8042 漏 2、3581 漏 1,好题一起中);改测体裁后全池 14 候选**只有
+  click-3407 命中**(3 选项/1 疑问行/5 种对冲),其余 13 条 0/0/0。
+  池级扫描器 `scripts/statement_determinacy_screen.py` 只搬数字不复制判据,
+  证据落 `docs/evidence/d5_hunt/statement_determinacy/pool_screen.json`;
+  存量 14 条是准入之前入池的,不扫一遍就等于宣称"存量干净"而没查过。
+- **P1-d 两处仪器**:① DSH 回执面新增 `shim_usage_totals` 纯函数,拒发
+  计数与上游 prompt/cached 用量进 `report.json` 与台账 `dsh.rounds` ——
+  这正是上一条更正里那次误报的**仪器诱因**;不造零:无 shim 返回空 dict,
+  上游没报 cached_tokens 就不落该键。② 分类器批选发次改按 task_id 过滤
+  (纯函数 `select_ledger_targets`),跳过的逐条留名、选空当场炸 —— 修的是
+  EXT-1 关批时撞到的"一批多任务混扫,桶名俱在逐条是假话"。
+- 变异登记簿 +8(M97a–h),275 → 283。`docs/v2_gate.json` 再生(上一条
+  更正只改了分类行没再生,已补;闸门数字未变,只多一行 SUSPENDED)。
