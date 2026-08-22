@@ -3234,3 +3234,36 @@ D3(mini-swe 默认臂,DSH 留旗标)/D4(采纳证明 M1 弱档、M2 升 import-h
 `local-tool-v1` prompt profile、接口验证器(先喂合成缺陷自证)、
 通用 delivery extractor;先 fake 钉机制再上真模型;交付第一个真工具
 pdf-table。
+
+## 状态 · 2026-08-23 · M1 出题面+执行面完成:fake 全链矩阵闭环(零 API)
+
+**出题面**(`c9d01c7`):ToolSpec 挂 TaskContract(12 冻结契约零动);
+example_compiler 双源样例+CLI 编译(合成正反例自证);assemble_tool_task
+骨架/oracle/控制组(真跑级矩阵:五变体各死声明处);adequacy T1-T4
+(每条喂违反自证)。
+
+**执行面**(`6f77b86`):host_guided 九处接线 + tool_host_bridge 物化桥
+(冻结 ToolContract→HostContract 任务包;骨架即会话 host 根)。
+三个实施定稿(与 M0 文档的偏差已回写文档):
+- 接口契约按 owner 拆两半:骨架半(help/missing,S0 恒绿)=R 面
+  "不破坏骨架"回归语义;实现半(malformed/det/purity)并进 C 面——
+  baseline gate 要求 S0 回归恒绿,实测倒逼出的更正确语义;
+- 双正控分角色:battery 硬编码件(自洽证明,freeze 前)vs reference
+  (真 import 上游,出题人提供)——[D4] 弱档 provenance 执法下硬编码件
+  必死,fake 全链的通关正控只能是 reference;
+- [D4] 执法落点:run() 在 cap 全绿后跑 check_upstream_provenance,
+  零 import → cap 翻 FAIL(detail 保留 oracle 计数),failure_type 汇台账。
+
+**fake 四发矩阵(E2E 实测,合成 minilib 上游)**:
+reference → PASS_ADAPTED + clean replay;NC_reimpl → oracle 全绿、
+死于 provenance(没有这条执法,假成功直通);NC_hardcode → 只死
+held-out、公开绿;noop → 诚实 FAIL。台账 host_id=local-tool/mini-tool。
+
+**基线**:`1121 passed + 61 skipped + 0 failed`(+35 新测)。变异登记簿
+三锚更新(M40a/M70a/M96d,语义不变)。两次 smoke 偶红均归因并行
+worktree 会话落进保护指纹秒级窗口(指纹按设计报警,非回归;复跑绿)。
+
+**M1 剩余=真跑段**:pdfplumber 真契约(手工 golden 样例)+ wheelhouse
+备轮(pdfplumber+pytest 闭包)+ bench 白名单加项(host_guard M6)+
+mini-swe 真模型单发 + evidence/ 写入与 verdict_public 渲染(GATE §二)
++ 工具落地 ~/tools/。E1G 永不开跑;DSH 臂 M3 前不裁。
