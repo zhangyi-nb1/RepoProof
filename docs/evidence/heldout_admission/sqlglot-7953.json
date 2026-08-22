@@ -1,0 +1,32 @@
+{
+  "_what": "一发盲攻的测量记录 —— held-out 准入判据的输入与判决",
+  "candidate": "sqlglot-7953",
+  "mode": "delta",
+  "baseline": {
+    "total": 1145,
+    "passed": 1144,
+    "skipped": 0
+  },
+  "delta_nodes": [
+    "tests.test_executor.TestExecutor::test_outer_joins_preserve_unmatched_rows"
+  ],
+  "attacked_passed": 1,
+  "denominator": 1,
+  "ratio": 1.0,
+  "failed_nodes": [],
+  "regression_broken": [],
+  "residual_kinds": [
+    "behavior"
+  ],
+  "method": "盲攻协议(delta 形态,sqlglot-7953,2026-08-22,prereg-v2 §5 + 窗口 2 附则 §4):\n攻击者 = Claude Fable 5 子代理,单发,与出题方(tobymao/sqlglot)无涉。\n输入 = 交付树(parent 剥 .github/CHANGELOG,PR 触碰的 tests/test_executor.py\n整体移除,其余旧测试保留)+ 题面(PR 正文 + 关联 issue #7952 原文)。\nsqlglot 无运行时依赖,允许用系统 python3 做语法/AST 检查。\n禁:隐藏 oracle(delta 测试)、post 实现、后续历史、网络、给定路径之外的\n文件系统、运行任何测试、迭代。\nprep 自证:答案泄漏扫描本轮起为代码(scripts/answer_leak_scan.py,判据\nL1–L8 钉死于 tests/test_answer_leak_scan.py):指纹 51 条、命中 0、种植自证\n活(docs/evidence/d5_hunt/leak-scan-window2.json)。扫描面 = 攻击前交付树\n+ 题面 —— 不是攻击后树(那会把攻击者独立想到的命名读成泄漏,3581 实测)。\n评分:blind_attack_admission.py delta 形态,分母 = 电池实测 delta 集(1);\ndelta 合并于 2026-07-27,晚于攻击者知识截止(≤2026-05),记忆通道结构性\n关闭。分母 = 1 ⇒ ratio 只能 0% 或 100%,而 100% ≥ 0.95 判死线 —— 本发\n全有或全无,开打前已知,不因结果回改判据。\n第一发(2026-08-22 凌晨)因 API 周限在起步阶段中止(末条输出为\"开始读\n题面\"),且工作区随主机重启被清 —— 本发交付树从封存件整树重铺,起点与\n第一发完全相同:是重放,不是迭代(攻击者两发之间无任何反馈通道)。\n",
+  "digests": {
+    "pristine_tree": "sha256:0e5f58763cd81d61f01e0369bd7fccf3ca7a2ede6d7747a03996e9c4e66021ab",
+    "attacked_src": "sha256:2e1a7ac00af60149accfc28ab51b034418f8990e3786c32d01af4fe1569779ff"
+  },
+  "verdict": {
+    "ok": false,
+    "reasons": [
+      "盲攻单发 1/1 = 100.0%,越过 95% 线 —— 这道题剩下的可测面已经小到没有意义。(参照:H2 v1 的五个候选是 97.3%–100%,而按'挖空红了多少条'看它们的红数是 541/420/362/83/77,**看着都很健康**。)"
+    ]
+  }
+}

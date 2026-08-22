@@ -1,0 +1,64 @@
+{
+  "_what": "oracle 卫生电池判决(v2 判据,prereg-v2 §1/§3;判定钉死 H1–H6)",
+  "candidate": "sqlglot-7924",
+  "statement_determinacy": {
+    "option_sections": 0,
+    "question_lines": 0,
+    "hedges": []
+  },
+  "runs": [
+    {
+      "passed": 1142,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1142,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1142,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1142,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1142,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1142,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "passed": 1142,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "skip_set_run1": [],
+  "wheelhouses": [
+    "/Users/zhangronglei/RepoProofArchive/d5-hunt/wheelhouse/sqlglot"
+  ],
+  "canonical_seconds": 80.55,
+  "delta_nodes": [],
+  "delta_stray_names": [],
+  "post_run": {
+    "passed": 1142,
+    "failed": [],
+    "skipped": 0
+  },
+  "verdict": {
+    "ok": false,
+    "problems": [
+      "delta 集为空 —— 没有分母,这个候选量不到东西"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+ "sqlglot-7953": {
+  "candidate": "sqlglot-7953",
+  "fingerprints_calibrated": 51,
+  "parent_lines_calibrated": 91789,
+  "documents_scanned": 300,
+  "leak_hits": [],
+  "selfcheck_planted_detected": true,
+  "note": "自校准:parent 已有行不算指纹(攻击者合法可见整棵 parent)",
+  "verdict": {
+   "ok": true,
+   "problems": []
+  }
+ }
+}

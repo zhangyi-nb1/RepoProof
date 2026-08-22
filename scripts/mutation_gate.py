@@ -153,6 +153,8 @@ _HS = "src/repoproof/harness/host_snapshot.py"
 _T_HS = ["tests/test_host_snapshot.py"]
 _GS = "src/repoproof/agents/dsh_gpt_shim.py"
 _T_GS = ["tests/test_dsh_gpt_shim.py"]
+_ALS = "scripts/answer_leak_scan.py"
+_T_ALS = ["tests/test_answer_leak_scan.py"]
 
 CANARY = {
     "id": "C0-plumbing-canary",
@@ -2971,6 +2973,77 @@ MUTATIONS: list[dict] = [
         "catchers": _T_CRB,
         "expected_catcher": [
             "test_batch_selection_filters_by_task_and_records_the_skips"],
+    },
+    {
+        "id": "M98a-leak-scan-loses-its-self-calibration",
+        "lesson": "泄漏扫描不再减 parent —— 攻击者合法可见的每一行都成了'指纹',"
+                  "命中遍地,好候选一起被误杀;更坏的是judgement 会被噪声淹没,"
+                  "真泄漏埋在假阳性里看不见",
+        "file": _ALS,
+        "old": "        if is_fingerprint_candidate(n) and n not in parent_lines:",
+        "new": "        if is_fingerprint_candidate(n):",
+        "catchers": _T_ALS,
+        "expected_catcher": ["test_l1_parent_lines_are_not_fingerprints"],
+    },
+    {
+        "id": "M98b-unscanned-leak-surface-reads-as-clean",
+        "lesson": "没做泄漏扫描被读成'干净' —— 盲攻的全部前提(攻击者没见过答案)"
+                  "变成无证据的声称;沉默不是通过(M69c / H6c 同律)",
+        "file": _ALS,
+        "old": '        return False, ["未做答案泄漏扫描 —— 没扫不等于干净,盲攻前置必须给证据"]',
+        "new": "        return True, []",
+        "catchers": _T_ALS,
+        "expected_catcher": ["test_l4_unscanned_is_not_clean"],
+    },
+    {
+        "id": "M98c-dead-scanner-passes-as-zero-hits",
+        "lesson": "种植自证不再把关 —— 扫描器坏掉时输出的'命中 0'与真干净"
+                  "在证据上不可分辨,泄漏闸门静默失效",
+        "file": _ALS,
+        "old": '    if not scan.get("selfcheck_planted_detected"):',
+        "new": "    if False:",
+        "catchers": _T_ALS,
+        "expected_catcher": ["test_l5_dead_selfcheck_is_refused"],
+    },
+    {
+        "id": "M98d-zero-fingerprints-reads-as-clean",
+        "lesson": "校准不出指纹时照样放行 —— 尺子没搭上被测面却报'通过',"
+                  "等于宣称扫过而其实扫了个寂寞",
+        "file": _ALS,
+        "old": '    if scan.get("fingerprints_calibrated", 0) <= 0:',
+        "new": "    if False:",
+        "catchers": _T_ALS,
+        "expected_catcher": ["test_l6_zero_fingerprints_is_refused"],
+    },
+    {
+        "id": "M98e-leak-hits-stop-killing",
+        "lesson": "指纹真命中了也不判死 —— 攻击者能直接抄答案的候选被准入,"
+                  "此后该候选上的一切'模型解出来了'都是假的",
+        "file": _ALS,
+        "old": '    hits = scan.get("leak_hits") or []',
+        "new": "    hits = []",
+        "catchers": _T_ALS,
+        "expected_catcher": ["test_l7_any_hit_kills"],
+    },
+    {
+        "id": "M98f-leak-scan-defeated-by-whitespace",
+        "lesson": "规范化死了 —— 交付件里一处缩进差异就让整条答案行溜过扫描;"
+                  "泄漏检测被格式打败是最没道理的漏法",
+        "file": _ALS,
+        "old": '    return _WS.sub(" ", line).strip()',
+        "new": "    return line",
+        "catchers": _T_ALS,
+        "expected_catcher": ["test_l3_whitespace_differences_do_not_hide_a_leak"],
+    },
+    {
+        "id": "M98g-selfcheck-manufactures-its-own-aliveness",
+        "lesson": "一条指纹都没有时自证仍报'活' —— 自证从证据变成装饰,"
+                  "M98c 那道闸门跟着一起哑掉(不造真,与 P1-d 不造零同律)",
+        "file": _ALS,
+        "old": "    if not fingerprints:\n        return False",
+        "new": "    if not fingerprints:\n        return True",
+        "catchers": _T_ALS,
+        "expected_catcher": ["test_l5_dead_selfcheck_is_refused"],
     },
     {
         "id": "M90c-snapshot-copies-master-readonly-bit",
