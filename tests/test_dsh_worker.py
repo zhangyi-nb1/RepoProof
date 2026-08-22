@@ -116,6 +116,10 @@ def test_w2_garbage_stdin_rejected(tmp_path: Path) -> None:
     assert _result(out)["error_kind"] == "bad_job_spec"
 
 
+@pytest.mark.skipif(
+    not SEALED_PY.exists(),
+    reason="封存 runtime 不在本机(worker 在拒绝环境注入之前先校验 cordis 配置,"
+           "配置随 runtime 封存);scripts/provision_dsh_runtime.py --go 后可跑")
 def test_w3_key_via_spec_rejected(tmp_path: Path) -> None:
     for over in ({"api_key": "sk-x"}, {"env": {"DEEPSEEK_API_KEY": "sk-x"}}):
         code, out, _ = _spawn(_job(tmp_path, **over))

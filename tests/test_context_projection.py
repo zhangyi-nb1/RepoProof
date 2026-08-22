@@ -223,6 +223,13 @@ def test_fold_rules_have_no_target_in_the_e0_baseline():
         return                                     # 基线未生成时不做断言
 
     bundles = [r["bundle"] for r in json.loads(baseline.read_text(encoding="utf-8"))["runs"]]
+    # 2026-08-23 收线清理后补的资源护栏:基线 json 是 git 跟踪的,轨迹本体在
+    # gitignored runs/(已清理)。目录全缺 = 资源不在,skip;目录在而无轨迹
+    # 仍走下面的 assert(那是真异常)。轨迹可从 runs-evidence 封存包复原。
+    import pytest
+
+    if not any((repo / "runs" / name).exists() for name in bundles):
+        pytest.skip("E0 基线轨迹不在本机(runs/ 已清理;runs-evidence 封存包可复原)")
     folded_total = 0
     checked = 0
     for name in bundles:

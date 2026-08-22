@@ -148,7 +148,17 @@ def test_leak_guardrail_is_reverified_not_promised() -> None:
     重读也不会有任何东西变红。故钉的是"重验发生过"的痕迹:扫描器自证有牙
     + 有效指纹非零 + 部署树摘要至今相符。只回一个空 breaches 的实现过不了。
     """
-    from wh_batch_criteria import leak_guardrail
+    import json
+
+    from wh_batch_criteria import HOST_EVIDENCE, leak_guardrail
+
+    # 2026-08-23 收线清理后补的资源护栏:重验语义要求真部署树在盘上,
+    # 树被清理时 skip(显式),不许把"树没了"读成"泄漏结论失效"或反之。
+    bench_dir = Path(json.loads(HOST_EVIDENCE.read_text(encoding="utf-8"))
+                     ["hosts"]["sqlglot-8042"]["bench_dir"])
+    if not (bench_dir / "host").exists():
+        pytest.skip(f"部署树不在本机({bench_dir});按 benchmarks/v2/ provisioning "
+                    "记录重建宿主母树后可重验")
 
     out = leak_guardrail("sqlglot-8042")
     assert out["breaches"] == [], out["breaches"]

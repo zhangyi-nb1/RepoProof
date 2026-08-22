@@ -26,6 +26,14 @@ REPO = Path(__file__).resolve().parents[1]
 MATRIX = REPO / "docs" / "evidence" / "browser_conformance" / "matrix.json"
 ADAPTERS = REPO / "benchmarks" / "v2" / "sidecar_browser" / "adapters"
 
+# 2026-08-23 收线清理后补的资源护栏(与 test_dsh_isolation_controls 同模式):
+# 落盘矩阵的钉死照跑;"真重跑"两条需要封存 runtime 在本机。
+SEALED_RUNTIME = Path("~/RepoProofRuntimes/rt-sidecar-browser-v1").expanduser()
+needs_sealed_runtime = pytest.mark.skipif(
+    not SEALED_RUNTIME.exists(),
+    reason="封存 runtime 不在本机(rt-sidecar-browser-v1);"
+           "scripts/provision_browser_runtime.py --go 后可跑")
+
 REQUIRED = {"a0_honest", "a1_never_calls", "a2_reimplements", "a3_fake_package",
             "a4_ignores_result", "a5_wrong_symbol", "a6_replays_receipt",
             "a7_tampers_receipt", "a8_forges_receipt"}
@@ -149,6 +157,7 @@ def _script():
     return _SCRIPT
 
 
+@needs_sealed_runtime
 def test_b1b_a_foreign_suites_topology_is_refused(monkeypatch, capsys):
     """B1 的行为面:喂一份**别的 suite 的**拓扑报告,必须当场拒绝出数。
 
@@ -169,6 +178,7 @@ def test_b1b_a_foreign_suites_topology_is_refused(monkeypatch, capsys):
 
 
 @pytest.mark.slow
+@needs_sealed_runtime
 def test_matrix_is_fresh():
     """真重跑一遍(~36s),结论必须与落盘证据逐条相同。**默认就跑。**"""
     before = {r["adapter"]: r["actual_red"] for r in _m()["rows"]}

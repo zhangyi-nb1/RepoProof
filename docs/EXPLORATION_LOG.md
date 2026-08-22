@@ -3199,3 +3199,38 @@ EXT-1 批后的三处"经验没变成代码"补齐。全是判据/仪器面工�
 **复活入口**:`docs/RETROSPECTIVE-GPT-ADAPTATION.md`(§6 溯源索引、
 §7 复活指引);封存包 README 有解包与校验命令。重建后自测期望
 **1127 passed**、变异闸门 **290/290**,两项绿了才可信任盘上历史数字。
+
+## 状态 · 2026-08-23 · 方向定案 + M0 完成:Local Tool 产品线开线(零 API)
+
+**方向定案**:主场景收敛为 GitHub Capability → Verified Local Tool,章程
+`docs/rfc/RFC-010-LOCAL-TOOL-PRODUCT-CHARTER.md` 用户已签字;四裁决
+D1(CLI-first 工具包)/D2(首个 dogfood = PDF 表格→Markdown)/
+D3(mini-swe 默认臂,DSH 留旗标)/D4(采纳证明 M1 弱档、M2 升 import-hook)。
+方向文档原文入库 `docs/PRODUCT_REDIRECTION.md`。
+
+**M0 产出**(全零 API):
+- `docs/TOOL_CONTRACT_SCHEMA.md` —— ToolContract = TaskContract 谱系扩展
+  (task_family=LOCAL-TOOL;唯一代码新增 = `tool: ToolSpec|None`);
+  样例三层细则(golden+held-out / 上游一致性 / 接口契约)并入 §四;
+- `docs/TOOL_PACKAGE_LAYOUT.md` —— 交付物 = 自带构建声明与证据的目录;
+  骨架 harness 生成、agent 填肉(T3v6 结构锚沿用);replay 即安装测试;
+- `docs/TOOL_READY_GATE.md` —— completion_gate 决策表零改动,四验证器
+  所指平移;五控制矩阵(正控/NC_empty/NC_hardcode/NC_reimpl/NC_badexit)。
+
+**基线复验实测账**(venv 重建后):
+- 首跑 `1086 passed + 53 skipped + 8 failed = 1147`,与收线记录
+  `1127 passed + 20 skipped = 1147` **总数分毫不差,零测试丢失**;
+- 8 失败逐一验错误信息,全部 = 收线清理删除外部资源的确定后果
+  (`RepoProofRuntimes/` 封存 runtime ×4、`RepoProofBench/` 部署树 ×1、
+  `runs/` 历史 ×3),**零代码回归**;同源的 33 个测试因自带 skipif
+  优雅降级(passed→skipped);
+- 用户裁决:8 个补资源存在性 skipif(对齐仓内既有三处同模式,reason
+  写明 provision/复原入口;资源回盘自动恢复执行,断言零改动);
+- 补齐后全套 **`1086 passed + 61 skipped + 0 failed`,exit 0** ——
+  这是产品线的新基线口径;RETROSPECTIVE §7 的"期望 1127"属完整复活
+  Lab 资源后的口径,两者不矛盾。
+
+**下一步**:M1(手工契约打穿闭环)——`assemble_tool_task` 骨架模板、
+`local-tool-v1` prompt profile、接口验证器(先喂合成缺陷自证)、
+通用 delivery extractor;先 fake 钉机制再上真模型;交付第一个真工具
+pdf-table。

@@ -24,6 +24,14 @@ REPO = Path(__file__).resolve().parents[1]
 TASK = REPO / "benchmarks" / "v2" / "tasks" / "t3_sidecar_v1"
 MATRIX = REPO / "docs" / "evidence" / "t3_sidecar_conformance" / "matrix.json"
 
+# 2026-08-23 收线清理后补的资源护栏:落盘矩阵的钉死照跑;
+# "真重跑"需要封存 runtime(真 sidecar + 真浏览器)在本机。
+SEALED_RUNTIME = Path("~/RepoProofRuntimes/rt-sidecar-browser-v1").expanduser()
+needs_sealed_runtime = pytest.mark.skipif(
+    not SEALED_RUNTIME.exists(),
+    reason="封存 runtime 不在本机(rt-sidecar-browser-v1);"
+           "scripts/provision_browser_runtime.py --go 后可跑")
+
 
 def _m() -> dict:
     if not MATRIX.is_file():
@@ -137,6 +145,7 @@ def test_budgets_are_tighter_than_t3_inproc():
 
 
 @pytest.mark.slow
+@needs_sealed_runtime
 def test_matrix_is_fresh():
     """真重跑一遍(~20s)。**默认就跑。**"""
     import importlib.util
