@@ -3169,3 +3169,33 @@ EXT-1 批后的三处"经验没变成代码"补齐。全是判据/仪器面工�
 供给里"新增测试函数 + 题面既不欠定也不过定"的交集,两个窗口合计只出过
 8042 一个。**下一步须用户裁**:v3 delta 口径(收不收改既有测试/fixture 行
 级 delta)开新供给面,或止猎、以池 = 2 进 P3 稳定性复测。
+
+## 状态 · 2026-08-23 · 本线收线归档:换方向前的封存与清理(零 API)
+
+用户换开发方向,本条记清理的实测账,与
+`docs/RETROSPECTIVE-GPT-ADAPTATION.md` §8 对应。
+
+**留存**(`~/RepoProof-Salvage-20260822/`,305 MB,SHA256 校验通过):
+- `RepoProofArchive.tar.gz` 271 MB —— 封存池全量 14971 条目
+  (两个网络窗口的候选包 + 4 仓 clone + 轮仓 + 题面 + 攻击记录 + 审计单)。
+  **这是本线唯一不可再生的资产**(封存不重下);
+- `runs-evidence.tar.gz` 33 MB —— 229 发的证据小件 3882 份,
+  含 372 份 `trajectory_round*.json` 多轮修复轨迹。
+  白名单剔除了每发 `agent/primary/replay` 三份工作树全量拷贝(3.86 GB)
+  与二进制;结论出自 report/trace,不出自树副本,删之不影响任何数字。
+
+**删除**(全部可再生;释放实测 18 GB,可用空间 27 GiB → 45 GiB):
+`runs/` 4.58 GB、`RepoProofBench/` 8.2 GB、`RepoProofBench-quarantine/`
+2.3 GB、`RepoProofRuntimes/` 1.3 GB、`.venv/` 629 MB、`upstream-cache/`
+198 MB、`RepoProofArchive/` 原件 480 MB(已入包)。
+
+**两条实测留痕**:
+- `oracle_snapshot/` 与封存件是**只读**的,`rm -rf` 当场 Permission denied
+  —— 写锁按设计生效(不是故障),需先 `chmod -R u+w`。这反过来证明了
+  隐藏 oracle 的落权在整个生命周期里都没松过;
+- 删除只碰 gitignored 路径:清理后 `git status` 干净、与 origin 同步,
+  被跟踪文件零丢失。
+
+**复活入口**:`docs/RETROSPECTIVE-GPT-ADAPTATION.md`(§6 溯源索引、
+§7 复活指引);封存包 README 有解包与校验命令。重建后自测期望
+**1127 passed**、变异闸门 **290/290**,两项绿了才可信任盘上历史数字。
