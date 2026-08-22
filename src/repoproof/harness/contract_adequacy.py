@@ -11,10 +11,12 @@ control results are mutually adequate. Pure functions, no LLM.
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from repoproof.domain.models import TaskContract
 from repoproof.harness.requirement_spec import RequirementSpec
 
 INVALID_TASK_SPEC = "INVALID_TASK_SPEC"
@@ -52,6 +54,8 @@ def evaluate_adequacy(
     controls_summary: dict[str, str] | None = None,
     held_out_markers: tuple[str, ...] = ("[held",),
     forbidden_prompt_tokens: tuple[str, ...] = (),
+    contract: TaskContract | None = None,
+    tool_example_docs_dir: Path | None = None,
 ) -> AdequacyResult:
     """Run every deterministic adequacy check; collect ALL failures
     (not fail-fast) so the report shows the full gap list."""
@@ -154,5 +158,41 @@ def evaluate_adequacy(
     # Extra: leak guard — forbidden tokens must not appear in the prompt
     leaked = [t for t in forbidden_prompt_tokens if t and t in rendered_prompt]
     check("prompt_leak_tokens", not leaked, f"forbidden tokens in prompt: {leaked}")
+
+    # T1–T4: LOCAL-TOOL lineage extensions (RFC-010 / TOOL_CONTRACT_SCHEMA §六).
+    # Gated on task_family so legacy contracts see zero behavior change.
+    if contract is not None and contract.task_family == "LOCAL-TOOL":
+        tool = contract.tool
+        # T1 tool section present with a complete exit-code contract
+        check("tool_section_present", tool is not None,
+              "LOCAL-TOOL contract missing the `tool` section")
+        if tool is not None:
+            missing_codes = sorted({"0", "1", "2"} - set(tool.interface.exit_codes))
+            check("tool_exit_codes_complete", not missing_codes,
+                  f"exit_codes missing {missing_codes} (0/1/2 semantics are frozen)")
+            # T2 single source of truth: CLI name must not fork
+            check("tool_name_matches_entry_point",
+                  tool.name == contract.target_project.entry_point,
+                  f"tool.name={tool.name!r} != target_project.entry_point="
+                  f"{contract.target_project.entry_point!r}")
+        if tool_example_docs_dir is not None:
+            def _examples(name: str) -> list[dict]:
+                p = tool_example_docs_dir / name
+                if not p.is_file():
+                    return []
+                return json.loads(p.read_text(encoding="utf-8")).get("examples", [])
+
+            pub = _examples("public_documents.json")
+            held = _examples("held_out_documents.json")
+            # T3 example files are part of the task statement — all must exist
+            missing_files = sorted(
+                rel for e in [*pub, *held]
+                for rel in (e.get("input_file"), e.get("expected_file"))
+                if rel and not (tool_example_docs_dir / rel).is_file())
+            check("tool_example_fixtures_exist", not missing_files,
+                  f"referenced example files missing: {missing_files}")
+            # T4 anti-hardcode layer must exist: >=2 public, >=1 held-out
+            check("tool_examples_sufficient", len(pub) >= 2 and len(held) >= 1,
+                  f"public={len(pub)} held_out={len(held)} (need >=2 / >=1)")
 
     return AdequacyResult(ok=not failures, failures=failures, checked=checked)

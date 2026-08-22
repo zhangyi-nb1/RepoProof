@@ -128,6 +128,39 @@ class Acceptance(BaseModel):
     (portability: task-selected, defaulting to the v1–v3 probe)."""
 
 
+class ToolInterfaceIO(BaseModel):
+    """LOCAL-TOOL 谱系(RFC-010 [D1]):工具接口的一端。
+
+    kind: file | stdin | stdout | out_file;format 是人读格式名
+    (PDF / markdown-table / csv / json …),进 tool.json manifest。"""
+
+    kind: str
+    format: str
+
+
+class ToolInterface(BaseModel):
+    """CLI 接口契约 —— 三个消费者的单一事实源(TOOL_CONTRACT_SCHEMA §三):
+    骨架 argparse 与 tool.json 的生成、接口契约测试(regression 新所指)
+    的生成、交付期 manifest 一致性静态检查。"""
+
+    usage: str
+    input: ToolInterfaceIO
+    output: ToolInterfaceIO
+    exit_codes: dict[str, str]
+    """至少含 "0"/"1"/"2";语义冻结:0=成功;1=用户错误(输入不存在/
+    格式坏);2=内部错误。充分性由 ContractAdequacyGate T1 执法,
+    不在模型层拒——模型层拒会把旧谱系契约的加载路径复杂化。"""
+
+
+class ToolSpec(BaseModel):
+    """LOCAL-TOOL 谱系唯一新增分节。name = CLI 命令名,必须与
+    target_project.entry_point 一致(adequacy T2 执法)。"""
+
+    name: str
+    summary: str
+    interface: ToolInterface
+
+
 class TaskContract(BaseModel):
     """Frozen adoption contract. The agent (Gate 3) may change its
     SOLUTION, never the problem, the hard constraints, or the oracle.
@@ -164,8 +197,11 @@ class TaskContract(BaseModel):
     # integration_points / … / total),直接复用会在 YAML 里静默撞键 —— 后者
     # 覆盖前者,而且不报错(实测:字符串被 165 行那个 dict 悄悄吃掉)。
     # 所以改叫 `adoption_shape`,含义与用户方案一致。
-    task_family: str = ""            # 例:T3-INPROC / T3-SIDECAR;空 = 未归族
+    task_family: str = ""            # 例:T3-INPROC / T3-SIDECAR / LOCAL-TOOL;空 = 未归族
     adoption_shape: str = "DEPENDENCY_INTEGRATION"
+    # LOCAL-TOOL 谱系(RFC-010,2026-08-23):工具接口契约。None = 旧谱系,
+    # 一切照旧 —— 加字段带默认值,12 份冻结历史契约与其 sha256 全部不动。
+    tool: ToolSpec | None = None
     constraints: Constraints
     budgets: Budgets
     acceptance: Acceptance
