@@ -34,6 +34,14 @@ _SPEC = ToolSpec(name="pdf-table", summary="从 PDF 提取表格输出 Markdown"
 
 # 顺序刻意:文件样例压尾部,保证 held-out(取尾部)是文件样例 ——
 # held 若是 --help 这类骨架层样例,NC_hardcode 就杀不动了。
+_REFERENCE_IMPL = (
+    "\"\"\"reference:真 import 上游的参考实现(出题人提供,绝不交付)。\"\"\"\n"
+    "import pdfplumber  # noqa: F401 — 弱档采纳执法的正控锚\n"
+    "from pathlib import Path\n\n\n"
+    "class UserInputError(ValueError):\n    pass\n\n\n"
+    "def extract(input_path: Path) -> str:\n"
+    "    raise NotImplementedError(\'E2E 合成任务另供 reference\')\n")
+
 _EXAMPLES = [
     {"input": "--help", "expected": "contains:usage"},
     {"input_file": "inputs/a.pdf", "expected": "contains:| A |"},
@@ -60,7 +68,8 @@ def assembled(tmp_path_factory) -> tuple[Path, dict]:
         tmp, goal="把 pdfplumber 的表格提取能力包装为本地 CLI 工具",
         repo_url="https://github.com/jsvine/pdfplumber", resolved_commit="deadbeef",
         distribution="pdfplumber", import_module="pdfplumber", license_id="MIT",
-        tool=_SPEC, examples=_EXAMPLES, example_src_dir=_make_src(tmp))
+        tool=_SPEC, examples=_EXAMPLES, example_src_dir=_make_src(tmp),
+        reference_impl=_REFERENCE_IMPL, reference_lock="pdfplumber==0.11.0\n")
     return tmp, info
 
 
@@ -99,6 +108,8 @@ def test_held_out_example_files_only_in_oracle(assembled):
     assert not (pub_fix / "inputs" / "c.pdf").exists(), "held-out 样例文件泄进公开区"
     ora_fix = root / "oracle" / info["task_id"] / "fixtures"
     assert (ora_fix / "inputs" / "c.pdf").is_file()
+    pub_reg = root / "fixtures" / "tool_skeleton_pdf-table" / "public_tests"
+    assert (pub_reg / "test_interface_contract.py").is_file()
     assert (ora_fix / "malformed.pdf").is_file()
 
 
@@ -109,7 +120,7 @@ def test_refuses_when_no_file_example_or_no_held_out(tmp_path):
             tmp_path, goal="g", repo_url="u", resolved_commit="c",
             distribution="d", import_module="d", license_id="MIT", tool=_SPEC,
             examples=[{"input": "--help", "expected": "contains:u"}] * 3,
-            example_src_dir=src)
+            example_src_dir=src, reference_impl=_REFERENCE_IMPL)
 
 
 # ------------------------------------------------- 真跑:五变体红绿落点
@@ -153,7 +164,8 @@ def matrix(assembled, tmp_path_factory):
                     "negative_reimpl", "negative_badexit"):
         shim = _session(root, info, tmp, variant)
         cap_rc, cap = _failed_nodes(shim, ora / "test_capability.py")
-        reg_rc, reg = _failed_nodes(shim, ora / "test_regression.py")
+        reg_rc, reg = _failed_nodes(
+            shim, shim.parent / "public_tests" / "test_interface_contract.py")
         out[variant] = {"cap_rc": cap_rc, "cap": cap, "reg_rc": reg_rc, "reg": reg}
     return out
 
@@ -178,8 +190,8 @@ def test_nc_hardcode_dies_exactly_on_held_out(matrix):
 
 def test_nc_badexit_dies_exactly_on_malformed_contract(matrix):
     m = matrix["negative_badexit"]
-    assert m["cap_rc"] == 0, f"样例不该红:{m['cap']}"
-    assert m["reg"] == {"test_malformed_input_is_user_error"}, f"落点错:{m['reg']}"
+    assert m["cap"] == {"test_malformed_input_is_user_error"}, f"落点错:{m['cap']}"
+    assert m["reg_rc"] == 0, f"骨架半不该红:{m['reg']}"
 
 
 def test_nc_reimpl_green_on_oracle_but_caught_by_provenance(assembled, matrix):

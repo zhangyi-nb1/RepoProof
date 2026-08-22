@@ -540,8 +540,8 @@ MUTATIONS: list[dict] = [
         "id": "M40a-fixtures-out-of-public-surface",
         "lesson": "#40 公开面只认 public_tests(order-20/21:oracle 拿被测者写的假模型当量具)",
         "file": _HD,
-        "old": 'PROTECTED_PUBLIC_DIRS = ("public_tests", "fixtures")',
-        "new": 'PROTECTED_PUBLIC_DIRS = ("public_tests",)',
+        "old": 'PROTECTED_PUBLIC_DIRS = ("public_tests", "fixtures", "public_examples")',
+        "new": 'PROTECTED_PUBLIC_DIRS = ("public_tests", "public_examples")',
         "catchers": _T_PS,
         "expected_catcher": ["test_fixtures_count_as_public_surface_tampering"],
     },
@@ -2024,9 +2024,9 @@ MUTATIONS: list[dict] = [
         "lesson": "prompt_profile 打错字静默落回缺省档,而缺省档对 delta 宿主"
                   "句句是假话",
         "file": _HD,
-        "old": "        known = {\"offerclaw-v1\", \"hb-delta-v1\", \"hb-delta-v2\"}\n"
+        "old": "        known = {\"offerclaw-v1\", \"hb-delta-v1\", \"hb-delta-v2\", \"local-tool-v1\"}\n"
                "        if v not in known:",
-        "new": "        known = {\"offerclaw-v1\", \"hb-delta-v1\", \"hb-delta-v2\"}\n"
+        "new": "        known = {\"offerclaw-v1\", \"hb-delta-v1\", \"hb-delta-v2\", \"local-tool-v1\"}\n"
                "        if False:",
         "catchers": _T_HTG,
         "expected_catcher": ["test_g2d_unknown_prompt_profile_refused"],
@@ -2877,8 +2877,8 @@ MUTATIONS: list[dict] = [
                   "更糟:若校验也松了,typo 静默落回缺省档,对 delta 宿主"
                   "句句是假话的提示照发(档口注册与校验是一体两面)",
         "file": _HD,
-        "old": '        known = {"offerclaw-v1", "hb-delta-v1", "hb-delta-v2"}',
-        "new": '        known = {"offerclaw-v1", "hb-delta-v1"}',
+        "old": '        known = {"offerclaw-v1", "hb-delta-v1", "hb-delta-v2", "local-tool-v1"}',
+        "new": '        known = {"offerclaw-v1", "hb-delta-v1", "local-tool-v1"}',
         "catchers": _T_HTP,
         "expected_catcher": [
             "test_p3v2_v2_contract_and_manifest_pins"],

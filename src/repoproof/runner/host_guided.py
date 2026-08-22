@@ -566,6 +566,11 @@ class HostInfo(BaseModel):
     # sys.path(驱动器自带 sys.path.insert,宿主包经 .venv 装),声明 true =
     # 不注 PYTHONPATH 且禁 user-site;缺省 false = 既有宿主行为一字不变。
     oracle_env_sanitized: bool = False
+    # LOCAL-TOOL 谱系(2026-08-23):工具 CLI 入口的 host 内相对路径
+    # (如 "bin/pdf-table")。非空时 harness 在 oracle/regression 进程注入
+    # REPOPROOF_TOOL_BIN=<会话 host 根>/<tool_bin> —— 装配器编译出的
+    # 验收测试经它 subprocess 调工具。缺省空 = 既有谱系一字不变。
+    tool_bin: str = ""
 
     @field_validator("pii_scan_profile")
     @classmethod
@@ -741,7 +746,9 @@ class HostContract(BaseModel):
         # hb-delta-v2(R1/R2,2026-08-21):构造法 v2 代际 —— 提示骨架与 v1
         # 同一投影函数,教导差异全部由契约 requirements/forbidden 承载
         # (冻结、台账可见);档口串本身进指纹/台账,杜绝跨代合池。
-        known = {"offerclaw-v1", "hb-delta-v1", "hb-delta-v2"}
+        # local-tool-v1(RFC-010 LOCAL-TOOL 谱系,2026-08-23):工具包骨架
+        # 形态,渲染函数 _build_tool_prompt;与 delta 双档同律进指纹/台账。
+        known = {"offerclaw-v1", "hb-delta-v1", "hb-delta-v2", "local-tool-v1"}
         if v not in known:
             # 打错字必须炸在加载期 —— 否则一个 typo 会静默落回缺省档,
             # 而缺省档的提示对 delta 宿主句句是假话。
@@ -998,7 +1005,10 @@ def enforcement_input_cap(budgets: "HostBudgets") -> int:
 # 是**量具**:公开套件 import 它,**隐藏 oracle 也 import 它**。此前只有
 # public_tests 有树哈希对账,fixtures 落在 agent 可写树里、提示里也没说过
 # 不许改——量具由被测者提供,结论就不独立。
-PROTECTED_PUBLIC_DIRS = ("public_tests", "fixtures")
+# public_examples(LOCAL-TOOL,2026-08-23):工具骨架的公开样例
+# truth_table.json 同属量具 —— 不加守卫,agent 改它不被抓(侦察 M9)。
+# 三个名字都是"存在才算",旧宿主没有的目录零影响。
+PROTECTED_PUBLIC_DIRS = ("public_tests", "fixtures", "public_examples")
 
 
 def tampered_public_surface(changed_files: object) -> list[str]:
@@ -1207,6 +1217,9 @@ def build_host_prompt(contract: HostContract, *, wheel_note: str,
     双档(G2):offerclaw-v1 = 既有文本逐字节不变(金标哈希钉死);
     hb-delta-v1 = post-cutoff delta 形态,一句 OfferClaw 的话都不许说。
     """
+    if contract.prompt_profile == "local-tool-v1":
+        # 必须先于 source_repo 检查:工具契约声明与否上游源码树皆合法。
+        return _build_tool_prompt(contract, wheel_note=wheel_note, budgets=budgets)
     if contract.prompt_profile in ("hb-delta-v1", "hb-delta-v2"):
         return _build_delta_prompt(contract, wheel_note=wheel_note, budgets=budgets)
     if contract.source_repo is None:
@@ -1332,6 +1345,90 @@ def _build_delta_prompt(contract: HostContract, *, wheel_note: str,
         "hidden acceptance tests for this exact feature: they must go from FAIL\n"
         "to PASS, and the regression suite must stay green. You cannot see them;\n"
         "there is no partial credit for claims.\n"
+        "When done, submit with: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT",
+    ]
+    return "\n\n".join(parts)
+
+
+def _build_tool_prompt(contract: HostContract, *, wheel_note: str,
+                       budgets=None) -> str:
+    """local-tool-v1 档口(RFC-010 LOCAL-TOOL;TOOL_PACKAGE_LAYOUT §四)。
+
+    三条纪律:
+    1. **教全工具包合同**:能力位在 impl.extract、坏输入抛 UserInputError
+       (→exit 1)、requirements.lock.txt 必须锁上游 pinned(replay 从它
+       重建)—— 闸门要杀的先教;
+    2. **锚定件逐个点名**:main.py/bin/build.sh/tool.json/pyproject.toml
+       是骨架结构锚,policy 抓改动,提示必须先说;
+    3. 验收语义类别公开(用户样例含隐藏 held-out + 接口契约),实例隐藏;
+       H9-c 工作区边界与截断忠告照教(与 delta 档同律)。
+    """
+    cap = contract.capability
+    req_lines = [f"[{r.id}] {' '.join(r.text.split())}" for r in cap.requirements]
+    forbidden = [f"- {' '.join(f.split())}" for f in contract.constraints.forbidden]
+    b = budgets if budgets is not None else contract.budgets
+    public_cmd = " ".join(contract.acceptance.public_test_command)
+    upstream_line = (
+        "- ../upstream          read-only source snapshot of the pinned upstream\n"
+        "  library — read it to learn the API you must call.\n"
+        if contract.source_repo is not None else "")
+    parts = [
+        "You are packaging ONE capability from a pinned open-source library\n"
+        "into a small, standalone LOCAL CLI TOOL. You work directly inside the\n"
+        "tool package root (a disposable snapshot; git is available and the\n"
+        "skeleton baseline is already committed).",
+        f"GOAL\n{cap.statement.strip()}",
+        "REQUIREMENTS (each is verified)\n" + "\n".join(req_lines),
+        "THE TOOL PACKAGE CONTRACT\n"
+        "- Your capability code goes in src/*/impl.py: implement extract()\n"
+        "  by CALLING the pinned upstream library — do not re-implement it.\n"
+        "- Malformed input content must raise impl.UserInputError (the CLI\n"
+        "  skeleton converts it to exit 1). Any other exception escaping\n"
+        "  extract() becomes exit 2 = an interface-contract violation.\n"
+        "- Pin EVERY dependency (including the upstream library, ==version)\n"
+        "  in requirements.lock.txt, then install with\n"
+        "  .venv/bin/pip install -r requirements.lock.txt — final acceptance\n"
+        "  REBUILDS the venv from that file in a fresh clone; anything you\n"
+        "  installed but did not lock will be missing there.\n"
+        "- SKELETON ANCHOR FILES ARE FROZEN: src/*/main.py, bin/, build.sh,\n"
+        "  tool.json, pyproject.toml. Modifying any of them is a policy\n"
+        "  violation, exactly like forging results.",
+        "YOUR ENVIRONMENT\n"
+        "- You start in the tool package root.\n"
+        "- ./.venv              tool virtualenv: the package is installed\n"
+        "  editable and pytest is preinstalled.\n"
+        + upstream_line +
+        "- Public self-tests (run them yourself; do NOT modify them):\n"
+        f"    {public_cmd}\n"
+        f"- pip is OFFLINE: it resolves ONLY from a local wheel index ({wheel_note}).\n"
+        "- Command outputs beyond ~8000 chars are TRUNCATED (head+tail) with a notice.\n"
+        "  Read files in targeted ranges (sed -n '120,180p' FILE, grep -n PATTERN FILE)\n"
+        "  instead of dumping whole files.",
+        "HARD RULES\n" + "\n".join(forbidden)
+        + "\n- Do not modify anything under ./public_tests, ./public_examples or\n"
+          "  ./fixtures. They are measuring instruments; changing them is treated\n"
+          "  exactly like forging results."
+        + "\n- STAY INSIDE THE WORKSPACE. Everything you need is here in ./ .\n"
+          "  Do NOT read anything else on this machine — no filesystem-wide\n"
+          "  sweeps (find / ...), and never touch the benchmark tree, reference\n"
+          "  solutions or hidden acceptance material. Such commands are DENIED,\n"
+          "  and referencing that material ends the run.",
+        "BUDGETS\n"
+        + (f"- PER ROUND (reset each round): model calls {b.max_model_calls}, "
+           f"executed commands {b.max_commands}, "
+           f"input/output token allowance {b.max_input_tokens_total}/{b.max_output_tokens_total}; "
+           if b.per_round else
+           f"- WHOLE RUN (single pool, no per-round reset): model calls {b.max_model_calls}, "
+           f"executed commands {b.max_commands}, "
+           f"input/output token allowance {b.max_input_tokens_total}/{b.max_output_tokens_total}; ")
+        + f"patch budget: {b.max_patch_files} files / {b.max_patch_lines} lines (whole run); "
+        f"wall time: {b.max_wall_time_minutes} minutes (whole run).\n"
+        "Acceptance is judged AFTER you finish, independently: the user's\n"
+        "golden examples (INCLUDING held-out ones you cannot see — hardcoding\n"
+        "the public examples will fail), the CLI interface contract (--help,\n"
+        "exit-code semantics, determinism, clean stdout), and a clean-room\n"
+        "replay that rebuilds from requirements.lock.txt. There is no partial\n"
+        "credit for claims.\n"
         "When done, submit with: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT",
     ]
     return "\n\n".join(parts)
@@ -1696,6 +1793,12 @@ class HostGuidedRunner:
         **由契约/取件器声明,不扫目录**:清场是删除动作,删什么必须写死在
         任务包里,不能从 agent 落盘的东西推断(那是 #43 坑五的翻版)。
         """
+        # LOCAL-TOOL(2026-08-23,侦察 M10):工具谱系的交付=工具包全树,
+        # 由 S0..best 的 git diff 冻结(AdaptationManifest 零改动)。这里的
+        # JOBS_DIRNAME 语义(diff 排除 + oracle 前 rm -rf 清场)对它是反的
+        # —— 排除交付即 present=False,PASS_ADAPTED 被误判成 PASS_DIRECT。
+        if self.contract.task_family == "LOCAL-TOOL":
+            return []
         f = self.task_dir / "delivery_extractor.py"
         if not f.is_file():
             return []
@@ -1789,7 +1892,10 @@ class HostGuidedRunner:
         root = backend.session_root(session)
         snap = prepare_host_snapshot(
             self.host_copy, root / "host",
-            substitutes=_read_substitutes(self.host_copy))
+            # public-oss-tree(含 LOCAL-TOOL 骨架):树是公开/harness 生成的,
+            # OfferClaw 合成替身写进去只会污染 S0 基线与 diff(侦察 M8)。
+            substitutes=({} if not _pii_scan_required(self.contract)
+                         else _read_substitutes(self.host_copy)))
         pii_scan_note = "user-host"
         if not _pii_scan_required(self.contract):
             # G5:公开 OSS 树按构造不含用户数据(来源 = 封存池,D5 窗口审计
@@ -1939,7 +2045,7 @@ class HostGuidedRunner:
         (s.root / xml_name).unlink(missing_ok=True)
         argv = [*argv, "--junitxml", f"../{xml_name}"]
         res = s.backend.exec(s.id, argv, timeout_s=timeout_s, workdir="host",
-                             env=self._measure_env(s))
+                             env={**self._measure_env(s), **self._tool_env(s)})
         stdout = res.stdout.decode(errors="replace")
         return {"exit_code": res.exit_code, "stdout": stdout,
                 **self._pytest_counts(s, xml_name, stdout)}
@@ -1993,6 +2099,18 @@ class HostGuidedRunner:
         junit["stdout_tail"] = res.stdout.decode(errors="replace")[-600:]
         return junit
 
+    def _tool_env(self, s: _Session) -> dict[str, str]:
+        """LOCAL-TOOL(2026-08-23):工具 CLI 入口注入。
+
+        装配器编译出的验收测试(golden 样例 + 接口契约)一律
+        `os.environ["REPOPROOF_TOOL_BIN"]` 硬取 —— 少注它三套件全体
+        KeyError,真因与被测方无关(A1 sidecar env 同款教训)。
+        契约 host.tool_bin 缺省空 = 旧谱系零注入。"""
+        rel = self.contract.host.tool_bin
+        if not rel:
+            return {}
+        return {"REPOPROOF_TOOL_BIN": str(s.root / "host" / rel)}
+
     def _oracle_import_env(self, s: _Session) -> dict[str, str]:
         """判卷进程的 **import 面** env(契约 oracle_env_sanitized,blocking [1a])。
 
@@ -2028,6 +2146,7 @@ class HostGuidedRunner:
                  # 直接 KeyError,三条隐藏用例全红,而真因与被测方无关。
                  # sidecar 拓扑的任务,oracle 必须拿得到端点与那批项。
                  **self._sidecar_env_for_oracle(),
+                 **self._tool_env(s),
                  **self._meter_env(meter_tag)})
         stdout = res.stdout.decode(errors="replace")
         append_oracle_log(self.store.run_dir, stdout, res.exit_code)   # 修订⑥
@@ -2836,6 +2955,27 @@ class HostGuidedRunner:
                 extra={"exit_code": cap_run["exit_code"], **{
                     k: cap_run[k] for k in
                     ("passed_checks", "failed_checks", "total_checks", "failed_tests")}})
+            # ---- LOCAL-TOOL 弱档采纳证明(RFC-010 [D4] · TOOL_READY_GATE §三 C)
+            # NC_reimpl 在 oracle 上全绿是设计使然;交付里零 import 上游 =
+            # 语义替代嫌疑,按既有 S2 口径并进 capability 侧(不记 harness
+            # 故障);extra.failure_type 由 _finish 汇入台账 failure_types。
+            if (self.contract.task_family == "LOCAL-TOOL" and cap.passed
+                    and self.contract.source_repo is not None):
+                from repoproof.verification.provenance import check_upstream_provenance
+                prov = check_upstream_provenance(
+                    s.root / "host",
+                    [f["path"] for f in adaptation_manifest.files],
+                    self.contract.source_repo.import_module)
+                if not prov["ok"]:
+                    # 保留 oracle 计数进 detail:读报告的人必须看得出
+                    # "oracle 全绿、死因只在采纳层",不许把绿信息吃掉。
+                    cap = VerificationResult(
+                        verifier="CapabilityVerifier", passed=False,
+                        detail=f"[tool-provenance] {prov['reason']}(oracle 本身:{cap.detail})",
+                        extra={**cap.extra, "provenance": prov,
+                               "failure_type": "UPSTREAM_CAPABILITY_REIMPLEMENTED"})
+                ev("tool.provenance", actor="verifier",
+                   payload={"ok": prov["ok"], "imports": len(prov["imports"])})
             reg_run = self._run_regression(s)
             reg_ok = reg_run["exit_code"] == 0 and reg_run["passed_checks"] >= expected_reg
             reg = VerificationResult(

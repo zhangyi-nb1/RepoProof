@@ -23,6 +23,14 @@ _SPEC = ToolSpec(name="pdf-table", summary="s", interface=ToolInterface(
     output=ToolInterfaceIO(kind="stdout", format="markdown-table"),
     exit_codes={"0": "success", "1": "user_error", "2": "internal_error"}))
 
+_REFERENCE_IMPL = (
+    "\"\"\"reference:真 import 上游的参考实现(出题人提供,绝不交付)。\"\"\"\n"
+    "import pdfplumber  # noqa: F401 — 弱档采纳执法的正控锚\n"
+    "from pathlib import Path\n\n\n"
+    "class UserInputError(ValueError):\n    pass\n\n\n"
+    "def extract(input_path: Path) -> str:\n"
+    "    raise NotImplementedError(\'E2E 合成任务另供 reference\')\n")
+
 _EXAMPLES = [
     {"input": "--help", "expected": "contains:usage"},
     {"input_file": "inputs/a.pdf", "expected": "contains:| A |"},
@@ -40,7 +48,8 @@ def _assemble(tmp: Path) -> tuple[Path, dict]:
         tmp, goal="g", repo_url="https://github.com/jsvine/pdfplumber",
         resolved_commit="deadbeef", distribution="pdfplumber",
         import_module="pdfplumber", license_id="MIT",
-        tool=_SPEC, examples=_EXAMPLES, example_src_dir=src)
+        tool=_SPEC, examples=_EXAMPLES, example_src_dir=src,
+        reference_impl=_REFERENCE_IMPL)
     return tmp, info
 
 

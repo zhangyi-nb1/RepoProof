@@ -48,11 +48,16 @@
   沿用现行"S2 采纳不成立并进 capability 侧,不记 harness 故障"的口径;
 - M2 升级后:import-hook 回执 U1–U4 结论并入同一位置,gate 仍然零改动。
 
-### R · RegressionVerifier(接口契约;旧"宿主回归"的新所指)
+### R · RegressionVerifier(接口契约·骨架半;旧"宿主回归"的新所指)
 
-oracle 节点全部由 `ToolSpec` 推导、装配器生成(agent 拿不到生成逻辑
-也无须拿到——节点语义即公开合同):help 可达 / 用户错误 exit 1 /
-坏格式不裸奔 traceback / 确定性 / 输出纯净(六项见 SCHEMA §四第三层)。
+接口契约按 owner 拆两半(M1 实施定稿;baseline gate 要求 S0 回归恒绿):
+- **骨架半(HOST_INPUT_GUARD)→ R 面**:help 可达 / 输入不存在 exit 1。
+  S0 骨架态恒绿,"agent 搞红它 = 破坏骨架既有行为"——正是回归语义;
+  落位 `public_tests/test_interface_contract.py`(会话内,agent 可自测,
+  公开面哈希守卫防篡改);
+- **实现半(ADAPTER)→ 并进 C 面 oracle**:坏格式不裸奔(exit 1 非 2)/
+  确定性 / 输出纯净。依赖能力实现,S0 红属预期(直连基线语义)。
+全部由 `ToolSpec` 推导、装配器生成——节点语义即公开合同。
 `regression_command` argv 走契约,`regression_result` 只改 detail 文案。
 
 ### P · PolicyVerifier(照旧)
@@ -92,11 +97,12 @@ added_unresolvable / conflicting)原样复用。
 
 | 控制 | 内容 | 必须的结局 | 自证对象 |
 |---|---|---|---|
-| 正控 | 硬编码**全部**样例映射(含 held-out)的假实现 | C 全绿 | 样例测试自洽可满足(题不无解) |
-| NC_empty | 空 main(打印空串 exit 0) | C 必死 | 样例测试有判别力 |
-| NC_hardcode | **只**硬编码公开样例 | held-out 节点必死 | **held-out 防硬编码层真的在防**([G2] 的合成缺陷验证) |
-| NC_reimpl | 不 import 上游、纯自实现 | provenance 必抓(C 侧死) | [D4] 弱档采纳证明查得出 |
-| NC_badexit | 坏输入时 traceback 裸奔 exit 2 | R 必死 | 接口契约测试有判别力 |
+| 正控(battery) | 硬编码**全部**样例映射(含 held-out) | C 样例节点全绿 | 样例测试自洽可满足(题不无解);freeze 前用,**不走全链**(弱档执法下它必死于 provenance) |
+| **reference** | 出题人提供的**真 import 上游**参考实现 | 全链 PASS_ADAPTED | "真调上游的解存在";fake 全链的通关正控(bridge 物化为 host 包 controls/positive) |
+| NC_empty | 空实现(返回空串) | C 必死 | 样例测试有判别力 |
+| NC_hardcode | **只**硬编码公开样例 | held-out 节点必死,公开绿 | **held-out 防硬编码层真的在防**([G2] 的合成缺陷验证) |
+| NC_reimpl | 硬编码全样例、零 import 上游(= battery 正控的化身) | oracle **全绿**、死于 provenance(C 侧翻,detail 保留 oracle 计数) | [D4] 弱档采纳证明查得出——没有这条,假成功直通 |
+| NC_badexit | 坏输入不包装,裸奔 → 骨架兜成 exit 2 | C 面 malformed 节点必死,骨架半绿 | 接口契约(实现半)有判别力 |
 
 五个控制随任务装配生成,`freeze-task` 前跑 controls battery
 (FAILED_AS_EXPECTED 语义沿用)。**M1 新写的每一件验证代码

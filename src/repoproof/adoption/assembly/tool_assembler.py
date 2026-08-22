@@ -5,9 +5,14 @@
 
 生成物:
   contracts/tool-<slug>-v<n>.yaml (+sidecar) + requirements.yaml
-  fixtures/tool_skeleton_<slug>[-vN]/   工具骨架(结构锚,agent 填肉)
+  fixtures/tool_skeleton_<slug>[-vN]/   工具骨架(结构锚,agent 填肉);
+                                        public_tests/ 含公开样例测试 +
+                                        接口契约五项(R-a:节点语义即公开
+                                        合同,agent 可自测;公开面哈希守卫
+                                        防篡改)+ malformed fixture
   oracle/<task_id>/                     golden(公开+held-out,cli 编译)
-                                        + 接口契约五项 + 全部样例 fixtures
+                                        + 全部样例 fixtures(held-out 本体
+                                        只在这里)
   controls/<task_id>/                   五控制(impl.py 变体;NC_reimpl 的
                                         判死在 provenance 层,不进 battery)
 
@@ -175,10 +180,16 @@ def _tool_json(spec: ToolSpec, *, repo_url: str, commit: str, license_id: str,
 
 # ------------------------------------------------------- 接口契约测试(五项)
 
-_REGRESSION_TMPL = '''"""接口契约(regression 新所指;从 ToolSpec 确定性生成,不依赖能力语义)。
+# 接口契约按 owner 拆两半(baseline gate 语义所迫,也更对):
+#   骨架半(HOST_INPUT_GUARD;S0 恒绿) → public_tests/test_interface_contract.py
+#     = R 面:"不破坏骨架既有行为" —— 正是旧"宿主回归"的语义映射;
+#     baseline gate 在 S0 跑它,红 = 骨架/装配坏了,不是模型的锅。
+#   实现半(ADAPTER;依赖能力) → 并进 oracle/test_capability.py
+#     (malformed / determinism / purity;S0 红属预期 = 直连基线语义)。
+_REGRESSION_TMPL = '''"""接口契约·骨架半(HOST_INPUT_GUARD;从 ToolSpec 确定性生成)。
 
-exit 语义:0=成功;1=用户错误;2=内部错误。malformed fixture 是合成的
-坏格式文件 —— 能打开、不是合法输入;必须 exit 1,不得兜成 2。
+exit 语义:0=成功;1=用户错误;2=内部错误。本文件两项在 S0 骨架态即恒绿
+—— 它是"回归"面:agent 把它搞红 = 破坏了骨架既有行为。
 """
 import os
 import subprocess
@@ -203,7 +214,11 @@ def test_missing_input_is_user_error():
     assert r.returncode == 1, f"输入不存在必须 exit 1,实际 {{r.returncode}}"
     assert r.stderr.strip(), "用户错误必须在 stderr 说明原因"
     assert not r.stdout.strip(), "错误路径不得向 stdout 输出半成品"
+'''
 
+_CAP_INTERFACE_TMPL = '''
+
+# ---- 接口契约·实现半(ADAPTER;依赖能力实现,S0 红属预期)----
 
 def test_malformed_input_is_user_error():
     r = _run([str(_FIX / "malformed{ext}")])
@@ -295,6 +310,8 @@ def assemble_tool_task(
     tool: ToolSpec,
     examples: list[dict],
     example_src_dir: Path,
+    reference_impl: str,
+    reference_lock: str = "",
     input_ext: str = ".pdf",
 ) -> dict:
     """生成 LOCAL-TOOL 全部任务文件;返回 {task_id, files, next}。不冻结、不运行。
@@ -384,7 +401,7 @@ budgets:
 
 acceptance:
   capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
-  regression_command: ["pytest", "-q", "/oracle/test_regression.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
   probe_script: direct_tool_probe.py
 """
 
@@ -434,9 +451,9 @@ requirements:
     examples:
       - "exit: 0=成功 1=用户错误 2=内部错误"
     oracle_nodes:
-      - "test_regression::test_malformed_input_is_user_error"
-      - "test_regression::test_deterministic_output"
-      - "test_regression::test_stdout_purity_on_success"
+      - "test_capability::test_malformed_input_is_user_error"
+      - "test_capability::test_deterministic_output"
+      - "test_capability::test_stdout_purity_on_success"
   - id: skeleton-anchors-untouched
     owner: HOST_INPUT_GUARD
     severity: HARD
@@ -448,8 +465,8 @@ requirements:
     examples:
       - "{tool.name} --help -> usage"
     oracle_nodes:
-      - "test_regression::test_help_reachable"
-      - "test_regression::test_missing_input_is_user_error"
+      - "test_interface_contract::test_help_reachable"
+      - "test_interface_contract::test_missing_input_is_user_error"
 """
 
     # ---- 工具骨架 ----
@@ -495,9 +512,11 @@ requirements:
     held_body = held_src.split('"""')[2]
     # held 段砍掉重复 prelude(公开段已含),只留测试函数
     held_tests = held_body[held_body.index("def test_held_example_"):]
-    files[f"oracle/{task_id}/test_capability.py"] = pub_src + "\n\n" + held_tests
     first_file = next(e.input_file for e in exs if e.input_file)
-    files[f"oracle/{task_id}/test_regression.py"] = _REGRESSION_TMPL.format(
+    files[f"oracle/{task_id}/test_capability.py"] = (
+        pub_src + "\n\n" + held_tests
+        + _CAP_INTERFACE_TMPL.format(ext=input_ext, det_input=first_file))
+    files[f"{skel_rel}/public_tests/test_interface_contract.py"] = _REGRESSION_TMPL.format(
         ext=input_ext, det_input=first_file)
     for e in [*public, *held]:
         for rel in (e.input_file, e.expected_file):
@@ -525,6 +544,15 @@ requirements:
         label="NC_reimpl:全样例但零 import 上游 — provenance 必须抓", mapping=full_map)
     files[f"controls/{task_id}/negative_badexit/impl.py"] = _CTRL_BADEXIT.format(
         label="NC_badexit:坏输入不包装,裸奔→exit 2 — 接口契约必须抓", mapping=full_map)
+    # reference:真 import 上游的参考实现(出题人提供,绝不交付)。角色与
+    # 硬编码 positive 不同:positive 证明"样例测试自洽可满足"(battery,
+    # freeze 前);reference 证明"真调上游的解存在"(fake 全链 PASS 的
+    # 载体 —— 弱档 provenance 执法下硬编码件必死,不能充当通关正控)。
+    if not reference_impl.strip():
+        raise CompileError("reference_impl 为空 —— 弱档采纳执法下 fake 全链无正控可用")
+    files[f"controls/{task_id}/reference/impl.py"] = reference_impl
+    if reference_lock.strip():
+        files[f"controls/{task_id}/reference/requirements.lock.txt"] = reference_lock
 
     # ---- 落盘 ----
     for rel, content in files.items():

@@ -80,11 +80,16 @@ pdf-table/                          # 工具包根 = 交付物
 
 ```
 会话根/
-├── tool/                # 工具骨架(装配器生成;editable_zones 唯一可写区)
-│   └── …(§一全部结构,main.py 为空壳,evidence/ 不存在)
-├── upstream/            # pinned 上游快照(只读;策略同现行)
-└── public_tests/        # 公开样例测试(agent 可自测;golden 公开子集)
+├── host/                # = 工具包根(骨架直接挂载为 host;editable_zones=["."])
+│   ├── …(§一全部结构,impl.py 为空壳,evidence/ 不存在)
+│   └── public_tests/    # 公开样例测试 + 接口契约骨架半(运行期由任务包注入)
+└── upstream/            # pinned 上游快照(只读;策略同现行)
 ```
+
+> 执行面实现注(M1 定稿):早稿设想会话内独立 `tool/` 层;实施采用
+> **骨架即会话 host 根**——省一层目录、`git diff S0..best` 天然全计
+> 交付(AdaptationManifest 零改动),`_delivery_dirs` 对 LOCAL-TOOL
+> 短路。公开测试不进骨架交付物,由任务包在装配会话时注入。
 
 - oracle(held-out 样例 + 接口契约测试)照旧 **harness 持有,不进会话**;
 - `tool/` 即旧 `/adaptation` 的语义平移:S0 基线 git commit → 每轮 commit
