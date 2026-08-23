@@ -63,6 +63,16 @@ def main(argv: list[str] | None = None) -> int:
     gt.add_argument("--local-path", type=Path, help="already-present repo directory (offline)")
     p_tin.add_argument("--capability", required=True, help="one-line capability goal")
     p_tin.add_argument("--revision", default=None)
+    p_tin.add_argument("--draft-out", type=Path, default=None,
+                       help="write an editable draft bundle (draft.yaml/GAPS.md/"
+                            "examples/…) to this directory")
+
+    p_tcf = sub.add_parser(
+        "tool-confirm",
+        help="LOCAL-TOOL confirm (M2/RFC-010 [G1] human gate): completed draft "
+             "bundle → D-checks → assemble → adequacy T-gate → frozen contract",
+    )
+    p_tcf.add_argument("--draft-dir", type=Path, required=True)
 
     p_asrc = sub.add_parser(
         "analyze-source",
@@ -288,14 +298,30 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "tool-intake":
+        from repoproof.adoption.intake.tool_confirm import write_draft_bundle
         from repoproof.adoption.intake.tool_intake import run_tool_intake
 
         rep = run_tool_intake(
             args.repo or "", args.capability,
             cache_root=PROJECT_ROOT / "upstream-cache",
             revision=args.revision, local_path=args.local_path)
-        print(json.dumps({"schema_version": 1, "kind": "tool_intake_report",
-                          **rep.to_dict()}, ensure_ascii=False, indent=2))
+        payload = {"schema_version": 1, "kind": "tool_intake_report",
+                   **rep.to_dict()}
+        if args.draft_out is not None and rep.draft:
+            payload["draft_bundle"] = str(write_draft_bundle(rep, args.draft_out))
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "tool-confirm":
+        from repoproof.adoption.intake.tool_confirm import ConfirmError, confirm_tool_draft
+
+        try:
+            info = confirm_tool_draft(args.draft_dir, PROJECT_ROOT)
+        except ConfirmError as exc:
+            print(json.dumps({"ok": False, "problems": exc.problems},
+                             ensure_ascii=False, indent=2))
+            return 3
+        print(json.dumps({"ok": True, **info}, ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd == "export-bundle":
