@@ -22,12 +22,14 @@ from __future__ import annotations
 
 import shutil
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from repoproof.execution.local_worktree_backend import LocalWorktreeBackend
 from repoproof.harness.host_guard import (
     HostGuardError,
+    SelfWriteWindow,
     is_protected,
     snapshot_protected,
     verify_protected_unchanged,
@@ -97,12 +99,23 @@ def run_host_smoke(spec: HostTaskSpec, sessions_root: Path,
                    *, timeout_s: int = 900) -> dict:
     """空转冒烟(零模型零 agent):全链跑通性验证。
 
-    返回逐步结果;ok = 链条完整走完且保护目录零改动(隐藏 oracle 在
-    未适配宿主上失败属预期,不影响 ok——那是"直连基线"语义)。"""
-    report: dict = {"task_id": spec.task_id, "steps": {}}
+    返回逐步结果;ok = 链条完整走完且保护目录**没有一条改动归到本链
+    名下**(隐藏 oracle 在未适配宿主上失败属预期,不影响 ok——那是
+    "直连基线"语义)。
+
+    **为什么 ok 不再要求逐位零改动**:保护清单含 XIANGMU 下全部邻仓,
+    邻仓有各自的活写手(实测 offerclaw `logs/llm_usage.jsonl` 每 7–28
+    秒落盘一次)。而本链 83 秒里会话只存在 1.24 秒,两头是纯只读扫描
+    ——外部写手压倒性地落在"会话根本不存在"的时段里,把这种红算到本
+    测头上,红的是环境不是被测件。`SelfWriteWindow` 把作案时刻交给
+    对账去判:**窗内的照杀,窗外的降级为警告且逐条留痕**。
+    严判读数仍在 `main_dir_integrity["ok"]` 里原样保留,一位不改。"""
+    report: dict = {"task_id": spec.task_id, "steps": {}, "warnings": []}
     integrity_before = snapshot_protected()                      # ①指纹 pre
     backend = LocalWorktreeBackend(sessions_root=Path(sessions_root))
     session = None
+    # 自写窗口起点:此刻之前本链只做过只读的指纹遍历,一个字节没写。
+    session_start = time.time()
     try:
         session = build_session(spec, backend)                   # ②③装配
         root = backend.session_root(session)
@@ -129,14 +142,28 @@ def run_host_smoke(spec: HostTaskSpec, sessions_root: Path,
     finally:
         if session is not None:
             backend.destroy(session)                              # 拆除
+        # 自写窗口终点:会话没了,后面只剩只读对账(含活写手探针)。
+        teardown_end = time.time()
         report["steps"]["teardown"] = {
             "session_removed": session is None
             or not (Path(sessions_root) / session).exists()}
 
-    integrity = verify_protected_unchanged(integrity_before)      # ①指纹 post
+    integrity = verify_protected_unchanged(                       # ①指纹 post
+        integrity_before,
+        self_window=SelfWriteWindow(start=session_start, end=teardown_end))
     report["main_dir_integrity"] = integrity
+    if not integrity["ok"] and integrity["self_ok"]:
+        # 降级但不噤声:哪个目录、哪几条路径、凭什么判外部,全落进 report。
+        report["warnings"].append({
+            "code": "PROTECTED_DIR_EXTERNAL_WRITE",
+            "note": "保护目录在窗口外被外部进程写入;守卫已如实抓到,"
+                    "归因证明与本链无关,故不判红。严判读数见 main_dir_integrity.ok。",
+            "dirs": sorted({m["dir"] for m in integrity["mismatches"]}),
+            "paths": sorted({c["path"] for m in integrity["mismatches"]
+                             for c in m["attribution"]["external_changes"]})[:20],
+        })
     report["ok"] = bool(
-        integrity["ok"]
+        integrity["self_ok"]
         and report["steps"].get("pii_scan", {}).get("hits") == 0
         and report["steps"].get("sanitised_env", {}).get("fake_home")
         and report["steps"].get("regression", {}).get("exit_code") == 0

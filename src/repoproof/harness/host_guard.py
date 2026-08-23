@@ -9,6 +9,15 @@
 _SKIP)+ git HEAD/refs 摘要(护住历史与分支指针)。mismatch 语义:
 立即停止一切自动动作,人工判定;用户在 run 期间自改主目录属违纪,
 判定时如实区分。
+
+**归因层(2026-08-17)**:mismatch 只说"变了",说不出"谁写的",于是
+邻仓的活写手(实测:offerclaw `logs/llm_usage.jsonl` 每 7–28 秒一次)
+能把一条与它毫无关系的测试拖红。`SelfWriteWindow` 给对账补上作案
+时刻:本链**唯一可能写盘的时段**是会话存在期,窗外只跑只读扫描
+(实测冒烟链 83 秒里,会话只存在 1.24 秒)。落在窗外的改动**不可能
+是本链写的**——这是时间线的硬事实,不是启发式。
+`ok` 的语义**一个字没动**(逐位零改动,台账口径不变),免罪只体现在
+新增的 `self_ok` 上,且默认关闭:不传窗口 = 无归因依据 = 一律不免罪。
 """
 
 from __future__ import annotations
@@ -16,6 +25,8 @@ from __future__ import annotations
 import hashlib
 import os
 import subprocess
+import time
+from dataclasses import dataclass
 from pathlib import Path
 
 _SKIP = {".git", ".venv", "venv", "node_modules", "__pycache__",
@@ -94,13 +105,17 @@ def _git_refs_digest(root: Path) -> str:
 
 
 def dir_fingerprint(root: str | Path) -> dict:
-    """保护目录指纹:{tree, git_refs, files}。
+    """保护目录指纹:{tree, git_refs, files, entries}。
 
     tree = sha256(排序的 相对路径\\0大小\\0mtime_ns);含 untracked;
-    无文件数上限(保护对账不允许"太大就不看")。"""
+    无文件数上限(保护对账不允许"太大就不看")。
+
+    `entries`(相对路径 → [size, mtime_ns])是同一趟读数的逐条留存,
+    **只为对账时能说出"变的是哪几条、什么时候变的"**:树哈希只会说
+    "变了",而说不出变在哪就无从归因,归不了因就只能一刀切判红。"""
     rootp = Path(os.path.expanduser(str(root)))
     lines: list[str] = []
-    n = 0
+    entries: dict[str, tuple[int, int]] = {}
     for p in sorted(rootp.rglob("*")):
         rel = p.relative_to(rootp)
         if any(part in _SKIP for part in rel.parts):
@@ -111,12 +126,13 @@ def dir_fingerprint(root: str | Path) -> dict:
             st = p.stat()
         except OSError:
             continue
-        n += 1
+        entries[str(rel)] = (st.st_size, st.st_mtime_ns)
         lines.append(f"{rel}\0{st.st_size}\0{st.st_mtime_ns}")
     return {
         "tree": hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest(),
         "git_refs": _git_refs_digest(rootp),
-        "files": n,
+        "files": len(entries),
+        "entries": entries,
     }
 
 
@@ -129,20 +145,221 @@ def snapshot_protected(protected: list[str] | None = None) -> dict[str, dict]:
     return out
 
 
+# ------------------------------------------------------- 变动归因(谁写的)
+
+SELF = "SELF"                                   # 归到本链名下 → 必须继续红
+EXTERNAL = "EXTERNAL"                           # 已证明不是本链 → 可降级为警告
+
+_R_OUT_OF_WINDOW = "EXTERNAL_OUT_OF_WINDOW"     # 作案时刻落在会话存在期之外
+_R_LIVE_WRITER = "EXTERNAL_LIVE_WRITER"         # 拆除后该路径仍在动 = 有活写手
+_R_IN_WINDOW_QUIESCENT = "SELF_IN_WINDOW_QUIESCENT"   # 窗内动过、拆除后不动了
+_R_NO_TIMESTAMP = "SELF_NO_TIMESTAMP"           # 删除等拿不到作案时刻
+_R_NO_WINDOW = "SELF_NO_WINDOW"                 # 调用方没给窗口 = 无归因依据
+_R_NO_EVIDENCE = "SELF_NO_EVIDENCE"             # 哈希对不上却列不出改动 = 说不清
+
+_ATTR_LIST_CAP = 20                             # 落 report 的明细条数上限
+
+
+@dataclass(frozen=True)
+class SelfWriteWindow:
+    """本链**有可能写盘**的墙钟时段(`time.time()` 语义)。
+
+    start = 会话建立前一刻,end = 会话拆除后一刻。这之外本链只做只读
+    扫描(指纹遍历用 `stat`,git 证据用 `rev-parse`/`for-each-ref`),
+    所以窗外发生的写**不可能出自本链**。
+
+    `margin_s` 双向外扩:边界一律判给"自写"——保守方向是继续红。
+
+    **两处如实划界,不装作没有**:
+    1. mtime 只记得住"最后一次写"。外部写手在本链之后又写了同一条
+       路径,本链那次就被盖住。这是 mtime 的固有上限,不是本实现的
+       疏忽;换任何"事后看文件系统"的做法都一样。
+    2. 上界靠"`exec` 用 `communicate()` 等到进程结束、超时 killpg 整组"
+       成立。真有孙进程闭掉管道后活过拆除并延迟写盘,窗外那段就不再
+       严密。此路径只给零模型零 agent 的空转冒烟用;有 agent 在场的
+       正式 run 走的是原封不动的严判 `ok`,归因只作为证据附随。
+    """
+
+    start: float
+    end: float
+    margin_s: float = 1.0
+
+    def contains(self, mtime: float) -> bool:
+        return self.start - self.margin_s <= mtime <= self.end + self.margin_s
+
+    def as_dict(self) -> dict:
+        return {"start": self.start, "end": self.end, "margin_s": self.margin_s}
+
+
+def _diff_entries(before: dict | None, after: dict) -> list[dict]:
+    """两份 entries 的逐路径差集 → [{path, kind, mtime}](按路径排序)。
+
+    `mtime` = 变动之后该文件的 mtime(秒);删除拿不到时刻,记 None。
+
+    `before` 缺 entries(旧格式指纹)时**不做差集**:拿不到基线就无从
+    比对,硬比会把满树文件全算成"新增"、再按各自 mtime 大面积免罪。
+    如实返回一条无时刻记录 → 判 SELF,继续红。"""
+    if before is None:
+        return [{"path": "<no-baseline-entries>", "kind": "unknown", "mtime": None}]
+    changes: list[dict] = []
+    for rel in sorted(set(before) | set(after)):
+        b, a = before.get(rel), after.get(rel)
+        if b == a:
+            continue
+        kind = "added" if b is None else "removed" if a is None else "modified"
+        changes.append({"path": rel, "kind": kind,
+                        "mtime": None if a is None else a[1] / 1e9})
+    return changes
+
+
+def _git_ref_witnesses(root: Path) -> list[Path]:
+    """refs 变动的"作案时刻"证人:改 refs 必然落在这几个文件之一上。"""
+    g = root / ".git"
+    if not g.is_dir():          # `.git` 是文件(worktree/submodule 形态)→ 无证人
+        return []
+    out = [p for p in (g / "HEAD", g / "packed-refs") if p.is_file()]
+    for sub in ("refs", "logs"):
+        d = g / sub
+        if d.is_dir():
+            out.extend(p for p in d.rglob("*") if p.is_file() and not p.is_symlink())
+    return out
+
+
+def _git_refs_changes(root: Path, window: SelfWriteWindow | None) -> list[dict]:
+    """refs 变动的候选作案记录。
+
+    找不到证人就**不许免罪**(返回一条无时刻记录 → 判 SELF):归因拿不到
+    证据时的默认值必须是"继续红",否则闸门就被"查不到"这三个字掏空了。"""
+    witnesses = _git_ref_witnesses(root)
+    if not witnesses:
+        return [{"path": ".git", "kind": "git_refs", "mtime": None}]
+    stamped: list[dict] = []
+    for p in witnesses:
+        try:
+            stamped.append({"path": str(p.relative_to(root)), "kind": "git_refs",
+                            "mtime": p.stat().st_mtime})
+        except OSError:
+            continue
+    if not stamped:
+        return [{"path": ".git", "kind": "git_refs", "mtime": None}]
+    inside = [c for c in stamped if window is not None and window.contains(c["mtime"])]
+    # 窗内有证人 → 那几个就是待查嫌疑;一个都没有 → 只留最新的一个当证据。
+    return inside or [max(stamped, key=lambda c: c["mtime"])]
+
+
+def _live_writer_probe(root: Path, rels: list[str], *,
+                       probe_s: float, interval_s: float) -> dict:
+    """拆除之后再盯这几条路径,看它们**还动不动**。
+
+    这一步跑在会话已销毁、本链只剩只读扫描的时刻——此时还在动的,只能
+    是别的进程。**只盯这几条路径本身**,不看兄弟、不看父目录:"同目录里
+    有个忙文件"不构成对这一条的免罪,否则热闹目录就成了洗白通道(LESSONS
+    #29 判过的同型错法:放行一个目录不等于放行它装的一切)。
+
+    检出率取决于外部写手的周期,本探针只是窗内那 1.5% 残余的补刀;
+    真正承重的是时间线那一层。测不到就是测不到,测不到即判 SELF。"""
+    def state(rel: str):
+        try:
+            st = (root / rel).stat()
+            return (st.st_size, st.st_mtime_ns)
+        except OSError:
+            return None
+
+    base = {rel: state(rel) for rel in rels}
+    moved: set[str] = set()
+    samples = 0
+    deadline = time.monotonic() + probe_s
+    while time.monotonic() < deadline and len(moved) < len(rels):
+        time.sleep(interval_s)
+        samples += 1
+        for rel in rels:
+            if rel not in moved and state(rel) != base[rel]:
+                moved.add(rel)
+    return {"moved": moved, "samples": samples, "probe_s": probe_s}
+
+
+def _attribute(root: Path, changes: list[dict], window: SelfWriteWindow | None, *,
+               probe_s: float, probe_interval_s: float) -> dict:
+    """逐条改动定责 → {verdict, n_self, n_external, self_changes, external_changes}。
+
+    **免罪必须有正面证据**(窗外发生 / 拆除后仍在动);其余一律 SELF。"""
+    decided: list[dict] = []
+    pending: list[dict] = []
+    if not changes:
+        # 哈希对不上、却一条改动都列不出来 —— 说不清就不许免罪。空表在
+        # Python 里恒假,若不显式挡住,"列不出改动"会被读成"没有可疑改动"
+        # 而自动判 EXTERNAL:那是把闸门交给一个 bug 去开。
+        decided.append({"path": "<unlistable>", "kind": "unknown", "mtime": None,
+                        "verdict": SELF, "reason": _R_NO_EVIDENCE})
+    for ch in changes:
+        if window is None:
+            decided.append({**ch, "verdict": SELF, "reason": _R_NO_WINDOW})
+        elif ch["mtime"] is None:
+            decided.append({**ch, "verdict": SELF, "reason": _R_NO_TIMESTAMP})
+        elif not window.contains(ch["mtime"]):
+            decided.append({**ch, "verdict": EXTERNAL, "reason": _R_OUT_OF_WINDOW})
+        else:
+            pending.append(ch)
+
+    probe = None
+    if pending and probe_s > 0:
+        probe = _live_writer_probe(root, [c["path"] for c in pending],
+                                   probe_s=probe_s, interval_s=probe_interval_s)
+    for ch in pending:
+        live = bool(probe and ch["path"] in probe["moved"])
+        decided.append({**ch, "verdict": EXTERNAL if live else SELF,
+                        "reason": _R_LIVE_WRITER if live else _R_IN_WINDOW_QUIESCENT})
+
+    mine = [c for c in decided if c["verdict"] == SELF]
+    theirs = [c for c in decided if c["verdict"] == EXTERNAL]
+    return {
+        "verdict": SELF if mine else EXTERNAL,
+        "n_self": len(mine), "n_external": len(theirs),
+        "self_changes": mine[:_ATTR_LIST_CAP],
+        "external_changes": theirs[:_ATTR_LIST_CAP],
+        "probe": None if probe is None else {"samples": probe["samples"],
+                                             "probe_s": probe["probe_s"],
+                                             "moved": sorted(probe["moved"])[:_ATTR_LIST_CAP]},
+    }
+
+
 def verify_protected_unchanged(before: dict[str, dict],
-                               protected: list[str] | None = None) -> dict:
-    """run 后对账。→ {ok, mismatches:[{dir, field, before, after}]}。
+                               protected: list[str] | None = None, *,
+                               self_window: SelfWriteWindow | None = None,
+                               probe_s: float = 6.0,
+                               probe_interval_s: float = 0.25) -> dict:
+    """run 后对账。→ {ok, self_ok, attributed, mismatches}。
+
+    - `ok`      逐位零改动。**语义与历史台账口径一字未改**,任何一条
+                改动(哪怕已证明是外部写手)都让它变 False。
+    - `self_ok` 归因后:没有一条改动可以归到本链名下。不传 `self_window`
+                时无归因依据,`self_ok` 恒等于 `ok`——默认不免任何罪。
+    - 每条 mismatch 带 `attribution`,逐条写明定责与理由,供人工复核。
 
     发现 mismatch 时调用方必须:停止一切自动动作、记录 runs.jsonl
-    (main_dir_integrity)、交人工判定——绝不自动"修复"。"""
+    (main_dir_integrity)、交人工判定——绝不自动"修复"。**降级为警告
+    是调用方的显式决定**(见 `run_host_smoke`),本函数只出具证据。"""
     mismatches: list[dict] = []
+    any_self = False
     for d, fp in before.items():
         after = dir_fingerprint(d)
         for field in ("tree", "git_refs"):
-            if after.get(field) != fp.get(field):
-                mismatches.append({"dir": d, "field": field,
-                                   "before": fp.get(field), "after": after.get(field)})
-    return {"ok": not mismatches, "mismatches": mismatches}
+            if after.get(field) == fp.get(field):
+                continue
+            changes = (_diff_entries(fp.get("entries"), after.get("entries") or {})
+                       if field == "tree"
+                       else _git_refs_changes(Path(d), self_window))
+            attribution = _attribute(Path(d), changes, self_window,
+                                     probe_s=probe_s, probe_interval_s=probe_interval_s)
+            any_self = any_self or attribution["verdict"] == SELF
+            mismatches.append({"dir": d, "field": field,
+                               "before": fp.get(field), "after": after.get(field),
+                               "attribution": attribution})
+    return {"ok": not mismatches,
+            "self_ok": not any_self,
+            "attributed": self_window is not None,
+            "self_window": self_window.as_dict() if self_window else None,
+            "mismatches": mismatches}
 
 
 # ---------------- bench 根环境卫生(T2 批 1 实证教训,2026-08-10) ----------------
