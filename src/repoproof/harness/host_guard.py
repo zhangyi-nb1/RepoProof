@@ -183,6 +183,8 @@ _BENCH_ALLOWED_NAMES = frozenset({
     # (harness 生成,无用户数据),wheelhouse = pdfplumber+pytest 闭包轮仓。
     # 登记照旧是有意识动作;答案区(controls/oracle)在任务包与仓内,不入 bench。
     "tool-pdf-table-v1",
+    # M2 验收任务(2026-08-23):markdownify → html2md,同律登记。
+    "tool-html2md-v1",
 })
 _BENCH_ALLOWED_PREFIXES = ("wheelhouse-",)   # 冻结轮仓(commit 尾号命名)
 
@@ -209,6 +211,7 @@ _BENCH_ALLOWED_ENTRIES: dict[str, frozenset[str]] = {
     "hb1-click-3407-v2": frozenset({"host", "wheelhouse"}),
     # LOCAL-TOOL 同律:只许骨架副本与轮仓。
     "tool-pdf-table-v1": frozenset({"host", "wheelhouse"}),
+    "tool-html2md-v1": frozenset({"host", "wheelhouse"}),
 }
 
 

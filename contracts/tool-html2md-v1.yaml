@@ -1,0 +1,50 @@
+task_id: tool-html2md-v1
+
+source_repo:
+  url: https://github.com/matthewwithanm/python-markdownify
+  revision: guided
+  resolved_commit: 93418550746de58c9180c4cc6fda7520581b03cb
+  license: MIT
+  distribution: markdownify
+  import_module: markdownify
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_html2md
+  package: html2md
+  entry_point: html2md
+
+requirement_spec_file: tool-html2md-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "html2md", "summary": "将单个 HTML 文件离线转换为干净、稳定的 Markdown 文本。", "interface": {"usage": "html2md <input.html> [--out FILE]", "input": {"kind": "file", "format": "HTML"}, "output": {"kind": "stdout", "format": "Markdown"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    使用 pinned 开源 Python 库 markdownify 的 HTML-to-Markdown 能力，把本地 HTML 文件转换为纯 Markdown 文本。工具读取一个 HTML 文件，按 markdownify 的解析与转换规则渲染元素：标题输出为 ATX 风格（# 到 ######），无序列表项目符号统一为 '-'，链接、强调、代码块、段落、列表、表格等按上游库语义转换；输出统一将换行规范化为 LF，去除首尾空白，并以单个尾随换行结束。仅处理文件内容，不访问网络，不加载外部资源，不执行脚本。空文件、仅空白文件、无法按 UTF-8/UTF-8-SIG 解码的文件、不能产生有效 Markdown 的输入或上游转换报错的 malformed input 均抛出 UserInputError（CLI 退出码 1）。重复运行在相同输入和相同 pinned 依赖版本下必须是确定性的，且完全离线。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/html2md/impl.py 实现 extract(),必须调用 pinned markdownify;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:html2md --help -> 'contains:usage'; html2md article.html -> 见 article.expected.md; html2md links.html -> 'contains:[the documentation](https://example.com/docs)');坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: Markdown
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

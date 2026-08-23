@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from repoproof.adoption.intake.upstream_conformance import (
-    conformance_health_check,
+    precheck_upstream_conformance,
     select_upstream_tests,
 )
 
@@ -47,12 +47,20 @@ def test_selection_caps_and_empty_cases(tmp_path):
     assert select_upstream_tests(tmp_path / "none", ["table"]) == []
 
 
-def test_health_check_shape_and_none_on_empty():
-    assert conformance_health_check([]) is None
-    hc = conformance_health_check(["tests/test_a.py", "tests/test_b.py"])
-    assert hc["gating"] is True and "passed" == hc["pass_if_stdout_contains"]
-    assert hc["command"][-2:] == ["../upstream/tests/test_a.py",
-                                  "../upstream/tests/test_b.py"]
+def test_precheck_green_and_failing(tmp_path):
+    import sys
+
+    root = _up(tmp_path)
+    rec = precheck_upstream_conformance(
+        root, ["tests/test_table_extract.py"], Path(sys.executable))
+    assert rec["status"] == "PASS" and rec["selected"]
+    assert precheck_upstream_conformance(root, [], Path(sys.executable)) == {
+        "selected": [], "status": "EMPTY"}
+    (root / "tests" / "test_bad.py").write_text(
+        "import nonexistent_dep_xyz\n", encoding="utf-8")
+    with pytest.raises(RuntimeError):
+        precheck_upstream_conformance(root, ["tests/test_bad.py"],
+                                      Path(sys.executable))
 
 
 @pytest.mark.skipif(not PDFPLUMBER.is_dir(),

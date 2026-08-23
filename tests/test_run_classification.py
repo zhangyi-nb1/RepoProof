@@ -388,8 +388,9 @@ def test_k11_the_heldout_prose_is_derived_from_data_not_written_down():
     # 按设计当场自毁(这正是本测试合成段考的行为,真台账先兑现了)。
     # 2026-08-23 再翻一页:LOCAL-TOOL 产品线首任务入账(RFC-010 [G3],
     # host_id=local-tool/pdf-table;PRODUCT_ONBOARDING 不充闸不计能力)。
-    assert d["hosts_covered"] == ["local-tool/pdf-table", "pallets/click",
-                                  "tobymao/sqlglot",
+    # 2026-08-23 M2 验收:第二个工具宿主 local-tool/html2md 入账,再翻一页。
+    assert d["hosts_covered"] == ["local-tool/html2md", "local-tool/pdf-table",
+                                  "pallets/click", "tobymao/sqlglot",
                                   "zhangyi-nb1/offerclaw"], d["hosts_covered"]
     note = d["_denominators"]["heldout_model_evaluation_runs"]
     assert "第二宿主未建" not in note, "宿主已入账,这句必须消失"

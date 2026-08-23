@@ -1,0 +1,5 @@
+markdownify==1.2.3
+beautifulsoup4==4.15.0
+soupsieve==2.9.2
+six==1.17.0
+typing-extensions==4.16.0

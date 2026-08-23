@@ -67,6 +67,21 @@ def main(argv: list[str] | None = None) -> int:
                        help="write an editable draft bundle (draft.yaml/GAPS.md/"
                             "examples/…) to this directory")
 
+    p_tdf = sub.add_parser(
+        "tool-draft",
+        help="LOCAL-TOOL drafter (M2-d/[G1] LLM-in-draft-layer-only): fill "
+             "owner=LLM gaps in a draft bundle; output stays DRAFT and must "
+             "pass tool-confirm + human review before freezing",
+    )
+    p_tdf.add_argument("--draft-dir", type=Path, required=True)
+    gd = p_tdf.add_mutually_exclusive_group(required=True)
+    gd.add_argument("--repo", help="public GitHub URL (re-runs intake for context)")
+    gd.add_argument("--local-path", type=Path)
+    p_tdf.add_argument("--capability", required=True)
+    p_tdf.add_argument("--revision", default=None)
+    p_tdf.add_argument("--fake", action="store_true",
+                       help="deterministic template drafter (zero API)")
+
     p_tcf = sub.add_parser(
         "tool-confirm",
         help="LOCAL-TOOL confirm (M2/RFC-010 [G1] human gate): completed draft "
@@ -310,6 +325,29 @@ def main(argv: list[str] | None = None) -> int:
         if args.draft_out is not None and rep.draft:
             payload["draft_bundle"] = str(write_draft_bundle(rep, args.draft_out))
         print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "tool-draft":
+        from repoproof.adoption.intake.tool_drafter import (
+            DraftError,
+            FakeDrafter,
+            LiteLLMDrafter,
+            draft_into_bundle,
+        )
+        from repoproof.adoption.intake.tool_intake import run_tool_intake
+
+        rep = run_tool_intake(
+            args.repo or "", args.capability,
+            cache_root=PROJECT_ROOT / "upstream-cache",
+            revision=args.revision, local_path=args.local_path)
+        try:
+            drafter = FakeDrafter() if args.fake else LiteLLMDrafter()
+            out = draft_into_bundle(rep, args.draft_dir, drafter)
+        except DraftError as exc:
+            print(json.dumps({"ok": False, "error": str(exc)},
+                             ensure_ascii=False, indent=2))
+            return 3
+        print(json.dumps({"ok": True, **out}, ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd == "tool-confirm":

@@ -27,7 +27,7 @@ from pathlib import Path
 
 import yaml
 
-from repoproof.adoption.intake.upstream_conformance import conformance_health_check
+from repoproof.adoption.intake.upstream_conformance import precheck_upstream_conformance
 from repoproof.domain.models import TaskContract
 
 _ANCHOR_RULE = ("skeleton anchor files (src/*/main.py, bin/, build.sh, tool.json, "
@@ -77,7 +77,6 @@ def synthesize_host_contract(
     setup_commands: list[list[str]] | None = None,
     max_rounds: int = 3,
     hook_min_calls: int = 1,
-    upstream_conformance: list[str] | None = None,
 ) -> dict:
     """ToolContract → HostContract 的 YAML-ready dict(纯数据,零 IO)。
 
@@ -116,11 +115,7 @@ def synthesize_host_contract(
             "setup_commands": setup_commands or _DEFAULT_SETUP,
             "health_checks": [
                 {"command": [f"./bin/{name}", "--help"],
-                 "pass_if_stdout_contains": "usage", "gating": True},
-                # M2-e:上游一致性子集(G2 第二层)—— S0 期验"pinned 上游在
-                # 本环境行为正常";不健康=BLOCKED,零模型预算消耗。
-                *([hc] if (hc := conformance_health_check(
-                    upstream_conformance or [])) else [])],
+                 "pass_if_stdout_contains": "usage", "gating": True}],
             "host_root_env": "REPOPROOF_TOOL_ROOT",
             "wheelhouse_path": str(wheelhouse),
             "require_wheelhouse_manifest": False,
@@ -187,6 +182,7 @@ def materialize_tool_task(
     setup_commands: list[list[str]] | None = None,
     max_rounds: int = 3,
     upstream_conformance: list[str] | None = None,
+    conformance_python: Path | None = None,
 ) -> Path:
     """装配产物 → host_guided 任务包 + 宿主副本。返回合成 contract.yaml 路径。
 
@@ -281,11 +277,24 @@ def materialize_tool_task(
             n_file_examples += sum(
                 1 for e in _json.loads(p.read_text(encoding="utf-8"))["examples"]
                 if e.get("input_file"))
+    # M2-e 物化期预检:选中子集在 harness 侧解释器上必须绿(供给问题
+    # 早暴露);记录落任务包 conformance.json。未给解释器 = 只记选取。
+    conf_record = {"selected": upstream_conformance or [], "status": "SKIPPED"}
+    if upstream_conformance and conformance_python is not None:
+        up_dir = (project_root / "upstream-cache"
+                  / f"upstream-{tc.source_repo.resolved_commit[:12]}")
+        try:
+            conf_record = precheck_upstream_conformance(
+                up_dir, upstream_conformance, conformance_python)
+        except RuntimeError as e:
+            raise ToolBridgeError(str(e)) from e
     doc = synthesize_host_contract(
         tc, requirements, host_copy=host_copy, wheelhouse=wheelhouse,
         skeleton_commit=_tree_sha(skeleton), setup_commands=setup_commands,
-        max_rounds=max_rounds, hook_min_calls=n_file_examples,
-        upstream_conformance=upstream_conformance)
+        max_rounds=max_rounds, hook_min_calls=n_file_examples)
+    (task_dir / "conformance.json").write_text(
+        _json.dumps(conf_record, ensure_ascii=False, indent=1) + "\n",
+        encoding="utf-8")
     out_contract = task_dir / "contract.yaml"
     out_contract.write_text(
         "# 由 tool_host_bridge 从冻结 ToolContract 合成;手改此文件=换题。\n"

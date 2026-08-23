@@ -1,0 +1,17 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input": "--help",
+   "expected": "contains:usage"
+  },
+  {
+   "input_file": "article.html",
+   "expected_file": "article.expected.md"
+  },
+  {
+   "input_file": "links.html",
+   "expected": "contains:[the documentation](https://example.com/docs)"
+  }
+ ]
+}

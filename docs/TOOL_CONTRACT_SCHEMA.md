@@ -145,12 +145,19 @@ examples:
   公开样例,看不到 held-out;正控(硬编码全样例映射)只证明测试自洽,
   绝不交付。
 
-### 第二层:上游行为一致性(M2 进,M1 手工可选)
+### 第二层:上游行为一致性(M2-e 实施定稿)
 
-从上游自带测试套件选取与目标能力相关的子集,在**上游快照**上运行,
-证明"pinned 版本在本环境行为正常"——它验的是上游与环境,不是 wrapper,
-故独立成 oracle 文件(`test_upstream_conformance.py`),不与第一层混计。
-M2 的 intake 自动化负责选取;M1 手工契约可留空。
+从上游自带测试套件确定性选取与目标能力相关的子集(`intake/
+upstream_conformance.select_upstream_tests`:关键词命中排序、上限、
+不硬凑),证明"pinned 版本在本环境行为正常"——它验的是上游与环境,
+不是 wrapper。
+
+> **执行时机(html2md 彩排实测倒逼)**:落在 **materialize 期预检**
+> (harness 侧已装上游的解释器跑,不健康=物化拒绝,记录落任务包
+> `conformance.json`),**不进 run**。曾试 S0 health check:上游库属
+> agent 的 lock 责任,S0 态骨架 venv 里没有它,收集必崩;若让 harness
+> 预装上游,replay"从 agent 自锁 lock 重建"的执法点被打穿。run 期的
+> 上游健康由 agent 装完后的 oracle 自然覆盖。
 
 ### 第三层:接口契约检查(装配器自动生成,进 regression)
 

@@ -58,7 +58,11 @@ class UserInputError(ValueError):
 
 def extract(input_path: Path) -> str:
     try:
-        return minilib.rows_to_markdown(input_path.read_text(encoding="utf-8"))
+        text = input_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as e:      # malformed=伪二进制:解码错=用户错误
+        raise UserInputError(str(e)) from e
+    try:
+        return minilib.rows_to_markdown(text)
     except minilib.FormatError as e:
         raise UserInputError(str(e)) from e
 '''

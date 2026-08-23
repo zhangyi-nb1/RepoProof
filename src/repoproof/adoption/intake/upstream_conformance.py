@@ -52,18 +52,28 @@ def select_upstream_tests(
     return [rel for _, rel in scored[:max_files]]
 
 
-def conformance_health_check(selected: list[str]) -> dict | None:
-    """→ HostHealthCheck 形状的 dict(bridge 合成用);空选取 → None。
+def precheck_upstream_conformance(
+    upstream_dir: Path,
+    selected: list[str],
+    python: Path,
+) -> dict:
+    """物化期预检(M2-e 实施定稿):在 harness 侧(已装 pinned 上游的解释
+    器)跑选中子集 —— 供给/环境问题在物化期就暴露,不进 run。
 
-    经会话 venv 跑 ../upstream 下选中子集;pytest 进程 cwd=host,上游
-    只读挂载,cache 禁写。收集期崩(插件缺/filterwarnings 撞新 pytest)
-    也是"上游在本环境不健康"的如实读数 —— gating BLOCKED,不烧预算。"""
+    为什么不做成 S0 health check(实测倒逼):上游库是 **agent 的 lock
+    责任**,S0 态骨架 venv 里没有它,收集必崩;若让 harness 预装上游,
+    replay"从 agent 自锁 lock 重建"的执法点被打穿(lock 缺上游也能绿)。
+    → 选中子集不健康 = 抛(物化拒绝);绿 = 返回记录(任务包留痕)。"""
+    import subprocess
+
     if not selected:
-        return None
-    return {
-        "command": [".venv/bin/python", "-m", "pytest", "-q",
-                    "-p", "no:cacheprovider",
-                    *[f"../upstream/{rel}" for rel in selected]],
-        "pass_if_stdout_contains": "passed",
-        "gating": True,
-    }
+        return {"selected": [], "status": "EMPTY"}
+    argv = [str(python), "-m", "pytest", "-q", "-p", "no:cacheprovider",
+            *[str(Path(upstream_dir) / rel) for rel in selected]]
+    r = subprocess.run(argv, capture_output=True, text=True, timeout=600)
+    if r.returncode != 0:
+        raise RuntimeError(
+            f"上游一致性预检失败(exit {r.returncode})—— 供给/环境问题,"
+            f"物化期拒绝:{(r.stdout or r.stderr)[-400:]}")
+    return {"selected": selected, "status": "PASS",
+            "tail": r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""}

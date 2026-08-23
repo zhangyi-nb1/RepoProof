@@ -337,6 +337,7 @@ def assemble_tool_task(
 
     files: dict[str, str] = {}
     copies: list[tuple[Path, str]] = []   # (源文件, 仓内相对目标)
+    binary_copies: list[tuple[bytes, str]] = []   # (字节, 仓内相对目标)
 
     # ---- 契约 ----
     ex_lines = "; ".join(
@@ -527,8 +528,11 @@ requirements:
         for rel in (e.input_file, e.expected_file):
             if rel:
                 copies.append((example_src_dir / rel, f"oracle/{task_id}/fixtures/{rel}"))
-    files[f"oracle/{task_id}/fixtures/malformed{input_ext}"] = (
-        "this is not a valid " + io_in.format + " payload\n")
+    # malformed = 确定性伪二进制:非 UTF-8、无任何常见格式魔头 —— 文本型
+    # malformed 对宽容解析格式(HTML 域实测)会被正常处理成 exit 0,接口
+    # 契约必红;二进制对 PDF(无 %PDF 头)/HTML(解码炸)等域普遍成立。
+    binary_copies.append((bytes([0xFF, 0xFE]) + bytes(range(0x80, 0xA0)) * 4,
+                          f"oracle/{task_id}/fixtures/malformed{input_ext}"))
     files[f"oracle/{task_id}/fixtures/public_documents.json"] = json.dumps(
         {"examples": [e.model_dump(exclude_none=True) for e in public]}, ensure_ascii=False)
     files[f"oracle/{task_id}/fixtures/held_out_documents.json"] = json.dumps(
@@ -564,6 +568,10 @@ requirements:
         p = root / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8")
+    for data, rel in binary_copies:
+        p2 = root / rel
+        p2.parent.mkdir(parents=True, exist_ok=True)
+        p2.write_bytes(data)
     for src, rel in copies:
         if not src.is_file():
             raise CompileError(f"样例文件不存在:{src}(adequacy T3 同律,拒装配)")

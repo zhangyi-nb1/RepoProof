@@ -1,0 +1,8 @@
+[project]
+name = "html2md"
+version = "1.0.0"
+description = '将单个 HTML 文件离线转换为干净、稳定的 Markdown 文本。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

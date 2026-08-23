@@ -42,11 +42,18 @@
   **golden 样例(公开 + held-out)+ 确定性**;样例测试内部
   `subprocess.run` 工具 CLI,断言 exit 0 + 输出匹配
   ([TOOL_CONTRACT_SCHEMA.md](TOOL_CONTRACT_SCHEMA.md) §四第一层);
-- **[D4] 弱档采纳证明并入本侧**:provenance 零 import 检测
-  (`UPSTREAM_CAPABILITY_REIMPLEMENTED`)与 manifest 一致性静态检查
-  (§五)不通过时,作为 capability 侧 FAIL 理由记入 detail——
-  沿用现行"S2 采纳不成立并进 capability 侧,不记 harness 故障"的口径;
-- M2 升级后:import-hook 回执 U1–U4 结论并入同一位置,gate 仍然零改动。
+- **[D4] 采纳证明并入本侧(三层证据,M2-c 实施定稿)**:
+  ① 静态 provenance 零 import 检测;② **运行时回执**(harness 在工具
+  子进程注入 import-hook:sitecustomize 经 env 进程链、HMAC secret
+  现摇、ledger 在 run_dir 会话外;判据 = import 事件 ≥1 且调用数 ≥
+  文件样例数——抓"装样子 import";账缺失 = 判死);③ 探测自曝扫描
+  (交付文本含 REPOPROOF_HOOK 字样 = INSTRUMENT_TAMPERED——协议不在
+  任何 agent 可见面,正常实现不可能碰巧写出)。任何一层不过均作为
+  capability 侧 FAIL 理由记入 detail(oracle 计数保留),沿"S2 并进
+  capability 侧"口径;completion_gate 零改动。威胁边界如实:同进程
+  运行时反射窃取 secret 属 v1 边界外(sidecar 拓扑仍是强档);
+  量具透明性钉死:wrapper 不包异常类/类型(真实上游 FormatError 实测
+  ——包类会炸 except 语义)。
 
 ### R · RegressionVerifier(接口契约·骨架半;旧"宿主回归"的新所指)
 
