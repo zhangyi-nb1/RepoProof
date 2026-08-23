@@ -3368,3 +3368,17 @@ intake 建议名避撞(-tool 后缀)+adequacy T5 硬拒(自证)+confirm 断言
 基线 `1164 passed + 60 skipped + 0 failed`(+7)。**M0-M3 全关**;
 M4(批量实测与指标:10-20 真仓、接受率与 Tool Ready Rate 成对报、
 Replay Success、False Success 审计,跑批前预注册)待用户裁量开跑。
+
+## 状态 · 2026-08-23 · M4 预注册冻结(批次一;待用户批准开跑)
+
+`benchmarks/v2/preregistrations/M4-TOOL-ONBOARDING-1-20260823.md` +
+`M4-batch-1-tasks.json`(锚 80b00ec):12 仓一次冻结(跨 8+ 能力域,
+选取口径先于任何 intake 结果);四指标唯一出口
+`scripts/tool_metrics.py`(成对语义写死输出,合成台账自证)+
+`m4_replay_check.py`(自动重装口径,append-only)。真发一发制,批帽
+6M 名义 in 触顶即停;全部发次 PRODUCT 口径不充闸不计能力。
+基线 `1166 passed + 60 skipped + 0 failed`。
+
+**停点:预注册待用户批准**——批后按清单顺序逐任务走 add→人闸→build,
+操作员=AI、用户抽验;批总成本粗估(按 M1/M2 实测 167-360K in/发):
+名义 in ≈2-4.5M+起草 ~0.1M,cache 折后实际远低。
