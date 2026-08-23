@@ -1,9 +1,9 @@
 # RepoProof — ChatGPT Web 项目交接快照
 
-> 快照日期：2026-08-24（Asia/Shanghai）  
+> 快照日期：2026-08-24（Asia/Shanghai）
 > 用途：上传到 ChatGPT 网页端项目，帮助一个无法直接读取本机仓库的 GPT
-> 理解 RepoProof 的最新产品方向、真实进度和下一步决策。  
-> 注意：本文同时描述两个本地工作树；不要把“已提交”“未提交”“未合并”
+> 理解 RepoProof 的最新产品方向、真实进度和下一步决策。
+> 注意：本文同时描述多个本地 Git 状态；不要把“已提交”“未提交”“未合并”
 > 三种状态混为一谈。
 
 ## 1. 一句话定位
@@ -24,17 +24,14 @@ Agent 自称完成不构成成功。最终结论来自冻结合同、独立验�
 
 ## 2. 当前代码状态（必须先读）
 
-### 主工作树：M5，当前仍未提交
+### 本地 `main`：M5 已提交并关闭
 
 - 分支：`main`
-- 当前提交：`c5c958d`（M4 批次二收官）
-- 相对 `origin/main`：本地 `main` 领先 31 个提交；远端并非最新状态。
-- 工作区：39 个变更路径，其中 33 个已跟踪文件被修改、6 个新文件尚未跟踪。
-- 当前内容：RFC-011 / M5 输出合同一致性与运营发布状态实现。
-- 本地权威交接文档记录的质量基线：`1222 passed + 60 skipped + 0 failed`
-  （1282 collected）。
-- 结论：**M5 在本地被记录为 complete/closed，但在形成提交前只能视为
-  “已完成并复验的工作区状态”，不能假装已经存在于 GitHub。**
+- 当前提交：`034bdf1`（M5 输出合同一致性与运营发布状态关闭）。
+- 相对 `origin/main`：本地 `main` 领先 32 个提交；远端并非最新状态。
+- M5 质量基线：`1324 passed + 60 skipped + 0 failed`。
+- 结论：**M5 已存在于本地提交历史，但尚未推送；不得说成已经存在于
+  GitHub。**
 
 M5 主要新增：
 
@@ -47,29 +44,34 @@ M5 主要新增：
 7. 同名更高 task version 的安全升级、归档与失败恢复；
 8. 37 份旧冻结合同保持可加载，不改写历史证据。
 
-### 独立 UI 工作树：M6 UI，已提交但未合并
+### M6 整合分支：Engineering Complete，尚未合回 `main`
 
-- 分支：`codex/repoproof-studio-product-mode`
-- 基线：`c5c958d`
-- 提交：
-  - `4ead78a` — 新增 RepoProof Studio Product Mode；
-  - `8357f90` — 将 Studio 与 Benchmark Lab 完全拆成两个应用。
-- 工作树状态：干净。
-- 与 M5 的关系：基于 M4 独立开发，通过 Core CLI 能力探测接入
-  `audit/withdraw`，尚未与本地未提交的 M5 工作树合并。
+- 分支：`codex/m6-studio-integration`
+- UI 来源：`codex/repoproof-studio-product-mode @ df9cc32`（基于 M4）。
+- 整合提交：`3818ccb` 以 `--no-ff` 保留 UI 历史；`d7c1278` 完成
+  Core×Studio 可信整合。
+- 与 M5 的关系：从 `main @ 034bdf1` 建分支并完成集成，不再存在 M5/UI
+  双重事实源。
+- 实测门禁：纯 M6 隔离工作树全量 pytest 退出 0（1455 collected）；
+  M6 改动面 Ruff、`git diff --check` 通过。
+- 阶段结论：**M6 Engineering Complete；M6 Preview Validated 尚未关闭。**
+  后者仍需项目方和至少两名目标用户完成固定案例理解测试，不能由自动化替代。
+- 当前未合回本地 `main`，也未推送或发布。
 
 UI 最终形态：
 
 - `RepoProof Studio`：默认产品入口，面向 GitHub 能力 → 本地工具；
 - `RepoProof Benchmark Lab`：保留旧实验、Host Pilot、历史报告和设置；
 - 两套应用不同进程、不同端口、不同视觉、不同导航、不同会话状态；
-- Studio 使用 `~/tools` 与 `~/.repoproof`；
-- Lab 使用仓库内 `runs/`、benchmarks、reports 和 evidence；
-- 两边没有交叉入口，也不混算指标。
+- Studio 工具库只消费 Core `tool_registry.list_tools(..., scan=False)`；
+- historical verdict、operational status、package health 三栏独立展示；
+- Studio 与 Lab 可同时打开，但所有 Core 写任务共用一把跨进程锁；
+- Product 发次原生标记并从 Lab 模型能力指标中排除；
+- 两套应用不同入口、导航和会话状态，共享证据引擎但不混算指标。
 
-UI 定向回归、Host Pilot 回归、静态边界检查、双端口浏览器验收均通过。
-全量测试时曾出现一个 Host smoke 指纹失败：原因是另一会话同时写入受保护的
-原工作树；紧接着用同一链路诊断执行完整通过，并非 UI 逻辑回归。
+UI 定向回归、Host Pilot 回归、静态边界检查和自动化双入口浏览器旅程均通过。
+全量测试首次出现的 Host smoke 指纹失败，已定位为测试期间开发服务器热重载
+触碰受保护工作树；停掉该服务器后，同链路及第二次全量测试均通过。
 
 ## 3. 已提交的 M0–M4 事实
 
@@ -124,21 +126,22 @@ v1 面向：
 
 ## 6. 当前最重要的下一步
 
-1. 等主工作树的 M5 测试会话完成并形成提交；
-2. 将 UI 分支合入包含 M5 的分支，解决 CLI/UI 接口冲突；
-3. 重新运行 UI、工具发布、MCP、升级与全量回归；
-4. 同步更新权威 handoff、README 和版本号；
-5. 经用户确认后再推送 GitHub；
-6. 不在未经授权时启动第三批真实仓或新的真实模型发次。
+1. 用 ACTIVE、构建失败、historical READY/current REVOKED 三个固定案例完成
+   项目方 + 两名目标用户的 M6 预览验证；
+2. P0/P1 误解清零后，才把 M6 合回本地 `main`；
+3. M7 在独立分支只先完成零模型 sidecar 协议、assembler 和 conformance；
+4. 强 receipt 绑定和 OS 级隔离成立前，ToolSpec v3 最多为
+   `REVIEW_REQUIRED`，不得进入 `ACTIVE`；
+5. 推送、发布、第三批真实仓、真实模型调用和 M7 单仓 clean replay 均需另行授权。
 
 ## 7. 希望网页端 GPT 提供的建议
 
 请优先评价：
 
 1. 新定位是否足够聚焦，用户是否能理解“为什么需要 RepoProof”；
-2. M5 的 historical/operational 双状态是否合理、是否存在误导风险；
-3. M5 与独立 Studio UI 合并时最可能出现的接口或产品语义冲突；
-4. 下一阶段应优先做用户体验、真实用户验证、分发安装还是继续扩验证能力；
+2. M6 的三栏状态与完整 reason code 是否仍可能被误读；
+3. M6 固定案例预览验证能否有效发现状态认知偏差；
+4. M7 sidecar 首版保持 `REVIEW_REQUIRED` 的可信边界是否足够保守；
 5. 哪些产品表述可能夸大当前证据；
 6. 如何设计一次低成本、不会污染 Benchmark Lab 的真实用户试用。
 
