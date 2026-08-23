@@ -3382,3 +3382,28 @@ Replay Success、False Success 审计,跑批前预注册)待用户裁量开跑�
 **停点:预注册待用户批准**——批后按清单顺序逐任务走 add→人闸→build,
 操作员=AI、用户抽验;批总成本粗估(按 M1/M2 实测 167-360K in/发):
 名义 in ≈2-4.5M+起草 ~0.1M,cache 折后实际远低。
+
+## 状态 · 2026-08-23 · M4 批次一收官:12/12 VERIFIED_TOOL_READY(预算 28.7%)
+
+预注册全量执行(锚 80b00ec,操作员=AI 按 add→人闸→build 逐仓):
+**四指标 acceptance 12/12、tool_ready 12/12、replay(重装档)12/12、
+False Success 审计 12/12 PASS**(操作员新造非样例输入终验;ftfy 首轮
+输入自身丢 \x9d 尾字节、tabulate 首轮误喂 TSV,均复验澄清为审计输入
+问题非工具缺陷)。真发合计 286 调用/1,723,150 in/55,230 out=6M 帽
+28.7%;台账 +31 发(19 fake+12 真发),分类 product-7..37 全 PRODUCT
+口径;唯一批外损耗:tabulate 首次真发 pre-ledger 崩(.git 符号链接→
+OracleViolation),tokens 未入账,诚实记于该任务彩排行注记。
+
+**合成世界又撞出七处真缺陷**(全部彩排闸/预检在真发前拦截,修复全部
+先自证):bench 根 tool-* 准入、PEP503 名撞(恒 -tool 后缀+T5 双条件)、
+__title__ 间接名、APFS 大小写读回、断言双引号 SyntaxError(运行时
+f-string)、malformed 域豁免(chardet:伪二进制=合法输入;bridge 控制集
+改以装配产物为准)、**import-hook 空壳顶层包盲区**(dateutil 功能全在
+子模块→hook 记零调用把真用判装样子;前缀匹配+子模块包裹,shellpkg
+合成正例自证)。H9-a 亦真拦一次(/tmp 残留旧束=答案可达,0 tokens)。
+
+K11 hosts_covered 18 宿主翻页(弃置命名 python-slugify 两缺陷行
+append-only 保留)。基线 `1173 passed + 60 skipped + 0 failed`(+7)。
+**M0-M4 全关,RFC-010 路线图走完**;`~/tools/` 现有 14 个已验证工具
+(12 新+pdf-table+html2md)。遗留口:用户抽验(审计账 auditor 字段
+留待);批次二/规模化、MCP 批量转换、DSH 资格化重开均待用户裁量。
