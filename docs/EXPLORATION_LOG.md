@@ -3267,3 +3267,31 @@ worktree 会话落进保护指纹秒级窗口(指纹按设计报警,非回归;�
 备轮(pdfplumber+pytest 闭包)+ bench 白名单加项(host_guard M6)+
 mini-swe 真模型单发 + evidence/ 写入与 verdict_public 渲染(GATE §二)
 + 工具落地 ~/tools/。E1G 永不开跑;DSH 臂 M3 前不裁。
+
+## 状态 · 2026-08-23 · M1 关闭:真模型首发 VERIFIED_TOOL_READY(锚 c931ecb)
+
+**产品线第一个真工具落地**:`~/tools/pdf-table`(pdfplumber@v0.11.10,
+commit 7d4f2f58)。台账三发(232 行):彩排 FAIL(诚实,暴露两修:骨架
+.gitignore / fake smoke 预装 lock 集)→ 彩排 PASS → **真发 gpt-5.5 ×
+mini-swe:PASS_ADAPTED → VERIFIED_TOOL_READY**(28 调用/167K in/5.6K
+out,预算内;capability 7/7 含 held-out;clean replay 从 agent 自锁
+lock 重建再全过)。
+
+**两次闸门现场实证**:H9-a 答案残留闸拒开首次真发(样例源/期望在 /tmp
+可达,零模型调用被拒——清场后重发);policy 补丁预算在彩排首发当场抓
+venv 进 diff(1833 文件)。
+
+**用户级验证**:`./build.sh` 真装(PyPI from lock)→ 真 PDF 出 Markdown
+表(exit 0)→ missing/malformed 均 exit 1。交付含 tool.json(verification
+由 harness 填充,agent 侧非 null=越权拦截)+ evidence/(report/
+provenance/patch/verification)。
+
+**台账纪律收口**:三发分类旁挂 test_mode=PRODUCT;PRODUCT_PURPOSES
+显式并入 NON_GATEABLE(bench_records 代码 diff,非旁挂自述);K11
+宿主钉值合法翻页(local-tool/pdf-table);v2_gate.json 重生成。
+**产品发次不充闸门、不计模型能力、不与 Lab 互比(RFC-010 [G3])。**
+
+**基线**:`1122 passed + 60 skipped + 0 failed`(bench 根重现,一 skip
+转绿)。M1 全判据达成:真用工具+干净重放+证据完整+负控全数落网。
+**下一步=M2**(intake 半自动化:契约草稿 LLM 限草稿层+adequacy 扩条
++样例三层+import-hook 采纳升级)。
