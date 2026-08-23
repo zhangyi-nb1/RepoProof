@@ -58,3 +58,18 @@ failure_class 与 gate_reasons 摘录。汇总:通过数、失败形态分布、
   清残留后补发(PASS)。
 - 批帽:末发(feedparser)发出前累计 5,531,552 未触顶,发出后总计
   6,015,425,超帽 15,425(0.26%)——"触顶即停"按发前判定执行,如实记。
+- 2026-08-23 深挖取证(纯读盘,零新发):**pygments 发次的"capability
+  1/7 能力面实败"归因撤回**。真因五步链:①harness `_run_public` 的 env
+  漏并入 `_tool_env`(regression/oracle 都注入 REPOPROOF_TOOL_BIN,唯独
+  轮末公开面没有)→ LOCAL-TOOL 公开测试 collect 全崩(KeyError,junit
+  记 0 过/2 错);②三轮 hard 信号持平 → best 快照停在 round1;③该发
+  round1 是纯勘察零写入 → best=骨架树;④`git diff S0..best` 为空 →
+  adaptation.patch 0 字节;⑤oracle 对骨架重建树跑 → 仅 --help 项过
+  (1/7)判 FAIL。agent 的实现本身正确(round3 自测 5/5 全绿,git
+  HEAD 快照在案)。**该发失败归因于量具,不是模型能力**;台账行
+  append-only 不改,分类 notes 勘误随修复包一并落。
+  连带发现:批次一 12 个 gpt-5.5 真发 patch 全部含自写 conftest.py
+  兜底注入 REPOPROOF_TOOL_BIN(gpt-5.5 面对同一 collect 崩自发绕过),
+  系统性掩盖了此洞;fake 彩排单轮即写入提交,结构性测不出(best=
+  round1=正控)。ftfy 发次归因不变(policy 正杀 647 文件大 diff),但
+  其轮末 5 passed 同样依赖自写 conftest。修复与复验待用户批准。
