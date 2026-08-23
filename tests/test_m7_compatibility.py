@@ -33,8 +33,6 @@ from repoproof.runner.host_guided import (
 )
 from repoproof.runner.tool_host_bridge import materialize_tool_task
 
-REPO = Path(__file__).resolve().parents[1]
-
 _RUNTIME_V1 = {
     "mode": "http_sidecar",
     "profile_id": "tool-http-sidecar-v1",
@@ -287,12 +285,12 @@ def test_v3_adequacy_checks_fixed_runtime_and_file_stdout(tmp_path: Path) -> Non
 def _host_anchor_hashes(tool_bin: str) -> dict[str, str]:
     digest = "0" * 64
     return {
-        "src/inflect_tool/__init__.py": digest,
-        "src/inflect_tool/__main__.py": digest,
-        "src/inflect_tool/main.py": digest,
-        "src/inflect_tool/sidecar_server.py": digest,
-        "src/inflect_tool/sidecar_supervisor.py": digest,
-        "src/inflect_tool/sidecar_contract.py": digest,
+        "src/m7_demo/__init__.py": digest,
+        "src/m7_demo/__main__.py": digest,
+        "src/m7_demo/main.py": digest,
+        "src/m7_demo/sidecar_server.py": digest,
+        "src/m7_demo/sidecar_supervisor.py": digest,
+        "src/m7_demo/sidecar_contract.py": digest,
         tool_bin: digest,
         "build.sh": digest,
         "tool.json": digest,
@@ -300,10 +298,18 @@ def _host_anchor_hashes(tool_bin: str) -> dict[str, str]:
     }
 
 
-def test_local_tool_v2_host_profile_is_wired_without_runtime_profile_reuse() -> None:
-    v1, _ = HostContract.load(
-        REPO / "tool_tasks" / "tool-inflect-tool-v1" / "contract.yaml"
+def test_local_tool_v2_host_profile_is_wired_without_runtime_profile_reuse(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "v1-project"
+    info = _assemble(project, 2)
+    v1_path = materialize_tool_task(
+        project,
+        project / "contracts" / f"{info['task_id']}.yaml",
+        out_root=tmp_path / "v1-tasks",
+        host_copy_root=tmp_path / "v1-hosts",
     )
+    v1, _ = HostContract.load(v1_path)
     doc = v1.model_dump(mode="json")
     doc["prompt_profile"] = "local-tool-v2"
     doc["frozen_file_sha256"] = _host_anchor_hashes(v1.host.tool_bin)
@@ -328,7 +334,7 @@ def test_local_tool_v2_host_profile_is_wired_without_runtime_profile_reuse() -> 
         HostContract.model_validate(doc)
 
     doc["frozen_file_sha256"] = _host_anchor_hashes(v1.host.tool_bin)
-    del doc["frozen_file_sha256"]["src/inflect_tool/__init__.py"]
+    del doc["frozen_file_sha256"]["src/m7_demo/__init__.py"]
     with pytest.raises(ValidationError, match="完整冻结"):
         HostContract.model_validate(doc)
 

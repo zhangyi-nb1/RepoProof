@@ -464,14 +464,9 @@ def list_tools(
                     "task_id": provenance_task_id,
                     "run_id": verification.get("run_id"),
                     "contract_sha256": verification.get("contract_sha256"),
-                    "historical_verdict": historical_verdict,
                 }
                 for field, observed_value in indexed_identity.items():
-                    indexed_value = entry.get(
-                        field,
-                        entry.get("verdict")
-                        if field == "historical_verdict" else None,
-                    )
+                    indexed_value = entry.get(field)
                     if (
                         indexed_value not in (None, "")
                         and indexed_value != observed_value

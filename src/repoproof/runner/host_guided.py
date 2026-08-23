@@ -31,10 +31,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 import shutil
-import stat
 import subprocess
 import time
 from collections.abc import Callable
@@ -1117,6 +1115,9 @@ def hash_public_surface(host_root: Path) -> dict[str, str]:
 
 def _sha256_regular_file_nofollow(root: Path, relative: str) -> str:
     """Hash one ordinary file using dirfd traversal with no symlink following."""
+
+    import os
+    import stat
 
     parts = _frozen_relative_parts(relative)
     nofollow = getattr(os, "O_NOFOLLOW", None)
