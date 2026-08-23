@@ -1,0 +1,8 @@
+[project]
+name = "tomli_tool"
+version = "1.0.0"
+description = '把本地 TOML 配置文件离线、确定性地解析并规范化为 JSON。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

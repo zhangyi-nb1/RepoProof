@@ -1,0 +1,8 @@
+[[servers]]
+host = "a"
+ports = [80, 443]
+[[servers]]
+host = "b"
+ports = [8080]
+[meta]
+tags = ["x", "y"]

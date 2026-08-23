@@ -1,0 +1,50 @@
+task_id: tool-tomli-tool-v1
+
+source_repo:
+  url: https://github.com/hukkin/tomli
+  revision: guided
+  resolved_commit: 5a77b12a7a9f052ce5a20c335d2825658f6aea52
+  license: MIT
+  distribution: tomli
+  import_module: tomli
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_tomli-tool
+  package: tomli_tool
+  entry_point: tomli-tool
+
+requirement_spec_file: tool-tomli-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "tomli-tool", "summary": "把本地 TOML 配置文件离线、确定性地解析并规范化为 JSON。", "interface": {"usage": "tomli-tool <input> [--out FILE]", "input": {"kind": "file", "format": "TOML"}, "output": {"kind": "stdout", "format": "JSON"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取一个本地 TOML 配置文件，使用 tomli 解析为 Python 数据结构，并输出 UTF-8 JSON 文本。输出规则：对象键按字典序排序；使用紧凑 JSON 分隔符；字符串按 JSON 标准转义；整数、布尔值、字符串、数组和表按 JSON 等价结构输出；TOML 日期、时间、日期时间值渲染为 ISO-8601 字符串；TOML 非有限浮点值 nan、inf、-inf 渲染为字符串 "nan"、"inf"、"-inf"，以保持标准 JSON 有效性；普通有限浮点值作为 JSON number 输出。语义边界：只读取指定本地文件，不解析外部引用，不访问网络，不执行配置内容；空文件或仅含空白的输入视为无效；格式错误、不可 UTF-8 解码、无法读取、空或仅空白输入均抛出 UserInputError 并对应 CLI exit 1。重复运行在相同输入和相同库版本下输出完全确定。该工具完全离线运行。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/tomli_tool/impl.py 实现 extract(),必须调用 pinned tomli;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:tomli-tool inputs/basic.toml -> 见 expected/basic.json; tomli-tool inputs/nested.toml -> 见 expected/nested.json);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: JSON
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "tomli-tool",
+ "version": "1.0.0",
+ "summary": "把本地 TOML 配置文件离线、确定性地解析并规范化为 JSON。",
+ "source": {
+  "url": "https://github.com/hukkin/tomli",
+  "resolved_commit": "5a77b12a7a9f052ce5a20c335d2825658f6aea52",
+  "license": "MIT",
+  "distribution": "tomli"
+ },
+ "interface": {
+  "usage": "tomli-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "TOML"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}
