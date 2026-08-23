@@ -249,6 +249,9 @@ QUALIFICATION_PURPOSES = frozenset({
 # 不是分类旁挂里一句自述。
 PRODUCT_PURPOSES = frozenset({
     "PRODUCT_ONBOARDING",      # 工具产品线交付发次(fake 彩排归 HARNESS_SELFCHECK)
+    "PRODUCT_MODEL_COMPARE",   # 产品线模型对比观察发次(2026-08-23 M4 对比批:
+                               # 同一冻结任务包换 provider 重发,不导出不覆盖
+                               # 已交付工具;只产对比数据,同样不充闸不计能力)
 })
 
 # 阶段闸门的扣除面 = 机制类 ∪ 资格审类 ∪ 产品线。

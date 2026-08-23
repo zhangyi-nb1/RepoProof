@@ -14,8 +14,8 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 101,
-    "assisted_repair_runs": 99,
+    "all_valid_run_outcomes": 111,
+    "assisted_repair_runs": 111,
     "development_baseline_runs": 68,
     "exploratory": 22,
     "exploratory_passes": 14,
@@ -221,7 +221,7 @@
       "tool-python-dateutil-tool-v1-20260823-173041",
       "tool-feedparser-tool-v1-20260823-173559"
     ],
-    "total": 266,
+    "total": 278,
     "treatment_delivered_runs": 13,
     "treatment_not_delivered_runs": 4
   },
@@ -253,7 +253,7 @@
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "1c11d1a5a83cc9d8f17718da014de97e021cbc509f83a5c2fe0f4b2e1bec60a7"
+    "runs_jsonl_sha256": "fab310bbbf2179f55cb26fab0526ff63a449607b5ac7423a3daf8d8e0b10451c"
   },
   "stages": {
     "T1": {
