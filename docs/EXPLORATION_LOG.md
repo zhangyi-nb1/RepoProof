@@ -3443,3 +3443,19 @@ pygments 补发 **PASS_ADAPTED(20 调用/231,540 in/1 轮,对照原 FAIL
 **11/12**,ftfy FAIL 维持;总成本 6,246,965 in。教训入册:agent 的
 好习惯会掩盖量具缺陷——彩排矩阵需要"多轮迟写"形态负控(待裁量)。
 基线 `1173 passed + 60 skipped + 0 failed`。
+
+## 状态 · 2026-08-23 · 教训工程化+MCP 批量转换(模型通道回 GPT 默认)
+
+模型通道回 `.env` 缺省(openai×gpt-5.5;deepseek 三键只存在于对比批
+临时 shell,无持久状态需切)。两件开发优化落地(零真发):
+**①「多轮迟写」fake 负控常驻**——pygments 空交付形态合成重现
+(FakeModel 跨轮续吐:勘察+submit+positive),钉"实现轮公开必须超
+勘察轮";手工突变实证判别力(剪 _run_public 注入→红,还原→绿),
+mutation_gate 入锚 M99a(catcher=迟写测试,old 串唯一性验讫)——
+"agent 好习惯掩盖量具缺陷"教训从散文变机器执法。
+**②MCP 批量转换收口**——12 新工具 `tool mcp` 全出,协议冒烟
+12/12(initialize+tools/list+tools/call 真调用:slug/ftfy/…/feedparser
+全部真输出);补齐 pdf-table,**14/14 工具全带 mcp_server.py**。
+注册表 14 条与盘一致。基线 `1174 passed + 60 skipped + 0 failed`(+1)。
+待裁量口不变:批次二/规模化(需预注册+批准)、用户抽验、
+MAX-OFFICIAL-LIKE profile 对比。
