@@ -73,6 +73,26 @@ UI 定向回归、Host Pilot 回归、静态边界检查和自动化双入口浏
 全量测试首次出现的 Host smoke 指纹失败，已定位为测试期间开发服务器热重载
 触碰受保护工作树；停掉该服务器后，同链路及第二次全量测试均通过。
 
+### M7 候选分支：已提交，但未关闭、未合并
+
+- 分支：`codex/m7-managed-sidecar-tools`（基于 M6 整合分支）。
+- 实现提交：`8f6b43e`；干净工作树收口修复：`0d19e7d`。
+- 状态：**EXPERIMENTAL / CANDIDATE / REVIEW_REQUIRED**，不是 M7 关闭。
+- 干净提交隔离工作树全量测试：`1434 passed + 63 skipped + 0 failed`；
+  改动面 Ruff、compileall、`git diff --check` 通过。
+- 已实现：固定 ToolSpec v3 delivery runtime、一次性 loopback sidecar、动态端口、
+  readiness/request/output-contract/回收链、10 个入口文件机器锚、append-only
+  trust marker、registry/task/package identity 绑定，以及 v3 MCP 激活硬阻断。
+- 已验证攻击面：manifest 降级伪装、损坏 manifest、伪造 task/provenance、
+  stale/forged ACTIVE、源码 symlink、`__init__.py` 漂移均 fail closed。
+- 未关闭：强 U1–U4 receipt、OS 级网络/进程隔离、真实导出包 clean replay、
+  经单独授权的一个真实公开仓。因此不得称 verified 或 ACTIVE。
+- 未调用模型、未运行第三批真实仓、未推送、未发布。
+
+产品范围只包含“GitHub Capability → Verified Local Tool”。旧的任意仓适配定位
+与 Benchmark Lab 仅保留隔离、历史兼容和只读研究边界，不继续开发；M7 也只
+是本地工具的交付 runtime，不是旧产品路线的延伸。
+
 ## 3. 已提交的 M0–M4 事实
 
 - RFC-010 M0–M3 已关闭：产品章程、首个工具闭环、半自动 intake 和
@@ -129,7 +149,7 @@ v1 面向：
 1. 用 ACTIVE、构建失败、historical READY/current REVOKED 三个固定案例完成
    项目方 + 两名目标用户的 M6 预览验证；
 2. P0/P1 误解清零后，才把 M6 合回本地 `main`；
-3. M7 在独立分支只先完成零模型 sidecar 协议、assembler 和 conformance；
+3. 保持 M7 候选分支冻结，不再做非必要性能优化或范围扩展；
 4. 强 receipt 绑定和 OS 级隔离成立前，ToolSpec v3 最多为
    `REVIEW_REQUIRED`，不得进入 `ACTIVE`；
 5. 推送、发布、第三批真实仓、真实模型调用和 M7 单仓 clean replay 均需另行授权。
@@ -153,8 +173,9 @@ v1 面向：
 4. `docs/rfc/RFC-010-LOCAL-TOOL-PRODUCT-CHARTER.md`；
 5. `docs/PRODUCT_REDIRECTION.md`；
 6. `docs/m4_metrics.json`；
-7. `docs/REPOPROOF_STUDIO_PRODUCT_MODE.md`；
-8. `README.md` 和相关测试。
+7. `docs/rfc/RFC-012-MANAGED-SIDECAR-TOOLS.md`；
+8. `docs/REPOPROOF_STUDIO_PRODUCT_MODE.md`；
+9. `README.md` 和相关测试。
 
 如果文件之间冲突，先检查它属于哪个工作树、是否已提交，再把冲突列出来，
 不要静默选择一个版本。
