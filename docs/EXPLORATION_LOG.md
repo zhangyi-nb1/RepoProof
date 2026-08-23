@@ -3320,3 +3320,27 @@ examples/reference 骨架)→人补→confirm_tool_draft(D 系确认闸一次报
 **M2 剩余**:c) import-hook 取证件([D4] 升级,独立机制件);d) LLM 限
 草稿层接入(通道/模型待用户裁);e) 上游一致性样例选取器(G2 第二层);
 验收=第二个真工具从 URL 到 VERIFIED_TOOL_READY,人只确认。
+
+## 状态 · 2026-08-23 · M2 关闭:intake→起草→确认→真发全流水线,html2md 落地
+
+**M2-c**(`4e6d7be`):import-hook 运行时取证([D4] 弱档→运行时:sitecustomize
+注入工具子进程,HMAC 现摇,三层证据=静态 provenance→运行时回执→探测
+自曝;8 项子进程级自证含"异常类不包"量具透明性)。**M2-e**:上游一致性
+选取器+物化期预检定稿(html2md 彩排 BLOCKED 实测倒逼:S0 无上游必崩,
+harness 预装打穿 replay 自锁执法)。**M2-d**:LLM 起草层(Fake/LiteLLM
+同接口,人字段不覆盖,meta 落账,通道回落官方三键)。
+
+**M2 验收**(锚本条 commit):markdownify@1.2.3 → `~/tools/html2md`。
+新流水线全程:URL intake(admission NEED_INFORMATION 一问人答)→
+gpt-5.5 起草 6 字段→**人闸审出域语义问题**(HTML 宽容解析→malformed
+文本必假绿,改确定性伪二进制,PDF/HTML 域通用)→人放样例真值→confirm
+冻结→materialize 预检(58 项上游测试绿)→彩排 PASS(首个带 hook 全链)
+→真发 gpt-5.5 **PASS_ADAPTED→VERIFIED_TOOL_READY**(39 调用/360K in,
+capability 7/7 含 held-out+运行时回执,clean replay 自锁 lock 重建)→
+export 用户级实测全过。**人只确认/放真值/审阅,未撰写题面** —— M2
+判据达成。
+
+台账 235 行(+6 发全旁挂,PRODUCT 口径不充闸);基线
+`1157 passed + 60 skipped + 0 failed`(+17 测)。**M2 全关;下一步 M3**
+(单命令旅程 repoproof tool add/注册表/MCP 暴露/可选 UI 复活;DSH 臂
+届时再裁)。
