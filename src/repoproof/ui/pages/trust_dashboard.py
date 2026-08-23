@@ -13,6 +13,7 @@ apply_product_theme()
 snapshot = dashboard_snapshot()
 metrics = snapshot["metrics"]
 ops = snapshot["operational"]
+reason_codes = snapshot["operational_reason_codes"]
 
 hero(
     "成功率不是唯一答案",
@@ -21,6 +22,11 @@ hero(
 )
 
 section_intro("本机运营状态", "这些数字来自工具注册表和 append-only 发布状态账。")
+for projection_error in snapshot["projection_errors"]:
+    st.error(
+        f"{projection_error['reason_code']}：Core 事实源无法验证，"
+        "运营投影已 fail closed。"
+    )
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("ACTIVE", ops.get("ACTIVE", 0), help="通过 fresh-input 审核，可继续使用和暴露 MCP")
 c2.metric("待审核", ops.get("REVIEW_REQUIRED", 0), help="历史验证不等于当前运营批准")
@@ -28,7 +34,11 @@ c3.metric("已撤回", ops.get("REVOKED", 0), help="保留历史证据，但停�
 c4.metric("历史验证", snapshot["historically_verified"], help="当时冻结合同下的不可改写事实")
 
 st.write("")
-section_intro("最近一次真实仓批次", "接受率与 Tool Ready Rate 必须成对阅读，避免通过提高拒绝率美化成功率。")
+section_intro(
+    "最近一次真实仓批次",
+    "接受率与 Tool Ready Rate 必须成对阅读；这些是内部 alpha 的已记录案例结果，"
+    "不能外推为任意仓库成功率。",
+)
 b1, b2, b3, b4 = st.columns(4)
 b1.metric("提交仓库", metrics.get("submitted", "—"))
 b2.metric(
@@ -57,19 +67,32 @@ with left:
         horizontal=True,
     )
 with right:
-    st.markdown("#### 漏斗事实")
-    st.bar_chart(
-        {
-            "阶段": ["Submitted", "Accepted", "Historical READY", "Replay"],
-            "数量": [
-                metrics.get("submitted", 0), metrics.get("accepted", 0),
-                metrics.get("tool_ready", 0), metrics.get("replay_success", 0),
+    st.markdown("#### 当前状态原因码")
+    if reason_codes:
+        st.dataframe(
+            [
+                {"reason_code": code, "工具数": count}
+                for code, count in reason_codes.items()
             ],
-        },
-        x="阶段",
-        y="数量",
-        horizontal=True,
-    )
+            hide_index=True,
+            use_container_width=True,
+        )
+    else:
+        st.info("当前没有可投影的运营原因码。")
+
+st.markdown("#### 漏斗事实")
+st.bar_chart(
+    {
+        "阶段": ["Submitted", "Accepted", "Historical READY", "Replay"],
+        "数量": [
+            metrics.get("submitted", 0), metrics.get("accepted", 0),
+            metrics.get("tool_ready", 0), metrics.get("replay_success", 0),
+        ],
+    },
+    x="阶段",
+    y="数量",
+    horizontal=True,
+)
 
 st.markdown("#### 为什么保留两种 READY")
 st.info(
@@ -85,4 +108,12 @@ if false.get("flagged"):
     )
 
 with st.expander("查看机器事实"):
-    st.json(metrics or {"note": "docs/m4_metrics.json 不存在或无法读取"})
+    st.json(
+        {
+            "recorded_m4_metrics": metrics,
+            "operational_reason_codes": reason_codes,
+            "projection_errors": snapshot["projection_errors"],
+        }
+        if metrics or reason_codes or snapshot["projection_errors"]
+        else {"note": "当前没有可读取的批次指标或运营投影"}
+    )

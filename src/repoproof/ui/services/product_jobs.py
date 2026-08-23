@@ -7,19 +7,234 @@ evidence, and every CLI launch uses an argv list rather than a shell.
 
 from __future__ import annotations
 
-import json
 import os
 import re
+import secrets
+import stat
 import subprocess
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import yaml
 
+from repoproof.adoption.assembly.tool_assembler import next_tool_task_id
+from repoproof.execution.core_execution import (
+    LEGACY_LAB_STATE,
+    RUNNING,
+    legacy_state_blocker,
+    read_durable_job_state,
+    start_durable_job,
+)
+from repoproof.runner.tool_paths import ToolPathError, validate_tool_name
 from repoproof.ui.services.product_mode import ui_state_root
 
 PRODUCT_LOCK = "product-job.json"
+
+
+def _open_absolute_directory(path: Path) -> int:
+    """Open an absolute directory one component at a time without symlinks."""
+
+    absolute = Path(path).absolute()
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(absolute.anchor, flags | nofollow)
+    try:
+        for part in absolute.parts[1:]:
+            next_fd = os.open(part, flags | nofollow, dir_fd=fd)
+            os.close(fd)
+            fd = next_fd
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
+
+
+def _open_child_directory(parent_fd: int, name: str, *, create: bool) -> int:
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if create:
+        try:
+            os.mkdir(name, mode=0o700, dir_fd=parent_fd)
+        except FileExistsError:
+            pass
+    return os.open(name, flags | nofollow, dir_fd=parent_fd)
+
+
+def _read_file_at(parent_fd: int, name: str) -> bytes:
+    fd = os.open(name, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0), dir_fd=parent_fd)
+    try:
+        chunks: list[bytes] = []
+        while chunk := os.read(fd, 1024 * 1024):
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
+
+
+def _write_new_file_at(parent_fd: int, name: str, payload: bytes) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(name, flags, 0o600, dir_fd=parent_fd)
+    try:
+        with os.fdopen(fd, "wb", closefd=False) as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+    finally:
+        os.close(fd)
+
+
+def _replace_file_at(parent_fd: int, name: str, payload: bytes) -> None:
+    temporary = f".{name}.{secrets.token_hex(12)}.tmp"
+    try:
+        _write_new_file_at(parent_fd, temporary, payload)
+        os.replace(
+            temporary,
+            name,
+            src_dir_fd=parent_fd,
+            dst_dir_fd=parent_fd,
+        )
+        os.fsync(parent_fd)
+    finally:
+        try:
+            os.unlink(temporary, dir_fd=parent_fd)
+        except FileNotFoundError:
+            pass
+
+
+def _path_has_symlink(path: Path) -> bool:
+    absolute = Path(path).absolute()
+    current = Path(absolute.anchor)
+    for part in absolute.parts[1:]:
+        current /= part
+        if current.is_symlink():
+            return True
+        if not current.exists():
+            break
+    return False
+
+
+def _validated_draft_dir(
+    value: Path,
+    *,
+    require_existing: bool,
+) -> tuple[Path | None, str | None]:
+    """Keep Studio-authored draft mutations below its private drafts root."""
+
+    candidate = Path(value).expanduser()
+    if not candidate.is_absolute():
+        return None, "草稿目录必须使用绝对路径。"
+    if _path_has_symlink(candidate):
+        return None, "草稿目录及其父目录不能是 symlink。"
+    drafts_root = (ui_state_root() / "drafts").expanduser().resolve()
+    resolved = candidate.resolve(strict=False)
+    try:
+        resolved.relative_to(drafts_root)
+    except ValueError:
+        return None, f"草稿目录必须位于受管目录内：{drafts_root}"
+    if require_existing:
+        if not resolved.is_dir() or resolved.is_symlink():
+            return None, f"草稿目录不存在或不是普通目录：{resolved}"
+        for required in ("draft.yaml", "reference_impl.py", "examples.yaml"):
+            path = resolved / required
+            if path.is_symlink() or (path.exists() and not path.is_file()):
+                return None, f"草稿控制文件必须是普通文件：{path}"
+        examples_dir = resolved / "examples"
+        if not examples_dir.is_dir() or examples_dir.is_symlink():
+            return None, f"样例目录必须是受管草稿内的普通目录：{examples_dir}"
+    elif resolved.exists() or resolved.is_symlink():
+        return None, f"草稿目录已存在，拒绝覆盖：{resolved}"
+    return resolved, None
+
+
+def validate_managed_draft_dir(
+    value: Path,
+    *,
+    require_existing: bool = True,
+) -> tuple[Path | None, str | None]:
+    """Public read gate used before Studio renders any draft content."""
+
+    return _validated_draft_dir(Path(value), require_existing=require_existing)
+
+
+def read_managed_draft_review(value: Path) -> dict:
+    """Read the bounded review surface without following optional symlinks."""
+
+    draft_dir, error = validate_managed_draft_dir(value)
+    if draft_dir is None:
+        return {"ok": False, "error": error}
+    draft_fd: int | None = None
+    try:
+        draft_fd = _open_absolute_directory(draft_dir)
+        raw_draft = _read_file_at(draft_fd, "draft.yaml").decode("utf-8")
+        raw_examples = _read_file_at(draft_fd, "examples.yaml").decode("utf-8")
+        reference = _read_file_at(draft_fd, "reference_impl.py").decode("utf-8")
+        draft = yaml.safe_load(raw_draft) or {}
+        examples_doc = yaml.safe_load(raw_examples) or {}
+        if not isinstance(draft, dict) or not isinstance(examples_doc, dict):
+            raise TypeError("draft.yaml/examples.yaml 根节点必须是对象")
+        try:
+            gaps = _read_file_at(draft_fd, "GAPS.md").decode("utf-8")
+        except FileNotFoundError:
+            gaps = ""
+        return {
+            "ok": True,
+            "draft_dir": draft_dir,
+            "draft": draft,
+            "raw_draft": raw_draft,
+            "examples": examples_doc.get("examples") or [],
+            "reference_impl": reference,
+            "gaps": gaps,
+        }
+    except (OSError, UnicodeError, TypeError, yaml.YAMLError) as exc:
+        return {"ok": False, "error": f"草稿无法安全读取：{exc}"}
+    finally:
+        if draft_fd is not None:
+            os.close(draft_fd)
+
+
+def _validated_dest_root(value: Path) -> tuple[Path | None, str | None]:
+    """Validate an explicit managed tool root without silently broadening it."""
+
+    candidate = Path(value).expanduser()
+    if not candidate.is_absolute():
+        return None, "工具库位置必须使用绝对路径。"
+    if _path_has_symlink(candidate):
+        return None, "工具库位置及其父目录不能是 symlink。"
+    resolved = candidate.resolve(strict=False)
+    forbidden = {
+        Path("/").resolve(),
+        Path.home().resolve(),
+        _product_root().resolve(),
+        ui_state_root().expanduser().resolve(),
+    }
+    if resolved in forbidden:
+        return None, f"工具库位置过于宽泛，拒绝使用：{resolved}"
+    if resolved.exists() and not resolved.is_dir():
+        return None, f"工具库位置不是目录：{resolved}"
+    return resolved, None
+
+
+def _valid_public_github_repo(value: str) -> bool:
+    try:
+        parsed = urlsplit(value.strip())
+        port = parsed.port
+    except ValueError:
+        return False
+    parts = [part for part in parsed.path.split("/") if part]
+    return bool(
+        parsed.scheme == "https"
+        and parsed.hostname == "github.com"
+        and port is None
+        and parsed.username is None
+        and parsed.password is None
+        and not parsed.query
+        and not parsed.fragment
+        and "%" not in parsed.path
+        and len(parts) == 2
+        and all(part not in {".", ".."} for part in parts)
+    )
 
 
 def _product_root() -> Path:
@@ -29,22 +244,6 @@ def _product_root() -> Path:
 def _product_python(root: Path | None = None) -> str:
     candidate = Path(root or _product_root()) / ".venv" / "bin" / "python"
     return str(candidate if candidate.is_file() else Path(sys.executable))
-
-
-def _pid_alive(pid: int | None) -> bool:
-    if not pid:
-        return False
-    try:
-        stat = subprocess.run(
-            ["ps", "-p", str(int(pid)), "-o", "stat="],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        ).stdout.strip()
-        return bool(stat) and "Z" not in stat
-    except (OSError, ValueError, subprocess.SubprocessError):
-        return False
 
 
 def tool_add_argv(
@@ -99,47 +298,44 @@ def tool_build_argv(
     return argv
 
 
-def _artifact_signature(path: Path | None) -> dict | None:
-    """Enough identity to reject a stale pre-existing artifact as job success."""
-    if path is None or not Path(path).exists():
-        return None
-    try:
-        stat = Path(path).stat()
-        return {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
-    except OSError:
-        return None
-
-
 def product_job_state() -> dict | None:
     path = ui_state_root() / PRODUCT_LOCK
     if not path.is_file():
         return None
+    return read_durable_job_state(path)
+
+
+def read_product_job_log(job: dict, *, limit: int = 12000) -> dict:
+    """Read only the tail of a regular log below Studio's private log root."""
+
+    raw = job.get("log")
+    if not isinstance(raw, str) or not raw:
+        return {"ok": False, "error": "日志位置未记录。"}
+    candidate = Path(raw).expanduser()
+    if not candidate.is_absolute() or _path_has_symlink(candidate):
+        return {"ok": False, "error": "日志路径无效。"}
+    logs_root = (ui_state_root() / "logs").expanduser().resolve()
+    resolved = candidate.resolve(strict=False)
     try:
-        state = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {
-            "alive": False,
-            "finished": True,
-            "ok": False,
-            "note": "后台任务状态文件损坏，未猜测执行结果。",
-        }
-    state["alive"] = _pid_alive(state.get("pid"))
-    artifact = Path(state["expected_artifact"]) if state.get("expected_artifact") else None
-    current_signature = _artifact_signature(artifact)
-    artifact_ok = bool(
-        artifact
-        and current_signature is not None
-        and current_signature != state.get("artifact_before")
-    )
-    state["finished"] = not state["alive"]
-    state["ok"] = bool(state["finished"] and artifact_ok)
-    if state["finished"]:
-        state["note"] = (
-            f"{state.get('label')} 已形成预期产物：{artifact}"
-            if artifact_ok
-            else f"{state.get('label')} 已结束，但未发现预期产物；请查看日志。"
-        )
-    return state
+        resolved.relative_to(logs_root)
+    except ValueError:
+        return {"ok": False, "error": "日志路径不在受管目录内。"}
+    try:
+        fd = os.open(resolved, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except FileNotFoundError:
+        return {"ok": False, "error": "日志文件尚未创建。"}
+    except OSError as exc:
+        return {"ok": False, "error": f"日志无法安全读取：{exc}"}
+    try:
+        opened = os.fstat(fd)
+        if not stat.S_ISREG(opened.st_mode):
+            return {"ok": False, "error": "日志目标不是普通文件。"}
+        offset = max(0, opened.st_size - max(1, limit))
+        os.lseek(fd, offset, os.SEEK_SET)
+        payload = os.read(fd, max(1, limit))
+    finally:
+        os.close(fd)
+    return {"ok": True, "text": payload.decode("utf-8", errors="replace")}
 
 
 def _start_product_job(
@@ -150,40 +346,32 @@ def _start_product_job(
     expected_artifact: Path | None = None,
 ) -> dict:
     root = _product_root()
-    current = product_job_state()
-    if current and current.get("alive"):
-        return {"ok": False, "error": f"已有任务在运行：{current.get('label')}"}
     state_root = ui_state_root()
+    for legacy_path in (
+        state_root / PRODUCT_LOCK,
+        root / LEGACY_LAB_STATE,
+    ):
+        if reason := legacy_state_blocker(legacy_path):
+            return {"ok": False, "error": reason}
+    current = product_job_state()
+    if current and current.get("status") == RUNNING:
+        return {"ok": False, "error": f"已有任务在运行：{current.get('label')}"}
     state_root.mkdir(parents=True, exist_ok=True)
     log_dir = state_root / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
-    stamp = time.strftime("%Y%m%d-%H%M%S")
+    stamp = f"{time.strftime('%Y%m%d-%H%M%S')}-{time.time_ns()}"
     log = log_dir / f"{kind}-{stamp}.log"
-    stream = log.open("w", encoding="utf-8")
-    proc = subprocess.Popen(
-        argv,
-        cwd=str(root),
-        stdout=stream,
-        stderr=subprocess.STDOUT,
-        env=dict(os.environ),
-        start_new_session=True,
+    return start_durable_job(
+        root=root,
+        state_path=state_root / PRODUCT_LOCK,
+        worker_python=_product_python(root),
+        argv=argv,
+        cwd=root,
+        log_path=log,
+        kind=kind,
+        label=label,
+        expected_artifact=expected_artifact,
     )
-    stream.close()
-    state = {
-        "schema_version": 1,
-        "pid": proc.pid,
-        "kind": kind,
-        "label": label,
-        "log": str(log),
-        "started_at": stamp,
-        "expected_artifact": str(expected_artifact) if expected_artifact else None,
-        "artifact_before": _artifact_signature(expected_artifact),
-    }
-    (state_root / PRODUCT_LOCK).write_text(
-        json.dumps(state, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    return {"ok": True, "pid": proc.pid, "note": f"已在后台启动：{label}"}
 
 
 def start_tool_add(
@@ -194,13 +382,15 @@ def start_tool_add(
     revision: str | None = None,
     fake_drafter: bool = False,
 ) -> dict:
-    if not repo.startswith("https://github.com/"):
+    if not _valid_public_github_repo(repo):
         return {"ok": False, "error": "当前只支持公开 GitHub 仓库地址。"}
     if len(capability.strip()) < 8:
         return {"ok": False, "error": "请用一句完整的话描述想要的能力。"}
-    draft_dir = Path(draft_dir).expanduser()
-    if draft_dir.exists():
-        return {"ok": False, "error": f"草稿目录已存在，拒绝覆盖：{draft_dir}"}
+    draft_dir, path_error = _validated_draft_dir(
+        Path(draft_dir), require_existing=False
+    )
+    if draft_dir is None:
+        return {"ok": False, "error": path_error}
     root = _product_root()
     return _start_product_job(
         tool_add_argv(
@@ -223,27 +413,43 @@ def start_tool_build(
     dest_root: Path,
     rehearsal_only: bool,
 ) -> dict:
-    draft_dir = Path(draft_dir).expanduser()
+    draft_dir, path_error = _validated_draft_dir(
+        Path(draft_dir), require_existing=True
+    )
+    if draft_dir is None:
+        return {"ok": False, "error": path_error}
+    dest_root, dest_error = _validated_dest_root(Path(dest_root))
+    if dest_root is None:
+        return {"ok": False, "error": dest_error}
     draft_path = draft_dir / "draft.yaml"
     if not draft_path.is_file():
         return {"ok": False, "error": f"未找到草稿：{draft_path}"}
     try:
         draft = yaml.safe_load(draft_path.read_text(encoding="utf-8")) or {}
-        name = draft["tool"]["name"]
-        task_id = draft["task_id"]
-    except (OSError, KeyError, TypeError, yaml.YAMLError) as exc:
+        name = validate_tool_name(draft["tool"]["name"])
+    except (OSError, KeyError, TypeError, ToolPathError, yaml.YAMLError) as exc:
         return {"ok": False, "error": f"草稿无法读取：{exc}"}
     root = _product_root()
+    # draft.task_id is only an intake suggestion and may still say v1 after an
+    # earlier version was frozen.  The assembler is the version authority.
+    try:
+        predicted_task_id = next_tool_task_id(root, name)
+    except (OSError, ValueError) as exc:
+        return {
+            "ok": False,
+            "error_code": "TASK_VERSION_LINEAGE_INVALID",
+            "error": f"任务版本谱系无法安全计算：{exc}",
+        }
     expected = (
-        root / "contracts" / f"{task_id}.yaml"
+        root / "contracts" / f"{predicted_task_id}.yaml"
         if rehearsal_only
-        else Path(dest_root).expanduser() / name / "tool.json"
+        else dest_root / name / "tool.json"
     )
     return _start_product_job(
         tool_build_argv(
             root,
             draft_dir=draft_dir,
-            dest_root=Path(dest_root).expanduser(),
+            dest_root=dest_root,
             rehearsal_only=rehearsal_only,
         ),
         kind="tool-build",
@@ -264,13 +470,20 @@ def save_draft_review(
     reference_impl: str,
     output_contract: dict | None = None,
 ) -> dict:
-    draft_dir = Path(draft_dir)
-    path = draft_dir / "draft.yaml"
+    draft_dir, path_error = _validated_draft_dir(
+        Path(draft_dir), require_existing=True
+    )
+    if draft_dir is None:
+        return {"ok": False, "error": path_error}
     clean_name = tool_name.strip()
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", clean_name):
         return {"ok": False, "error": "工具名只能包含小写字母、数字和连字符。"}
+    draft_fd: int | None = None
     try:
-        draft = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        draft_fd = _open_absolute_directory(draft_dir)
+        draft = yaml.safe_load(
+            _read_file_at(draft_fd, "draft.yaml").decode("utf-8")
+        ) or {}
         draft["tool"]["name"] = clean_name
         draft["tool"]["summary"] = summary.strip()
         draft["tool"]["interface"]["input"]["format"] = input_format.strip()
@@ -286,14 +499,24 @@ def save_draft_review(
         target["entry_point"] = clean_name
         draft["target_project"] = target
         draft["tool"]["interface"]["usage"] = f"{clean_name} <input> [--out FILE]"
-        path.write_text(
-            yaml.safe_dump(draft, allow_unicode=True, sort_keys=False),
-            encoding="utf-8",
+        _replace_file_at(
+            draft_fd,
+            "reference_impl.py",
+            reference_impl.encode("utf-8"),
         )
-        (draft_dir / "reference_impl.py").write_text(reference_impl, encoding="utf-8")
+        _replace_file_at(
+            draft_fd,
+            "draft.yaml",
+            yaml.safe_dump(draft, allow_unicode=True, sort_keys=False).encode(
+                "utf-8"
+            ),
+        )
         return {"ok": True, "note": "审核修改已保存；冻结前仍会经过确定性检查。"}
-    except (OSError, KeyError, TypeError, yaml.YAMLError) as exc:
+    except (OSError, UnicodeError, KeyError, TypeError, yaml.YAMLError) as exc:
         return {"ok": False, "error": f"保存失败：{exc}"}
+    finally:
+        if draft_fd is not None:
+            os.close(draft_fd)
 
 
 def add_golden_example(
@@ -304,34 +527,76 @@ def add_golden_example(
     expected_name: str,
     expected_bytes: bytes,
 ) -> dict:
-    draft_dir = Path(draft_dir)
-    if Path(input_name).name != input_name or Path(expected_name).name != expected_name:
+    draft_dir, path_error = _validated_draft_dir(
+        Path(draft_dir), require_existing=True
+    )
+    if draft_dir is None:
+        return {"ok": False, "error": path_error}
+    invalid_names = {"", ".", ".."}
+    if (
+        input_name in invalid_names
+        or expected_name in invalid_names
+        or Path(input_name).name != input_name
+        or Path(expected_name).name != expected_name
+    ):
         return {"ok": False, "error": "样例文件名不能包含目录。"}
-    examples_dir = draft_dir / "examples"
     input_rel = Path("inputs") / input_name
     expected_rel = Path("expected") / expected_name
-    input_path = examples_dir / input_rel
-    expected_path = examples_dir / expected_rel
-    if input_path.exists() or expected_path.exists():
-        return {"ok": False, "error": "同名样例已存在，拒绝覆盖。"}
+    draft_fd: int | None = None
+    examples_fd: int | None = None
+    inputs_fd: int | None = None
+    expected_fd: int | None = None
+    input_created = False
+    expected_created = False
+    committed = False
     try:
-        input_path.parent.mkdir(parents=True, exist_ok=True)
-        expected_path.parent.mkdir(parents=True, exist_ok=True)
-        input_path.write_bytes(input_bytes)
-        expected_path.parent.mkdir(parents=True, exist_ok=True)
-        expected_path.write_bytes(expected_bytes)
-        manifest = draft_dir / "examples.yaml"
-        doc = yaml.safe_load(manifest.read_text(encoding="utf-8")) or {"examples": []}
+        # Directory descriptors + O_NOFOLLOW keep every mutation inside the
+        # already validated draft even if a local path is swapped concurrently.
+        draft_fd = _open_absolute_directory(draft_dir)
+        examples_fd = _open_child_directory(draft_fd, "examples", create=True)
+        inputs_fd = _open_child_directory(examples_fd, "inputs", create=True)
+        expected_fd = _open_child_directory(examples_fd, "expected", create=True)
+        _write_new_file_at(inputs_fd, input_name, input_bytes)
+        input_created = True
+        _write_new_file_at(expected_fd, expected_name, expected_bytes)
+        expected_created = True
+        doc = yaml.safe_load(
+            _read_file_at(draft_fd, "examples.yaml").decode("utf-8")
+        ) or {"examples": []}
+        if not isinstance(doc, dict):
+            raise TypeError("examples.yaml 根节点必须是对象")
         doc.setdefault("examples", []).append(
             {"input_file": str(input_rel), "expected_file": str(expected_rel)}
         )
-        manifest.write_text(
-            yaml.safe_dump(doc, allow_unicode=True, sort_keys=False),
-            encoding="utf-8",
+        _replace_file_at(
+            draft_fd,
+            "examples.yaml",
+            yaml.safe_dump(doc, allow_unicode=True, sort_keys=False).encode("utf-8"),
         )
+        committed = True
         return {"ok": True, "note": f"已加入样例：{input_name} → {expected_name}"}
-    except (OSError, TypeError, yaml.YAMLError) as exc:
+    except FileExistsError:
+        return {"ok": False, "error": "同名样例已存在，拒绝覆盖。"}
+    except (OSError, UnicodeError, TypeError, yaml.YAMLError) as exc:
         return {"ok": False, "error": f"保存样例失败：{exc}"}
+    finally:
+        # Keep the manifest and both files transactional from the UI's point
+        # of view: a failed manifest update must not leave an unregistered
+        # golden file behind.
+        if not committed:
+            if input_created and inputs_fd is not None:
+                try:
+                    os.unlink(input_name, dir_fd=inputs_fd)
+                except FileNotFoundError:
+                    pass
+            if expected_created and expected_fd is not None:
+                try:
+                    os.unlink(expected_name, dir_fd=expected_fd)
+                except FileNotFoundError:
+                    pass
+        for fd in (expected_fd, inputs_fd, examples_fd, draft_fd):
+            if fd is not None:
+                os.close(fd)
 
 
 def product_tool_commands() -> set[str]:
@@ -356,6 +621,13 @@ def product_tool_commands() -> set[str]:
 
 
 def start_tool_mcp(name: str, dest_root: Path) -> dict:
+    dest_root, path_error = _validated_dest_root(Path(dest_root))
+    if dest_root is None:
+        return {"ok": False, "error": path_error}
+    try:
+        name = validate_tool_name(name)
+    except ToolPathError as exc:
+        return {"ok": False, "error": str(exc)}
     root = _product_root()
     expected = Path(dest_root) / name / "mcp_server.py"
     return _start_product_job(
@@ -383,6 +655,13 @@ def start_tool_audit(
 ) -> dict:
     if not input_path.is_file() or not expected_path.is_file():
         return {"ok": False, "error": "新鲜输入和期望输出文件都必须存在。"}
+    dest_root, path_error = _validated_dest_root(Path(dest_root))
+    if dest_root is None:
+        return {"ok": False, "error": path_error}
+    try:
+        name = validate_tool_name(name)
+    except ToolPathError as exc:
+        return {"ok": False, "error": str(exc)}
     root = _product_root()
     return _start_product_job(
         [
@@ -408,6 +687,13 @@ def start_tool_audit(
 def start_tool_withdraw(name: str, reason: str, dest_root: Path) -> dict:
     if not reason.strip():
         return {"ok": False, "error": "请填写撤回原因。"}
+    dest_root, path_error = _validated_dest_root(Path(dest_root))
+    if dest_root is None:
+        return {"ok": False, "error": path_error}
+    try:
+        name = validate_tool_name(name)
+    except ToolPathError as exc:
+        return {"ok": False, "error": str(exc)}
     root = _product_root()
     return _start_product_job(
         [

@@ -25,6 +25,10 @@ hero(
     "AI 说完成不算，证据和当前发布状态才算。",
     kicker="GitHub Capability → Verified Local Tool",
 )
+st.caption(
+    "当前为受支持范围内的内部 alpha：公开 Python、单一明确能力、本地 CPU。"
+    "下方批次数字是已记录案例结果，不代表任意 GitHub 仓库的成功率。"
+)
 
 left, right, _ = st.columns([1.05, 1, 2.2])
 if left.button("＋ 新建本地工具", type="primary", use_container_width=True):
@@ -46,7 +50,7 @@ with cards[3]:
 if snapshot["registry_error"]:
     st.error("本地工具索引无法读取。系统没有猜测工具状态，请先修复索引后再操作。")
 if snapshot["release_error"]:
-    st.error("运营状态账存在损坏行；所有工具已按待审核处理，不会静默放行。")
+    st.error("运营状态账存在损坏行；当前不提供任何可操作工具，不会静默放行。")
 elif snapshot["historically_verified"] and not snapshot["release_ledger_present"]:
     st.warning(
         "历史工具已经验证，但新的运营状态账尚未迁移。当前统一显示为“待审核”；"

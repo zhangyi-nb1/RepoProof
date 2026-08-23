@@ -451,15 +451,27 @@ def list_tools(
         release_matches = bool(
             release is not None and release["task_id"] == current_task_id
         )
-        row["operational_status"] = (
-            release["decision"] if release_matches else REVIEW_REQUIRED
-        )
-        if release_matches:
+        if row["status"] != "OK":
+            # Historical/package health is a prerequisite for any operational
+            # decision.  A stale ACTIVE ledger row can never promote an
+            # unverified package; callers receive the same fail-closed Core
+            # projection without needing a UI-specific override.
+            row["operational_status"] = REVIEW_REQUIRED
+            row["operational_reason_code"] = (
+                "PACKAGE_MISSING"
+                if row["status"] == "MISSING"
+                else "HISTORICAL_VERIFICATION_NOT_READY"
+            )
+        elif release_matches:
+            row["operational_status"] = release["decision"]
             row["operational_reason_code"] = release["reason_code"]
             row["operational_task_id"] = release["task_id"]
         elif release is not None:
+            row["operational_status"] = REVIEW_REQUIRED
             row["operational_reason_code"] = "TASK_VERSION_UNAUDITED"
             row["previous_operational_task_id"] = release["task_id"]
+        else:
+            row["operational_status"] = REVIEW_REQUIRED
         mcp_server = tool_dir / "mcp_server.py"
         if mcp_server.is_file():
             row["mcp_server_present"] = True

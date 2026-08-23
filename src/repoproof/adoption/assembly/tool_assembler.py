@@ -308,14 +308,48 @@ def _expected_text(e: Example, src_dir: Path) -> str:
 
 
 def next_tool_task_id(root: Path, tool_name: str) -> str:
-    """Return the next immutable task version for one stable local command."""
+    """Return max(immutable version anchors)+1 without filling history gaps."""
 
     root = Path(root)
     slug = re.sub(r"[^a-z0-9-]+", "-", tool_name.lower()).strip("-")
-    n = 1
-    while (root / "contracts" / f"tool-{slug}-v{n}.yaml").exists():
-        n += 1
-    return f"tool-{slug}-v{n}"
+    prefix = f"tool-{slug}-v"
+    versions: set[int] = set()
+
+    def _scan(parent: Path, pattern: re.Pattern[str]) -> None:
+        if not parent.exists():
+            return
+        if parent.is_symlink() or not parent.is_dir():
+            raise ValueError(f"task version anchor root is unsafe: {parent}")
+        for path in parent.iterdir():
+            if not path.name.startswith(prefix):
+                continue
+            if path.is_symlink():
+                raise ValueError(f"task version anchor is a symlink: {path}")
+            match = pattern.fullmatch(path.name)
+            if match is None:
+                raise ValueError(f"malformed task version anchor: {path}")
+            versions.add(int(match.group("version")))
+
+    escaped = re.escape(prefix)
+    _scan(
+        root / "contracts",
+        re.compile(
+            rf"{escaped}(?P<version>[1-9][0-9]*)"
+            r"(?:\.yaml(?:\.sha256)?|\.requirements\.yaml|\.package\.json)"
+        ),
+    )
+    exact = re.compile(rf"{escaped}(?P<version>[1-9][0-9]*)")
+    for relative in (
+        "tool_tasks",
+        "controls",
+        "benchmarks/v2/tasks",
+    ):
+        _scan(root / relative, exact)
+    _scan(
+        root / "runs",
+        re.compile(rf"{escaped}(?P<version>[1-9][0-9]*)(?:-.+)?"),
+    )
+    return f"{prefix}{max(versions, default=0) + 1}"
 
 def assemble_tool_task(
     root: Path,

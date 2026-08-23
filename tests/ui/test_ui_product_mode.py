@@ -42,6 +42,17 @@ def _tool_world(root: Path) -> Path:
         },
     }
     (package / "tool.json").write_text(json.dumps(manifest), encoding="utf-8")
+    evidence = package / "evidence"
+    evidence.mkdir()
+    (evidence / "provenance.json").write_text(
+        json.dumps({
+            "tool": "alpha-tool",
+            "task_id": "tool-alpha-tool-v1",
+            "run_id": manifest["verification"]["run_id"],
+            "tool_contract_sha256": manifest["verification"]["contract_sha256"],
+        }),
+        encoding="utf-8",
+    )
     (tools / ".repoproof-registry.json").write_text(
         json.dumps({
             "schema_version": 1,
@@ -49,7 +60,10 @@ def _tool_world(root: Path) -> Path:
                 "alpha-tool": {
                     "path": str(package),
                     "task_id": "tool-alpha-tool-v1",
+                    "run_id": manifest["verification"]["run_id"],
+                    "contract_sha256": manifest["verification"]["contract_sha256"],
                     "verdict": "VERIFIED_TOOL_READY",
+                    "historical_verdict": "VERIFIED_TOOL_READY",
                     "summary": manifest["summary"],
                     "source": manifest["source"],
                 }
@@ -58,6 +72,21 @@ def _tool_world(root: Path) -> Path:
         encoding="utf-8",
     )
     return tools
+
+
+def _decision(decision: str, reason_code: str) -> dict:
+    return {
+        "schema_version": 1,
+        "tool": "alpha-tool",
+        "task_id": "tool-alpha-tool-v1",
+        "run_id": "tool-alpha-v1-20260824-000000",
+        "decision": decision,
+        "reason_code": reason_code,
+        "reason": reason_code.replace("_", " ").lower(),
+        "evidence_sha256": "c" * 64,
+        "decided_at": "2026-08-24T00:00:00Z",
+        "actor": "operator",
+    }
 
 
 def test_verified_tool_defaults_to_review_without_release_ledger(tmp_path: Path) -> None:
@@ -73,14 +102,8 @@ def test_release_ledger_folds_without_rewriting_history(tmp_path: Path) -> None:
     ledger = tools / product_mode.RELEASE_LEDGER_NAME
     ledger.write_text(
         "\n".join([
-            json.dumps({
-                "tool": "alpha-tool", "task_id": "tool-alpha-tool-v1",
-                "decision": "ACTIVE", "reason_code": "FRESH_INPUT_PASS",
-            }),
-            json.dumps({
-                "tool": "alpha-tool", "task_id": "tool-alpha-tool-v1",
-                "decision": "REVOKED", "reason_code": "USER_WITHDRAWAL",
-            }),
+            json.dumps(_decision("ACTIVE", "FRESH_INPUT_PASS")),
+            json.dumps(_decision("REVOKED", "USER_WITHDRAWAL")),
         ]) + "\n",
         encoding="utf-8",
     )
@@ -98,13 +121,14 @@ def test_bad_release_ledger_fails_closed(tmp_path: Path) -> None:
     )
     result = product_mode.list_tools(tools)
     assert result["release_error"]
-    assert result["tools"][0]["operational_status"] == "REVIEW_REQUIRED"
+    assert result["tools"] == []
+    assert result["projection_errors"][0]["reason_code"] == "RELEASE_LEDGER_INVALID"
 
 
 def test_dashboard_keeps_recorded_and_operational_counts_separate(tmp_path: Path) -> None:
     tools = _tool_world(tmp_path)
     (tools / product_mode.RELEASE_LEDGER_NAME).write_text(
-        json.dumps({"tool": "alpha-tool", "decision": "ACTIVE"}) + "\n",
+        json.dumps(_decision("ACTIVE", "FRESH_INPUT_PASS")) + "\n",
         encoding="utf-8",
     )
     project = tmp_path / "project"
@@ -135,8 +159,13 @@ def test_product_argv_is_shell_free_and_contains_no_credentials(tmp_path: Path) 
     assert all(";" not in arg for arg in argv)
 
 
-def test_review_editor_and_examples_only_write_inside_draft(tmp_path: Path) -> None:
-    draft = tmp_path / "draft"
+def test_review_editor_and_examples_only_write_inside_draft(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    draft = state_root / "drafts" / "draft"
     (draft / "examples").mkdir(parents=True)
     doc = {
         "task_id": "tool-alpha-tool-v1",
@@ -168,6 +197,123 @@ def test_review_editor_and_examples_only_write_inside_draft(tmp_path: Path) -> N
     examples = yaml.safe_load((draft / "examples.yaml").read_text())
     assert examples["examples"] == [
         {"input_file": "inputs/a.txt", "expected_file": "expected/a.expected.txt"}]
+    review = product_jobs.read_managed_draft_review(draft)
+    assert review["ok"] is True
+    assert review["reference_impl"] == "import alpha\n"
+
+
+def test_activity_log_reader_never_follows_untrusted_state_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    logs = state_root / "logs"
+    logs.mkdir(parents=True)
+    valid = logs / "tool-build.log"
+    valid.write_text("safe log\n", encoding="utf-8")
+    assert product_jobs.read_product_job_log({"log": str(valid)}) == {
+        "ok": True,
+        "text": "safe log\n",
+    }
+
+    outside = tmp_path / "secret.txt"
+    outside.write_text("must not render\n", encoding="utf-8")
+    blocked = product_jobs.read_product_job_log({"log": str(outside)})
+    assert blocked["ok"] is False
+    assert "受管目录" in blocked["error"]
+
+    linked = logs / "linked.log"
+    linked.symlink_to(outside)
+    blocked = product_jobs.read_product_job_log({"log": str(linked)})
+    assert blocked["ok"] is False
+
+
+def test_product_paths_and_github_url_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "draft.yaml").write_text("{}\n", encoding="utf-8")
+
+    escaped = product_jobs.start_tool_add(
+        repo="https://github.com/acme/demo",
+        capability="把公开能力包装为本地离线工具",
+        draft_dir=outside / "new-draft",
+        fake_drafter=True,
+    )
+    assert escaped["ok"] is False
+    assert "受管目录" in escaped["error"]
+
+    drafts = state_root / "drafts"
+    drafts.mkdir(parents=True)
+    linked = drafts / "linked"
+    linked.symlink_to(outside, target_is_directory=True)
+    linked_result = product_jobs.save_draft_review(
+        linked,
+        tool_name="alpha-tool",
+        summary="summary",
+        statement="statement",
+        input_format="text",
+        output_format="text",
+        output_schema="text",
+        reference_impl="",
+    )
+    assert linked_result["ok"] is False
+    assert "symlink" in linked_result["error"]
+
+    spoofed = product_jobs.start_tool_add(
+        repo="https://github.com.evil.example/acme/demo",
+        capability="把公开能力包装为本地离线工具",
+        draft_dir=drafts / "spoofed",
+        fake_drafter=True,
+    )
+    assert spoofed["ok"] is False
+    assert "公开 GitHub" in spoofed["error"]
+
+    broad, broad_error = product_jobs._validated_dest_root(Path.home())
+    assert broad is None
+    assert "过于宽泛" in str(broad_error)
+
+
+def test_build_reports_invalid_task_version_lineage_without_starting_worker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    draft = state_root / "drafts" / "draft"
+    (draft / "examples").mkdir(parents=True)
+    (draft / "draft.yaml").write_text(
+        yaml.safe_dump({"tool": {"name": "alpha-tool"}}),
+        encoding="utf-8",
+    )
+    (draft / "reference_impl.py").write_text("", encoding="utf-8")
+    (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+    monkeypatch.setattr(
+        product_jobs,
+        "next_tool_task_id",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            ValueError("malformed task version anchor")
+        ),
+    )
+    monkeypatch.setattr(
+        product_jobs,
+        "_start_product_job",
+        lambda *_args, **_kwargs: pytest.fail("worker must not start"),
+    )
+
+    result = product_jobs.start_tool_build(
+        draft_dir=draft,
+        dest_root=tmp_path / "tools",
+        rehearsal_only=True,
+    )
+
+    assert result["ok"] is False
+    assert result["error_code"] == "TASK_VERSION_LINEAGE_INVALID"
 
 
 def _all_text(at) -> str:

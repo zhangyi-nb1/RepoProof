@@ -5,7 +5,8 @@
 - 模型密钥只从当前进程环境读取(REPOPROOF_*),UI 不接收、不保存、
   不显示密钥;缺失时给出启动脚本指引;
 - Lab 本地采用运行:结果写入 runs/,不进入 benchmark、不触碰历史 evidence;
-- 单实例锁:runs/.ui_live.lock 存活时拒绝并发第二个 run。
+- Lab 状态写入 runs/.ui_live.lock；真正的单实例互斥与 Studio 共用
+  runs/.core-execution.lock。
 """
 
 from __future__ import annotations
@@ -13,8 +14,18 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
+from repoproof.execution.core_execution import (
+    STATE_SCHEMA_VERSION,
+    SUCCEEDED,
+    CoreExecutionConflictError,
+    core_execution_lease,
+    legacy_state_blocker,
+    read_durable_job_state,
+    start_durable_job,
+)
 from repoproof.persistence.bench_records import EXPLORATORY_BATCH
 
 LOCK = "runs/.ui_live.lock"
@@ -82,14 +93,30 @@ def provider_ready() -> bool:
     return bool(os.environ.get("REPOPROOF_API_KEY") and os.environ.get("REPOPROOF_API_BASE"))
 
 
+def _worker_python(root: Path) -> str:
+    candidate = Path(root) / ".venv" / "bin" / "python"
+    return str(candidate if candidate.is_file() else Path(sys.executable))
+
+
+def _legacy_product_execution_error() -> str | None:
+    state_root = Path(
+        os.environ.get("REPOPROOF_UI_STATE_ROOT", "~/.repoproof")
+    ).expanduser()
+    return legacy_state_blocker(state_root / "product-job.json")
+
+
 def active_run(root: Path) -> dict | None:
     lock = root / LOCK
     if not lock.exists():
         return None
     try:
-        info = json.loads(lock.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return None
+        raw = json.loads(lock.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return read_durable_job_state(lock)
+    if not isinstance(raw, dict):
+        return read_durable_job_state(lock)
+    is_v2 = raw.get("schema_version") == STATE_SCHEMA_VERSION
+    info = read_durable_job_state(lock) if is_v2 else raw
     # 完成判定优先看产物:最新 run 目录已有 report.json 即完成。
     # 竞态修复(用户实测):点击运行后、预检完成前 run 目录尚未创建,
     # "最新目录"是上一次已完成的运行——必须要求目录时间戳不早于本次
@@ -100,14 +127,23 @@ def active_run(root: Path) -> dict | None:
     latest = run_dirs[0] if run_dirs else None
     fresh = bool(latest) and (not started or latest.name[-15:] >= started)
     info["latest_run"] = latest.name if (latest and fresh) else None
-    info["report_ready"] = bool(latest and fresh and (latest / "report.json").exists())
+    report_exists = bool(latest and fresh and (latest / "report.json").exists())
+    # V2 outcome is owned by the durable worker.  A command that writes a
+    # plausible report and then exits non-zero must never regain success via
+    # the legacy artifact-first projection.
+    info["report_ready"] = bool(
+        report_exists and (not is_v2 or info.get("status") == SUCCEEDED)
+    )
     if info["report_ready"]:
-        info["alive"] = False
+        if not is_v2:
+            info["alive"] = False
         try:
             import json as _j
             info["verdict"] = _j.loads((latest / "report.json").read_text())["final_verdict"]
         except Exception:  # noqa: BLE001
             info["verdict"] = None
+        return info
+    if is_v2:
         return info
     # 无产物:探测进程(僵尸 defunct 一律视为已结束)
     try:
@@ -129,31 +165,41 @@ def start_run(root: Path, task_id: str, *, guided: bool = False,
     if not provider_ready():
         return {"ok": False, "error": "模型连接未配置:请用 scripts/run_lab_ui_live.sh 启动实验台"
                                        "(它会从你已有的本地配置注入连接信息,密钥不落盘)。"}
+    if legacy_error := legacy_state_blocker(root / LOCK):
+        return {"ok": False, "error": legacy_error}
     if (info := active_run(root)) and info.get("alive"):
         return {"ok": False, "error": f"已有任务在运行(task={info.get('task_id')}),同时只允许一个。"}
+    if legacy_error := _legacy_product_execution_error():
+        return {"ok": False, "error": legacy_error}
     contract = root / "contracts" / f"{task_id}.yaml"
     if not (root / "contracts" / f"{task_id}.package.json").exists():
         return {"ok": False, "error": f"任务 {task_id} 未冻结,不能运行。"}
     log = root / "runs" / f"ui_live_{task_id}.log"
     log.parent.mkdir(exist_ok=True)
     cmd = "guided-run" if guided else "agent-run"
-    proc = subprocess.Popen(
-        [str(root / ".venv" / "bin" / "python"), "-m", "repoproof.cli",
-         cmd, "--contract", str(contract)],
-        stdout=log.open("w"), stderr=subprocess.STDOUT,
-        cwd=str(root),
+    argv = [str(root / ".venv" / "bin" / "python"), "-m", "repoproof.cli",
+            cmd, "--contract", str(contract)]
+    result = start_durable_job(
+        root=root,
+        state_path=root / LOCK,
+        worker_python=_worker_python(root),
+        argv=argv,
+        cwd=root,
+        log_path=log,
+        kind="lab-guided-run" if guided else "lab-agent-run",
+        label=f"Lab {'guided-run' if guided else 'agent-run'} {task_id}",
+        expected_artifact_glob=f"runs/{task_id}-2*/report.json",
         env=_env_for(provider, model) if model else dict(os.environ),
-        start_new_session=True,
+        metadata={
+            "task_id": task_id,
+            "guided": guided,
+            "model": model or os.environ.get("REPOPROOF_MODEL"),
+        },
     )
-    import time as _time
-
-    (root / LOCK).write_text(json.dumps(
-        {"pid": proc.pid, "task_id": task_id, "log": str(log), "guided": guided,
-         "model": model or os.environ.get("REPOPROOF_MODEL"),
-         "started_at": _time.strftime("%Y%m%d-%H%M%S")}),
-        encoding="utf-8")
+    if not result.get("ok"):
+        return result
     mode_note = "有界多轮修复(最多 3 轮,每轮按公开测试反馈改进)" if guided else "单次运行"
-    return {"ok": True, "pid": proc.pid, "task_id": task_id, "guided": guided,
+    return {"ok": True, "pid": result["pid"], "task_id": task_id, "guided": guided,
             "note": f"已在后台启动({mode_note}):AI 执行 → 冻结 → 独立验证 → 干净复测 → 最终判定。"
                     "页面刷新不会中断;完成后锁自动视为结束。"}
 
@@ -240,8 +286,12 @@ def host_task_state(root: Path, key: str = "T1") -> dict:
              "exploratory": r.get("batch") == EXPLORATORY_BATCH,
              "invalidated": r.get("adjudication") is not None} for r in rows]
     by_model = {m: sum(1 for r in rows if r.get("model") == m) for m in t["models"]}
-    all_real = [r for r in load_runs(root)
-                if not str(r.get("model", "")).startswith("fake")]
+    all_real = [
+        r
+        for r in load_runs(root)
+        if r.get("test_mode") != "PRODUCT"
+        and not str(r.get("model", "")).startswith("fake")
+    ]
     # 本阶段更早任务版本的发次:**不进本面板**(不同 task_version 不可互比,
     # TESTPLAN §8),但必须明示条数——否则用户看到 n=1 会以为发次丢了。
     older: dict[str, int] = {}
@@ -343,23 +393,43 @@ def start_host_run(root: Path, *, model: str, run_order: int, run_index: int = 1
         return {"ok": False,
                 "error": f"当前工作台环境缺少 {model} 的连接配置(REPOPROOF_*);"
                          "请用 scripts/run_lab_ui_live.sh 启动实验台。"}
+    if legacy_error := legacy_state_blocker(root / LOCK):
+        return {"ok": False, "error": legacy_error}
     if (info := active_run(root)) and info.get("alive"):
         return {"ok": False, "error": f"已有任务在运行(task={info.get('task_id')}),同时只允许一个。"}
+    if legacy_error := _legacy_product_execution_error():
+        return {"ok": False, "error": legacy_error}
     log = root / "runs" / f"ui_live_host_{t['task_id']}.log"
     log.parent.mkdir(exist_ok=True)
-    proc = subprocess.Popen(
-        host_run_argv(root, run_order=run_order, run_index=run_index, task_key=task_key),
-        stdout=log.open("w"), stderr=subprocess.STDOUT, cwd=str(root),
-        env=_env_for(provider, model), start_new_session=True,
+    result = start_durable_job(
+        root=root,
+        state_path=root / LOCK,
+        worker_python=_worker_python(root),
+        argv=host_run_argv(
+            root,
+            run_order=run_order,
+            run_index=run_index,
+            task_key=task_key,
+        ),
+        cwd=root,
+        log_path=log,
+        kind="lab-host-run",
+        label=f"Lab host-run {t['task_id']}",
+        expected_artifact_glob=f"runs/{t['task_id']}-2*/report.json",
+        env=_env_for(provider, model),
+        metadata={
+            "task_id": t["task_id"],
+            "guided": True,
+            "mode": "host-guided",
+            "model": model,
+            "task_key": task_key,
+            "run_order": run_order,
+            "run_index": run_index,
+        },
     )
-    import time as _time
-
-    (root / LOCK).write_text(json.dumps(
-        {"pid": proc.pid, "task_id": t["task_id"], "log": str(log),
-         "guided": True, "mode": "host-guided", "model": model,
-         "task_key": task_key,
-         "started_at": _time.strftime("%Y%m%d-%H%M%S")}), encoding="utf-8")
-    return {"ok": True, "pid": proc.pid, "model": model, "run_order": run_order,
+    if not result.get("ok"):
+        return result
+    return {"ok": True, "pid": result["pid"], "model": model, "run_order": run_order,
             "run_index": run_index, "task_key": task_key,
             "note": "已在后台启动宿主级运行:装配 → 环境重建(约 2-3 分钟,这段安静是正常的)"
                     "→ 基线门禁 → AI 有界多轮修复(每轮额度独立)→ 独立验证 → 干净重放 "
@@ -367,9 +437,12 @@ def start_host_run(root: Path, *, model: str, run_order: int, run_index: int = 1
 
 
 def clear_lock_if_done(root: Path) -> None:
-    info = active_run(root)
-    if info and not info.get("alive"):
-        (root / LOCK).unlink(missing_ok=True)
+    # V2 state is durable activity history, not a disposable PID lock.  A new
+    # launch atomically replaces it only after acquiring the shared Core mutex.
+    # Keeping terminal/invalid state also removes the old check-then-unlink
+    # race where one Streamlit session could delete another session's fresh
+    # RUNNING record.  Reading reconciles a dead worker to INTERRUPTED.
+    active_run(root)
 
 
 def export_bundle_for_run(root: Path, run_name: str) -> dict:
@@ -380,11 +453,19 @@ def export_bundle_for_run(root: Path, run_name: str) -> dict:
     run_dir = (root / "runs" / run_name).resolve()
     if (root / "runs").resolve() not in run_dir.parents:
         return {"ok": False, "error": "非法 run 名称"}
-    proc = subprocess.run(
-        [str(root / ".venv" / "bin" / "python"), "-m", "repoproof.cli",
-         "export-bundle", "--run-dir", str(run_dir), "--json"],
-        capture_output=True, text=True, timeout=120, check=False, cwd=str(root),
-    )
+    try:
+        with core_execution_lease(
+            root,
+            kind="lab-export-bundle",
+            label=f"Lab export-bundle {run_name}",
+        ):
+            proc = subprocess.run(
+                [str(root / ".venv" / "bin" / "python"), "-m", "repoproof.cli",
+                 "export-bundle", "--run-dir", str(run_dir), "--json"],
+                capture_output=True, text=True, timeout=120, check=False, cwd=str(root),
+            )
+    except CoreExecutionConflictError as exc:
+        return {"ok": False, "error": str(exc)}
     try:
         out = json.loads(proc.stdout)
     except json.JSONDecodeError:

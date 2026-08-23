@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import streamlit as st
 
 from repoproof.ui.product_theme import apply_product_theme, hero, section_intro
@@ -25,10 +23,15 @@ if not job:
         st.switch_page("pages/tool_onboarding.py")
     st.stop()
 
-state = "正在运行" if job.get("alive") else ("完成" if job.get("ok") else "未完成")
+state = {
+    "RUNNING": "正在运行",
+    "SUCCEEDED": "已完成",
+    "FAILED": "失败",
+    "INTERRUPTED": "已中断",
+}.get(str(job.get("status")), "状态异常")
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("状态", state)
-c2.metric("阶段", str(job.get("kind") or "—"))
+c2.metric("阶段", str(job.get("action") or job.get("kind") or "—"))
 c3.metric("任务", str(job.get("label") or "—"))
 c4.metric("进程", str(job.get("pid") or "—"))
 
@@ -38,14 +41,15 @@ elif job.get("ok"):
     st.success(job.get("note") or "任务已完成。")
 else:
     st.error(job.get("note") or "任务没有形成预期产物，请查看日志。")
+    if job.get("error_code"):
+        st.caption(f"错误码：`{job['error_code']}`")
 
 section_intro("过程日志", "它不是 PASS 的来源；模型的完成声明也不会在这里变成系统结论。")
-log = Path(str(job.get("log") or ""))
-if log.is_file():
-    text = log.read_text(encoding="utf-8", errors="replace")
-    st.code(text[-12000:] or "（任务刚启动，暂无输出）", language="text")
+log_result = product_jobs.read_product_job_log(job)
+if log_result.get("ok"):
+    st.code(log_result.get("text") or "（任务刚启动，暂无输出）", language="text")
 else:
-    st.caption("日志文件尚未创建。")
+    st.caption(log_result.get("error") or "日志文件尚未创建。")
 
 with st.expander("技术信息"):
     safe = {k: v for k, v in job.items() if k not in {"env"}}

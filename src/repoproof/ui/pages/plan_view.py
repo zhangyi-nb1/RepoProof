@@ -18,6 +18,10 @@ from repoproof.adoption.analysis.repository_analyzer import analyze_repository_d
 from repoproof.adoption.intent.intent_parser import parse_intent
 from repoproof.adoption.planning.adoption_plan import build_plan
 from repoproof.adoption.planning.human_gate import ACK_TEXT, HumanGateError, confirm_plan
+from repoproof.execution.core_execution import (
+    CoreExecutionConflictError,
+    core_execution_lease,
+)
 from repoproof.ui.services.facts import repo_root
 from repoproof.ui.services.state import is_tech, mode_toggle_sidebar, tech_expander
 
@@ -135,7 +139,12 @@ if c2.button("确认开始", type="primary", width="stretch"):
         )
         from repoproof.adoption.delivery.intent_store import save_frozen_intent
 
-        save_frozen_intent(repo_root() / "runs", frozen.to_dict())
+        with core_execution_lease(
+            repo_root(),
+            kind="lab-freeze-intent",
+            label="Lab 冻结采用意向",
+        ):
+            save_frozen_intent(repo_root() / "runs", frozen.to_dict())
         st.success("已确认并冻结采用意向(已保存)——此后计划与评分规则不可再改,改动会被指纹校验拒绝。")
         st.info("下一步:到「开始新任务」第 4/5 步给出验收样例并装配冻结,然后由你亲手点「真实运行」。")
         if is_tech():
@@ -143,4 +152,6 @@ if c2.button("确认开始", type="primary", width="stretch"):
                 st.json(frozen.to_dict())
     except HumanGateError as exc:
         st.error(f"还不能开始:{exc}")
+    except CoreExecutionConflictError as exc:
+        st.error(str(exc))
 st.caption(f"确认即表示:{ACK_TEXT}")

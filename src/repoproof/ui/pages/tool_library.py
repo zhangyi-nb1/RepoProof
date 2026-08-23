@@ -27,9 +27,15 @@ hero(
 library = list_tools()
 tools = library["tools"]
 if library["registry_error"]:
-    st.error("注册表无法读取，系统拒绝猜测。请先修复注册表。")
+    st.error(
+        "TOOL_REGISTRY_INVALID：注册表无法由 Core 验证，系统已 fail closed；"
+        "当前不提供任何可操作工具。"
+    )
 if library["release_error"]:
-    st.error("运营状态账损坏；所有工具按待审核处理。")
+    st.error(
+        "RELEASE_LEDGER_INVALID：append-only 运营状态账无法由 Core 验证，"
+        "系统已 fail closed；当前不提供任何可操作工具。"
+    )
 
 section_intro("工具清单", "先按当前状态筛选，再打开一个工具查看调用方式和证据。")
 statuses = ["ACTIVE", "REVIEW_REQUIRED", "REVOKED", "UNVERIFIED"]
@@ -56,6 +62,7 @@ st.dataframe(
             "工具": row["name"],
             "能力": row["summary"] or "—",
             "当前状态": status_label(row["operational_status"]),
+            "原因码": ", ".join(row.get("reason_codes", [])) or "—",
             "历史验证": row["historical_verdict"] or "—",
             "包健康": row["health"],
             "上游": row["source_distribution"] or "—",
@@ -76,11 +83,16 @@ with facts:
     st.markdown("#### 可信状态")
     st.write(f"**历史验证：** {tool['historical_verdict'] or '—'}")
     st.write(f"**当前运营：** {status_label(tool['operational_status'])}")
+    displayed_reason_codes = tool.get("reason_codes", [])
+    st.write(
+        "**原因码：** "
+        + (", ".join(f"`{code}`" for code in displayed_reason_codes) or "—")
+    )
     st.write(f"**包健康：** {tool['health']}")
     st.write(f"**上游：** {tool['source_url'] or '—'}")
     st.write(f"**固定版本：** `{(tool['resolved_commit'] or '—')[:16]}`")
-    if tool.get("operational_reason"):
-        st.caption(f"最近决定：{tool['operational_reason']}")
+    if displayed_reason_codes:
+        st.caption(f"当前状态与暴露约束：{', '.join(displayed_reason_codes)}")
 with usage:
     st.markdown("#### 使用方式")
     st.code(tool_command(tool["name"]), language="bash")
@@ -93,7 +105,7 @@ with usage:
         st.warning("只有通过 fresh-input 审核的 ACTIVE 工具可以生成或启用 MCP。")
 
 with st.expander("审核、撤回与证据"):
-    st.caption("这些操作只追加运营决定，不删除包，也不改写历史验证。M5 核心命令合并后自动启用。")
+    st.caption("这些操作只追加运营决定，不删除包，也不改写历史验证。")
     available = product_jobs.product_tool_commands()
     if "audit" in available:
         a, b = st.columns(2)
@@ -117,5 +129,5 @@ with st.expander("审核、撤回与证据"):
             (st.success if result.get("ok") else st.error)(result.get("note") or result.get("error"))
 
     st.write(f"**工具目录：** `{tool['path']}`")
-    st.write(f"**运行证据：** `{tool['run_id'] or '—'}`")
-    st.write(f"**合同指纹：** `{tool['contract_sha256'] or '—'}`")
+    st.write(f"**运行证据：** `{tool.get('run_id') or '—'}`")
+    st.write(f"**合同指纹：** `{tool.get('contract_sha256') or '—'}`")

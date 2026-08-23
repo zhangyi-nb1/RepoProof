@@ -296,8 +296,8 @@ def test_every_run_level_usage_hook_shares_the_deduping_implementation() -> None
     # 恰两个被祝福的去重实现:make_usage_cb(litellm 路,按 call_id 去重)
     # 与 absorb_dsh_usage(B-dsh 路,可信 events 汇经 normalize() 的 usage 律
     # 已在入口去重)。多一处 = 复制一份未去重的旧病。
-    assert accum_files == {"runner/host_guided.py:107", "runner/host_guided.py:108",
-                           "runner/host_guided.py:121", "runner/host_guided.py:122"}, (
+    assert accum_files == {"runner/host_guided.py:148", "runner/host_guided.py:149",
+                           "runner/host_guided.py:162", "runner/host_guided.py:163"}, (
         f"run 级用量累加出现在 {sorted(accum_files)} —— 允许的落点只有"
         " make_usage_cb 与 absorb_dsh_usage 两个去重实现的内部"
     )

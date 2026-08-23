@@ -35,11 +35,26 @@ from repoproof.runner.tool_export import (
     preflight_tool_install,
 )
 from repoproof.runner.tool_host_bridge import ToolBridgeError, materialize_tool_task
-from repoproof.runner.tool_release import ReleaseLedgerError, operational_status
+from repoproof.runner.tool_release import (
+    ReleaseLedgerError,
+    is_historical_tool_ready,
+    operational_status,
+)
 
 
 class PipelineError(RuntimeError):
     pass
+
+
+def tool_build_completed(result: dict, *, rehearsal_only: bool) -> bool:
+    """Return whether a CLI build reached its declared completion boundary."""
+
+    if rehearsal_only:
+        return result.get("verdict") == "REHEARSAL_PASS_ONLY"
+    return bool(
+        result.get("exported")
+        and is_historical_tool_ready(result.get("historical_verdict"))
+    )
 
 
 def ensure_pinned_upstream(url: str, commit: str, project_root: Path) -> Path:
@@ -130,10 +145,10 @@ def tool_build(
         # unsafe install before confirm freezes a new task version, and long
         # before either rehearsal or real-model budget is spent.
         if not check_draft_complete(draft, draft_dir):
-            predicted_task_id = next_tool_task_id(
-                project_root, draft["tool"]["name"]
-            )
             try:
+                predicted_task_id = next_tool_task_id(
+                    project_root, draft["tool"]["name"]
+                )
                 current = preflight_tool_install(
                     Path(dest_root), draft["tool"]["name"], predicted_task_id
                 )
@@ -147,7 +162,10 @@ def tool_build(
             }
 
     # 1) 人闸后的确认:D 闸 → 装配 → T 闸 → 冻结
-    info = confirm_tool_draft(draft_dir, project_root)
+    try:
+        info = confirm_tool_draft(draft_dir, project_root)
+    except ValueError as exc:
+        raise PipelineError(f"任务版本谱系或草稿装配无效:{exc}") from exc
     task_id = info["task_id"]
     if predicted_task_id is not None and task_id != predicted_task_id:
         raise PipelineError(

@@ -6,11 +6,17 @@ import json
 from pathlib import Path
 
 import streamlit as st
-import yaml
 
 from repoproof.ui.product_theme import apply_product_theme, hero, section_intro
 from repoproof.ui.services import product_jobs
-from repoproof.ui.services.product_mode import tool_root, ui_state_root
+from repoproof.ui.services.product_mode import (
+    default_output_contract,
+    next_task_version_preview,
+    parse_output_contract,
+    tool_root,
+    ui_state_root,
+    validate_draft_output_examples,
+)
 
 st.set_page_config(page_title="新建工具 · RepoProof Studio", page_icon="🧰", layout="wide")
 apply_product_theme()
@@ -72,44 +78,53 @@ with tab_review:
         )
     ).expanduser()
     st.session_state["rp_draft_dir"] = str(inspect_dir)
-    draft_path = inspect_dir / "draft.yaml"
-    if not draft_path.is_file():
-        st.info("生成草稿后回到这里审核；当前目录还没有 draft.yaml。")
+    review_bundle = product_jobs.read_managed_draft_review(inspect_dir)
+    if not review_bundle.get("ok"):
+        st.info(
+            "生成受管草稿后回到这里审核；当前路径不可读取。"
+            f" {review_bundle.get('error') or ''}"
+        )
     else:
-        draft = yaml.safe_load(draft_path.read_text(encoding="utf-8")) or {}
+        inspect_dir = Path(review_bundle["draft_dir"])
+        draft = review_bundle["draft"]
         tool = draft.get("tool") or {}
         iface = tool.get("interface") or {}
         cap = draft.get("capability") or {}
-        existing_contract = (iface.get("output") or {}).get("contract") or {}
+        saved_output_format = str((iface.get("output") or {}).get("format") or "")
+        existing_contract = (iface.get("output") or {}).get("contract")
+        if not existing_contract:
+            existing_contract = default_output_contract(saved_output_format)
         with st.form("draft_review_form"):
             tool_name = st.text_input("工具名", value=str(tool.get("name") or ""))
             summary = st.text_input("一句话摘要", value=str(tool.get("summary") or ""))
             statement = st.text_area("能力和边界", value=str(cap.get("statement") or ""), height=130)
             a, b = st.columns(2)
             input_format = a.text_input("输入格式", value=str((iface.get("input") or {}).get("format") or ""))
-            output_format = b.text_input("输出格式", value=str((iface.get("output") or {}).get("format") or ""))
+            output_format = b.text_input("输出格式", value=saved_output_format)
             output_schema = st.text_input("输出结构名称", value=str(cap.get("output_schema") or ""))
             output_contract_text = st.text_area(
-                "可执行输出合同（结构化输出必填）",
+                "可执行输出合同（所有 v2 工具必填）",
                 value=json.dumps(existing_contract, ensure_ascii=False, indent=2),
-                help="M5 使用它独立解析真实 stdout；文本输出可保留空对象。",
+                help=(
+                    "由 Core ToolOutputContract 验证；普通文本也必须明确声明 "
+                    "text/plain + text。"
+                ),
                 height=130,
             )
             reference = st.text_area(
                 "参考实现（必须真实 import 固定上游）",
-                value=(inspect_dir / "reference_impl.py").read_text(encoding="utf-8")
-                if (inspect_dir / "reference_impl.py").is_file() else "",
+                value=review_bundle["reference_impl"],
                 height=260,
             )
             save = st.form_submit_button("保存审核修改", type="primary")
         if save:
-            try:
-                output_contract = json.loads(output_contract_text or "{}")
-                if not isinstance(output_contract, dict):
-                    raise ValueError("输出合同必须是 JSON object")
-            except (json.JSONDecodeError, ValueError) as exc:
-                result = {"ok": False, "error": f"输出合同不是合法 JSON：{exc}"}
-            else:
+            parsed_contract, contract_errors = parse_output_contract(
+                output_contract_text,
+                output_format=output_format,
+            )
+            if contract_errors:
+                result = {"ok": False, "error": "；".join(contract_errors)}
+            elif parsed_contract is not None:
                 result = product_jobs.save_draft_review(
                     inspect_dir,
                     tool_name=tool_name,
@@ -119,9 +134,21 @@ with tab_review:
                     output_format=output_format,
                     output_schema=output_schema,
                     reference_impl=reference,
-                    output_contract=output_contract,
+                    output_contract=parsed_contract.model_dump(mode="json"),
                 )
+            else:  # pragma: no cover - defensive, parser returns one side
+                result = {"ok": False, "error": "OUTPUT_CONTRACT_INVALID"}
             (st.success if result.get("ok") else st.error)(result.get("note") or result.get("error"))
+
+        if tool_name:
+            try:
+                preview = next_task_version_preview(tool_name)
+            except (OSError, ValueError) as exc:
+                st.error(f"任务版本谱系无法安全计算：{exc}")
+            else:
+                st.caption(
+                    f"冻结版本只读预览：`{preview['task_id']}`。{preview['note']}"
+                )
 
         st.markdown("#### 加入确认过的 Golden 样例")
         st.caption("至少三组，其中每四组的最后一组会自动成为不交给 Agent 的 held-out 样例。")
@@ -129,29 +156,55 @@ with tab_review:
         uploaded_in = c_in.file_uploader("输入文件", key="golden_input")
         uploaded_out = c_out.file_uploader("期望输出文件", key="golden_expected")
         if st.button("加入这一组样例", disabled=not (uploaded_in and uploaded_out)):
-            result = product_jobs.add_golden_example(
-                inspect_dir,
-                input_name=uploaded_in.name,
-                input_bytes=uploaded_in.getvalue(),
-                expected_name=uploaded_out.name,
-                expected_bytes=uploaded_out.getvalue(),
+            current_contract, contract_errors = parse_output_contract(
+                output_contract_text,
+                output_format=output_format,
             )
+            golden_errors: list[str] = []
+            if current_contract is not None:
+                try:
+                    expected_text = uploaded_out.getvalue().decode("utf-8")
+                except UnicodeDecodeError:
+                    golden_errors = ["GOLDEN_OUTPUT_INVALID: 期望输出必须是 UTF-8"]
+                else:
+                    from repoproof.adoption.assembly.output_contract import (
+                        validate_output_text,
+                    )
+
+                    golden_errors = [
+                        f"GOLDEN_OUTPUT_INVALID: {detail}"
+                        for detail in validate_output_text(expected_text, current_contract)
+                    ]
+            if contract_errors or golden_errors:
+                result = {
+                    "ok": False,
+                    "error": "；".join([*contract_errors, *golden_errors]),
+                }
+            else:
+                result = product_jobs.add_golden_example(
+                    inspect_dir,
+                    input_name=uploaded_in.name,
+                    input_bytes=uploaded_in.getvalue(),
+                    expected_name=uploaded_out.name,
+                    expected_bytes=uploaded_out.getvalue(),
+                )
             (st.success if result.get("ok") else st.error)(result.get("note") or result.get("error"))
-        examples_path = inspect_dir / "examples.yaml"
-        if examples_path.is_file():
-            examples = (yaml.safe_load(examples_path.read_text(encoding="utf-8")) or {}).get("examples") or []
-            st.metric("已确认样例", len(examples), help="冻结至少需要三组")
-            if examples:
-                st.dataframe(examples, hide_index=True, use_container_width=True)
+        examples = review_bundle["examples"]
+        st.metric("已确认样例", len(examples), help="冻结至少需要三组")
+        if examples:
+            st.dataframe(examples, hide_index=True, use_container_width=True)
 
         with st.expander("查看原始草稿与缺口清单"):
-            st.code(draft_path.read_text(encoding="utf-8"), language="yaml")
-            gaps = inspect_dir / "GAPS.md"
-            if gaps.is_file():
-                st.markdown(gaps.read_text(encoding="utf-8"))
+            st.code(review_bundle["raw_draft"], language="yaml")
+            if review_bundle["gaps"]:
+                st.markdown(review_bundle["gaps"])
 
 with tab_build:
     section_intro("先彩排，再决定是否启动真实 Agent", "彩排门失败不会消耗真实模型预算；成功后仍需独立验证和干净重放。")
+    st.caption(
+        "默认 Agent backend：mini-swe。DeepSeek Harness（DSH）目前仅为可选实验后端，"
+        "不作为 Studio 默认执行路径。"
+    )
     build_dir = Path(
         st.text_input(
             "已经审核完成的草稿目录",
@@ -162,7 +215,41 @@ with tab_build:
     dest_root = Path(st.text_input("工具库位置", value=str(tool_root()))).expanduser()
     rehearsal_only = st.toggle("只运行离线彩排", value=True)
     confirmed = st.checkbox("我已确认输入输出、样例真值、上游版本和许可证")
-    if st.button("开始彩排" if rehearsal_only else "开始完整构建", type="primary", disabled=not confirmed):
+    lineage_ready = True
+    build_bundle = product_jobs.read_managed_draft_review(build_dir)
+    if build_bundle.get("ok"):
+        build_dir = Path(build_bundle["draft_dir"])
+        output_preflight = validate_draft_output_examples(build_dir)
+        preview_doc = build_bundle["draft"]
+        preview_name = str((preview_doc.get("tool") or {}).get("name") or "")
+        if preview_name:
+            try:
+                preview = next_task_version_preview(preview_name)
+            except (OSError, ValueError) as exc:
+                lineage_ready = False
+                st.error(f"任务版本谱系无法安全计算：{exc}")
+            else:
+                st.caption(
+                    f"本次冻结版本只读预览：`{preview['task_id']}`。{preview['note']}"
+                )
+    else:
+        output_preflight = {
+            "ok": False,
+            "errors": [str(build_bundle.get("error") or "MANAGED_DRAFT_INVALID")],
+        }
+    if output_preflight["ok"]:
+        st.success("OUTPUT_CONTRACT_READY：合同与 Golden 输出通过构建前只读检查。")
+    else:
+        st.error("构建前输出合同检查未通过：\n\n- " + "\n- ".join(output_preflight["errors"]))
+    if st.button(
+        "开始彩排" if rehearsal_only else "开始完整构建",
+        type="primary",
+        disabled=(
+            not confirmed
+            or not output_preflight["ok"]
+            or not lineage_ready
+        ),
+    ):
         result = product_jobs.start_tool_build(
             draft_dir=build_dir,
             dest_root=dest_root,
