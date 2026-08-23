@@ -153,6 +153,16 @@ def tool_build(
             shutil.rmtree(conf_py.parents[1], ignore_errors=True)
     stages["materialize"] = {"ok": True, "contract": str(contract)}
 
+    # 3b) draft 束归档进任务区(真值留痕;移出 H9-a 扫描面 —— 束里的
+    # 样例/期望与 oracle 逐字节同,留在 /tmp 真发必被残留闸拒,按设计)。
+    # 时机在 materialize 成功之后:任何更早失败,束留原位供人改后重跑。
+    archive = project_root / "tool_tasks" / "_drafts" / task_id
+    if archive.exists():
+        raise PipelineError(f"draft 归档位已存在:{archive}")
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(draft_dir), str(archive))
+    stages["draft_archived"] = str(archive)
+
     # 4) wheelhouse 备轮(reference 锁定集 + 测量工具链)
     wheelhouse = Path(bench_root) / task_id / "wheelhouse"
     r = subprocess.run(

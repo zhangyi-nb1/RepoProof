@@ -217,6 +217,11 @@ def test_pipeline_runs_to_rehearsal_gate_offline(tmp_path, monkeypatch):
     assert out["stages"]["confirm"]["held"] == 1
     # conformance:minilib 无 tests 目录 → 空选取如实
     assert out["stages"]["conformance_selected"] == []
+    # draft 束已归档(移出 H9-a 扫描面),原位不再存在
+    archived = Path(out["stages"]["draft_archived"])
+    assert archived.is_dir() and (archived / "draft.yaml").is_file()
+    assert not dest.exists()
+    shutil.copytree(archived, dest)      # 拷回供后续负例断言使用
 
     # 重复 build 不撞车 —— 装配器版本自增是设计(改题面 → 新版本号);
     # "物化目标已存在"分支防的是外部产生的同 id:预建目录触发之。
