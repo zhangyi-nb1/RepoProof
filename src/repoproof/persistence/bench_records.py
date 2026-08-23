@@ -243,8 +243,16 @@ QUALIFICATION_PURPOSES = frozenset({
                                        # 资格审语义,不充闸门、不计模型能力
 })
 
-# 阶段闸门的扣除面 = 机制类 ∪ 资格审类。
-NON_GATEABLE_PURPOSES = MECHANISM_PURPOSES | QUALIFICATION_PURPOSES
+# 产品线发次(RFC-010 [G3],2026-08-23):LOCAL-TOOL onboarding 照记台账
+# 但与 Lab 成绩永不互比 —— 不充阶段闸门、不计模型能力、不进 held-out。
+# 按"散文说不算,代码算了"的教训(上面 PQ 那次),这里是显式 diff,
+# 不是分类旁挂里一句自述。
+PRODUCT_PURPOSES = frozenset({
+    "PRODUCT_ONBOARDING",      # 工具产品线交付发次(fake 彩排归 HARNESS_SELFCHECK)
+})
+
+# 阶段闸门的扣除面 = 机制类 ∪ 资格审类 ∪ 产品线。
+NON_GATEABLE_PURPOSES = MECHANISM_PURPOSES | QUALIFICATION_PURPOSES | PRODUCT_PURPOSES
 
 # Agent backend 基线(DSH 阶段 8,M-DSH-13)。能力池与 held-out 只收基线
 # 循环的发次:换 agent 循环 = 换执行语义 = 另一道题(与 runtime profile

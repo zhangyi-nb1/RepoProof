@@ -1,0 +1,1 @@
+{"examples": [{"input": "--help", "expected": "contains:usage"}, {"input_file": "inputs/warn-report.pdf", "expected": "contains:| Notice Date | Effective | Received | Company | City | No. Of | Layoff/Closure |"}, {"input_file": "inputs/table-curves.pdf", "expected_file": "expected/table-curves.md"}]}

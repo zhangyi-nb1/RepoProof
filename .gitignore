@@ -59,3 +59,4 @@ docs/evidence/host2_discrimination/naive_plugins.py
 benchmarks/v2/tasks/hb1_*/oracle/post_tests/
 benchmarks/v2/tasks/hb1_*/controls/positive/apply.patch
 benchmarks/v2/tasks/hb1_*/controls/nc_regression_break/apply.patch
+tool_tasks/

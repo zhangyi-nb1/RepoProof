@@ -162,12 +162,31 @@ def _run_fake(world, mode: str, monkeypatch, run_index: int) -> dict:
 
 
 @pytest.mark.slow
-def test_fake_positive_reference_reaches_verified_tool_ready(world, monkeypatch):
+def test_fake_positive_reference_reaches_verified_tool_ready(world, monkeypatch, tmp_path):
     report = _run_fake(world, "positive", monkeypatch, 1)
     assert report["verdict"] == "PASS_ADAPTED", report.get("gate_reasons", report)
+    assert report["verdict_public"] == "VERIFIED_TOOL_READY"
     # 决策表:终局 PASS 只能由 clean_adoption replay 撑起(gate 钉死);
     # report 里各验证器是 detail 字符串,结构化件在 run 目录 verification/。
     assert report["replay"], "PASS 必须带 replay detail"
+
+    # ---- 导出链(tool_export):骨架+patch 确定性重建 + evidence 内嵌 ----
+    from repoproof.runner.tool_export import export_verified_tool
+
+    dest = export_verified_tool(
+        world["project"] / "runs" / report["run_id"],
+        host_contract_path=world["contract"],
+        tool_contract_path=world["project"] / "contracts" / f"{world['task_id']}.yaml",
+        dest_root=tmp_path / "tools")
+    impl = (dest / "src" / "mini_tool" / "impl.py").read_text(encoding="utf-8")
+    assert "import minilib" in impl, "导出树必须是补丁后的实现"
+    mf = json.loads((dest / "tool.json").read_text(encoding="utf-8"))
+    assert mf["verification"]["verdict"] == "VERIFIED_TOOL_READY"
+    assert mf["verification"]["replay_mode"] == "clean_adoption"
+    for rel in ("evidence/report.json", "evidence/provenance.json",
+                "evidence/adaptation.patch", "build.sh", "bin/mini-tool"):
+        assert (dest / rel).is_file(), f"导出缺 {rel}"
+    assert not (dest / "public_tests").exists(), "公开测试属任务包,不进交付物"
 
 
 @pytest.mark.slow
@@ -196,9 +215,20 @@ def test_fake_hardcode_dies_on_held_out(world, monkeypatch):
 
 
 @pytest.mark.slow
-def test_fake_noop_fails_honestly(world, monkeypatch):
+def test_fake_noop_fails_honestly(world, monkeypatch, tmp_path):
     report = _run_fake(world, "noop", monkeypatch, 4)
     assert report["verdict"] == "FAIL"
+
+    # FAIL 的证据留在 run 目录 —— 导出层必须拒绝(假成功的最后一道门)
+    from repoproof.runner.tool_export import ToolExportError, export_verified_tool
+
+    with pytest.raises(ToolExportError):
+        export_verified_tool(
+            world["project"] / "runs" / report["run_id"],
+            host_contract_path=world["contract"],
+            tool_contract_path=(world["project"] / "contracts"
+                                / f"{world['task_id']}.yaml"),
+            dest_root=tmp_path / "tools")
 
 
 @pytest.mark.slow

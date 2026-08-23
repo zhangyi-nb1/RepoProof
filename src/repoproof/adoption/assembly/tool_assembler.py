@@ -484,6 +484,11 @@ requirements:
     files[f"{skel_rel}/requirements.lock.txt"] = (
         f"# agent 填:全量 pinned(必须含 {distribution}=={{pinned 版本}});"
         "replay 从本文件重建 venv。\n")
+    # .gitignore 是骨架的一部分:会话 S0 基线在建 venv 之前提交,没有它,
+    # setup 建出的 .venv 全树会被 `git add -A` 计入轮提交与最终 diff ——
+    # 彩排实测 1833 文件/321K 行,补丁预算当场爆表(2026-08-23)。
+    files[f"{skel_rel}/.gitignore"] = (
+        ".venv/\n__pycache__/\n*.pyc\n*.egg-info/\nevidence/\n")
     files[f"{skel_rel}/src/{package}/__init__.py"] = _INIT_PY
     files[f"{skel_rel}/src/{package}/__main__.py"] = _MAIN_MOD
     files[f"{skel_rel}/src/{package}/main.py"] = _MAIN_PY.format(

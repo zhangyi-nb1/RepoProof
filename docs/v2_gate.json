@@ -2,7 +2,7 @@
   "_denominators": {
     "all_valid_run_outcomes": "全部有效发次里的 PASS 数(含机制消融)",
     "development_baseline_runs": "开发套件上的常规发次(**全台账口径**,不限阶段;新前缀的发次也会进这个数)",
-    "heldout_model_evaluation_runs": "未见任务能力评测(已扣除冒烟/探索/无效/机制四类);台账里的宿主:['pallets/click', 'tobymao/sqlglot', 'zhangyi-nb1/offerclaw']",
+    "heldout_model_evaluation_runs": "未见任务能力评测(已扣除冒烟/探索/无效/机制四类);台账里的宿主:['local-tool/pdf-table', 'pallets/click', 'tobymao/sqlglot', 'zhangyi-nb1/offerclaw']",
     "heldout_passes": "held-out 里的通过数 —— 其余三类都有分子,只给分母会让人自己配一个",
     "mechanism_ablation_runs": "E1/AR 机制与判据实验 —— 不计能力",
     "observation_policy_qualification_runs": "WV:观测策略(投影旋钮)在线资格审 —— **不充闸门、不计模型能力**",
@@ -14,11 +14,11 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 71,
-    "assisted_repair_runs": 62,
+    "all_valid_run_outcomes": 73,
+    "assisted_repair_runs": 65,
     "development_baseline_runs": 68,
-    "exploratory": 8,
-    "exploratory_passes": 0,
+    "exploratory": 9,
+    "exploratory_passes": 1,
     "exploratory_run_ids": [
       "t3-offerclaw-browser-use-v5-20260812-024353",
       "t3-offerclaw-browser-use-v5-20260812-024503",
@@ -27,7 +27,8 @@
       "t3-offerclaw-browser-use-v5-20260812-054108",
       "t2-offerclaw-open-deep-research-v4-20260812-060126",
       "t2-offerclaw-open-deep-research-v4-20260812-061522",
-      "t1-offerclaw-fastapi-mcp-v1-20260816-231847"
+      "t1-offerclaw-fastapi-mcp-v1-20260816-231847",
+      "tool-pdf-table-v1-20260823-133810"
     ],
     "heldout_model_evaluation_runs": 8,
     "heldout_passes": 2,
@@ -85,8 +86,8 @@
       }
     ],
     "provisional_evidence_runs": 4,
-    "smoke": 95,
-    "smoke_passes": 32,
+    "smoke": 97,
+    "smoke_passes": 33,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -182,9 +183,11 @@
       "hb1-click-3581-v2-20260821-183244",
       "hb1-click-3581-v2-20260821-183321",
       "hb1-click-3407-v2-20260821-183348",
-      "hb1-click-3407-v2-20260821-183426"
+      "hb1-click-3407-v2-20260821-183426",
+      "tool-pdf-table-v1-20260823-132944",
+      "tool-pdf-table-v1-20260823-133211"
     ],
-    "total": 229,
+    "total": 232,
     "treatment_delivered_runs": 13,
     "treatment_not_delivered_runs": 4
   },
@@ -195,13 +198,14 @@
     "T4": false
   },
   "hosts_covered": [
+    "local-tool/pdf-table",
     "pallets/click",
     "tobymao/sqlglot",
     "zhangyi-nb1/offerclaw"
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "a51ee33eb340276414d83802a7615a646e8fe681407be2b0b909fe9b63346ac4"
+    "runs_jsonl_sha256": "e9b3d7e1fc3068a26df20da213f43706abe62222d22d123467fa4683fbada239"
   },
   "stages": {
     "T1": {

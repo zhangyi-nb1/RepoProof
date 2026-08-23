@@ -1,0 +1,50 @@
+task_id: tool-pdf-table-v1
+
+source_repo:
+  url: https://github.com/jsvine/pdfplumber
+  revision: guided
+  resolved_commit: 7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62
+  license: MIT
+  distribution: pdfplumber
+  import_module: pdfplumber
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_pdf-table
+  package: pdf_table
+  entry_point: pdf-table
+
+requirement_spec_file: tool-pdf-table-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "pdf-table", "summary": "从 PDF 提取全部表格,输出 GitHub-flavored Markdown", "interface": {"usage": "pdf-table <input.pdf> [--out FILE]", "input": {"kind": "file", "format": "PDF"}, "output": {"kind": "stdout", "format": "markdown-table"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    把 pdfplumber 的表格提取能力包装为本地 CLI 工具 pdf-table:输入一个 PDF,输出其中全部表格的 Markdown 渲染。渲染规范(行为定义):按文档序遍历每页每表;每表第一行为表头行,其后一行 |---|---|… 分隔,再逐行数据;单元格内空白(含换行)折叠为单个空格,None 单元格渲染为空串;表与表之间空一行;输出以单个换行结尾。无表格的合法 PDF 与无法解析的输入都属用户错误(抛 UserInputError → exit 1)。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/pdf_table/impl.py 实现 extract(),必须调用 pinned pdfplumber;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:pdf-table --help -> 'contains:usage'; pdf-table inputs/warn-report.pdf -> 'contains:| Notice Date | Effective | Received | Company | City | No. Of | Layoff/Closure |'; pdf-table inputs/table-curves.pdf -> 见 expected/table-curves.md);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: markdown-table
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

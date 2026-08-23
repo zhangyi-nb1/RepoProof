@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "pdf-table",
+ "version": "1.0.0",
+ "summary": "从 PDF 提取全部表格,输出 GitHub-flavored Markdown",
+ "source": {
+  "url": "https://github.com/jsvine/pdfplumber",
+  "resolved_commit": "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62",
+  "license": "MIT",
+  "distribution": "pdfplumber"
+ },
+ "interface": {
+  "usage": "pdf-table <input.pdf> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "PDF"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "markdown-table"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

@@ -241,9 +241,21 @@ def materialize_tool_task(
                 "requirements.lock.txt", skel_lock,
                 ctrl_lock.read_text(encoding="utf-8"))
         (dst / "apply.patch").write_text(patch, encoding="utf-8")
-        (dst / "smoke_setup.txt").write_text(
-            "# 环境由契约 host.setup_commands 建;冒烟无额外准备。\n"
-            "echo rp-tool-smoke-ready\n", encoding="utf-8")
+        # fake 流程 = smoke 步 → git apply → 提交:补丁改了 lock,但没人再跑
+        # pip(真 agent 是"改 lock 后自己 install",提示教了)。故 positive 的
+        # 冒烟步预装 reference 锁定集(从会话轮仓离线解析);负控不 import
+        # 上游,无须 —— 但缺清单会回落 positive 清单,装了不用亦无害。
+        smoke = ["# 环境由契约 host.setup_commands 建;补丁后依赖见下。"]
+        if host_name == "positive" and ctrl_lock.is_file():
+            pins = [ln.strip() for ln in
+                    ctrl_lock.read_text(encoding="utf-8").splitlines()
+                    if ln.strip() and not ln.strip().startswith("#")]
+            if pins:
+                smoke.append(".venv/bin/pip install -q --no-index "
+                             + " ".join(pins))
+        smoke.append("echo rp-tool-smoke-ready")
+        (dst / "smoke_setup.txt").write_text("\n".join(smoke) + "\n",
+                                             encoding="utf-8")
 
     requirements = _hard_requirements(project_root, tc)
     doc = synthesize_host_contract(

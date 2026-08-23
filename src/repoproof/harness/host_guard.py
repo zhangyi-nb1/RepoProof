@@ -179,6 +179,10 @@ _BENCH_ALLOWED_NAMES = frozenset({
     # v2 扩批(2026-08-21,用户批准):click 两任务同法换代宿主。
     "hb1-click-3581-v2",
     "hb1-click-3407-v2",
+    # LOCAL-TOOL 产品线首任务(M1,2026-08-23):host = 工具骨架副本
+    # (harness 生成,无用户数据),wheelhouse = pdfplumber+pytest 闭包轮仓。
+    # 登记照旧是有意识动作;答案区(controls/oracle)在任务包与仓内,不入 bench。
+    "tool-pdf-table-v1",
 })
 _BENCH_ALLOWED_PREFIXES = ("wheelhouse-",)   # 冻结轮仓(commit 尾号命名)
 
@@ -203,6 +207,8 @@ _BENCH_ALLOWED_ENTRIES: dict[str, frozenset[str]] = {
     "hb1-sqlglot-8042-v2": frozenset({"host", "wheelhouse"}),
     "hb1-click-3581-v2": frozenset({"host", "wheelhouse"}),
     "hb1-click-3407-v2": frozenset({"host", "wheelhouse"}),
+    # LOCAL-TOOL 同律:只许骨架副本与轮仓。
+    "tool-pdf-table-v1": frozenset({"host", "wheelhouse"}),
 }
 
 

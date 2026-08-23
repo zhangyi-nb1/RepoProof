@@ -1,0 +1,17 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input": "--help",
+   "expected": "contains:usage"
+  },
+  {
+   "input_file": "inputs/warn-report.pdf",
+   "expected": "contains:| Notice Date | Effective | Received | Company | City | No. Of | Layoff/Closure |"
+  },
+  {
+   "input_file": "inputs/table-curves.pdf",
+   "expected_file": "expected/table-curves.md"
+  }
+ ]
+}

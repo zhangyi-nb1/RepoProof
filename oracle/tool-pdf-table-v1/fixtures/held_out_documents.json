@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/federal-register.pdf", "expected": "contains:| Labor cost | Parts cost | Cost per product |"}]}

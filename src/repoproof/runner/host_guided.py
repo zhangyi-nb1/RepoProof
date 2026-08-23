@@ -1155,6 +1155,17 @@ def round_usage(model: object, bucket: dict) -> tuple[int, int]:
 
 
 # --------------------------------------------------------------- 工具函数
+def public_verdict(verdict: str | None, task_family: str) -> str | None:
+    """对外判定名(TOOL_READY_GATE §二):映射只在报告渲染层。
+
+    内部枚举/台账一字不动 —— task_id 与枚举史不可改写的纪律同款;
+    非 LOCAL-TOOL 谱系原名透传(零行为变化)。"""
+    if task_family != "LOCAL-TOOL" or verdict is None:
+        return verdict
+    return {"PASS_ADAPTED": "VERIFIED_TOOL_READY",
+            "PASS_DIRECT": "VERIFIED_TOOL_READY (DIRECT)"}.get(verdict, verdict)
+
+
 def _expected_regression_passed(baseline: str) -> int:
     """'591 passed, 7 skipped, 0 failed' → 591(回归判据=不降于基线)。"""
     import re
@@ -3320,6 +3331,8 @@ class HostGuidedRunner:
             "task_id": self.contract.task_id,
             "mode": "host-guided-repair",
             "final_verdict": verdict_record.get("verdict"),
+            "verdict_public": public_verdict(
+                verdict_record.get("verdict"), self.contract.task_family),
             **verdict_record,
             "gate_reasons": gate_reasons,
             "agent": agent_metrics,
