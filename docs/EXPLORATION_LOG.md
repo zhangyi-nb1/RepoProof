@@ -3344,3 +3344,27 @@ export 用户级实测全过。**人只确认/放真值/审阅,未撰写题面**
 `1157 passed + 60 skipped + 0 failed`(+17 测)。**M2 全关;下一步 M3**
 (单命令旅程 repoproof tool add/注册表/MCP 暴露/可选 UI 复活;DSH 臂
 届时再裁)。
+
+## 状态 · 2026-08-23 · M3 关闭:单命令旅程+注册表+MCP(零 API)
+
+**tool 命令组**(锚上一提交):`tool add`(intake+起草+人务清单)→人补→
+`tool build`(confirm→钉版确保→conformance 预检→备轮→**fake 彩排门:
+不 PASS 不烧真预算**→真发→export+注册)。注册表=索引非事实源(漂移
+如实标注,scan 不伪造时间);MCP=tool.json 机械转换(stdio JSON-RPC
+零依赖,html2md 真协议驱动全通,挂接:claude mcp add html2md -- python3
+~/tools/html2md/mcp_server.py)。
+
+**又一真实缺陷被合成世界撞出**:工具包名与上游模块同名→骨架 src/ 在
+PYTHONPATH 遮蔽上游→import 到工具自己的空壳(死因极难读)。三层修:
+intake 建议名避撞(-tool 后缀)+adequacy T5 硬拒(自证)+confirm 断言
+随 T 系演化。
+
+**DSH 臂裁决(M3 按期)**:维持 mini-swe 默认;DSH --backend 旗标保留但
+工具谱系**暂不资格化**——预算轴未重设计(收线遗留:全史重放×大树×
+1.8M 轴三者不相容)+封存 runtime 已清理;重开前提=先 provision+预算轴
+重设计,届时按 DQ 资格审流程(不充闸不计能力)。Studio UI 复活判定
+**推迟**:CLI 旅程已达成方向文档 §7 体验,UI 属增强非 M3 判据。
+
+基线 `1164 passed + 60 skipped + 0 failed`(+7)。**M0-M3 全关**;
+M4(批量实测与指标:10-20 真仓、接受率与 Tool Ready Rate 成对报、
+Replay Success、False Success 审计,跑批前预注册)待用户裁量开跑。
