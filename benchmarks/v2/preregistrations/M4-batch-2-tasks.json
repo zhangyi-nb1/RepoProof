@@ -1,0 +1,54 @@
+{
+ "batch": "M4-TOOL-ONBOARDING-2",
+ "note": "批次二冻结清单(预注册 M4-TOOL-ONBOARDING-2-20260823.md §三);换仓禁止,不可行=如实 BLOCKED 不补位",
+ "tasks": [
+  {
+   "repo": "https://github.com/hukkin/tomli",
+   "capability": "把 TOML 配置文件解析为 JSON"
+  },
+  {
+   "repo": "https://github.com/martinblech/xmltodict",
+   "capability": "把 XML 文件转为 JSON"
+  },
+  {
+   "repo": "https://github.com/mozillazg/python-pinyin",
+   "capability": "把中文文本逐行转为拼音"
+  },
+  {
+   "repo": "https://github.com/fxsjy/jieba",
+   "capability": "把中文文本逐行分词(空格分隔)"
+  },
+  {
+   "repo": "https://github.com/yichen0831/opencc-python",
+   "capability": "简体中文文件转繁体"
+  },
+  {
+   "repo": "https://github.com/savoirfairelinux/num2words",
+   "capability": "把每行一个的数字转为英文文字"
+  },
+  {
+   "repo": "https://github.com/jazzband/inflect",
+   "capability": "把每行一个的英文名词转为复数"
+  },
+  {
+   "repo": "https://github.com/daviddrysdale/python-phonenumbers",
+   "capability": "把每行一个的电话号码规范为 E.164"
+  },
+  {
+   "repo": "https://github.com/john-kurkowski/tldextract",
+   "capability": "把每行一个的 URL 拆出子域/域/后缀"
+  },
+  {
+   "repo": "https://github.com/h2non/filetype.py",
+   "capability": "嗅探文件真实类型(扩展名+MIME)"
+  },
+  {
+   "repo": "https://github.com/barrust/pyspellchecker",
+   "capability": "报告英文文本中的拼写可疑词"
+  },
+  {
+   "repo": "https://github.com/carpedm20/emoji",
+   "capability": "把文本中的 emoji 转为 :name: 别名"
+  }
+ ]
+}
