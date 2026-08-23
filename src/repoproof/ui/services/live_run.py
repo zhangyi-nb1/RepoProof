@@ -4,7 +4,7 @@
 - 通过 subprocess 调既有 CLI `repoproof agent-run`(后台,页面刷新不杀);
 - 模型密钥只从当前进程环境读取(REPOPROOF_*),UI 不接收、不保存、
   不显示密钥;缺失时给出启动脚本指引;
-- 产品模式运行:结果写入 runs/,不进入 benchmark、不触碰历史 evidence;
+- Lab 本地采用运行:结果写入 runs/,不进入 benchmark、不触碰历史 evidence;
 - 单实例锁:runs/.ui_live.lock 存活时拒绝并发第二个 run。
 """
 
@@ -127,7 +127,7 @@ def start_run(root: Path, task_id: str, *, guided: bool = False,
     guided=True → RFC-008 §11 有界多轮修复(≤3 轮,公开测试反馈,
     最终仍走隐藏验证 + 干净复测 + 独立判定);False → 单次运行。"""
     if not provider_ready():
-        return {"ok": False, "error": "模型连接未配置:请用 scripts/run_ui_live.sh 启动工作台"
+        return {"ok": False, "error": "模型连接未配置:请用 scripts/run_lab_ui_live.sh 启动实验台"
                                        "(它会从你已有的本地配置注入连接信息,密钥不落盘)。"}
     if (info := active_run(root)) and info.get("alive"):
         return {"ok": False, "error": f"已有任务在运行(task={info.get('task_id')}),同时只允许一个。"}
@@ -342,7 +342,7 @@ def start_host_run(root: Path, *, model: str, run_order: int, run_index: int = 1
     if provider is None:
         return {"ok": False,
                 "error": f"当前工作台环境缺少 {model} 的连接配置(REPOPROOF_*);"
-                         "请用 scripts/run_ui_live.sh 启动工作台。"}
+                         "请用 scripts/run_lab_ui_live.sh 启动实验台。"}
     if (info := active_run(root)) and info.get("alive"):
         return {"ok": False, "error": f"已有任务在运行(task={info.get('task_id')}),同时只允许一个。"}
     log = root / "runs" / f"ui_live_host_{t['task_id']}.log"

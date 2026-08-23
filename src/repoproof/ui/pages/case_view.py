@@ -26,7 +26,7 @@ from repoproof.ui.presenters.glossary import (
 from repoproof.ui.services import actions, facts
 from repoproof.ui.services.state import is_tech, mode_toggle_sidebar, tech_expander
 
-st.set_page_config(page_title="结果报告 · RepoProof Studio", layout="wide")
+st.set_page_config(page_title="结果报告 · RepoProof Benchmark Lab", layout="wide")
 mode_toggle_sidebar()
 st.title("结果报告")
 

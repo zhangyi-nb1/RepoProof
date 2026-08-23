@@ -21,7 +21,7 @@ from repoproof.ui.services import live_run as _lr
 from repoproof.ui.services.facts import repo_root
 from repoproof.ui.services.state import mode_toggle_sidebar
 
-st.set_page_config(page_title="宿主任务 T1–T4 · RepoProof Studio", layout="wide")
+st.set_page_config(page_title="宿主任务 T1–T4 · RepoProof Benchmark Lab", layout="wide")
 mode_toggle_sidebar()
 st.title("宿主任务 T1–T4:正式 run 启动台")
 
@@ -120,10 +120,10 @@ configured = [m for m in T["models"] if _lr.provider_for_model(m)]
 missing = [m for m in T["models"] if m not in configured]
 if missing:
     st.caption(f"未配置连接的模型(不可选):{', '.join(missing)}——需要时经 "
-               "`scripts/run_ui_live.sh` 环境补齐。")
+               "`scripts/run_lab_ui_live.sh` 环境补齐。")
 if not configured:
-    st.error("没有任何已配置连接的模型(REPOPROOF_*)。请用 `scripts/run_ui_live.sh` "
-             "启动工作台——密钥只进进程环境,不落盘、不显示。")
+    st.error("没有任何已配置连接的模型(REPOPROOF_*)。请用 `scripts/run_lab_ui_live.sh` "
+             "启动实验台——密钥只进进程环境,不落盘、不显示。")
     st.stop()
 
 model = st.selectbox(

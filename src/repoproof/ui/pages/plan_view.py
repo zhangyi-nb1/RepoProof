@@ -21,7 +21,7 @@ from repoproof.adoption.planning.human_gate import ACK_TEXT, HumanGateError, con
 from repoproof.ui.services.facts import repo_root
 from repoproof.ui.services.state import is_tech, mode_toggle_sidebar, tech_expander
 
-st.set_page_config(page_title="采用计划 · RepoProof Studio", layout="wide")
+st.set_page_config(page_title="采用计划 · RepoProof Benchmark Lab", layout="wide")
 mode_toggle_sidebar()
 st.title("采用计划")
 
