@@ -3459,3 +3459,15 @@ mutation_gate 入锚 M99a(catcher=迟写测试,old 串唯一性验讫)——
 注册表 14 条与盘一致。基线 `1174 passed + 60 skipped + 0 failed`(+1)。
 待裁量口不变:批次二/规模化(需预注册+批准)、用户抽验、
 MAX-OFFICIAL-LIKE profile 对比。
+
+## 状态 · 2026-08-23 · M4 批次二预注册冻结(12 仓,待批准开跑)
+
+`M4-TOOL-ONBOARDING-2-20260823.md` + `M4-batch-2-tasks.json`:12 仓
+一次冻结(tomli/xmltodict/pypinyin/jieba/opencc-python/num2words/
+inflect/phonenumbers/tldextract/filetype/pyspellchecker/emoji),
+选取口径先于 intake——纯 py 零系统依赖、工具形状不变、与前 14 工具
+能力域零重复、难度上探(结构化 ×2、中文域 ×3、filetype 预声明
+malformed 豁免)。条款沿批次一+两批教训(一发制/6M 帽发前判定/
+换仓禁止/备题文件即用即清)。GPT 缺省通道。mutation_gate 全量
+(291 锚,数小时仪式)未顺手跑——M99a 已手工红/绿实证,全 gate
+留显式裁量。**停点:批次二待用户批准开跑**;粗估名义 in 1.7-2.5M。
