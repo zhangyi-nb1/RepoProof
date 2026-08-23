@@ -23,11 +23,18 @@ from repoproof.execution.import_hook import (
     write_hook_dir,
 )
 
-_FAKEUP = '''MAGIC = 7
+_FAKEUP = '''from typing import List
+
+MAGIC = 7
 
 
 class Boom(ValueError):
     pass
+
+
+class Worker:
+    def __init__(self, value):
+        self.value = value
 
 
 def work(x):
@@ -106,6 +113,57 @@ def test_shell_package_submodule_calls_are_counted(tmp_path):
                                  min_calls=2)
     assert got["ok"] is True, got
     assert got["imports"] >= 2 and got["calls"] == 2   # 顶层+子模块各记 import
+
+
+def test_public_class_instantiation_is_counted_without_breaking_type(tmp_path):
+    """OpenCC 型 API 只暴露公开类时，真实实例化不能被误判为零调用。"""
+    ledger = _run_child(tmp_path, (
+        "import fakeup\n"
+        "first = fakeup.Worker(3)\n"
+        "second = fakeup.Worker(4)\n"
+        "assert isinstance(first, fakeup.Worker)\n"
+        "assert first.value + second.value == 7\n"
+        "assert isinstance(fakeup.Boom, type)\n"))
+    got = verify_import_receipts(ledger, "s3cr3t", module="fakeup", min_calls=2)
+    assert got["ok"] is True and got["calls"] == 2, got
+
+
+def test_imported_callable_alias_is_not_wrapped(tmp_path):
+    """模块导入的 typing.List 等公开 callable 不属于目标上游 API。"""
+    ledger = _run_child(tmp_path, (
+        "import fakeup\n"
+        "assert fakeup.List[int] is not None\n"
+        "assert fakeup.work(2) == 14\n"))
+    got = verify_import_receipts(ledger, "s3cr3t", module="fakeup", min_calls=1)
+    assert got["ok"] is True and got["calls"] == 1, got
+
+
+def test_wrapped_loader_preserves_package_resource_access(tmp_path):
+    """pyspellchecker 型 pkgutil.get_data 必须穿透 hook 的 loader 代理。"""
+    up = tmp_path / "up"
+    pkg = up / "resourcepkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text(
+        "def work():\n    return 'ok'\n", encoding="utf-8")
+    (pkg / "words.dat").write_bytes(b"alpha\nbeta\n")
+    hook = write_hook_dir(tmp_path / "hook")
+    ledger = tmp_path / "ledger.jsonl"
+    script = tmp_path / "child.py"
+    script.write_text(
+        "import pkgutil\n"
+        "import resourcepkg\n"
+        "assert pkgutil.get_data('resourcepkg', 'words.dat') == b'alpha\\nbeta\\n'\n"
+        "assert resourcepkg.work() == 'ok'\n", encoding="utf-8")
+    env = dict(os.environ,
+               PYTHONPATH=f"{hook}{os.pathsep}{up}",
+               **{ENV_MODULE: "resourcepkg", ENV_LEDGER: str(ledger),
+                  ENV_SECRET: "s3cr3t"})
+    r = subprocess.run([sys.executable, str(script)], env=env,
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr
+    got = verify_import_receipts(
+        ledger, "s3cr3t", module="resourcepkg", min_calls=1)
+    assert got["ok"] is True and got["calls"] == 1, got
 
 
 def test_ghost_import_is_caught(tmp_path):

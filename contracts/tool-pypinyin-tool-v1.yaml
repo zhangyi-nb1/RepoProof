@@ -1,0 +1,50 @@
+task_id: tool-pypinyin-tool-v1
+
+source_repo:
+  url: https://github.com/mozillazg/python-pinyin
+  revision: guided
+  resolved_commit: 8595294b1a97845e30f11ecfdb3caa4e61ac3988
+  license: MIT
+  distribution: pypinyin
+  import_module: pypinyin
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_pypinyin-tool
+  package: pypinyin_tool
+  entry_point: pypinyin-tool
+
+requirement_spec_file: tool-pypinyin-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "pypinyin-tool", "summary": "把 UTF-8 中文文本按输入行逐行转换为无声调拼音文本。", "interface": {"usage": "pypinyin-tool <input> [--out FILE]", "input": {"kind": "file", "format": "TXT"}, "output": {"kind": "stdout", "format": "TXT"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    使用 pypinyin 的 lazy_pinyin 能力将本地 UTF-8 文本文件逐行转换为拼音。输入按物理行处理，CRLF/CR 换行统一规范化为 LF；每个输入行生成一个输出行，行数保持一致。中文字符转换为小写、无声调拼音；每行内由 pypinyin 返回的拼音/原文片段用单个 ASCII 空格连接。非中文字符、数字、标点及无法转换的字符按 pypinyin errors='default' 的行为保留为原文片段，并同样参与空格连接。空白行在输出中保留为空行。输出末尾固定包含一个换行符。输入必须是可解码的 UTF-8/UTF-8-SIG 文本且至少包含一个非空白字符；畸形或空输入抛出 UserInputError（CLI 退出码 1）。重复运行结果确定，不访问网络，完全离线。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/pypinyin_tool/impl.py 实现 extract(),必须调用 pinned pypinyin;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:pypinyin-tool inputs/cn1.txt -> 见 expected/cn1.txt; pypinyin-tool inputs/cn2.txt -> 见 expected/cn2.txt);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: TXT
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

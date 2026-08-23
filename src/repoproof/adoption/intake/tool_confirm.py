@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import yaml
@@ -64,6 +65,24 @@ class ConfirmError(RuntimeError):
     def __init__(self, problems: list[str]):
         self.problems = problems
         super().__init__("; ".join(problems))
+
+
+def _imports_module(source: str, module: str) -> bool:
+    """源码是否以任一合法 Python import 形式导入目标模块。"""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return False
+    prefix = f"{module}."
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            if any(alias.name == module or alias.name.startswith(prefix)
+                   for alias in node.names):
+                return True
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            if node.module == module or node.module.startswith(prefix):
+                return True
+    return False
 
 
 # ------------------------------------------------------------ draft 束落盘
@@ -131,7 +150,8 @@ def check_draft_complete(draft: dict, draft_dir: Path) -> list[str]:
         if "TODO" in text or "NotImplementedError" in text:
             problems.append("D:reference_impl 仍是骨架(含 TODO/NotImplementedError)"
                             " —— 弱档执法下没有真 reference,fake 全链无正控")
-        if sr.get("import_module") and f"import {sr['import_module']}" not in text:
+        if sr.get("import_module") and not _imports_module(
+                text, sr["import_module"]):
             problems.append(f"D:reference_impl 未 import {sr['import_module']}"
                             " —— 通关正控必须真调 pinned 上游")
     return problems

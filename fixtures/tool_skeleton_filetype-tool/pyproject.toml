@@ -1,0 +1,8 @@
+[project]
+name = "filetype_tool"
+version = "1.0.0"
+description = '将 filetype 的本地文件真实类型嗅探能力封装为离线 CLI，输出扩展名与 MIME。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

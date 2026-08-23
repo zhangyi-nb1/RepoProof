@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "phonenumbers-tool",
+ "version": "1.0.0",
+ "summary": "把纯文本中每行一个的国际电话号码离线、确定性地规范为 E.164 格式。",
+ "source": {
+  "url": "https://github.com/daviddrysdale/python-phonenumbers",
+  "resolved_commit": "e605afeba7572cfe1821f1015f29b24f1d7602b5",
+  "license": "Apache-2.0",
+  "distribution": "phonenumbers"
+ },
+ "interface": {
+  "usage": "tool-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "TXT"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "TXT"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

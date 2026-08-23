@@ -60,3 +60,46 @@ admission 拒收或 intake 不可行时,如实记 BLOCKED/放弃行,不补位。
 ## 六、勘误区(append-only)
 
 (空)
+
+- 2026-08-23:用户在预注册停点后明确批准开跑；执行期间严格使用 `.env`
+  缺省 openai×gpt-5.5，未换 provider、未运行 E1G。
+- 2026-08-23:`tldextract` admission 因仓要求 `GITHUB_TOKEN` 环境密钥而
+  硬拒；按冻结条款放弃且不换仓、无 contract/run/预算消耗。
+- 2026-08-23:`pypinyin` 首次 build 在 D 确认门、任何 rehearsal/真发
+  之前被误拒：reference 合法使用 `from pypinyin import lazy_pinyin`，旧门
+  只做字面 `import pypinyin` 搜索。先以合成回归复现红，再改 AST import
+  判定，原 v1 无运行残留，随后正常 build。
+- 2026-08-23:`opencc` 首次 fake rehearsal
+  `tool-opencc-tool-v1-20260823-221656` FAIL：import-hook 跳过所有类，
+  `OpenCC(...)` 真实实例化只记 import、零 call。先补公开类实例化合成回归，
+  再以保留类身份/异常类语义的 `__new__` 取证修复；清残留后 v1 合法重建，
+  真发未提前消耗。
+- 2026-08-23:`inflect` 首次 fake rehearsal
+  `tool-inflect-tool-v1-20260823-222454` FAIL：hook 把模块从 `typing` 导入的
+  `List` 当目标 API 换成函数代理，令 `List[...]` 报 function 不可下标。
+  先补 imported-callable 透明性回归，再限制为只包装目标模块自身定义 API；
+  清残留后 v1 合法重建，真发未提前消耗。
+- 2026-08-23:`pyspellchecker` 首次 fake rehearsal
+  `tool-pyspellchecker-tool-v1-20260823-223809` FAIL：hook loader 代理未转发
+  `get_data`，内置词典资源读取为空。先补 package-resource 合成回归，再完整
+  转发原 loader 扩展协议；清残留后 v1 合法重建，真发未提前消耗。
+- 2026-08-23:`num2words` fake 彩排 PASS 后唯一真发
+  `tool-num2words-tool-v1-20260823-222229` 在 held-out
+  `test_held_example_1` FAIL(5/6)；按一发制封存，不重发、不导出。
+- 2026-08-23:`pyspellchecker v1` 虽获真实 `PASS_ADAPTED`，操作员全新输入
+  审计发现冻结题面/tool.json 要求含 `language/token_count/suspicious_count/
+  suspicious` 的 JSON 对象，而 reference、样例和 oracle 错钉为排序纯文本；
+  这是题面-oracle 自相矛盾造成的 false-success。用户明确批准撤回 READY
+  运营结论；`m4_audits.jsonl` 记 `ok=false`、分类 sidecar 追加覆盖勘误，
+  历史 run/冻结合同保留，不修改、不重跑 v1。
+- 2026-08-23:终局口径为 submitted 12、accepted 11、流水线历史口径
+  tool_ready 10、replay 10/10；人工新输入 audited 10、flagged 1，故运营可用
+  9。11 次真发合计 1,023,840 input / 36,122 output tokens，未触 6M 帽。
+  全量回归最终 `1178 passed + 60 skipped + 0 failed`；首轮唯一失败是受保护
+  `offerclaw` 被外部常驻服务同期写日志/缓存而触发完整性护栏，独立复测与
+  第二次全量均绿，未削弱护栏、未终止或回滚用户进程。
+- 2026-08-23:提交前泄漏巡检确认本批 public/delivery/Bench/quarantine
+  均无 reference/oracle/held-out；另在 `/private/tmp` 发现一个旧的完整
+  `repoproof-review.5asZpP/RepoProof` 评审副本(25M，含历史其他任务
+  held-out，非本批生成)。按答案材料绝不驻留 `/tmp` 红线，整目录移入
+  `~/.Trash/RepoProof-redline-recovery-20260823/` 可恢复保管，未读取其答案。

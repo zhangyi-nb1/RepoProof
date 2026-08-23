@@ -1,0 +1,13 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input_file": "inputs/us.txt",
+   "expected_file": "expected/us.txt"
+  },
+  {
+   "input_file": "inputs/cn.txt",
+   "expected_file": "expected/cn.txt"
+  }
+ ]
+}

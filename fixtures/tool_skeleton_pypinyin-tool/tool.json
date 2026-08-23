@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "pypinyin-tool",
+ "version": "1.0.0",
+ "summary": "把 UTF-8 中文文本按输入行逐行转换为无声调拼音文本。",
+ "source": {
+  "url": "https://github.com/mozillazg/python-pinyin",
+  "resolved_commit": "8595294b1a97845e30f11ecfdb3caa4e61ac3988",
+  "license": "MIT",
+  "distribution": "pypinyin"
+ },
+ "interface": {
+  "usage": "pypinyin-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "TXT"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "TXT"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

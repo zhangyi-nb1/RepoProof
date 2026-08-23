@@ -1,0 +1,50 @@
+task_id: tool-pyspellchecker-tool-v1
+
+source_repo:
+  url: https://github.com/barrust/pyspellchecker
+  revision: guided
+  resolved_commit: f72172c4ddb3d1c3464cf500cc2420a4831a2b55
+  license: MIT
+  distribution: pyspellchecker
+  import_module: spellchecker
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_pyspellchecker-tool
+  package: pyspellchecker_tool
+  entry_point: pyspellchecker-tool
+
+requirement_spec_file: tool-pyspellchecker-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "pyspellchecker-tool", "summary": "将英文纯文本中的拼写可疑词提取为确定性的离线 JSON 报告。", "interface": {"usage": "pyspellchecker-tool <input> [--out FILE]", "input": {"kind": "file", "format": "TXT"}, "output": {"kind": "stdout", "format": "JSON"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取 UTF-8 英文纯文本，使用 pyspellchecker 的 SpellChecker 英语词典报告拼写可疑词。输入先按 NFKC 规范化并统一换行；仅分析 ASCII 英文字母词元，可包含一个或多个内部撇号，例如 can't，词元统一转为小写；其他字符作为分隔符。以 pyspellchecker SpellChecker.unknown(...) 判定未知词。输出为 JSON 对象：language 固定为 "en"；token_count 为分析到的英文词元总数；suspicious_count 为不同可疑词数量；suspicious 为数组，每项包含 word、count、first_index，其中 first_index 是该规范化词元在全部英文词元中的 0 基位置。suspicious 按 first_index 升序排列；JSON 使用 UTF-8、稳定键顺序和紧凑分隔符。无法读取、非 UTF-8、解析后没有英文词元、空输入或其他坏输入均抛出 UserInputError（CLI 应退出 1）。重复运行结果确定；工具完全离线，不访问网络。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/pyspellchecker_tool/impl.py 实现 extract(),必须调用 pinned pyspellchecker;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:pyspellchecker-tool inputs/text1.txt -> 见 expected/text1.txt; pyspellchecker-tool inputs/text2.txt -> 见 expected/text2.txt);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: JSON
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

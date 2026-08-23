@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/us.txt", "expected_file": "expected/us.txt"}, {"input_file": "inputs/cn.txt", "expected_file": "expected/cn.txt"}]}

@@ -3471,3 +3471,34 @@ malformed 豁免)。条款沿批次一+两批教训(一发制/6M 帽发前判定
 换仓禁止/备题文件即用即清)。GPT 缺省通道。mutation_gate 全量
 (291 锚,数小时仪式)未顺手跑——M99a 已手工红/绿实证,全 gate
 留显式裁量。**停点:批次二待用户批准开跑**;粗估名义 in 1.7-2.5M。
+
+## 状态 · 2026-08-23 · M4 批次二收官:9 个运营可用+1 false-success 撤回
+
+用户批准后接手交接清单，先完整复核 handoff/预注册/盘面，再按冻结顺序
+串行执行余下 10 个 build；加已完成 tomli，终局为 **11 accepted / 12
+submitted，10 个流水线 PASS+导出、num2words 唯一真发 FAIL、tldextract
+admission 放弃**。操作员对 10 个导出工具逐一 `build.sh`+全新非样例输入：
+9 PASS，**pyspellchecker v1 flagged**——冻结题面/tool.json 要 JSON 对象，
+reference/样例/oracle 却钉排序纯文本，真实 PASS 属 false-success。用户批准
+撤回 READY 运营结论；不改冻结合同、不重跑，运行/分类/审计/勘误全留证。
+所以产品解释必须同时报：流水线历史口径 tool_ready 10，实际运营可用 9，
+false_success 1/10；replay 重装入口口径仍为 10/10。
+
+彩排/确认门共暴露四处量具缺陷，均先合成红再修：① D 门字面 import 搜索
+误拒 `from pypinyin import ...`→AST；② class-only API(OpenCC)零 call→保留
+类身份的实例化回执；③ imported callable(`typing.List`)被代理破坏下标语义→
+只包模块自身 API；④ loader 未转发 `get_data` 令 pyspellchecker 词典消失→
+完整代理扩展协议。失败 rehearsal append-only 保留，清残留后 v1 重建均在
+真发前，未重复真实预算。分类追加 product-51..75 及 pyspellchecker 覆盖
+勘误；K11 翻到 29 宿主，gate report 重写。
+
+预算：11 次真实发合计 **1,023,840 in / 36,122 out**，仅占 6M 帽 17.1%，
+余 4,976,160；模型/通道始终 `.env` 缺省 gpt-5.5/openai-compatible。
+全量测试首轮 1177/1/60 的唯一红为受保护 OfferClaw 被外部常驻服务同期写
+日志/cache/chroma 而被完整性护栏正确拦下；不终止用户进程、不弱化护栏，
+独立 smoke 绿后第二次全量 **1178 passed + 60 skipped + 0 failed**。
+
+提交前泄漏巡检：本批 public/delivery/Bench/quarantine 均零 reference、
+oracle、held-out；`/private/tmp` 查到一个非本批生成的旧 RepoProof 评审副本
+(25M，含历史 held-out)，按绝对红线整目录移入废纸篓可恢复保管，未读取
+答案内容。

@@ -1,0 +1,8 @@
+[project]
+name = "xmltodict_tool"
+version = "1.0.0"
+description = '将本地 XML 文件离线转换为规范化 JSON 文本。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

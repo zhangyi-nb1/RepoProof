@@ -1,0 +1,50 @@
+task_id: tool-inflect-tool-v1
+
+source_repo:
+  url: https://github.com/jazzband/inflect
+  revision: guided
+  resolved_commit: 262a247d2d99a47a520cdb2d46adb90df88b4326
+  license: MIT
+  distribution: inflect
+  import_module: inflect
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_inflect-tool
+  package: inflect_tool
+  entry_point: inflect-tool
+
+requirement_spec_file: tool-inflect-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "inflect-tool", "summary": "将纯文本文件中每行一个的英文名词转换为复数形式。", "interface": {"usage": "inflect-tool <input> [--out FILE]", "input": {"kind": "file", "format": "TXT"}, "output": {"kind": "stdout", "format": "TXT"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取一个 UTF-8/UTF-8-SIG 纯文本文件，输入必须是每行一个英文名词；工具按原行顺序输出对应的英文复数名词，每个结果占一行，并以单个 LF 结尾。处理时会规范化换行符，去除每行首尾空白后交给 inflect 的复数化能力；内部空格不额外改写，大小写与不规则复数规则由上游 inflect 决定。空行、全空白行、空文件、不可解码文本或上游无法为某行生成有效复数时视为用户输入错误。Malformed/empty input raises UserInputError (exit 1). Repeated runs are deterministic and fully offline. 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/inflect_tool/impl.py 实现 extract(),必须调用 pinned inflect;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:inflect-tool inputs/nouns1.txt -> 见 expected/nouns1.txt; inflect-tool inputs/nouns2.txt -> 见 expected/nouns2.txt);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: TXT
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

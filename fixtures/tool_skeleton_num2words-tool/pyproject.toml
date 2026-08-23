@@ -1,0 +1,8 @@
+[project]
+name = "num2words_tool"
+version = "1.0.0"
+description = '把纯文本中每行一个的整数转换为英文文字。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

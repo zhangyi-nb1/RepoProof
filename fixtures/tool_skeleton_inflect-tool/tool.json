@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "inflect-tool",
+ "version": "1.0.0",
+ "summary": "将纯文本文件中每行一个的英文名词转换为复数形式。",
+ "source": {
+  "url": "https://github.com/jazzband/inflect",
+  "resolved_commit": "262a247d2d99a47a520cdb2d46adb90df88b4326",
+  "license": "MIT",
+  "distribution": "inflect"
+ },
+ "interface": {
+  "usage": "inflect-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "TXT"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "TXT"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

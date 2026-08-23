@@ -1,0 +1,50 @@
+task_id: tool-filetype-tool-v1
+
+source_repo:
+  url: https://github.com/h2non/filetype.py
+  revision: guided
+  resolved_commit: 3eae5cedad2dc65076a501a9374abafb1d700602
+  license: MIT
+  distribution: filetype
+  import_module: filetype
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_filetype-tool
+  package: filetype_tool
+  entry_point: filetype-tool
+
+requirement_spec_file: tool-filetype-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "filetype-tool", "summary": "将 filetype 的本地文件真实类型嗅探能力封装为离线 CLI，输出扩展名与 MIME。", "interface": {"usage": "filetype-tool <input> [--out FILE]", "input": {"kind": "file", "format": "BinaryFile"}, "output": {"kind": "stdout", "format": "JSON"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取一个本地文件的原始字节，使用 filetype 库嗅探其真实文件类型，并输出一个 UTF-8 JSON 对象：{"extension": "...", "mime": "..."}。extension 必须是不带前导点的小写扩展名；mime 必须是 filetype 返回的规范 MIME 字符串；JSON 键顺序固定为 extension、mime，不额外输出路径、文件名或环境信息。不得根据文件名后缀、系统 MIME 数据库或网络服务推断类型，只依据文件内容签名。空文件、不可读取路径、目录、filetype 无法识别的内容以及其他 malformed input 必须包装为 UserInputError，并由 CLI 映射为退出码 1。重复运行对同一输入必须产生完全相同的输出；实现必须完全离线、无网络访问、无随机性。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/filetype_tool/impl.py 实现 extract(),必须调用 pinned filetype;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:filetype-tool inputs/img.png.bin -> 见 expected/img.json; filetype-tool inputs/anim.gif.bin -> 见 expected/anim.json);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: JSON
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

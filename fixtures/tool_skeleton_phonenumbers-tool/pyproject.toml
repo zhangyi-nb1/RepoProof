@@ -1,0 +1,8 @@
+[project]
+name = "phonenumbers_tool"
+version = "1.0.0"
+description = '把纯文本中每行一个的国际电话号码离线、确定性地规范为 E.164 格式。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

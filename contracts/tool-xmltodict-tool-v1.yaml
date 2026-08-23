@@ -1,0 +1,50 @@
+task_id: tool-xmltodict-tool-v1
+
+source_repo:
+  url: https://github.com/martinblech/xmltodict
+  revision: guided
+  resolved_commit: 6e29fba282e68631034dd2722a413b4e35276584
+  license: MIT
+  distribution: xmltodict
+  import_module: xmltodict
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_xmltodict-tool
+  package: xmltodict_tool
+  entry_point: xmltodict-tool
+
+requirement_spec_file: tool-xmltodict-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "xmltodict-tool", "summary": "将本地 XML 文件离线转换为规范化 JSON 文本。", "interface": {"usage": "xmltodict-tool <input> [--out FILE]", "input": {"kind": "file", "format": "XML"}, "output": {"kind": "stdout", "format": "JSON"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取一个本地 XML 文件，使用 xmltodict 将 XML 文档转换为 JSON。元素映射为对象键；属性使用 xmltodict 默认的 @ 前缀；文本节点使用默认的 #text 键；同名兄弟元素按 xmltodict 默认规则在需要时形成数组；注释、DTD 外部解析和网络访问不参与输出。输出为 UTF-8 JSON 文本，ensure_ascii=false，indent=2，sort_keys=true，并以单个换行结尾；不做模式推断或类型强制转换，文本值保持为字符串。空文件、仅空白输入、格式错误 XML、不可读取路径或无法解析的输入必须抛出 UserInputError，并由 CLI 映射为退出码 1。重复运行对同一输入产生确定性结果。工具完全离线运行，不访问网络。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/xmltodict_tool/impl.py 实现 extract(),必须调用 pinned xmltodict;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:xmltodict-tool inputs/note.xml -> 见 expected/note.json; xmltodict-tool inputs/attrs.xml -> 见 expected/attrs.json);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: JSON
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

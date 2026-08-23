@@ -1,0 +1,8 @@
+[project]
+name = "inflect_tool"
+version = "1.0.0"
+description = '将纯文本文件中每行一个的英文名词转换为复数形式。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

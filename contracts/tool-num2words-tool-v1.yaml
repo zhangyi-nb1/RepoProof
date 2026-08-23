@@ -1,0 +1,50 @@
+task_id: tool-num2words-tool-v1
+
+source_repo:
+  url: https://github.com/savoirfairelinux/num2words
+  revision: guided
+  resolved_commit: 07814cb114157f582c40a00119c2e9faba8dcee2
+  license: GPL-3.0
+  distribution: num2words
+  import_module: num2words
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_num2words-tool
+  package: num2words_tool
+  entry_point: num2words-tool
+
+requirement_spec_file: tool-num2words-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "num2words-tool", "summary": "把纯文本中每行一个的整数转换为英文文字。", "interface": {"usage": "num2words-tool <input> [--out FILE]", "input": {"kind": "file", "format": "TXT"}, "output": {"kind": "stdout", "format": "TXT"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取 UTF-8 纯文本文件，要求每一行恰好包含一个十进制整数，可带前导/尾随空白，可带可选的 + 或 - 符号；不接受空行、小数、科学计数法、千分位分隔符或其他字符。每行先去除首尾空白，再按十进制整数归一化：前导零不影响数值，+0 和 -0 均输出为 zero。对每个整数调用 num2words 的英文转换能力，输出对应英文文字，每个输入行对应一个输出行，行顺序保持不变，输出行之间用 \n 分隔；若至少有一行输出，则最终字符串以 \n 结尾。无法被 num2words 支持的整数范围或上游转换错误视为用户输入错误。格式错误或空输入必须抛出 UserInputError（CLI 映射为 exit 1）。重复运行结果确定，工具完全离线，不访问网络、系统区域设置或当前时间。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/num2words_tool/impl.py 实现 extract(),必须调用 pinned num2words;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:num2words-tool inputs/ints.txt -> 见 expected/ints.txt; num2words-tool inputs/big.txt -> 见 expected/big.txt);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: TXT
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

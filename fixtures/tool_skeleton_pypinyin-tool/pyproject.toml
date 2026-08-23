@@ -1,0 +1,8 @@
+[project]
+name = "pypinyin_tool"
+version = "1.0.0"
+description = '把 UTF-8 中文文本按输入行逐行转换为无声调拼音文本。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

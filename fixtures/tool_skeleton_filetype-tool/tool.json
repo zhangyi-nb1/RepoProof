@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "filetype-tool",
+ "version": "1.0.0",
+ "summary": "将 filetype 的本地文件真实类型嗅探能力封装为离线 CLI，输出扩展名与 MIME。",
+ "source": {
+  "url": "https://github.com/h2non/filetype.py",
+  "resolved_commit": "3eae5cedad2dc65076a501a9374abafb1d700602",
+  "license": "MIT",
+  "distribution": "filetype"
+ },
+ "interface": {
+  "usage": "filetype-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "BinaryFile"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

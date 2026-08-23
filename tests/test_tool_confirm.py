@@ -119,6 +119,19 @@ def test_reference_without_upstream_import_is_caught(draft_bundle):
     assert any("未 import acme_lib" in p for p in problems), problems
 
 
+def test_reference_accepts_from_upstream_import(draft_bundle):
+    """合法的 ``from 包 import 符号`` 也必须通过上游 import 确认闸。"""
+    _, _rep, dest = draft_bundle
+    _complete(dest)
+    ref = dest / "reference_impl.py"
+    ref.write_text(ref.read_text(encoding="utf-8").replace(
+        "import acme_lib\n", "from acme_lib import shout\n").replace(
+        "acme_lib.shout(text)", "shout(text)"), encoding="utf-8")
+    draft = yaml.safe_load((dest / "draft.yaml").read_text(encoding="utf-8"))
+    problems = check_draft_complete(draft, dest)
+    assert not any("未 import acme_lib" in p for p in problems), problems
+
+
 def test_confirm_happy_path_freezes_contract(draft_bundle):
     tmp, _rep, dest = draft_bundle
     _complete(dest)

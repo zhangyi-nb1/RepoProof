@@ -6,8 +6,9 @@
 **工具子进程**注入一个 sitecustomize hook:
 
     - sys.meta_path finder 侦测目标模块真被 import(事件行);
-    - import 完成后对模块顶层公开可调用包一层 wrapper,每次调用写一行
-      回执(symbol / args 摘要 / seq / HMAC(secret, 载荷));
+    - import 完成后对模块顶层公开函数包 wrapper，并对公开非异常类的
+      实例化包 __new__，每次调用写一行回执(symbol / args 摘要 / seq /
+      HMAC(secret, 载荷));
     - ledger 与 secret 都由 harness 现摇现注(run 期 env),hook 目录在
       run_dir(会话外)—— agent 的冻结交付摸不到。
 
@@ -64,6 +65,7 @@ def _install():
     if not (module and ledger and secret):
         return
     state = {"seq": 0}
+    wrapped_class_ids = set()
 
     def _record(kind, symbol, extra=None):
         state["seq"] += 1
@@ -81,11 +83,44 @@ def _install():
             if name.startswith("_"):
                 continue
             obj = getattr(mod, name, None)
-            # 排除模块与**类**:包异常类会让 except/isinstance 当场炸
-            # (真实上游 FormatError 实测)—— 量具不许改变被测行为;
-            # 类实例化取证属强档,不在 v1 判据。
-            if (not callable(obj) or isinstance(obj, type(sys))
-                    or isinstance(obj, type)):
+            # 只量目标模块自身定义的 API。typing.List 等从别处导入的
+            # callable 若被换成函数代理，会破坏 List[T] 等正常语义。
+            if getattr(obj, "__module__", None) != modname:
+                continue
+            if not callable(obj) or isinstance(obj, type(sys)):
+                continue
+
+            # 公开类 API(OpenCC 型)的真实实例化也属于上游调用。不能把
+            # 类替换成函数代理，否则 isinstance/except 会被量具破坏；
+            # 原类上只包 __new__，并继续排除异常类以保持 except 语义。
+            if isinstance(obj, type):
+                try:
+                    if issubclass(obj, BaseException):
+                        continue
+                except TypeError:
+                    continue
+                if id(obj) in wrapped_class_ids:
+                    continue
+                original_new = getattr(obj, "__new__", object.__new__)
+
+                def _make_new(sym, fn):
+                    def _new(cls, *a, **kw):
+                        digest = hashlib.sha256(
+                            repr((a, sorted(kw.items())))[:2000].encode()
+                        ).hexdigest()[:16]
+                        _record("call", sym, {"args_sha": digest})
+                        if fn is object.__new__:
+                            return fn(cls)
+                        return fn(cls, *a, **kw)
+
+                    return staticmethod(_new)
+
+                try:
+                    setattr(obj, "__new__", _make_new(
+                        f"{modname}.{name}", original_new))
+                except (AttributeError, TypeError):
+                    continue
+                wrapped_class_ids.add(id(obj))
                 continue
 
             def _make(sym, fn):
@@ -126,6 +161,11 @@ def _install():
             inner = spec.loader
 
             class _L(importlib.abc.Loader):
+                def __getattr__(self, name):
+                    # pkgutil.get_data / importlib.resources 等依赖原 loader
+                    # 的扩展协议；代理必须完整转发，不能只保留 exec。
+                    return getattr(inner, name)
+
                 def create_module(self, s):
                     return inner.create_module(s) if hasattr(inner, "create_module") else None
 

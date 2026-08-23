@@ -1,0 +1,50 @@
+task_id: tool-jieba-tool-v1
+
+source_repo:
+  url: https://github.com/fxsjy/jieba
+  revision: guided
+  resolved_commit: 67fa2e36e72f69d9134b8a1037b83fbb070b9775
+  license: MIT
+  distribution: jieba
+  import_module: jieba
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_jieba-tool
+  package: jieba_tool
+  entry_point: jieba-tool
+
+requirement_spec_file: tool-jieba-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "jieba-tool", "summary": "将 UTF-8 中文纯文本按输入行逐行使用 jieba 分词，并以单个空格连接词元输出。", "interface": {"usage": "jieba-tool <input> [--out FILE]", "input": {"kind": "file", "format": "TXT"}, "output": {"kind": "stdout", "format": "TXT"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    能力：把中文文本逐行分词，输出与输入逻辑行一一对应的文本，每行内词元使用单个 ASCII 空格分隔。行为定义：输入文件按 UTF-8（允许 UTF-8 BOM）解码；按通用换行规则拆分为逻辑行，输出不额外添加末尾换行；每行仅去除首尾空白后送入 jieba 默认精确模式分词（HMM=True），jieba 返回的空白词元会被丢弃，其余词元去除首尾空白后用一个空格连接；空白行渲染为空输出行。输入路径不可读、非文本/编码错误、零字节或解码后为空等 malformed/empty input 必须抛出 UserInputError，并由 CLI 映射为 exit 1。重复运行结果确定；工具完全离线运行，不访问网络，不使用外部服务。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/jieba_tool/impl.py 实现 extract(),必须调用 pinned jieba;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:jieba-tool inputs/sent1.txt -> 见 expected/sent1.txt; jieba-tool inputs/sent2.txt -> 见 expected/sent2.txt);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: TXT
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

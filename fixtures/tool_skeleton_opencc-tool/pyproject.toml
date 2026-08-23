@@ -1,0 +1,8 @@
+[project]
+name = "opencc_tool"
+version = "1.0.0"
+description = '将简体中文纯文本文件离线、确定性地转换为繁体中文文本。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/img.png.bin", "expected_file": "expected/img.json"}, {"input_file": "inputs/anim.gif.bin", "expected_file": "expected/anim.json"}]}

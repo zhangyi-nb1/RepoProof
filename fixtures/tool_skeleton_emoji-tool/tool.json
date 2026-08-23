@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "emoji-tool",
+ "version": "1.0.0",
+ "summary": "将 UTF-8 文本文档中的 emoji 离线转换为 :name: 形式的别名。",
+ "source": {
+  "url": "https://github.com/carpedm20/emoji",
+  "resolved_commit": "d26c675190a6b6c0edee959d7b896721a9c3641d",
+  "license": "BSD",
+  "distribution": "emoji"
+ },
+ "interface": {
+  "usage": "emoji-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "TXT"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "TXT"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

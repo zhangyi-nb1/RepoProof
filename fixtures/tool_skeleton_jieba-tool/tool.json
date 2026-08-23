@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "jieba-tool",
+ "version": "1.0.0",
+ "summary": "将 UTF-8 中文纯文本按输入行逐行使用 jieba 分词，并以单个空格连接词元输出。",
+ "source": {
+  "url": "https://github.com/fxsjy/jieba",
+  "resolved_commit": "67fa2e36e72f69d9134b8a1037b83fbb070b9775",
+  "license": "MIT",
+  "distribution": "jieba"
+ },
+ "interface": {
+  "usage": "jieba-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "TXT"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "TXT"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

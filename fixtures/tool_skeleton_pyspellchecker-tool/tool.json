@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "pyspellchecker-tool",
+ "version": "1.0.0",
+ "summary": "将英文纯文本中的拼写可疑词提取为确定性的离线 JSON 报告。",
+ "source": {
+  "url": "https://github.com/barrust/pyspellchecker",
+  "resolved_commit": "f72172c4ddb3d1c3464cf500cc2420a4831a2b55",
+  "license": "MIT",
+  "distribution": "pyspellchecker"
+ },
+ "interface": {
+  "usage": "pyspellchecker-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "TXT"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

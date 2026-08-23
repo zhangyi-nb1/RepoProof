@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "num2words-tool",
+ "version": "1.0.0",
+ "summary": "把纯文本中每行一个的整数转换为英文文字。",
+ "source": {
+  "url": "https://github.com/savoirfairelinux/num2words",
+  "resolved_commit": "07814cb114157f582c40a00119c2e9faba8dcee2",
+  "license": "GPL-3.0",
+  "distribution": "num2words"
+ },
+ "interface": {
+  "usage": "num2words-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "TXT"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "TXT"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}
