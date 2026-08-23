@@ -1,0 +1,50 @@
+task_id: tool-unidecode-tool-v1
+
+source_repo:
+  url: https://github.com/avian2/unidecode
+  revision: guided
+  resolved_commit: 8d83b7c70c39678c2b95cb0caf3d3c4425cb2cc2
+  license: GPL-3.0
+  distribution: Unidecode
+  import_module: unidecode
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_unidecode-tool
+  package: unidecode_tool
+  entry_point: unidecode-tool
+
+requirement_spec_file: tool-unidecode-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "unidecode-tool", "summary": "将 UTF-8 Unicode 文本文件离线转写为确定性的 ASCII 近似文本。", "interface": {"usage": "unidecode-tool <input> [--out FILE]", "input": {"kind": "file", "format": "UTF-8 Text"}, "output": {"kind": "stdout", "format": "ASCII Text"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    将单个 UTF-8 编码的 Unicode 文本文件转写为 ASCII 近似文本。实现必须调用 pinned Unidecode 的公开 unidecode() 能力:ASCII 字符原样保留,非 ASCII 字符按库映射转为最接近的 ASCII 序列,无法映射的字符按库默认行为省略(宽松转写,不因个别字符失败);换行结构保留;不做大小写折叠/排序/去重。输入不是普通文件、为空、或 UTF-8 解码失败抛 UserInputError(exit 1)。重复运行确定;完全离线。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/unidecode_tool/impl.py 实现 extract(),必须调用 pinned Unidecode;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:unidecode-tool --help -> 'contains:usage'; unidecode-tool mixed.txt -> 见 mixed.expected.txt; unidecode-tool greek.txt -> 'contains:Ellenika kalemera');坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: ASCII Text
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

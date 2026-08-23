@@ -389,9 +389,20 @@ def test_k11_the_heldout_prose_is_derived_from_data_not_written_down():
     # 2026-08-23 再翻一页:LOCAL-TOOL 产品线首任务入账(RFC-010 [G3],
     # host_id=local-tool/pdf-table;PRODUCT_ONBOARDING 不充闸不计能力)。
     # 2026-08-23 M2 验收:第二个工具宿主 local-tool/html2md 入账,再翻一页。
-    assert d["hosts_covered"] == ["local-tool/html2md", "local-tool/pdf-table",
-                                  "pallets/click", "tobymao/sqlglot",
-                                  "zhangyi-nb1/offerclaw"], d["hosts_covered"]
+    # 2026-08-23 M4 批次一:12 仓预注册全数入账(11 个 *-tool 新宿主 +
+    # 弃置命名 local-tool/python-slugify 的两发缺陷发现行也占宿主 ——
+    # 台账 append-only,弃置任务的行不消失)。
+    assert d["hosts_covered"] == [
+        "local-tool/chardet-tool", "local-tool/feedparser-tool",
+        "local-tool/ftfy-tool", "local-tool/html2md",
+        "local-tool/humanize-tool", "local-tool/json5-tool",
+        "local-tool/markdown-tool", "local-tool/pdf-table",
+        "local-tool/pygments-tool", "local-tool/python-dateutil-tool",
+        "local-tool/python-slugify", "local-tool/python-slugify-tool",
+        "local-tool/pyyaml-tool", "local-tool/tabulate-tool",
+        "local-tool/unidecode-tool",
+        "pallets/click", "tobymao/sqlglot",
+        "zhangyi-nb1/offerclaw"], d["hosts_covered"]
     note = d["_denominators"]["heldout_model_evaluation_runs"]
     assert "第二宿主未建" not in note, "宿主已入账,这句必须消失"
     assert "pallets/click" in note

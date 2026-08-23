@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "python-dateutil-tool",
+ "version": "1.0.0",
+ "summary": "将每行一个的自由格式日期解析并规范化为 ISO 8601 输出。",
+ "source": {
+  "url": "https://github.com/dateutil/dateutil",
+  "resolved_commit": "1ae807774053c071acc9e7d3d27778fba0a7773e",
+  "license": "Apache-2.0",
+  "distribution": "python-dateutil"
+ },
+ "interface": {
+  "usage": "python-dateutil-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "TXT"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "TXT"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

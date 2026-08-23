@@ -112,6 +112,20 @@ def test_mcp_server_protocol_and_call(tmp_path):
     assert by_id[4]["error"]["code"] == -32601
 
 
+# ---------------------------------------- bench 规则准入(tool-* 两项制)
+
+def test_bench_tool_prefix_rule_admission(tmp_path):
+    """tool-* 条目免登记,但内部两项制强制:私货照报 stray(#29 兜底)。"""
+    from repoproof.harness.host_guard import bench_root_strays
+
+    (tmp_path / "tool-x-v1" / "host").mkdir(parents=True)
+    (tmp_path / "tool-x-v1" / "wheelhouse").mkdir()
+    assert bench_root_strays(tmp_path) == []
+    (tmp_path / "tool-x-v1" / "answers").mkdir()          # 私货
+    (tmp_path / "rogue-dir").mkdir()                       # 非 tool 前缀
+    assert bench_root_strays(tmp_path) == ["rogue-dir", "tool-x-v1/answers"]
+
+
 # ------------------------------------------------ pipeline(零网,到彩排门)
 
 _MINILIB = ('MAGIC = "MINI\\n"\n\n\nclass FormatError(ValueError):\n    pass\n\n\n'

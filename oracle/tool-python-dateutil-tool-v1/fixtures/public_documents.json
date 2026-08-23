@@ -1,0 +1,1 @@
+{"examples": [{"input": "--help", "expected": "contains:usage"}, {"input_file": "dates.txt", "expected_file": "dates.expected.txt"}, {"input_file": "times.txt", "expected": "contains:2023-07-01T08:00:00+02:00"}]}

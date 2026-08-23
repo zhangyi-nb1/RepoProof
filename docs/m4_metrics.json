@@ -1,0 +1,150 @@
+{
+  "_pairing_note": "acceptance_rate 与 tool_ready_rate 必须成对引用(单引后者 = 准入闸可刷指标,[G4] 禁止)",
+  "acceptance_rate": 1.0,
+  "accepted": 12,
+  "false_success": {
+    "audited": 12,
+    "flagged": 12,
+    "flagged_tasks": [
+      "tool-chardet-tool-v1",
+      "tool-feedparser-tool-v1",
+      "tool-ftfy-tool-v1",
+      "tool-humanize-tool-v1",
+      "tool-json5-tool-v1",
+      "tool-markdown-tool-v1",
+      "tool-pygments-tool-v1",
+      "tool-python-dateutil-tool-v1",
+      "tool-python-slugify-tool-v1",
+      "tool-pyyaml-tool-v1",
+      "tool-tabulate-tool-v1",
+      "tool-unidecode-tool-v1"
+    ]
+  },
+  "per_task": [
+    {
+      "accepted": true,
+      "capability": "把文本文件的每一行转成 URL slug",
+      "exported": "/Users/zhangronglei/tools/python-slugify-tool",
+      "real_verdict": "PASS_ADAPTED",
+      "replay": true,
+      "repo": "https://github.com/un33k/python-slugify",
+      "task_id": "tool-python-slugify-tool-v1",
+      "tool_ready": true
+    },
+    {
+      "accepted": true,
+      "capability": "修复文本文件中的 mojibake 乱码,输出修复后文本",
+      "exported": "/Users/zhangronglei/tools/ftfy-tool",
+      "real_verdict": "PASS_ADAPTED",
+      "replay": true,
+      "repo": "https://github.com/LuminosoInsight/python-ftfy",
+      "task_id": "tool-ftfy-tool-v1",
+      "tool_ready": true
+    },
+    {
+      "accepted": true,
+      "capability": "把 Unicode 文本文件转写为 ASCII 近似文本",
+      "exported": "/Users/zhangronglei/tools/unidecode-tool",
+      "real_verdict": "PASS_ADAPTED",
+      "replay": true,
+      "repo": "https://github.com/avian2/unidecode",
+      "task_id": "tool-unidecode-tool-v1",
+      "tool_ready": true
+    },
+    {
+      "accepted": true,
+      "capability": "把 YAML 文件安全解析并输出等价 JSON",
+      "exported": "/Users/zhangronglei/tools/pyyaml-tool",
+      "real_verdict": "PASS_ADAPTED",
+      "replay": true,
+      "repo": "https://github.com/yaml/pyyaml",
+      "task_id": "tool-pyyaml-tool-v1",
+      "tool_ready": true
+    },
+    {
+      "accepted": true,
+      "capability": "把 JSON5 文件规范化为严格 JSON 输出",
+      "exported": "/Users/zhangronglei/tools/json5-tool",
+      "real_verdict": "PASS_ADAPTED",
+      "replay": true,
+      "repo": "https://github.com/dpranke/pyjson5",
+      "task_id": "tool-json5-tool-v1",
+      "tool_ready": true
+    },
+    {
+      "accepted": true,
+      "capability": "把 Markdown 文件渲染为 HTML",
+      "exported": "/Users/zhangronglei/tools/markdown-tool",
+      "real_verdict": "PASS_ADAPTED",
+      "replay": true,
+      "repo": "https://github.com/Python-Markdown/markdown",
+      "task_id": "tool-markdown-tool-v1",
+      "tool_ready": true
+    },
+    {
+      "accepted": true,
+      "capability": "把源代码文件高亮为自包含 HTML",
+      "exported": "/Users/zhangronglei/tools/pygments-tool",
+      "real_verdict": "PASS_ADAPTED",
+      "replay": true,
+      "repo": "https://github.com/pygments/pygments",
+      "task_id": "tool-pygments-tool-v1",
+      "tool_ready": true
+    },
+    {
+      "accepted": true,
+      "capability": "把 CSV 文件渲染为 GitHub 风格 Markdown 表格",
+      "exported": "/Users/zhangronglei/tools/tabulate-tool",
+      "real_verdict": "PASS_ADAPTED",
+      "replay": true,
+      "repo": "https://github.com/astanin/python-tabulate",
+      "task_id": "tool-tabulate-tool-v1",
+      "tool_ready": true
+    },
+    {
+      "accepted": true,
+      "capability": "把每行一个的自由格式日期解析为 ISO 8601 输出",
+      "exported": "/Users/zhangronglei/tools/python-dateutil-tool",
+      "real_verdict": "PASS_ADAPTED",
+      "replay": true,
+      "repo": "https://github.com/dateutil/dateutil",
+      "task_id": "tool-python-dateutil-tool-v1",
+      "tool_ready": true
+    },
+    {
+      "accepted": true,
+      "capability": "检测文件的字符编码并输出编码名与置信度报告",
+      "exported": "/Users/zhangronglei/tools/chardet-tool",
+      "real_verdict": "PASS_ADAPTED",
+      "replay": true,
+      "repo": "https://github.com/chardet/chardet",
+      "task_id": "tool-chardet-tool-v1",
+      "tool_ready": true
+    },
+    {
+      "accepted": true,
+      "capability": "把每行一个的整数字节数转为人类可读大小(如 1.2 MB)",
+      "exported": "/Users/zhangronglei/tools/humanize-tool",
+      "real_verdict": "PASS_ADAPTED",
+      "replay": true,
+      "repo": "https://github.com/python-humanize/humanize",
+      "task_id": "tool-humanize-tool-v1",
+      "tool_ready": true
+    },
+    {
+      "accepted": true,
+      "capability": "把 RSS/Atom 订阅源文件解析为条目标题与链接的清单",
+      "exported": "/Users/zhangronglei/tools/feedparser-tool",
+      "real_verdict": "PASS_ADAPTED",
+      "replay": true,
+      "repo": "https://github.com/kurtmckee/feedparser",
+      "task_id": "tool-feedparser-tool-v1",
+      "tool_ready": true
+    }
+  ],
+  "replay_checked": 12,
+  "replay_success": 12,
+  "submitted": 12,
+  "tool_ready": 12,
+  "tool_ready_rate": 1.0
+}

@@ -232,6 +232,18 @@ def bench_root_strays(bench_root: str | Path = BENCH_ROOT_DEFAULT) -> list[str]:
         if name == ".DS_Store" or name in _BENCH_ALLOWED_NAMES:
             strays.extend(_entry_strays(entry))
             continue
+        # LOCAL-TOOL 谱系(M4,2026-08-23):`tool-*` 按**规则准入**而非逐个
+        # 登记 —— 产品常态是每个用户工具一个 bench 条目,逐个改代码不成立。
+        # #29 的要害是前缀放行了**答案卷**;工具条目内容无答案(骨架 =
+        # harness 模板,答案区 controls/oracle 在仓内、按设计不入 bench),
+        # 且这里对前缀条目**强制**内部两项制 {host, wheelhouse}:目录里
+        # 塞任何别的东西照样报 stray(#29 第二型的兜底不豁免)。
+        if name.startswith("tool-") and entry.is_dir():
+            allowed = frozenset({"host", "wheelhouse"})
+            strays.extend(
+                f"{name}/{c.name}" for c in sorted(entry.iterdir())
+                if c.name != ".DS_Store" and c.name not in allowed)
+            continue
         if name.startswith(_BENCH_ALLOWED_PREFIXES) or (extra and name.startswith(extra)):
             continue
         strays.append(name)

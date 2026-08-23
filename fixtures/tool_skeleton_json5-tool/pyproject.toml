@@ -1,0 +1,8 @@
+[project]
+name = "json5_tool"
+version = "1.0.0"
+description = '将 JSON5 文件规范化为严格 JSON 文本输出。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

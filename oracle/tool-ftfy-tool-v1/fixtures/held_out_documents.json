@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "mixed.txt", "expected": "contains:normal line stays"}]}

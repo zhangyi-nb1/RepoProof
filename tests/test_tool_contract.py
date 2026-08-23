@@ -113,6 +113,7 @@ if args == ["--help"]:
 print("| A | B |")
 print("|---|---|")
 print("| 1 | 2 |")
+print('"quoted": "值"')
 """
 
 _BAD_TOOL = """#!/usr/bin/env python3
@@ -123,6 +124,9 @@ _EXAMPLES = [
     Example(input_file="inputs/t.pdf", expected="contains:| A | B |"),
     Example(input_file="inputs/t.pdf", expected_file="expected/t.md"),
     Example(input="--help", expected="contains:usage: faketool"),
+    # M4 pyyaml 实测:断言值含双引号曾让编译产物 SyntaxError —— 钉死转义
+    Example(input_file="inputs/t.pdf", expected='contains:| A | B |'.replace(
+        "| A | B |", '"A": "B"') if False else 'contains:"quoted": "值"'),
 ]
 
 
@@ -135,7 +139,7 @@ def _materialize(tmp: Path, tool_src: str) -> tuple[Path, Path]:
     (tdir / "fixtures" / "expected").mkdir(parents=True)
     (tdir / "fixtures" / "inputs" / "t.pdf").write_bytes(b"%PDF-fake")
     (tdir / "fixtures" / "expected" / "t.md").write_text(
-        "| A | B |\n|---|---|\n| 1 | 2 |\n", encoding="utf-8")
+        '| A | B |\n|---|---|\n| 1 | 2 |\n"quoted": "值"\n', encoding="utf-8")
     (tdir / "test_cli_compiled.py").write_text(
         compile_pytest(_EXAMPLES, header="CLI 编译自证", mode="cli"), encoding="utf-8")
     return tool, tdir

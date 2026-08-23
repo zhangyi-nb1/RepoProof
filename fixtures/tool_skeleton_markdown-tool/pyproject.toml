@@ -1,0 +1,8 @@
+[project]
+name = "markdown_tool"
+version = "1.0.0"
+description = '将本地 Markdown 文件离线、确定性地渲染为 HTML 字符串。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

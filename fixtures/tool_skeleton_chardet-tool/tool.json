@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "chardet-tool",
+ "version": "1.0.0",
+ "summary": "将 chardet 的字符编码检测能力封装为本地离线 CLI，输出编码名与置信度报告。",
+ "source": {
+  "url": "https://github.com/chardet/chardet",
+  "resolved_commit": "fa905b359cbcaba93a35fd6429ba9ec4b156c1c1",
+  "license": "LGPL-2.1",
+  "distribution": "chardet"
+ },
+ "interface": {
+  "usage": "chardet-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "BinaryFile"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

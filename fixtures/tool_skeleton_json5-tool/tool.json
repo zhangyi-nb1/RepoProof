@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "json5-tool",
+ "version": "1.0.0",
+ "summary": "将 JSON5 文件规范化为严格 JSON 文本输出。",
+ "source": {
+  "url": "https://github.com/dpranke/pyjson5",
+  "resolved_commit": "1f7f8062a76d5899288674b938e73b7bcadf63c3",
+  "license": "Apache-2.0",
+  "distribution": "json5"
+ },
+ "interface": {
+  "usage": "json5-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "JSON5"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

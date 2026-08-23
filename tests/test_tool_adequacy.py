@@ -126,7 +126,20 @@ def test_t5_package_shadowing_upstream_is_caught(assembled):
     broken.target_project.entry_point = "pdfplumber"
     res = _evaluate(root, info, broken)
     assert res.checked["tool_package_not_shadowing_upstream"] is False
-    assert any("shadows" in f for f in res.failures)
+    assert any("collides" in f for f in res.failures)
+
+
+def test_t5b_distribution_name_collision_is_caught(assembled):
+    """M4 slugify 实测:分发名规范化撞(python_slugify ≡ python-slugify)
+    → pip -e . 与上游互顶卸载,同键硬拒。"""
+    root, info, contract = assembled
+    broken = contract.model_copy(deep=True)
+    broken.tool.name = "pdfplumber-tool"
+    broken.target_project.entry_point = "pdfplumber-tool"
+    broken.source_repo.distribution = "pdfplumber-tool"   # 合成同名分发
+    res = _evaluate(root, info, broken)
+    assert res.checked["tool_package_not_shadowing_upstream"] is False
+    assert any("PEP 503" in f for f in res.failures)
 
 
 def test_t3_missing_example_file_is_caught(assembled):

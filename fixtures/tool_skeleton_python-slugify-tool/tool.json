@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "python-slugify-tool",
+ "version": "1.0.0",
+ "summary": "把 UTF-8 文本文件的每一行离线转换为确定性的 URL slug。",
+ "source": {
+  "url": "https://github.com/un33k/python-slugify",
+  "resolved_commit": "f85f9488520148d5f6899b5639199882b605e30a",
+  "license": "MIT",
+  "distribution": "python-slugify"
+ },
+ "interface": {
+  "usage": "python-slugify-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "TXT"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "TXT"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

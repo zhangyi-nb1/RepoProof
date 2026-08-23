@@ -1,0 +1,17 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input": "--help",
+   "expected": "contains:usage"
+  },
+  {
+   "input_file": "config.json5",
+   "expected_file": "config.expected.json"
+  },
+  {
+   "input_file": "simple.json5",
+   "expected": "contains:\"greeting\":\"你好\""
+  }
+ ]
+}

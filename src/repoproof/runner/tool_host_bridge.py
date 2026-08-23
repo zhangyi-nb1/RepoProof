@@ -232,8 +232,14 @@ def materialize_tool_task(
     skel_impl = (skeleton / skel_impl_rel).read_text(encoding="utf-8")
     skel_lock = (skeleton / "requirements.lock.txt").read_text(encoding="utf-8")
     src_of = {"positive": "reference", "negative_reimpl": "positive"}
-    for host_name in ("positive", "negative_empty", "negative_hardcode",
-                      "negative_reimpl", "negative_badexit"):
+    # 控制集以装配产物为准(M4 chardet 实测:malformed 豁免域不产
+    # negative_badexit;bridge 硬要五件会把合法豁免打成 BLOCKED)。
+    # positive/empty/hardcode/reimpl 四件仍强制 —— 缺了才是真装配缺陷。
+    wanted = ["positive", "negative_empty", "negative_hardcode",
+              "negative_reimpl"]
+    if (controls_src / "negative_badexit" / "impl.py").is_file():
+        wanted.append("negative_badexit")
+    for host_name in wanted:
         ctrl = controls_src / src_of.get(host_name, host_name)
         if not (ctrl / "impl.py").is_file():
             raise ToolBridgeError(f"{tc.task_id}: 控制源缺失:{ctrl}/impl.py")

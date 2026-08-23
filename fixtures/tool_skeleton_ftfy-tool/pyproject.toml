@@ -1,0 +1,8 @@
+[project]
+name = "ftfy_tool"
+version = "1.0.0"
+description = '修复文本文件中的 mojibake 乱码，输出修复后文本'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

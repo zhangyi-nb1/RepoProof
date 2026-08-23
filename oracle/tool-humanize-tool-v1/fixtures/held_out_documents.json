@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "big.txt", "expected": "contains:123.5 GB"}]}

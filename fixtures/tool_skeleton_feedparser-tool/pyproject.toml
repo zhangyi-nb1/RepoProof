@@ -1,0 +1,8 @@
+[project]
+name = "feedparser_tool"
+version = "1.0.0"
+description = '将本地 RSS/Atom 订阅源文件解析为按原始顺序排列的条目标题与链接清单。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

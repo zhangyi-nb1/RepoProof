@@ -1,0 +1,8 @@
+[project]
+name = "unidecode_tool"
+version = "1.0.0"
+description = '将 UTF-8 Unicode 文本文件离线转写为确定性的 ASCII 近似文本。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

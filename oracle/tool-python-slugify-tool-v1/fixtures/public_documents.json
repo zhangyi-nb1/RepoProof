@@ -1,0 +1,1 @@
+{"examples": [{"input": "--help", "expected": "contains:usage"}, {"input_file": "lines.txt", "expected_file": "lines.expected.txt"}, {"input_file": "single.txt", "expected": "contains:the-quick-brown-fox"}]}

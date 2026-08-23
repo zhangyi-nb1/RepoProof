@@ -1,0 +1,50 @@
+task_id: tool-humanize-tool-v1
+
+source_repo:
+  url: https://github.com/python-humanize/humanize
+  revision: guided
+  resolved_commit: 3c577d7650508d52aa2982e930b0e744c343082f
+  license: MIT
+  distribution: humanize
+  import_module: humanize
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_humanize-tool
+  package: humanize_tool
+  entry_point: humanize-tool
+
+requirement_spec_file: tool-humanize-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "humanize-tool", "summary": "将每行一个的整数字节数转换为人类可读大小文本。", "interface": {"usage": "humanize-tool <input> [--out FILE]", "input": {"kind": "file", "format": "TXT"}, "output": {"kind": "stdout", "format": "TXT"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取 UTF-8 文本文件，输入必须为每行一个十进制非负整数字节数；允许每行首尾空白，但不允许空行、负数、小数、单位后缀或其他字符。对每个字节数调用 humanize.naturalsize，以十进制 SI 单位渲染，保留 1 位小数，生成如“1.2 MB”的人类可读大小；输出顺序与输入行一致，每个结果占一行，并以换行结尾。0 按上游 humanize 的规则渲染。 malformed/empty input raises UserInputError (exit 1). repeated runs are deterministic, fully offline. 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/humanize_tool/impl.py 实现 extract(),必须调用 pinned humanize;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:humanize-tool --help -> 'contains:usage'; humanize-tool sizes.txt -> 见 sizes.expected.txt; humanize-tool small.txt -> 'contains:1.0 kB');坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: TXT
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

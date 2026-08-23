@@ -1925,8 +1925,13 @@ class HostGuidedRunner:
                 backend.destroy(session)
                 raise HostRunError(f"PII 出口扫描命中 {len(pii)} 条,拒绝开跑:{pii[:3]}")
         if self.upstream_src is not None:      # G1:delta 形态无上游区
+            # 会话上游 = 纯源码快照:不带 .git(M4 tabulate 实测:仓里 README
+            # 是 git 存的 symlink,copytree follow 已实体化,但 .git 跟进会话
+            # 后 agent 一碰 git,index 就把它恢复成链 → 轮后 hash_tree 守卫
+            # 按纪律拒软链,整发崩)。HEAD 校验在仓外 upstream_src 做,会话
+            # 内 .git 从来多余。
             shutil.copytree(self.upstream_src, root / "upstream", symlinks=False,
-                            ignore=shutil.ignore_patterns("__pycache__"))
+                            ignore=shutil.ignore_patterns("__pycache__", ".git"))
         shutil.copytree(self.public_tests_src, root / "host" / "public_tests",
                         ignore=shutil.ignore_patterns("__pycache__"))
         # T3 批 1 实证修复:任务包 fixtures 是公开测试面的一部分(公开

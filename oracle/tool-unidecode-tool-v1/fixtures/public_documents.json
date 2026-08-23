@@ -1,0 +1,1 @@
+{"examples": [{"input": "--help", "expected": "contains:usage"}, {"input_file": "mixed.txt", "expected_file": "mixed.expected.txt"}, {"input_file": "greek.txt", "expected": "contains:Ellenika kalemera"}]}

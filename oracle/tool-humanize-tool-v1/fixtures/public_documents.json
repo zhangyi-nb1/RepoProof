@@ -1,0 +1,1 @@
+{"examples": [{"input": "--help", "expected": "contains:usage"}, {"input_file": "sizes.txt", "expected_file": "sizes.expected.txt"}, {"input_file": "small.txt", "expected": "contains:1.0 kB"}]}

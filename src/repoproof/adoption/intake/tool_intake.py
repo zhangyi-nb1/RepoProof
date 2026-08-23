@@ -86,6 +86,19 @@ def extract_distribution(repo_dir: Path) -> tuple[str, str]:
                            text, re.MULTILINE)
             if mc:
                 return mc.group(1), f"setup.py {mv.group(1)} 常量字面量"
+        # 第四路(M4 slugify 实测):name=about['__title__'] 约定形态 ——
+        # __title__ 字面量常驻包内 __version__/__about__/__init__,仍是
+        # 纯静态读取。扫不到字面量照旧放弃。
+        if re.search(r"""\bname\s*=\s*\w+\[["']__title__["']\]""", text):
+            for cand in sorted(repo_dir.rglob("__*__.py")):
+                if cand.stat().st_size > 100_000 or "test" in cand.parts:
+                    continue
+                mt = re.search(
+                    r"""^__title__\s*=\s*["']([A-Za-z0-9_.-]+)["']""",
+                    cand.read_text(encoding="utf-8", errors="replace"),
+                    re.MULTILINE)
+                if mt:
+                    return mt.group(1), f"{cand.relative_to(repo_dir)} __title__ 字面量"
         return "", "setup.py 存在但 name 非静态字面量(不执行代码,放弃推导)"
     return "", "无 pyproject [project].name / setup.cfg / setup.py name"
 
@@ -98,7 +111,11 @@ def extract_import_module(repo_dir: Path, distribution: str) -> tuple[str, str]:
     cand = distribution.replace("-", "_").replace(".", "_")
     for base, label in ((repo_dir / "src", "src 布局"), (repo_dir, "顶层布局")):
         if cand and (base / cand / "__init__.py").is_file():
-            return cand, f"{label}:{cand}/__init__.py 存在"
+            # APFS 大小写不敏感陷阱(M4 Unidecode 实测):路径命中不等于
+            # 名字正确 —— 必须回读目录**真实名**,否则 Linux 上 import 炸。
+            real = next((e.name for e in base.iterdir()
+                         if e.name.lower() == cand.lower() and e.is_dir()), cand)
+            return real, f"{label}:{real}/__init__.py 存在(真实目录名回读)"
     for base, label in ((repo_dir / "src", "src 布局"), (repo_dir, "顶层布局")):
         if not base.is_dir():
             continue
@@ -119,9 +136,12 @@ def _suggest_tool_name(capability_goal: str, distribution: str,
     的空壳,死因还极难读。撞名时加 -tool 后缀;T5 闸兜底硬拒。"""
     base = distribution or "tool"
     name = re.sub(r"[^a-z0-9-]+", "-", base.lower()).strip("-") or "tool"
-    if import_module and name.replace("-", "_") == import_module:
-        name += "-tool"
-    return name
+    # 建议名**恒加** -tool(M4 slugify 实测定稿):kebab(distribution) 的
+    # 规范化必然 ≡ distribution 规范化(PEP 503:- 与 _ 同一),即"直接用
+    # 库名当工具名"**必然**让 pip install -e . 与 pinned 上游同名互顶
+    # 卸载;import 包名撞(M3 实测)是同族第二型。最终名归 USER(改短名
+    # 如 html2md 完全合法),T5 闸对最终名双条件兜底。
+    return name + "-tool"
 
 
 # --------------------------------------------------------------- 草稿组装

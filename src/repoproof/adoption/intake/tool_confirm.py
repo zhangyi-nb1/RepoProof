@@ -175,7 +175,10 @@ def confirm_tool_draft(draft_dir: Path, project_root: Path) -> dict:
             reference_impl=(draft_dir / REFERENCE_PY).read_text(encoding="utf-8"),
             reference_lock=(ref_lock.read_text(encoding="utf-8")
                             if ref_lock.is_file() else ""),
-            input_ext=input_ext)
+            input_ext=input_ext,
+            # 域适用性(M4 chardet):"全域合法输入"类工具声明豁免 malformed
+            malformed_applicable=bool(
+                draft["tool"].get("malformed_applicable", True)))
     except (CompileError, ValidationError, OSError) as e:
         raise ConfirmError([f"装配失败:{e}"]) from e
 

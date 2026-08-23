@@ -1,0 +1,8 @@
+[project]
+name = "pyyaml_tool"
+version = "1.0.0"
+description = '安全解析 YAML 文件并输出语义等价、确定性的 JSON 文本'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

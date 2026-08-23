@@ -1,0 +1,50 @@
+task_id: tool-pyyaml-tool-v1
+
+source_repo:
+  url: https://github.com/yaml/pyyaml
+  revision: guided
+  resolved_commit: 49790e73684bebad1df05ef8d828fa12f685bffb
+  license: MIT
+  distribution: PyYAML
+  import_module: yaml
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_pyyaml-tool
+  package: pyyaml_tool
+  entry_point: pyyaml-tool
+
+requirement_spec_file: tool-pyyaml-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "pyyaml-tool", "summary": "安全解析 YAML 文件并输出语义等价、确定性的 JSON 文本", "interface": {"usage": "pyyaml-tool <input> [--out FILE]", "input": {"kind": "file", "format": "YAML"}, "output": {"kind": "stdout", "format": "JSON"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    使用 PyYAML 的安全加载能力解析本地 YAML 文件，并将解析得到的标量、序列和映射输出为等价 JSON。仅使用 yaml.safe_load，不执行任意 Python 对象构造；输入必须是非空且语法合法的 YAML。输出使用 UTF-8 JSON 文本，ensure_ascii=false，indent=2，sort_keys=true，并以单个换行结尾。YAML 映射键必须能表示为 JSON 对象键；非字符串键按 JSON 编码语义转换为字符串键。日期、二进制或其他 PyYAML 安全加载后无法被标准 json 模块序列化的值视为不支持输入。空文件、仅空白文件、解析结果为 null 的输入、格式错误输入或不支持类型均抛出 UserInputError（CLI 退出码 1）。重复运行在相同输入上必须产生完全相同的输出；工具完全离线运行，不访问网络。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/pyyaml_tool/impl.py 实现 extract(),必须调用 pinned PyYAML;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:pyyaml-tool --help -> 'contains:usage'; pyyaml-tool config.yaml -> 见 config.expected.json; pyyaml-tool simple.yaml -> 'contains:"greeting": "你好"');坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: JSON
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

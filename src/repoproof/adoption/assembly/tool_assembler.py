@@ -313,6 +313,7 @@ def assemble_tool_task(
     reference_impl: str,
     reference_lock: str = "",
     input_ext: str = ".pdf",
+    malformed_applicable: bool = True,
 ) -> dict:
     """生成 LOCAL-TOOL 全部任务文件;返回 {task_id, files, next}。不冻结、不运行。
 
@@ -340,11 +341,17 @@ def assemble_tool_task(
     binary_copies: list[tuple[bytes, str]] = []   # (字节, 仓内相对目标)
 
     # ---- 契约 ----
+    import json as _json_mod
     ex_lines = "; ".join(
         (f"{tool.name} {e.input_file} -> {e.expected!r}" if e.input_file and e.expected
          else f"{tool.name} {e.input_file} -> 见 {e.expected_file}" if e.input_file
          else f"{tool.name} {e.input} -> {e.expected!r}")
         for e in public[:3])
+    # YAML 注入安全(M4 pyyaml 实测:断言串含引号/冒号炸掉手拼 YAML):
+    #   examples 条目用 JSON 转义(合法 YAML 标量,转义完备);
+    #   折叠块内冒号+引号本安全,但去掉换行防折叠语义意外。
+    ex_lines_json = _json_mod.dumps(ex_lines, ensure_ascii=False)
+    ex_lines_folded = " ".join(ex_lines.split())
     statement = (
         f"{goal.strip()} 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 "
         f"src/{package}/impl.py 实现 extract(),必须调用 pinned {distribution};"
@@ -410,6 +417,12 @@ acceptance:
     n_pub, n_held = len(public), len(held)
     cap_nodes = "\n".join(f'      - "test_capability::test_example_{i + 1}"' for i in range(n_pub))
     held_nodes = "\n".join(f'      - "test_capability::test_held_example_{i + 1}"' for i in range(n_held))
+    mal_node = ('      - "test_capability::test_malformed_input_is_user_error"\n'
+                if malformed_applicable else "")
+    badexit_negative = ("""    - path: controls/{tid}/negative_badexit
+      label: NC_badexit
+      must_fail_nodes: ["test_malformed_input_is_user_error"]
+""".format(tid=task_id) if malformed_applicable else "")
     files[f"contracts/{task_id}.requirements.yaml"] = f"""task_id: {task_id}
 
 controls:
@@ -421,10 +434,7 @@ controls:
     - path: controls/{task_id}/negative_hardcode
       label: NC_hardcode
       must_fail_nodes: ["test_held_example"]
-    - path: controls/{task_id}/negative_badexit
-      label: NC_badexit
-      must_fail_nodes: ["test_malformed_input_is_user_error"]
-  # NC_reimpl(零 import 上游)不在此表:它在 oracle 上全绿,判死属
+{badexit_negative}  # NC_reimpl(零 import 上游)不在此表:它在 oracle 上全绿,判死属
   # provenance 层(runner 验证阶段执法;harness 测试喂它自证查得出)。
   # 见 TOOL_READY_GATE §五。目录:controls/{task_id}/negative_reimpl
 
@@ -435,9 +445,9 @@ requirements:
     source_field: capability.statement
     public_text: >
       调用 pinned {distribution} 实现能力,使全部用户样例断言通过
-      (行为以公开样例为准,例:{ex_lines})。
+      (行为以公开样例为准,例:{ex_lines_folded})。
     examples:
-      - "{ex_lines}"
+      - {ex_lines_json}
     oracle_nodes:
 {cap_nodes}
 {held_nodes}
@@ -452,8 +462,7 @@ requirements:
     examples:
       - "exit: 0=成功 1=用户错误 2=内部错误"
     oracle_nodes:
-      - "test_capability::test_malformed_input_is_user_error"
-      - "test_capability::test_deterministic_output"
+{mal_node}      - "test_capability::test_deterministic_output"
       - "test_capability::test_stdout_purity_on_success"
   - id: skeleton-anchors-untouched
     owner: HOST_INPUT_GUARD
@@ -519,9 +528,15 @@ requirements:
     # held 段砍掉重复 prelude(公开段已含),只留测试函数
     held_tests = held_body[held_body.index("def test_held_example_"):]
     first_file = next(e.input_file for e in exs if e.input_file)
+    # malformed 节点按域适用性拼(M4 chardet 实测:编码检测器对任意字节流
+    # 都合法 —— "全域合法输入"类工具没有 malformed,硬测必假红)。
+    cap_iface = _CAP_INTERFACE_TMPL.format(ext=input_ext, det_input=first_file)
+    if not malformed_applicable:
+        head_mal = cap_iface.index("def test_malformed_input_is_user_error")
+        tail_det = cap_iface.index("def test_deterministic_output")
+        cap_iface = cap_iface[:head_mal] + cap_iface[tail_det:]
     files[f"oracle/{task_id}/test_capability.py"] = (
-        pub_src + "\n\n" + held_tests
-        + _CAP_INTERFACE_TMPL.format(ext=input_ext, det_input=first_file))
+        pub_src + "\n\n" + held_tests + cap_iface)
     files[f"{skel_rel}/public_tests/test_interface_contract.py"] = _REGRESSION_TMPL.format(
         ext=input_ext, det_input=first_file)
     for e in [*public, *held]:
@@ -531,8 +546,9 @@ requirements:
     # malformed = 确定性伪二进制:非 UTF-8、无任何常见格式魔头 —— 文本型
     # malformed 对宽容解析格式(HTML 域实测)会被正常处理成 exit 0,接口
     # 契约必红;二进制对 PDF(无 %PDF 头)/HTML(解码炸)等域普遍成立。
-    binary_copies.append((bytes([0xFF, 0xFE]) + bytes(range(0x80, 0xA0)) * 4,
-                          f"oracle/{task_id}/fixtures/malformed{input_ext}"))
+    if malformed_applicable:
+        binary_copies.append((bytes([0xFF, 0xFE]) + bytes(range(0x80, 0xA0)) * 4,
+                              f"oracle/{task_id}/fixtures/malformed{input_ext}"))
     files[f"oracle/{task_id}/fixtures/public_documents.json"] = json.dumps(
         {"examples": [e.model_dump(exclude_none=True) for e in public]}, ensure_ascii=False)
     files[f"oracle/{task_id}/fixtures/held_out_documents.json"] = json.dumps(
@@ -551,8 +567,9 @@ requirements:
         label="NC_hardcode:只硬编码公开样例 — held-out 必须杀它", mapping=pub_map)
     files[f"controls/{task_id}/negative_reimpl/impl.py"] = _CTRL_POSITIVE.format(
         label="NC_reimpl:全样例但零 import 上游 — provenance 必须抓", mapping=full_map)
-    files[f"controls/{task_id}/negative_badexit/impl.py"] = _CTRL_BADEXIT.format(
-        label="NC_badexit:坏输入不包装,裸奔→exit 2 — 接口契约必须抓", mapping=full_map)
+    if malformed_applicable:
+        files[f"controls/{task_id}/negative_badexit/impl.py"] = _CTRL_BADEXIT.format(
+            label="NC_badexit:坏输入不包装,裸奔→exit 2 — 接口契约必须抓", mapping=full_map)
     # reference:真 import 上游的参考实现(出题人提供,绝不交付)。角色与
     # 硬编码 positive 不同:positive 证明"样例测试自洽可满足"(battery,
     # freeze 前);reference 证明"真调上游的解存在"(fake 全链 PASS 的

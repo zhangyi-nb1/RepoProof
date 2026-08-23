@@ -1,0 +1,1 @@
+{"examples": [{"input": "--help", "expected": "contains:usage"}, {"input_file": "sales.csv", "expected_file": "sales.expected.md"}, {"input_file": "codes.csv", "expected": "contains:| 007"}]}

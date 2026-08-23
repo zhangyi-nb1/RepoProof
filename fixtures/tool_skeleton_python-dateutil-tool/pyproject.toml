@@ -1,0 +1,8 @@
+[project]
+name = "python_dateutil_tool"
+version = "1.0.0"
+description = '将每行一个的自由格式日期解析并规范化为 ISO 8601 输出。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

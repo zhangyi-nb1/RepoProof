@@ -75,6 +75,39 @@ def test_real_call_passes_and_wrapper_is_transparent(tmp_path):
     assert got["ok"] is True and got["imports"] == 1 and got["calls"] == 3
 
 
+def test_shell_package_submodule_calls_are_counted(tmp_path):
+    """dateutil 型空壳顶层包:__init__ 零公共函数,功能全在子模块。
+
+    只拦精确名的 hook 在此记零调用,把真用判成装样子(M4 dateutil
+    排练实测)—— 前缀匹配 + 子模块包裹后,子模块调用必须计入账。
+    """
+    up = tmp_path / "up"
+    (up / "shellpkg").mkdir(parents=True)
+    (up / "shellpkg" / "__init__.py").write_text(
+        '__version__ = "1.0"\n', encoding="utf-8")
+    (up / "shellpkg" / "sub.py").write_text(
+        "def work(x):\n    return x * 2\n", encoding="utf-8")
+    hook = write_hook_dir(tmp_path / "hook")
+    ledger = tmp_path / "ledger.jsonl"
+    script = tmp_path / "child.py"
+    script.write_text(
+        "from shellpkg import sub\n"
+        "assert sub.work(3) == 6\n"          # 包装后语义不变
+        "import shellpkg.sub\n"
+        "assert shellpkg.sub.work(4) == 8\n", encoding="utf-8")
+    env = dict(os.environ,
+               PYTHONPATH=f"{hook}{os.pathsep}{up}",
+               **{ENV_MODULE: "shellpkg", ENV_LEDGER: str(ledger),
+                  ENV_SECRET: "s3cr3t"})
+    r = subprocess.run([sys.executable, str(script)], env=env,
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr
+    got = verify_import_receipts(ledger, "s3cr3t", module="shellpkg",
+                                 min_calls=2)
+    assert got["ok"] is True, got
+    assert got["imports"] >= 2 and got["calls"] == 2   # 顶层+子模块各记 import
+
+
 def test_ghost_import_is_caught(tmp_path):
     """静态 provenance 的盲区:import 了但一次没调 —— 运行时账必须抓。"""
     ledger = _run_child(tmp_path, "import fakeup\nprint('done')\n")

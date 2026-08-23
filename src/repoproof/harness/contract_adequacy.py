@@ -179,11 +179,16 @@ def evaluate_adequacy(
             # the pinned upstream module — with src/ on PYTHONPATH the
             # skeleton package wins import resolution and every upstream
             # call dies with an unreadable AttributeError.
+            _norm = tool.name.lower().replace("-", "_")
+            _dist_norm = contract.source_repo.distribution.lower().replace("-", "_")
             check("tool_package_not_shadowing_upstream",
-                  tool.name.replace("-", "_") != contract.source_repo.import_name,
-                  f"tool package {tool.name.replace('-', '_')!r} shadows "
-                  f"upstream module {contract.source_repo.import_name!r} — "
-                  "rename the tool (e.g. add a -tool suffix)")
+                  _norm != contract.source_repo.import_name
+                  and _norm != _dist_norm,
+                  f"tool name {tool.name!r} collides with upstream "
+                  f"(import module {contract.source_repo.import_name!r} → PYTHONPATH "
+                  f"shadowing, or distribution {contract.source_repo.distribution!r} "
+                  "→ PEP 503-equal name makes pip install -e . uninstall the pinned "
+                  "upstream) — rename the tool (e.g. add a -tool suffix)")
         if tool_example_docs_dir is not None:
             def _examples(name: str) -> list[dict]:
                 p = tool_example_docs_dir / name

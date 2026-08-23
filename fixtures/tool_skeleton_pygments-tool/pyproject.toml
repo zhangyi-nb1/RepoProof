@@ -1,0 +1,8 @@
+[project]
+name = "pygments_tool"
+version = "1.0.0"
+description = '将单个源代码文件高亮为自包含 HTML 文档。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

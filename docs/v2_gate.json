@@ -2,7 +2,7 @@
   "_denominators": {
     "all_valid_run_outcomes": "全部有效发次里的 PASS 数(含机制消融)",
     "development_baseline_runs": "开发套件上的常规发次(**全台账口径**,不限阶段;新前缀的发次也会进这个数)",
-    "heldout_model_evaluation_runs": "未见任务能力评测(已扣除冒烟/探索/无效/机制四类);台账里的宿主:['local-tool/html2md', 'local-tool/pdf-table', 'pallets/click', 'tobymao/sqlglot', 'zhangyi-nb1/offerclaw']",
+    "heldout_model_evaluation_runs": "未见任务能力评测(已扣除冒烟/探索/无效/机制四类);台账里的宿主:['local-tool/chardet-tool', 'local-tool/feedparser-tool', 'local-tool/ftfy-tool', 'local-tool/html2md', 'local-tool/humanize-tool', 'local-tool/json5-tool', 'local-tool/markdown-tool', 'local-tool/pdf-table', 'local-tool/pygments-tool', 'local-tool/python-dateutil-tool', 'local-tool/python-slugify', 'local-tool/python-slugify-tool', 'local-tool/pyyaml-tool', 'local-tool/tabulate-tool', 'local-tool/unidecode-tool', 'pallets/click', 'tobymao/sqlglot', 'zhangyi-nb1/offerclaw']",
     "heldout_passes": "held-out 里的通过数 —— 其余三类都有分子,只给分母会让人自己配一个",
     "mechanism_ablation_runs": "E1/AR 机制与判据实验 —— 不计能力",
     "observation_policy_qualification_runs": "WV:观测策略(投影旋钮)在线资格审 —— **不充闸门、不计模型能力**",
@@ -14,11 +14,11 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 75,
-    "assisted_repair_runs": 68,
+    "all_valid_run_outcomes": 101,
+    "assisted_repair_runs": 99,
     "development_baseline_runs": 68,
-    "exploratory": 10,
-    "exploratory_passes": 2,
+    "exploratory": 22,
+    "exploratory_passes": 14,
     "exploratory_run_ids": [
       "t3-offerclaw-browser-use-v5-20260812-024353",
       "t3-offerclaw-browser-use-v5-20260812-024503",
@@ -29,7 +29,19 @@
       "t2-offerclaw-open-deep-research-v4-20260812-061522",
       "t1-offerclaw-fastapi-mcp-v1-20260816-231847",
       "tool-pdf-table-v1-20260823-133810",
-      "tool-html2md-v1-20260823-150446"
+      "tool-html2md-v1-20260823-150446",
+      "tool-python-slugify-tool-v1-20260823-160646",
+      "tool-ftfy-tool-v1-20260823-161145",
+      "tool-unidecode-tool-v1-20260823-161737",
+      "tool-pyyaml-tool-v1-20260823-162934",
+      "tool-json5-tool-v1-20260823-163331",
+      "tool-markdown-tool-v1-20260823-164022",
+      "tool-pygments-tool-v1-20260823-164849",
+      "tool-tabulate-tool-v1-20260823-165917",
+      "tool-humanize-tool-v1-20260823-170647",
+      "tool-chardet-tool-v1-20260823-171822",
+      "tool-python-dateutil-tool-v1-20260823-173106",
+      "tool-feedparser-tool-v1-20260823-173624"
     ],
     "heldout_model_evaluation_runs": 8,
     "heldout_passes": 2,
@@ -87,8 +99,8 @@
       }
     ],
     "provisional_evidence_runs": 4,
-    "smoke": 99,
-    "smoke_passes": 34,
+    "smoke": 118,
+    "smoke_passes": 48,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -188,9 +200,28 @@
       "tool-pdf-table-v1-20260823-132944",
       "tool-pdf-table-v1-20260823-133211",
       "tool-html2md-v1-20260823-150104",
-      "tool-html2md-v1-20260823-150410"
+      "tool-html2md-v1-20260823-150410",
+      "tool-python-slugify-v1-20260823-160128",
+      "tool-python-slugify-v1-20260823-160307",
+      "tool-python-slugify-tool-v1-20260823-160543",
+      "tool-ftfy-tool-v1-20260823-161121",
+      "tool-unidecode-tool-v1-20260823-161713",
+      "tool-pyyaml-tool-v1-20260823-162518",
+      "tool-pyyaml-tool-v1-20260823-162910",
+      "tool-json5-tool-v1-20260823-163308",
+      "tool-markdown-tool-v1-20260823-163958",
+      "tool-pygments-tool-v1-20260823-164820",
+      "tool-tabulate-tool-v1-20260823-165303",
+      "tool-tabulate-tool-v1-20260823-165852",
+      "tool-chardet-tool-v1-20260823-170309",
+      "tool-humanize-tool-v1-20260823-170624",
+      "tool-chardet-tool-v1-20260823-171437",
+      "tool-chardet-tool-v1-20260823-171758",
+      "tool-python-dateutil-tool-v1-20260823-172245",
+      "tool-python-dateutil-tool-v1-20260823-173041",
+      "tool-feedparser-tool-v1-20260823-173559"
     ],
-    "total": 235,
+    "total": 266,
     "treatment_delivered_runs": 13,
     "treatment_not_delivered_runs": 4
   },
@@ -201,15 +232,28 @@
     "T4": false
   },
   "hosts_covered": [
+    "local-tool/chardet-tool",
+    "local-tool/feedparser-tool",
+    "local-tool/ftfy-tool",
     "local-tool/html2md",
+    "local-tool/humanize-tool",
+    "local-tool/json5-tool",
+    "local-tool/markdown-tool",
     "local-tool/pdf-table",
+    "local-tool/pygments-tool",
+    "local-tool/python-dateutil-tool",
+    "local-tool/python-slugify",
+    "local-tool/python-slugify-tool",
+    "local-tool/pyyaml-tool",
+    "local-tool/tabulate-tool",
+    "local-tool/unidecode-tool",
     "pallets/click",
     "tobymao/sqlglot",
     "zhangyi-nb1/offerclaw"
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "e05dff07a6a71bdfb5bbe838e6a2d5cfcf0e575bfa0909242f33d94fc1ec24d0"
+    "runs_jsonl_sha256": "1c11d1a5a83cc9d8f17718da014de97e021cbc509f83a5c2fe0f4b2e1bec60a7"
   },
   "stages": {
     "T1": {

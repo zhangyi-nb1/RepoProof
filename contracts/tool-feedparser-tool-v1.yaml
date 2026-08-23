@@ -1,0 +1,50 @@
+task_id: tool-feedparser-tool-v1
+
+source_repo:
+  url: https://github.com/kurtmckee/feedparser
+  revision: guided
+  resolved_commit: 14425f6851790184fbf7bbd8076de237d5f444f9
+  license: BSD-2-Clause
+  distribution: feedparser
+  import_module: feedparser
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_feedparser-tool
+  package: feedparser_tool
+  entry_point: feedparser-tool
+
+requirement_spec_file: tool-feedparser-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "feedparser-tool", "summary": "将本地 RSS/Atom 订阅源文件解析为按原始顺序排列的条目标题与链接清单。", "interface": {"usage": "feedparser-tool <input> [--out FILE]", "input": {"kind": "file", "format": "RSS/Atom XML"}, "output": {"kind": "stdout", "format": "TSV"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    解析一个本地 RSS/Atom 订阅源文件，输出每个条目的标题与链接清单。输出为 UTF-8 文本 TSV：第一行固定为 `title\tlink`，之后每个条目一行，按源文件中的条目顺序输出。标题取 entry.title，链接取 entry.link；缺失字段输出为空字符串。标题与链接会进行 Unicode NFC 归一化，并将所有连续空白字符折叠为单个空格，去除首尾空白；字段中的制表符、回车和换行也按空白折叠处理。不会联网获取外部资源，只解析传入的本地文件内容。空文件、不可读文件、无法识别为订阅源、XML/订阅源解析错误或没有任何条目的输入均视为用户输入错误，抛出 UserInputError 并由 CLI 映射为退出码 1。重复运行在相同输入与相同依赖版本下输出确定一致，工具完全离线运行。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/feedparser_tool/impl.py 实现 extract(),必须调用 pinned feedparser;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:feedparser-tool --help -> 'contains:usage'; feedparser-tool news.rss -> 见 news.expected.tsv; feedparser-tool blog.atom -> 'contains:Atom Entry');坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: TSV
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

@@ -1,0 +1,1 @@
+{"examples": [{"input": "--help", "expected": "contains:usage"}, {"input_file": "config.json5", "expected_file": "config.expected.json"}, {"input_file": "simple.json5", "expected": "contains:\"greeting\":\"你好\""}]}

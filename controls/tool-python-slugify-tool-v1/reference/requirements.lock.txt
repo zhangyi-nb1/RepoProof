@@ -1,0 +1,2 @@
+python-slugify==8.0.4
+text-unidecode==1.3

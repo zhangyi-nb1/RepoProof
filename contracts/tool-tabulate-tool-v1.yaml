@@ -1,0 +1,50 @@
+task_id: tool-tabulate-tool-v1
+
+source_repo:
+  url: https://github.com/astanin/python-tabulate
+  revision: guided
+  resolved_commit: 3b4cd509820e4c45cd2aaba833aa585ea6308b94
+  license: MIT
+  distribution: tabulate
+  import_module: tabulate
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_tabulate-tool
+  package: tabulate_tool
+  entry_point: tabulate-tool
+
+requirement_spec_file: tool-tabulate-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "tabulate-tool", "summary": "把 CSV 文件渲染为 GitHub 风格 Markdown 表格的本地离线 CLI 能力。", "interface": {"usage": "tabulate-tool <input> [--out FILE]", "input": {"kind": "file", "format": "CSV"}, "output": {"kind": "stdout", "format": "GitHub Markdown"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取一个 UTF-8 或 UTF-8-SIG 编码的 CSV 文件，并将其渲染为 GitHub 风格 Markdown 表格。第一行必须存在并作为表头；后续行作为数据行。CSV 必须是矩形表格：每一行的字段数必须与表头一致。字段内容按 CSV 解析结果原样交给 upstream tabulate 渲染，不做数值自动转换，以避免如前导零、长数字、日期样字符串被改写；换行符统一由输出字符串使用 \n；输出末尾包含一个换行符。空白单元格保留为空单元格；包含 Markdown 特殊字符的单元格按 tabulate 的 github 表格格式规则渲染。空文件、无表头文件、列数不一致、非法 CSV、无法按 UTF-8/UTF-8-SIG 解码或不可读取的输入均视为用户输入错误，抛出 UserInputError（CLI 应映射为 exit 1）。重复运行在同一输入和同一 pinned tabulate 版本下结果确定；工具完全离线，不访问网络、系统剪贴板或外部服务。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/tabulate_tool/impl.py 实现 extract(),必须调用 pinned tabulate;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:tabulate-tool --help -> 'contains:usage'; tabulate-tool sales.csv -> 见 sales.expected.md; tabulate-tool codes.csv -> 'contains:| 007');坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: GitHub Markdown
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "tabulate-tool",
+ "version": "1.0.0",
+ "summary": "把 CSV 文件渲染为 GitHub 风格 Markdown 表格的本地离线 CLI 能力。",
+ "source": {
+  "url": "https://github.com/astanin/python-tabulate",
+  "resolved_commit": "3b4cd509820e4c45cd2aaba833aa585ea6308b94",
+  "license": "MIT",
+  "distribution": "tabulate"
+ },
+ "interface": {
+  "usage": "tabulate-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "CSV"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "GitHub Markdown"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

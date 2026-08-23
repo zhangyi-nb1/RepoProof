@@ -1,0 +1,8 @@
+[project]
+name = "tabulate_tool"
+version = "1.0.0"
+description = '把 CSV 文件渲染为 GitHub 风格 Markdown 表格的本地离线 CLI 能力。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

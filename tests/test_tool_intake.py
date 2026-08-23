@@ -66,6 +66,31 @@ def test_extract_module_flat_layout_unique_package(tmp_path):
     assert extract_import_module(root, "acme-lib")[0] == "acme_lib"
 
 
+def test_extract_module_uses_real_dirname_not_case_variant(tmp_path):
+    """M4 Unidecode 实测:APFS 大小写不敏感,'Unidecode' 能命中 unidecode/
+    —— 必须回读真实目录名,否则 Linux 上 import 大写名必炸。"""
+    root = tmp_path / "repo"
+    (root / "unidecode").mkdir(parents=True)
+    (root / "unidecode" / "__init__.py").write_text("x = 1\n", encoding="utf-8")
+    mod, ev = extract_import_module(root, "Unidecode")
+    assert mod == "unidecode", f"必须是真实目录名,得到 {mod!r}"
+    assert "真实目录名" in ev
+
+
+def test_extract_setup_py_title_indirection(tmp_path):
+    """M4 slugify 实测形态:name=about['__title__'],字面量在包内 __version__。"""
+    root = tmp_path / "repo"
+    (root / "pkg").mkdir(parents=True)
+    (root / "setup.py").write_text(
+        "about = {}\nwith open('pkg/__version__.py') as f:\n"
+        "    exec(f.read(), about)\nsetup(name=about['__title__'])\n",
+        encoding="utf-8")
+    (root / "pkg" / "__version__.py").write_text(
+        '__title__ = "python-acme"\n__version__ = "1.0"\n', encoding="utf-8")
+    dist, ev = extract_distribution(root)
+    assert dist == "python-acme" and "__title__" in ev
+
+
 def test_extract_refuses_to_guess(tmp_path):
     """推导不出 = 空 + 原因;绝不返回似是而非的值。"""
     bare = tmp_path / "bare"
@@ -94,13 +119,16 @@ def _repo_report(**over) -> RepositoryReport:
     return RepositoryReport(**base)
 
 
-def test_suggested_name_avoids_upstream_shadowing():
+def test_suggested_name_always_suffixed_against_dist_collision():
+    """M4 slugify 实测定稿:kebab(distribution) 规范化恒 ≡ distribution
+    规范化 → 直接用库名当工具名必然 pip 同名互顶;建议名恒加 -tool。"""
     from repoproof.adoption.intake.tool_intake import _suggest_tool_name
 
     assert _suggest_tool_name("g", "minilib", "minilib") == "minilib-tool"
-    assert _suggest_tool_name("g", "pdfplumber", "pdfplumber") == "pdfplumber-tool"
+    assert _suggest_tool_name("g", "python-slugify", "slugify") \
+        == "python-slugify-tool"
     assert _suggest_tool_name("g", "python-markdownify", "markdownify") \
-        == "python-markdownify"          # 不撞则不动
+        == "python-markdownify-tool"
 
 
 def test_decide_tool_ready_when_all_good():

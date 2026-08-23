@@ -1,0 +1,1 @@
+{"examples": [{"input": "--help", "expected": "contains:usage"}, {"input_file": "news.rss", "expected_file": "news.expected.tsv"}, {"input_file": "blog.atom", "expected": "contains:Atom Entry"}]}

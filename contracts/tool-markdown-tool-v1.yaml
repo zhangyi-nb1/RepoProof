@@ -1,0 +1,50 @@
+task_id: tool-markdown-tool-v1
+
+source_repo:
+  url: https://github.com/Python-Markdown/markdown
+  revision: guided
+  resolved_commit: f39cf84a24124526c1a0efbe52219fa9950774f6
+  license: BSD
+  distribution: Markdown
+  import_module: markdown
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_markdown-tool
+  package: markdown_tool
+  entry_point: markdown-tool
+
+requirement_spec_file: tool-markdown-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "markdown-tool", "summary": "将本地 Markdown 文件离线、确定性地渲染为 HTML 字符串。", "interface": {"usage": "markdown-tool <input> [--out FILE]", "input": {"kind": "file", "format": "Markdown"}, "output": {"kind": "stdout", "format": "HTML"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取一个 UTF-8 编码的本地 Markdown 文件，并使用 Python-Markdown 的默认 Markdown 渲染能力将其转换为 HTML5 片段字符串。渲染规则遵循上游 markdown.markdown 的默认语法与转义行为：Markdown 标题、段落、列表、链接、强调、代码等按默认规则转换；输入中的原始 HTML 按上游默认行为保留；输出不添加完整 html/head/body 包装，仅返回 HTML 片段；不启用任何扩展，不访问网络，不读取除给定路径之外的内容。输入文件必须存在、是普通文件、可读取、为有效 UTF-8，且内容去除空白后不得为空； malformed/empty input raises UserInputError (exit 1)。重复运行在相同输入与相同库版本下是确定性的，工具完全离线运行。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/markdown_tool/impl.py 实现 extract(),必须调用 pinned Markdown;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:markdown-tool --help -> 'contains:usage'; markdown-tool doc.md -> 见 doc.expected.html; markdown-tool quote.md -> 'contains:<blockquote>');坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: HTML
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

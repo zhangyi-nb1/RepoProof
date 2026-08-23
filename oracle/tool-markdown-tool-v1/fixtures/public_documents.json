@@ -1,0 +1,1 @@
+{"examples": [{"input": "--help", "expected": "contains:usage"}, {"input_file": "doc.md", "expected_file": "doc.expected.html"}, {"input_file": "quote.md", "expected": "contains:<blockquote>"}]}

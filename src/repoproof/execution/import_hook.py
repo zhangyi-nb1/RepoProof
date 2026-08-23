@@ -76,7 +76,7 @@ def _install():
         except OSError:
             pass
 
-    def _wrap_callables(mod):
+    def _wrap_callables(mod, modname):
         for name in list(vars(mod)):
             if name.startswith("_"):
                 continue
@@ -104,13 +104,17 @@ def _install():
                 return _proxy
 
             try:
-                setattr(mod, name, _make(f"{module}.{name}", obj))
+                setattr(mod, name, _make(f"{modname}.{name}", obj))
             except (AttributeError, TypeError):
                 continue
 
     class _Finder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         def find_spec(self, fullname, path=None, target=None):
-            if fullname != module:
+            # 前缀匹配覆盖子模块:dateutil 型"空壳顶层包"(顶层零公共
+            # 函数,功能全在 dateutil.parser)只拦精确名会记零调用,
+            # 把真用判成装样子(M4 实测)。payload 的 module 字段仍写
+            # 声明模块 —— verify 侧过滤键不变。
+            if fullname != module and not fullname.startswith(module + "."):
                 return None
             sys.meta_path.remove(self)
             try:
@@ -127,8 +131,8 @@ def _install():
 
                 def exec_module(self, mod):
                     inner.exec_module(mod)
-                    _record("import", module)
-                    _wrap_callables(mod)
+                    _record("import", getattr(mod, "__name__", fullname))
+                    _wrap_callables(mod, getattr(mod, "__name__", fullname))
 
             spec.loader = _L()
             return spec

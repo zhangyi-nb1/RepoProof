@@ -1,0 +1,1 @@
+{"examples": [{"input": "--help", "expected": "contains:usage"}, {"input_file": "utf8_cn.txt", "expected_file": "utf8_cn.expected.json"}, {"input_file": "gbk_cn.txt", "expected": "contains:\"encoding\":\"GB2312\""}]}

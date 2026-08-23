@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "humanize-tool",
+ "version": "1.0.0",
+ "summary": "将每行一个的整数字节数转换为人类可读大小文本。",
+ "source": {
+  "url": "https://github.com/python-humanize/humanize",
+  "resolved_commit": "3c577d7650508d52aa2982e930b0e744c343082f",
+  "license": "MIT",
+  "distribution": "humanize"
+ },
+ "interface": {
+  "usage": "humanize-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "TXT"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "TXT"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "unidecode-tool",
+ "version": "1.0.0",
+ "summary": "将 UTF-8 Unicode 文本文件离线转写为确定性的 ASCII 近似文本。",
+ "source": {
+  "url": "https://github.com/avian2/unidecode",
+  "resolved_commit": "8d83b7c70c39678c2b95cb0caf3d3c4425cb2cc2",
+  "license": "GPL-3.0",
+  "distribution": "Unidecode"
+ },
+ "interface": {
+  "usage": "unidecode-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "UTF-8 Text"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "ASCII Text"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

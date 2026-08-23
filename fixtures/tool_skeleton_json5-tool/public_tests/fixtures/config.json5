@@ -1,0 +1,6 @@
+// server config
+{
+  name: 'api',   // unquoted key
+  ports: [8080, 8443,],  /* trailing comma */
+  tls: true,
+}

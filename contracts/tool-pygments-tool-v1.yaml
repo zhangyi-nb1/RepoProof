@@ -1,0 +1,50 @@
+task_id: tool-pygments-tool-v1
+
+source_repo:
+  url: https://github.com/pygments/pygments
+  revision: guided
+  resolved_commit: a43b45dcf081b6010c6ab4428f149f7f6d2499c4
+  license: BSD-2-Clause
+  distribution: Pygments
+  import_module: pygments
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_pygments-tool
+  package: pygments_tool
+  entry_point: pygments-tool
+
+requirement_spec_file: tool-pygments-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "pygments-tool", "summary": "将单个源代码文件高亮为自包含 HTML 文档。", "interface": {"usage": "pygments-tool <input> [--out FILE]", "input": {"kind": "file", "format": "SOURCE"}, "output": {"kind": "stdout", "format": "HTML"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取一个本地源代码文本文件，使用 Pygments 根据文件名和内容自动识别 lexer，并将其高亮渲染为完整、自包含的 HTML 文档。输出必须是 UTF-8 文本形式的完整 HTML，包含内联 CSS 样式，不依赖外部网络、CDN、字体或资源；不执行输入代码，只按文本解析和着色。换行、缩进和源代码字符内容应由 HTML formatter 以等价可视形式保留；特殊 HTML 字符必须被转义；若 lexer 无法识别、文件不存在、路径不是普通文件、无法按 UTF-8 读取、输入为空或输入格式异常，则抛出 UserInputError 并以退出码 1 结束。重复运行在相同输入、相同 Pygments 版本和相同环境下必须产生确定性输出。该工具必须完全离线运行。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/pygments_tool/impl.py 实现 extract(),必须调用 pinned Pygments;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:pygments-tool --help -> 'contains:usage'; pygments-tool hello.py -> 'contains:greet'; pygments-tool script.sh -> 'contains:&amp;&amp;');坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: HTML
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

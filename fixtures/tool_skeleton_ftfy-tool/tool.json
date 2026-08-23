@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "ftfy-tool",
+ "version": "1.0.0",
+ "summary": "修复文本文件中的 mojibake 乱码，输出修复后文本",
+ "source": {
+  "url": "https://github.com/LuminosoInsight/python-ftfy",
+  "resolved_commit": "5340af6746ff655a9cd7cb2b50c2fd0b35bb91d3",
+  "license": "Apache-2.0",
+  "distribution": "ftfy"
+ },
+ "interface": {
+  "usage": "ftfy-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "TXT"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "TXT"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

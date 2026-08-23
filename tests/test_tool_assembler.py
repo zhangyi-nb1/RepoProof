@@ -113,6 +113,58 @@ def test_held_out_example_files_only_in_oracle(assembled):
     assert (ora_fix / "malformed.pdf").is_file()
 
 
+def test_malformed_not_applicable_domain(tmp_path):
+    """M4 chardet 实测:编码检测器对任意字节流都合法 —— 豁免开关下
+    malformed 节点/fixture/NC_badexit 全部不生成,requirements 一致。"""
+    from repoproof.harness.requirement_spec import load_requirement_spec
+
+    src = _make_src(tmp_path)
+    info = assemble_tool_task(
+        tmp_path, goal="g", repo_url="u", resolved_commit="c",
+        distribution="d", import_module="d_mod", license_id="MIT", tool=_SPEC,
+        examples=_EXAMPLES, example_src_dir=src,
+        reference_impl=_REFERENCE_IMPL, malformed_applicable=False)
+    cap = (tmp_path / "oracle" / info["task_id"] / "test_capability.py").read_text(
+        encoding="utf-8")
+    assert "test_malformed_input_is_user_error" not in cap
+    assert "test_deterministic_output" in cap
+    assert not (tmp_path / "oracle" / info["task_id"] / "fixtures"
+                / "malformed.pdf").exists()
+    assert not (tmp_path / "controls" / info["task_id"]
+                / "negative_badexit").exists()
+    spec, _ = load_requirement_spec(
+        tmp_path / "contracts" / f"{info['task_id']}.requirements.yaml")
+    nodes = " ".join(n for r in spec.requirements for n in r.oracle_nodes)
+    assert "malformed" not in nodes
+
+
+def test_yaml_injection_safe_expected_strings(tmp_path):
+    """M4 pyyaml 实测:断言串含引号+冒号(contains:\"greeting\": \"你好\")
+    炸掉手拼 requirements.yaml —— 装配产物必须可加载。"""
+    from repoproof.harness.requirement_spec import load_requirement_spec
+
+    src = _make_src(tmp_path)
+    info = assemble_tool_task(
+        tmp_path, goal="g", repo_url="u", resolved_commit="c",
+        distribution="d", import_module="d_mod", license_id="MIT", tool=_SPEC,
+        examples=[
+            {"input": "--help", "expected": "contains:usage"},
+            {"input_file": "inputs/a.pdf",
+             "expected": 'contains:"greeting": "你好"'},
+            {"input_file": "inputs/b.pdf", "expected": "contains:| B |"},
+            {"input_file": "inputs/c.pdf", "expected": "contains:x"},
+        ],
+        example_src_dir=src, reference_impl=_REFERENCE_IMPL)
+    spec, _ = load_requirement_spec(
+        tmp_path / "contracts" / f"{info['task_id']}.requirements.yaml")
+    joined = " ".join(e for r in spec.requirements for e in r.examples)
+    assert '"greeting": "你好"' in joined
+    from repoproof.domain.models import TaskContract
+
+    TaskContract.load_frozen(
+        tmp_path / "contracts" / f"{info['task_id']}.yaml", require_sidecar=True)
+
+
 def test_refuses_when_no_file_example_or_no_held_out(tmp_path):
     src = _make_src(tmp_path)
     with pytest.raises(CompileError):

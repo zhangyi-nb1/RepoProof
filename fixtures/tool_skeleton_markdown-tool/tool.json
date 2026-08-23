@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "markdown-tool",
+ "version": "1.0.0",
+ "summary": "将本地 Markdown 文件离线、确定性地渲染为 HTML 字符串。",
+ "source": {
+  "url": "https://github.com/Python-Markdown/markdown",
+  "resolved_commit": "f39cf84a24124526c1a0efbe52219fa9950774f6",
+  "license": "BSD",
+  "distribution": "Markdown"
+ },
+ "interface": {
+  "usage": "markdown-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "Markdown"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "HTML"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

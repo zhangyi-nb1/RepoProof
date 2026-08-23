@@ -1,0 +1,34 @@
+{
+ "manifest_version": 1,
+ "name": "pygments-tool",
+ "version": "1.0.0",
+ "summary": "将单个源代码文件高亮为自包含 HTML 文档。",
+ "source": {
+  "url": "https://github.com/pygments/pygments",
+  "resolved_commit": "a43b45dcf081b6010c6ab4428f149f7f6d2499c4",
+  "license": "BSD-2-Clause",
+  "distribution": "Pygments"
+ },
+ "interface": {
+  "usage": "pygments-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "SOURCE"
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "HTML"
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

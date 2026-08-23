@@ -1,0 +1,17 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input": "--help",
+   "expected": "contains:usage"
+  },
+  {
+   "input_file": "dates.txt",
+   "expected_file": "dates.expected.txt"
+  },
+  {
+   "input_file": "times.txt",
+   "expected": "contains:2023-07-01T08:00:00+02:00"
+  }
+ ]
+}

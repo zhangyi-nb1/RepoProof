@@ -107,12 +107,17 @@ def _cli_test(e: Example, idx: int) -> str:
             f"实际前 200 字: {{r.stdout[:200]}}\"\n")
     if e.expected.startswith(CONTAINS):
         want = e.expected[len(CONTAINS):]
+        # 消息用**运行时** f-string 求值(want 先落局部变量):把 repr 裸插进
+        # 生成代码的引号串,断言值含双引号即碎(M4 pyyaml 实测:
+        # contains:"greeting": "你好" 让整文件 SyntaxError)。
         return head + (
-            f"    assert {want!r} in r.stdout, "
-            f"f\"期望 stdout 包含 {want!r},实际: {{r.stdout[:200]}}\"\n")
+            f"    want = {want!r}\n"
+            "    assert want in r.stdout, "
+            "f\"期望 stdout 包含 {want!r},实际: {r.stdout[:200]}\"\n")
     return head + (
-        f"    assert r.stdout.strip() == {e.expected!r}, "
-        f"f\"期望 {e.expected!r},实际: {{r.stdout[:200]}}\"\n")
+        f"    want = {e.expected!r}\n"
+        "    assert r.stdout.strip() == want, "
+        "f\"期望 {want!r},实际: {r.stdout[:200]}\"\n")
 
 
 # ------------------------------------------------------------------- 编译口

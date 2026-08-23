@@ -1,0 +1,8 @@
+[project]
+name = "chardet_tool"
+version = "1.0.0"
+description = '将 chardet 的字符编码检测能力封装为本地离线 CLI，输出编码名与置信度报告。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

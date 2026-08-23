@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "nested.json5", "expected": "contains:\"inner\":[1,2]"}]}

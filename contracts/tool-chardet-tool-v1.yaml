@@ -1,0 +1,50 @@
+task_id: tool-chardet-tool-v1
+
+source_repo:
+  url: https://github.com/chardet/chardet
+  revision: guided
+  resolved_commit: fa905b359cbcaba93a35fd6429ba9ec4b156c1c1
+  license: LGPL-2.1
+  distribution: chardet
+  import_module: chardet
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_chardet-tool
+  package: chardet_tool
+  entry_point: chardet-tool
+
+requirement_spec_file: tool-chardet-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"name": "chardet-tool", "summary": "将 chardet 的字符编码检测能力封装为本地离线 CLI，输出编码名与置信度报告。", "interface": {"usage": "chardet-tool <input> [--out FILE]", "input": {"kind": "file", "format": "BinaryFile"}, "output": {"kind": "stdout", "format": "JSON"}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取一个本地文件的原始字节，使用 chardet.detect 检测最可能的字符编码，并输出一个 JSON 报告：encoding 为检测到的编码名；若上游返回空值则规范化为 "unknown"；confidence 为 0.0 到 1.0 的浮点置信度，保留 6 位小数；language 为上游返回的语言提示，空值规范化为 ""；chardet_version 为所用 chardet 版本字符串。输出 JSON 使用 UTF-8、固定键顺序、紧凑分隔符，并以单个换行结束。输入必须是可读取的普通文件；目录、缺失路径、不可读文件、无法读取的输入视为 malformed input；零字节文件视为空输入。malformed/empty input raises UserInputError (exit 1)。重复运行在相同输入与相同库版本下是确定性的；工具完全离线运行，不访问网络、不调用外部服务。(许可合规注:上游为 LGPL-2.1,本工具以独立进程/动态 import 方式使用、本地私用;分发场景需另行审查)(域语义注:编码检测器对任意非空字节流都是合法输入,无 malformed 类错误——该接口节点按契约豁免;空文件为唯一内容级用户错误) 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/chardet_tool/impl.py 实现 extract(),必须调用 pinned chardet;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:chardet-tool --help -> 'contains:usage'; chardet-tool utf8_cn.txt -> 见 utf8_cn.expected.json; chardet-tool gbk_cn.txt -> 'contains:"encoding":"GB2312"');坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: JSON
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py
