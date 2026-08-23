@@ -3407,3 +3407,21 @@ append-only 保留)。基线 `1173 passed + 60 skipped + 0 failed`(+7)。
 **M0-M4 全关,RFC-010 路线图走完**;`~/tools/` 现有 14 个已验证工具
 (12 新+pdf-table+html2md)。遗留口:用户抽验(审计账 auditor 字段
 留待);批次二/规模化、MCP 批量转换、DSH 资格化重开均待用户裁量。
+
+## 状态 · 2026-08-23 · M4 模型对比批:deepseek-v4-pro 10/12(判定保证实证)
+
+M4-MODEL-COMPARE-DS-1(预注册在案):批次一 12 冻结任务包换
+deepseek-native×deepseek-v4-pro×DS-NATIVE-HIGH-DET 重发,不 export
+不覆盖交付,新 purpose PRODUCT_MODEL_COMPARE 显式登记。**10 PASS +
+2 FAIL**:ftfy 死于 policy 帽(647 文件/28 万行大树入 diff)、pygments
+死于 capability 1/7(能力面实败)——两次失败都是闸门把弱侧交付如实
+拦下,"判定保证而非成功保证"在产品谱系首次获得双模型实证。成本形态:
+540 调用/6.02M in(帽 6M 超 0.26%,末发前未触顶合规),调用数约
+gpt-5.5 两倍、rounds 2-3 中间轮多红后修绿(gpt-5.5 多干净过)。
+金丝雀取证:provider_config_hash 58d4388e 与 HB1 同 profile 逐位一致,
+非静默降级。事件如实:操作员 TaskStop 拦腰 ftfy 首发(tokens 烧了
+未入账,补 CRASHED_INTERNAL 报告,勘误在案)、humanize 首发被 H9-a
+真拦(/tmp/sizesx 备题残留)。分类 product-38..49;全量
+`1173 passed + 60 skipped + 0 failed`。遗留:MAX-OFFICIAL-LIKE
+profile 未测(结论不外推);pygments/ftfy 失败侧的任务可解性归因
+(题面 vs 模型)待有兴趣时深挖。
