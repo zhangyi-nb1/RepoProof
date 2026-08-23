@@ -1,7 +1,7 @@
-"""RepoProof Studio — 本地中文工作台入口。
+"""RepoProof Studio — Product Mode 与 Benchmark Lab 的本地中文入口。
 
-主导航四页(开始新任务 / 运行进度 / 结果报告 / 历史记录)+
-次级「系统设置」。默认简单模式;127.0.0.1 启动(scripts/run_ui.sh)。
+Product Mode 是默认表面；历史 Guided Adoption / Benchmark Lab 页面保留在
+独立导航分组。默认简单模式，始终只监听 127.0.0.1。
 """
 
 from __future__ import annotations
@@ -10,6 +10,8 @@ from pathlib import Path
 
 import streamlit as st
 import streamlit.components.v1 as components
+
+from repoproof.ui.product_theme import apply_product_theme
 
 PAGES = Path(__file__).parent / "pages"
 
@@ -32,10 +34,19 @@ components.html(
     height=0,
 )
 
+apply_product_theme()
+
 nav = st.navigation(
     {
-        "工作台": [
-            st.Page(str(PAGES / "new_task.py"), title="开始新任务", icon="🚀", default=True),
+        "产品模式": [
+            st.Page(str(PAGES / "product_home.py"), title="工作台", icon="🏠", default=True),
+            st.Page(str(PAGES / "tool_onboarding.py"), title="新建工具", icon="🧰"),
+            st.Page(str(PAGES / "product_activity.py"), title="运行活动", icon="🕒"),
+            st.Page(str(PAGES / "tool_library.py"), title="工具库", icon="🧩"),
+            st.Page(str(PAGES / "trust_dashboard.py"), title="可信仪表盘", icon="📊"),
+        ],
+        "Benchmark Lab": [
+            st.Page(str(PAGES / "new_task.py"), title="开始新任务", icon="🚀"),
             st.Page(str(PAGES / "host_pilot.py"), title="宿主任务 T1–T4", icon="🧪"),
             st.Page(str(PAGES / "analysis.py"), title="项目分析", icon="🔎"),
             st.Page(str(PAGES / "plan_view.py"), title="采用计划", icon="🗺️"),
