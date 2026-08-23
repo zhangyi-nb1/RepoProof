@@ -45,6 +45,12 @@ from repoproof.receipts.verify import (  # noqa: E402
 )
 
 TASK_ID = "browser-sidecar-conformance"
+
+# 落盘证据里 ledger 一律写这个确定形 —— 随机临时段不携带证据价值,只会让
+# test_matrix_is_fresh 每次真重跑都弄脏 git 跟踪的证据文件(理由与修法同
+# scripts/verify_receipt_controls.py)。真实路径走 `_ledger_path`,与 `_key`
+# 同规矩:只在进程内传给重放负控当来源,绝不落盘。
+LEDGER_ON_DISK = "rp-bconf-<tmp>/" + LEDGER_NAME
 FIXTURE_NONCE = "rp-browser-fixture-nonce"
 
 # 两份作业(不是三份):每条 adapter 要真起浏览器,时间是真的。两份已经足够
@@ -172,12 +178,13 @@ def run_one(adapter_path: Path, *, replay_source: Path | None = None,
         expected_units=_expected_units(jobs), delivery=delivery,
         expected_receipt_count=written)
 
-    return {"_key": key, "adapter": adapter_path.stem,
+    return {"_key": key, "_ledger_path": str(ledger),
+            "adapter": adapter_path.stem,
             "expect": getattr(ad, "EXPECT", "?"),
             "expect_red": sorted(getattr(ad, "EXPECT_RED", set())),
             "actual": "PASS" if v.ok else "FAIL",
             "actual_red": sorted({f.check for f in v.failed()}),
-            "verdict": v.as_dict(), "ledger": str(ledger)}
+            "verdict": v.as_dict(), "ledger": LEDGER_ON_DISK}
 
 
 def selfcheck() -> list[str]:
@@ -231,11 +238,12 @@ def main() -> int:
     print("\n自证通过(2 条:严格谓词拦得住 a4,放行谓词放得过 a4)\n")
 
     rows = [run_one(SUITE / "adapters" / "a0_honest.py")]
-    replay_source, replay_key = Path(rows[0]["ledger"]), rows[0].pop("_key")
+    replay_source, replay_key = Path(rows[0]["_ledger_path"]), rows[0].pop("_key")
     for p in sorted((SUITE / "adapters").glob("a[1-9]*.py")):
         rows.append(run_one(p, replay_source=replay_source, replay_key=replay_key))
     for r in rows:
         r.pop("_key", None)
+        r.pop("_ledger_path", None)   # 真实临时路径不落盘,落盘的是确定形 ledger
 
     problems = find_problems(rows)
 
