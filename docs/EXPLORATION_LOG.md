@@ -3425,3 +3425,21 @@ gpt-5.5 两倍、rounds 2-3 中间轮多红后修绿(gpt-5.5 多干净过)。
 `1173 passed + 60 skipped + 0 failed`。遗留:MAX-OFFICIAL-LIKE
 profile 未测(结论不外推);pygments/ftfy 失败侧的任务可解性归因
 (题面 vs 模型)待有兴趣时深挖。
+
+## 状态 · 2026-08-23 · 对比批深挖:量具洞修复+pygments 补发翻 PASS(11/12)
+
+深挖两 FAIL(纯读盘取证):**ftfy=policy 正杀**(agent 自建
+`.venv-replay-test` 预演 replay,644 文件逃过单名 .gitignore 入 diff;
+实现本身 55 行全对)。**pygments=量具洞,"能力面实败"归因撤回**:
+`_run_public` env 漏并 `_tool_env`(regression/oracle 都注入唯公开面
+漏)→ LOCAL-TOOL 轮末公开 collect 全崩恒 0 → best 停 round1(该发
+round1 零写入)→ 空 patch → oracle 对骨架跑 1/7。agent 实现正确
+(自测 5/5,轮快照在案)。**系统性掩盖链**:批次一 12/12 gpt-5.5 发
+全部自写 conftest 兜底注入,把洞盖住;fake 彩排单轮即提交,结构性
+测不出(全部彩排 public_by_round=[0,0,0] 是修前实据)。用户批准修+
+帽外补发一次:env 修复+E2E 轮末>0 钉子+骨架 .gitignore 增 *venv*/;
+pygments 补发 **PASS_ADAPTED(20 调用/231,540 in/1 轮,对照原 FAIL
+60 调用/653,618 in/3 轮)**——反馈面可用后单轮收敛。对比批终局
+**11/12**,ftfy FAIL 维持;总成本 6,246,965 in。教训入册:agent 的
+好习惯会掩盖量具缺陷——彩排矩阵需要"多轮迟写"形态负控(待裁量)。
+基线 `1173 passed + 60 skipped + 0 failed`。
