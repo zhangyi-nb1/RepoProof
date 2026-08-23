@@ -124,7 +124,11 @@ def world(tmp_path_factory):
         "b = host/'.venv'/'bin'; b.mkdir(parents=True, exist_ok=True)\n"
         "p = b/'python'\n"
         "p.write_text('#!/bin/bash\\n'\n"
-        f"    'export PYTHONPATH=\"'+str(host/'src')+':{up_pinned}:{_REPO_SITE}\"\\n'\n"
+        # 前置保留继承的 PYTHONPATH:M2-c 的 import-hook 目录由 harness 经
+        # env 注入,shim 覆盖它 = 取证件在 E2E 全盲(实测预判的坑)
+        # ${{PYTHONPATH:-}} 是 bash 运行时展开(hook env 在 oracle exec 才注入,
+        # setup 时刻用 python 展开会写死成空 —— 实测断点)
+        f"    'export PYTHONPATH=\"'+str(host/'src')+':{up_pinned}:{_REPO_SITE}:'+'${{PYTHONPATH:-}}\"\\n'\n"
         f"    'exec \"{_REPO_PY}\" \"$@\"\\n')\n"
         "p.chmod(0o755)\n"
         "print('fake venv ready')\n")

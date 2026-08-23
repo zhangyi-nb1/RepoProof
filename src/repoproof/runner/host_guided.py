@@ -571,6 +571,12 @@ class HostInfo(BaseModel):
     # REPOPROOF_TOOL_BIN=<会话 host 根>/<tool_bin> —— 装配器编译出的
     # 验收测试经它 subprocess 调工具。缺省空 = 既有谱系一字不变。
     tool_bin: str = ""
+    # M2-c([D4] 运行时升级):非空 = 验收期在工具子进程注入 import-hook,
+    # 对该模块记运行时调用回执(secret 现摇、ledger 在 run_dir,agent 的
+    # 冻结交付摸不到;交付期零注入)。min_calls 由任务包按文件样例数合成。
+    # 缺省空 = 既有谱系一字不变。
+    import_hook_module: str = ""
+    import_hook_min_calls: int = 1
 
     @field_validator("pii_scan_profile")
     @classmethod
@@ -2056,7 +2062,8 @@ class HostGuidedRunner:
         (s.root / xml_name).unlink(missing_ok=True)
         argv = [*argv, "--junitxml", f"../{xml_name}"]
         res = s.backend.exec(s.id, argv, timeout_s=timeout_s, workdir="host",
-                             env={**self._measure_env(s), **self._tool_env(s)})
+                             env={**self._measure_env(s),
+                                  **self._tool_env(s, "regression")})
         stdout = res.stdout.decode(errors="replace")
         return {"exit_code": res.exit_code, "stdout": stdout,
                 **self._pytest_counts(s, xml_name, stdout)}
@@ -2110,17 +2117,44 @@ class HostGuidedRunner:
         junit["stdout_tail"] = res.stdout.decode(errors="replace")[-600:]
         return junit
 
-    def _tool_env(self, s: _Session) -> dict[str, str]:
-        """LOCAL-TOOL(2026-08-23):工具 CLI 入口注入。
+    def _tool_env(self, s: _Session, tag: str = "oracle") -> dict[str, str]:
+        """LOCAL-TOOL(2026-08-23):工具 CLI 入口注入 + M2-c import-hook。
 
         装配器编译出的验收测试(golden 样例 + 接口契约)一律
         `os.environ["REPOPROOF_TOOL_BIN"]` 硬取 —— 少注它三套件全体
         KeyError,真因与被测方无关(A1 sidecar env 同款教训)。
-        契约 host.tool_bin 缺省空 = 旧谱系零注入。"""
+        契约 host.tool_bin 缺省空 = 旧谱系零注入。
+
+        import_hook_module 非空时另注四键:hook 目录(run_dir 下,会话外,
+        agent 冻结交付摸不到)经 PYTHONPATH 进工具子进程;ledger 按 tag
+        分文件(oracle_capability / oracle_replay / regression 各自成账,
+        replay 不污染首验计数)。工具谱系恒 oracle_env_sanitized=true,
+        故此处 PYTHONPATH 无宿主根可覆盖(bridge 固定该组合)。"""
         rel = self.contract.host.tool_bin
         if not rel:
             return {}
-        return {"REPOPROOF_TOOL_BIN": str(s.root / "host" / rel)}
+        env = {"REPOPROOF_TOOL_BIN": str(s.root / "host" / rel)}
+        mod = self.contract.host.import_hook_module
+        if mod:
+            from repoproof.execution.import_hook import (
+                ENV_LEDGER,
+                ENV_MODULE,
+                ENV_SECRET,
+                write_hook_dir,
+            )
+
+            if not getattr(self, "_hook_secret", ""):
+                import os as _os
+
+                self._hook_secret = _os.urandom(24).hex()
+            hook_dir = write_hook_dir(self.store.run_dir / "import_hook")
+            env.update({
+                "PYTHONPATH": str(hook_dir),
+                ENV_MODULE: mod,
+                ENV_LEDGER: str(self.store.run_dir / f"import_receipts_{tag}.jsonl"),
+                ENV_SECRET: self._hook_secret,
+            })
+        return env
 
     def _oracle_import_env(self, s: _Session) -> dict[str, str]:
         """判卷进程的 **import 面** env(契约 oracle_env_sanitized,blocking [1a])。
@@ -2157,7 +2191,7 @@ class HostGuidedRunner:
                  # 直接 KeyError,三条隐藏用例全红,而真因与被测方无关。
                  # sidecar 拓扑的任务,oracle 必须拿得到端点与那批项。
                  **self._sidecar_env_for_oracle(),
-                 **self._tool_env(s),
+                 **self._tool_env(s, meter_tag),
                  **self._meter_env(meter_tag)})
         stdout = res.stdout.decode(errors="replace")
         append_oracle_log(self.store.run_dir, stdout, res.exit_code)   # 修订⑥
@@ -2987,6 +3021,40 @@ class HostGuidedRunner:
                                "failure_type": "UPSTREAM_CAPABILITY_REIMPLEMENTED"})
                 ev("tool.provenance", actor="verifier",
                    payload={"ok": prov["ok"], "imports": len(prov["imports"])})
+            # ---- M2-c:运行时回执 + 探测自曝(hook 开启时;三层证据之二三)
+            hook_mod = self.contract.host.import_hook_module
+            if (self.contract.task_family == "LOCAL-TOOL" and cap.passed
+                    and hook_mod):
+                from repoproof.execution.import_hook import (
+                    scan_probe_marker,
+                    verify_import_receipts,
+                )
+
+                probe_hits = scan_probe_marker(
+                    s.root / "host", [f["path"] for f in adaptation_manifest.files])
+                if probe_hits:
+                    cap = VerificationResult(
+                        verifier="CapabilityVerifier", passed=False,
+                        detail=(f"[tool-hook] 交付文本含取证协议字样(探测自曝):"
+                                f"{probe_hits[:5]}(oracle 本身:{cap.detail})"),
+                        extra={**cap.extra, "probe_hits": probe_hits,
+                               "failure_type": "INSTRUMENT_TAMPERED"})
+                else:
+                    rcpt = verify_import_receipts(
+                        self.store.run_dir / "import_receipts_oracle_capability.jsonl",
+                        getattr(self, "_hook_secret", ""),
+                        module=hook_mod,
+                        min_calls=self.contract.host.import_hook_min_calls)
+                    ev("tool.import_receipts", actor="verifier",
+                       payload={k: rcpt[k] for k in ("ok", "imports", "calls")})
+                    if not rcpt["ok"]:
+                        cap = VerificationResult(
+                            verifier="CapabilityVerifier", passed=False,
+                            detail=(f"[tool-hook] {rcpt['reason']}"
+                                    f"(oracle 本身:{cap.detail})"),
+                            extra={**cap.extra, "import_receipts": rcpt,
+                                   "failure_type":
+                                       "UPSTREAM_CAPABILITY_REIMPLEMENTED"})
             reg_run = self._run_regression(s)
             reg_ok = reg_run["exit_code"] == 0 and reg_run["passed_checks"] >= expected_reg
             reg = VerificationResult(

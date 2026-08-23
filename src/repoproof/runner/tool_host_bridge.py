@@ -27,6 +27,7 @@ from pathlib import Path
 
 import yaml
 
+from repoproof.adoption.intake.upstream_conformance import conformance_health_check
 from repoproof.domain.models import TaskContract
 
 _ANCHOR_RULE = ("skeleton anchor files (src/*/main.py, bin/, build.sh, tool.json, "
@@ -75,6 +76,8 @@ def synthesize_host_contract(
     skeleton_commit: str,
     setup_commands: list[list[str]] | None = None,
     max_rounds: int = 3,
+    hook_min_calls: int = 1,
+    upstream_conformance: list[str] | None = None,
 ) -> dict:
     """ToolContract → HostContract 的 YAML-ready dict(纯数据,零 IO)。
 
@@ -113,7 +116,11 @@ def synthesize_host_contract(
             "setup_commands": setup_commands or _DEFAULT_SETUP,
             "health_checks": [
                 {"command": [f"./bin/{name}", "--help"],
-                 "pass_if_stdout_contains": "usage", "gating": True}],
+                 "pass_if_stdout_contains": "usage", "gating": True},
+                # M2-e:上游一致性子集(G2 第二层)—— S0 期验"pinned 上游在
+                # 本环境行为正常";不健康=BLOCKED,零模型预算消耗。
+                *([hc] if (hc := conformance_health_check(
+                    upstream_conformance or [])) else [])],
             "host_root_env": "REPOPROOF_TOOL_ROOT",
             "wheelhouse_path": str(wheelhouse),
             "require_wheelhouse_manifest": False,
@@ -121,6 +128,10 @@ def synthesize_host_contract(
             "pii_scan_profile": "public-oss-tree",   # 骨架 harness 生成,无用户数据
             "oracle_env_sanitized": True,            # oracle 走 subprocess,不 import 宿主
             "tool_bin": f"bin/{name}",               # → REPOPROOF_TOOL_BIN 注入
+            # M2-c([D4] 运行时升级):验收期 import-hook 取证;min_calls 由
+            # 调用方按文件样例数合成(materialize 数得出)。
+            "import_hook_module": tc.source_repo.import_name,
+            "import_hook_min_calls": max(1, hook_min_calls),
         },
         "capability": {
             "statement": tc.capability.statement,
@@ -175,6 +186,7 @@ def materialize_tool_task(
     host_copy_root: Path,
     setup_commands: list[list[str]] | None = None,
     max_rounds: int = 3,
+    upstream_conformance: list[str] | None = None,
 ) -> Path:
     """装配产物 → host_guided 任务包 + 宿主副本。返回合成 contract.yaml 路径。
 
@@ -258,10 +270,22 @@ def materialize_tool_task(
                                              encoding="utf-8")
 
     requirements = _hard_requirements(project_root, tc)
+    # hook 最低调用数 = 文件样例数(公开+held-out;每个文件样例至少应
+    # 触发一次上游调用 —— 弱 U3,如实弱于 sidecar 逐项对应)
+    import json as _json
+
+    n_file_examples = 0
+    for doc_name in ("public_documents.json", "held_out_documents.json"):
+        p = oracle_src / "fixtures" / doc_name
+        if p.is_file():
+            n_file_examples += sum(
+                1 for e in _json.loads(p.read_text(encoding="utf-8"))["examples"]
+                if e.get("input_file"))
     doc = synthesize_host_contract(
         tc, requirements, host_copy=host_copy, wheelhouse=wheelhouse,
         skeleton_commit=_tree_sha(skeleton), setup_commands=setup_commands,
-        max_rounds=max_rounds)
+        max_rounds=max_rounds, hook_min_calls=n_file_examples,
+        upstream_conformance=upstream_conformance)
     out_contract = task_dir / "contract.yaml"
     out_contract.write_text(
         "# 由 tool_host_bridge 从冻结 ToolContract 合成;手改此文件=换题。\n"
