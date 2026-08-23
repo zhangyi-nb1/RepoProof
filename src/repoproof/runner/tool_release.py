@@ -41,6 +41,11 @@ VALID_ACTORS = frozenset({"human", "operator", "migration"})
 HISTORICAL_READY_VERDICTS = frozenset(
     {"VERIFIED_TOOL_READY", "VERIFIED_TOOL_READY (DIRECT)"}
 )
+MANAGED_SIDECAR_TRUST_PENDING = "MANAGED_SIDECAR_TRUST_PENDING"
+_MANAGED_SIDECAR_TRUST_REASON = (
+    "Managed sidecar delivery remains REVIEW_REQUIRED until strong U1-U4 "
+    "receipts and operating-system network/process isolation are enforced."
+)
 
 _SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
 
@@ -101,6 +106,106 @@ def is_historical_tool_ready(verdict: Any) -> bool:
     """Accept only the two Product Mode verdicts mapped from completion PASS."""
 
     return isinstance(verdict, str) and verdict in HISTORICAL_READY_VERDICTS
+
+
+def is_managed_sidecar_trust_pending(manifest: Any) -> bool:
+    """Identify the experimental ToolSpec v3 delivery trust boundary.
+
+    ``manifest_version`` and ``schema_version`` are accepted as defensive
+    aliases for future manifest writers.  Current assembled packages project
+    ToolSpec's version into ``contract_schema_version`` and its delivery mode
+    into ``runtime.delivery.mode``.  This is an operational release guard; it
+    deliberately does not alter the immutable historical verification verdict.
+    """
+
+    if not isinstance(manifest, dict):
+        return False
+    if any(
+        manifest.get(key) == 3
+        for key in (
+            "contract_schema_version",
+            "schema_version",
+            "manifest_version",
+            "tool_schema_version",
+        )
+    ):
+        return True
+    runtime = manifest.get("runtime")
+    delivery = runtime.get("delivery") if isinstance(runtime, dict) else None
+    return isinstance(delivery, dict) and delivery.get("mode") == "http_sidecar"
+
+
+def _managed_sidecar_marker_present(
+    rows: list[dict[str, Any]],
+    *,
+    tool: str,
+    task_id: str | None,
+) -> bool:
+    """Return whether append-only history permanently marks this task pending."""
+
+    return any(
+        row["tool"] == tool
+        and (task_id is None or row["task_id"] == task_id)
+        and row["reason_code"] == MANAGED_SIDECAR_TRUST_PENDING
+        for row in rows
+    )
+
+
+def _installed_manifest_trust_state(dest_root: Path, tool: str) -> str:
+    """Classify an installed manifest without treating damage as ordinary.
+
+    ``absent`` preserves the ledger-only projection used by historical metrics.
+    Once a canonical package directory exists, however, an unreadable or unsafe
+    manifest must fail closed instead of reviving a syntactically valid ACTIVE
+    row.
+    """
+
+    try:
+        tool_dir = canonical_tool_path(dest_root, tool)
+        if not tool_dir.exists() and not tool_dir.is_symlink():
+            return "absent"
+        ensure_safe_package_tree(tool_dir)
+        manifest_path = tool_dir / "tool.json"
+        if not manifest_path.is_file():
+            return "invalid"
+        manifest = _strict_json_loads(manifest_path.read_bytes())
+    except (OSError, ToolPathError, UnicodeError, ValueError):
+        return "invalid"
+    if not isinstance(manifest, dict):
+        return "invalid"
+    return "managed" if is_managed_sidecar_trust_pending(manifest) else "ordinary"
+
+
+def _installed_registry_task_state(
+    dest_root: Path, tool: str
+) -> tuple[str, str | None]:
+    """Read the current indexed task without making the registry authoritative.
+
+    The registry remains an index, but when it exists a conflicting task id is
+    package-identity damage, not permission to inherit another task's ACTIVE.
+    Missing legacy registries retain the historical ledger-only behaviour.
+    """
+
+    registry_path = Path(dest_root) / ".repoproof-registry.json"
+    if not registry_path.exists() and not registry_path.is_symlink():
+        return "absent", None
+    try:
+        # Local import avoids the module-level release ↔ registry dependency.
+        from repoproof.runner.tool_registry import load_registry
+
+        entry = load_registry(dest_root)["tools"].get(tool)
+    except (OSError, ToolPathError, TypeError, UnicodeError, ValueError):
+        return "invalid", None
+    if entry is None:
+        return "absent", None
+    indexed_task_id = entry.get("task_id")
+    if not isinstance(indexed_task_id, str):
+        return "invalid", None
+    try:
+        validate_tool_task_id(tool, indexed_task_id)
+    except ToolPathError:
+        return "invalid", None
+    return "indexed", indexed_task_id
 
 
 def parse_operator_audit_outcome(row: dict[str, Any], *, where: str) -> bool:
@@ -235,7 +340,10 @@ def fold_release_decisions(dest_root: Path) -> dict[str, dict[str, Any]]:
 def fold_release_statuses(dest_root: Path) -> dict[str, str]:
     """Stable read-only projection used by registry, metrics, and consumers."""
 
-    return {tool: row["decision"] for tool, row in fold_release_decisions(dest_root).items()}
+    return {
+        tool: operational_status(dest_root, tool, task_id=row["task_id"])
+        for tool, row in fold_release_decisions(dest_root).items()
+    }
 
 
 def operational_status(dest_root: Path, tool: str, *, task_id: str | None = None) -> str:
@@ -246,10 +354,30 @@ def operational_status(dest_root: Path, tool: str, *, task_id: str | None = None
     newly registered version from inheriting an older version's ``ACTIVE``.
     """
 
-    row = fold_release_decisions(dest_root).get(tool)
+    rows = load_release_decisions(dest_root)
+    row = next((item for item in reversed(rows) if item["tool"] == tool), None)
     if row is None:
         return REVIEW_REQUIRED
     if task_id is not None and row["task_id"] != task_id:
+        return REVIEW_REQUIRED
+    registry_state, indexed_task_id = _installed_registry_task_state(
+        dest_root, tool
+    )
+    if registry_state == "invalid":
+        return REVIEW_REQUIRED
+    if indexed_task_id is not None and (
+        row["task_id"] != indexed_task_id
+        or (task_id is not None and task_id != indexed_task_id)
+    ):
+        return REVIEW_REQUIRED
+    effective_task_id = task_id or indexed_task_id or row["task_id"]
+    manifest_state = _installed_manifest_trust_state(dest_root, tool)
+    if (
+        manifest_state in {"managed", "invalid"}
+        or _managed_sidecar_marker_present(
+            rows, tool=tool, task_id=effective_task_id
+        )
+    ):
         return REVIEW_REQUIRED
     return row["decision"]
 
@@ -271,7 +399,29 @@ def _append_release_decision_unlocked(
 
     dest_root = Path(dest_root)
     # Crucial fail-closed step: never append behind a damaged row.
-    load_release_decisions(dest_root)
+    rows = load_release_decisions(dest_root)
+    if decision == ACTIVE:
+        manifest_state = _installed_manifest_trust_state(dest_root, tool)
+        registry_state, indexed_task_id = _installed_registry_task_state(
+            dest_root, tool
+        )
+        if manifest_state == "invalid" or registry_state == "invalid":
+            decision = REVIEW_REQUIRED
+            reason_code = "INVALID_PACKAGE_IDENTITY"
+            reason = "Installed package identity is unreadable or unsafe."
+        elif indexed_task_id is not None and indexed_task_id != task_id:
+            decision = REVIEW_REQUIRED
+            reason_code = "TASK_VERSION_UNAUDITED"
+            reason = "Release decision task does not match the indexed package task."
+        elif (
+            manifest_state == "managed"
+            or _managed_sidecar_marker_present(
+                rows, tool=tool, task_id=task_id
+            )
+        ):
+            decision = REVIEW_REQUIRED
+            reason_code = MANAGED_SIDECAR_TRUST_PENDING
+            reason = _MANAGED_SIDECAR_TRUST_REASON
     row: dict[str, Any] = {
         "schema_version": 1,
         "tool": tool,
@@ -332,6 +482,7 @@ def ensure_initial_review_decision(
     task_id: str,
     run_id: str | None,
     evidence_sha256: str,
+    managed_sidecar: bool = False,
 ) -> dict[str, Any] | None:
     """Append initial REVIEW_REQUIRED only if this tool has no prior decision.
 
@@ -339,8 +490,18 @@ def ensure_initial_review_decision(
     """
 
     with release_decision_lock(dest_root):
-        current = fold_release_decisions(dest_root).get(tool)
-        if current is not None and current["task_id"] == task_id:
+        rows = load_release_decisions(dest_root)
+        current = next(
+            (row for row in reversed(rows) if row["tool"] == tool), None
+        )
+        marker_present = _managed_sidecar_marker_present(
+            rows, tool=tool, task_id=task_id
+        )
+        if (
+            current is not None
+            and current["task_id"] == task_id
+            and (not managed_sidecar or marker_present)
+        ):
             return None
         return _append_release_decision_unlocked(
             dest_root,
@@ -348,8 +509,15 @@ def ensure_initial_review_decision(
             task_id=task_id,
             run_id=run_id,
             decision=REVIEW_REQUIRED,
-            reason_code="INITIAL_EXPORT_REVIEW_REQUIRED",
-            reason="Export completed; fresh-input operational audit is required before activation.",
+            reason_code=(
+                MANAGED_SIDECAR_TRUST_PENDING
+                if managed_sidecar else "INITIAL_EXPORT_REVIEW_REQUIRED"
+            ),
+            reason=(
+                _MANAGED_SIDECAR_TRUST_REASON
+                if managed_sidecar else
+                "Export completed; fresh-input operational audit is required before activation."
+            ),
             evidence_sha256=evidence_sha256,
             actor="operator",
         )
@@ -522,12 +690,12 @@ def _record_audit_decision(
         actor="operator",
     )
     return {
-        "ok": decision == ACTIVE,
+        "ok": row["decision"] == ACTIVE,
         "tool": name,
         "task_id": task_id,
         "historical_verdict": evidence.get("historical_verdict"),
-        "operational_status": decision,
-        "reason_code": reason_code,
+        "operational_status": row["decision"],
+        "reason_code": row["reason_code"],
         "evidence_sha256": evidence_sha256,
         "decision": row,
     }
@@ -778,6 +946,22 @@ def _audit_tool_locked(
             evidence=evidence,
         )
 
+    if is_managed_sidecar_trust_pending(manifest):
+        evidence["managed_sidecar_trust"] = {
+            "status": "pending",
+            "reason_code": MANAGED_SIDECAR_TRUST_PENDING,
+        }
+        return _record_audit_decision(
+            dest_root,
+            name=name,
+            task_id=task_id,
+            run_id=run_id,
+            decision=REVIEW_REQUIRED,
+            reason_code=MANAGED_SIDECAR_TRUST_PENDING,
+            reason=_MANAGED_SIDECAR_TRUST_REASON,
+            evidence=evidence,
+        )
+
     return _record_audit_decision(
         dest_root,
         name=name,
@@ -934,6 +1118,9 @@ def _import_audit_decisions_install_locked(
             raise ReleaseLedgerError(
                 f"{audits_path}:{line_no}: 迁移目标不是历史 VERIFIED_TOOL_READY"
             )
+        if decision == ACTIVE and is_managed_sidecar_trust_pending(manifest):
+            decision = REVIEW_REQUIRED
+            reason_code = MANAGED_SIDECAR_TRUST_PENDING
         provenance_path = tool_dir / "evidence" / "provenance.json"
         if not provenance_path.is_file():
             raise ReleaseLedgerError(
@@ -980,7 +1167,12 @@ def _import_audit_decisions_install_locked(
                 "run_id": run_id,
                 "decision": decision,
                 "reason_code": reason_code,
-                "reason": f"Migrated operator fresh-input audit: {verdict or ('PASS' if ok else 'FAIL')}.",
+                "reason": (
+                    _MANAGED_SIDECAR_TRUST_REASON
+                    if decision == REVIEW_REQUIRED
+                    else f"Migrated operator fresh-input audit: "
+                    f"{verdict or ('PASS' if ok else 'FAIL')}."
+                ),
                 "evidence_sha256": _sha256(raw_line),
                 "decided_at": _migration_time(audit.get("audited_at")),
                 "actor": actor,
@@ -1041,5 +1233,8 @@ def _import_audit_decisions_install_locked(
             if row["reason_code"] == "OUTPUT_CONTRACT_MISMATCH":
                 contract_defect_tasks.add((row["tool"], row["task_id"]))
             counts["imported"] += 1
-            counts["active" if row["decision"] == ACTIVE else "revoked"] += 1
+            if row["decision"] == ACTIVE:
+                counts["active"] += 1
+            elif row["decision"] == REVOKED:
+                counts["revoked"] += 1
         return counts

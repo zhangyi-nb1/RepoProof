@@ -32,6 +32,12 @@ from repoproof.domain.models import TaskContract
 
 _ANCHOR_RULE = ("skeleton anchor files (src/*/main.py, bin/, build.sh, tool.json, "
                 "pyproject.toml) are FROZEN — modifying them is a policy violation")
+_SIDECAR_ANCHOR_RULE = (
+    "skeleton anchor files (src/*/__init__.py, src/*/__main__.py, src/*/main.py, "
+    "src/*/sidecar_server.py, "
+    "src/*/sidecar_supervisor.py, src/*/sidecar_contract.py, bin/, build.sh, "
+    "tool.json, pyproject.toml) are FROZEN — modifying them is a policy violation"
+)
 
 _DEFAULT_SETUP = [
     ["python3", "-m", "venv", ".venv"],
@@ -56,6 +62,39 @@ def _tree_sha(root: Path) -> str:
     return h.hexdigest()
 
 
+def _sidecar_anchor_hashes(skeleton: Path, tc: TaskContract) -> dict[str, str]:
+    """Freeze the complete v3 entry chain as machine-checked bytes.
+
+    The prompt rule is useful context, but it is not evidence. These digests
+    are projected into HostContract and checked after the agent patch.
+    ``impl.py`` is intentionally absent because it is the capability file the
+    agent owns.
+    """
+
+    if tc.tool is None or tc.tool.schema_version < 3:
+        return {}
+    package = tc.target_project.package
+    relpaths = (
+        f"src/{package}/__init__.py",
+        f"src/{package}/__main__.py",
+        f"src/{package}/main.py",
+        f"src/{package}/sidecar_server.py",
+        f"src/{package}/sidecar_supervisor.py",
+        f"src/{package}/sidecar_contract.py",
+        f"bin/{tc.tool.name}",
+        "build.sh",
+        "tool.json",
+        "pyproject.toml",
+    )
+    frozen: dict[str, str] = {}
+    for rel in relpaths:
+        path = skeleton / rel
+        if path.is_symlink() or not path.is_file():
+            raise ToolBridgeError(f"{tc.task_id}: v3 固定锚缺失或不安全:{path}")
+        frozen[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return frozen
+
+
 def _hard_requirements(project_root: Path, tc: TaskContract) -> list[dict]:
     from repoproof.harness.requirement_spec import load_requirement_spec
 
@@ -77,6 +116,7 @@ def synthesize_host_contract(
     setup_commands: list[list[str]] | None = None,
     max_rounds: int = 3,
     hook_min_calls: int = 1,
+    frozen_file_sha256: dict[str, str] | None = None,
 ) -> dict:
     """ToolContract → HostContract 的 YAML-ready dict(纯数据,零 IO)。
 
@@ -92,7 +132,9 @@ def synthesize_host_contract(
         "task_id": tc.task_id,
         "task_version": "v1",
         "kind": "host_integrated",          # HostContract.load 硬校验值
-        "prompt_profile": "local-tool-v1",
+        "prompt_profile": (
+            "local-tool-v2" if tc.tool.schema_version >= 3 else "local-tool-v1"
+        ),
         "task_family": "LOCAL-TOOL",
         "adoption_shape": "TOOL_ONBOARDING",
         "runtime_profile": tc.runtime_profile,
@@ -134,7 +176,11 @@ def synthesize_host_contract(
         },
         "constraints": {
             "editable_zones": ["."],                 # 骨架即 host 根,diff 全计
-            "forbidden": [*tc.constraints.forbidden, _ANCHOR_RULE],
+            "forbidden": [
+                *tc.constraints.forbidden,
+                (_SIDECAR_ANCHOR_RULE
+                 if tc.tool.schema_version >= 3 else _ANCHOR_RULE),
+            ],
             "network_at_test_time": False,
         },
         "budgets": {
@@ -162,6 +208,10 @@ def synthesize_host_contract(
             "DEPENDENCY_NOT_REPRODUCIBLE", "INSTRUMENT_TAMPERED",
             "HARNESS_FAILURE", "PROVIDER_FAILURE"],
     }
+    if tc.tool.schema_version >= 3:
+        if not frozen_file_sha256:
+            raise ToolBridgeError(f"{tc.task_id}: v3 缺机器可验证的固定锚摘要")
+        doc["frozen_file_sha256"] = dict(sorted(frozen_file_sha256.items()))
     return doc
 
 
@@ -297,7 +347,8 @@ def materialize_tool_task(
     doc = synthesize_host_contract(
         tc, requirements, host_copy=host_copy, wheelhouse=wheelhouse,
         skeleton_commit=_tree_sha(skeleton), setup_commands=setup_commands,
-        max_rounds=max_rounds, hook_min_calls=n_file_examples)
+        max_rounds=max_rounds, hook_min_calls=n_file_examples,
+        frozen_file_sha256=_sidecar_anchor_hashes(skeleton, tc))
     (task_dir / "conformance.json").write_text(
         _json.dumps(conf_record, ensure_ascii=False, indent=1) + "\n",
         encoding="utf-8")

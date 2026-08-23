@@ -31,16 +31,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
+import stat
 import subprocess
 import time
 from collections.abc import Callable
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from repoproof.adoption.repair.failure_packet import FailurePacket, build_failure_packets
 from repoproof.adoption.repair.repair_budget import RepairBudget
@@ -651,6 +653,19 @@ class HostAcceptance(BaseModel):
     hidden_oracle_command: list[str]
 
 
+def _frozen_relative_parts(value: str) -> tuple[str, ...]:
+    """Validate a contract-owned POSIX path before it reaches filesystem IO."""
+
+    if not value or "\\" in value or "\x00" in value:
+        raise ValueError(f"非法 frozen file 相对路径:{value!r}")
+    path = PurePosixPath(value)
+    if path.is_absolute() or value != path.as_posix():
+        raise ValueError(f"frozen file 路径必须是规范 POSIX 相对路径:{value!r}")
+    if any(part in {"", ".", ".."} for part in path.parts):
+        raise ValueError(f"frozen file 路径不得含空段/dot/dotdot:{value!r}")
+    return path.parts
+
+
 def _reject_duplicate_keys(raw: bytes, path: Path) -> None:
     """冻结契约里出现重复顶层键 → 报错。
 
@@ -730,6 +745,10 @@ class HostContract(BaseModel):
     # 提示文字住在代码里(可钉死、可变异),契约只选档。缺省 offerclaw-v1
     # 逐字节等于既有提示(金标哈希在 tests/test_hb_task_glue.py)。
     prompt_profile: str = "offerclaw-v1"
+    # ToolSpec v3 机器锚：bridge 对 harness 生成的交付骨架逐文件落 SHA-256；
+    # runner 在模型调用前与终局各核一次。空映射保持所有既有 v1/v2 契约
+    # 原语义，local-tool-v2 则由下面的模型闸强制完整声明。
+    frozen_file_sha256: dict[str, str] = Field(default_factory=dict)
     # ---- P1-b(2026-08-21):计分池状态 ----
     # 一道题被实测判定"题面欠定"(答案要求的公共 API 形状在题面里根本没
     # 出现)之后,它每跑必 FAIL 且原因已知 —— 再拿它计分只会往模型侧的
@@ -756,14 +775,71 @@ class HostContract(BaseModel):
         # hb-delta-v2(R1/R2,2026-08-21):构造法 v2 代际 —— 提示骨架与 v1
         # 同一投影函数,教导差异全部由契约 requirements/forbidden 承载
         # (冻结、台账可见);档口串本身进指纹/台账,杜绝跨代合池。
-        # local-tool-v1(RFC-010 LOCAL-TOOL 谱系,2026-08-23):工具包骨架
-        # 形态,渲染函数 _build_tool_prompt;与 delta 双档同律进指纹/台账。
+        # local-tool-v1(RFC-010) 与 local-tool-v2(RFC-012):分别选择普通
+        # CLI 与 managed-sidecar 的**构建提示拓扑**。它们不是交付 runtime
+        # profile；后者只由冻结 ToolSpec.runtime 描述。
+        # Keep the historical registry line stable: the process-independence
+        # mutation catalogue targets it byte-for-byte.  M7 extends only the
+        # current Local Tool product profile after that frozen baseline.
         known = {"offerclaw-v1", "hb-delta-v1", "hb-delta-v2", "local-tool-v1"}
         if v not in known:
+            if v == "local-tool-v2":
+                return v
             # 打错字必须炸在加载期 —— 否则一个 typo 会静默落回缺省档,
             # 而缺省档的提示对 delta 宿主句句是假话。
-            raise ValueError(f"未知 prompt_profile:{v!r}(可选:{sorted(known)})")
+            choices = sorted({*known, "local-tool-v2"})
+            raise ValueError(f"未知 prompt_profile:{v!r}(可选:{choices})")
         return v
+
+    @field_validator("frozen_file_sha256")
+    @classmethod
+    def _valid_frozen_file_hashes(cls, value: dict[str, str]) -> dict[str, str]:
+        for relative, digest in value.items():
+            _frozen_relative_parts(relative)
+            if not re.fullmatch(r"[0-9a-f]{64}", digest):
+                raise ValueError(
+                    f"frozen_file_sha256[{relative!r}] 必须是小写 SHA-256"
+                )
+        return value
+
+    @model_validator(mode="after")
+    def _managed_sidecar_machine_anchors(self) -> HostContract:
+        if self.prompt_profile != "local-tool-v2":
+            return self
+        if self.task_family != "LOCAL-TOOL":
+            raise ValueError("local-tool-v2 只允许用于 LOCAL-TOOL 谱系")
+        anchors = set(self.frozen_file_sha256)
+        required_root = {"build.sh", "tool.json", "pyproject.toml"}
+        missing_root = sorted(required_root - anchors)
+        if missing_root:
+            raise ValueError(f"local-tool-v2 缺机器冻结锚:{missing_root}")
+        if not self.host.tool_bin or self.host.tool_bin not in anchors:
+            raise ValueError(
+                "local-tool-v2 frozen_file_sha256 必须包含 host.tool_bin"
+            )
+        required_source = {
+            "__init__.py",
+            "__main__.py",
+            "main.py",
+            "sidecar_server.py",
+            "sidecar_supervisor.py",
+            "sidecar_contract.py",
+        }
+        source_groups: dict[tuple[str, str], set[str]] = {}
+        for relative in anchors:
+            parts = _frozen_relative_parts(relative)
+            if len(parts) == 3 and parts[0] == "src":
+                source_groups.setdefault((parts[0], parts[1]), set()).add(parts[2])
+        complete_groups = [
+            parent for parent, names in source_groups.items()
+            if required_source <= names
+        ]
+        if len(complete_groups) != 1:
+            raise ValueError(
+                "local-tool-v2 必须为同一 src/<package>/ 完整冻结 "
+                f"{sorted(required_source)}"
+            )
+        return self
 
     @classmethod
     def load(cls, path: Path) -> tuple[HostContract, str]:
@@ -1039,6 +1115,75 @@ def hash_public_surface(host_root: Path) -> dict[str, str]:
     return out
 
 
+def _sha256_regular_file_nofollow(root: Path, relative: str) -> str:
+    """Hash one ordinary file using dirfd traversal with no symlink following."""
+
+    parts = _frozen_relative_parts(relative)
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    directory = getattr(os, "O_DIRECTORY", None)
+    if nofollow is None or directory is None:
+        raise OSError("platform lacks O_NOFOLLOW/O_DIRECTORY")
+    opened: list[int] = []
+    try:
+        current = os.open(root, os.O_RDONLY | directory | nofollow)
+        opened.append(current)
+        for part in parts[:-1]:
+            current = os.open(
+                part,
+                os.O_RDONLY | directory | nofollow,
+                dir_fd=current,
+            )
+            opened.append(current)
+        file_fd = os.open(
+            parts[-1],
+            os.O_RDONLY | nofollow | getattr(os, "O_NONBLOCK", 0),
+            dir_fd=current,
+        )
+        opened.append(file_fd)
+        if not stat.S_ISREG(os.fstat(file_fd).st_mode):
+            raise OSError("frozen anchor is not a regular file")
+        digest = hashlib.sha256()
+        while chunk := os.read(file_fd, 1024 * 1024):
+            digest.update(chunk)
+        return digest.hexdigest()
+    finally:
+        for descriptor in reversed(opened):
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+
+def verify_frozen_files(
+    host_root: Path, expected: dict[str, str]
+) -> dict[str, object]:
+    """Verify machine-owned skeleton anchors; absent legacy map is a no-op."""
+
+    findings: list[dict[str, str]] = []
+    for relative, expected_digest in sorted(expected.items()):
+        try:
+            actual = _sha256_regular_file_nofollow(host_root, relative)
+        except (OSError, ValueError) as exc:
+            findings.append({
+                "path": relative,
+                "reason": "MISSING_OR_UNSAFE_FROZEN_FILE",
+                "detail": f"{type(exc).__name__}: {exc}",
+            })
+            continue
+        if actual != expected_digest:
+            findings.append({
+                "path": relative,
+                "reason": "FROZEN_FILE_SHA256_MISMATCH",
+                "expected": expected_digest,
+                "actual": actual,
+            })
+    return {
+        "ok": not findings,
+        "checked": len(expected),
+        "findings": findings,
+    }
+
+
 # ------------------------------------------------ H9(LESSONS #41)工作区封闭
 # order-21 三步拿到答案:`find /` 发现 → `sed` 通读 → `cp` 整文件。
 # H9-a 管"答案不在盘上",H9-b 管"引用即杀",H9-c 管"先教"。
@@ -1238,6 +1383,11 @@ def build_host_prompt(contract: HostContract, *, wheel_note: str,
     双档(G2):offerclaw-v1 = 既有文本逐字节不变(金标哈希钉死);
     hb-delta-v1 = post-cutoff delta 形态,一句 OfferClaw 的话都不许说。
     """
+    if contract.prompt_profile == "local-tool-v2":
+        # 必须先于 source_repo 检查:工具契约声明与否上游源码树皆合法。
+        return _build_sidecar_tool_prompt(
+            contract, wheel_note=wheel_note, budgets=budgets
+        )
     if contract.prompt_profile == "local-tool-v1":
         # 必须先于 source_repo 检查:工具契约声明与否上游源码树皆合法。
         return _build_tool_prompt(contract, wheel_note=wheel_note, budgets=budgets)
@@ -1453,6 +1603,36 @@ def _build_tool_prompt(contract: HostContract, *, wheel_note: str,
         "When done, submit with: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT",
     ]
     return "\n\n".join(parts)
+
+
+def _build_sidecar_tool_prompt(contract: HostContract, *, wheel_note: str,
+                               budgets=None) -> str:
+    """local-tool-v2: v1 user contract plus fixed v3 delivery topology.
+
+    Keeping the v1 renderer intact protects its frozen prompt hash.  The v2
+    profile adds only the managed-sidecar responsibilities the agent must see;
+    lifecycle/runtime values remain machine-owned by ToolSpec v3.
+    """
+
+    base = _build_tool_prompt(contract, wheel_note=wheel_note, budgets=budgets)
+    managed_contract = (
+        "MANAGED SIDECAR DELIVERY CONTRACT (HARNESS-OWNED)\n"
+        "- The user-facing interface is still the same file-in/stdout CLI.\n"
+        "  Implement only src/*/impl.py by calling the pinned upstream; the\n"
+        "  CLI starts and stops one loopback sidecar per invocation.\n"
+        "- The delivery profile is fixed: 127.0.0.1, a dynamic port, an\n"
+        "  invocation-only token, GET /healthz, POST /v1/invoke, no user\n"
+        "  credentials, no external network and no persistent daemon. Do not\n"
+        "  add a URL, launch-command or service configuration surface.\n"
+        "- ADDITIONAL SKELETON ANCHORS ARE FROZEN: src/*/__init__.py,\n"
+        "  src/*/__main__.py,\n"
+        "  src/*/sidecar_server.py, src/*/sidecar_supervisor.py and\n"
+        "  src/*/sidecar_contract.py. Together with main.py, bin/, build.sh,\n"
+        "  tool.json and pyproject.toml, modifying any anchor is a policy\n"
+        "  violation. CLI and MCP both use bin/<tool>; do not create a second\n"
+        "  direct-to-sidecar invocation path."
+    )
+    return f"{base}\n\n{managed_contract}"
 
 
 class _Session:
@@ -2441,6 +2621,24 @@ class HostGuidedRunner:
             s = self._assemble(backend, "agent",
                                extra_env=(sidecar_sess.agent_env()
                                           if sidecar_sess else None))
+            if contract.prompt_profile == "local-tool-v2":
+                frozen_baseline = verify_frozen_files(
+                    s.root / "host", contract.frozen_file_sha256
+                )
+                ev(
+                    "host.frozen_files_baseline",
+                    actor="harness",
+                    payload=frozen_baseline,
+                )
+                if not frozen_baseline["ok"]:
+                    missing_external.append(
+                        "HOST_BASELINE_UNHEALTHY("
+                        "frozen skeleton anchor mismatch,零预算)"
+                    )
+                    raise _BaselineUnhealthy({
+                        "reason": "FROZEN_FILE_BASELINE_MISMATCH",
+                        **frozen_baseline,
+                    })
             upstream_before = hash_tree(s.root / "upstream")
             public_before = hash_public_surface(s.root / "host")
             self.timings["env_build"] = 0.0
@@ -3109,6 +3307,31 @@ class HostGuidedRunner:
                 adaptation_recheck_detail="session HEAD == frozen best commit",
                 budgets=self.budgets,
                 evidence=[])
+            if self.contract.prompt_profile == "local-tool-v2":
+                frozen_final = verify_frozen_files(
+                    s.root / "host", self.contract.frozen_file_sha256
+                )
+                ev(
+                    "verification.frozen_files",
+                    actor="verifier",
+                    payload=frozen_final,
+                )
+                if not frozen_final["ok"]:
+                    pol = VerificationResult(
+                        verifier="PolicyVerifier",
+                        passed=False,
+                        detail=(
+                            pol.detail
+                            + "; FROZEN_FILE_MISMATCH: "
+                            + str(frozen_final["findings"][:5])
+                        ),
+                        evidence=pol.evidence,
+                        extra={
+                            **pol.extra,
+                            "frozen_file_verification": frozen_final,
+                            "failure_type": "INSTRUMENT_TAMPERED",
+                        },
+                    )
             # 公开验收面 = public_tests + fixtures(LESSONS #40):隐藏 oracle
             # 的假模型量具就在 fixtures 里,被测者改得动它,结论就不独立。
             pub_ok, pub_diff = trees_equal(

@@ -16,7 +16,14 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -212,17 +219,73 @@ class ToolInterface(BaseModel):
     不在模型层拒——模型层拒会把旧谱系契约的加载路径复杂化。"""
 
 
+class ToolRuntimeSpec(BaseModel):
+    """Product delivery runtime, independent from TaskContract.runtime_profile.
+
+    The first managed-service profile is deliberately fixed and low freedom:
+    loopback only, one process per invocation, no user credential, and no
+    arbitrary launch command or endpoint in the frozen contract.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["http_sidecar"]
+    profile_id: Literal["tool-http-sidecar-v1"]
+    lifecycle: Literal["per_invocation"]
+    credentials: Literal["none"]
+    network: Literal["loopback_only"]
+    protocol: Literal["repoproof-http-sidecar-v1"]
+    # ``profile_id`` is immutable, so its timeout semantics must be immutable
+    # as well.  A caller that needs different values must introduce a new
+    # profile instead of silently changing ``tool-http-sidecar-v1``.
+    startup_timeout_seconds: Literal[10]
+    request_timeout_seconds: Literal[120]
+    shutdown_timeout_seconds: Literal[3]
+
+
 class ToolSpec(BaseModel):
     """LOCAL-TOOL 谱系唯一新增分节。name = CLI 命令名,必须与
     target_project.entry_point 一致(adequacy T2 执法)。"""
 
-    schema_version: int = Field(default=1, ge=1)
-    """1 = historical ToolSpec semantics; 2 = RFC-011 output-contract gates."""
+    schema_version: int = Field(default=1, ge=1, le=3)
+    """1 = historical; 2 = output-contract gates; 3 = managed sidecar delivery."""
     name: str = Field(
         pattern=r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$"
     )
     summary: str
     interface: ToolInterface
+    runtime: ToolRuntimeSpec | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize_runtime_by_schema(self, handler):
+        """Keep the pre-v3 wire shape while retaining strict input parsing."""
+
+        serialized = handler(self)
+        if self.schema_version < 3:
+            # Validation distinguishes omission from explicit ``runtime: null``
+            # through model_fields_set. Dumps of valid legacy objects must omit
+            # the newly introduced field so old round trips remain valid.
+            serialized.pop("runtime", None)
+        return serialized
+
+    @model_validator(mode="after")
+    def _runtime_matches_schema_version(self) -> ToolSpec:
+        runtime_declared = "runtime" in self.model_fields_set
+        if self.schema_version < 3 and runtime_declared:
+            raise ValueError(
+                "tool.runtime is a ToolSpec v3 delivery contract; "
+                "v1/v2 must omit the field (runtime: null is not an omission)"
+            )
+        if self.schema_version == 3:
+            if self.runtime is None:
+                raise ValueError("ToolSpec v3 requires tool.runtime")
+            if self.interface.output.contract is None:
+                raise ValueError("ToolSpec v3 requires an executable output contract")
+            if self.interface.input.kind != "file":
+                raise ValueError("ToolSpec v3 supports file input only")
+            if self.interface.output.kind != "stdout":
+                raise ValueError("ToolSpec v3 supports stdout output only")
+        return self
 
 
 class TaskContract(BaseModel):

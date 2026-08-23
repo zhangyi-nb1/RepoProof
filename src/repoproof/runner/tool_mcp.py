@@ -26,7 +26,9 @@ from repoproof.runner.tool_paths import (
 )
 from repoproof.runner.tool_release import (
     ACTIVE,
+    MANAGED_SIDECAR_TRUST_PENDING,
     is_historical_tool_ready,
+    is_managed_sidecar_trust_pending,
     operational_status,
 )
 
@@ -226,14 +228,29 @@ def _require_safe_tool():
         or TOOL.resolve() != TOOL
     ):
         raise RuntimeError("managed tool executable is unsafe")
+    source_root = ROOT / "src"
+    if source_root.is_symlink() or (
+        source_root.exists() and not source_root.is_dir()
+    ):
+        raise RuntimeError("managed package identity changed")
+    source_entries = list(source_root.rglob("*")) if source_root.is_dir() else []
+    if any(
+        path.is_symlink() or not (path.is_dir() or path.is_file())
+        for path in source_entries
+    ):
+        raise RuntimeError("managed package identity changed")
     actual_source_files = {{
         str(path.relative_to(ROOT))
-        for path in (ROOT / "src").rglob("*.py")
-        if path.is_file() and not path.is_symlink()
-    }} if (ROOT / "src").is_dir() and not (ROOT / "src").is_symlink() else set()
+        for path in source_entries
+        if (
+            path.is_file()
+            and "__pycache__" not in path.parts
+            and path.suffix not in {{".pyc", ".pyo"}}
+        )
+    }}
     expected_source_files = {{
         relative for relative in EXPECTED_PACKAGE_FILES
-        if relative.startswith("src/") and relative.endswith(".py")
+        if relative.startswith("src/")
     }}
     if actual_source_files != expected_source_files:
         raise RuntimeError("managed package identity changed")
@@ -468,7 +485,13 @@ def write_mcp_server(tool_dir: Path, *, dest_root: Path | None = None) -> Path:
 
 
 def _runtime_identity_files(tool_dir: Path, name: str) -> dict[str, str]:
-    """Freeze the package files that can determine CLI/MCP behaviour."""
+    """Freeze files that can determine CLI/MCP behaviour.
+
+    Source-package resources are included regardless of extension so data
+    files and native modules cannot drift outside the digest.  Generated
+    ``.venv`` contents are intentionally excluded: this is a package/source
+    identity, not a claim that an opaque virtualenv is reproducible.
+    """
 
     candidates = [
         tool_dir / "tool.json",
@@ -480,10 +503,53 @@ def _runtime_identity_files(tool_dir: Path, name: str) -> dict[str, str]:
         if path.is_file():
             candidates.append(path)
     src = tool_dir / "src"
+    if src.is_symlink() or (src.exists() and not src.is_dir()):
+        raise RuntimeError("package identity source tree is unsafe")
     if src.is_dir():
-        candidates.extend(sorted(src.rglob("*.py")))
+        source_entries = sorted(src.rglob("*"))
+        unsafe_entries = [
+            path
+            for path in source_entries
+            if path.is_symlink() or not (path.is_dir() or path.is_file())
+        ]
+        if unsafe_entries:
+            raise RuntimeError(
+                "package identity source tree contains unsafe entries: "
+                f"{[str(path.relative_to(tool_dir)) for path in unsafe_entries[:5]]}"
+            )
+        candidates.extend(
+            path
+            for path in source_entries
+            if path.is_file()
+            and "__pycache__" not in path.parts
+            and path.suffix not in {".pyc", ".pyo"}
+        )
+    try:
+        manifest = json.loads((tool_dir / "tool.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise RuntimeError("tool manifest 无法用于 package identity") from exc
+    if is_managed_sidecar_trust_pending(manifest):
+        package = name.replace("-", "_")
+        required_anchors = (
+            tool_dir / "bin" / name,
+            tool_dir / "src" / package / "__init__.py",
+            tool_dir / "src" / package / "__main__.py",
+            tool_dir / "src" / package / "main.py",
+            tool_dir / "src" / package / "sidecar_server.py",
+            tool_dir / "src" / package / "sidecar_supervisor.py",
+            tool_dir / "src" / package / "sidecar_contract.py",
+        )
+        missing = [
+            str(path.relative_to(tool_dir))
+            for path in required_anchors
+            if path.is_symlink() or not path.is_file()
+        ]
+        if missing:
+            raise RuntimeError(
+                f"managed sidecar fixed entry chain is incomplete: {missing}"
+            )
     frozen: dict[str, str] = {}
-    for path in candidates:
+    for path in dict.fromkeys(candidates):
         if path.is_symlink() or not path.is_file() or tool_dir not in path.resolve().parents:
             raise RuntimeError(f"package identity file is unsafe: {path}")
         frozen[str(path.relative_to(tool_dir))] = hashlib.sha256(
@@ -504,6 +570,11 @@ def _write_mcp_server_install_locked(tool_dir: Path, release_root: Path) -> Path
     manifest = json.loads((tool_dir / "tool.json").read_text(encoding="utf-8"))
     if not isinstance(manifest, dict):
         raise RuntimeError("tool manifest 必须为 JSON object")
+    if is_managed_sidecar_trust_pending(manifest):
+        raise RuntimeError(
+            f"{MANAGED_SIDECAR_TRUST_PENDING}: managed sidecar MCP exposure "
+            "is blocked until strong receipts and OS isolation are enforced"
+        )
     historical_verdict = (manifest.get("verification") or {}).get("verdict")
     if not is_historical_tool_ready(historical_verdict):
         raise RuntimeError(
@@ -521,6 +592,11 @@ def _write_mcp_server_install_locked(tool_dir: Path, release_root: Path) -> Path
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
     if not isinstance(provenance, dict):
         raise RuntimeError("工具 provenance 必须为 JSON object")
+    if is_managed_sidecar_trust_pending(provenance):
+        raise RuntimeError(
+            f"{MANAGED_SIDECAR_TRUST_PENDING}: managed sidecar MCP exposure "
+            "is blocked until strong receipts and OS isolation are enforced"
+        )
     task_id = provenance.get("task_id")
     verification = manifest.get("verification") or {}
     if not isinstance(task_id, str) or not task_id:

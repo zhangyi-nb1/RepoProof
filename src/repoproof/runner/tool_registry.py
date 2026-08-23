@@ -30,10 +30,12 @@ from repoproof.runner.tool_paths import (
     validate_tool_task_id,
 )
 from repoproof.runner.tool_release import (
+    MANAGED_SIDECAR_TRUST_PENDING,
     REVIEW_REQUIRED,
     ensure_initial_review_decision,
-    fold_release_decisions,
     is_historical_tool_ready,
+    is_managed_sidecar_trust_pending,
+    load_release_decisions,
 )
 
 REGISTRY_NAME = ".repoproof-registry.json"
@@ -225,6 +227,10 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
         )
     task_id, provenance = _load_package_provenance(tool_dir, manifest)
     verification = manifest.get("verification") or {}
+    managed_sidecar = (
+        is_managed_sidecar_trust_pending(manifest)
+        or is_managed_sidecar_trust_pending(provenance)
+    )
     if run_id is not None and run_id != verification.get("run_id"):
         raise ValueError(f"{manifest_name}: 调用 run_id 与 package identity 不一致")
     entry: dict = {
@@ -239,6 +245,7 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
         "source": manifest.get("source", {}),
         "summary": manifest.get("summary", ""),
         "exported_at": exported_at,
+        "managed_sidecar_trust_pending": managed_sidecar,
     }
     # Validate both existing indexes before any write.  Initial export appends
     # REVIEW_REQUIRED only once; a repeated registration never masks a revoke.
@@ -247,6 +254,9 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
     if previous is not None:
         previous_task_id = previous.get("task_id")
         if previous_task_id == task_id:
+            if previous.get("managed_sidecar_trust_pending") is True:
+                managed_sidecar = True
+                entry["managed_sidecar_trust_pending"] = True
             previous_run_id = previous.get("run_id")
             previous_contract = previous.get("contract_sha256")
             if (
@@ -300,6 +310,7 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
         task_id=task_id,
         run_id=entry["run_id"],
         evidence_sha256=hashlib.sha256(manifest_bytes).hexdigest(),
+        managed_sidecar=managed_sidecar,
     )
     doc["tools"][manifest_name] = entry
     _save(dest_root, doc)
@@ -315,7 +326,10 @@ def list_tools(
             return list_tools(dest_root, scan=True, _lock_held=True)
     dest_root = Path(dest_root)
     doc = _load(dest_root)
-    release_decisions = fold_release_decisions(dest_root)
+    release_history = load_release_decisions(dest_root)
+    release_decisions = {
+        decision["tool"]: decision for decision in release_history
+    }
     if scan and dest_root.is_dir():
         for d in sorted(p for p in dest_root.iterdir() if p.is_dir()):
             try:
@@ -359,6 +373,10 @@ def list_tools(
                 "contract_sha256": (m.get("verification") or {}).get(
                     "contract_sha256"
                 ),
+                "managed_sidecar_trust_pending": (
+                    is_managed_sidecar_trust_pending(m)
+                    or is_managed_sidecar_trust_pending(_provenance)
+                ),
             }
             if name not in doc["tools"]:
                 doc["tools"][name] = {
@@ -379,7 +397,12 @@ def list_tools(
                 # evidence. Conflicting non-empty values remain visible and
                 # make upgrade preflight fail instead of being overwritten.
                 for field, value in observed.items():
-                    if entry.get(field) in (None, "") and value not in (None, ""):
+                    if (
+                        field == "managed_sidecar_trust_pending"
+                        and value is True
+                    ):
+                        entry[field] = True
+                    elif entry.get(field) in (None, "") and value not in (None, ""):
                         entry[field] = value
         _save(dest_root, doc)
 
@@ -387,6 +410,9 @@ def list_tools(
     for name, entry in sorted(doc["tools"].items()):
         row = {"name": name, **entry}
         historical_verdict = entry.get("historical_verdict", entry.get("verdict"))
+        managed_sidecar_pending = bool(
+            entry.get("managed_sidecar_trust_pending")
+        )
         try:
             indexed_path = entry.get("path")
             if not isinstance(indexed_path, str):
@@ -426,12 +452,43 @@ def list_tools(
                 row["status"] = (
                     "OK" if is_historical_tool_ready(historical_verdict) else "UNVERIFIED"
                 )
-                provenance_task_id, _provenance = _load_package_provenance(
+                provenance_task_id, package_provenance = _load_package_provenance(
                     tool_dir,
                     m,
                     require_verification_binding=is_historical_tool_ready(
                         historical_verdict
                     ),
+                )
+                verification = m.get("verification") or {}
+                indexed_identity = {
+                    "task_id": provenance_task_id,
+                    "run_id": verification.get("run_id"),
+                    "contract_sha256": verification.get("contract_sha256"),
+                    "historical_verdict": historical_verdict,
+                }
+                for field, observed_value in indexed_identity.items():
+                    indexed_value = entry.get(
+                        field,
+                        entry.get("verdict")
+                        if field == "historical_verdict" else None,
+                    )
+                    if (
+                        indexed_value not in (None, "")
+                        and indexed_value != observed_value
+                    ):
+                        raise ValueError(
+                            f"registry/package {field} identity 不一致"
+                        )
+                managed_sidecar_pending = managed_sidecar_pending or (
+                    is_managed_sidecar_trust_pending(m)
+                    or is_managed_sidecar_trust_pending(package_provenance)
+                    or any(
+                        decision["tool"] == name
+                        and decision["task_id"] == provenance_task_id
+                        and decision["reason_code"]
+                        == MANAGED_SIDECAR_TRUST_PENDING
+                        for decision in release_history
+                    )
                 )
                 row["task_id"] = provenance_task_id
             except (OSError, UnicodeError, ValueError):
@@ -451,7 +508,15 @@ def list_tools(
         release_matches = bool(
             release is not None and release["task_id"] == current_task_id
         )
-        if row["status"] != "OK":
+        if managed_sidecar_pending:
+            # ToolSpec v3 keeps its historical verdict, but current release is
+            # hard-capped until strong U1-U4 receipts and OS isolation exist.
+            # This projection defeats both stale and directly forged ACTIVE
+            # rows without rewriting the append-only ledger.
+            row["operational_status"] = REVIEW_REQUIRED
+            row["operational_reason_code"] = MANAGED_SIDECAR_TRUST_PENDING
+            row["managed_sidecar_trust_pending"] = True
+        elif row["status"] != "OK":
             # Historical/package health is a prerequisite for any operational
             # decision.  A stale ACTIVE ledger row can never promote an
             # unverified package; callers receive the same fail-closed Core
@@ -482,7 +547,9 @@ def list_tools(
             except (OSError, UnicodeError):
                 runtime_aware = False
             row["mcp_runtime_release_enforced"] = runtime_aware
-            if row["operational_status"] != "ACTIVE" and not runtime_aware:
+            if managed_sidecar_pending:
+                row["mcp_exposure_warning"] = MANAGED_SIDECAR_TRUST_PENDING
+            elif row["operational_status"] != "ACTIVE" and not runtime_aware:
                 row["mcp_exposure_warning"] = "LEGACY_SERVER_MUST_BE_DETACHED"
         out.append(row)
     return out

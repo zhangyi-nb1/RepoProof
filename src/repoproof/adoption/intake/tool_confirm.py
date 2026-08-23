@@ -123,16 +123,17 @@ def check_draft_complete(draft: dict, draft_dir: Path) -> list[str]:
     for k in ("distribution", "import_module", "resolved_commit", "license", "url"):
         need(f"source_repo.{k}", sr.get(k))
     tool = draft.get("tool") or {}
-    if tool.get("schema_version") != 2:
+    schema_version = tool.get("schema_version")
+    if schema_version not in {2, 3}:
         problems.append(
-            "D:tool.schema_version 必须为 2 —— 新 draft 不得降级绕过 T6–T9")
+            "D:tool.schema_version 必须为 2 或 3 —— 新 draft 不得降级绕过 T6–T9")
     need("tool.name", tool.get("name"))
     need("tool.summary", tool.get("summary"))
     iface = tool.get("interface") or {}
     need("tool.interface.input.format", (iface.get("input") or {}).get("format"))
     output = iface.get("output") or {}
     need("tool.interface.output.format", output.get("format"))
-    if tool.get("schema_version") == 2:
+    if schema_version in {2, 3}:
         raw_contract = output.get("contract")
         need("tool.interface.output.contract", raw_contract)
         if raw_contract:
@@ -145,6 +146,18 @@ def check_draft_complete(draft: dict, draft_dir: Path) -> list[str]:
                         output["format"], parsed_contract):
                     problems.append(
                         "D:tool.interface.output.contract 与 output.format 分叉")
+    if schema_version == 3:
+        runtime = tool.get("runtime")
+        need("tool.runtime", runtime)
+        if runtime is not None:
+            try:
+                ToolSpec.model_validate(tool)
+            except ValidationError as e:
+                problems.append(f"D:tool.runtime 非法:{e}")
+    elif schema_version == 2 and "runtime" in tool:
+        problems.append(
+            "D:tool.runtime 仅属于 ToolSpec v3；v2 必须省略该字段，runtime:null 也不合法"
+        )
     cap = draft.get("capability") or {}
     need("capability.statement", cap.get("statement"))
     need("capability.output_schema", cap.get("output_schema"))

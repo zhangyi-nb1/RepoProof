@@ -196,8 +196,8 @@ def evaluate_adequacy(
                   f"shadowing, or distribution {contract.source_repo.distribution!r} "
                   "→ PEP 503-equal name makes pip install -e . uninstall the pinned "
                   "upstream) — rename the tool (e.g. add a -tool suffix)")
-            # T6–T9 are v2-only.  Historical ToolSpec v1 contracts (including
-            # JSON-labelled tools) retain their frozen adequacy semantics.
+            # T6–T9 apply to v2 and later. Historical ToolSpec v1 contracts
+            # (including JSON-labelled tools) retain their frozen semantics.
             if tool.schema_version >= 2:
                 output = tool.interface.output
                 output_contract = output.contract
@@ -242,11 +242,54 @@ def evaluate_adequacy(
                                 != contract.capability.output_schema):
                             schema_agree = False
                             schema_reasons.append("capability.output_schema was lost or forked")
+                        if tool.schema_version >= 3:
+                            manifest_runtime = manifest.get("runtime")
+                            delivery_runtime = (
+                                manifest_runtime.get("delivery")
+                                if isinstance(manifest_runtime, dict) else None
+                            )
+                            if delivery_runtime != (
+                                tool.runtime.model_dump() if tool.runtime else None
+                            ):
+                                schema_agree = False
+                                schema_reasons.append(
+                                    "managed delivery runtime projection differs"
+                                )
                 check(
                     "tool_schema_fields_agree",
                     schema_agree,
                     "; ".join(schema_reasons) or "schema projection differs",
                 )
+                if tool.schema_version >= 3:
+                    expected_runtime = {
+                        "mode": "http_sidecar",
+                        "profile_id": "tool-http-sidecar-v1",
+                        "lifecycle": "per_invocation",
+                        "credentials": "none",
+                        "network": "loopback_only",
+                        "protocol": "repoproof-http-sidecar-v1",
+                        "startup_timeout_seconds": 10,
+                        "request_timeout_seconds": 120,
+                        "shutdown_timeout_seconds": 3,
+                    }
+                    check(
+                        "tool_managed_runtime_present",
+                        tool.runtime is not None,
+                        "ToolSpec v3 requires a managed delivery runtime",
+                    )
+                    check(
+                        "tool_managed_runtime_fixed",
+                        tool.runtime is not None
+                        and tool.runtime.model_dump() == expected_runtime,
+                        "ToolSpec v3 runtime must exactly match "
+                        "tool-http-sidecar-v1",
+                    )
+                    check(
+                        "tool_managed_file_stdout_interface",
+                        tool.interface.input.kind == "file"
+                        and tool.interface.output.kind == "stdout",
+                        "ToolSpec v3 supports only file input and stdout output",
+                    )
         if tool_example_docs_dir is not None:
             def _examples(name: str) -> list[dict]:
                 p = tool_example_docs_dir / name

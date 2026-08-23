@@ -35,6 +35,9 @@ from repoproof.adoption.assembly.example_compiler import (
     compile_pytest,
     split_examples,
 )
+from repoproof.adoption.assembly.managed_sidecar import (
+    render_managed_sidecar_files,
+)
 from repoproof.adoption.assembly.output_contract import (
     is_capability_output_invocation,
     is_structured_output_format,
@@ -77,6 +80,54 @@ def cli(argv=None) -> int:
         return 1
     except Exception as e:  # noqa: BLE001 — 兜底即内部错误,语义=2
         print(f"internal error: {{type(e).__name__}}: {{e}}", file=sys.stderr)
+        return 2
+    if args.out:
+        Path(args.out).write_text(result, encoding="utf-8")
+    else:
+        sys.stdout.write(result if result.endswith("\\n") else result + "\\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(cli())
+'''
+
+_MAIN_SIDECAR_PY = '''"""{name} — ToolSpec v3 managed-sidecar CLI facade.
+
+The user-facing contract remains file-in/stdout.  Process lifecycle and the
+fixed loopback protocol are harness-generated anchors; capability code remains
+in impl.py.
+"""
+import argparse
+import sys
+from pathlib import Path
+
+from .sidecar_supervisor import SidecarRuntimeError, SidecarUserError, invoke
+
+
+def _parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog={name!r}, description={summary!r})
+    p.add_argument("input", help="输入文件({in_format})")
+    p.add_argument("--out", help="输出文件(缺省写 stdout)")
+    return p
+
+
+def cli(argv=None) -> int:
+    args = _parser().parse_args(argv)
+    src = Path(args.input)
+    if not src.is_file():
+        print(f"error: input not found: {{src}}", file=sys.stderr)
+        return 1
+    try:
+        result = invoke(src)
+    except SidecarUserError as exc:
+        print(f"error: {{exc}}", file=sys.stderr)
+        return 1
+    except SidecarRuntimeError as exc:
+        print(f"internal error: {{exc}}", file=sys.stderr)
+        return 2
+    except Exception as exc:  # noqa: BLE001 — stable internal-error boundary
+        print(f"internal error: {{type(exc).__name__}}", file=sys.stderr)
         return 2
     if args.out:
         Path(args.out).write_text(result, encoding="utf-8")
@@ -171,6 +222,9 @@ _README = '''# {name}
 
 def _tool_json(spec: ToolSpec, *, repo_url: str, commit: str, license_id: str,
                distribution: str, output_schema: str) -> str:
+    runtime: dict = {"python": "3.12", "cpu_only": True, "offline": True}
+    if spec.runtime is not None:
+        runtime["delivery"] = spec.runtime.model_dump()
     return json.dumps({
         "manifest_version": 1,
         "name": spec.name,
@@ -181,9 +235,23 @@ def _tool_json(spec: ToolSpec, *, repo_url: str, commit: str, license_id: str,
         "contract_schema_version": spec.schema_version,
         "interface": spec.interface.model_dump(),
         "capability": {"output_schema": output_schema},
-        "runtime": {"python": "3.12", "cpu_only": True, "offline": True},
+        "runtime": runtime,
         "verification": None,   # harness 在 gate 后写入;agent 写非 null = 越权
     }, ensure_ascii=False, indent=1) + "\n"
+
+
+def _tool_contract_projection(spec: ToolSpec) -> dict:
+    """Serialize ToolSpec without rewriting the frozen v1/v2 wire shape.
+
+    ``runtime`` was introduced by ToolSpec v3. Explicit ``runtime: null`` is
+    rejected by ToolSpec and its serializer omits the field for legacy schema
+    versions; this assembler-level exclusion keeps the frozen-wire rule local
+    and defensive. It preserves the bytes/semantics of a genuine omission.
+    """
+
+    if spec.schema_version < 3:
+        return spec.model_dump(exclude={"runtime"})
+    return spec.model_dump()
 
 
 # ------------------------------------------------------- 接口契约测试(五项)
@@ -448,7 +516,9 @@ def assemble_tool_task(
         "完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)"
         "不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。"
     )
-    tool_yaml = json.dumps(tool.model_dump(), ensure_ascii=False)  # 单行 JSON 即合法 YAML
+    tool_yaml = json.dumps(
+        _tool_contract_projection(tool), ensure_ascii=False
+    )  # 单行 JSON 即合法 YAML
     output_schema_json = _json_mod.dumps(output_schema, ensure_ascii=False)
     files[f"contracts/{task_id}.yaml"] = f"""task_id: {task_id}
 
@@ -594,10 +664,20 @@ requirements:
         ".venv/\n*venv*/\n__pycache__/\n*.pyc\n*.egg-info/\nevidence/\n")
     files[f"{skel_rel}/src/{package}/__init__.py"] = _INIT_PY
     files[f"{skel_rel}/src/{package}/__main__.py"] = _MAIN_MOD
-    files[f"{skel_rel}/src/{package}/main.py"] = _MAIN_PY.format(
+    main_template = _MAIN_SIDECAR_PY if tool.schema_version == 3 else _MAIN_PY
+    files[f"{skel_rel}/src/{package}/main.py"] = main_template.format(
         name=tool.name, summary=tool.summary, in_format=io_in.format)
     files[f"{skel_rel}/src/{package}/impl.py"] = _IMPL_PY.format(
         distribution=distribution, in_format=io_in.format, out_format=io_out.format)
+    if tool.schema_version == 3:
+        if tool.runtime is None or output.contract is None:
+            raise CompileError("ToolSpec v3 requires runtime and output contract")
+        for filename, content in render_managed_sidecar_files(
+            package=package,
+            runtime=tool.runtime,
+            output_contract=output.contract,
+        ).items():
+            files[f"{skel_rel}/src/{package}/{filename}"] = content
 
     # ---- 公开样例 + 公开测试(文件本体:仅公开子集)----
     files[f"{skel_rel}/public_examples/truth_table.json"] = json.dumps(

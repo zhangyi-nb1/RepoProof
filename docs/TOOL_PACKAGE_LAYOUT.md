@@ -1,8 +1,10 @@
-# Tool Package Layout 规范(M0 产出 · 依据 RFC-010 [D1][D4])
+# Tool Package Layout 规范（v1/v2 stable + v3 managed-sidecar candidate）
 
-- 状态:M0 设计稿,M1 首个工具交付后冻结为 v1 布局
+- 状态:v1/v2 布局已实施；v3 managed-sidecar 是加文件演化，当前仅
+  **experimental/candidate**
 - 依据:[RFC-010](rfc/RFC-010-LOCAL-TOOL-PRODUCT-CHARTER.md) §三 [D1];
-  [TOOL_CONTRACT_SCHEMA.md](TOOL_CONTRACT_SCHEMA.md)(`ToolSpec` 单一事实源)
+  [TOOL_CONTRACT_SCHEMA.md](TOOL_CONTRACT_SCHEMA.md)(`ToolSpec` 单一事实源)；
+  [RFC-012](rfc/RFC-012-MANAGED-SIDECAR-TOOLS.md)
 - 一句话:**交付物 = 一个自带构建声明与证据的目录**;"可安装"由
   clean replay 从声明重建来证明,不由"在我机器上能跑"来声称。
 
@@ -17,8 +19,13 @@ pdf-table/                          # 工具包根 = 交付物
 ├── src/
 │   └── pdf_table/
 │       ├── __init__.py
-│       ├── __main__.py             # python -m pdf_table 入口
-│       └── main.py                 # argparse(骨架预置)+ 能力实现(agent 交付)
+│       ├── __main__.py             # python -m pdf_table 固定入口
+│       ├── main.py                  # argparse + CLI 错误边界（骨架预置）
+│       └── impl.py                  # 能力实现（agent 交付）
+│       # ToolSpec v3 另增加（v1/v2 不生成）：
+│       ├── sidecar_server.py        # 固定 127.0.0.1:0 HTTP server（结构锚）
+│       ├── sidecar_supervisor.py    # 每次调用的启动/readiness/请求/回收
+│       └── sidecar_contract.py      # 从 ToolOutputContract 生成的 stdout 校验
 ├── requirements.lock.txt           # 全量 pinned(含上游 pinned 版本,== 钉死)
 ├── build.sh                        # 唯一构建声明:python3 -m venv .venv
 │                                   #   && .venv/bin/pip install -r requirements.lock.txt
@@ -67,6 +74,30 @@ pdf-table/                          # 工具包根 = 交付物
 }
 ```
 
+v1/v2 的 `runtime.delivery` 省略（旧 manifest 无需回写）。ToolSpec v3 把
+冻结 runtime 完整投影到该位置：
+
+```json
+{
+  "runtime": {
+    "python": "3.12",
+    "cpu_only": true,
+    "offline": true,
+    "delivery": {
+      "mode": "http_sidecar",
+      "profile_id": "tool-http-sidecar-v1",
+      "lifecycle": "per_invocation",
+      "credentials": "none",
+      "network": "loopback_only",
+      "protocol": "repoproof-http-sidecar-v1",
+      "startup_timeout_seconds": 10,
+      "request_timeout_seconds": 120,
+      "shutdown_timeout_seconds": 3
+    }
+  }
+}
+```
+
 - `interface` 与冻结契约 `ToolSpec` **逐字段一致**(交付期静态检查,
   [TOOL_CONTRACT_SCHEMA.md](TOOL_CONTRACT_SCHEMA.md) §五);
 - `verification` 由 harness 在 gate 后写入;agent 写的 manifest 里该键
@@ -75,6 +106,8 @@ pdf-table/                          # 工具包根 = 交付物
 - **M3 的 MCP/Python API 暴露就是本文件的机械转换**:`interface` →
   MCP tool schema;`bin/` 壳 → MCP server 进程。v1 不实现,只保证
   本文件字段充分。
+- v3 的 MCP 仍只能 subprocess 调同一 `bin/<tool>`；不得读取
+  `runtime.delivery` 后绕过 CLI 直连动态端口。
 
 ## 三、会话内布局(agent 工作区;对应旧 /host /upstream /adaptation)
 
@@ -115,6 +148,23 @@ pdf-table/                          # 工具包根 = 交付物
 | `README.md` 用法段 | agent | 事实性由样例背书,不允许成功声明措辞 |
 | `evidence/` | harness | agent 不可写 |
 
+ToolSpec v3 调整其中两项责任但不扩大可编辑面：
+
+| v3 文件 | 谁写 | 说明 |
+|---|---|---|
+| `main.py` | harness | CLI 错误码与 stdout/stderr 边界；只调用 supervisor |
+| `impl.py` | **agent** | 调用 pinned upstream 并返回文本结果 |
+| `sidecar_server.py` | harness | 固定 loopback 协议；agent 不可改 |
+| `sidecar_supervisor.py` | harness | token、动态端口、timeout、无条件回收；agent 不可改 |
+| `sidecar_contract.py` | harness | 同一 ToolOutputContract 的生成投影；agent 不可改 |
+
+以上 harness 文件连同 `__init__.py`、`__main__.py`、`bin/<tool>`、`build.sh`、`tool.json`、
+`pyproject.toml` 在 HostContract 中逐文件冻结摘要，最终按摘要执法；`impl.py`
+是唯一 sidecar 能力编辑面。摘要不覆盖可再生 `.venv`，也不能替代 OS sandbox。
+
+构建期签名 receipt、观测代理和密钥仍由 Harness 持有，永不进入以上交付
+文件。交付期 sidecar 调用本身不能伪称为签名采用证明。
+
 ## 五、安装与运行模型(用户视角)
 
 ```bash
@@ -130,6 +180,13 @@ cd ~/tools/pdf-table && ./build.sh
   (`repoproof tool list`)记录 已装工具 → manifest → 证据 的索引;
 - **replay 即安装测试**:clean replay 的动作(空白环境 → build.sh →
   重跑全部验收)与用户首次安装同构——PASS 直接回答"别人机器装得起来"。
+
+v3 对用户仍是相同命令。每次 `bin/<tool>` 调用内部创建一次性 sidecar：
+固定绑定 `127.0.0.1` 动态端口、完成 health/invoke、校验输出合同，然后无条件
+回收。它不要求用户管理端口、daemon 或 credential。当前候选尚无 OS 级网络
+隔离，因此“loopback_only”只描述固定协议绑定，不能宣称已阻断所有外连。
+clean replay 不能依赖 RepoProof checkout 外部的 runtime 根、API Key 或前次
+调用残留进程。
 
 ## 六、与四平面的对接(零新概念清单)
 

@@ -1,9 +1,11 @@
-# ToolContract Schema 现行规范(RFC-010 [D1][G1][G2] + RFC-011 M5)
+# ToolContract Schema 现行规范(RFC-010 + RFC-011 M5 + RFC-012 M7 candidate)
 
-- 状态:**M5 已实施**;新 draft 使用 ToolSpec v2,旧冻结契约保持 v1 语义
+- 状态:**M5 已实施**；普通新 draft 使用 ToolSpec v2；ToolSpec v3 managed
+  sidecar 处于 **experimental/candidate**；旧冻结契约保持 v1/v2 原语义
 - 依据:
   [RFC-010](rfc/RFC-010-LOCAL-TOOL-PRODUCT-CHARTER.md) §三/§四与
-  [RFC-011](rfc/RFC-011-TOOL-CONTRACT-COHERENCE-AND-RELEASE-STATE.md) §三/§四
+  [RFC-011](rfc/RFC-011-TOOL-CONTRACT-COHERENCE-AND-RELEASE-STATE.md) §三/§四、
+  [RFC-012](rfc/RFC-012-MANAGED-SIDECAR-TOOLS.md)
 - 演化纪律:新字段必须有兼容默认值;冻结 contract/sidecar 不回写;
   新规则以 `tool.schema_version` 分界,不对 v1 补施 v2 语义
 
@@ -21,14 +23,16 @@
 | `Environment` / `Constraints` / `Budgets` | 原样 |
 | `Acceptance`(argv 列表) | 原样——验收载体沿用 pytest([D1]) |
 | `RequirementSpec` + ContractAdequacyGate | 原样 + M1 扩条(§六) |
-| `runtime_profile` | 原样,默认 `rt-inprocess-v1`(= [D4] 弱档);M2 加 import-hook profile |
+| `runtime_profile` | 原样，描述**构建/验证拓扑**；不得承载 v3 交付 runtime |
+| `tool.runtime` | v3 新增，描述**用户交付运行时**；v1/v2 必须省略 |
 | `task_family` | 新谱系值 **`LOCAL-TOOL`**(旁注,不改 task_id 规则) |
 | `adoption_shape` | 新值 **`TOOL_ONBOARDING`** |
 
 M0 时 `TaskContract` 只增加了 `tool: ToolSpec | None = None`;
-M5 继续做加法演化:`ToolSpec.schema_version` 默认为 `1`,
+M5/M7 继续做加法演化:`ToolSpec.schema_version` 默认为 `1`,
 `ToolInterfaceIO.contract` 默认为 `None`。因此旧 contract 加载结果不变,
-而新 draft 由 D 闸强制使用 v2。
+而普通新 draft 由 D 闸强制使用 v2；只有明确选择 managed sidecar 的新 task
+version 使用 v3。
 
 ## 二、完整 v2 契约示例(示意,不改写已冻结 pdf-table v1)
 
@@ -132,10 +136,11 @@ class ToolInterface(BaseModel):
                                #   0=成功;1=用户错误(输入不存在/格式坏);2=内部错误
 
 class ToolSpec(BaseModel):
-    schema_version: int = 1    # 1=冻结历史;2=RFC-011 输出合同门禁
+    schema_version: int = 1    # 1=冻结历史;2=输出合同;3=managed sidecar
     name: str                  # CLI 命令名;= target_project.entry_point
     summary: str               # 进 tool.json manifest 的一句话
     interface: ToolInterface
+    runtime: ToolRuntimeSpec | None = None
 ```
 
 `ToolOutputContract` 是有意限定的可执行子集,不伪装成完整 JSON
@@ -158,9 +163,10 @@ Schema:
 `tool: ToolSpec | None = None` 挂在 `TaskContract` 上;`None` 是非工具旧谱系。
 对 LOCAL-TOOL,`schema_version=1` + `contract=None` 是冻结 v1 的兼容语义;
 不得因其人读 `format` 含 JSON 就倒推或补写合同。新 draft 的
-D 闸要求 `schema_version == 2`,且 v2 必须有 `output.contract`。
+D 闸接受 `schema_version` 2 或 3，二者都必须有 `output.contract`；v3 另须
+通过固定 delivery runtime 检查。
 
-**v2 `ToolSpec` 是单一事实源**:
+**v2/v3 `ToolSpec` 是接口与输出合同的单一事实源**:
 
 1. 装配器生成骨架 argparse 与 `tool.json`;
 2. public / held-out 接口与输出合同测试;
@@ -172,6 +178,40 @@ D 闸要求 `schema_version == 2`,且 v2 必须有 `output.contract`。
 装配器把 `schema_version` 投影为 manifest 的
 `contract_schema_version`,保留用户确认的
 `capability.output_schema`,并完整投影 `interface.output`。
+
+### ToolSpec v3：交付 runtime（M7 candidate）
+
+```python
+class ToolRuntimeSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["http_sidecar"]
+    profile_id: Literal["tool-http-sidecar-v1"]
+    lifecycle: Literal["per_invocation"]
+    credentials: Literal["none"]
+    network: Literal["loopback_only"]
+    protocol: Literal["repoproof-http-sidecar-v1"]
+    startup_timeout_seconds: Literal[10]
+    request_timeout_seconds: Literal[120]
+    shutdown_timeout_seconds: Literal[3]
+```
+
+v3 必须同时满足：
+
+- `runtime` 完整存在且没有额外字段；
+- 输入仍为现有 `file`，输出仍为现有 `stdout`，不增加 URL、对象参数或新
+  MCP schema；
+- v2 的 `ToolOutputContract`、T6–T9 与 golden 校验全部继续生效；
+- `tool.json.runtime.delivery` 与冻结 `tool.runtime` 逐字段一致；
+- `ToolSpec.runtime` 只描述交付包运行方式，不能复用
+  `TaskContract.runtime_profile`，也不能把 Benchmark `SidecarSession` /
+  `upstream_sidecar` 作为交付 runtime。
+
+v1/v2 加载时 `runtime` 必须为空；旧合同不因 v3 出现而被推断、补写或重新
+验证。完整协议和信任边界见 [RFC-012](rfc/RFC-012-MANAGED-SIDECAR-TOOLS.md)。
+在强 receipt 与 OS 级隔离关闭前，v3 即使历史验证通过也只能投影为
+`REVIEW_REQUIRED / MANAGED_SIDECAR_TRUST_PENDING`，不得进入 `ACTIVE` 或
+生成受管 MCP；这是运营发布闸，不改写冻结合同或历史 verdict。
 
 ## 四、样例三层细则([G2] 落地)
 
@@ -304,6 +344,11 @@ T6–T9 只对 `tool.schema_version >= 2` 生效。装配器在写入任何
 ContractAdequacyGate 再结合 `tool.json` 与样例文件复核。新 draft
 的 D 闸另会拒绝降级为 v1 的规避。
 
+v3 不重排 T 编号；它在上述输出合同门之上增加三道确定性检查：模型层严格
+验证固定 runtime 与 file-in/stdout 边界，装配器只生成固定 supervisor/server，
+adequacy 再核对 manifest 的 `runtime.delivery` 完整投影。任一分歧均拒绝，
+不能降级为 v2 后继续声称 managed sidecar。
+
 ## 七、实施锚点与兼容边界
 
 | 职责 | 实施锚点 |
@@ -314,11 +359,14 @@ ContractAdequacyGate 再结合 `tool.json` 与样例文件复核。新 draft
 | 写入前 T6–T9 preflight 与 manifest 投影 | `src/repoproof/adoption/assembly/tool_assembler.py` |
 | public / held-out 实际 stdout 节点 | `src/repoproof/adoption/assembly/example_compiler.py` |
 | 冻结前 adequacy 复核 | `src/repoproof/harness/contract_adequacy.py` |
+| v3 固定 sidecar runtime 生成 | `src/repoproof/adoption/assembly/managed_sidecar.py` |
 
 兼容边界是结构性的:旧 contract 仍以 `TaskContract.load_frozen`
 的 `require_sidecar=True` 路径按 sidecar 加载,旧 v1 不因 M5 被重写或套用
 T6–T9;只有新 v2 题才获得输出合同保证。若修复旧题的合同
 缺陷,必须立新 `task_id` / task version,不能改写 v1 真值。
+v2 同样不因 M7 被补写 `runtime`；需要 managed sidecar 时必须立新 task
+version，v3 当前只能作为 experimental/candidate 使用。
 同一 `tool.name` 可通过更高且同谱系的 task version 安全升级,
 但升级是安装/发布协议,不是 schema 回写;具体执法见
 [TOOL_READY_GATE.md](TOOL_READY_GATE.md) §6.4。

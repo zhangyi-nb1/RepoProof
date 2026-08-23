@@ -53,6 +53,12 @@ class ToolExportError(RuntimeError):
     pass
 
 
+def _tool_schema_version(contract: TaskContract) -> int:
+    """Return the additive ToolSpec version; legacy test/fixture objects are v1."""
+
+    return int(getattr(contract.tool, "schema_version", 1))
+
+
 def _tool_path(root: Path, name: str) -> Path:
     """Resolve one canonical command path without allowing path traversal."""
 
@@ -218,6 +224,7 @@ def _materialize_verified_tool(
             json.dumps(
                 {
                     "tool": contract.tool.name,
+                    "tool_schema_version": _tool_schema_version(contract),
                     "task_id": contract.task_id,
                     "run_id": report.get("run_id"),
                     "source": {
@@ -546,6 +553,7 @@ def install_verified_tool(
                 task_id=contract.task_id,
                 run_id=report.get("run_id"),
                 evidence_sha256=hashlib.sha256(manifest_bytes).hexdigest(),
+                managed_sidecar=_tool_schema_version(contract) >= 3,
             )
 
             dest = _tool_path(dest_root, contract.tool.name)
