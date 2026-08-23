@@ -80,6 +80,7 @@ def test_assembled_task_passes_all_t_checks(assembled):
     t = _tkeys(_evaluate(root, info, contract))
     assert t == {"tool_section_present": True, "tool_exit_codes_complete": True,
                  "tool_name_matches_entry_point": True,
+                 "tool_package_not_shadowing_upstream": True,
                  "tool_example_fixtures_exist": True,
                  "tool_examples_sufficient": True}
 
@@ -117,6 +118,17 @@ def test_t2_name_entry_point_fork_is_caught(assembled):
     assert res.checked["tool_name_matches_entry_point"] is False
 
 
+def test_t5_package_shadowing_upstream_is_caught(assembled):
+    """m3 集成实测:工具包名与上游模块同名 → src/ 遮蔽上游,必须硬拒。"""
+    root, info, contract = assembled
+    broken = contract.model_copy(deep=True)
+    broken.tool.name = "pdfplumber"
+    broken.target_project.entry_point = "pdfplumber"
+    res = _evaluate(root, info, broken)
+    assert res.checked["tool_package_not_shadowing_upstream"] is False
+    assert any("shadows" in f for f in res.failures)
+
+
 def test_t3_missing_example_file_is_caught(assembled):
     root, info, contract = assembled
     (root / "oracle" / info["task_id"] / "fixtures" / "inputs" / "b.pdf").unlink()
@@ -138,4 +150,5 @@ def test_docs_dir_omitted_skips_only_example_checks(assembled):
     root, info, contract = assembled
     t = _tkeys(_evaluate(root, info, contract, with_docs=False))
     assert set(t) == {"tool_section_present", "tool_exit_codes_complete",
-                      "tool_name_matches_entry_point"}
+                      "tool_name_matches_entry_point",
+                      "tool_package_not_shadowing_upstream"}

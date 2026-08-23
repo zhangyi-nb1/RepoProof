@@ -175,6 +175,15 @@ def evaluate_adequacy(
                   tool.name == contract.target_project.entry_point,
                   f"tool.name={tool.name!r} != target_project.entry_point="
                   f"{contract.target_project.entry_point!r}")
+            # T5 (m3 集成实测缺陷): the tool's own package must not shadow
+            # the pinned upstream module — with src/ on PYTHONPATH the
+            # skeleton package wins import resolution and every upstream
+            # call dies with an unreadable AttributeError.
+            check("tool_package_not_shadowing_upstream",
+                  tool.name.replace("-", "_") != contract.source_repo.import_name,
+                  f"tool package {tool.name.replace('-', '_')!r} shadows "
+                  f"upstream module {contract.source_repo.import_name!r} — "
+                  "rename the tool (e.g. add a -tool suffix)")
         if tool_example_docs_dir is not None:
             def _examples(name: str) -> list[dict]:
                 p = tool_example_docs_dir / name

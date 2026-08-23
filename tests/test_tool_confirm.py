@@ -125,14 +125,14 @@ def test_confirm_happy_path_freezes_contract(draft_bundle):
     project = tmp / "proj"
     project.mkdir()
     info = confirm_tool_draft(dest, project)
-    assert info["task_id"] == "tool-acme-lib-v1"
+    assert info["task_id"] == "tool-acme-lib-tool-v1"   # 避撞建议名
     assert info["public"] == 3 and info["held"] == 1
     c, _ = TaskContract.load_frozen(
         project / "contracts" / f"{info['task_id']}.yaml", require_sidecar=True)
-    assert c.task_family == "LOCAL-TOOL" and c.tool.name == "acme-lib"
+    assert c.task_family == "LOCAL-TOOL" and c.tool.name == "acme-lib-tool"
     # held-out 文件本体只进 oracle(确认流传导装配器纪律)
     assert (project / "oracle" / info["task_id"] / "fixtures" / "c.txt").is_file()
-    skel_pub = project / "fixtures" / "tool_skeleton_acme-lib" / "public_tests"
+    skel_pub = project / "fixtures" / "tool_skeleton_acme-lib-tool" / "public_tests"
     assert not (skel_pub / "fixtures" / "c.txt").exists()
 
 

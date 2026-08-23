@@ -89,6 +89,38 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_tcf.add_argument("--draft-dir", type=Path, required=True)
 
+    p_tool = sub.add_parser(
+        "tool",
+        help="LOCAL-TOOL 单命令旅程(M3/RFC-010):add(intake+起草+人务清单)"
+             " / build(confirm→物化→彩排门→真发→export+注册) / list / mcp",
+    )
+    tsub = p_tool.add_subparsers(dest="tool_cmd", required=True)
+    pt_add = tsub.add_parser("add", help="URL+一句话 → draft 束+起草+人的待办清单")
+    pt_add.add_argument("--repo", required=True)
+    pt_add.add_argument("--capability", required=True)
+    pt_add.add_argument("--revision", default=None)
+    pt_add.add_argument("--draft-out", type=Path, required=True)
+    pt_add.add_argument("--fake-drafter", action="store_true",
+                        help="确定性模板起草(零 API)")
+    pt_build = tsub.add_parser("build", help="人补完 draft 束后:一条龙到已注册工具")
+    pt_build.add_argument("--draft-dir", type=Path, required=True)
+    pt_build.add_argument("--bench-root", type=Path,
+                          default=Path("~/RepoProofBench").expanduser())
+    pt_build.add_argument("--dest-root", type=Path,
+                          default=Path("~/tools").expanduser())
+    pt_build.add_argument("--rehearsal-only", action="store_true",
+                          help="只到 fake 彩排门,不烧真模型预算")
+    pt_build.add_argument("--batch", default="EXPLORATORY_UNPREREGISTERED")
+    pt_list = tsub.add_parser("list", help="本地已验证工具注册表")
+    pt_list.add_argument("--dest-root", type=Path,
+                         default=Path("~/tools").expanduser())
+    pt_list.add_argument("--scan", action="store_true",
+                         help="扫描补录未登记的工具包(不伪造导出时间)")
+    pt_mcp = tsub.add_parser("mcp", help="为已验证工具生成 MCP stdio server(机械转换)")
+    pt_mcp.add_argument("name")
+    pt_mcp.add_argument("--dest-root", type=Path,
+                        default=Path("~/tools").expanduser())
+
     p_asrc = sub.add_parser(
         "analyze-source",
         help="RFC-008 §5.1 stable name for analyze-repo (same core, JSON envelope by default)",
@@ -326,6 +358,82 @@ def main(argv: list[str] | None = None) -> int:
             payload["draft_bundle"] = str(write_draft_bundle(rep, args.draft_out))
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0
+
+    if args.cmd == "tool":
+        if args.tool_cmd == "add":
+            from repoproof.adoption.intake.tool_confirm import write_draft_bundle
+            from repoproof.adoption.intake.tool_drafter import (
+                DraftError,
+                FakeDrafter,
+                LiteLLMDrafter,
+                draft_into_bundle,
+            )
+            from repoproof.adoption.intake.tool_intake import run_tool_intake
+
+            rep = run_tool_intake(args.repo, args.capability,
+                                  cache_root=PROJECT_ROOT / "upstream-cache",
+                                  revision=args.revision)
+            payload: dict = {"admission": rep.admission.to_dict()}
+            if rep.admission.status == "UNSUPPORTED" or not rep.draft:
+                print(json.dumps({"ok": False, **payload},
+                                 ensure_ascii=False, indent=2))
+                return 3
+            bundle = write_draft_bundle(rep, args.draft_out)
+            payload["draft_bundle"] = str(bundle)
+            try:
+                drafter = FakeDrafter() if args.fake_drafter else LiteLLMDrafter()
+                payload["drafted"] = draft_into_bundle(rep, bundle, drafter)
+            except DraftError as exc:
+                payload["draft_error"] = str(exc)
+            payload["your_todo"] = [
+                f"1. 审阅并修改 {bundle}/draft.yaml(statement/summary/格式;"
+                "工具名 tool.name 由你定)",
+                f"2. 审阅 {bundle}/reference_impl.py(必须真调上游;起草仅供参考)",
+                f"3. 放样例真值:{bundle}/examples/ 放输入文件,"
+                f"{bundle}/examples.yaml 写 >=3 组断言(含文件样例;尾部自动 held-out)",
+                f"4. (可选){bundle}/reference.lock.txt 写全量 pinned",
+                f"5. 跑:repoproof tool build --draft-dir {bundle}",
+            ]
+            print(json.dumps({"ok": True, **payload}, ensure_ascii=False, indent=2))
+            return 0
+        if args.tool_cmd == "build":
+            from repoproof.adoption.intake.tool_confirm import ConfirmError
+            from repoproof.runner.tool_pipeline import PipelineError, tool_build
+
+            try:
+                out = tool_build(args.draft_dir, PROJECT_ROOT,
+                                 bench_root=args.bench_root,
+                                 dest_root=args.dest_root,
+                                 run_real=not args.rehearsal_only,
+                                 batch=args.batch)
+            except (ConfirmError, PipelineError) as exc:
+                print(json.dumps({"ok": False, "error": str(exc),
+                                  **({"problems": exc.problems}
+                                     if hasattr(exc, "problems") else {})},
+                                 ensure_ascii=False, indent=2))
+                return 3
+            print(json.dumps({"ok": True, **out}, ensure_ascii=False, indent=2))
+            return 0
+        if args.tool_cmd == "list":
+            from repoproof.runner.tool_registry import list_tools
+
+            rows = list_tools(args.dest_root, scan=args.scan)
+            print(json.dumps({"tools": rows}, ensure_ascii=False, indent=2))
+            return 0
+        if args.tool_cmd == "mcp":
+            from repoproof.runner.tool_mcp import write_mcp_server
+
+            try:
+                out_p = write_mcp_server(Path(args.dest_root) / args.name)
+            except (RuntimeError, OSError, ValueError) as exc:
+                print(json.dumps({"ok": False, "error": str(exc)},
+                                 ensure_ascii=False, indent=2))
+                return 3
+            print(json.dumps({
+                "ok": True, "server": str(out_p),
+                "attach": f"claude mcp add {args.name} -- python3 {out_p}",
+            }, ensure_ascii=False, indent=2))
+            return 0
 
     if args.cmd == "tool-draft":
         from repoproof.adoption.intake.tool_drafter import (

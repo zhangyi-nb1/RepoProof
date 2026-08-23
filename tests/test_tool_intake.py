@@ -94,6 +94,15 @@ def _repo_report(**over) -> RepositoryReport:
     return RepositoryReport(**base)
 
 
+def test_suggested_name_avoids_upstream_shadowing():
+    from repoproof.adoption.intake.tool_intake import _suggest_tool_name
+
+    assert _suggest_tool_name("g", "minilib", "minilib") == "minilib-tool"
+    assert _suggest_tool_name("g", "pdfplumber", "pdfplumber") == "pdfplumber-tool"
+    assert _suggest_tool_name("g", "python-markdownify", "markdownify") \
+        == "python-markdownify"          # 不撞则不动
+
+
 def test_decide_tool_ready_when_all_good():
     assert decide_tool(_repo_report()).status == "READY"
 
@@ -138,7 +147,7 @@ def test_intake_draft_fills_deterministic_fields(tmp_path):
     assert len(d["source_repo"]["resolved_commit"]) == 40
     assert d["source_repo"]["license"] == "MIT"
     assert d["task_family"] == "LOCAL-TOOL"
-    assert d["tool"]["name"] == "acme-lib"
+    assert d["tool"]["name"] == "acme-lib-tool"   # 避撞:acme_lib==import 名
     assert d["tool"]["interface"]["exit_codes"] == {
         "0": "success", "1": "user_error", "2": "internal_error"}
     assert d["_draft"]["status"] == "DRAFT"
@@ -193,4 +202,4 @@ def test_intake_on_real_pdfplumber_tree():
     assert d["import_module"] == "pdfplumber"
     assert d["resolved_commit"].startswith("7d4f2f58")
     assert d["license"] == "MIT"
-    assert rep.draft["tool"]["name"] == "pdfplumber"   # 建议名;最终归 USER
+    assert rep.draft["tool"]["name"] == "pdfplumber-tool"   # 避撞建议;最终归 USER

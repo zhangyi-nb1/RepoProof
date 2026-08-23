@@ -110,10 +110,18 @@ def extract_import_module(repo_dir: Path, distribution: str) -> tuple[str, str]:
     return "", "无法定位唯一可导入包"
 
 
-def _suggest_tool_name(capability_goal: str, distribution: str) -> str:
-    """确定性建议(最终名归 USER):distribution 的 kebab 化。"""
+def _suggest_tool_name(capability_goal: str, distribution: str,
+                       import_module: str = "") -> str:
+    """确定性建议(最终名归 USER):distribution 的 kebab 化。
+
+    避撞(m3 集成实测缺陷):工具包名(下划线化)不得等于上游模块名 ——
+    PYTHONPATH 语义下骨架 src/<pkg>/ 会遮蔽上游,import 到的是工具自己
+    的空壳,死因还极难读。撞名时加 -tool 后缀;T5 闸兜底硬拒。"""
     base = distribution or "tool"
-    return re.sub(r"[^a-z0-9-]+", "-", base.lower()).strip("-") or "tool"
+    name = re.sub(r"[^a-z0-9-]+", "-", base.lower()).strip("-") or "tool"
+    if import_module and name.replace("-", "_") == import_module:
+        name += "-tool"
+    return name
 
 
 # --------------------------------------------------------------- 草稿组装
@@ -131,7 +139,7 @@ def build_draft(repo: RepositoryReport, repo_dir: Path,
         gaps.append(DraftGap(field="source_repo.import_module", owner="USER",
                              why=imp_ev))
 
-    name = _suggest_tool_name(capability_goal, dist)
+    name = _suggest_tool_name(capability_goal, dist, imp)
     package = name.replace("-", "_")
     commit = str(repo.commit.value) if repo.commit.provenance != "UNKNOWN" else ""
     license_id = (str(repo.license.value)

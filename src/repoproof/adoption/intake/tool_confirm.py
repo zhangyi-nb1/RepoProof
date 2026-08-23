@@ -192,7 +192,7 @@ def confirm_tool_draft(draft_dir: Path, project_root: Path) -> dict:
                                / "fixtures"))
     tkeys = {k: v for k, v in res.checked.items() if k.startswith("tool_")}
     bad = sorted(k for k, v in tkeys.items() if not v)
-    if len(tkeys) != 5 or bad:
-        raise ConfirmError([f"adequacy T 闸未全绿:{bad or '键数不足'};"
+    if not tkeys or bad:
+        raise ConfirmError([f"adequacy T 闸未全绿:{bad or 'T 键缺席'};"
                             f"failures={[f for f in res.failures if 'tool' in f]}"])
     return info
