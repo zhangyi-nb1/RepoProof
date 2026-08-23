@@ -241,6 +241,11 @@ def run_adequacy_gate(contract_path: Path, project_root: Path) -> dict:
         contract_path=contract_path,
         controls_summary=package.controls_summary,
         forbidden_prompt_tokens=forbidden,
+        contract=contract,
+        tool_example_docs_dir=(
+            project_root / "oracle" / contract.task_id / "fixtures"
+            if contract.task_family == "LOCAL-TOOL" else None
+        ),
     )
     failures = list(result.failures)
     pm_path = contract_path.parent / (contract_path.stem + ".prompt_manifest.json")

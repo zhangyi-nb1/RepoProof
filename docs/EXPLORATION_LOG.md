@@ -3502,3 +3502,35 @@ false_success 1/10；replay 重装入口口径仍为 10/10。
 oracle、held-out；`/private/tmp` 查到一个非本批生成的旧 RepoProof 评审副本
 (25M，含历史 held-out)，按绝对红线整目录移入废纸篓可恢复保管，未读取
 答案内容。
+
+## 状态 · 2026-08-24 · RFC-011 M5 关闭:输出合同一致性+运营发布状态(零真发)
+
+M4 的 pyspellchecker false-success 被工程化为两层确定性防线，而非回写
+历史：新 ToolSpec v2 增 `ToolOutputContract`，未知字段 fail-closed；装配/
+冻结前 T6–T9 检查合同存在、golden 可解析、结构化精确真值与 manifest
+投影一致；public/held-out/reference/真 agent 节点都独立解析 actual stdout，
+即使错误 actual 与错误 expected 相等也会以 `[tool-output-contract]` 报红。
+37 份 v1 冻结合同与 sidecar 字节未动，仍按旧语义加载。
+
+运营面新增严格 append-only release ledger：初导出 REVIEW_REQUIRED，fresh
+non-example audit 后才 ACTIVE，失败或用户撤回为 REVOKED。registry/list 同时
+展示不可改写的 `historical_verdict` 与当前 `operational_status`；同名新 task
+version 不继承旧 ACTIVE，普通 audit 不能复活 USER_WITHDRAWAL/合同缺陷。
+MCP 只接受历史 READY + 当前 ACTIVE；M5 生成 server 每次 list/call 重验账本，
+pre-M5 非 ACTIVE server 不破坏性改写而在 list 标记需解绑。
+
+已获批执行真实盘迁移：从原 `m4_audits.jsonl` 22 行按源行 SHA-256 首次
+导入 **21 ACTIVE + 1 REVOKED**，第二次 22/22 跳过；盘面另有 pdf-table 与
+html2md 因无该 fresh audit 保持 REVIEW_REQUIRED。pyspellchecker 同时为历史
+`VERIFIED_TOOL_READY` + 当前 `REVOKED/OUTPUT_CONTRACT_MISMATCH`，MCP 命令
+拒绝。迁移前后 registry、pyspell tool.json、原 audit ledger 三份 SHA-256
+逐位不变；工具包、run、classification、冻结史零改写。
+
+指标出口同步报批次二 **submitted 12 / accepted 11 / historical READY 10 /
+operational READY 9 / replay 10 / false-success 1**。收口还修正一个既有漂移：
+历史 READY 改绑定 registry 实际导出的 `run_id`，不再被同 task 后续模型对比
+FAIL 覆盖，批次一恢复 12/12。验证：M5 定向测试全绿、冻结合同 37/37；
+1384 项等价全量复验为 **1324 passed + 60 skipped + 0 failed**（1323 项在
+全量进程通过；唯一受并行 OfferClaw 开发写入影响的保护目录 smoke 已独立
+通过）；机制/迁移期真实模型调用 0。**M5 关闭；第三批真仓与 Studio UI
+均未启动。**

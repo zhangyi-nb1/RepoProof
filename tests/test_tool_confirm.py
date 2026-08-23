@@ -60,6 +60,8 @@ def _complete(dest: Path) -> None:
     draft["tool"]["summary"] = "文本大写工具"
     draft["tool"]["interface"]["input"]["format"] = "TXT"
     draft["tool"]["interface"]["output"]["format"] = "TXT"
+    draft["tool"]["interface"]["output"]["contract"] = {
+        "media_type": "text/plain", "root_type": "text", "required": {}}
     draft["capability"]["statement"] = (
         "把 acme_lib.shout 包装为本地 CLI:输入文本文件,输出其大写;"
         "空文件属用户错误(抛 UserInputError → exit 1)。")
@@ -119,6 +121,25 @@ def test_reference_without_upstream_import_is_caught(draft_bundle):
     assert any("未 import acme_lib" in p for p in problems), problems
 
 
+def test_v2_json_draft_without_executable_contract_is_caught(draft_bundle):
+    _, _rep, dest = draft_bundle
+    _complete(dest)
+    draft = yaml.safe_load((dest / "draft.yaml").read_text(encoding="utf-8"))
+    draft["tool"]["interface"]["output"]["format"] = "JSON"
+    draft["tool"]["interface"]["output"]["contract"] = {}
+    problems = check_draft_complete(draft, dest)
+    assert any("output.contract" in p for p in problems), problems
+
+
+def test_new_draft_cannot_downgrade_to_v1_to_bypass_output_gate(draft_bundle):
+    _, _rep, dest = draft_bundle
+    _complete(dest)
+    draft = yaml.safe_load((dest / "draft.yaml").read_text(encoding="utf-8"))
+    draft["tool"].pop("schema_version")
+    problems = check_draft_complete(draft, dest)
+    assert any("schema_version" in p for p in problems), problems
+
+
 def test_reference_accepts_from_upstream_import(draft_bundle):
     """合法的 ``from 包 import 符号`` 也必须通过上游 import 确认闸。"""
     _, _rep, dest = draft_bundle
@@ -143,6 +164,9 @@ def test_confirm_happy_path_freezes_contract(draft_bundle):
     c, _ = TaskContract.load_frozen(
         project / "contracts" / f"{info['task_id']}.yaml", require_sidecar=True)
     assert c.task_family == "LOCAL-TOOL" and c.tool.name == "acme-lib-tool"
+    assert c.tool.schema_version == 2
+    assert c.capability.output_schema == "UppercasedText"
+    assert c.tool.interface.output.contract.root_type == "text"
     # held-out 文件本体只进 oracle(确认流传导装配器纪律)
     assert (project / "oracle" / info["task_id"] / "fixtures" / "c.txt").is_file()
     skel_pub = project / "fixtures" / "tool_skeleton_acme-lib-tool" / "public_tests"

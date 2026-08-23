@@ -21,6 +21,7 @@ import yaml
 
 from repoproof.runner.tool_mcp import write_mcp_server
 from repoproof.runner.tool_registry import list_tools, register_tool
+from repoproof.runner.tool_release import ACTIVE, append_release_decision
 
 _REPO_PY = sys.executable
 _REPO_SITE = sysconfig.get_paths()["purelib"]
@@ -46,7 +47,16 @@ def _fake_tool(dest: Path, name: str, *, verified: bool = True) -> Path:
                           "contract_sha256": "abc"} if verified else None),
     }, ensure_ascii=False), encoding="utf-8")
     (d / "evidence" / "provenance.json").write_text(
-        json.dumps({"task_id": f"tool-{name}-v1"}), encoding="utf-8")
+        json.dumps(
+            {
+                "tool": name,
+                "task_id": f"tool-{name}-v1",
+                "run_id": "r-1",
+                "tool_contract_sha256": "abc",
+            }
+        ),
+        encoding="utf-8",
+    )
     return d
 
 
@@ -87,6 +97,18 @@ def test_mcp_refuses_unverified_tool(tmp_path):
 
 def test_mcp_server_protocol_and_call(tmp_path):
     d = _fake_tool(tmp_path, "echoer")
+    append_release_decision(
+        tmp_path,
+        tool="echoer",
+        task_id="tool-echoer-v1",
+        run_id="r-1",
+        decision=ACTIVE,
+        reason_code="FRESH_INPUT_PASS",
+        reason="test fresh-input audit passed",
+        evidence_sha256="0" * 64,
+        decided_at="2026-08-23T00:00:00Z",
+        actor="operator",
+    )
     server = write_mcp_server(d)
     inp = tmp_path / "in.jsonl"
     probe = tmp_path / "probe.txt"
@@ -196,6 +218,8 @@ def test_pipeline_runs_to_rehearsal_gate_offline(tmp_path, monkeypatch):
     doc["tool"]["summary"] = "MINI→MD"
     doc["tool"]["interface"]["input"]["format"] = "TXT"
     doc["tool"]["interface"]["output"]["format"] = "markdown-table"
+    doc["tool"]["interface"]["output"]["contract"] = {
+        "media_type": "text/markdown", "root_type": "text", "required": {}}
     doc["capability"]["statement"] = "MINI 文本转 Markdown 行表;坏输入 UserInputError。"
     doc["capability"]["output_schema"] = "MdRows"
     (dest / "draft.yaml").write_text(

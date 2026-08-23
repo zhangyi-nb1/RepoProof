@@ -1,152 +1,235 @@
 # RepoProof
 
-**RepoProof is an evidence-driven harness for verifying whether an
-agent-generated open-source capability adaptation actually satisfies a
-frozen adoption contract.**
+**RepoProof turns one capability from a pinned public GitHub repository into a
+CLI-first local tool, then independently verifies the result before reporting
+`VERIFIED_TOOL_READY`.**
 
-## The problem
+The product is designed for a common gap: finding useful open-source code is
+easy, while turning one of its capabilities into a dependable local command
+still requires repository analysis, environment setup, wrapper code, testing,
+and careful acceptance. RepoProof manages that workflow and keeps the final
+verdict outside the coding agent.
 
-Coding agents routinely REPORT success. "I integrated the library,
-all done" is a claim, not evidence — and in our recorded runs, agents
-produced adapters that were 94% correct (31/33 checks) yet still
-unusable, invented their own BM25 scoring instead of calling the
-pinned upstream, and trusted a contaminated prompt over source code
-they had already read. Adopting an open-source capability into a host
-project needs a verdict that does not come from the agent.
+## Product workflow
 
-## How it works
-
-```
-Task Contract → Contract Adequacy → Single Coding Agent
-     → Frozen Adaptation → Independent Verification
-     → Clean Replay → Completion Gate
-```
-
-- **One autonomous agent loop.** The agent is
-  [mini-swe-agent](https://github.com/SWE-agent/mini-swe-agent)'s
-  `DefaultAgent` — exactly one, no critic/reflection/multi-agent.
-  RepoProof itself is the application + harness + verification
-  protocol around it.
-- **The agent cannot read the oracle or held-out fixtures.** It sees
-  the public contract, public examples, runnable public tests, and
-  the consumer source — never the acceptance tests.
-- **Agent claims never produce a PASS.** The completion gate consumes
-  structured verifier results only (capability, host regression,
-  policy, replay); `claim_complete` events are ignored by
-  construction, pinned by tests.
-- **PASS_ADAPTED exists only when** capability AND host regression
-  AND policy AND a `clean_adoption` replay in a fresh container all
-  pass.
-- **Contract adequacy is checked before any agent starts.** A typed
-  RequirementSpec (owner / severity / public text / examples / oracle
-  bindings) plus a 13-check deterministic ContractAdequacyGate refuse
-  inadequate specs as `INVALID_TASK_SPEC` with zero model calls —
-  because our own Gate 7 proved that an underspecified contract
-  produces failures that are the task author's fault, not the agent's.
-- **Docker is used for isolation, disposal and replay** (non-root,
-  cap-drop ALL, network=none at test time, digest-pinned images) —
-  it is NOT presented as a security sandbox for malicious code
-  (see [SECURITY.md](SECURITY.md)).
-
-## Recorded cases (all numbers: [docs/benchmark_summary.json](docs/benchmark_summary.json))
-
-### ✅ Positive: Front Matter corrected-spec case — PASS_ADAPTED
-
-A real deepseek-v4-pro agent wrote a 1-file / 67-line adapter that
-calls the pinned python-frontmatter, splits the record flags per the
-public truth table, projects metadata JSON-safe (dates → ISO), and
-wraps upstream parse errors — then submitted voluntarily at 16 of its 20
-allowed model calls. Independent verification: capability **18/18** including
-held-out inputs, host regression 3/3, policy clean, and a
-`clean_adoption` replay in a fresh container. Responsibility is
-explicit: deterministic input validation (text=None, missing fields,
-bad ids) is done by the HOST's InputContractGuard — that part is not
-agent capability, and the docs never count it as such.
-Evidence: [docs/evidence/gate72-corrected-spec-run/](docs/evidence/gate72-corrected-spec-run/).
-
-### ❌ Negative: Chonkie — 31/33 and still FAIL
-
-An earlier agent adapted the Chonkie chunking library to 31/33
-capability checks — regression passed, policy clean, a highly
-complete artifact. The independent verifiers refused it anyway: it
-never wrapped upstream errors on malformed input, the same failure
-reproduced deterministically in a clean container, and the verdict
-stayed **FAIL**. High completion is not adoption.
-Evidence: [docs/evidence/gate3c-real-run/](docs/evidence/gate3c-real-run/).
-
-### ❌ Negative: rank_bm25 — semantic substitution
-
-The agent produced schema-perfect rankings (9/12) from its OWN BM25
-arithmetic instead of the pinned upstream's — behavioral reference
-testing caught score drift on public and held-out corpora alike.
-Evidence: [docs/evidence/gate5-second-repo/](docs/evidence/gate5-second-repo/).
-
-## No-model demo (reproducible without any provider)
-
-```bash
-.venv/bin/repoproof demo list
-.venv/bin/repoproof demo verify --case frontmatter-v2-pass
-.venv/bin/repoproof demo verify --case chonkie-agent-fail
-.venv/bin/repoproof demo replay --case frontmatter-v2-pass   # fresh container, no LLM
+```text
+GitHub repository + capability goal
+              ↓
+static analysis and four-state admission
+              ↓
+LLM-assisted DRAFT (never a frozen contract)
+              ↓
+human review of semantics and golden examples
+              ↓
+frozen Tool Contract
+              ↓
+one coding-agent loop
+              ↓
+independent capability / interface / policy verification
+              ↓
+clean replay from the delivered dependency lock
+              ↓
+historical VERIFIED_TOOL_READY + exported tool
+              ↓
+REVIEW_REQUIRED → fresh non-example audit
+              ↓
+ACTIVE RepoProof-managed MCP / upgrade release (or append-only REVOKED)
 ```
 
-`demo verify` recomputes the completion-gate decision from the
-committed verifier evidence; `demo replay` re-runs the committed
-PASS_ADAPTED adapter against the frozen oracle in a new container.
-Neither calls a model. Walkthroughs: [docs/DEMO.md](docs/DEMO.md),
-[docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md).
-
-## Boundaries (read before quoting numbers)
-
-- Scope today: **public Python repos, Linux containers, CPU-first
-  capability-adoption tasks** — three capability domains recorded
-  (chunking, BM25 ranking, front-matter parsing), each requiring
-  human task engineering (contract, oracle, controls).
-- 12 recorded runs, **1 PASS_ADAPTED**, 11 honest FAILs. Nothing here
-  guarantees adaptation success or claims to work with any repo.
-- The Gate 7.2 positive case is a **corrected-spec** result — the
-  task specification was repaired between attempts, so it is NOT a
-  single-variable improvement claim.
-- Budget-awareness ablation returned a null result; the Coverage
-  Ledger is experimental and default-off. Neither supports a success
-  claim — the negative results are kept.
-- Traces are tamper-EVIDENT (hash-chained), not tamper-proof.
-- Claim discipline is machine-checked:
-  [docs/CLAIMS_MATRIX.md](docs/CLAIMS_MATRIX.md) +
-  `scripts/check_public_claims.py`.
+The coding agent can inspect the public contract, public examples, and runnable
+public tests. It cannot read held-out examples or the acceptance oracle. Its
+own completion claim never produces a passing verdict.
 
 ## Quickstart
 
+Prerequisites: Python 3.12, Git, and a supported model/provider configuration
+for real builds. Docker is still used by the Benchmark Lab and selected replay
+paths; it is an isolation and reproducibility mechanism, not a boundary for
+running hostile code.
+
 ```bash
-# prerequisites: docker daemon (tested via colima on Apple Silicon), python 3.12
-python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/pytest                       # host tests (no docker/model needed)
-.venv/bin/repoproof demo verify --case frontmatter-v2-pass
-.venv/bin/repoproof task init --help   # scaffold a new DRAFT task
-.venv/bin/repoproof task check --task-id <id>
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+
+# 1. Analyze a public repository and create an editable proposal.
+.venv/bin/repoproof tool add \
+  --repo https://github.com/owner/project \
+  --capability "describe the one capability you want" \
+  --draft-out ./tool-draft
+
+# 2. Review draft.yaml, reference_impl.py, and the golden examples.
+
+# 3. Freeze, rehearse, run the agent once, verify, replay, export, and register.
+#    A successful export is historical VERIFIED_TOOL_READY but operationally
+#    REVIEW_REQUIRED until the next step.
+.venv/bin/repoproof tool build --draft-dir ./tool-draft
+
+# 4. Audit with a fresh non-example input and independently prepared truth.
+.venv/bin/repoproof tool audit <tool-name> \
+  --input /path/to/fresh-input \
+  --expected-file /path/to/fresh-expected
+
+# 5. Inspect both states; MCP exposure is allowed only while ACTIVE.
+.venv/bin/repoproof tool list
+.venv/bin/repoproof tool mcp <tool-name>
 ```
 
-## Layout
+`tool add` may return `READY`, `NEED_INFORMATION`, `RISK_REVIEW`, or
+`UNSUPPORTED`. Refusing a task outside the supported boundary is an intended
+product outcome. `tool build` uses a fake rehearsal as a pre-budget gate; a
+failed rehearsal does not start the real coding-agent run.
 
+`tool list` deliberately reports two facts: `historical_verdict` is the
+immutable result under the frozen task, while `operational_status` is the
+current append-only release decision (`REVIEW_REQUIRED`, `ACTIVE`, or
+`REVOKED`). A damaged decision ledger fails closed. `tool withdraw` keeps the
+package and evidence but prevents new MCP generation; M5-generated adapters
+also recheck the ledger on every list/call. A pre-M5 adapter is not rewritten
+destructively, so `tool list` marks it `LEGACY_SERVER_MUST_BE_DETACHED` when
+the tool is not ACTIVE.
+
+This operational state is an application-level RepoProof control, not an
+operating-system execution policy. The original `bin/<tool-name>` remains on
+disk and a user who invokes it directly can still run it; `REVOKED` and
+`REVIEW_REQUIRED` are enforced only in RepoProof-managed audit, MCP
+generation/runtime, and upgrade/release paths. Managed upgrades also validate
+the ledger fail closed and force every new task version back to
+`REVIEW_REQUIRED` before package switching. Pre-M5 MCP clients must be detached
+by the operator when flagged.
+
+Managed package consumers bind one identity across the canonical directory,
+`tool.json`, and required `evidence/provenance.json`: directory name =
+`manifest.name` = `provenance.tool`, `task_id` must be exactly
+`tool-<name>-vN`, and manifest/provenance run and contract hashes must match.
+Package installation/upgrade, registry mutation, MCP generation, and managed
+audit/withdraw paths serialize on the shared install lock; compound release
+operations acquire the release lock only after it. The default read-only
+`tool list` does not take that lock and fails closed on an observed intermediate
+state. A generated MCP adapter holds both locks from its ACTIVE check through
+tool execution and result publication, so withdrawal or replacement cannot
+race between those steps.
+
+Rebuilding the same command as a strictly newer task version uses a guarded
+upgrade path. RepoProof checks lineage and version before any real model call,
+stages the candidate on the destination filesystem, appends its
+`REVIEW_REQUIRED` decision before switching packages, moves the unchanged old
+package under `.repoproof-versions/`, and atomically records it in
+`previous_versions`. Same-task replacement, downgrade, lineage mismatch,
+missing or drifting registry identity, or an attached legacy MCP server is
+rejected. The registry atomic replace is the commit point: a catchable failure
+before it restores the old package, while an interruption observed after it
+keeps the consistent new package and registry. The append-only new
+`REVIEW_REQUIRED` decision is never erased, so recovery remains fail closed.
+`SIGKILL` or power loss can interrupt between filesystem renames and requires
+an operator to inspect package, archive, staging, and registry state.
+
+Managed package trees reject symlinks and special files. The sole compatibility
+exception is the existing top-level `.venv`, treated as a reproducible
+environment; `adaptation.patch` may neither create nor modify it. Control files,
+locks, archives, generated MCP files, and MCP `--out` publication use
+containment/no-follow checks. `--out` is produced at a fresh temporary path by
+that invocation, contract-validated, then atomically published; stale or linked
+output files are not reused.
+
+## What is independently checked
+
+- The task contract is frozen before implementation and must pass deterministic
+  adequacy checks.
+- Capability behavior is tested against user-confirmed public and held-out
+  examples.
+- Tool Contract v2 carries a machine-executable output contract. T6–T9 reject
+  missing or contradictory structured-output truth before a real model call,
+  and public, held-out, audit, and MCP paths parse actual stdout independently
+  of the golden text. These output-contract JSON paths are strict: the
+  non-standard numeric tokens `NaN`, `Infinity`, and `-Infinity`, plus numeric
+  overflow such as `1e400` or `-1e400`, are rejected.
+- Runtime import receipts and provenance checks verify that the delivered tool
+  actually uses the pinned upstream capability.
+- CLI behavior checks cover help, exit-code semantics, deterministic output,
+  malformed input where applicable, and stdout/stderr discipline.
+- Policy checks protect frozen surfaces, budgets, and forbidden runtime actions.
+- Clean replay rebuilds from the delivered lock file and reruns verification in
+  a fresh environment.
+- Failure still produces evidence; missing measurements are not treated as
+  success.
+
+Internally the stable completion gate still uses `PASS_ADAPTED` /
+`PASS_DIRECT`; Product Mode renders either successful local-tool outcome as
+`VERIFIED_TOOL_READY`.
+
+## Current evidence and honest limits
+
+RFC-010 milestones M0 through M4 and RFC-011 M5 are complete. The first two dogfood tools
+(`pdf-table` and `html2md`) exercised the full product path, followed by two
+preregistered real-repository batches.
+
+The latest batch-two fact source records:
+
+| Measure | Recorded result |
+|---|---:|
+| Submitted repositories | 12 |
+| Accepted for execution | 11 |
+| Historical pipeline READY results | 10 |
+| Successful clean-replay checks | 10 |
+| ACTIVE for RepoProof-managed exposure after fresh-input audit | 9 |
+| False-success findings | 1 |
+
+The flagged `pyspellchecker` v1 result is deliberately preserved as historical
+evidence: its frozen statement declared JSON while its examples and oracle
+accepted plaintext. Its RepoProof-managed release status was withdrawn without
+rewriting the frozen contract or rerunning the model. The M4 operator audits
+were migrated by source hash into the local append-only release ledger: 21
+tools are ACTIVE, `pyspellchecker-tool` is REVOKED, and the two earlier dogfood
+tools remain REVIEW_REQUIRED because no fresh audit was fabricated for them. See
+[m4_metrics.json](docs/m4_metrics.json) and the append-only
+[exploration log](docs/EXPLORATION_LOG.md).
+
+These are recorded case results, not a claim about arbitrary repositories.
+Product Mode currently targets public Python repositories, one clear
+capability, local CPU execution, simple-to-medium dependencies, and explicit
+file-oriented input/output. GPU-heavy, distributed, account-bound, private,
+or whole-application integration tasks remain outside the v1 promise.
+
+## Product Mode and Benchmark Lab
+
+RepoProof keeps two concerns in one repository but off each other's critical
+paths:
+
+- **Product Mode** optimizes the GitHub capability → local tool journey and
+  records each run with `test_mode=PRODUCT`.
+- **Benchmark Lab** retains preregistration, blind/held-out research tasks,
+  mutation checks, model comparisons, and historical `PASS_ADAPTED` / honest
+  failure evidence. Product runs do not inflate benchmark model scores.
+
+The default qualified Product Mode backend remains mini-swe-agent. A DSH
+backend integration exists, but it is not qualified for the local-tool lineage
+until its runtime provisioning and budget axis are redesigned and reviewed.
+
+## Repository layout
+
+```text
+src/repoproof/adoption/       intake, analysis, drafting, confirmation, assembly
+src/repoproof/runner/         product pipeline, export, registry, MCP adapter
+src/repoproof/verification/   independent verifiers and completion gate
+contracts/                    frozen contracts and requirement specs
+tool_tasks/                   materialized local-tool tasks and archived drafts
+oracle/                       held-out acceptance tests (never delivered)
+controls/                     positive and synthetic-negative verifier controls
+docs/evidence/                committed, redaction-scanned evidence bundles
+benchmarks/                   Benchmark Lab preregistrations and append-only ledgers
+runs/                         live run artifacts (gitignored)
 ```
-contracts/            frozen task contracts + RequirementSpecs (+ sha sidecars)
-oracle/<task>/        held-out acceptance: capability + regression tests
-fixtures/             consumer projects + negative-control adapters
-src/repoproof/        domain / harness / agents / execution / verification / runner
-docs/evidence/        committed, redaction-scanned run evidence bundles
-docs/benchmark_summary.json   machine-readable fact source for all numbers
-runs/                 (gitignored) live per-run trace, artifacts, verification
-```
 
-Docs: [ARCHITECTURE](docs/ARCHITECTURE.md) ·
-[PROJECT_EVOLUTION](docs/PROJECT_EVOLUTION.md) ·
-[BENCHMARK](docs/BENCHMARK.md) ·
-[FAILURE_TAXONOMY](docs/FAILURE_TAXONOMY.md) ·
-[CLAIMS_MATRIX](docs/CLAIMS_MATRIX.md) ·
-[HANDOFF_STATE](docs/HANDOFF_STATE.md)
+Key documents:
 
-## Provenance
+- [Product redirection](docs/PRODUCT_REDIRECTION.md)
+- [Local Tool Product Charter](docs/rfc/RFC-010-LOCAL-TOOL-PRODUCT-CHARTER.md)
+- [Implemented M5: contract coherence and release state](docs/rfc/RFC-011-TOOL-CONTRACT-COHERENCE-AND-RELEASE-STATE.md)
+- [Tool Contract schema](docs/TOOL_CONTRACT_SCHEMA.md)
+- [Tool package layout](docs/TOOL_PACKAGE_LAYOUT.md)
+- [`VERIFIED_TOOL_READY` decision mapping](docs/TOOL_READY_GATE.md)
+- [Authoritative handoff state](docs/HANDOFF_STATE.md)
+- [Security boundaries](SECURITY.md)
 
-Evolved from the author's LocalFlow harness project; concepts
-referenced read-only, all code re-implemented
-([docs/lineage.md](docs/lineage.md)). License: Apache-2.0.
+RepoProof is Apache-2.0 licensed. It evolved from the author's LocalFlow harness
+concepts; the lineage is documented in [docs/lineage.md](docs/lineage.md).

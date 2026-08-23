@@ -67,6 +67,10 @@ def test_fake_draft_fills_llm_gaps_then_human_only_examples_remain(world):
     assert "reference_impl" in out["fields_drafted"]
     meta = json.loads((dest / "draft_meta.json").read_text(encoding="utf-8"))
     assert meta["drafter"] == "fake-drafter"
+    drafted = yaml.safe_load((dest / "draft.yaml").read_text(encoding="utf-8"))
+    assert drafted["capability"]["output_schema"] == "DraftedOutput"
+    assert drafted["tool"]["interface"]["output"]["contract"] == {
+        "media_type": "text/plain", "root_type": "text", "required": {}}
 
     # 起草后:补人的活(样例真值)即可 confirm 通过 —— [G1] 分工闭环
     for n, text in (("a", "x"), ("b", "y"), ("c", "z")):
@@ -130,6 +134,8 @@ def _stub_litellm(monkeypatch, replies: list[str]):
 
 _GOOD = json.dumps({"summary": "s", "input_format": "TXT",
                     "output_format": "TXT", "output_schema": "Out",
+                    "output_contract": {"media_type": "text/plain",
+                                        "root_type": "text", "required": {}},
                     "statement": "题面", "reference_impl": "import acme_lib\n",
                     "example_suggestions": []})
 

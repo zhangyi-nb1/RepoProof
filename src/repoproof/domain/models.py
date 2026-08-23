@@ -13,10 +13,10 @@ from __future__ import annotations
 import hashlib
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 def sha256_bytes(data: bytes) -> str:
@@ -128,6 +128,64 @@ class Acceptance(BaseModel):
     (portability: task-selected, defaulting to the v1–v3 probe)."""
 
 
+OutputFieldType = Literal[
+    "any", "string", "integer", "number", "boolean", "object", "array", "null"
+]
+
+
+class ToolOutputContract(BaseModel):
+    """Machine-executable stdout contract (RFC-011 M5-a).
+
+    ``root_type`` is canonicalized so drafts may use the human-friendly
+    ``json_object`` / ``json_array`` spellings while every consumer sees one
+    deterministic representation.  ``required`` intentionally covers only
+    top-level JSON fields and primitive JSON types in v2; richer JSON Schema
+    semantics would pretend to prove more than this gate actually checks.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    media_type: str
+    root_type: Literal["text", "json", "object", "array", "json_lines"]
+    required: dict[str, OutputFieldType] = Field(default_factory=dict)
+
+    @field_validator("media_type")
+    @classmethod
+    def _media_type_nonempty(cls, value: str) -> str:
+        value = value.strip().lower()
+        if not value:
+            raise ValueError("media_type must not be empty")
+        return value
+
+    @field_validator("root_type", mode="before")
+    @classmethod
+    def _normalize_root_type(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
+        return {"json_object": "object", "json_array": "array",
+                "jsonl": "json_lines", "ndjson": "json_lines"}.get(
+                    normalized, normalized)
+
+    @model_validator(mode="after")
+    def _required_only_for_object_values(self) -> ToolOutputContract:
+        if self.root_type in {"text", "array"} and self.required:
+            raise ValueError(
+                f"required fields need object values, not root_type={self.root_type!r}")
+        json_media = "json" in self.media_type or "ndjson" in self.media_type
+        if self.root_type == "text" and json_media:
+            raise ValueError("text root_type cannot declare a JSON media_type")
+        if self.root_type != "text" and not json_media:
+            raise ValueError("JSON root_type requires a JSON media_type")
+        if any(not field.strip() for field in self.required):
+            raise ValueError("required field names must not be empty")
+        return self
+
+
+# Short public alias for consumers that do not need the ToolSpec context.
+OutputContract = ToolOutputContract
+
+
 class ToolInterfaceIO(BaseModel):
     """LOCAL-TOOL 谱系(RFC-010 [D1]):工具接口的一端。
 
@@ -136,6 +194,8 @@ class ToolInterfaceIO(BaseModel):
 
     kind: str
     format: str
+    contract: ToolOutputContract | None = None
+    """v2 machine contract. ``None`` is the frozen v1 compatibility default."""
 
 
 class ToolInterface(BaseModel):
@@ -156,7 +216,11 @@ class ToolSpec(BaseModel):
     """LOCAL-TOOL 谱系唯一新增分节。name = CLI 命令名,必须与
     target_project.entry_point 一致(adequacy T2 执法)。"""
 
-    name: str
+    schema_version: int = Field(default=1, ge=1)
+    """1 = historical ToolSpec semantics; 2 = RFC-011 output-contract gates."""
+    name: str = Field(
+        pattern=r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$"
+    )
     summary: str
     interface: ToolInterface
 

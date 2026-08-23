@@ -1,5 +1,60 @@
 # Changelog
 
+## Unreleased — 2026-08-24 · M5 contract coherence and operational release state
+
+- Added additive Tool Contract v2 output contracts for text, JSON, objects,
+  arrays, and JSON Lines. New drafts must pass deterministic T6–T9 checks;
+  existing frozen v1 contracts and sidecars remain unchanged.
+- Generated public/held-out tests, release audits, and MCP adapters now parse
+  actual stdout independently of golden-output equality, closing the M4
+  `pyspellchecker` false-success class. Output-contract and release-ledger/MCP
+  JSON paths reject the non-standard constants `NaN`, `Infinity`, and
+  `-Infinity`, plus numeric overflow such as `1e400` and `-1e400` that would
+  otherwise become a non-finite float.
+- Added a strict append-only operational decision ledger with
+  `REVIEW_REQUIRED`, `ACTIVE`, and `REVOKED`; `tool audit`, `tool withdraw`,
+  `tool import-audits`, registry projection, and fail-closed MCP enforcement.
+- Preserved historical `VERIFIED_TOOL_READY` facts while adding operational
+  metrics. M4 batch two now reports historical READY 10, operational READY 9,
+  and false-success 1/10 from the machine fact source.
+- Migrated 22 existing fresh-input audit records by source hash: 21 ACTIVE and
+  one REVOKED. Tool packages, manifests, frozen contracts, runs, and source
+  audit ledgers were not rewritten.
+- Added guarded same-command task-version upgrades: preflight runs before a
+  real model call; candidates stage on the destination filesystem; the new
+  REVIEW_REQUIRED decision is appended before atomic package switching; old
+  package bytes move unchanged under `.repoproof-versions`; and the registry is
+  atomically updated with `previous_versions`. Same-task replacement,
+  downgrade, lineage mismatch, registry/package mismatch, and legacy MCP
+  servers that still need detaching fail closed. A missing or drifting registry
+  also blocks upgrade. The registry atomic replace is the commit point:
+  catchable pre-commit failures restore the old package, while an interruption
+  observed after commit preserves the consistent new package and registry.
+  `SIGKILL`, power loss, or failed recovery can require manual inspection of
+  canonical, archive, staging, and registry state; no universal crash rollback
+  is claimed.
+- Bound every managed package to its canonical directory, manifest, required
+  provenance, exact `tool-<name>-vN` task lineage, run id, and contract hash.
+  Package install/upgrade, registry mutation, MCP generation, and managed
+  audit/withdraw paths serialize on the shared install lock, with compound
+  release operations acquiring release second. The default read-only registry
+  listing remains lock-free and fails closed on an intermediate state;
+  generated MCP calls hold both locks from ACTIVE checking through execution
+  and result publication.
+- Hardened package and managed paths against symlink, special-file, and
+  containment escapes, and control/output files against hardlinks. The
+  existing top-level `.venv` is the sole reproducible environment exception,
+  and `adaptation.patch` may not create or change it. MCP `--out` now requires
+  a fresh per-call temporary result, validates it no-follow, and atomically
+  publishes only after output-contract success. Upgrade preflight validates the
+  complete registry before real-model budget is spent, and `audit --build`
+  revalidates package-tree safety plus manifest/provenance identity before it
+  can execute the rebuilt launcher.
+- Clarified the enforcement boundary: operational status controls
+  RepoProof-managed audit, MCP generation/runtime, and managed upgrades. It
+  does not impose an OS-level ban on manually executing a retained
+  `bin/<tool>` file.
+
 ## v0.1.0 — 2026-08-07 · MVP freeze: first credible PASS_ADAPTED + reproducible no-model demo
 
 First public release. Research-grade MVP, scope: public Python /

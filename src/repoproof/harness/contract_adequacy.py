@@ -16,6 +16,12 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from repoproof.adoption.assembly.output_contract import (
+    is_capability_output_invocation,
+    is_structured_output_format,
+    output_contract_matches_format,
+    validate_output_text,
+)
 from repoproof.domain.models import TaskContract
 from repoproof.harness.requirement_spec import RequirementSpec
 
@@ -56,6 +62,7 @@ def evaluate_adequacy(
     forbidden_prompt_tokens: tuple[str, ...] = (),
     contract: TaskContract | None = None,
     tool_example_docs_dir: Path | None = None,
+    tool_manifest_path: Path | None = None,
 ) -> AdequacyResult:
     """Run every deterministic adequacy check; collect ALL failures
     (not fail-fast) so the report shows the full gap list."""
@@ -189,6 +196,57 @@ def evaluate_adequacy(
                   f"shadowing, or distribution {contract.source_repo.distribution!r} "
                   "→ PEP 503-equal name makes pip install -e . uninstall the pinned "
                   "upstream) — rename the tool (e.g. add a -tool suffix)")
+            # T6–T9 are v2-only.  Historical ToolSpec v1 contracts (including
+            # JSON-labelled tools) retain their frozen adequacy semantics.
+            if tool.schema_version >= 2:
+                output = tool.interface.output
+                output_contract = output.contract
+                check(
+                    "tool_output_contract_present",
+                    output_contract is not None,
+                    "v2 ToolSpec missing tool.interface.output.contract",
+                )
+
+                schema_agree = output_contract is not None
+                schema_reasons: list[str] = []
+                if output_contract is not None and not output_contract_matches_format(
+                        output.format, output_contract):
+                    schema_agree = False
+                    schema_reasons.append("output.format differs from contract root")
+
+                manifest_path = tool_manifest_path
+                if manifest_path is None and contract_path is not None:
+                    manifest_path = (contract_path.parent.parent
+                                     / contract.target_project.path / "tool.json")
+                if manifest_path is None and tool_example_docs_dir is not None:
+                    manifest_path = (tool_example_docs_dir.parents[2]
+                                     / contract.target_project.path / "tool.json")
+                if manifest_path is None or not manifest_path.is_file():
+                    schema_agree = False
+                    schema_reasons.append("tool.json projection missing")
+                else:
+                    try:
+                        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError) as exc:
+                        schema_agree = False
+                        schema_reasons.append(f"tool.json invalid: {type(exc).__name__}")
+                    else:
+                        if ((manifest.get("interface") or {}).get("output")
+                                != output.model_dump()):
+                            schema_agree = False
+                            schema_reasons.append("manifest output projection differs")
+                        if manifest.get("contract_schema_version") != tool.schema_version:
+                            schema_agree = False
+                            schema_reasons.append("manifest contract schema version differs")
+                        if ((manifest.get("capability") or {}).get("output_schema")
+                                != contract.capability.output_schema):
+                            schema_agree = False
+                            schema_reasons.append("capability.output_schema was lost or forked")
+                check(
+                    "tool_schema_fields_agree",
+                    schema_agree,
+                    "; ".join(schema_reasons) or "schema projection differs",
+                )
         if tool_example_docs_dir is not None:
             def _examples(name: str) -> list[dict]:
                 p = tool_example_docs_dir / name
@@ -208,5 +266,43 @@ def evaluate_adequacy(
             # T4 anti-hardcode layer must exist: >=2 public, >=1 held-out
             check("tool_examples_sufficient", len(pub) >= 2 and len(held) >= 1,
                   f"public={len(pub)} held_out={len(held)} (need >=2 / >=1)")
+
+            if tool is not None and tool.schema_version >= 2:
+                output = tool.interface.output
+                parse_errors: list[str] = []
+                exact_count = 0
+                for idx, example in enumerate([*pub, *held], start=1):
+                    if not is_capability_output_invocation(example.get("input")):
+                        continue
+                    golden: str | None = None
+                    expected_file = example.get("expected_file")
+                    expected = example.get("expected")
+                    if expected_file:
+                        path = tool_example_docs_dir / expected_file
+                        if path.is_file():
+                            golden = path.read_text(encoding="utf-8")
+                            exact_count += 1
+                    elif isinstance(expected, str) and not expected.startswith("contains:"):
+                        golden = expected
+                        exact_count += 1
+                    if golden is not None:
+                        if output.contract is None:
+                            parse_errors.append(f"example={idx}: output contract missing")
+                        else:
+                            parse_errors.extend(
+                                f"example={idx}: {error}"
+                                for error in validate_output_text(golden, output.contract)
+                            )
+                check(
+                    "tool_golden_output_parseable",
+                    output.contract is not None and not parse_errors,
+                    f"golden parse errors: {parse_errors[:5]}",
+                )
+                structured = is_structured_output_format(output.format)
+                check(
+                    "tool_exact_structured_golden_exists",
+                    not structured or exact_count >= 1,
+                    f"structured={structured} exact_goldens={exact_count} (need >=1)",
+                )
 
     return AdequacyResult(ok=not failures, failures=failures, checked=checked)

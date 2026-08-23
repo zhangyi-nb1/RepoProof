@@ -8,7 +8,7 @@
     repoproof tool build → confirm(D+装配+T 闸冻结) → 钉版上游确保 →
                            conformance 选取+物化预检 → wheelhouse 备轮 →
                            fake 彩排(必须 PASS 才许烧真预算) → 真模型 →
-                           export + 注册表登记
+                           export + 注册表登记(运营态 REVIEW_REQUIRED)
 
 编排只做**顺序与门**,每步的判定权仍在各自组件(闸门语义零改动);
 任何一步失败即停、如实返回该步的结论 —— 编排不吞错、不重试真发。
@@ -17,18 +17,25 @@
 from __future__ import annotations
 
 import datetime
-import json
 import shutil
 import subprocess
 from pathlib import Path
 
 import yaml
 
-from repoproof.adoption.intake.tool_confirm import confirm_tool_draft
+from repoproof.adoption.assembly.tool_assembler import next_tool_task_id
+from repoproof.adoption.intake.tool_confirm import (
+    check_draft_complete,
+    confirm_tool_draft,
+)
 from repoproof.adoption.intake.upstream_conformance import select_upstream_tests
-from repoproof.runner.tool_export import export_verified_tool
+from repoproof.runner.tool_export import (
+    ToolExportError,
+    install_verified_tool,
+    preflight_tool_install,
+)
 from repoproof.runner.tool_host_bridge import ToolBridgeError, materialize_tool_task
-from repoproof.runner.tool_registry import register_tool
+from repoproof.runner.tool_release import ReleaseLedgerError, operational_status
 
 
 class PipelineError(RuntimeError):
@@ -101,21 +108,56 @@ def tool_build(
     setup_commands: list[list[str]] | None = None,   # 测试注入(E2E shim)
     wheelhouse_cmd: list[str] | None = None,          # 测试注入(跳过备轮)
 ) -> dict:
-    """→ {task_id, stages: {...}, verdict, exported};任一门不过即返回
-    (stages 记录到哪一步、为何停)。"""
+    """→ {task_id, stages, verdict, historical_verdict,
+    operational_status, exported};任一门不过即返回(stages 记录到
+    哪一步、为何停)。兼容字段 ``verdict`` 仍表示历史验证结论。
+    """
     from repoproof.runner.host_guided import run_host_guided_cli
 
     project_root = Path(project_root)
+    draft_dir = Path(draft_dir)
     stages: dict = {}
 
+    draft_path = draft_dir / "draft.yaml"
+    draft = (
+        yaml.safe_load(draft_path.read_text(encoding="utf-8"))
+        if draft_path.is_file()
+        else None
+    )
+    predicted_task_id: str | None = None
+    if run_real and isinstance(draft, dict):
+        # D checks are read-only.  Once they pass, reject an impossible or
+        # unsafe install before confirm freezes a new task version, and long
+        # before either rehearsal or real-model budget is spent.
+        if not check_draft_complete(draft, draft_dir):
+            predicted_task_id = next_tool_task_id(
+                project_root, draft["tool"]["name"]
+            )
+            try:
+                current = preflight_tool_install(
+                    Path(dest_root), draft["tool"]["name"], predicted_task_id
+                )
+            except (ToolExportError, ReleaseLedgerError, OSError, ValueError) as exc:
+                stages["install_preflight"] = {"ok": False, "error": str(exc)}
+                raise PipelineError(f"工具安装预检失败:{exc}") from exc
+            stages["install_preflight"] = {
+                "ok": True,
+                "mode": "upgrade" if current is not None else "first_install",
+                "previous_task_id": current.get("task_id") if current else None,
+            }
+
     # 1) 人闸后的确认:D 闸 → 装配 → T 闸 → 冻结
-    info = confirm_tool_draft(Path(draft_dir), project_root)
+    info = confirm_tool_draft(draft_dir, project_root)
     task_id = info["task_id"]
+    if predicted_task_id is not None and task_id != predicted_task_id:
+        raise PipelineError(
+            f"安装预检 task_id={predicted_task_id} 与冻结结果 {task_id} 分叉"
+        )
     stages["confirm"] = {"task_id": task_id, "public": info["public"],
                          "held": info["held"]}
 
-    draft = yaml.safe_load((Path(draft_dir) / "draft.yaml")
-                           .read_text(encoding="utf-8"))
+    if not isinstance(draft, dict):
+        draft = yaml.safe_load(draft_path.read_text(encoding="utf-8"))
     sr = draft["source_repo"]
 
     # 2) 钉版上游 + conformance 选取(确定性)
@@ -205,15 +247,30 @@ def tool_build(
                 "verdict": rp.get("verdict"), "exported": None}
 
     # 7) export + 注册
-    dest = export_verified_tool(
-        Path(project_root) / "runs" / rp["run_id"],
-        host_contract_path=contract,
-        tool_contract_path=Path(project_root) / "contracts" / f"{task_id}.yaml",
-        dest_root=Path(dest_root))
-    register_tool(Path(dest_root), dest, run_id=rp["run_id"],
-                  exported_at=datetime.datetime.now(datetime.UTC)
-                  .strftime("%Y-%m-%dT%H:%M:%SZ"))
-    stages["export"] = {"dest": str(dest)}
+    historical_verdict = rp.get("verdict_public") or rp.get("verdict")
+    try:
+        dest = install_verified_tool(
+            Path(project_root) / "runs" / rp["run_id"],
+            host_contract_path=contract,
+            tool_contract_path=Path(project_root) / "contracts" / f"{task_id}.yaml",
+            dest_root=Path(dest_root),
+            exported_at=datetime.datetime.now(datetime.UTC).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            ),
+        )
+    except (ToolExportError, ReleaseLedgerError, OSError, ValueError) as exc:
+        stages["export"] = {"ok": False, "error": str(exc)}
+        raise PipelineError(f"工具安装结算失败:{exc}") from exc
+    release_status = operational_status(
+        Path(dest_root), dest.name, task_id=task_id
+    )
+    stages["export"] = {
+        "dest": str(dest),
+        "historical_verdict": historical_verdict,
+        "operational_status": release_status,
+    }
     return {"task_id": task_id, "stages": stages,
-            "verdict": rp.get("verdict_public") or rp.get("verdict"),
+            "verdict": historical_verdict,
+            "historical_verdict": historical_verdict,
+            "operational_status": release_status,
             "exported": str(dest)}

@@ -26,7 +26,8 @@ from repoproof.adoption.intake.tool_confirm import DRAFT_YAML, EXAMPLES_YAML, RE
 from repoproof.adoption.intake.tool_intake import ToolIntakeReport
 
 _LLM_FIELDS = ("tool.summary", "tool.interface.input.format",
-               "tool.interface.output.format", "capability.statement",
+               "tool.interface.output.format", "tool.interface.output.contract",
+               "capability.statement",
                "capability.output_schema", "reference_impl")
 
 _SYSTEM = (
@@ -35,6 +36,9 @@ _SYSTEM = (
     "only (no markdown fences) with exactly these keys: summary (one line, "
     "same language as the goal), input_format (short format name like PDF/"
     "HTML/CSV), output_format, output_schema (CamelCase identifier), "
+    "output_contract (object with media_type, root_type and required; root_type "
+    "is text/json/object/array/json_lines; required maps top-level JSON field "
+    "names to any|string|integer|number|boolean|object|array|null), "
     "statement (the task statement: capability description PLUS behaviour "
     "definition — rendering/normalisation rules, edge semantics; state that "
     "malformed/empty input raises UserInputError (exit 1), repeated runs are "
@@ -64,6 +68,8 @@ class FakeDrafter:
             "input_format": "DATA",
             "output_format": "TEXT",
             "output_schema": "DraftedOutput",
+            "output_contract": {
+                "media_type": "text/plain", "root_type": "text", "required": {}},
             "statement": (
                 f"{goal}。行为定义(fake 起草,人须复核):输出确定性文本;"
                 "坏输入抛 UserInputError(exit 1);重复调用确定;完全离线。"),
@@ -127,9 +133,10 @@ class LiteLLMDrafter:
                     body = body.strip("`\n")
                     body = body[body.index("{"):]
                 return json.loads(body[body.index("{"): body.rindex("}") + 1])
-            except (ValueError, IndexError):
+            except (ValueError, IndexError) as exc:
                 if attempt == 2:
-                    raise DraftError(f"起草输出无法解析为 JSON:{text[:300]}")
+                    raise DraftError(
+                        f"起草输出无法解析为 JSON:{text[:300]}") from exc
                 text = self._once(
                     user_msg + "\n\nYour previous output was not valid JSON. "
                     "Output ONLY the JSON object.")
@@ -165,7 +172,8 @@ def draft_into_bundle(report: ToolIntakeReport, draft_dir: Path,
         raise DraftError(f"{DRAFT_YAML} 不存在:{draft_p}(先跑 tool-intake --draft-out)")
     drafted = drafter.draft(_drafter_context(report.model_dump()))
     missing = [k for k in ("summary", "input_format", "output_format",
-                           "output_schema", "statement", "reference_impl")
+                           "output_schema", "output_contract", "statement",
+                           "reference_impl")
                if not str(drafted.get(k) or "").strip()]
     if missing:
         raise DraftError(f"起草结果缺键:{missing}")
@@ -173,17 +181,20 @@ def draft_into_bundle(report: ToolIntakeReport, draft_dir: Path,
     doc = yaml.safe_load(draft_p.read_text(encoding="utf-8")) or {}
     fields: list[str] = []
 
-    def _fill(path: list[str], value: str) -> None:
+    def _fill(path: list[str], value) -> None:
         node = doc
         for key in path[:-1]:
             node = node.setdefault(key, {})
-        if not str(node.get(path[-1]) or "").strip():   # 人已填的不覆盖
+        current = node.get(path[-1])
+        empty = (not current.strip()) if isinstance(current, str) else (not current)
+        if empty:   # 人已填的不覆盖
             node[path[-1]] = value
             fields.append(".".join(path))
 
     _fill(["tool", "summary"], drafted["summary"])
     _fill(["tool", "interface", "input", "format"], drafted["input_format"])
     _fill(["tool", "interface", "output", "format"], drafted["output_format"])
+    _fill(["tool", "interface", "output", "contract"], drafted["output_contract"])
     _fill(["capability", "statement"], drafted["statement"])
     _fill(["capability", "output_schema"], drafted["output_schema"])
     draft_p.write_text(yaml.safe_dump(doc, allow_unicode=True, sort_keys=False),
@@ -201,7 +212,7 @@ def draft_into_bundle(report: ToolIntakeReport, draft_dir: Path,
     suggestions = drafted.get("example_suggestions") or []
     if suggestions:
         ex_p = draft_dir / EXAMPLES_YAML
-        lines = [f"# 起草层建议(仅建议;真值文件归人放置):",
+        lines = ["# 起草层建议(仅建议;真值文件归人放置):",
                  *[f"#   - {s.get('description')}({s.get('assertion_kind')})"
                    for s in suggestions]]
         ex_p.write_text("\n".join(lines) + "\n"

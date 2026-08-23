@@ -1,10 +1,10 @@
-"""RepoProof — evidence-driven harness for verifiable open-source capability adoption.
+"""RepoProof — GitHub capability onboarding for verified local tools.
 
-Gate 2 vertical slice: deterministic evidence chain (contract freeze,
-trust zones, Docker isolation, append-only trace, content-addressed
-artifacts, four independent verifiers, completion gate) with NO agent
-and NO LLM calls. The single autonomous agent (mini-swe-agent) is a
-Gate 3 concern.
+Product Mode combines deterministic admission and contract freezing, one
+autonomous coding-agent loop, independent capability/interface/policy checks,
+clean replay, evidence export, and a local-tool registry. The historical
+Benchmark Lab remains available without contributing Product Mode runs to
+model-score claims.
 """
 
 __version__ = "0.1.0"

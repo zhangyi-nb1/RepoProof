@@ -1,10 +1,8 @@
-"""RepoProof CLI — Gate 2.5 surface.
+"""RepoProof CLI — Product Mode and Benchmark Lab entry points.
 
-Commands:
-  baseline      run the direct-adoption baseline (scripted, no agent)
-  freeze-task   build + commit the TaskPackageManifest (human pre-run step)
-  verify-trace  verify a run's append-only trace hash chain
-  verify-bundle verify hash/reference integrity of a whole run bundle
+The ``tool`` command group is the CLI-first GitHub capability → verified local
+tool journey. Historical adaptation, guided-run, host-run, evidence, and demo
+commands remain available for the Benchmark Lab and reproducible case studies.
 """
 
 from __future__ import annotations
@@ -92,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     p_tool = sub.add_parser(
         "tool",
         help="LOCAL-TOOL 单命令旅程(M3/RFC-010):add(intake+起草+人务清单)"
-             " / build(confirm→物化→彩排门→真发→export+注册) / list / mcp",
+             " / build(confirm→物化→彩排门→真发→export+注册) / list / audit / withdraw / mcp",
     )
     tsub = p_tool.add_subparsers(dest="tool_cmd", required=True)
     pt_add = tsub.add_parser("add", help="URL+一句话 → draft 束+起草+人的待办清单")
@@ -102,7 +100,9 @@ def main(argv: list[str] | None = None) -> int:
     pt_add.add_argument("--draft-out", type=Path, required=True)
     pt_add.add_argument("--fake-drafter", action="store_true",
                         help="确定性模板起草(零 API)")
-    pt_build = tsub.add_parser("build", help="人补完 draft 束后:一条龙到已注册工具")
+    pt_build = tsub.add_parser(
+        "build", help="人补完 draft 束后:一条龙到历史已验证、运营待审核工具"
+    )
     pt_build.add_argument("--draft-dir", type=Path, required=True)
     pt_build.add_argument("--bench-root", type=Path,
                           default=Path("~/RepoProofBench").expanduser())
@@ -111,15 +111,37 @@ def main(argv: list[str] | None = None) -> int:
     pt_build.add_argument("--rehearsal-only", action="store_true",
                           help="只到 fake 彩排门,不烧真模型预算")
     pt_build.add_argument("--batch", default="EXPLORATORY_UNPREREGISTERED")
-    pt_list = tsub.add_parser("list", help="本地已验证工具注册表")
+    pt_list = tsub.add_parser("list", help="本地工具历史验证+当前运营状态")
     pt_list.add_argument("--dest-root", type=Path,
                          default=Path("~/tools").expanduser())
     pt_list.add_argument("--scan", action="store_true",
                          help="扫描补录未登记的工具包(不伪造导出时间)")
-    pt_mcp = tsub.add_parser("mcp", help="为已验证工具生成 MCP stdio server(机械转换)")
+    pt_mcp = tsub.add_parser(
+        "mcp", help="仅为历史已验证且运营 ACTIVE 的工具生成 MCP server"
+    )
     pt_mcp.add_argument("name")
     pt_mcp.add_argument("--dest-root", type=Path,
                         default=Path("~/tools").expanduser())
+    pt_audit = tsub.add_parser(
+        "audit", help="以 fresh non-example 输入审核工具并追加 ACTIVE/REVOKED 决策")
+    pt_audit.add_argument("name")
+    pt_audit.add_argument("--input", required=True, type=Path)
+    pt_audit.add_argument("--expected-file", required=True, type=Path)
+    pt_audit.add_argument("--build", action="store_true",
+                          help="审核前先运行工具包 build.sh")
+    pt_audit.add_argument("--dest-root", type=Path,
+                          default=Path("~/tools").expanduser())
+    pt_withdraw = tsub.add_parser(
+        "withdraw", help="只追加 REVOKED 决策；不删除工具包或历史证据")
+    pt_withdraw.add_argument("name")
+    pt_withdraw.add_argument("--reason", required=True)
+    pt_withdraw.add_argument("--dest-root", type=Path,
+                             default=Path("~/tools").expanduser())
+    pt_import = tsub.add_parser(
+        "import-audits", help="从 append-only operator audit JSONL 幂等迁移运营决策")
+    pt_import.add_argument("--audits", required=True, type=Path)
+    pt_import.add_argument("--dest-root", type=Path,
+                           default=Path("~/tools").expanduser())
 
     p_asrc = sub.add_parser(
         "analyze-source",
@@ -393,6 +415,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"{bundle}/examples.yaml 写 >=3 组断言(含文件样例;尾部自动 held-out)",
                 f"4. (可选){bundle}/reference.lock.txt 写全量 pinned",
                 f"5. 跑:repoproof tool build --draft-dir {bundle}",
+                "6. build 成功后另备 fresh non-example 输入/真值，跑 tool audit 才会 ACTIVE",
             ]
             print(json.dumps({"ok": True, **payload}, ensure_ascii=False, indent=2))
             return 0
@@ -416,15 +439,22 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.tool_cmd == "list":
             from repoproof.runner.tool_registry import list_tools
+            from repoproof.runner.tool_release import ReleaseLedgerError
 
-            rows = list_tools(args.dest_root, scan=args.scan)
+            try:
+                rows = list_tools(args.dest_root, scan=args.scan)
+            except (ReleaseLedgerError, OSError, ValueError) as exc:
+                print(json.dumps({"ok": False, "error": str(exc)},
+                                 ensure_ascii=False, indent=2))
+                return 3
             print(json.dumps({"tools": rows}, ensure_ascii=False, indent=2))
             return 0
         if args.tool_cmd == "mcp":
             from repoproof.runner.tool_mcp import write_mcp_server
 
             try:
-                out_p = write_mcp_server(Path(args.dest_root) / args.name)
+                out_p = write_mcp_server(
+                    Path(args.dest_root) / args.name, dest_root=args.dest_root)
             except (RuntimeError, OSError, ValueError) as exc:
                 print(json.dumps({"ok": False, "error": str(exc)},
                                  ensure_ascii=False, indent=2))
@@ -433,6 +463,58 @@ def main(argv: list[str] | None = None) -> int:
                 "ok": True, "server": str(out_p),
                 "attach": f"claude mcp add {args.name} -- python3 {out_p}",
             }, ensure_ascii=False, indent=2))
+            return 0
+        if args.tool_cmd == "audit":
+            from repoproof.runner.tool_release import (
+                ReleaseLedgerError,
+                ToolAuditError,
+                audit_tool,
+            )
+
+            try:
+                result = audit_tool(
+                    args.dest_root,
+                    args.name,
+                    input_path=args.input,
+                    expected_file=args.expected_file,
+                    run_build=args.build,
+                )
+            except (ReleaseLedgerError, ToolAuditError, OSError, ValueError) as exc:
+                print(json.dumps({"ok": False, "error": str(exc)},
+                                 ensure_ascii=False, indent=2))
+                return 3
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0 if result["ok"] else 3
+        if args.tool_cmd == "withdraw":
+            from repoproof.runner.tool_release import (
+                ReleaseLedgerError,
+                ToolAuditError,
+                withdraw_tool,
+            )
+
+            try:
+                decision = withdraw_tool(
+                    args.dest_root, args.name, reason=args.reason)
+            except (ReleaseLedgerError, ToolAuditError, OSError, ValueError) as exc:
+                print(json.dumps({"ok": False, "error": str(exc)},
+                                 ensure_ascii=False, indent=2))
+                return 3
+            print(json.dumps({"ok": True, "decision": decision},
+                             ensure_ascii=False, indent=2))
+            return 0
+        if args.tool_cmd == "import-audits":
+            from repoproof.runner.tool_release import (
+                ReleaseLedgerError,
+                import_audit_decisions,
+            )
+
+            try:
+                result = import_audit_decisions(args.audits, args.dest_root)
+            except (ReleaseLedgerError, OSError, ValueError) as exc:
+                print(json.dumps({"ok": False, "error": str(exc)},
+                                 ensure_ascii=False, indent=2))
+                return 3
+            print(json.dumps({"ok": True, **result}, ensure_ascii=False, indent=2))
             return 0
 
     if args.cmd == "tool-draft":

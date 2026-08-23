@@ -22,8 +22,9 @@ import yaml
 from pydantic import ValidationError
 
 from repoproof.adoption.assembly.example_compiler import CompileError
+from repoproof.adoption.assembly.output_contract import output_contract_matches_format
 from repoproof.adoption.assembly.tool_assembler import assemble_tool_task
-from repoproof.domain.models import TaskContract, ToolSpec
+from repoproof.domain.models import TaskContract, ToolOutputContract, ToolSpec
 from repoproof.harness.contract_adequacy import evaluate_adequacy
 from repoproof.harness.requirement_spec import load_requirement_spec
 
@@ -122,11 +123,28 @@ def check_draft_complete(draft: dict, draft_dir: Path) -> list[str]:
     for k in ("distribution", "import_module", "resolved_commit", "license", "url"):
         need(f"source_repo.{k}", sr.get(k))
     tool = draft.get("tool") or {}
+    if tool.get("schema_version") != 2:
+        problems.append(
+            "D:tool.schema_version 必须为 2 —— 新 draft 不得降级绕过 T6–T9")
     need("tool.name", tool.get("name"))
     need("tool.summary", tool.get("summary"))
     iface = tool.get("interface") or {}
     need("tool.interface.input.format", (iface.get("input") or {}).get("format"))
-    need("tool.interface.output.format", (iface.get("output") or {}).get("format"))
+    output = iface.get("output") or {}
+    need("tool.interface.output.format", output.get("format"))
+    if tool.get("schema_version") == 2:
+        raw_contract = output.get("contract")
+        need("tool.interface.output.contract", raw_contract)
+        if raw_contract:
+            try:
+                parsed_contract = ToolOutputContract.model_validate(raw_contract)
+            except ValidationError as e:
+                problems.append(f"D:tool.interface.output.contract 非法:{e}")
+            else:
+                if output.get("format") and not output_contract_matches_format(
+                        output["format"], parsed_contract):
+                    problems.append(
+                        "D:tool.interface.output.contract 与 output.format 分叉")
     cap = draft.get("capability") or {}
     need("capability.statement", cap.get("statement"))
     need("capability.output_schema", cap.get("output_schema"))
@@ -195,6 +213,7 @@ def confirm_tool_draft(draft_dir: Path, project_root: Path) -> dict:
             reference_impl=(draft_dir / REFERENCE_PY).read_text(encoding="utf-8"),
             reference_lock=(ref_lock.read_text(encoding="utf-8")
                             if ref_lock.is_file() else ""),
+            capability_output_schema=draft["capability"]["output_schema"],
             input_ext=input_ext,
             # 域适用性(M4 chardet):"全域合法输入"类工具声明豁免 malformed
             malformed_applicable=bool(
@@ -203,13 +222,15 @@ def confirm_tool_draft(draft_dir: Path, project_root: Path) -> dict:
         raise ConfirmError([f"装配失败:{e}"]) from e
 
     # adequacy T 闸(冻结后的独立复核;T 键必须全绿)
+    contract_path = Path(project_root) / "contracts" / f"{info['task_id']}.yaml"
     contract, _ = TaskContract.load_frozen(
-        Path(project_root) / "contracts" / f"{info['task_id']}.yaml",
+        contract_path,
         require_sidecar=True)
     rs, _ = load_requirement_spec(
         Path(project_root) / "contracts" / f"{info['task_id']}.requirements.yaml")
     res = evaluate_adequacy(
         spec=rs, capability_nodes=[], regression_nodes=[], rendered_prompt="",
+        contract_path=contract_path,
         contract=contract,
         tool_example_docs_dir=(Path(project_root) / "oracle" / info["task_id"]
                                / "fixtures"))

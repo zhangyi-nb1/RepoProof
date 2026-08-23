@@ -282,6 +282,11 @@ def task_check(project_root: Path, task_id: str) -> dict:
             result = evaluate_adequacy(
                 spec=spec, capability_nodes=cap_nodes, regression_nodes=reg_nodes,
                 rendered_prompt=prompt, contract_path=contract_path,
+                contract=contract,
+                tool_example_docs_dir=(
+                    project_root / "oracle" / contract.task_id / "fixtures"
+                    if contract.task_family == "LOCAL-TOOL" else None
+                ),
             )
             gaps.extend(result.failures)
         except Exception as exc:  # noqa: BLE001

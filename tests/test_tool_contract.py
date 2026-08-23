@@ -23,7 +23,14 @@ from repoproof.adoption.assembly.example_compiler import (
     Example,
     compile_pytest,
 )
-from repoproof.domain.models import TaskContract, ToolInterface, ToolInterfaceIO, ToolSpec
+from repoproof.adoption.assembly.output_contract import validate_output_text
+from repoproof.domain.models import (
+    TaskContract,
+    ToolInterface,
+    ToolInterfaceIO,
+    ToolOutputContract,
+    ToolSpec,
+)
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -70,6 +77,70 @@ def test_toolspec_roundtrip_dump():
         exit_codes={"0": "success", "1": "user_error", "2": "internal_error"}))
     again = ToolSpec.model_validate(spec.model_dump())
     assert again == spec
+
+
+def test_output_contract_is_additive_and_normalizes_json_root_aliases():
+    """v1 stays loadable; v2 carries the executable contract as additive data."""
+    legacy = ToolInterfaceIO(kind="stdout", format="JSON")
+    assert legacy.contract is None
+
+    contract = ToolOutputContract(
+        media_type="application/json",
+        root_type="json_object",
+        required={"language": "string", "token_count": "integer"},
+    )
+    assert contract.root_type == "object"
+    assert validate_output_text('{"language":"zh","token_count":2}', contract) == []
+    assert validate_output_text('["zh",2]', contract)
+    assert validate_output_text('{"token_count":2}', contract)
+    assert validate_output_text('{"language":"zh","token_count":true}', contract)
+    with pytest.raises(ValidationError):
+        ToolOutputContract(media_type="text/plain", root_type="object")
+    with pytest.raises(ValidationError, match="properties"):
+        ToolOutputContract.model_validate({
+            "media_type": "application/json",
+            "root_type": "object",
+            "required": {"language": "string"},
+            "properties": {"language": {"minLength": 1}},
+        })
+
+
+@pytest.mark.parametrize(
+    "name", ["../escape", "nested/tool", ".", "-leading", "trailing-"]
+)
+def test_tool_name_must_be_a_contained_lowercase_cli_slug(name: str):
+    with pytest.raises(ValidationError, match="name"):
+        ToolSpec(
+            name=name,
+            summary="invalid path-like command",
+            interface=ToolInterface(
+                usage=f"{name} <input>",
+                input=ToolInterfaceIO(kind="file", format="TXT"),
+                output=ToolInterfaceIO(kind="stdout", format="TXT"),
+                exit_codes={"0": "success", "1": "user", "2": "internal"},
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    "constant", ["NaN", "Infinity", "-Infinity", "1e400", "-1e400"]
+)
+@pytest.mark.parametrize(("root_type", "body", "location"), [
+    ("object", '{{"score":{constant}}}', "document: invalid_json"),
+    ("json", "{constant}", "document: invalid_json"),
+    ("json_lines", '{{"score":{constant}}}\n', "line=1: invalid_json"),
+])
+def test_output_contract_rejects_nonstandard_json_constants(
+        constant: str, root_type: str, body: str, location: str):
+    required = {"score": "number"} if root_type != "json" else {}
+    contract = ToolOutputContract(
+        media_type=("application/x-ndjson"
+                    if root_type == "json_lines" else "application/json"),
+        root_type=root_type,
+        required=required,
+    )
+
+    assert validate_output_text(body.format(constant=constant), contract) == [location]
 
 
 # ------------------------------------------------------------ Example 双源
@@ -176,3 +247,81 @@ def test_cli_mode_normalizes_line_endings_for_expected_file(tmp_path: Path):
     trailing = _GOOD_TOOL.replace("print(\"| 1 | 2 |\")", "print(\"| 1 | 2 |  \")")
     tool, tdir = _materialize(tmp_path, trailing)
     assert _run_compiled(tool, tdir) == 0
+
+
+_JSON_CONTRACT = ToolOutputContract(
+    media_type="application/json",
+    root_type="object",
+    required={"language": "string", "token_count": "integer"},
+)
+
+
+def _materialize_json(
+    tmp: Path,
+    stdout: str,
+    expected: str,
+    *,
+    contract: ToolOutputContract = _JSON_CONTRACT,
+) -> tuple[Path, Path]:
+    tool_src = (
+        "#!/usr/bin/env python3\n"
+        "import sys\n"
+        f"sys.stdout.write({stdout!r})\n"
+    )
+    tool = tmp / "json-tool.py"
+    tool.write_text(tool_src, encoding="utf-8")
+    tool.chmod(0o755)
+    tdir = tmp / "tests"
+    (tdir / "fixtures").mkdir(parents=True)
+    (tdir / "fixtures" / "in.txt").write_text("x", encoding="utf-8")
+    (tdir / "fixtures" / "expected.json").write_text(expected, encoding="utf-8")
+    source = compile_pytest(
+        [Example(input_file="in.txt", expected_file="expected.json")],
+        header="JSON output contract",
+        mode="cli",
+        output_contract=contract,
+    )
+    assert "[tool-output-contract]" in source
+    (tdir / "test_cli_compiled.py").write_text(source, encoding="utf-8")
+    return tool, tdir
+
+
+def test_cli_json_contract_positive_control_passes(tmp_path: Path):
+    value = '{"language":"zh","token_count":2}'
+    tool, tdir = _materialize_json(tmp_path, value, value)
+    assert _run_compiled(tool, tdir) == 0
+
+
+@pytest.mark.parametrize("bad", [
+    "helo\\nwrld\\n",                       # NC_json_plaintext
+    '["helo"]',                              # NC_json_wrong_root
+    '{"token_count":2}',                     # NC_json_missing_field
+])
+def test_cli_json_contract_rejects_matching_but_invalid_stdout(
+        tmp_path: Path, bad: str):
+    """Actual stdout is parsed independently even when the bad golden matches it."""
+    tool, tdir = _materialize_json(tmp_path, bad, bad)
+    assert _run_compiled(tool, tdir) != 0
+
+
+@pytest.mark.parametrize(
+    "constant", ["NaN", "Infinity", "-Infinity", "1e400", "-1e400"]
+)
+@pytest.mark.parametrize(("root_type", "body"), [
+    ("object", '{{"score":{constant}}}'),
+    ("json", "{constant}"),
+    ("json_lines", '{{"score":{constant}}}\n'),
+])
+def test_generated_cli_validator_rejects_nonstandard_json_constants(
+        tmp_path: Path, constant: str, root_type: str, body: str):
+    required = {"score": "number"} if root_type != "json" else {}
+    contract = ToolOutputContract(
+        media_type=("application/x-ndjson"
+                    if root_type == "json_lines" else "application/json"),
+        root_type=root_type,
+        required=required,
+    )
+    bad = body.format(constant=constant)
+
+    tool, tdir = _materialize_json(tmp_path, bad, bad, contract=contract)
+    assert _run_compiled(tool, tdir) != 0

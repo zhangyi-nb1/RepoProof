@@ -18,7 +18,6 @@ import pytest
 from repoproof.adoption.admission.admission_report import decide_tool
 from repoproof.adoption.analysis.repository_analyzer import Finding, RepositoryReport
 from repoproof.adoption.intake.tool_intake import (
-    build_draft,
     extract_distribution,
     extract_import_module,
     run_tool_intake,
@@ -176,6 +175,8 @@ def test_intake_draft_fills_deterministic_fields(tmp_path):
     assert d["source_repo"]["license"] == "MIT"
     assert d["task_family"] == "LOCAL-TOOL"
     assert d["tool"]["name"] == "acme-lib-tool"   # 避撞:acme_lib==import 名
+    assert d["tool"]["schema_version"] == 2
+    assert d["tool"]["interface"]["output"]["contract"] == {}
     assert d["tool"]["interface"]["exit_codes"] == {
         "0": "success", "1": "user_error", "2": "internal_error"}
     assert d["_draft"]["status"] == "DRAFT"
@@ -189,6 +190,7 @@ def test_intake_gaps_route_truth_to_user_and_prose_to_llm(tmp_path):
     assert owner["examples"] == "USER"
     assert owner["capability.statement"] == "LLM"
     assert owner["tool.summary"] == "LLM"
+    assert owner["tool.interface.output.contract"] == "LLM"
     assert owner["reference_impl"] == "LLM"
     assert owner["reference_lock"] == "AUTO"
     # 草稿里这些字段必须是空,不许预填似是而非的值

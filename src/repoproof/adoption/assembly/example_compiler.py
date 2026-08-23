@@ -13,6 +13,12 @@ from __future__ import annotations
 
 from pydantic import BaseModel, model_validator
 
+from repoproof.adoption.assembly.output_contract import (
+    is_capability_output_invocation,
+    render_pytest_validator,
+)
+from repoproof.domain.models import ToolOutputContract
+
 CONTAINS = "contains:"
 
 
@@ -31,7 +37,7 @@ class Example(BaseModel):
     expected_file: str | None = None
 
     @model_validator(mode="after")
-    def _exactly_one_each(self) -> "Example":
+    def _exactly_one_each(self) -> Example:
         if (self.input is None) == (self.input_file is None):
             raise ValueError("input 与 input_file 必须恰好给一个")
         if (self.expected is None) == (self.expected_file is None):
@@ -93,12 +99,14 @@ def _cli_argv_expr(e: Example, idx: int) -> str:
     return f"shlex.split({e.input!r})"
 
 
-def _cli_test(e: Example, idx: int) -> str:
+def _cli_test(e: Example, idx: int, *, validate_output: bool = False) -> str:
     argv = _cli_argv_expr(e, idx)
     head = (f"def test_example_{idx}():\n"
             f"    r = _run({argv})\n"
             f"    assert r.returncode == 0, "
             f"f\"exit={{r.returncode}} stderr: {{r.stderr[:300]}}\"\n")
+    if validate_output:
+        head += "    _assert_output_contract(r.stdout)\n"
     if e.expected_file is not None:
         return head + (
             f"    want = _norm((_FIX / {e.expected_file!r}).read_text(encoding=\"utf-8\"))\n"
@@ -122,12 +130,28 @@ def _cli_test(e: Example, idx: int) -> str:
 
 # ------------------------------------------------------------------- 编译口
 
-def compile_pytest(examples: list[Example], *, header: str, mode: str = "seam") -> str:
+def compile_pytest(
+    examples: list[Example],
+    *,
+    header: str,
+    mode: str = "seam",
+    output_contract: ToolOutputContract | dict | None = None,
+) -> str:
     doc = f'"""{header}(由用户样例确定性编译;验收强度=用户样例级)"""\n'
     if mode == "seam":
         body = "\n\n".join(_assert_line(e, i + 1) for i, e in enumerate(examples))
         return doc + "from user_capability import run\n\n\n" + body + "\n"
     if mode == "cli":
-        body = "\n\n".join(_cli_test(e, i + 1) for i, e in enumerate(examples))
-        return doc + _CLI_PRELUDE + "\n\n" + body + "\n"
+        body = "\n\n".join(
+            _cli_test(
+                e,
+                i + 1,
+                validate_output=(output_contract is not None
+                                 and is_capability_output_invocation(e.input)),
+            )
+            for i, e in enumerate(examples)
+        )
+        validator = (render_pytest_validator(output_contract)
+                     if output_contract is not None else "")
+        return doc + _CLI_PRELUDE + validator + "\n\n" + body + "\n"
     raise CompileError(f"未知编译模式:{mode!r}(支持 seam / cli)")

@@ -3,7 +3,34 @@
 > Purpose: the single in-repo status anchor for AI/human handoff.
 > Update ONLY at gate boundaries; history below is append-only.
 
-## Current status (2026-08-08, after RFC-008 Gate A–E)
+## Current status (2026-08-24, RFC-010 M0–M4 + RFC-011 M5 complete)
+
+**RepoProof 的主产品线已从任意 Repository Adaptation 收敛为
+GitHub Capability → Verified Local Tool。RFC-010 的章程、首个工具闭环、
+半自动 intake、单命令旅程、两批真实仓指标均已落地；RFC-011 又补齐
+输出合同一致性与 append-only 运营发布状态，历史验证和当前可用不再混写。**
+
+| Anchor | Value |
+|---|---|
+| 产品方向 | `docs/PRODUCT_REDIRECTION.md` + `docs/rfc/RFC-010-LOCAL-TOOL-PRODUCT-CHARTER.md` |
+| M0–M3 | 全部关闭；CLI 主旅程=`tool add/build/list/audit/withdraw/mcp` |
+| M4 批次一 | 12 个真实仓均通过流水线、重放与运营审计；见 `docs/EXPLORATION_LOG.md` |
+| M4 批次二 | 12 submitted / 11 accepted / 10 历史流水线 READY / 9 运营可用 / 1 false-success |
+| 批次二锚点 | `c5c958d` (`M4 批次二收官:9 个运营可用+1 false-success 撤回`) |
+| 批次二事实源 | `docs/m4_metrics.json` + append-only audit/classification ledgers |
+| False success | `tool-pyspellchecker-tool-v1`:冻结声明 JSON、reference/example/oracle 却验纯文本；运营 READY 已撤回，冻结史和真跑均未改写/重跑 |
+| M5 输出合同 | 新 draft=ToolSpec v2；T6–T9 + actual stdout runtime parsing；37 份旧冻结合同原样加载 |
+| M5 发布状态 | 本机 release ledger 22 条迁移决定：21 ACTIVE / 1 REVOKED；另 2 个早期 dogfood 无 fresh audit，保持 REVIEW_REQUIRED |
+| MCP 执法 | 仅历史 READY + 当前 ACTIVE 可生成；M5 adapter 每次 list/call 复核 ledger；pre-M5 非 ACTIVE adapter 明示 `LEGACY_SERVER_MUST_BE_DETACHED` |
+| 当前质量基线 | `1324 passed + 60 skipped + 0 failed`（1384 collected；1323 项全量通过 + 受保护目录 smoke 独立通过） |
+| 后端资格 | Product Mode 缺省 mini-swe；DSH 旗标保留但工具谱系未资格化 |
+| 当前阶段门 | **RFC-011 / M5 已关闭**；未授权第三批真仓或任何新真实模型发次 |
+
+不变铁律：验证面无 LLM；held-out 对 agent 零泄漏；冻结合同与历史台账
+不可改写；FAIL 也留完整证据；没量到即判死；Product Mode 与 Benchmark
+Lab 分账，不用产品发次充模型能力成绩。
+
+## Previous status (2026-08-08, after RFC-008 Gate A–E)
 
 **Guided Adoption Delivery(RFC-008)A–E 全部落地:普通用户可在中文
 UI 内走完 分析(空目录模式/八策略)→ 计划确认(Human Gate 扩展)→

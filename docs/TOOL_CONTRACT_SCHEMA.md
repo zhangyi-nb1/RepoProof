@@ -1,9 +1,11 @@
-# ToolContract Schema 设计(M0 产出 · 依据 RFC-010 [D1][G1][G2])
+# ToolContract Schema 现行规范(RFC-010 [D1][G1][G2] + RFC-011 M5)
 
-- 状态:M0 设计稿,M1 实施前可修订;M1 首个契约冻结后本 schema 进入
-  与 TaskContract 相同的演化纪律(加字段必须带默认值,旧契约零破坏)
-- 依据:[RFC-010](rfc/RFC-010-LOCAL-TOOL-PRODUCT-CHARTER.md) §三/§四;
-  现行 `src/repoproof/domain/models.py` 读码(2026-08-23,基线 `30b7a3a`)
+- 状态:**M5 已实施**;新 draft 使用 ToolSpec v2,旧冻结契约保持 v1 语义
+- 依据:
+  [RFC-010](rfc/RFC-010-LOCAL-TOOL-PRODUCT-CHARTER.md) §三/§四与
+  [RFC-011](rfc/RFC-011-TOOL-CONTRACT-COHERENCE-AND-RELEASE-STATE.md) §三/§四
+- 演化纪律:新字段必须有兼容默认值;冻结 contract/sidecar 不回写;
+  新规则以 `tool.schema_version` 分界,不对 v1 补施 v2 语义
 
 ## 一、总设计原则:演化不分叉
 
@@ -23,13 +25,15 @@
 | `task_family` | 新谱系值 **`LOCAL-TOOL`**(旁注,不改 task_id 规则) |
 | `adoption_shape` | 新值 **`TOOL_ONBOARDING`** |
 
-**代码改动只有一处**:`TaskContract` 加 `tool: ToolSpec | None = None`
-(§三)。其余全部是约定与模板。
+M0 时 `TaskContract` 只增加了 `tool: ToolSpec | None = None`;
+M5 继续做加法演化:`ToolSpec.schema_version` 默认为 `1`,
+`ToolInterfaceIO.contract` 默认为 `None`。因此旧 contract 加载结果不变,
+而新 draft 由 D 闸强制使用 v2。
 
-## 二、完整契约示例(M1 pdf-table,注释即规范)
+## 二、完整 v2 契约示例(示意,不改写已冻结 pdf-table v1)
 
 ```yaml
-task_id: tool-pdf-table-v1          # 工具谱系命名:tool-<slug>-v<n>
+task_id: tool-pdf-table-v2          # 工具谱系命名:tool-<slug>-v<n>
 
 source_repo:
   url: https://github.com/jsvine/pdfplumber
@@ -41,21 +45,28 @@ source_repo:
 
 target_project:
   kind: local_tool                   # ← 新枚举值(kind 是自由 str,零代码改动)
-  path: fixtures/tool_skeleton_pdf-table   # harness 生成的工具骨架(结构锚)
+  path: fixtures/tool_skeleton_pdf-table-v2 # harness 生成的工具骨架(结构锚)
   package: pdf_table                 # 工具 Python 包名
   entry_point: pdf-table             # CLI 命令名(= tool.name)
 
-requirement_spec_file: tool-pdf-table-v1.requirements.yaml
+requirement_spec_file: tool-pdf-table-v2.requirements.yaml
 task_family: LOCAL-TOOL
 adoption_shape: TOOL_ONBOARDING
 
-tool:                                # ← 唯一新增分节(§三)
+tool:
+  schema_version: 2                 # 新 draft 必须为 v2;v1 只用于冻结历史
   name: pdf-table
   summary: 从 PDF 提取表格,输出 GitHub-flavored Markdown
   interface:
     usage: "pdf-table <input.pdf> [--out FILE]"
     input:  {kind: file, format: PDF}
-    output: {kind: stdout, format: markdown-table}
+    output:
+      kind: stdout
+      format: markdown-table
+      contract:
+        media_type: text/markdown
+        root_type: text
+        required: {}
     exit_codes: {"0": success, "1": user_error, "2": internal_error}
 
 capability:
@@ -93,12 +104,25 @@ acceptance:
   probe_script: direct_tool_probe.py # M1 新增:直连上游探针(工具版)
 ```
 
-## 三、`ToolSpec`:唯一新增的模型分节
+## 三、`ToolSpec` v2 与 `ToolOutputContract`
 
 ```python
+OutputFieldType = Literal[
+    "any", "string", "integer", "number", "boolean",
+    "object", "array", "null",
+]
+
+class ToolOutputContract(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    media_type: str
+    root_type: Literal["text", "json", "object", "array", "json_lines"]
+    required: dict[str, OutputFieldType] = Field(default_factory=dict)
+
 class ToolInterfaceIO(BaseModel):
     kind: str                  # file | stdin | stdout | out_file
     format: str                # 人读格式名(PDF / markdown-table / csv / json…)
+    contract: ToolOutputContract | None = None
 
 class ToolInterface(BaseModel):
     usage: str                 # 一行用法;与骨架 argparse 必须一致(§五静态检查)
@@ -108,16 +132,46 @@ class ToolInterface(BaseModel):
                                #   0=成功;1=用户错误(输入不存在/格式坏);2=内部错误
 
 class ToolSpec(BaseModel):
+    schema_version: int = 1    # 1=冻结历史;2=RFC-011 输出合同门禁
     name: str                  # CLI 命令名;= target_project.entry_point
     summary: str               # 进 tool.json manifest 的一句话
     interface: ToolInterface
 ```
 
-`tool: ToolSpec | None = None` 挂在 `TaskContract` 上;None = 旧谱系契约,
-一切照旧。**`ToolSpec` 是三个消费者的单一事实源**:
-1. 装配器生成骨架的 argparse 与 `tool.json`;
-2. 接口契约测试(oracle/test_regression.py)的生成依据;
-3. 交付期 manifest 一致性静态检查(§五)。
+`ToolOutputContract` 是有意限定的可执行子集,不伪装成完整 JSON
+Schema:
+
+- `json_object` / `json_array` / `jsonl` / `ndjson` 只是 draft 输入别名,
+  模型分别归一为 `object` / `array` / `json_lines`;
+- `media_type` 必须非空且与根类型同族;JSON 根必须声明 JSON/NDJSON
+  media type,`text` 不得声明 JSON media type;
+- `required` 只校验顶层字段与上述基本类型;`text` / `array`
+  根不得声明 `required`;
+- `extra="forbid"` 使未定义的合同键直接失败,避免拼错字段被静默
+  忽略;
+- `integer` / `number` 显式排除 Python `bool`,防止 JSON `true`
+  被当作数字;
+- JSON 路径使用严格解析:拒绝 JSON 标准之外的 `NaN` / `Infinity` /
+  `-Infinity`,也拒绝解析为非有限浮点的 `1e400` / `-1e400`;它们不得
+  因 Python 标准库的默认扩展或浮点溢出被当成 `number`。
+
+`tool: ToolSpec | None = None` 挂在 `TaskContract` 上;`None` 是非工具旧谱系。
+对 LOCAL-TOOL,`schema_version=1` + `contract=None` 是冻结 v1 的兼容语义;
+不得因其人读 `format` 含 JSON 就倒推或补写合同。新 draft 的
+D 闸要求 `schema_version == 2`,且 v2 必须有 `output.contract`。
+
+**v2 `ToolSpec` 是单一事实源**:
+
+1. 装配器生成骨架 argparse 与 `tool.json`;
+2. public / held-out 接口与输出合同测试;
+3. 交付期 manifest 一致性静态检查;
+4. reference 彩排与真 agent 产物的实际 stdout 校验;
+5. fresh-input 运营 audit;
+6. MCP `outputSchema` 投影与调用结果校验。
+
+装配器把 `schema_version` 投影为 manifest 的
+`contract_schema_version`,保留用户确认的
+`capability.output_schema`,并完整投影 `interface.output`。
 
 ## 四、样例三层细则([G2] 落地)
 
@@ -144,6 +198,27 @@ examples:
 - **防硬编码是 held-out 层的存在理由**(产品口径独立性):agent 看得到
   公开样例,看不到 held-out;正控(硬编码全样例映射)只证明测试自洽,
   绝不交付。
+
+#### v2 成功样例的独立 stdout 校验(M5)
+
+对 v2,装配器把同一份 `ToolOutputContract` 验证器编译进每个
+public 与 held-out 成功样例节点。执行顺序为:
+
+1. subprocess 真调 CLI 并取得**实际 stdout**;
+2. 不依赖 golden 内容,独立按输出合同解析实际 stdout;
+3. 按 golden 做精确或 `contains:` 能力断言。
+
+这意味着 actual 与错误 expected 恰好相等也不能跳过格式门。
+JSON 使用严格标准库解析(包括拒绝 `NaN` / `Infinity` /
+`-Infinity` 与溢出为非有限值的 `1e400` / `-1e400`);JSON Lines
+逐个非空行跑同一严格解析;
+`object` / `array` 根与 `required` 字段类型逐项校验。失败使用稳定
+前缀 `[tool-output-contract]`进入 capability evidence,且错误不携带
+stdout 原文。`--help` / `--version` 等 CLI 元数据路径不是能力输出,
+不套用 JSON 输出合同。reference fake 彩排与真 agent 运行复用
+同一批生成节点。
+
+v1 不生成这一新校验;其历史 oracle 与重放语义保持不变。
 
 ### 第二层:上游行为一致性(M2-e 实施定稿)
 
@@ -187,15 +262,23 @@ upstream_conformance.select_upstream_tests`:关键词命中排序、上限、
 层完成 = HOST_INPUT_GUARD;**坏 PDF 内容** → 捕获上游异常转 exit 1
 = ADAPTER(这是能力的一部分:错误包装,Chonkie 负例的直接教训)。
 
-**manifest 一致性静态检查**(交付期,新写,约 40 行):
-`tool.json` 的 name/usage/exit_codes 必须与冻结契约 `ToolSpec` 完全一致,
+**manifest 一致性静态检查**(交付期):
+`tool.json` 的 name/usage/exit_codes 必须与冻结契约 `ToolSpec` 完全一致。
+v2 另要求:
+
+- `contract_schema_version == tool.schema_version`;
+- manifest `interface.output` 与契约的 output(包含 `contract`)整体一致;
+- `capability.output_schema` 必须原样投影,不得被 `output.format`
+  覆盖;
+- 人读 `output.format` 与机器 `contract.root_type` 必须同族。
+
 不一致 = FAIL 理由(进 capability 侧 detail,不新增 gate 输入位——
 completion_gate 决策表零改动,理由见
 [TOOL_READY_GATE.md](TOOL_READY_GATE.md) §三)。
 
-## 六、ContractAdequacyGate 扩条(M1 实施)
+## 六、ContractAdequacyGate 的 LOCAL-TOOL 扩条(现行)
 
-现有 13 条全保留,工具谱系加:
+既有 C 系与通用 adequacy 检查全保留,工具谱系加:
 
 - **T1**:`task_family=LOCAL-TOOL` 时 `tool` 分节必须存在,
   `exit_codes` 至少覆盖 "0"/"1"/"2";
@@ -203,15 +286,48 @@ completion_gate 决策表零改动,理由见
 - **T3**:每个 `input_file/expected_file` 引用的 fixture 真实存在,
   其 sha256 进冻结清单(样例文件也是题面,缺文件 = INVALID_TASK_SPEC);
 - **T4**:公开样例 ≥2 且 held-out ≥1(空 held-out = 防硬编码层失效,拒冻结)。
+- **T5**:工具自身包名不得与 pinned upstream 的 import module 或
+  PEP 503 归一后的 distribution 同名,避免 PYTHONPATH 遮蔽上游;
+- **T6 output contract present**:ToolSpec v2 必须声明
+  `tool.interface.output.contract`;
+- **T7 golden output parseable**:所有能力输出路径上的精确
+  `expected` / `expected_file` 必须按合同可解析;`contains:` 只做
+  补充语义断言,不充当完整结构真值;
+- **T8 exact structured golden exists**:JSON 家族至少有一组
+  非 `contains:` 的完整精确真值;
+- **T9 schema fields agree**:`output.format` / `output.contract` 同族,
+  `capability.output_schema` 非空且不丢失,manifest 中的完整 output
+  投影与 `contract_schema_version` 与冻结契约一致。
 
-## 七、M1 改动清单预告(依赖序;实施时逐项过既有测试)
+T6–T9 只对 `tool.schema_version >= 2` 生效。装配器在写入任何
+生成字节或 sidecar **之前**先跑同等 preflight;生成后
+ContractAdequacyGate 再结合 `tool.json` 与样例文件复核。新 draft
+的 D 闸另会拒绝降级为 v1 的规避。
 
-1. `models.py`:加 `ToolSpec` 三类 + `TaskContract.tool` 字段(默认 None);
-2. `example_compiler.py`:`Example` 加 `input_file/expected_file`,
-   `compile_pytest(mode="cli")` 模板;
-3. `task_assembler.py`:新装配函数 `assemble_tool_task`(骨架模板见
-   [TOOL_PACKAGE_LAYOUT.md](TOOL_PACKAGE_LAYOUT.md));旧 `assemble_task`
-   原样保留服务旧谱系;
-4. `contract_adequacy.py`:T1–T4 扩条(先写"喂合成缺陷"的自证测试);
-5. `prompt` 渲染:`local-tool-v1` profile;
-6. probe:`direct_tool_probe.py`(直连上游跑同一 golden 样例,基线归因用)。
+## 七、实施锚点与兼容边界
+
+| 职责 | 实施锚点 |
+|---|---|
+| 模型与 v1 默认 | `src/repoproof/domain/models.py` |
+| 单一输出合同解析/测试/MCP 投影 | `src/repoproof/adoption/assembly/output_contract.py` |
+| 新 draft D 闸 | `src/repoproof/adoption/intake/tool_confirm.py` |
+| 写入前 T6–T9 preflight 与 manifest 投影 | `src/repoproof/adoption/assembly/tool_assembler.py` |
+| public / held-out 实际 stdout 节点 | `src/repoproof/adoption/assembly/example_compiler.py` |
+| 冻结前 adequacy 复核 | `src/repoproof/harness/contract_adequacy.py` |
+
+兼容边界是结构性的:旧 contract 仍以 `TaskContract.load_frozen`
+的 `require_sidecar=True` 路径按 sidecar 加载,旧 v1 不因 M5 被重写或套用
+T6–T9;只有新 v2 题才获得输出合同保证。若修复旧题的合同
+缺陷,必须立新 `task_id` / task version,不能改写 v1 真值。
+同一 `tool.name` 可通过更高且同谱系的 task version 安全升级,
+但升级是安装/发布协议,不是 schema 回写;具体执法见
+[TOOL_READY_GATE.md](TOOL_READY_GATE.md) §6.4。
+
+安装后的包身份也不得从 schema 字段猜测:`<dest_root>/<name>` 的
+canonical 目录名、`tool.json.name` 与必需的
+`evidence/provenance.json.tool` 必须相同;`task_id` 必须精确匹配
+`tool-<name>-vN`(`N` 为无前导零正整数),manifest verification 的 `run_id` /
+`contract_sha256` 必须与 provenance 的对应字段一致。registry、audit、
+MCP 与升级都复用这组绑定;缺 provenance 或任一错配即 fail closed。
+包树、锁、归档、MCP 与事务性 `--out` 的 no-follow/线性化约束见
+[TOOL_READY_GATE.md](TOOL_READY_GATE.md) §6.3–§6.5。
