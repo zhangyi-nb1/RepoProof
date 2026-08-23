@@ -205,6 +205,51 @@ def test_fake_positive_reference_reaches_verified_tool_ready(world, monkeypatch,
 
 
 @pytest.mark.slow
+def test_fake_positive_late_write_selects_best_round(world, monkeypatch):
+    """「多轮迟写」负控形态 —— M4 对比批 pygments 空交付的合成重现。
+
+    round1 纯勘察零写入即提交,round2 才注入正控(FakeModel 单实例跨轮
+    续吐:脚本 = 勘察+submit+positive)。钉两条:
+      1) 轮末公开面真实可用时,hard 信号在实现轮必须上升,best 快照
+         从零写入轮翻到实现轮 → PASS;
+      2) 公开注入被剪的世界里(修前实据:批次一全部 fake 彩排
+         public_by_round=[0,0,0]),collect 全崩 → hard 持平 → best 停
+         round1 骨架 → 空 patch → 正确实现被判 FAIL —— 本测当场红。
+    单轮即写的 positive 形态结构性测不出这条链(best=round1 恒成立),
+    gpt-5.5 批次一 12/12 自写 conftest 又把它盖住 —— 故此形态常驻。
+    """
+    from repoproof.agents.fake_model import FakeModel
+    from repoproof.runner import host_guided
+    from repoproof.harness import host_guard
+
+    monkeypatch.setattr(host_guard, "DEFAULT_PROTECTED", ())
+    monkeypatch.delenv("REPOPROOF_PROTECTED_DIRS", raising=False)
+
+    runner = host_guided.HostGuidedRunner(
+        world["contract"], world["project"], wheelhouse=world["wheelhouse"])
+    runner._fake_mode = "positive-late"
+    scout = [
+        {"content": "scout only(pygments round1 形态:纯勘察零写入)",
+         "actions": [{"command": "ls && sed -n '1,5p' src/mini_tool/impl.py"}]},
+        {"content": "submit scout round",
+         "actions": [{"command": "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]},
+    ]
+    script = scout + host_guided._fake_script("positive", runner)
+
+    def factory(_totals):
+        return FakeModel(script=script)
+
+    report = runner.run(None, None, model_factory=factory,
+                        run_order=1, run_index=6,
+                        batch="EXPLORATORY_UNPREREGISTERED")
+    assert report["verdict"] == "PASS_ADAPTED", report.get("gate_reasons", report)
+    pbr = report["public_passed_by_round"]
+    assert len(pbr) >= 2, f"迟写形态必须真的走过 ≥2 轮:{pbr}"
+    assert pbr[-1] > pbr[0], (
+        f"best 选择失明形态复发(实现轮公开未超勘察轮):{pbr}")
+
+
+@pytest.mark.slow
 def test_fake_reimpl_green_oracle_but_dies_at_provenance(world, monkeypatch):
     """[D4] 弱档执法的全链自证:oracle 全绿也不放行零 import 交付。"""
     report = _run_fake(world, "control:negative_reimpl", monkeypatch, 2)

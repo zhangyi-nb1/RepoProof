@@ -101,6 +101,7 @@ _CRB = "scripts/classify_regression_broken.py"
 _T_CRB = ["tests/test_classify_regression_broken.py"]
 _T_HTP = ["tests/test_hb_task_packages.py"]
 _T_HTG = ["tests/test_hb_task_glue.py"]
+_T_TE2E = ["tests/test_tool_host_e2e.py"]
 _VTR = "scripts/verify_task_receipts.py"
 _T_T3S = ["tests/test_t3_sidecar_task.py"]
 _FSM = "scripts/failure_side_matrix.py"
@@ -3044,6 +3045,21 @@ MUTATIONS: list[dict] = [
         "new": "    if not fingerprints:\n        return True",
         "catchers": _T_ALS,
         "expected_catcher": ["test_l5_dead_selfcheck_is_refused"],
+    },
+    # ---- M99:LOCAL-TOOL 轮末公开面注入(2026-08-23,M4 对比批深挖)----
+    {
+        "id": "M99a-public-face-tool-env-severed",
+        "lesson": "轮末公开面的 REPOPROOF_TOOL_BIN 注入被剪 —— LOCAL-TOOL "
+                  "公开测试 collect 全崩恒 0,best 快照失明停在零写入轮,"
+                  "正确实现被空 patch 冻结判 FAIL(对比批 pygments 实测;"
+                  "批次一被 12/12 gpt-5.5 自写 conftest 系统性掩盖,单轮"
+                  "即写的 fake 彩排结构性测不出 —— 故用多轮迟写形态抓)",
+        "file": _HD,
+        "old": "            env={**self._measure_env(s), **self._meter_env(meter_tag),\n"
+               "                 **self._tool_env(s, meter_tag)})",
+        "new": "            env={**self._measure_env(s), **self._meter_env(meter_tag)})",
+        "catchers": _T_TE2E,
+        "expected_catcher": ["test_fake_positive_late_write_selects_best_round"],
     },
     {
         "id": "M90c-snapshot-copies-master-readonly-bit",
