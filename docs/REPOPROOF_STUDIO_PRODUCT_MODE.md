@@ -14,19 +14,21 @@ Completion Gate，也不把 Agent 的自述转成成功结论。
 | 工具库 | 双状态工具列表、调用方式、审核/撤回/MCP 入口 | tool.json、registry、release ledger |
 | 可信仪表盘 | 接受率、历史 READY、运营状态、false-success | `docs/m4_metrics.json` + 本机状态账 |
 
-旧 Guided Adoption 和 Benchmark Lab 页面完整保留在独立导航分组，不与
-Product Mode 指标混算。
+旧 Guided Adoption 和 Benchmark Lab 页面完整保留在独立应用
+`RepoProof Benchmark Lab` 中。两套应用没有交叉导航、共享会话或指标混算。
 
 ## 信任边界
 
 1. UI 只读取现有事实；发布账缺失或损坏时一律投影为 `REVIEW_REQUIRED`。
 2. 历史验证与当前运营状态并列展示，互不覆盖。
 3. 只有 `ACTIVE` 工具显示 MCP 生成操作。
-4. UI 后台任务用 argv 数组启动 Core CLI，不经过 shell，密钥不进入 argv、
+4. Product Mode 后台任务位于独立 `product_jobs` 服务，用 argv 数组启动
+   Core CLI，不经过 shell，密钥不进入 argv、
    页面或状态文件。
 5. 后台成功必须形成相对启动前**新建或变化**的预期产物；旧文件不算成功。
 6. 草稿编辑只发生在用户选择的 draft 目录；同名 golden 文件拒绝覆盖。
-7. UI 不修改冻结合同、历史 run、Benchmark ledger 或已导出的工具包。
+7. Studio 不读写 Lab 的 `runs/`、benchmark 或 evidence；Lab 不读写
+   `~/tools`、产品草稿或 release ledger。
 
 ## 与 RFC-011 / M5 合并
 
@@ -40,6 +42,11 @@ Product Mode 指标混算。
 
 ## 本地启动
 
-继续使用现有 `scripts/run_ui.sh`。应用只监听 `127.0.0.1`，默认首页已经是
-Product Mode。需要真实模型连接时使用 `scripts/run_ui_live.sh`；密钥只从
-进程环境读取。
+两套应用均只监听本机，可以同时运行：
+
+| 应用 | 普通启动 | 带模型连接 | 地址 |
+|---|---|---|---|
+| RepoProof Studio | `scripts/run_ui.sh` | `scripts/run_ui_live.sh` | `127.0.0.1:8501` |
+| RepoProof Benchmark Lab | `scripts/run_lab_ui.sh` | `scripts/run_lab_ui_live.sh` | `127.0.0.1:8502` |
+
+密钥只从各自进程环境读取。旧历史记录留在原目录，不迁移、不复制、不改写。

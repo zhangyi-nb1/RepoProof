@@ -8,7 +8,7 @@ from repoproof.adoption.analysis.host_analyzer import analyze_host_project
 from repoproof.ui.services.facts import repo_root
 from repoproof.ui.services.state import is_tech, mode_toggle_sidebar, tech_expander
 
-st.set_page_config(page_title="项目分析 · RepoProof Studio", layout="wide")
+st.set_page_config(page_title="项目分析 · RepoProof Benchmark Lab", layout="wide")
 mode_toggle_sidebar()
 st.title("项目分析")
 st.caption("静态分析你的项目:不执行代码、不修改文件、不调用 AI。"

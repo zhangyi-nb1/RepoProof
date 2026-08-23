@@ -7,7 +7,7 @@ from pathlib import Path
 import streamlit as st
 
 from repoproof.ui.product_theme import apply_product_theme, hero, section_intro
-from repoproof.ui.services import live_run
+from repoproof.ui.services import product_jobs
 
 st.set_page_config(page_title="运行活动 · RepoProof Studio", page_icon="🕒", layout="wide")
 apply_product_theme()
@@ -18,7 +18,7 @@ hero(
     kicker="Bounded execution",
 )
 
-job = live_run.product_job_state()
+job = product_jobs.product_job_state()
 if not job:
     st.info("当前没有 Product Mode 后台任务。")
     if st.button("创建一个工具", type="primary"):

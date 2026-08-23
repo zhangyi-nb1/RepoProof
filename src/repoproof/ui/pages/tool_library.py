@@ -7,7 +7,7 @@ from pathlib import Path
 import streamlit as st
 
 from repoproof.ui.product_theme import apply_product_theme, hero, section_intro, status_badge
-from repoproof.ui.services import live_run
+from repoproof.ui.services import product_jobs
 from repoproof.ui.services.product_mode import (
     list_tools,
     mcp_command,
@@ -87,20 +87,20 @@ with usage:
     st.code(mcp_command(tool["name"]), language="bash")
     if tool["operational_status"] == "ACTIVE":
         if st.button("生成 MCP 适配器", type="primary"):
-            result = live_run.start_tool_mcp(tool["name"], Path(library["root"]))
+            result = product_jobs.start_tool_mcp(tool["name"], Path(library["root"]))
             (st.success if result.get("ok") else st.error)(result.get("note") or result.get("error"))
     else:
         st.warning("只有通过 fresh-input 审核的 ACTIVE 工具可以生成或启用 MCP。")
 
 with st.expander("审核、撤回与证据"):
     st.caption("这些操作只追加运营决定，不删除包，也不改写历史验证。M5 核心命令合并后自动启用。")
-    available = live_run.product_tool_commands()
+    available = product_jobs.product_tool_commands()
     if "audit" in available:
         a, b = st.columns(2)
         audit_input = a.text_input("新鲜输入文件路径", key="audit_input")
         audit_expected = b.text_input("期望输出文件路径", key="audit_expected")
         if st.button("运行 fresh-input 审核", disabled=not (audit_input and audit_expected)):
-            result = live_run.start_tool_audit(
+            result = product_jobs.start_tool_audit(
                 tool["name"], Path(audit_input).expanduser(),
                 Path(audit_expected).expanduser(), Path(library["root"]),
             )
@@ -111,7 +111,7 @@ with st.expander("审核、撤回与证据"):
     if "withdraw" in available:
         reason = st.text_input("撤回原因", key="withdraw_reason")
         if st.button("撤回工具", disabled=not reason):
-            result = live_run.start_tool_withdraw(
+            result = product_jobs.start_tool_withdraw(
                 tool["name"], reason, Path(library["root"]),
             )
             (st.success if result.get("ok") else st.error)(result.get("note") or result.get("error"))

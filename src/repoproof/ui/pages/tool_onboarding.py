@@ -9,7 +9,7 @@ import streamlit as st
 import yaml
 
 from repoproof.ui.product_theme import apply_product_theme, hero, section_intro
-from repoproof.ui.services import live_run
+from repoproof.ui.services import product_jobs
 from repoproof.ui.services.product_mode import tool_root, ui_state_root
 
 st.set_page_config(page_title="新建工具 · RepoProof Studio", page_icon="🧰", layout="wide")
@@ -21,7 +21,7 @@ hero(
     kicker="New verified local tool",
 )
 
-job = live_run.product_job_state()
+job = product_jobs.product_job_state()
 if job and job.get("alive"):
     st.info(f"正在执行：{job.get('label')}。可以离开本页，后台任务不会中断。")
 elif job and job.get("finished"):
@@ -47,7 +47,7 @@ with tab_discover:
         offline = st.checkbox("先用离线模板起草（零模型调用）", value=False)
         submitted = st.form_submit_button("分析仓库并生成草稿", type="primary")
     if submitted:
-        result = live_run.start_tool_add(
+        result = product_jobs.start_tool_add(
             repo=repo,
             capability=capability,
             revision=revision or None,
@@ -110,7 +110,7 @@ with tab_review:
             except (json.JSONDecodeError, ValueError) as exc:
                 result = {"ok": False, "error": f"输出合同不是合法 JSON：{exc}"}
             else:
-                result = live_run.save_draft_review(
+                result = product_jobs.save_draft_review(
                     inspect_dir,
                     tool_name=tool_name,
                     summary=summary,
@@ -129,7 +129,7 @@ with tab_review:
         uploaded_in = c_in.file_uploader("输入文件", key="golden_input")
         uploaded_out = c_out.file_uploader("期望输出文件", key="golden_expected")
         if st.button("加入这一组样例", disabled=not (uploaded_in and uploaded_out)):
-            result = live_run.add_golden_example(
+            result = product_jobs.add_golden_example(
                 inspect_dir,
                 input_name=uploaded_in.name,
                 input_bytes=uploaded_in.getvalue(),
@@ -163,7 +163,7 @@ with tab_build:
     rehearsal_only = st.toggle("只运行离线彩排", value=True)
     confirmed = st.checkbox("我已确认输入输出、样例真值、上游版本和许可证")
     if st.button("开始彩排" if rehearsal_only else "开始完整构建", type="primary", disabled=not confirmed):
-        result = live_run.start_tool_build(
+        result = product_jobs.start_tool_build(
             draft_dir=build_dir,
             dest_root=dest_root,
             rehearsal_only=rehearsal_only,

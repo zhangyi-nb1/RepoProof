@@ -22,7 +22,7 @@ from repoproof.ui.services import live_run as _lr
 from repoproof.ui.services.facts import repo_root as _rr2
 from repoproof.ui.services.state import is_tech, mode_toggle_sidebar, tech_expander
 
-st.set_page_config(page_title="运行进度 · RepoProof Studio", layout="wide")
+st.set_page_config(page_title="运行进度 · RepoProof Benchmark Lab", layout="wide")
 mode_toggle_sidebar()
 st.title("运行进度")
 

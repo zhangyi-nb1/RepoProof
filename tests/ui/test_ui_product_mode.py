@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from repoproof.ui.services import live_run, product_mode
+from repoproof.ui.services import product_jobs, product_mode
 
 REPO = Path(__file__).resolve().parents[2]
 PAGES = REPO / "src" / "repoproof" / "ui" / "pages"
@@ -121,7 +121,7 @@ def test_dashboard_keeps_recorded_and_operational_counts_separate(tmp_path: Path
 
 
 def test_product_argv_is_shell_free_and_contains_no_credentials(tmp_path: Path) -> None:
-    argv = live_run.tool_add_argv(
+    argv = product_jobs.tool_add_argv(
         REPO,
         repo="https://github.com/acme/alpha",
         capability="把 Alpha 能力包装成本地工具",
@@ -152,14 +152,14 @@ def test_review_editor_and_examples_only_write_inside_draft(tmp_path: Path) -> N
     (draft / "reference_impl.py").write_text("", encoding="utf-8")
     (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
 
-    saved = live_run.save_draft_review(
+    saved = product_jobs.save_draft_review(
         draft, tool_name="alpha-tool", summary="Alpha 转换",
         statement="读取 Alpha 输入并返回规范化文本", input_format="TXT",
         output_format="TXT", output_schema="AlphaText",
         reference_impl="import alpha\n", output_contract={},
     )
     assert saved["ok"]
-    added = live_run.add_golden_example(
+    added = product_jobs.add_golden_example(
         draft, input_name="a.txt", input_bytes=b"a",
         expected_name="a.expected.txt", expected_bytes=b"A",
     )
@@ -221,11 +221,42 @@ def test_library_shows_historical_and_operational_state(
     assert "待审核" in text
 
 
-def test_navigation_keeps_product_and_benchmark_surfaces_separate() -> None:
-    source = (REPO / "src" / "repoproof" / "ui" / "app.py").read_text(encoding="utf-8")
-    assert '"产品模式"' in source and '"Benchmark Lab"' in source
+def test_navigation_keeps_product_and_benchmark_apps_separate() -> None:
+    ui = REPO / "src" / "repoproof" / "ui"
+    product_source = (ui / "app.py").read_text(encoding="utf-8")
+    lab_source = (ui / "lab_app.py").read_text(encoding="utf-8")
     for title in ("工作台", "新建工具", "运行活动", "工具库", "可信仪表盘"):
-        assert title in source
+        assert title in product_source
+        assert title not in lab_source
+    for title in ("开始新任务", "宿主任务 T1–T4", "结果报告", "历史记录", "系统设置"):
+        assert title in lab_source
+        assert title not in product_source
+    assert "Benchmark Lab" not in product_source
+    assert "product_theme" not in lab_source
+
+
+def test_runtime_services_have_separate_state_domains() -> None:
+    services = REPO / "src" / "repoproof" / "ui" / "services"
+    lab_source = (services / "live_run.py").read_text(encoding="utf-8")
+    product_source = (services / "product_jobs.py").read_text(encoding="utf-8")
+    assert "product_job_state" not in lab_source
+    assert "product_mode" not in lab_source
+    assert "runs/.ui_live.lock" not in product_source
+    assert "benchmarks/" not in product_source
+    assert "docs/evidence" not in product_source
+
+
+def test_public_launchers_use_distinct_apps_and_ports() -> None:
+    scripts = REPO / "scripts"
+    product = (scripts / "run_ui.sh").read_text(encoding="utf-8")
+    product_live = (scripts / "run_ui_live.sh").read_text(encoding="utf-8")
+    lab = (scripts / "run_lab_ui.sh").read_text(encoding="utf-8")
+    lab_live = (scripts / "run_lab_ui_live.sh").read_text(encoding="utf-8")
+    assert "ui/app.py" in product and "--server.port 8501" in product
+    assert "ui/app.py" in product_live and "--server.port 8501" in product_live
+    assert "ui/lab_app.py" in lab and "--server.port 8502" in lab
+    assert "ui/lab_app.py" in lab_live and "--server.port 8502" in lab_live
+    assert "lab_app.py" not in product and "ui/app.py" not in lab
 
 
 @needs_streamlit
@@ -237,3 +268,14 @@ def test_navigation_entrypoint_accepts_all_icons(
     at = AppTest.from_file(str(REPO / "src" / "repoproof" / "ui" / "app.py"))
     at.run()
     assert not at.exception
+
+
+@needs_streamlit
+def test_benchmark_lab_entrypoint_renders_independently() -> None:
+    at = AppTest.from_file(
+        str(REPO / "src" / "repoproof" / "ui" / "lab_app.py"),
+        default_timeout=30,
+    )
+    at.run()
+    assert not at.exception
+    assert "把一个开源仓库的能力" in _all_text(at)

@@ -15,13 +15,13 @@ from repoproof.ui.presenters.glossary import (
 from repoproof.ui.services import facts
 from repoproof.ui.services.state import is_tech, mode_toggle_sidebar, tech_expander
 
-st.set_page_config(page_title="历史记录 · RepoProof Studio", layout="wide")
+st.set_page_config(page_title="历史记录 · RepoProof Benchmark Lab", layout="wide")
 mode_toggle_sidebar()
 st.title("历史记录")
 
 _locals = facts.local_runs()
 if _locals:
-    st.subheader("你的运行(本机产品模式,持久保存)")
+    st.subheader("你的运行(Benchmark Lab 本地采用,持久保存)")
     _rows_local = []
     for _rn in _locals:
         _d = facts.load_local_run(_rn)
