@@ -3295,3 +3295,28 @@ provenance/patch/verification)。
 转绿)。M1 全判据达成:真用工具+干净重放+证据完整+负控全数落网。
 **下一步=M2**(intake 半自动化:契约草稿 LLM 限草稿层+adequacy 扩条
 +样例三层+import-hook 采纳升级)。
+
+## 状态 · 2026-08-23 · M2-a/b:intake 确定性骨架+确认流闭环(零 API)
+
+**M2-a**(`fb128c6`):单仓 admission 四态(decide_tool/evaluate_tool_policy,
+喂违反自证:GPU/commit/secret→UNSUPPORTED、无入口→NEED_INFORMATION)+
+ToolContract 草稿确定性填充+DraftGap 缺口分派(USER=真值/LLM=措辞/
+AUTO=后补)。[G1] 纪律:零 LLM 零猜测,推导不出进缺口。distribution/
+import_module 三路静态提取(pyproject/setup.cfg/setup.py 字面量,永不
+执行仓库代码)——真 pdfplumber 树(setup.py 老式)实测倒逼第三路。
+语义指纹面登记 adoption/intake/→verifier。
+
+**M2-b**(`1d916ce`):write_draft_bundle(可编辑束:draft.yaml/GAPS.md/
+examples/reference 骨架)→人补→confirm_tool_draft(D 系确认闸一次报全:
+含 reference 必须 import 上游——弱档执法入口条件提前到确认期)→
+装配→adequacy T 闸→冻结。CLI:tool-intake --draft-out / tool-confirm。
+正流集成:mini 仓 URL→intake→程序化人补→confirm→冻结契约,held-out
+只进 oracle。
+
+**"URL+一句话→冻结契约,人只确认不撰写"的闭环骨架已通**;人现在补的
+措辞类字段(statement/summary/format/reference 草稿)即 M2-d LLM 起草层
+的工作面。基线 `1140 passed + 60 skipped + 0 failed`(+18 测)。
+
+**M2 剩余**:c) import-hook 取证件([D4] 升级,独立机制件);d) LLM 限
+草稿层接入(通道/模型待用户裁);e) 上游一致性样例选取器(G2 第二层);
+验收=第二个真工具从 URL 到 VERIFIED_TOOL_READY,人只确认。
