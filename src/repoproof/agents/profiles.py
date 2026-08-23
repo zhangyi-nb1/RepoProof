@@ -210,6 +210,7 @@ _FACE_MAP: tuple[tuple[str, str], ...] = (
     ("probes/", "verifier"),
     ("adoption/admission/", "verifier"),
     ("adoption/analysis/", "verifier"),
+    ("adoption/intake/", "verifier"),      # M2:单仓准入+草稿确定性推导(零 LLM)
     ("adoption/assembly/", "verifier"),
     ("adoption/delivery/", "verifier"),                      # apply/rollback 完整性
     # ---- 量具面:改它**不改变被测系统** ----

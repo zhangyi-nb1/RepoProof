@@ -64,6 +64,48 @@ def decide(host: HostProjectReport, repo: RepositoryReport) -> AdmissionReport:
     )
 
 
+def decide_tool(repo: RepositoryReport) -> AdmissionReport:
+    """LOCAL-TOOL 谱系(RFC-010,M2)单仓四态 —— 与 decide() 同一优先级
+    与报告形状,规则表换 evaluate_tool_policy;宿主侧风险项不适用。
+
+    风险面只取仓侧:外部服务 / 扫描截断 / 无测试目录 + 分析器自报
+    (剔除已由 policy 表达过的类别,口径与 collect_risks 一致)。"""
+    from repoproof.adoption.admission.support_policy import evaluate_tool_policy
+
+    policy = evaluate_tool_policy(repo)
+    risks: list[str] = []
+    if repo.external_services.value:
+        risks.append(f"目标仓库依赖外部服务客户端 {repo.external_services.value}"
+                     "——运行可能需要网络/账号,需你确认")
+    if repo.scan_stats.truncated:
+        risks.append("源码扫描不完整(仓库过大)——分析结论覆盖面有限,需你确认可接受")
+    if repo.tests.provenance == "UNKNOWN":
+        risks.append("目标仓库没有测试目录——其行为只能靠参考校准确认,风险较高")
+    _covered = ("GPU", "secret", "密钥", "无法固定版本", "许可证", "测试配置",
+                "版本要求", "依赖声明", "无测试目录", "扫描不完整", "外部服务")
+    for r in repo.risks:
+        if not any(k in r for k in _covered):
+            risks.append(r)
+
+    if policy.blockers:
+        status = UNSUPPORTED
+    elif policy.questions:
+        status = NEED_INFORMATION
+    elif risks:
+        status = RISK_REVIEW
+    else:
+        status = READY
+    return AdmissionReport(
+        status=status,
+        confirmed_facts=policy.confirmed,
+        questions=policy.questions,
+        blockers=policy.blockers,
+        risks=risks,
+        next_step=_NEXT_STEP[status],
+        executes_third_party_code=(status != UNSUPPORTED),
+    )
+
+
 def apply_user_confirmations(
     report: AdmissionReport, confirmed_questions: list[str]
 ) -> AdmissionReport:

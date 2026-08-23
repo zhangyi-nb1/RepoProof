@@ -52,6 +52,18 @@ def main(argv: list[str] | None = None) -> int:
     p_arepo.add_argument("--revision", default=None)
     p_arepo.add_argument("--json", action="store_true", help="stable JSON envelope (RFC-008 §5.1)")
 
+    p_tin = sub.add_parser(
+        "tool-intake",
+        help="LOCAL-TOOL intake (M2/RFC-010 [G1]): repo + capability goal → "
+             "admission(4-state) + deterministic ToolContract DRAFT + gap list; "
+             "zero LLM, never executes repo code",
+    )
+    gt = p_tin.add_mutually_exclusive_group(required=True)
+    gt.add_argument("--repo", help="public GitHub URL (shallow-clone into upstream-cache/analysis/)")
+    gt.add_argument("--local-path", type=Path, help="already-present repo directory (offline)")
+    p_tin.add_argument("--capability", required=True, help="one-line capability goal")
+    p_tin.add_argument("--revision", default=None)
+
     p_asrc = sub.add_parser(
         "analyze-source",
         help="RFC-008 §5.1 stable name for analyze-repo (same core, JSON envelope by default)",
@@ -273,6 +285,17 @@ def main(argv: list[str] | None = None) -> int:
         if args.json:
             payload = {"schema_version": 1, "kind": "repository_report", "report": payload}
         print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "tool-intake":
+        from repoproof.adoption.intake.tool_intake import run_tool_intake
+
+        rep = run_tool_intake(
+            args.repo or "", args.capability,
+            cache_root=PROJECT_ROOT / "upstream-cache",
+            revision=args.revision, local_path=args.local_path)
+        print(json.dumps({"schema_version": 1, "kind": "tool_intake_report",
+                          **rep.to_dict()}, ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd == "export-bundle":
