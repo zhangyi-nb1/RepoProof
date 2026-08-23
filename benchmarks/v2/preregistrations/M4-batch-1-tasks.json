@@ -1,0 +1,30 @@
+{
+  "batch": "M4-TOOL-ONBOARDING-1",
+  "note": "冻结任务清单(选取口径见同名 .md §3;批准前冻结,结果未见)。URL 笔误按 §3.3 勘误条款处理,不得换任务。",
+  "tasks": [
+    {"repo": "https://github.com/un33k/python-slugify",
+     "capability": "把文本文件的每一行转成 URL slug"},
+    {"repo": "https://github.com/LuminosoInsight/python-ftfy",
+     "capability": "修复文本文件中的 mojibake 乱码,输出修复后文本"},
+    {"repo": "https://github.com/avian2/unidecode",
+     "capability": "把 Unicode 文本文件转写为 ASCII 近似文本"},
+    {"repo": "https://github.com/yaml/pyyaml",
+     "capability": "把 YAML 文件安全解析并输出等价 JSON"},
+    {"repo": "https://github.com/dpranke/pyjson5",
+     "capability": "把 JSON5 文件规范化为严格 JSON 输出"},
+    {"repo": "https://github.com/Python-Markdown/markdown",
+     "capability": "把 Markdown 文件渲染为 HTML"},
+    {"repo": "https://github.com/pygments/pygments",
+     "capability": "把源代码文件高亮为自包含 HTML"},
+    {"repo": "https://github.com/astanin/python-tabulate",
+     "capability": "把 CSV 文件渲染为 GitHub 风格 Markdown 表格"},
+    {"repo": "https://github.com/dateutil/dateutil",
+     "capability": "把每行一个的自由格式日期解析为 ISO 8601 输出"},
+    {"repo": "https://github.com/chardet/chardet",
+     "capability": "检测文件的字符编码并输出编码名与置信度报告"},
+    {"repo": "https://github.com/python-humanize/humanize",
+     "capability": "把每行一个的整数字节数转为人类可读大小(如 1.2 MB)"},
+    {"repo": "https://github.com/kurtmckee/feedparser",
+     "capability": "把 RSS/Atom 订阅源文件解析为条目标题与链接的清单"}
+  ]
+}
