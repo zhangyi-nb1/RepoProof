@@ -2116,7 +2116,12 @@ class HostGuidedRunner:
             [s.venv_py, *self._public_argv(),
              "--junitxml", "../rp_public.xml"],
             timeout_s=timeout_s, workdir="host",
-            env={**self._measure_env(s), **self._meter_env(meter_tag)})
+            # _tool_env 必须并入:LOCAL-TOOL 公开测试硬取 REPOPROOF_TOOL_BIN,
+            # 少注则两文件 collect 全崩→轮末恒 0→best 停在首轮(M4 对比批
+            # pygments 空交付实测;批次一被 agent 自写 conftest 系统性掩盖,
+            # fake 彩排单轮即提交也测不出)。旧谱系 tool_bin 空返回 {},零变化。
+            env={**self._measure_env(s), **self._meter_env(meter_tag),
+                 **self._tool_env(s, meter_tag)})
         junit = parse_junit_xml(xml_path.read_bytes() if xml_path.exists() else None)
         junit["pytest_exit"] = res.exit_code
         junit["stdout_tail"] = res.stdout.decode(errors="replace")[-600:]

@@ -55,6 +55,9 @@ def _batch_rows(batch: str) -> dict[str, dict]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", help="只发一个任务(金丝雀取证)")
+    ap.add_argument("--reissue", help="显式补发一个已有行的任务(用户批准的"
+                                      "harness 修复复验;绕过幂等跳过与批帽——"
+                                      "帽外授权必须来自用户,勘误区记录)")
     ap.add_argument("--batch", default=BATCH)
     args = ap.parse_args()
 
@@ -63,14 +66,19 @@ def main() -> int:
     done = _batch_rows(args.batch)
     spent_in = sum(r.get("input_tokens") or 0 for r in done.values())
     todo = [t for t in TASKS if t not in done]
-    if args.only:
+    if args.reissue:
+        todo = [args.reissue]
+    elif args.only:
         todo = [t for t in todo if t == args.only]
 
     results = []
     for i, task_id in enumerate(todo):
-        if spent_in >= CAP_IN:
+        if spent_in >= CAP_IN and not args.reissue:
             print(f"批帽触顶:{spent_in:,} >= {CAP_IN:,},停批", file=sys.stderr)
             break
+        if args.reissue and spent_in >= CAP_IN:
+            print(f"帽外补发(用户显式授权):已花 {spent_in:,} >= {CAP_IN:,}",
+                  file=sys.stderr)
         contract = REPO / "tool_tasks" / task_id / "contract.yaml"
         if not contract.is_file():
             results.append({"task_id": task_id, "verdict": "MISSING_TASK_PKG"})

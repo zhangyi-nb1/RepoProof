@@ -73,3 +73,10 @@ failure_class 与 gate_reasons 摘录。汇总:通过数、失败形态分布、
   系统性掩盖了此洞;fake 彩排单轮即写入提交,结构性测不出(best=
   round1=正控)。ftfy 发次归因不变(policy 正杀 647 文件大 diff),但
   其轮末 5 passed 同样依赖自写 conftest。修复与复验待用户批准。
+- 2026-08-23 修复与补发(用户批准"修+补发一次"):`_run_public` env 并入
+  `_tool_env`(host_guided)+ E2E 正控加轮末公开>0 钉子(修前实据=批次一
+  全部 fake 彩排 [0,0,0])+ 骨架 .gitignore 增 `*venv*/`(前向,冻结任务
+  包不动)。pygments 帽外补发一发(202553):**PASS_ADAPTED,20 调用/
+  231,540 in/1 轮**(原 FAIL 发 60 调用/653,618 in/3 轮)——反馈面修复后
+  单轮收敛。对比批终局:**11/12 PASS**(pygments 以补发为准),ftfy FAIL
+  维持(policy 正杀)。批总成本(含原 FAIL 发与补发)6,246,965 in。

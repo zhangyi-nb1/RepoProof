@@ -174,6 +174,13 @@ def test_fake_positive_reference_reaches_verified_tool_ready(world, monkeypatch,
     report = _run_fake(world, "positive", monkeypatch, 1)
     assert report["verdict"] == "PASS_ADAPTED", report.get("gate_reasons", report)
     assert report["verdict_public"] == "VERIFIED_TOOL_READY"
+    # 轮末公开面必须真的跑起来(_run_public 并入 _tool_env 的钉子):
+    # 修前世界的实据 = 批次一全部 fake 彩排 public_by_round 恒 [0,0,0]
+    # (REPOPROOF_TOOL_BIN 未注入,两测试文件 collect 全崩计 0),best 选择
+    # 因此失明,靠 agent 自写 conftest 才被掩盖(M4 对比批 pygments 空交付
+    # 实测)。正控注入后末轮通过数必须为正,0 = 缺口复发。
+    assert report["public_passed_by_round"][-1] > 0, (
+        f"轮末公开面 collect 崩形态复发:{report['public_passed_by_round']}")
     # 决策表:终局 PASS 只能由 clean_adoption replay 撑起(gate 钉死);
     # report 里各验证器是 detail 字符串,结构化件在 run 目录 verification/。
     assert report["replay"], "PASS 必须带 replay detail"
