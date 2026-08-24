@@ -3568,3 +3568,25 @@ main 已推送 origin(用户授权)。完整 Preview Validated 还差 2 名目�
 
 全量 **1408 passed + 60 skipped + 0 failed**(+13,来自两分支新测试);
 main 已推送。
+
+## 状态 · 2026-08-25 · 新阶段开工:Gate 0 事实收口 + Gate 1 CapabilityPlanV1 关闭
+
+新定位基准入库(`docs/VERIFIED_TOOL_ONBOARDING_NEXT_STAGE_GUIDE.md`,
+Verified Tool Onboarding Harness),开发分支 `claude/onboarding-gate1`
+(基于 main@812bb7b;M7 分支按指导冻结)。差距核查:指导声称的零件
+(repository_analyzer/strategy_selector/repair 三件套/RFC-012)全部
+账实相符;真实缺口=证据化 surface 检测与正式路由产物。
+
+**Gate 0**:两份交接文档漂移清零(CHATGPT_WEB_HANDOFF 头部勘误块,
+HANDOFF_STATE 补 M7 现状行+新阶段基准行);M6 两名目标用户测试仍挂账
+(用户侧动作)。**Gate 1 关闭**:RFC-013(schema/六条确定性路由/可信
+边界)+ `capability_plan.py`(AST surface 检测:签名/file:line/单必选
+参数→三档 confidence;路由器;apply_llm_advice 唯一注入口——违规建议
+整体忽略记 risks;confirm 人闸+assert_may_execute 执行闸)+ CLI
+`tool plan`/`plan-confirm`(零模型)。顺手修两真缺口:analyzer 顶层包
+识别兼容 src/ 布局(此前整包 API 判不存在,批次二 phonenumbers 同源);
+路由分类"GPUISH_API_KEY 含 GPU 子串"误伤改特征短语。五类零模型
+fixture(直包/CLI 信号/歧义/GPU+secret/service)+确定性+守卫+双闸
+10/10;CLI 冒烟全链通过。全量 `1418 passed + 60 skipped + 0 failed`。
+下一步:Gate 2(Failure Triage 产品投影+tool build 全链 fixture)→
+Gate 3(DIRECT_WRAP 执行链)→ Gate 4(Studio 投影)。
