@@ -107,7 +107,35 @@ if false.get("flagged"):
         f"涉及：{', '.join(false.get('flagged_tasks') or [])}。"
     )
 
-with st.expander("查看机器事实"):
+# 逐任务结果的人读主呈现：这些信息此前只存在于机器事实 JSON 深处,
+# 普通用户想查"某个仓最后怎么样了"只能钻 JSON(M6 预览验证实录)。
+per_task = metrics.get("per_task") or []
+if per_task:
+    st.markdown("#### 逐任务结果")
+
+    def _mark(v: object) -> str:
+        return "✅" if v else "✖"
+
+    st.dataframe(
+        [
+            {
+                "任务": row.get("task_id") or "—",
+                "仓库": (row.get("repo") or "—").removeprefix("https://github.com/"),
+                "能力": row.get("capability") or "—",
+                "接受执行": _mark(row.get("accepted")),
+                "历史 READY": _mark(row.get("historical_tool_ready", row.get("tool_ready"))),
+                "干净重放": _mark(row.get("replay")),
+                "当前运营": row.get("operational_status") or "—",
+                "真发结论": row.get("real_verdict") or "—",
+            }
+            for row in per_task
+        ],
+        hide_index=True,
+        use_container_width=True,
+    )
+    st.caption("接受执行=通过准入闸；历史 READY=当时冻结合同下的流水线结论（不可改写）；当前运营=今天是否仍允许使用。")
+
+with st.expander("查看机器事实（原始 JSON，供审计复核；上方表格已含同一信息的人读版）"):
     st.json(
         {
             "recorded_m4_metrics": metrics,

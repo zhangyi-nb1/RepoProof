@@ -51,6 +51,19 @@ if log_result.get("ok"):
 else:
     st.caption(log_result.get("error") or "日志文件尚未创建。")
 
-with st.expander("技术信息"):
+with st.expander("技术信息（人读字段 + 原始 JSON）"):
     safe = {k: v for k, v in job.items() if k not in {"env"}}
+    labels = {
+        "status": "状态", "action": "阶段", "kind": "类型", "label": "任务",
+        "pid": "进程", "alive": "仍在运行", "ok": "是否成功", "note": "结果说明",
+        "error_code": "错误码", "started_at": "开始时间", "finished_at": "结束时间",
+        "log_path": "日志文件", "draft_dir": "草稿目录", "dest_root": "工具库位置",
+    }
+    st.dataframe(
+        [{"字段": labels.get(k, k), "值": "—" if v is None else str(v)}
+         for k, v in safe.items()],
+        hide_index=True,
+        use_container_width=True,
+    )
+    st.caption("以下为同一信息的原始 JSON（供排查与审计）:")
     st.json(safe)
