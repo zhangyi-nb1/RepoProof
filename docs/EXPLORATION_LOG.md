@@ -3590,3 +3590,30 @@ fixture(直包/CLI 信号/歧义/GPU+secret/service)+确定性+守卫+双闸
 10/10;CLI 冒烟全链通过。全量 `1418 passed + 60 skipped + 0 failed`。
 下一步:Gate 2(Failure Triage 产品投影+tool build 全链 fixture)→
 Gate 3(DIRECT_WRAP 执行链)→ Gate 4(Studio 投影)。
+
+## 状态 · 2026-08-25 · Gate 2+3+4 连续关闭(新阶段四 Gate 全部落地)
+
+**Gate 2**:FailureAssessmentV1 纯读取侧投影(九种 Product 终止码
+§2.5 映射、owner/repairability/公开失败指纹/进展快照、§2.7 修复指标;
+历史/新 run 同函零回写);泄漏纪律=自由文本规范化后才准进投影,同根因
+同指纹;语义修正一枚:隐藏面失败以「公开已全绿收束」为前提(E2E noop
+实测,骨架态 held 字样不再误判 HIDDEN)。pipeline 真发结果附投影;
+E2E 三形态断言(positive→NO_REPAIR_NEEDED/迟写→REPAIR_SUCCEEDED+
+rescued_at/noop→NO_PROGRESS)。
+**Gate 3**:DIRECT_WRAP 快路径——DirectAdapterSpec(白名单+注入拒)/
+受信模板(同 spec 逐字节确定,真调 pinned 上游)/derive(恰一选中
+callable);tool_build 拆路由执行器(plan.yaml 驱动,assert_may_execute
+前置执法;DIRECT_WRAP=装配期落 adapter+确定 lock→一发 fake="direct"
+零动作提交→零 diff+全门=既有 PASS_DIRECT,gate 零改动;失败不自动切
+AGENT_ADAPT);合成 minilib 世界全链零模型 PASS_DIRECT+wrong-symbol
+负控。**顺手修 provenance 真盲区**:只扫 diff 会把装配期受信交付判
+"重实现"(oracle 7/7 全绿仍被杀,实测)——扫描对象改 diff∪合同能力位,
+AGENT_ADAPT 并集幂等零变化。
+**Gate 4**:Studio 只改两页——能力计划人读卡(状态/路线/理由码/
+surfaces 证据表)、构建前路线预告(DIRECT_WRAP 明示零模型)、活动页
+构建结论卡(终止码中文含义/失败归属/run_id);三固定演示由 fixture
+承载(direct 全链/迟写修复/fixture4+pyspellchecker 拒绝撤回),真实
+模型演示与新真仓仍需授权。
+全量 `1432 passed + 60 skipped + 0 failed`;分支
+claude/onboarding-gate1 已推(0322672)。**四 Gate 关闭;余:M6 两名
+目标用户测试(用户侧)、合回 main 待用户验收。**
