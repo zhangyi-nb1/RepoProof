@@ -3021,9 +3021,17 @@ class HostGuidedRunner:
             if (self.contract.task_family == "LOCAL-TOOL" and cap.passed
                     and self.contract.source_repo is not None):
                 from repoproof.verification.provenance import check_upstream_provenance
+                # 扫描对象 = diff 文件 ∪ 合同锁定的能力位(src/*/impl.py)。
+                # 只扫 diff 对 DIRECT_WRAP 是盲区:受信模板在装配期落进骨架,
+                # 零 diff 全绿的交付被误判"未 import 上游=重实现"(Gate 3
+                # 实测);AGENT_ADAPT 下并集幂等(改能力位必在 diff 里)。
+                impl_slots = sorted(
+                    str(p.relative_to(s.root / "host"))
+                    for p in (s.root / "host" / "src").glob("*/impl.py"))
                 prov = check_upstream_provenance(
                     s.root / "host",
-                    [f["path"] for f in adaptation_manifest.files],
+                    sorted({*(f["path"] for f in adaptation_manifest.files),
+                            *impl_slots}),
                     self.contract.source_repo.import_module)
                 if not prov["ok"]:
                     # 保留 oracle 计数进 detail:读报告的人必须看得出
@@ -3749,8 +3757,11 @@ def _fake_script(kind: str, runner: HostGuidedRunner) -> list[dict]:
     **控制组缺失必须显式失败,不得静默退回 noop**:那会让冒烟"通过"而
     其实什么都没验(与 batch_criteria 的"空跑不算通过"同源)。
     """
-    if kind == "noop":
-        return [{"content": "noop submit",
+    if kind in ("noop", "direct"):
+        # "direct" = DIRECT_WRAP 路线(Gate 3):交付已由受信模板在装配期
+        # 写进骨架,脚本零动作直接提交 —— 与 noop 同款动作、不同台账名
+        # (fake-scripted:direct),零 diff + 全门过走 PASS_DIRECT。
+        return [{"content": f"{kind} submit",
                  "actions": [{"command": "echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"}]}]
 
     # `control:<名>` —— 把任务包里的**任一**控制组当脚本跑完整条链路。
@@ -3769,7 +3780,7 @@ def _fake_script(kind: str, runner: HostGuidedRunner) -> list[dict]:
         if not name or "/" in name or name.startswith("."):
             raise ValueError(f"控制组名不合法:{name!r}")
     elif kind != "positive":
-        raise ValueError(f"未知 fake 模式:{kind}(noop | positive | control:<名>)")
+        raise ValueError(f"未知 fake 模式:{kind}(noop | direct | positive | control:<名>)")
 
     src_control = runner.task_dir / "controls" / name
     if not src_control.is_dir():
