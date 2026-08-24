@@ -29,7 +29,7 @@ sidecar 候选实现，只扩展当前本地工具产品；可信门未关闭，
 | M6 可信整合 | Core-only registry 投影；historical/operational/package health 三栏；ProductJobStateV2；Studio/Lab 共享 Core 写锁；Product/Lab 原生分账 |
 | M7 候选锚点 | `8f6b43e` + clean-worktree 修复 `0d19e7d`；分支 `codex/m7-managed-sidecar-tools`，基于 M6、未合并、未推送 |
 | M7 已成立范围 | ToolSpec v3 固定 sidecar profile；每次调用动态 loopback；CLI 单链；10 文件机器锚；发布 marker/registry/task 绑定；v3 MCP 硬阻断 |
-| M7 当前可信状态 | **EXPERIMENTAL / REVIEW_REQUIRED**；缺强 U1–U4 receipt 与 OS 级网络/进程隔离，不能称 verified、不能 ACTIVE |
+| M7 当前可信状态 | **EXPERIMENTAL / REVIEW_REQUIRED**；强 U1–U4 receipt 已落地(2026-08-25:验收期取证会话=hook 注入 server 进程发签名链回执+交付面双跑,U4 等于式采纳;自证=正例全绿+五类攻击矩阵各自精确杀;host_guided v3 接线复用 A1 归因/gate 管道)。仍缺:v3 任务 host_guided 全链 E2E、OS 级网络/进程隔离、真实导出包 clean replay、单独授权真实仓 —— 不能称 verified、不能 ACTIVE |
 | 当前质量基线 | M5=`1324 passed + 60 skipped`；M6 纯提交隔离工作树全量 pytest 退出 0（1455 collected）；M7 `0d19e7d` 干净工作树=`1434 passed + 63 skipped + 0 failed`；改动面 Ruff 与 diff-check 通过 |
 | 后端资格 | Product Mode 缺省 mini-swe；DSH 旗标保留但工具谱系未资格化 |
 | 当前阶段门 | **M6 项目方预览已过、2 名目标用户测试待补；M7 强 receipt(开发中,用户 2026-08-24 授权)/OS 隔离未关闭**；main/分支推送已获授权执行；发布、第三批真仓或任何新真实模型发次仍需授权 |

@@ -1963,6 +1963,46 @@ class HostGuidedRunner:
         # 源码,交付代码一次 RPC 都不发而四道谓词全绿。
         return dict(sess.oracle_env())
 
+    def _managed_receipt_audit(self, s: _Session) -> dict:
+        """M7 强回执:v3 managed-sidecar 任务的验收期取证会话。
+
+        取证面(harness 自起同一份交付 server + hook 注入)与交付面
+        (真实 bin 壳链)双跑 oracle 输入,verify U1–U4;返回形状与
+        A1 的 receipt_verification 一致,直接进同一套归因/gate 管道。
+        """
+        from repoproof.runner.managed_receipt_session import (
+            run_managed_receipt_audit,
+        )
+
+        pkg = ""
+        for rel in self.contract.frozen_file_sha256:
+            parts = [p for p in str(rel).split("/") if p]
+            if len(parts) == 3 and parts[0] == "src" and parts[2] == "sidecar_server.py":
+                pkg = parts[1]
+                break
+        if not pkg:
+            return {"ok": False, "reason": "RECEIPT_PACKAGE_UNRESOLVED",
+                    "attribution": "harness", "findings": [], "receipts": 0,
+                    "detail": "冻结锚里找不到 src/<pkg>/sidecar_server.py,"
+                              "无从定位交付包"}
+        sr = self.contract.source_repo or {}
+        get = sr.get if isinstance(sr, dict) else lambda k, d="": getattr(sr, k, d)
+        inputs = self.store.run_dir / "oracle_snapshot" / "fixtures" / "inputs"
+        fixtures = sorted(p for p in inputs.glob("*") if p.is_file()) \
+            if inputs.is_dir() else []
+        return run_managed_receipt_audit(
+            src_dir=s.root / "host" / "src",
+            package=pkg,
+            venv_python=Path(s.venv_py),
+            import_module=str(get("import_module", "") or get("import_name", "")),
+            distribution=str(get("distribution", "")),
+            task_id=self.contract.task_id,
+            run_id=self.run_id,
+            run_dir=self.store.run_dir,
+            fixtures=fixtures,
+            tool_bin=s.root / "host" / self.contract.host.tool_bin,
+        )
+
     def _receipt_failure_side(self, rv: dict) -> str:
         """回执核验没过 —— **这笔算谁的**。返回 `"harness"` 或 `"agent"`。
 
@@ -3482,6 +3522,37 @@ class HostGuidedRunner:
                 finally:
                     sidecar_sess.shutdown()
                     self._sidecar_sess = None
+            # M7 强回执:v3 managed-sidecar 任务在会话销毁前做取证会话。
+            # 与 A1 块互斥(LOCAL-TOOL v3 无 sidecar_sess);归因/gate 复用
+            # 同一套管道 —— harness 侧故障走 missing_external(BLOCKED,
+            # 不是被测方的锅),agent 侧走 AdoptionVerifier 并进 capability。
+            if (s is not None and adoption_vr is None
+                    and self.contract.prompt_profile == "local-tool-v2"):
+                try:
+                    receipt_verification = self._managed_receipt_audit(s)
+                    ev("managed_sidecar.receipts_verified", actor="harness",
+                       payload={"ok": receipt_verification.get("ok"),
+                                "reason": receipt_verification.get("reason", ""),
+                                "receipts": receipt_verification.get("receipts", 0)})
+                    if not receipt_verification.get("ok"):
+                        _reason = str(receipt_verification.get("reason"))
+                        if self._receipt_failure_side(receipt_verification) == "harness":
+                            missing_external.append(
+                                "RECEIPT_VERIFICATION_FAILED:" + _reason)
+                        else:
+                            adoption_vr = VerificationResult(
+                                verifier="AdoptionVerifier", passed=False,
+                                detail=str(receipt_verification.get("detail")
+                                           or _reason),
+                                extra={"attribution": "agent",
+                                       "failure_type": self._adoption_failure_type(
+                                           receipt_verification),
+                                       "reason": _reason})
+                except Exception as exc:                          # noqa: BLE001
+                    receipt_verification = {
+                        "ok": False, "reason": "RECEIPT_VERIFIER_ERROR",
+                        "detail": f"{type(exc).__name__}: {exc}"}
+                    missing_external.append("RECEIPT_VERIFIER_ERROR")
             if s is not None and not keep_session:
                 backend.destroy(s.id)
 
