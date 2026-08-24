@@ -7,13 +7,19 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
+import threading
+import time
 from pathlib import Path
 
 import pytest
 
 from repoproof.harness.host_guard import (
+    EXTERNAL,
+    SELF,
     HostGuardError,
+    SelfWriteWindow,
     assert_writable_target,
     dir_fingerprint,
     is_protected,
@@ -114,6 +120,232 @@ def test_fingerprint_ignores_noise_dirs(tmp_path: Path) -> None:
     (real / ".venv").mkdir()
     (real / ".venv" / "lib.py").write_text("x", encoding="utf-8")
     assert dir_fingerprint(real)["tree"] == before["tree"]  # 噪声目录不误报
+
+
+# ---------------- 变动归因:谁写的(2026-08-17,邻仓活写手拖红实证) ----------------
+# 背景:保护清单含 XIANGMU 下全部邻仓,而 offerclaw 的 logs/llm_usage.jsonl
+# 每 7–28 秒落盘一次。冒烟链 83 秒里会话只存在 1.24 秒,外部写手压倒性地落在
+# "会话根本不存在"的时段。归因层要做的是把这两类分开——**而不是把闸门掏空**:
+# 下面每一条"降级"用例都配一条"照样红"的负控,一一对应。
+
+
+def _bg_writer(path: Path, stop: threading.Event, period_s: float = 0.02):
+    """模拟外部活写手:持续改同一条路径,直到被叫停。"""
+    def loop() -> None:
+        i = 0
+        while not stop.is_set():
+            i += 1
+            path.write_text(f"tick {i}\n" * i, encoding="utf-8")
+            time.sleep(period_s)
+
+    t = threading.Thread(target=loop, daemon=True)
+    t.start()
+    return t
+
+
+def _only(out: dict) -> dict:
+    """唯一一条 mismatch 的 attribution(用例都构造成只动一处)。"""
+    assert len(out["mismatches"]) == 1, out["mismatches"]
+    return out["mismatches"][0]["attribution"]
+
+
+def _reason_of(attr: dict, rel: str) -> str:
+    for c in attr["self_changes"] + attr["external_changes"]:
+        if c["path"] == rel:
+            return c["reason"]
+    raise AssertionError(f"{rel} 未出现在归因明细里:{attr}")
+
+
+def test_write_outside_self_window_is_attributed_external(tmp_path: Path) -> None:
+    """窗外发生的写 = 会话当时根本不存在 → 免罪,但严判 ok 照样为 False。"""
+    real, prot = _prot(tmp_path)
+    before = snapshot_protected(prot)
+    (real / "src" / "app.py").write_text("X = 2\n", encoding="utf-8")
+
+    now = time.time()
+    out = verify_protected_unchanged(          # 窗口整个落在未来 → 此写在窗外
+        before, prot, self_window=SelfWriteWindow(start=now + 100, end=now + 200),
+        probe_s=0.3, probe_interval_s=0.05)
+
+    assert not out["ok"]                       # 严判语义一字未改:守卫仍抓到了
+    assert out["self_ok"]                      # 归因后不算在本链头上
+    attr = _only(out)
+    assert attr["verdict"] == EXTERNAL
+    assert _reason_of(attr, "src/app.py") == "EXTERNAL_OUT_OF_WINDOW"
+
+
+def test_quiet_write_inside_self_window_stays_red(tmp_path: Path) -> None:
+    """**负控**:窗内写、拆除后不再动 → 只能是本链干的,照样红。"""
+    real, prot = _prot(tmp_path)
+    before = snapshot_protected(prot)
+    (real / "src" / "app.py").write_text("X = 2\n", encoding="utf-8")
+
+    now = time.time()
+    out = verify_protected_unchanged(
+        before, prot, self_window=SelfWriteWindow(start=now - 10, end=now + 10),
+        probe_s=0.3, probe_interval_s=0.05)
+
+    assert not out["ok"] and not out["self_ok"]
+    attr = _only(out)
+    assert attr["verdict"] == SELF
+    assert _reason_of(attr, "src/app.py") == "SELF_IN_WINDOW_QUIESCENT"
+
+
+def test_live_writer_inside_window_is_attributed_external(tmp_path: Path) -> None:
+    """窗内动过、拆除后**还在动** → 有外部活写手,免罪(理由逐条留痕)。"""
+    real, prot = _prot(tmp_path)
+    before = snapshot_protected(prot)
+    stop = threading.Event()
+    _bg_writer(real / "src" / "app.py", stop)
+    time.sleep(0.1)                            # 让它先写一笔,制造 mismatch
+    try:
+        now = time.time()
+        out = verify_protected_unchanged(
+            before, prot, self_window=SelfWriteWindow(start=now - 10, end=now + 10),
+            probe_s=2.0, probe_interval_s=0.05)
+    finally:
+        stop.set()
+
+    assert not out["ok"] and out["self_ok"]
+    attr = _only(out)
+    assert attr["verdict"] == EXTERNAL
+    assert _reason_of(attr, "src/app.py") == "EXTERNAL_LIVE_WRITER"
+    assert attr["probe"]["samples"] >= 1
+
+
+def test_busy_sibling_does_not_launder_a_quiet_self_write(tmp_path: Path) -> None:
+    """**负控**:同目录里有个忙文件,不给隔壁那条静默自写洗白。
+
+    探针只盯路径本身、不看兄弟不看父目录——否则热闹目录就成了洗白通道
+    (LESSONS #29 同型:放行一个目录不等于放行它装的一切)。"""
+    real, prot = _prot(tmp_path)
+    (real / "src" / "busy.log").write_text("0\n", encoding="utf-8")
+    before = snapshot_protected(prot)
+
+    (real / "src" / "app.py").write_text("X = 2\n", encoding="utf-8")   # 静默自写
+    stop = threading.Event()
+    _bg_writer(real / "src" / "busy.log", stop)                         # 忙邻居
+    time.sleep(0.1)
+    try:
+        now = time.time()
+        out = verify_protected_unchanged(
+            before, prot, self_window=SelfWriteWindow(start=now - 10, end=now + 10),
+            probe_s=1.0, probe_interval_s=0.05)
+    finally:
+        stop.set()
+
+    assert not out["ok"] and not out["self_ok"]      # 忙邻居没能把整条 mismatch 洗白
+    attr = _only(out)
+    assert attr["verdict"] == SELF
+    assert _reason_of(attr, "src/app.py") == "SELF_IN_WINDOW_QUIESCENT"
+    assert _reason_of(attr, "src/busy.log") == "EXTERNAL_LIVE_WRITER"
+
+
+def test_deletion_has_no_timestamp_so_it_stays_red(tmp_path: Path) -> None:
+    """**负控**:删除拿不到作案时刻 → 免罪的正面证据不存在 → 继续红。"""
+    real, prot = _prot(tmp_path)
+    before = snapshot_protected(prot)
+    (real / "src" / "app.py").unlink()
+
+    now = time.time()
+    out = verify_protected_unchanged(          # 连"窗口全在未来"都不给免
+        before, prot, self_window=SelfWriteWindow(start=now + 100, end=now + 200),
+        probe_s=0.3, probe_interval_s=0.05)
+
+    assert not out["ok"] and not out["self_ok"]
+    assert _reason_of(_only(out), "src/app.py") == "SELF_NO_TIMESTAMP"
+
+
+def test_without_window_nothing_is_ever_exonerated(tmp_path: Path) -> None:
+    """**负控**:不传窗口 = 没有归因依据 → `self_ok` 恒等于 `ok`。
+
+    这条护住正式 run 那条路径(`runner/host_guided.py` 不传窗口):
+    有 agent 在场时归因只作证据,一个字节的免罪权都没有。"""
+    real, prot = _prot(tmp_path)
+    before = snapshot_protected(prot)
+    (real / "src" / "app.py").write_text("X = 2\n", encoding="utf-8")
+
+    out = verify_protected_unchanged(before, prot)
+    assert not out["ok"] and not out["self_ok"] and not out["attributed"]
+    assert _reason_of(_only(out), "src/app.py") == "SELF_NO_WINDOW"
+
+
+def test_baseline_without_entries_is_not_amnesty(tmp_path: Path) -> None:
+    """**负控**:基线指纹没有 entries(旧格式)→ 无从比对 → 继续红。
+
+    此处最阴的失效方向是"当成空 dict 硬比":满树文件全算成新增,再各按
+    自己的 mtime 大面积免罪 —— 一条守卫会因为读不到基线而当场自宫。"""
+    real, prot = _prot(tmp_path)
+    before = snapshot_protected(prot)
+    legacy = {d: {k: v for k, v in fp.items() if k != "entries"}
+              for d, fp in before.items()}          # 退化成旧格式指纹
+    (real / "src" / "app.py").write_text("X = 2\n", encoding="utf-8")
+
+    now = time.time()
+    out = verify_protected_unchanged(               # 窗口全在未来也不许免
+        legacy, prot, self_window=SelfWriteWindow(start=now + 100, end=now + 200),
+        probe_s=0.3, probe_interval_s=0.05)
+
+    assert not out["ok"] and not out["self_ok"], out
+    assert _reason_of(_only(out), "<no-baseline-entries>") == "SELF_NO_TIMESTAMP"
+
+
+def test_hash_mismatch_with_no_listable_change_is_not_amnesty(tmp_path: Path) -> None:
+    """**负控**:哈希对不上却列不出改动 → 说不清,不许免罪。
+
+    空改动表在 Python 里恒假,顺着写就会把"列不出可疑改动"读成"没有可疑
+    改动"而自动免罪 —— 闸门被一个 bug 打开,而且是静悄悄地开。"""
+    from repoproof.harness.host_guard import _attribute
+
+    now = time.time()
+    attr = _attribute(tmp_path, [], SelfWriteWindow(start=now - 10, end=now + 10),
+                      probe_s=0.3, probe_interval_s=0.05)
+    assert attr["verdict"] == SELF and attr["n_self"] == 1, attr
+    assert attr["self_changes"][0]["reason"] == "SELF_NO_EVIDENCE"
+
+
+def test_git_refs_without_witnesses_is_not_amnesty(tmp_path: Path) -> None:
+    """**负控**:refs 变了但找不到证人文件 → 拿不到作案时刻 → 继续红。"""
+    real, prot = _prot(tmp_path)
+    for args in (["init", "-q"], ["add", "-A"],
+                 ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "v1"]):
+        subprocess.run(["git", "-C", str(real), *args], check=True)
+    before = snapshot_protected(prot)
+    shutil.rmtree(real / ".git")                    # 证人没了(refs 摘要随之变)
+
+    now = time.time()
+    out = verify_protected_unchanged(
+        before, prot, self_window=SelfWriteWindow(start=now + 100, end=now + 200),
+        probe_s=0.3, probe_interval_s=0.05)
+
+    assert not out["ok"] and not out["self_ok"], out
+    assert out["mismatches"][0]["field"] == "git_refs"
+    assert _reason_of(_only(out), ".git") == "SELF_NO_TIMESTAMP"
+
+
+def test_git_refs_change_attributed_by_witness_mtime(tmp_path: Path) -> None:
+    """refs 变动按证人文件(HEAD/refs/logs)的 mtime 定责,两个方向各钉一次。"""
+    real, prot = _prot(tmp_path)
+    for args in (["init", "-q"], ["add", "-A"],
+                 ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "v1"]):
+        subprocess.run(["git", "-C", str(real), *args], check=True)
+    before = snapshot_protected(prot)
+    subprocess.run(["git", "-C", str(real), "-c", "user.email=t@t", "-c",
+                    "user.name=t", "commit", "-qm", "v2", "--allow-empty"], check=True)
+
+    now = time.time()
+    outside = verify_protected_unchanged(      # 证人都在窗外 → 不是本链改的
+        before, prot, self_window=SelfWriteWindow(start=now + 100, end=now + 200),
+        probe_s=0.3, probe_interval_s=0.05)
+    assert not outside["ok"] and outside["self_ok"]
+    assert outside["mismatches"][0]["field"] == "git_refs"
+    assert outside["mismatches"][0]["attribution"]["verdict"] == EXTERNAL
+
+    inside = verify_protected_unchanged(       # **负控**:证人在窗内 → 照样红
+        before, prot, self_window=SelfWriteWindow(start=now - 30, end=now + 10),
+        probe_s=0.3, probe_interval_s=0.05)
+    assert not inside["ok"] and not inside["self_ok"]
+    assert inside["mismatches"][0]["attribution"]["verdict"] == SELF
 
 
 # ---------------- bench 根环境卫生门(T2 批 1 实证教训) ----------------
