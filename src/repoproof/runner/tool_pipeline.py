@@ -256,11 +256,22 @@ def tool_build(
         return {"task_id": task_id, "stages": stages,
                 "verdict": "REAL_BLOCKED", "exported": None}
     rp = real.get("report") or {}
+    # Gate 2:修复循环事实的产品投影(纯读取侧派生,历史/新 run 同函,
+    # 不回写 report 与任何台账)。
+    from repoproof.adoption.repair.failure_assessment import (
+        assess_report,
+        derive_repair_metrics,
+    )
+
     stages["real"] = {"verdict": rp.get("verdict"),
                       "verdict_public": rp.get("verdict_public"),
                       "run_id": rp.get("run_id"),
-                      "gate_reasons": rp.get("gate_reasons")}
+                      "gate_reasons": rp.get("gate_reasons"),
+                      "repair_metrics": derive_repair_metrics(rp),
+                      "product_stop_code":
+                          derive_repair_metrics(rp)["product_stop_code"]}
     if rp.get("verdict") not in ("PASS_ADAPTED", "PASS_DIRECT"):
+        stages["real"]["failure_assessment"] = assess_report(rp).model_dump()
         return {"task_id": task_id, "stages": stages,
                 "verdict": rp.get("verdict"), "exported": None}
 
