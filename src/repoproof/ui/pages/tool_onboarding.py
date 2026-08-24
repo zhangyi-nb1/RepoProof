@@ -257,13 +257,8 @@ with tab_build:
         )
         (st.success if result.get("ok") else st.error)(result.get("note") or result.get("error"))
 
-    stages = {
-        "1": "确认闸",
-        "2": "装配冻结",
-        "3": "离线彩排",
-        "4": "Agent 构建",
-        "5": "独立验证",
-        "6": "干净重放",
-        "7": "导出并登记",
-    }
-    st.code(json.dumps(stages, ensure_ascii=False, indent=2), language="json")
+    st.markdown("**构建全流程(每一步失败即停,不烧后续预算):**")
+    st.markdown(
+        "1. 确认闸 → 2. 装配冻结 → 3. 离线彩排 → 4. Agent 构建 → "
+        "5. 独立验证 → 6. 干净重放 → 7. 导出并登记"
+    )
