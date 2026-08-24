@@ -28,6 +28,8 @@ GitHub Capability → Verified Local Tool。RFC-010 的章程、首个工具闭�
 | M6 可信整合 | Core-only registry 投影；historical/operational/package health 三栏；ProductJobStateV2；Studio/Lab 共享 Core 写锁；Product/Lab 原生分账 |
 | 当前质量基线 | M5=`1324 passed + 60 skipped`；M6 纯提交隔离工作树全量 pytest 退出 0（1455 collected），改动面 Ruff 通过 |
 | 后端资格 | Product Mode 缺省 mini-swe；DSH 旗标保留但工具谱系未资格化 |
+| M7 分支现状 | `codex/m7-managed-sidecar-tools @ 7ac1a09` 已推送；强 U1–U4 回执已落地(取证会话+攻击矩阵自证);仍缺 v3 全链 E2E、OS 级隔离、导出包 replay、授权真仓 —— EXPERIMENTAL,功能面冻结 |
+| 下一阶段基准 | `docs/VERIFIED_TOOL_ONBOARDING_NEXT_STAGE_GUIDE.md`(2026-08-25):Verified Tool Onboarding Harness;Gate 0 事实收口 → Gate 1 CapabilityPlanV1+确定性路由 → Gate 2 有界修复控制器产品化 → Gate 3 DIRECT_WRAP → Gate 4 Studio 收口 |
 | 当前阶段门 | **M6 项目方预览已过、2 名目标用户测试待补**；main 推送已获用户授权执行；发布、第三批真仓或任何新真实模型发次仍需授权 |
 
 不变铁律：验证面无 LLM；held-out 对 agent 零泄漏；冻结合同与历史台账
