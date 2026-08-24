@@ -53,7 +53,11 @@ filtered = [
 ]
 
 if not filtered:
-    st.info("没有符合筛选条件的工具。")
+    st.info(
+        "没有符合筛选条件的工具。工具库只收录**成功导出**的工具包；"
+        "构建失败或未完成的任务不会出现在这里——它们的完整记录"
+        "(含失败原因)在「产品活动」页的构建历史里。"
+    )
     st.stop()
 
 st.dataframe(
@@ -97,12 +101,29 @@ with usage:
     st.markdown("#### 使用方式")
     st.code(tool_command(tool["name"]), language="bash")
     st.code(mcp_command(tool["name"]), language="bash")
+    # 适配器状态以磁盘为准(Core 事实源),不依赖会话内的按钮反馈——
+    # st.success 是单次渲染的瞬态提示,切页/切工具回来就没了,曾让用户
+    # 误以为任务被重置、只能去运行历史里确认(M6 预览验证 P1 实录)。
+    mcp_server = Path(tool["path"]) / "mcp_server.py"
     if tool["operational_status"] == "ACTIVE":
-        if st.button("生成 MCP 适配器", type="primary"):
+        if mcp_server.is_file():
+            st.success("MCP 适配器已生成（以磁盘为准，切换页面不会丢失）。")
+            st.caption(f"`{mcp_server}`")
+            button_label = "重新生成 MCP 适配器"
+        else:
+            button_label = "生成 MCP 适配器"
+        if st.button(button_label, type="primary"):
             result = product_jobs.start_tool_mcp(tool["name"], Path(library["root"]))
-            (st.success if result.get("ok") else st.error)(result.get("note") or result.get("error"))
+            if result.get("ok"):
+                st.rerun()    # 重渲染后由磁盘状态给出常驻"已生成"
+            st.error(result.get("error") or result.get("note") or "生成失败")
     else:
         st.warning("只有通过 fresh-input 审核的 ACTIVE 工具可以生成或启用 MCP。")
+        if mcp_server.is_file():
+            st.caption(
+                f"磁盘上存在旧适配器 `{mcp_server.name}`：按当前状态不可启用,"
+                "M5 适配器会在每次调用时复核运营账并自行拒绝。"
+            )
 
 with st.expander("审核、撤回与证据"):
     st.caption("这些操作只追加运营决定，不删除包，也不改写历史验证。")
