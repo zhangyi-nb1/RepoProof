@@ -44,8 +44,37 @@ else:
     if job.get("error_code"):
         st.caption(f"错误码：`{job['error_code']}`")
 
-section_intro("过程日志", "它不是 PASS 的来源；模型的完成声明也不会在这里变成系统结论。")
+# Gate 4:构建结论人读卡(路线/终止码/归因)—— 从日志尾部结论 JSON
+# 确定性投影;解析不出就只显示原始日志,不猜。
 log_result = product_jobs.read_product_job_log(job)
+if str(job.get("kind") or "") == "tool-build" and log_result.get("ok"):
+    from repoproof.ui.services.product_mode import (
+        build_conclusion,
+        parse_build_summary,
+    )
+
+    summary = parse_build_summary(log_result.get("text") or "")
+    if summary:
+        c = build_conclusion(summary)
+        st.markdown("#### 构建结论")
+        r1, r2 = st.columns([1.2, 1])
+        with r1:
+            st.write(f"**执行路线：** {c['route_label']}")
+            st.write("**是否调用模型：** " + ("否(零模型)" if not c["agent_invoked"] else "是"))
+            st.write(f"**结论：** {c['verdict'] or '—'}")
+            if c["exported"]:
+                st.success(f"已导出:`{c['exported']}`")
+        with r2:
+            st.write(f"**终止码：** `{c['product_stop_code'] or '—'}`")
+            st.write(f"**含义：** {c['stop_label']}")
+            if c["failure_owner"]:
+                st.write(f"**失败归属：** {c['failure_owner']}")
+            if c["reason_codes"]:
+                st.write("**理由码：** " + ", ".join(f"`{x}`" for x in c["reason_codes"]))
+        if c["run_id"]:
+            st.caption(f"运行证据:`{c['run_id']}`(结论来自独立验证,不来自本页日志)")
+
+section_intro("过程日志", "它不是 PASS 的来源；模型的完成声明也不会在这里变成系统结论。")
 if log_result.get("ok"):
     st.code(log_result.get("text") or "（任务刚启动，暂无输出）", language="text")
 else:

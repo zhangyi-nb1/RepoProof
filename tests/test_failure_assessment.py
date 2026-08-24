@@ -141,3 +141,26 @@ def test_repair_metrics_rescue_accounting():
     assert m1["initial_public_pass"] is True
     assert m1["rescued_at_attempt"] is None
     assert m1["product_stop_code"] == "NO_REPAIR_NEEDED"
+
+
+def test_ui_build_conclusion_projection():
+    """Gate 4:活动页构建结论卡的投影 helper(路线/终止码/零模型声明)。"""
+    import json
+
+    from repoproof.ui.services.product_mode import (
+        build_conclusion,
+        parse_build_summary,
+    )
+
+    log = "前置噪声{不完整\n" + json.dumps({
+        "stages": {"route": {"route": "DIRECT_WRAP", "agent_invoked": False},
+                   "direct": {"verdict": "PASS_DIRECT",
+                              "product_stop_code": "NO_REPAIR_NEEDED",
+                              "run_id": "r-1"}},
+        "verdict": "VERIFIED_TOOL_READY (DIRECT)",
+        "exported": "/tools/x"}, ensure_ascii=False)
+    c = build_conclusion(parse_build_summary(log))
+    assert c["agent_invoked"] is False
+    assert "不需要 Agent" in c["route_label"]
+    assert c["stop_label"].startswith("初次候选即通过")
+    assert parse_build_summary("完全不是 JSON 的日志") is None
