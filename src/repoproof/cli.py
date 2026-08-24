@@ -111,6 +111,19 @@ def main(argv: list[str] | None = None) -> int:
     pt_build.add_argument("--rehearsal-only", action="store_true",
                           help="只到 fake 彩排门,不烧真模型预算")
     pt_build.add_argument("--batch", default="EXPLORATORY_UNPREREGISTERED")
+    pt_plan = tsub.add_parser(
+        "plan", help="RFC-013 Gate1:证据化能力表面 + 确定性路由(零模型)")
+    pt_plan.add_argument("--repo", default=None, help="公开仓 URL(匿名克隆分析)")
+    pt_plan.add_argument("--dir", type=Path, default=None, dest="local_dir",
+                         help="本地仓目录(离线分析)")
+    pt_plan.add_argument("--capability", required=True, help="用户能力意图原文")
+    pt_plan.add_argument("--revision", default=None)
+    pt_plan.add_argument("--out", type=Path, required=True, help="plan YAML 落盘路径")
+    pt_planc = tsub.add_parser(
+        "plan-confirm", help="人闸:逐项确认后翻 confirmed(冻结前必经)")
+    pt_planc.add_argument("--plan", type=Path, required=True)
+    pt_planc.add_argument("--ack", action="append", default=[],
+                          help="确认项原文,可多次;须覆盖 human_confirmations 全部")
     pt_list = tsub.add_parser("list", help="本地工具历史验证+当前运营状态")
     pt_list.add_argument("--dest-root", type=Path,
                          default=Path("~/tools").expanduser())
@@ -452,6 +465,78 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
             return 0 if completed else 3
+        if args.tool_cmd == "plan":
+            import yaml as _yaml
+
+            from repoproof.adoption.admission.support_policy import evaluate_tool_policy
+            from repoproof.adoption.analysis.repository_analyzer import (
+                analyze_repository,
+                analyze_repository_dir,
+            )
+            from repoproof.adoption.planning.capability_plan import (
+                build_capability_plan,
+            )
+
+            if bool(args.repo) == bool(args.local_dir):
+                print(json.dumps({"ok": False,
+                                  "error": "--repo 与 --dir 恰好给一个"},
+                                 ensure_ascii=False))
+                return 2
+            if args.local_dir:
+                root = Path(args.local_dir).expanduser().resolve()
+                report = analyze_repository_dir(root)
+            else:
+                report = analyze_repository(args.repo, revision=args.revision)
+                root = Path(report.sources[0]) if report.sources else Path(".")
+                # analyze_repository 的分析克隆根:从 to_dict 元数据取不到时
+                # 由 clone 缓存约定推导 —— 保守起见要求本地分析用 --dir。
+            policy = evaluate_tool_policy(report)
+            plan = build_capability_plan(root, report, policy,
+                                         goal=args.capability)
+            out_p = Path(args.out)
+            out_p.parent.mkdir(parents=True, exist_ok=True)
+            out_p.write_text(_yaml.safe_dump(plan.model_dump(),
+                                             allow_unicode=True,
+                                             sort_keys=False),
+                             encoding="utf-8")
+            print(json.dumps({
+                "ok": True, "plan": str(out_p),
+                "support_status": plan.support_status,
+                "implementation_route": plan.implementation_route,
+                "reason_codes": plan.reason_codes,
+                "surfaces": len(plan.detected_surfaces),
+                "plan_sha256": plan.plan_sha256,
+                "next": ("tool plan-confirm --plan <file> --ack ... 后方可冻结"
+                         if plan.support_status == "SUPPORTED"
+                         else "非 SUPPORTED:按 reason_codes 补事实或停止"),
+            }, ensure_ascii=False, indent=2))
+            return 0
+        if args.tool_cmd == "plan-confirm":
+            import yaml as _yaml
+
+            from repoproof.adoption.planning.capability_plan import (
+                CapabilityPlanV1,
+                PlanError,
+                confirm_plan,
+            )
+
+            plan_p = Path(args.plan)
+            plan = CapabilityPlanV1.model_validate(
+                _yaml.safe_load(plan_p.read_text(encoding="utf-8")))
+            try:
+                confirm_plan(plan, acks=list(args.ack))
+            except PlanError as exc:
+                print(json.dumps({"ok": False, "error": str(exc)},
+                                 ensure_ascii=False, indent=2))
+                return 3
+            plan_p.write_text(_yaml.safe_dump(plan.model_dump(),
+                                              allow_unicode=True,
+                                              sort_keys=False),
+                              encoding="utf-8")
+            print(json.dumps({"ok": True, "confirmed": True,
+                              "plan_sha256": plan.plan_sha256},
+                             ensure_ascii=False, indent=2))
+            return 0
         if args.tool_cmd == "list":
             from repoproof.runner.tool_registry import list_tools
             from repoproof.runner.tool_release import ReleaseLedgerError

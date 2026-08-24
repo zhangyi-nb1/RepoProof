@@ -232,7 +232,13 @@ def analyze_repository_dir(
     seen_secret: set[str] = set()
     for rel, text in _iter_py_files(root, stats):
         rel_s = str(rel)
-        if rel.name == "__init__.py" and len(rel.parts) <= 2:
+        # 顶层包 __init__:兼容根布局(pkg/__init__.py)与 src 布局
+        # (src/pkg/__init__.py)——后者是现实主流,漏掉它会把整包 API
+        # 判成不存在(Gate 1 fixture 实测;批次二 phonenumbers 同源坑)。
+        top_init = (rel.name == "__init__.py"
+                    and (len(rel.parts) <= 2
+                         or (rel.parts[0] == "src" and len(rel.parts) == 3)))
+        if top_init:
             m = _RE_ALL.search(text)
             if m:
                 names = [n.strip().strip("'\"") for n in m.group(1).split(",") if n.strip()]
