@@ -48,6 +48,13 @@ from repoproof.receipts.verify import (  # noqa: E402
 
 TASK_ID = "receipt-control-harness"
 
+# 落盘证据里 ledger 一律写这个**确定形**。真实台账在 mkdtemp 的随机临时目录
+# 里,run 完即失效 —— 随机段不携带任何证据价值,却让 v4 强形式(真重跑)每
+# 跑一次都把 9 个新指纹写回 git 跟踪的证据文件:结论零变化,工作区却每次变
+# 脏,真回归的 diff 会淹没在指纹噪声里。真实路径只在进程内用(nc5 的重放
+# 来源),走 `_ledger_path`,与 `_key` 同一条规矩:绝不落盘。
+LEDGER_ON_DISK = "rp-receipt-<tmp>/" + LEDGER_NAME
+
 # 三份作业。刻意用真 Markdown 结构(标题/强调/代码/列表),让朴素重实现
 # 得到"像但不一样"的输出 —— 如果作业简单到人人渲染结果都一致,采纳判据
 # 就测不出任何东西。
@@ -151,12 +158,13 @@ def run_one(control_path: Path, *, replay_source: Path | None = None,
         expected_receipt_count=written)
 
     return {"_key": key,                     # 只在内存里传给 nc5,不落盘
+            "_ledger_path": str(ledger),     # 同规矩:真实临时路径只给 nc5 当重放来源
             "control": control_path.stem,
             "expect": getattr(ctrl, "EXPECT", "?"),
             "expect_red": sorted(getattr(ctrl, "EXPECT_RED", set())),
             "actual": "PASS" if v.ok else "FAIL",
             "actual_red": sorted({f.check for f in v.failed()}),
-            "verdict": v.as_dict(), "ledger": str(ledger)}
+            "verdict": v.as_dict(), "ledger": LEDGER_ON_DISK}
 
 
 def find_problems(rows: list[dict]) -> list[str]:
@@ -221,13 +229,14 @@ def main() -> int:
     print("自证通过(2 条:严格谓词拦得住 nc3,放行谓词放得过 nc3)\n")
 
     rows = [run_one(CONTROLS_DIR / "controls" / "positive.py")]
-    replay_source = Path(rows[0]["ledger"])
+    replay_source = Path(rows[0]["_ledger_path"])
 
     replay_key = rows[0].pop("_key")
     for p in sorted((CONTROLS_DIR / "controls").glob("nc*.py")):
         rows.append(run_one(p, replay_source=replay_source, replay_key=replay_key))
     for r in rows:
         r.pop("_key", None)          # 密钥绝不进证据文件
+        r.pop("_ledger_path", None)  # 真实临时路径同理 —— 落盘的是确定形 ledger
 
     problems = find_problems(rows)
 

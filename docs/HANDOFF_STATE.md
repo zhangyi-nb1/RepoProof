@@ -3,7 +3,7 @@
 > Purpose: the single in-repo status anchor for AI/human handoff.
 > Update ONLY at gate boundaries; history below is append-only.
 
-## Current status (2026-08-24, M0–M5 closed + M6 Engineering Complete + M7 candidate)
+## Current status (2026-08-24, M0–M5 closed + M6 merged to main; project-owner preview passed + M7 candidate)
 
 **RepoProof 的主产品线已从任意 Repository Adaptation 收敛为
 GitHub Capability → Verified Local Tool。RFC-010 的章程、首个工具闭环、
@@ -25,14 +25,14 @@ sidecar 候选实现，只扩展当前本地工具产品；可信门未关闭，
 | M5 发布状态 | 本机 release ledger 22 条迁移决定：21 ACTIVE / 1 REVOKED；另 2 个早期 dogfood 无 fresh audit，保持 REVIEW_REQUIRED |
 | M5 本地提交锚点 | `034bdf1`；本地 `main` 已关闭 M5，未推送 |
 | MCP 执法 | 仅历史 READY + 当前 ACTIVE 可生成；M5 adapter 每次 list/call 复核 ledger；pre-M5 非 ACTIVE adapter 明示 `LEGACY_SERVER_MUST_BE_DETACHED` |
-| M6 整合锚点 | 工程实现 `d7c1278`；`3818ccb` no-ff 保留 UI 历史；分支 `codex/m6-studio-integration` 尚未合回 `main` |
+| M6 整合锚点 | 工程实现 `d7c1278`；`3818ccb` no-ff 保留 UI 历史；**2026-08-24 项目方三固定案例预览通过(P0=0,P1=5 全修复)后已 no-ff 合回 `main` 并推送 origin**；2 名目标用户理解测试仍待补 |
 | M6 可信整合 | Core-only registry 投影；historical/operational/package health 三栏；ProductJobStateV2；Studio/Lab 共享 Core 写锁；Product/Lab 原生分账 |
 | M7 候选锚点 | `8f6b43e` + clean-worktree 修复 `0d19e7d`；分支 `codex/m7-managed-sidecar-tools`，基于 M6、未合并、未推送 |
 | M7 已成立范围 | ToolSpec v3 固定 sidecar profile；每次调用动态 loopback；CLI 单链；10 文件机器锚；发布 marker/registry/task 绑定；v3 MCP 硬阻断 |
 | M7 当前可信状态 | **EXPERIMENTAL / REVIEW_REQUIRED**；缺强 U1–U4 receipt 与 OS 级网络/进程隔离，不能称 verified、不能 ACTIVE |
 | 当前质量基线 | M5=`1324 passed + 60 skipped`；M6 纯提交隔离工作树全量 pytest 退出 0（1455 collected）；M7 `0d19e7d` 干净工作树=`1434 passed + 63 skipped + 0 failed`；改动面 Ruff 与 diff-check 通过 |
 | 后端资格 | Product Mode 缺省 mini-swe；DSH 旗标保留但工具谱系未资格化 |
-| 当前阶段门 | **M6 Preview Validated 待项目方 + 2 名目标用户；M7 强 receipt/OS 隔离未关闭**；未授权推送、发布、第三批真仓或任何新真实模型发次 |
+| 当前阶段门 | **M6 项目方预览已过、2 名目标用户测试待补；M7 强 receipt(开发中,用户 2026-08-24 授权)/OS 隔离未关闭**；main/分支推送已获授权执行；发布、第三批真仓或任何新真实模型发次仍需授权 |
 
 不变铁律：验证面无 LLM；held-out 对 agent 零泄漏；冻结合同与历史台账
 不可改写；FAIL 也留完整证据；没量到即判死；Product Mode 与 Benchmark

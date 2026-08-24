@@ -8,11 +8,15 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import threading
+import time
+import warnings
 from pathlib import Path
 
 import pytest
 
-from repoproof.harness.host_guard import HostGuardError
+from repoproof.harness import host_guard
+from repoproof.harness.host_guard import EXTERNAL, SELF, HostGuardError
 from repoproof.harness.host_task import HostTaskError, HostTaskSpec, run_host_smoke
 
 PY = sys.executable
@@ -72,7 +76,17 @@ def test_smoke_chain_end_to_end(tmp_path: Path) -> None:
     assert "NotImplementedError" in s["hidden_oracle"]["tail"] \
         or "failed" in s["hidden_oracle"]["tail"]
     assert s["teardown"]["session_removed"]           # 会话拆净
-    assert report["main_dir_integrity"]["ok"]         # ①保护目录零改动
+    # ①保护目录零"本链写入"。这里断言 self_ok 而非 ok:保护清单含 XIANGMU
+    # 下全部邻仓,邻仓各有活写手,严判 ok 会被外生变化偶发拖红(守卫无辜)。
+    # 归因逐条留痕,窗内的照杀——负控见下面两条。
+    integrity = report["main_dir_integrity"]
+    assert integrity["self_ok"], integrity
+    assert all(m["attribution"]["verdict"] == EXTERNAL      # 免罪的必须是外部写手
+               for m in integrity["mismatches"]), integrity
+    for w in report["warnings"]:
+        # 降级不等于噤声:外生改动照样喊出来,进 pytest 的 warnings summary。
+        # 静默放过会训练人忽略这条线,那正是加归因层要避免的第二种坏结局。
+        warnings.warn(f"{w['code']}: {w['dirs']} {w['paths']}", stacklevel=1)
 
 
 def test_smoke_session_contains_no_pii_or_runtime_and_oracle_stays_out(
@@ -105,6 +119,84 @@ def test_smoke_session_contains_no_pii_or_runtime_and_oracle_stays_out(
     env_blob = "\n".join(f"{k}={v}" for k, v in captured["env"].items())
     assert "oracle" not in env_blob                                    # 路径不进环境
     assert any(f.startswith("upstream/") for f in captured["host_files"])  # 上游已就位
+
+
+# ---------- 归因正负控:外部并发写不拖累本测,本链写穿必须照样红 ----------
+# 现场实证(2026-08-17):邻仓 offerclaw 的 logs/llm_usage.jsonl 每 7–28 秒
+# 落盘一次,而冒烟链 83 秒里会话只存在 1.24 秒 —— 外部写压倒性落在"会话
+# 根本不存在"的时段。下面两条把这两类各钉一次,用**同一条真链**,
+# 不走任何绕过 verify 的捷径。
+
+
+def _fake_neighbour(tmp_path: Path, monkeypatch) -> Path:
+    """把保护清单换成一个可控的假邻仓 —— 别对真目录做实验,也别扫 43 秒。"""
+    neighbour = tmp_path / "neighbour-repo"
+    (neighbour / "logs").mkdir(parents=True)
+    (neighbour / "logs" / "usage.jsonl").write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(host_guard, "DEFAULT_PROTECTED", ())
+    monkeypatch.setenv("REPOPROOF_PROTECTED_DIRS", str(neighbour))
+    return neighbour
+
+
+def test_session_writing_into_protected_dir_stays_red(tmp_path: Path,
+                                                      monkeypatch) -> None:
+    """**负控**:会话子进程写穿到保护目录 —— 归因必须判 SELF,整条链判红。
+
+    这正是护栏存在的理由(模式 L:拦写),去 flake 不许把它掏空。写入由
+    真实的会话内命令发起、落在会话存在期内、拆除后不再动 —— 三条全中,
+    没有任何免罪的正面证据。"""
+    neighbour = _fake_neighbour(tmp_path, monkeypatch)
+    spec = _mini_world(tmp_path)
+    breach = neighbour / "logs" / "breached_by_session.txt"
+    spec.regression_cmd = [PY, "-c",
+                           f"open({str(breach)!r}, 'w').write('escaped\\n')"]
+
+    report = run_host_smoke(spec, tmp_path / "sessions")
+
+    assert report["steps"]["regression"]["exit_code"] == 0   # 红不是因为回归挂了
+    integrity = report["main_dir_integrity"]
+    assert not integrity["ok"] and not integrity["self_ok"], integrity
+    assert not report["ok"]                                  # 整条链判红
+    assert not report["warnings"]                            # 更不许降级成警告
+    selfies = [c["path"] for m in integrity["mismatches"]
+               for c in m["attribution"]["self_changes"]]
+    assert "logs/breached_by_session.txt" in selfies, integrity
+    assert any(m["attribution"]["verdict"] == SELF for m in integrity["mismatches"])
+
+
+def test_external_live_writer_does_not_drag_the_smoke_red(tmp_path: Path,
+                                                          monkeypatch) -> None:
+    """**正控**:邻仓有活写手时,守卫照样抓到,但不算在本链头上。
+
+    严判读数 `main_dir_integrity["ok"]` 仍为 False —— 变化确实发生过,
+    这条不许粉饰;降级只体现在 `self_ok` 与 report 的 warnings 上。"""
+    neighbour = _fake_neighbour(tmp_path, monkeypatch)
+    spec = _mini_world(tmp_path)
+
+    stop = threading.Event()
+    busy = neighbour / "logs" / "usage.jsonl"
+
+    def churn() -> None:
+        i = 0
+        while not stop.is_set():
+            i += 1
+            busy.write_text("{}\n" * i, encoding="utf-8")
+            time.sleep(0.02)
+
+    threading.Thread(target=churn, daemon=True).start()
+    try:
+        report = run_host_smoke(spec, tmp_path / "sessions")
+    finally:
+        stop.set()
+
+    integrity = report["main_dir_integrity"]
+    assert not integrity["ok"], integrity                    # 守卫如实抓到了
+    assert integrity["self_ok"], integrity                   # 但不是本链写的
+    assert report["ok"], report                              # 因此不拖累本测
+    assert all(m["attribution"]["verdict"] == EXTERNAL for m in integrity["mismatches"])
+    warn = report["warnings"]
+    assert warn and warn[0]["code"] == "PROTECTED_DIR_EXTERNAL_WRITE"
+    assert "logs/usage.jsonl" in warn[0]["paths"], warn      # 降级也要指名道姓
 
 
 def test_protected_host_copy_refused_and_missing_dirs_typed(tmp_path: Path,
