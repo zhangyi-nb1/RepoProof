@@ -3550,3 +3550,21 @@ M6 以 --no-ff 合回 main,全量 **1395 passed + 60 skipped + 0 failed**;
 main 已推送 origin(用户授权)。完整 Preview Validated 还差 2 名目标
 用户理解测试,如实挂账。M7 候选分支已回填 M6 修复,保持本地冻结
 (强 receipt/OS 隔离未关)。
+
+## 状态 · 2026-08-24 · 两个独立会话分支合入 main(纪律债清账)
+
+`claude/confident-villani-ce22b3` 与 `claude/suspicious-diffie-f5d993`
+(各领先 1 提交、落后 43/92,长期只在本地)合入 main,两次均自动合并
+零冲突;`host_guard.py` 的 bench `tool-*` 规则准入与新归因层自动融合
+并存已验证。
+
+**两条长期人工纪律因此清账**:
+①「提交前必须 `git checkout -- docs/evidence/receipt_controls/matrix.json`」
+—— 根因是三矩阵把随机临时路径写进证据;规范化为 `rp-receipt-<tmp>`
+占位后,**全量测试跑完工作区零脏化**(本次实测),纪律不再必要。
+②「并行会话/外部服务写受保护树 → 冒烟偶红只能靠重跑」—— 归因层按
+自写窗口区分来源:窗口外外部写不再拖红,窗口内自写照杀,不传窗口=
+无归因依据=一律不免罪(默认关闭,执法面不放松);负控 9 变异全杀。
+
+全量 **1408 passed + 60 skipped + 0 failed**(+13,来自两分支新测试);
+main 已推送。
