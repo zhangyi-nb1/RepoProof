@@ -8,11 +8,15 @@ from __future__ import annotations
 
 import streamlit as st
 
+from repoproof.execution.core_execution import (
+    CoreExecutionConflictError,
+    core_execution_lease,
+)
 from repoproof.ui.presenters.glossary import ADMISSION, TERM
 from repoproof.ui.services.state import is_tech, mode_toggle_sidebar, tech_expander
 from repoproof.ui.services.wizard import check_wizard_inputs
 
-st.set_page_config(page_title="开始新任务 · RepoProof Studio", layout="wide")
+st.set_page_config(page_title="开始新任务 · RepoProof Benchmark Lab", layout="wide")
 mode_toggle_sidebar()
 
 W = "wizard_step"
@@ -80,7 +84,7 @@ if st.session_state[W] == 0:
             if _out0.get("ok"):
                 st.markdown("到「运行进度」页查看实时状态与最终结论。")
         if not _lr0.provider_ready():
-            st.caption("模型连接未配置:用 ./scripts/run_ui_live.sh 启动即可启用。")
+            st.caption("模型连接未配置:用 ./scripts/run_lab_ui_live.sh 启动即可启用。")
     if is_tech():
         with tech_expander():
             st.markdown(
@@ -202,13 +206,26 @@ elif step == 2:
         if not _url2:
             st.error("请先在上方填写目标仓库地址。")
         else:
-            with st.spinner("正在匿名获取并静态分析目标仓库……"):
-                rep2 = analyze_repository(_url2, ss.get("wz_rev") or None,
-                                          cache_root=_rr2() / "upstream-cache")
-                from repoproof.adoption.analysis.repository_analyzer import list_remote_tags
+            try:
+                with core_execution_lease(
+                    _rr2(),
+                    kind="lab-analyze-repository",
+                    label="Lab 获取并分析目标仓库",
+                ):
+                    with st.spinner("正在匿名获取并静态分析目标仓库……"):
+                        rep2 = analyze_repository(
+                            _url2,
+                            ss.get("wz_rev") or None,
+                            cache_root=_rr2() / "upstream-cache",
+                        )
+                        from repoproof.adoption.analysis.repository_analyzer import (
+                            list_remote_tags,
+                        )
 
-                ss["wz_repo_tags"] = list_remote_tags(_url2)
-            ss["wz_repo_report"] = rep2.to_dict()
+                        ss["wz_repo_tags"] = list_remote_tags(_url2)
+                ss["wz_repo_report"] = rep2.to_dict()
+            except CoreExecutionConflictError as exc:
+                st.error(str(exc))
     hr = ss.get("wz_host_report")
     if hr:
         _mode = hr["host_mode"]["value"]
@@ -468,12 +485,23 @@ elif step == 4:
                         accepted_risks=_accepted or None,
                         intent_dict=_intent_m.to_dict(), chosen_strategy=_sel,
                     )
+                    with core_execution_lease(
+                        _rr4(),
+                        kind="lab-freeze-intent",
+                        label="Lab 冻结采用意向",
+                    ):
+                        _p = save_frozen_intent(
+                            _rr4() / "runs", _frozen.to_dict()
+                        )
+                    # Session state may unlock the next step only after the
+                    # durable write succeeds under the shared Core lease.
                     ss["wz_frozen"] = _frozen.to_dict()
-                    _p = save_frozen_intent(_rr4() / "runs", _frozen.to_dict())
                     st.success(f"已冻结采用意向(指纹 {_frozen.plan_sha256[:12]}…,已保存)。"
                                "此后计划与评分规则不可再改,改动会被指纹校验拒绝。")
                 except HumanGateError as exc:
                     st.error(f"还不能确认:{exc}")
+                except CoreExecutionConflictError as exc:
+                    st.error(str(exc))
             if ss.get("wz_frozen"):
                 st.info(f"✅ 采用意向已冻结:接入方式 = {ss['wz_frozen'].get('strategy', '—')}")
         st.divider()
@@ -497,14 +525,14 @@ elif step == 5:
     tasks = live_run.frozen_tasks_detailed(_root)
     st.subheader("真实运行(在你自己的机器上跑一次完整流程)")
     if not live_run.provider_ready():
-        st.warning("模型连接未配置。用 `./scripts/run_ui_live.sh` 启动工作台即可开启此入口"
+        st.warning("模型连接未配置。用 `./scripts/run_lab_ui_live.sh` 启动实验台即可开启此入口"
                    "(密钥只进进程环境,不落盘、不显示)。")
     task_sel_d = st.selectbox(
         "选择一个已冻结的任务(合同与验收已封存,AI 只能改解决方案;最新冻结的排最上)",
         tasks, index=0, format_func=lambda d: d["label"],
         help="只有完成「开始前检查」并冻结的任务才能真实运行;新任务需先完成任务工程。")
     task_sel = task_sel_d["task_id"] if task_sel_d else ""
-    st.caption("说明:这是产品模式运行——结果写入本地 runs/,不进入公开 benchmark,不触碰历史证据。"
+    st.caption("说明:这是 Benchmark Lab 本地采用运行——结果写入本地 runs/,不进入公开 benchmark,不触碰历史证据。"
                "一次运行会真实调用你配置的模型(消耗额度)。")
     _guided = st.checkbox(
         "有界多轮修复(最多 3 轮:AI 先做,按公开测试反馈修,再验收)",
@@ -537,7 +565,6 @@ elif step == 5:
         from repoproof.adoption.analysis.repository_analyzer import analyze_repository_dir
         from repoproof.adoption.assembly.example_compiler import CompileError
         from repoproof.adoption.assembly.task_assembler import assemble_task
-
         try:
             exs = []
             for line in (ss.get("wz_examples") or "").splitlines():
@@ -552,38 +579,45 @@ elif step == 5:
                          f"repoproof analyze-repo --url {ss.get('wz_repo', '<url>')}")
                 st.stop()
             rep = analyze_repository_dir(cand[0], url=_url)
-            with st.status("装配任务文件……", expanded=True) as _s:
-                out = assemble_task(
-                    _root, goal=ss.get("wz_goal", ""), repo_url=_url,
-                    resolved_commit=str(rep.commit.value), distribution=repo_name,
-                    import_module=repo_name.replace("-", "_"),
-                    license_id=str(rep.license.value), examples=exs)
-                steps = [
-                    (["freeze-task", "--contract", f"contracts/{out['task_id']}.yaml"],
-                     "封存合同、获取目标仓库固定版本……"),
-                    (["baseline", "--contract", f"contracts/{out['task_id']}.yaml"],
-                     "构建离线依赖 + 直连基线(未适配时样例应当失败,这是正常的)……"),
-                    (["freeze-task", "--contract", f"contracts/{out['task_id']}.yaml", "--full"],
-                     "冻结验收集合 + 控制组自检……"),
-                ]
-                proc = None
-                for args_, label_ in steps:
-                    _s.update(label=f"({out['public']} 公开 + {out['held']} 隐藏样例){label_}")
-                    proc = _sp.run([str(_root / ".venv" / "bin" / "python"), "-m", "repoproof.cli",
-                                    *args_], capture_output=True, text=True, cwd=str(_root),
-                                   timeout=900, check=False)
-                    if proc.returncode != 0:
-                        break
-                if proc and proc.returncode == 0:
-                    _s.update(label="装配并冻结完成", state="complete")
-                    st.success(f"任务 {out['task_id']} 已冻结——刷新后在上方「真实运行」选择它,"
-                               "亲手开始你的第一次运行。")
-                else:
-                    _s.update(label="冻结未通过", state="error")
-                    st.error("冻结失败(通常是控制组自检或依赖构建问题)。技术输出末段:")
-                    st.code((proc.stdout + proc.stderr)[-1200:], language="text")
+            with core_execution_lease(
+                _root,
+                kind="lab-assemble-freeze",
+                label="Lab 装配并冻结新任务",
+            ):
+                with st.status("装配任务文件……", expanded=True) as _s:
+                    out = assemble_task(
+                        _root, goal=ss.get("wz_goal", ""), repo_url=_url,
+                        resolved_commit=str(rep.commit.value), distribution=repo_name,
+                        import_module=repo_name.replace("-", "_"),
+                        license_id=str(rep.license.value), examples=exs)
+                    steps = [
+                        (["freeze-task", "--contract", f"contracts/{out['task_id']}.yaml"],
+                         "封存合同、获取目标仓库固定版本……"),
+                        (["baseline", "--contract", f"contracts/{out['task_id']}.yaml"],
+                         "构建离线依赖 + 直连基线(未适配时样例应当失败,这是正常的)……"),
+                        (["freeze-task", "--contract", f"contracts/{out['task_id']}.yaml", "--full"],
+                         "冻结验收集合 + 控制组自检……"),
+                    ]
+                    proc = None
+                    for args_, label_ in steps:
+                        _s.update(label=f"({out['public']} 公开 + {out['held']} 隐藏样例){label_}")
+                        proc = _sp.run([str(_root / ".venv" / "bin" / "python"), "-m", "repoproof.cli",
+                                        *args_], capture_output=True, text=True, cwd=str(_root),
+                                       timeout=900, check=False)
+                        if proc.returncode != 0:
+                            break
+                    if proc and proc.returncode == 0:
+                        _s.update(label="装配并冻结完成", state="complete")
+                        st.success(f"任务 {out['task_id']} 已冻结——刷新后在上方「真实运行」选择它,"
+                                   "亲手开始你的第一次运行。")
+                    else:
+                        _s.update(label="冻结未通过", state="error")
+                        st.error("冻结失败(通常是控制组自检或依赖构建问题)。技术输出末段:")
+                        st.code((proc.stdout + proc.stderr)[-1200:], language="text")
         except CompileError as exc:
             st.error(f"样例不满足要求:{exc}")
+        except CoreExecutionConflictError as exc:
+            st.error(str(exc))
     st.divider()
     st.subheader("或者:先看看流程与案例")
     c1, c2, _ = st.columns([1, 1, 2])

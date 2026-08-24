@@ -261,17 +261,19 @@ def test_pipeline_runs_to_rehearsal_gate_offline(tmp_path, monkeypatch):
     assert not dest.exists()
     shutil.copytree(archived, dest)      # 拷回供后续负例断言使用
 
-    # 重复 build 不撞车 —— 装配器版本自增是设计(改题面 → 新版本号);
-    # "物化目标已存在"分支防的是外部产生的同 id:预建目录触发之。
-    from repoproof.runner.tool_pipeline import PipelineError
-
+    # 重复 build 不撞车 —— 装配器从全部不可变谱系锚点取最大版本 + 1。
+    # 即使存在孤立 v2 物化目录也绝不复用或填洞,而是冻结为 v3。
     v2_dir = project / "tool_tasks" / "tool-minilib-tool-v2"
     v2_dir.mkdir(parents=True)
-    with pytest.raises(PipelineError):
-        tool_build(dest, project, bench_root=tmp_path / "bench",
-                   dest_root=tmp_path / "tools", run_real=False,
-                   setup_commands=[[_REPO_PY, "-c", shim]],
-                   wheelhouse_cmd=["true"])
+    out_v3 = tool_build(
+        dest, project, bench_root=tmp_path / "bench",
+        dest_root=tmp_path / "tools", run_real=False,
+        setup_commands=[[_REPO_PY, "-c", shim]],
+        wheelhouse_cmd=["true"])
+    assert out_v3["task_id"] == "tool-minilib-tool-v3"
+    assert out_v3["verdict"] == "REHEARSAL_PASS_ONLY"
+    archived_v3 = Path(out_v3["stages"]["draft_archived"])
+    shutil.copytree(archived_v3, dest)
     # 编排不吞错:confirm 失败原样传导
     (dest / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
     with pytest.raises(ConfirmError):

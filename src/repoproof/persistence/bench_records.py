@@ -323,7 +323,7 @@ def classify_runs(project_root: str | Path) -> list[dict]:
         # (counts_toward_mechanism_effect 走自己的轴),不回答"模型多能干"。
         backend = r.get("backend_id", UNKNOWN)
         baseline_backend = backend in (BASELINE_BACKEND, UNKNOWN)
-        rows.append({
+        projected = {
             **r,
             "test_mode": c.get("test_mode", "UNCLASSIFIED"),
             "run_purpose": c.get("run_purpose", "CAPABILITY_EVALUATION"),
@@ -361,7 +361,34 @@ def classify_runs(project_root: str | Path) -> list[dict]:
                 "counts_toward_profile_qualification", False),
             "evidence_strength": c.get("evidence_strength", "STANDARD"),
             "evidence_caveat": c.get("evidence_caveat"),
-        })
+        }
+        if r.get("test_mode") == "PRODUCT":
+            # Native Product identity is part of the original append-only row.
+            # A later classification sidecar cannot promote it into any Lab
+            # denominator, while all historical non-Product projections retain
+            # their frozen semantics and mutation anchors above.
+            projected.update({
+                "test_mode": "PRODUCT",
+                "run_purpose": r.get("run_purpose", "PRODUCT_ONBOARDING"),
+                "task_seen": r.get("task_seen", True),
+                "counts_toward_model_capability": False,
+                "counts_toward_heldout_benchmark": False,
+                "counts_toward_mechanism_effect": False,
+                "counts_toward_treatment_effect": False,
+                "treatment_assigned": False,
+                "treatment_activated": None,
+                "oracle_authorship": r.get(
+                    "oracle_authorship", ORACLE_AUTHORSHIP_OURS
+                ),
+                "host_modification_mode": r.get(
+                    "host_modification_mode", HOST_MOD_PRISTINE
+                ),
+                "exclusion_reason": r.get("exclusion_reason"),
+                "assistance_level": r.get("assistance_level"),
+                "classification_timing": r.get("classification_timing"),
+                "counts_toward_profile_qualification": False,
+            })
+        rows.append(projected)
     return rows
 
 
@@ -516,4 +543,90 @@ def count_passes(project_root: str | Path, task_prefix: str | None = None) -> di
         "invalidated_run_ids": [r.get("run_id") for r in invalidated],
         "exploratory_run_ids": [r.get("run_id") for r in exploratory],
         "smoke_run_ids": [r.get("run_id") for r in smoke],
+    }
+
+
+def lab_accounting_projection(
+    project_root: str | Path,
+    task_prefix: str | None = None,
+) -> dict:
+    """New M6 Lab-only projection without changing historical gate metrics.
+
+    ``count_passes`` is a frozen historical reporting API whose mixed ``total``
+    and diagnostic facets are already committed in prior gate artifacts.  M6
+    therefore leaves it byte-for-byte semantically intact.  New Product runs
+    are excluded here by their identity in the original append-only run row;
+    a classification sidecar cannot promote or demote that identity.
+    """
+
+    native_rows = adjudicated_runs(project_root)
+    native_product_ids = {
+        row.get("run_id")
+        for row in native_rows
+        if row.get("test_mode") == "PRODUCT"
+    }
+    recorded_rows = classify_runs(project_root)
+    if task_prefix:
+        recorded_rows = [
+            row
+            for row in recorded_rows
+            if str(row.get("task_id", "")).startswith(task_prefix)
+            and _same_host(row)
+        ]
+    rows = [
+        row for row in recorded_rows if row.get("run_id") not in native_product_ids
+    ]
+    smoke = [
+        row
+        for row in rows
+        if str(row.get("model", "")).startswith(SMOKE_MODEL_PREFIX)
+    ]
+    real = [
+        row
+        for row in rows
+        if not str(row.get("model", "")).startswith(SMOKE_MODEL_PREFIX)
+    ]
+    exploratory = [
+        row for row in real if row.get("batch") == EXPLORATORY_BATCH
+    ]
+    prereg = [row for row in real if row.get("batch") != EXPLORATORY_BATCH]
+    capability = [
+        row
+        for row in prereg
+        if row["counts_toward_model_capability"]
+        and row["run_purpose"] not in NON_GATEABLE_PURPOSES
+    ]
+    mechanism = [
+        row for row in prereg if row["counts_toward_mechanism_effect"]
+    ]
+    heldout = [
+        row
+        for row in prereg
+        if row["counts_toward_heldout_benchmark"]
+        and row["run_purpose"] not in NON_GATEABLE_PURPOSES
+    ]
+    return {
+        "recorded_total": len(recorded_rows),
+        "lab_total": len(rows),
+        "product_runs": len(recorded_rows) - len(rows),
+        "model_capability_runs": len(capability),
+        "model_capability_passes": sum(
+            1 for row in capability if row["effective_verdict"] in PASS_VERDICTS
+        ),
+        "all_valid_run_outcomes": sum(
+            1 for row in rows if row["effective_verdict"] in PASS_VERDICTS
+        ),
+        "mechanism_ablation_runs": len(mechanism),
+        "heldout_model_evaluation_runs": len(heldout),
+        "assisted_repair_runs": sum(
+            1 for row in rows if row.get("assistance_level")
+        ),
+        "treatment_effect_runs": sum(
+            1 for row in rows if row["counts_toward_treatment_effect"]
+        ),
+        "profile_qualification_runs": sum(
+            1 for row in rows if row["counts_toward_profile_qualification"]
+        ),
+        "smoke": len(smoke),
+        "exploratory": len(exploratory),
     }

@@ -1,4 +1,4 @@
-# RepoProof Studio — UI 设计与实现记录
+# RepoProof Benchmark Lab — 原 UI 设计与实现记录
 
 > 阶段:**Gate 9A + 普通用户可用性改版已实现**(简单/技术双模式);9B(真实运行控制台)/
 > 9C(任务创建向导)/ 9D(Dogfooding)为后续 gate,未实现。
@@ -6,7 +6,7 @@
 
 ## 定位
 
-RepoProof Studio 是 RepoProof 的本地中文工作台。Gate 9A 让用户
+RepoProof Benchmark Lab 是 RepoProof 保留的研究与历史本地工作台。Gate 9A 让用户
 **不调用任何模型、不碰终端**即可:理解项目能力链、查看三个内置
 正负案例、复算 Completion Gate 决策、在全新容器中重放 PASS_ADAPTED
 产物、浏览/筛选全部 12 条记录运行,并下载完整证据。
@@ -22,7 +22,7 @@ RepoProof Studio 是 RepoProof 的本地中文工作台。Gate 9A 让用户
 
 ```
 src/repoproof/ui/
-├── app.py                  # st.navigation 入口(三页)
+├── lab_app.py              # Benchmark Lab 独立 st.navigation 入口
 ├── pages/
 │   ├── home.py             # 首页:版本/Docker/案例卡/能力边界
 │   ├── case_view.py        # 结果与证据:5+5 指标卡 · Agent≠Verdict 对照
@@ -33,7 +33,7 @@ src/repoproof/ui/
 │   └── actions.py          # demo_verify / demo_replay 的进程内包装
 └── presenters/
     └── zh.py               # 中文映射(Verdict/Agent 结束/责任方/…)
-scripts/run_ui.sh           # 127.0.0.1 启动;不开放局域网/公网
+scripts/run_lab_ui.sh       # 127.0.0.1:8502 启动;不开放局域网/公网
 tests/ui/test_ui_gate9a.py  # pytest + streamlit AppTest(12 项)
 ```
 
@@ -41,7 +41,7 @@ tests/ui/test_ui_gate9a.py  # pytest + streamlit AppTest(12 项)
 
 ```bash
 .venv/bin/pip install -e ".[ui]"
-./scripts/run_ui.sh          # http://127.0.0.1:8501
+./scripts/run_lab_ui.sh      # http://127.0.0.1:8502
 ```
 
 ## Gate 9A 铁律(全部由测试钉住)

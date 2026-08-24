@@ -3,12 +3,13 @@
 > Purpose: the single in-repo status anchor for AI/human handoff.
 > Update ONLY at gate boundaries; history below is append-only.
 
-## Current status (2026-08-24, RFC-010 M0–M4 + RFC-011 M5 complete)
+## Current status (2026-08-24, M0–M5 closed + M6 Engineering Complete)
 
 **RepoProof 的主产品线已从任意 Repository Adaptation 收敛为
 GitHub Capability → Verified Local Tool。RFC-010 的章程、首个工具闭环、
 半自动 intake、单命令旅程、两批真实仓指标均已落地；RFC-011 又补齐
-输出合同一致性与 append-only 运营发布状态，历史验证和当前可用不再混写。**
+输出合同一致性与 append-only 运营发布状态。M6 已把 Studio 接到同一 Core
+事实源，但人工 Preview Validated 门尚未关闭。**
 
 | Anchor | Value |
 |---|---|
@@ -21,10 +22,13 @@ GitHub Capability → Verified Local Tool。RFC-010 的章程、首个工具闭�
 | False success | `tool-pyspellchecker-tool-v1`:冻结声明 JSON、reference/example/oracle 却验纯文本；运营 READY 已撤回，冻结史和真跑均未改写/重跑 |
 | M5 输出合同 | 新 draft=ToolSpec v2；T6–T9 + actual stdout runtime parsing；37 份旧冻结合同原样加载 |
 | M5 发布状态 | 本机 release ledger 22 条迁移决定：21 ACTIVE / 1 REVOKED；另 2 个早期 dogfood 无 fresh audit，保持 REVIEW_REQUIRED |
+| M5 本地提交锚点 | `034bdf1`；本地 `main` 已关闭 M5，未推送 |
 | MCP 执法 | 仅历史 READY + 当前 ACTIVE 可生成；M5 adapter 每次 list/call 复核 ledger；pre-M5 非 ACTIVE adapter 明示 `LEGACY_SERVER_MUST_BE_DETACHED` |
-| 当前质量基线 | `1324 passed + 60 skipped + 0 failed`（1384 collected；1323 项全量通过 + 受保护目录 smoke 独立通过） |
+| M6 整合锚点 | 工程实现 `d7c1278`；`3818ccb` no-ff 保留 UI 历史；分支 `codex/m6-studio-integration` 尚未合回 `main` |
+| M6 可信整合 | Core-only registry 投影；historical/operational/package health 三栏；ProductJobStateV2；Studio/Lab 共享 Core 写锁；Product/Lab 原生分账 |
+| 当前质量基线 | M5=`1324 passed + 60 skipped`；M6 纯提交隔离工作树全量 pytest 退出 0（1455 collected），改动面 Ruff 通过 |
 | 后端资格 | Product Mode 缺省 mini-swe；DSH 旗标保留但工具谱系未资格化 |
-| 当前阶段门 | **RFC-011 / M5 已关闭**；未授权第三批真仓或任何新真实模型发次 |
+| 当前阶段门 | **M6 Engineering Complete；Preview Validated 待项目方 + 2 名目标用户**；未授权推送、发布、第三批真仓或任何新真实模型发次 |
 
 不变铁律：验证面无 LLM；held-out 对 agent 零泄漏；冻结合同与历史台账
 不可改写；FAIL 也留完整证据；没量到即判死；Product Mode 与 Benchmark

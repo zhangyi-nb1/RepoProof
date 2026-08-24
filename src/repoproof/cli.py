@@ -407,6 +407,8 @@ def main(argv: list[str] | None = None) -> int:
                 payload["drafted"] = draft_into_bundle(rep, bundle, drafter)
             except DraftError as exc:
                 payload["draft_error"] = str(exc)
+                print(json.dumps({"ok": False, **payload}, ensure_ascii=False, indent=2))
+                return 3
             payload["your_todo"] = [
                 f"1. 审阅并修改 {bundle}/draft.yaml(statement/summary/格式;"
                 "工具名 tool.name 由你定)",
@@ -421,7 +423,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.tool_cmd == "build":
             from repoproof.adoption.intake.tool_confirm import ConfirmError
-            from repoproof.runner.tool_pipeline import PipelineError, tool_build
+            from repoproof.runner.tool_pipeline import (
+                PipelineError,
+                tool_build,
+                tool_build_completed,
+            )
 
             try:
                 out = tool_build(args.draft_dir, PROJECT_ROOT,
@@ -435,8 +441,17 @@ def main(argv: list[str] | None = None) -> int:
                                      if hasattr(exc, "problems") else {})},
                                  ensure_ascii=False, indent=2))
                 return 3
-            print(json.dumps({"ok": True, **out}, ensure_ascii=False, indent=2))
-            return 0
+            completed = tool_build_completed(
+                out, rehearsal_only=args.rehearsal_only
+            )
+            print(
+                json.dumps(
+                    {"ok": completed, **out},
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0 if completed else 3
         if args.tool_cmd == "list":
             from repoproof.runner.tool_registry import list_tools
             from repoproof.runner.tool_release import ReleaseLedgerError

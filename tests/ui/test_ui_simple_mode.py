@@ -81,7 +81,7 @@ def test_tech_mode_reveals_raw_fields() -> None:
 
 # 4. 四个主导航 + 次级设置
 def test_navigation_has_four_primary_pages() -> None:
-    src = (REPO / "src" / "repoproof" / "ui" / "app.py").read_text(encoding="utf-8")
+    src = (REPO / "src" / "repoproof" / "ui" / "lab_app.py").read_text(encoding="utf-8")
     for title in ("开始新任务", "运行进度", "结果报告", "历史记录", "系统设置"):
         assert title in src, title
     assert src.index("系统设置") > src.index("历史记录")  # 设置是次级分组

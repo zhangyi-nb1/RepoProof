@@ -15,7 +15,7 @@ from repoproof.adoption.repair.repair_loop import RepairLoop, RoundResult
 from repoproof.ui.services.facts import repo_root as _rrx
 from repoproof.ui.services.state import is_tech, mode_toggle_sidebar, tech_expander
 
-st.set_page_config(page_title="修复过程 · RepoProof Studio", layout="wide")
+st.set_page_config(page_title="修复过程 · RepoProof Benchmark Lab", layout="wide")
 mode_toggle_sidebar()
 st.title("修复过程")
 st.info("**AI 不是一次生成答案。** 它每轮只做一件事:改代码 → 跑公开测试 → 看哪里错了 → 下一轮修。"

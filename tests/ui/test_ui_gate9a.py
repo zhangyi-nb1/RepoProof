@@ -115,8 +115,8 @@ def test_ui_modules_are_read_only_and_isolated() -> None:
     """只读、不访问 LocalFlow、不读 API Key、不复制最终判定逻辑。"""
     ui_src = ""
     for p in (REPO / "src" / "repoproof" / "ui").rglob("*.py"):
-        if p.name == "live_run.py":
-            continue  # Gate 9B 唯一执行入口:仅允许调 repoproof CLI 与读 env 名(有专属测试)
+        if p.name in {"live_run.py", "product_jobs.py"}:
+            continue  # 两套独立执行入口各有专属 argv/边界测试
         ui_src += p.read_text(encoding="utf-8")
     for banned in ("write_text(", "write_bytes(", "shutil.copy", "os.remove", ".unlink(",
                    "XIANGMU/localflow", "import localflow", "REPOPROOF_API_KEY",

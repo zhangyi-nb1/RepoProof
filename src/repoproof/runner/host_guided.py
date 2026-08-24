@@ -37,6 +37,7 @@ import subprocess
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -44,6 +45,46 @@ from pydantic import BaseModel, Field, field_validator
 from repoproof.adoption.repair.failure_packet import FailurePacket, build_failure_packets
 from repoproof.adoption.repair.repair_budget import RepairBudget
 from repoproof.adoption.repair.repair_loop import RepairLoop, RoundResult
+from repoproof.agents.provider_gate import PreflightResult, ProviderConfig
+from repoproof.domain.models import (
+    AdaptationManifest,
+    Budgets,
+    VerificationResult,
+    sha256_bytes,
+    sha256_file,
+)
+from repoproof.execution.local_worktree_backend import LocalWorktreeBackend
+from repoproof.harness import postflight
+from repoproof.harness.host_guard import (
+    HostGuardError,
+    bench_root_strays,
+    is_protected,
+    snapshot_protected,
+    verify_protected_unchanged,
+)
+from repoproof.harness.host_snapshot import prepare_host_snapshot, scan_for_pii
+from repoproof.harness.oracle_guard import hash_tree, make_read_only, trees_equal
+from repoproof.harness.policy import OUT_OF_WORKSPACE
+from repoproof.harness.trace import verify_chain
+from repoproof.persistence.bench_records import append_run
+from repoproof.persistence.run_store import FileRunStore
+from repoproof.runner.guided_repair import (
+    SCOPE_MARKER,
+    RepairRoundRecord,
+    extract_scope_change,
+    render_packets,
+)
+from repoproof.verification import completion_gate
+from repoproof.verification.junit import parse_junit_xml, split_public_outcomes
+from repoproof.verification.verifiers import (
+    REPLAY_MODE_CLEAN,
+    parse_pytest,
+    policy_result,
+    replay_result,
+)
+
+if TYPE_CHECKING:
+    from repoproof.agents.backend import AgentRunResult
 
 
 def host_score(r: RoundResult) -> list[float]:
@@ -186,7 +227,7 @@ def harness_mode() -> str:
     return "minimal" if raw == "minimal" else "guided"
 
 
-def effective_budgets(b: "HostBudgets", mode: str | None = None) -> "HostBudgets":
+def effective_budgets(b: HostBudgets, mode: str | None = None) -> HostBudgets:
     """最小臂的**等总额**换算:轮数收成 1,每轮额度乘回原轮数。
 
     §7 的题面是"相同任务和相同总预算"。per_round 语义下总额 = 每轮 ×
@@ -419,43 +460,6 @@ def replay_eligible(cap, reg, pol) -> bool:
     """clean replay 准入 = 能力/回归/策略三绿;额度标记不参与
     (终轮撞线与成功可共存——耗尽的职责是约束 agent,不是取消验证)。"""
     return bool(cap and reg and pol and cap.passed and reg.passed and pol.passed)
-from repoproof.agents.provider_gate import PreflightResult, ProviderConfig
-from repoproof.domain.models import (
-    AdaptationManifest,
-    Budgets,
-    VerificationResult,
-    sha256_bytes,
-    sha256_file,
-)
-from repoproof.execution.local_worktree_backend import LocalWorktreeBackend
-from repoproof.harness.host_guard import (
-    HostGuardError,
-    bench_root_strays,
-    is_protected,
-    snapshot_protected,
-    verify_protected_unchanged,
-)
-from repoproof.harness import postflight
-from repoproof.harness.host_snapshot import prepare_host_snapshot, scan_for_pii
-from repoproof.harness.oracle_guard import hash_tree, make_read_only, trees_equal
-from repoproof.harness.policy import OUT_OF_WORKSPACE
-from repoproof.harness.trace import verify_chain
-from repoproof.persistence.bench_records import append_run
-from repoproof.persistence.run_store import FileRunStore
-from repoproof.runner.guided_repair import (
-    SCOPE_MARKER,
-    RepairRoundRecord,
-    extract_scope_change,
-    render_packets,
-)
-from repoproof.verification import completion_gate
-from repoproof.verification.junit import parse_junit_xml, split_public_outcomes
-from repoproof.verification.verifiers import (
-    REPLAY_MODE_CLEAN,
-    parse_pytest,
-    policy_result,
-    replay_result,
-)
 
 _ROUND_HEADER = (
     "\n\n==== GUIDED REPAIR ROUND {idx}/{max_rounds} ====\n"
@@ -762,7 +766,7 @@ class HostContract(BaseModel):
         return v
 
     @classmethod
-    def load(cls, path: Path) -> tuple["HostContract", str]:
+    def load(cls, path: Path) -> tuple[HostContract, str]:
         raw = Path(path).read_bytes()
         _reject_duplicate_keys(raw, path)
         data = yaml.safe_load(raw)
@@ -990,7 +994,7 @@ def round_violation_report(
     return packets, fatal, len(tampered) + len(touched) + len(keys)
 
 
-def enforcement_input_cap(budgets: "HostBudgets") -> int:
+def enforcement_input_cap(budgets: HostBudgets) -> int:
     """执法用输入上限 = 契约值本身,**不再内移**(LESSONS #39)。
 
     沿革:2026-08-09 的用户决策把 per_round 的执法线内移 50k,因为当时
@@ -1547,12 +1551,12 @@ def refusal_attribution(attribution: str, refusals: int) -> str:
 
 
 def run_dsh_round(*, workspace: Path, side_dir: Path, prompt: str,
-                  budgets: "HostBudgets", model_name: str, api_base: str,
+                  budgets: HostBudgets, model_name: str, api_base: str,
                   api_key: str, runtime_root: Path | None = None,
                   request_timeout_s: float | None = None,
                   session_id: str | None = None,
                   upstream_protocol: str | None = None
-                  ) -> tuple["AgentRunResult", dict]:
+                  ) -> tuple[AgentRunResult, dict]:
     """B-dsh 臂的一轮(模块级,可脱离 runner 独测):job 装配 → 封存
     worker → 回执适配成 AgentRunResult(DSH 阶段 8)。
 
@@ -2265,8 +2269,8 @@ class HostGuidedRunner:
         return {"files": files, "total_files": len(files), "total_lines": lines}
 
     # ------------------------------------------------------------------ 主流程
-    def _run_dsh_round(self, s, idx: int, prompt: str, b: "HostBudgets",
-                       provider) -> tuple["AgentRunResult", dict]:
+    def _run_dsh_round(self, s, idx: int, prompt: str, b: HostBudgets,
+                       provider) -> tuple[AgentRunResult, dict]:
         """B-dsh 臂一轮的 runner 壳:调模块级 run_dsh_round,当场把回执两件
         (events 汇、worker result)拷进 run_dir(会话树随 run 清理,证据
         不能跟着走),并对本轮做 treatment fidelity 判读(阶段 8,§17.3)。
@@ -3474,6 +3478,14 @@ class HostGuidedRunner:
             # 批次归属:探索性加发打 EXPLORATORY_UNPREREGISTERED,闸门不计
             # (TESTPLAN §8/§9)。缺省 UNKNOWN,历史行无此字段=预注册批次。
             "batch": batch,
+            # M6:Product Mode and Benchmark Lab share one append-only evidence
+            # engine but not one accounting population. Put the classification
+            # in the original row so a missing sidecar cannot turn a Product
+            # run into model-capability evidence.
+            **_native_product_classification(
+                task_family=self.contract.task_family,
+                fake_mode=self._fake_mode,
+            ),
             # 宿主身份(C 轨)。阶段闸门是**第一宿主**上的存在性证明,而阶段
             # 归属靠 task_id 前缀 —— 不落这一笔,第二宿主的 `t3-<新宿主>-…`
             # 会自动进 stages.T3。`append_run` 缺它直接拒收。
@@ -3551,6 +3563,37 @@ class _BenchContaminated(Exception):
     def __init__(self, strays: list[str]) -> None:
         super().__init__("BENCH_ROOT_CONTAMINATED")
         self.strays = strays
+
+
+def _native_product_classification(
+    *, task_family: str, fake_mode: str | None
+) -> dict[str, object]:
+    """Classification written with a Product run's original ledger row.
+
+    Product runs share the evidence engine with Benchmark Lab, but they never
+    enter model-capability, held-out, treatment, or mechanism denominators.
+    Rehearsals are harness self-checks; real Local Tool runs are onboarding.
+    """
+
+    if task_family != "LOCAL-TOOL":
+        return {}
+    return {
+        "test_mode": "PRODUCT",
+        "run_purpose": (
+            "HARNESS_SELFCHECK" if fake_mode is not None else "PRODUCT_ONBOARDING"
+        ),
+        "task_seen": True,
+        "counts_toward_model_capability": False,
+        "counts_toward_heldout_benchmark": False,
+        "counts_toward_mechanism_effect": False,
+        "counts_toward_treatment_effect": False,
+        "treatment_assigned": False,
+        "treatment_activated": None,
+        "oracle_authorship": "TASK_AUTHOR_COMPILED",
+        "host_modification_mode": "SYNTHETIC_SKELETON",
+        "classification_timing": "NATIVE_AT_RUN_WRITE",
+        "assistance_level": "SELF_SERVE_PUBLIC_SINGLE_PASS",
+    }
 
 
 # ------------------------------------------------------------------ CLI 入口

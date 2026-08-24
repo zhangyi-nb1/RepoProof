@@ -404,6 +404,27 @@ def test_damaged_provenance_blocks_audit_mcp_and_active_list_projection(
     assert listed[0]["operational_reason_code"] == "INVALID_PACKAGE_IDENTITY"
 
 
+def test_generated_mcp_blocks_package_identity_drift_at_call_time(
+    tmp_path: Path,
+) -> None:
+    dest_root = tmp_path / "tools"
+    tool_dir = _fake_tool(dest_root)
+    register_tool(dest_root, tool_dir, run_id="run-alpha-v1", exported_at=_WHEN)
+    _append_active(dest_root)
+    server = write_mcp_server(tool_dir)
+
+    provenance_path = tool_dir / "evidence" / "provenance.json"
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    provenance["run_id"] = "forged-after-mcp-generation"
+    provenance_path.write_text(json.dumps(provenance) + "\n", encoding="utf-8")
+
+    reply = _mcp_request(server, "tools/list")
+    assert reply["error"] == {
+        "code": -32001,
+        "message": "managed package identity changed",
+    }
+
+
 @pytest.mark.parametrize(
     ("relative", "operation"),
     [

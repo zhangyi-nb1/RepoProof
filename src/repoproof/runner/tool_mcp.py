@@ -9,6 +9,7 @@ manifest.interface 机械推导,tools/call = subprocess 跑 `bin/<name>`。
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import tempfile
@@ -38,6 +39,7 @@ _SERVER_TMPL = '''#!/usr/bin/env python3
 """
 import datetime as dt
 import fcntl
+import hashlib
 import json
 import math
 import os
@@ -53,6 +55,7 @@ TOOL = ROOT / "bin" / {name!r}
 OUTPUT_CONTRACT = {output_contract!r}
 OUTPUT_MODE = {output_mode!r}
 EXPECTED_TASK_ID = {task_id!r}
+EXPECTED_PACKAGE_FILES = {expected_package_files!r}
 RELEASE_LEDGER = ROOT.parent / ".repoproof-release-decisions.jsonl"
 INSTALL_LOCK = ROOT.parent / ".repoproof-install.lock"
 RELEASE_LOCK = ROOT.parent / ".repoproof-release.lock"
@@ -223,6 +226,40 @@ def _require_safe_tool():
         or TOOL.resolve() != TOOL
     ):
         raise RuntimeError("managed tool executable is unsafe")
+    actual_source_files = {{
+        str(path.relative_to(ROOT))
+        for path in (ROOT / "src").rglob("*.py")
+        if path.is_file() and not path.is_symlink()
+    }} if (ROOT / "src").is_dir() and not (ROOT / "src").is_symlink() else set()
+    expected_source_files = {{
+        relative for relative in EXPECTED_PACKAGE_FILES
+        if relative.startswith("src/") and relative.endswith(".py")
+    }}
+    if actual_source_files != expected_source_files:
+        raise RuntimeError("managed package identity changed")
+    for relative, expected_sha256 in EXPECTED_PACKAGE_FILES.items():
+        path = ROOT / relative
+        try:
+            if (
+                path.is_symlink()
+                or not path.is_file()
+                or ROOT not in path.resolve().parents
+            ):
+                raise RuntimeError("managed package identity changed")
+            fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+            try:
+                metadata = os.fstat(fd)
+                if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+                    raise RuntimeError("managed package identity changed")
+                digest = hashlib.sha256()
+                while chunk := os.read(fd, 1024 * 1024):
+                    digest.update(chunk)
+            finally:
+                os.close(fd)
+        except OSError as exc:
+            raise RuntimeError("managed package identity changed") from exc
+        if digest.hexdigest() != expected_sha256:
+            raise RuntimeError("managed package identity changed")
 
 
 def _require_active():
@@ -430,6 +467,31 @@ def write_mcp_server(tool_dir: Path, *, dest_root: Path | None = None) -> Path:
         return _write_mcp_server_install_locked(tool_dir, release_root)
 
 
+def _runtime_identity_files(tool_dir: Path, name: str) -> dict[str, str]:
+    """Freeze the package files that can determine CLI/MCP behaviour."""
+
+    candidates = [
+        tool_dir / "tool.json",
+        tool_dir / "evidence" / "provenance.json",
+        tool_dir / "bin" / name,
+    ]
+    for optional in ("build.sh", "pyproject.toml", "requirements.lock.txt"):
+        path = tool_dir / optional
+        if path.is_file():
+            candidates.append(path)
+    src = tool_dir / "src"
+    if src.is_dir():
+        candidates.extend(sorted(src.rglob("*.py")))
+    frozen: dict[str, str] = {}
+    for path in candidates:
+        if path.is_symlink() or not path.is_file() or tool_dir not in path.resolve().parents:
+            raise RuntimeError(f"package identity file is unsafe: {path}")
+        frozen[str(path.relative_to(tool_dir))] = hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest()
+    return frozen
+
+
 def _write_mcp_server_install_locked(tool_dir: Path, release_root: Path) -> Path:
     """Render and atomically replace one server while package identity is stable."""
 
@@ -503,6 +565,7 @@ def _write_mcp_server_install_locked(tool_dir: Path, release_root: Path) -> Path
         output_mode=output_mode,
         output_schema_entry=output_schema_entry,
         task_id=task_id,
+        expected_package_files=_runtime_identity_files(tool_dir, name),
         tool_name_pattern=TOOL_NAME_PATTERN,
         version=manifest.get("version", "1.0.0"),
         server_path=str(out),
