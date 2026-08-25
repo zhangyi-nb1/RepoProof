@@ -428,3 +428,54 @@ def build_conclusion(summary: dict) -> dict:
         "reason_codes": fa.get("reason_codes") or [],
         "run_id": seg.get("run_id"),
     }
+
+
+# ------------------------------------------- M6 用户测试 P1:人话语义层
+#
+# 两名目标用户实测反馈:①「fresh-input 审核 / ACTIVE / MCP」术语堆叠,
+# 字面能读通但不知道什么意思;②找不到"回退已成功任务"的入口。
+# 本节是产品端全部状态/原因/操作文案的**唯一来源** —— 页面不许再散落
+# 自造术语;写法一律「先人话,括号里给术语」。
+
+AUDIT_EXPLAINER = (
+    "「新输入抽查」= 拿一份这个工具**从没见过**的输入文件实际跑一遍,"
+    "对照你自己准备的正确结果。通过 → 状态变为「可使用」;"
+    "不通过 → 自动停用。这是上架前的最后一道人工把关。"
+)
+
+STATUS_EXPLAINERS: dict[str, str] = {
+    "ACTIVE": "构建、验证、新输入抽查都通过了,现在可以使用、也可以接入 AI 助手。",
+    "REVIEW_REQUIRED": "构建与自动验证已通过,但还没做过「新输入抽查」——"
+                       "在下方「管理这个工具」里做一次即可上架。",
+    "REVOKED": "已停用:今后不能使用、不能接入 AI 助手。历史成绩不受影响"
+               "(当时的验证结论永远保留)。",
+    "UNVERIFIED": "登记信息与验证证据对不上,系统按最保守方式处理:不可使用。",
+}
+
+REASON_CODE_LABELS: dict[str, str] = {
+    "INITIAL_EXPORT_REVIEW_REQUIRED":
+        "刚构建完成,还没做过新输入抽查(抽查通过后才能使用)",
+    "FRESH_INPUT_PASS":
+        "已通过新输入抽查(用一份从未见过的输入实测,结果正确)",
+    "FRESH_INPUT_MISMATCH":
+        "新输入抽查未通过:实测输出与期望不一致,已自动停用",
+    "FRESH_INPUT_EXECUTION_FAILED":
+        "新输入抽查未通过:工具运行报错,已自动停用",
+    "OUTPUT_CONTRACT_MISMATCH":
+        "审计发现当初的任务定义自相矛盾(要求的输出格式与验收标准对不上)。"
+        "历史成绩保留,但现已停用;恢复使用需要人工修正任务定义后重新构建",
+    "USER_WITHDRAWAL":
+        "使用者主动停用。注意:主动停用后不能靠普通抽查恢复,"
+        "如需再次使用要构建新版本",
+    "MIGRATED_FRESH_INPUT_PASS":
+        "已通过新输入抽查(历史抽查记录经完整性校验后一次性导入)",
+    "MIGRATED_AUDIT_FAIL":
+        "历史抽查未通过(记录经完整性校验后一次性导入),已停用",
+    "BUILD_FAILED": "构建失败",
+    "LEGACY_SERVER_MUST_BE_DETACHED":
+        "旧版 AI 接入文件已失效:请先从你的 AI 助手里移除它,再重新生成",
+}
+
+
+def reason_label(code: str) -> str:
+    return REASON_CODE_LABELS.get(str(code), str(code))

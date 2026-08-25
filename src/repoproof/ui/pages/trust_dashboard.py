@@ -28,9 +28,9 @@ for projection_error in snapshot["projection_errors"]:
         "运营投影已 fail closed。"
     )
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("ACTIVE", ops.get("ACTIVE", 0), help="通过 fresh-input 审核，可继续使用和暴露 MCP")
-c2.metric("待审核", ops.get("REVIEW_REQUIRED", 0), help="历史验证不等于当前运营批准")
-c3.metric("已撤回", ops.get("REVOKED", 0), help="保留历史证据，但停止继续暴露")
+c1.metric("可使用", ops.get("ACTIVE", 0), help="已通过新输入抽查（用从未见过的输入实测），可以使用、可以接入 AI 助手")
+c2.metric("待抽查", ops.get("REVIEW_REQUIRED", 0), help="构建与验证已通过，还差一次「新输入抽查」才能上架")
+c3.metric("已停用", ops.get("REVOKED", 0), help="今后不能使用；历史成绩与证据永远保留")
 c4.metric("历史验证", snapshot["historically_verified"], help="当时冻结合同下的不可改写事实")
 
 st.write("")
@@ -67,18 +67,21 @@ with left:
         horizontal=True,
     )
 with right:
-    st.markdown("#### 当前状态原因码")
+    st.markdown("#### 当前状态原因")
     if reason_codes:
+        from repoproof.ui.services.product_mode import reason_label
+
         st.dataframe(
             [
-                {"reason_code": code, "工具数": count}
+                {"原因": reason_label(code), "工具数": count,
+                 "原因码": code}
                 for code, count in reason_codes.items()
             ],
             hide_index=True,
             use_container_width=True,
         )
     else:
-        st.info("当前没有可投影的运营原因码。")
+        st.info("当前没有可投影的状态原因。")
 
 st.markdown("#### 漏斗事实")
 st.bar_chart(
