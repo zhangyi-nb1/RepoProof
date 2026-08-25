@@ -1,5 +1,18 @@
 """宿主级 GUIDED 运行驱动(TESTPLAN-V2 Phase 1,T1+ 形态;RFC-009 §六)。
 
+═══════════════════════════════════════════════════════════════════════
+FROZEN — Benchmark Lab 执行引擎(2026-08-25 宣布,详见 docs/PROJECT_MAP.md)
+
+本文件 3900+ 行、承载 T1-T3/HB/DSH/A1 全部研究线的驱动历史,**功能面
+冻结**:不再新增运行模式、计量臂或研究面参数。它没有退役 —— 产品线
+AGENT_ADAPT/DIRECT_WRAP 的彩排与真发仍由 tool_pipeline 调用本文件执行,
+其验证链(oracle 会话外持有/回归基线/policy/clean replay/完整性对账)
+就是产品的判定来源。因此:
+  - 判定、安全、证据纪律的缺陷照常修(如 2026-08-25 完整性进闸);
+  - 产品侧新逻辑一律写在 tool_pipeline / adoption 层,不进本文件;
+  - 不做拆分重构 —— 冻结宣言比拆 4000 行便宜且不引入回归风险。
+═══════════════════════════════════════════════════════════════════════
+
 样例管线(guided_repair.py,Docker+adaptation 区)不动;本模块是宿主级
 形态的对应物:agent 直接在**宿主快照树内**工作(editable_zones=host),
 执行后端 = LocalWorktreeBackend(模式 L),快照/回滚 = 会话内 git。
@@ -1241,7 +1254,9 @@ def integrity_scope(project_root: Path) -> list[str]:
     from repoproof.harness.host_guard import protected_dirs
 
     self_norm = _os.path.realpath(str(project_root)).lower().rstrip("/")
-    return [d for d in protected_dirs() if d != self_norm]
+    # 比较用 lower(与 host_guard._norm 同律);列表元素保留真实大小写,
+    # 快照/指纹要拿它们访问大小写敏感的文件系统。
+    return [d for d in protected_dirs() if d.lower() != self_norm]
 
 
 def _read_substitutes(host_copy: Path) -> dict[str, str]:

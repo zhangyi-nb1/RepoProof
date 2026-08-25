@@ -1,4 +1,6 @@
-"""Direct-adoption baseline runner — a DETERMINISTIC scripted sequence.
+"""[FROZEN · Benchmark Lab 历史资产,2026-08-25;见 docs/PROJECT_MAP.md]
+
+Direct-adoption baseline runner — a DETERMINISTIC scripted sequence.
 
 Explicitly NOT an agent (design P9): no model call, no planning, no
 autonomous loop. It exists to prove the external evidence chain works

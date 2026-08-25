@@ -1,4 +1,6 @@
-"""Gate 3C — the one real agent baseline run.
+"""[FROZEN · Benchmark Lab 历史资产,2026-08-25;见 docs/PROJECT_MAP.md]
+
+Gate 3C — the one real agent baseline run.
 
 Order of operations (frozen):
   ProviderAdmissionGate (60s, BEFORE any agent container)

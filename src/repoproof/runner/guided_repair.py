@@ -1,4 +1,6 @@
-"""GUIDED_ADOPTION 有界多轮修复(RFC-008 §11,Gate D)。
+"""[FROZEN · Benchmark Lab 历史资产,2026-08-25;见 docs/PROJECT_MAP.md]
+
+GUIDED_ADOPTION 有界多轮修复(RFC-008 §11,Gate D)。
 
 与 Benchmark 模式(agent-run,单次不变)分离的产品模式:
 ≤3 轮,每轮 = 同一 DefaultAgent 类的一次顺序调用(仍是全系统唯一
