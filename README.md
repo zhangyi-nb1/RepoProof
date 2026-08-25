@@ -17,13 +17,20 @@ GitHub repository + capability goal
               ↓
 static analysis and four-state admission
               ↓
+CapabilityPlanV1 (RFC-013): surface evidence, support status, and a
+deterministic route — DIRECT_WRAP or AGENT_ADAPT. The analyzer detects
+surfaces only; whether the located callable matches the user's intent is
+confirmed by the user, and only a confirmed SUPPORTED plan may execute.
+              ↓
 LLM-assisted DRAFT (never a frozen contract)
               ↓
 human review of semantics and golden examples
               ↓
 frozen Tool Contract
               ↓
-one coding-agent loop
+DIRECT_WRAP: trusted-template assembly, zero agent actions, must pass
+with a zero diff — or AGENT_ADAPT: one bounded coding-agent repair loop
+(failed rounds roll back; every failure maps to FailureAssessmentV1)
               ↓
 independent capability / interface / policy verification
               ↓

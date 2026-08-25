@@ -1,16 +1,23 @@
 # RepoProof — ChatGPT Web 项目交接快照
 
-> **状态勘误(2026-08-25,Gate 0 事实收口)**:本文正文是 2026-08-24 的
-> 历史快照,其中「M6 未合并」「M7 未推送」已过时。当前事实锚:
-> M6 已 no-ff 合入并推送 `main @ 812bb7b`(项目方三固定案例预览通过,
-> P0=0、P1×5 全修复;仍差 2 名目标用户理解测试);M7 分支已推送至
-> `codex/m7-managed-sidecar-tools @ 7ac1a09`,强 U1–U4 回执已落地,
-> 但 v3 全链 E2E、OS 级隔离、导出包 clean replay、授权真实仓未关闭,
-> 状态仍为 EXPERIMENTAL / REVIEW_REQUIRED。下一阶段以
-> `docs/VERIFIED_TOOL_ONBOARDING_NEXT_STAGE_GUIDE.md` 为准
-> (Verified Tool Onboarding Harness:Capability Plan + 确定性路由 +
-> 有界修复控制器 + DIRECT_WRAP)。对外表述禁用「任意 GitHub 仓库自动
-> 成功」,统一为「受支持范围内的内部 alpha」。
+> **状态勘误(第 2 版,2026-08-25 晚,外部审计后)**:本文正文是
+> 2026-08-24 的历史快照,其中「M6 未合并」「M7 未推送」「差 2 名目标
+> 用户测试」均已过时。当前事实锚:
+> **M6 已关门**(项目方预览 + 两名目标用户三案例理解测试完成,P0=0,
+> P1 计 7 条全修复并复验;用户测试为项目方自报,原始记录归档位
+> `docs/evidence/m6_user_tests/` 待投入——在此之前只可说「项目方报告
+> 完成」,不可说「仓库内证据可独立审计」)。
+> **新主链已落地并全部关门(Gate 0–4)**:analyzer →
+> CapabilityPlanV1(RFC-013,证据化支持状态+确定性路由+用户确认)→
+> DIRECT_WRAP(受信模板,零 agent 动作,零 diff 过门)/ AGENT_ADAPT
+> (有界修复循环)→ 同一独立验证链 → FailureAssessmentV1 九码。
+> **REPAIR-VALIDATION-1 已按预注册收官**:默认模型池换代为
+> gpt-5.6-terra(默认)/ gpt-5.6-luna(对比),terra 双首过均 90.5K in;
+> luna 的 rounds=2 修复轨迹后因主仓完整性未归因降级,不再称「干净
+> 样本」(台账勘误在案)。M7 强 U1–U4 回执已落地,OS 级隔离长期后置,
+> 状态 EXPERIMENTAL / REVIEW_REQUIRED。对外表述禁用「任意 GitHub 仓库
+> 自动成功」与「自动理解意图」,统一为「受支持范围内的内部 alpha;
+> 候选入口由用户确认」。
 
 > 快照日期：2026-08-24（Asia/Shanghai）
 > 用途：上传到 ChatGPT 网页端项目，帮助一个无法直接读取本机仓库的 GPT

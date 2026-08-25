@@ -1,6 +1,11 @@
 # RepoProof Studio · Product Mode UI
 
-- 状态：**M6 integration candidate**；尚未并入 `main`，人类预览验收未完成
+- 状态：**M6 已关门(2026-08-25)**——已并入 `main`;项目方三固定案例
+  预览 + 两名目标用户理解测试完成(P0=0,P1 计 7 条全部修复并复验;
+  用户测试原始记录归档位 `docs/evidence/m6_user_tests/` 待投入,详见
+  该目录 README)。Gate 4 后 Studio 新增能力计划人读卡(RFC-013:
+  支持状态/执行路线/理由码/表面证据,并明示「候选入口由用户确认,
+  系统不做意图理解」)与 repair 逐轮时间线。
 
 RepoProof Studio 把 RFC-010 的 `Find → Describe → Confirm → Wait → Use`
 旅程映射为本地 Streamlit 工作台。UI 是控制面和展示面，不重新实现

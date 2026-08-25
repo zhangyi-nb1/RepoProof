@@ -3,13 +3,18 @@
 > Purpose: the single in-repo status anchor for AI/human handoff.
 > Update ONLY at gate boundaries; history below is append-only.
 
-## Current status (2026-08-24, M0–M5 closed + M6 merged to main; project-owner preview passed)
+## Current status (2026-08-25, M0–M6 closed; Verified Tool Onboarding harness Gate 0–4 closed)
 
 **RepoProof 的主产品线已从任意 Repository Adaptation 收敛为
 GitHub Capability → Verified Local Tool。RFC-010 的章程、首个工具闭环、
 半自动 intake、单命令旅程、两批真实仓指标均已落地；RFC-011 又补齐
-输出合同一致性与 append-only 运营发布状态。M6 已把 Studio 接到同一 Core
-事实源，但人工 Preview Validated 门尚未关闭。**
+输出合同一致性与 append-only 运营发布状态。M6(Studio 接同一 Core
+事实源 + 人工 Preview Validated)已于 2026-08-25 关门。当前主链 =
+`docs/VERIFIED_TOOL_ONBOARDING_NEXT_STAGE_GUIDE.md` 的 Verified Tool
+Onboarding Harness:analyzer → CapabilityPlanV1(RFC-013,确定性路由
++用户确认)→ DIRECT_WRAP / AGENT_ADAPT 双路线同一验证链 →
+FailureAssessmentV1 九码;REPAIR-VALIDATION-1(terra/luna)已按预注册
+收官。**
 
 | Anchor | Value |
 |---|---|
@@ -22,11 +27,11 @@ GitHub Capability → Verified Local Tool。RFC-010 的章程、首个工具闭�
 | False success | `tool-pyspellchecker-tool-v1`:冻结声明 JSON、reference/example/oracle 却验纯文本；运营 READY 已撤回，冻结史和真跑均未改写/重跑 |
 | M5 输出合同 | 新 draft=ToolSpec v2；T6–T9 + actual stdout runtime parsing；37 份旧冻结合同原样加载 |
 | M5 发布状态 | 本机 release ledger 22 条迁移决定：21 ACTIVE / 1 REVOKED；另 2 个早期 dogfood 无 fresh audit，保持 REVIEW_REQUIRED |
-| M5 本地提交锚点 | `034bdf1`；本地 `main` 已关闭 M5，未推送 |
+| M5 本地提交锚点 | `034bdf1`；M5 关闭,后续随 M6/新阶段一并推送 origin |
 | MCP 执法 | 仅历史 READY + 当前 ACTIVE 可生成；M5 adapter 每次 list/call 复核 ledger；pre-M5 非 ACTIVE adapter 明示 `LEGACY_SERVER_MUST_BE_DETACHED` |
-| M6 整合锚点 | 工程实现 `d7c1278`；`3818ccb` no-ff 保留 UI 历史；**2026-08-24 项目方三固定案例预览通过(P0=0,P1=5 全修复)后已 no-ff 合回 `main` 并推送 origin**；2 名目标用户理解测试仍待补 |
+| M6 整合锚点 | 工程实现 `d7c1278`；`3818ccb` no-ff 保留 UI 历史；2026-08-24 项目方三固定案例预览通过(P0=0,P1=5 全修复)并合回 `main`；**2026-08-25 两名目标用户三案例理解测试完成(P0=0,P1+2 条已修复并经复验)——M6 关门**。目标用户测试为项目方自报,原始记录表归档位 `docs/evidence/m6_user_tests/` 尚待投入(见该目录 README);在归档落位前,只可声明「项目方报告测试完成」,不可声明「仓库内证据可独立审计」 |
 | M6 可信整合 | Core-only registry 投影；historical/operational/package health 三栏；ProductJobStateV2；Studio/Lab 共享 Core 写锁；Product/Lab 原生分账 |
-| 当前质量基线 | M5=`1324 passed + 60 skipped`；M6 纯提交隔离工作树全量 pytest 退出 0（1455 collected），改动面 Ruff 通过 |
+| 当前质量基线 | 全量 `1439 passed + 60 skipped + 0 failed`(2026-08-25 外部审计修复批后;含执行闸/完整性闸/源绑定新负控 7 枚),改动面 Ruff 通过 |
 | 后端资格 | Product Mode 缺省 mini-swe；DSH 旗标保留但工具谱系未资格化 |
 | M7 分支现状 | `codex/m7-managed-sidecar-tools @ 7ac1a09` 已推送；强 U1–U4 回执已落地(取证会话+攻击矩阵自证);仍缺 v3 全链 E2E、OS 级隔离、导出包 replay、授权真仓 —— EXPERIMENTAL,功能面冻结 |
 | 下一阶段基准 | `docs/VERIFIED_TOOL_ONBOARDING_NEXT_STAGE_GUIDE.md`(2026-08-25):Verified Tool Onboarding Harness;Gate 0 事实收口 → Gate 1 CapabilityPlanV1+确定性路由 → Gate 2 有界修复控制器产品化 → Gate 3 DIRECT_WRAP → Gate 4 Studio 收口 |

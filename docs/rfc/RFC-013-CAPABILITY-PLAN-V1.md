@@ -72,7 +72,18 @@ plan_sha256: <除本字段外全文 canonical json 的 SHA-256>
 - 同一 commit + 同一意图,重复生成 plan 逐字节一致(surfaces 排序键 =
   (kind, locator);canonical json);
 - `UNSUPPORTED` / `REVIEW_REQUIRED` 路径模型调用数恒为 0;
+- **analyzer 是表面检测器,不是意图匹配器**(2026-08-25 外部审计,
+  easter 实例钉死):它只依据导出名单、签名、文件位置等表面特征给出
+  候选 callable 与置信档,**不判断候选是否符合 `capability_goal` 的
+  语义意图**。候选与意图相符这一判断,唯一的把关点是用户确认
+  callable locator(human_confirmations 首项)。产品文案不得宣传
+  「自动理解需求/意图」;UI 计划卡必须提示用户核对定位;
 - confirm 是唯一把 `confirmed` 翻 true 的入口,重算 plan_sha256;
+- `assert_may_execute` 在执行点**重查全部语义前提**(confirmed、
+  SUPPORTED、可执行路线、非空确认清单、sha 一致),不信任上游状态
+  ——手工构造 `UNSUPPORTED+confirmed=true` 并重封 sha 不能放行;
+  `assert_plan_matches_source` 再把 plan 绑到 draft 的上游 url+commit,
+  拿别的仓/别的版本的计划冒充即拒(2026-08-25 外部审计 P0 修复);
 - DIRECT_WRAP 失败不得自动切换 AGENT_ADAPT(owner 归 HARNESS/CONTRACT/
   UPSTREAM);换路线必须重新生成并确认计划(指导 §6 Gate 2.6)。
 

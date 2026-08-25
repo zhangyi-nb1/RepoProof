@@ -3660,3 +3660,47 @@ REASON_CODE_LABELS(10 码全中文,USER_WITHDRAWAL 明示不可普通恢复);
 指导 Gate 0 的 M6 收尾项就此清账。当前开放项仅剩:两新工具
 (jsonschema-report / rrule-expand)fresh 抽查转可使用、真实模型演示
 与新真仓授权、M7 的 OS 隔离(长期后置)。
+
+## 状态 · 2026-08-25 · 外部审计 P0×2+P1×2 修复批
+
+外部审计四条全部处置完毕(修复模式,零模型零真发):
+
+**P0-1 执行闸可被伪造绕过 → 已修**。旧 `assert_may_execute` 只查
+confirmed+sha:手工构造 `UNSUPPORTED+confirmed=true` 再重封 SHA 即
+放行——sha 防「确认后被改」,防不了「从未合法确认过」。现闸在执行点
+重查全部语义前提(confirmed/SUPPORTED/可执行路线/非空确认清单/sha),
+另增 `assert_plan_matches_source` 把 plan 绑到 draft 上游 url+commit
+(tool_pipeline 路由段接线),别仓别版本的计划冒充即拒。负控三枚入
+test_capability_plan(伪造重封/空确认清单/错源)。
+
+**P0-2 完整性不进判定 → 已修**。`main_dir_integrity` 原在 completion
+gate 之后计算、只落 report——实证:tool-jsonschema-report-v2-
+20260825-154405 报 PASS_ADAPTED/REPAIR_SUCCEEDED,而 report 里
+ok=false/self_ok=false(OfferClaw 文档 SELF_NO_WINDOW 改动)。现:
+run() 记墙钟起点,verify_protected_unchanged 传 SelfWriteWindow;
+新纯函数 `apply_integrity_to_verdict` 在 run.end/report/台账装配前
+生效——self_ok=false → BLOCKED/MAIN_DIR_INTEGRITY_UNATTRIBUTED;
+全归因外部也 BLOCKED/…_EXTERNAL_ONLY(host_guard 冻结边界:agent run
+走严判 ok,窗口归因只作证据,孙进程可伪装窗外写)。原判定保
+verdict_before_integrity,trace 加 gate.integrity_override 事件。
+单测三形态入 test_host_guided。**存量降级**:run_classifications
+追加勘误覆盖行,撤回该发「首条干净非平凡 repair 轨迹」称谓
+(repair 行为学价值保留,干净正样本资格撤销,待复样)。
+
+**P1-1 analyzer=表面检测器非意图匹配器**(easter 实例):Studio 计划
+卡加醒目提示「系统只看表面特征,候选与意图相符由你确认把关」;
+RFC-013 §4 可信边界补此条+执行闸重查条款。**P1-2 文档一致性**:
+HANDOFF_STATE 三处矛盾行统一(M6 已关门口径+新主链);CHATGPT_WEB_
+HANDOFF 勘误块换第 2 版;README 工作流图补 CapabilityPlan/双路线/
+FailureAssessment;REPOPROOF_STUDIO_PRODUCT_MODE 状态行更新;建
+`docs/evidence/m6_user_tests/` 诚实占位——归档落位前只可说「项目方
+报告完成」,不可说「仓库内证据可独立审计」(两份记录表待项目方投入)。
+
+修复批连带发现两处(都是新闸咬出来的):①test_direct_wrap 的手搓
+plan 用假 commit("x"*40)+空确认清单——恰是审计说的「产线上不存在
+的形状」,新闸当场拒;fixture 改用真 head+默认确认三项,并把
+`confirm_plan` 一并加固(空 human_confirmations 不具备被确认资格,
+确认闸/执行闸双层同律)。管道层负控补一枚:异源自洽计划塞进 draft
+束必须死在路由段。②token 执法的累加点行号钉随 host_guided 导入区
++1 位移,照律翻新。收尾:全量 **1439 passed + 60 skipped + 0 failed**
+(旧基线 1432+新负控 7 枚账合),触达文件 ruff/compile 全绿。
