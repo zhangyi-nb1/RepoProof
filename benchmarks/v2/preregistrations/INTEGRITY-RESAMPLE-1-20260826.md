@@ -130,3 +130,23 @@ mismatch 一律是 `offerclaw[tree|git_refs]` —— 邻仓活写手(实测每
 ## 八、勘误/执行记录(append-only)
 
 (待执行后填写)
+**勘误 1(2026-08-26,开跑前,零发次已跑)**:§二/§三 的 run_order 规划
+写少了。核对历史口径发现**彩排发同样占 run_order 号**(实证:
+`tool-jieba-tool-v1` 彩排=product-57、真发=product-58;opencc 两次彩排
+各占 59/60,真发 61)。因此本批 8 彩排 + 8 真发共需 **16 个号:
+product-85..100**,按"同任务彩排在前、真发紧随"成对分配:
+
+| 任务(执行序) | 彩排 | 真发 |
+|---|---|---|
+| phonenumbers | product-85 | product-86 |
+| opencc | product-87 | product-88 |
+| filetype | product-89 | product-90 |
+| jieba | product-91 | product-92 |
+| xmltodict | product-93 | product-94 |
+| pypinyin | product-95 | product-96 |
+| inflect | product-97 | product-98 |
+| emoji | product-99 | product-100 |
+
+彩排若需重跑(P3 判定环境脏),重跑发另占新号并如实记,不复用。
+另注:台账行的 `run_order` 字段本就写 `UNKNOWN`,编号只活在
+`run_classifications.jsonl` 旁挂里,由收批时统一分配(与批次二同法)。
