@@ -70,8 +70,29 @@ def build() -> dict:
                       if r.get("main_dir_integrity") == "MISMATCH")
 
     product_mismatch = _mismatch(product)
+    mismatch_pass_rows = [r for r in product
+                          if r.get("main_dir_integrity") == "MISMATCH"
+                          and str(r.get("verdict", "")).startswith("PASS")]
     product_mismatch_but_pass = _mismatch(
         [r for r in product if str(r.get("verdict", "")).startswith("PASS")])
+
+    # 干净复样(INTEGRITY-RESAMPLE-1,2026-08-26):同一冻结 task_id 的真模型
+    # 发次拿到 integrity=ok + PASS。**按 task_id 结构性推导,不硬编码映射**
+    # —— 硬编码的映射表下次加发就过期,而过期的事实源比没有更坏。
+    #
+    # 复样能证明的:这道冻结题 + 钉版上游在完整性闸下确实能干净通过。
+    # 复样**不能**证明:当初那一发是干净的。原发的 MISMATCH 与限定句义务
+    # 原样保留(见各发 append-only 勘误行)。
+    resample: dict[str, str] = {}
+    for r in real:
+        if (r.get("batch") == "INTEGRITY-RESAMPLE-1"
+                and r.get("main_dir_integrity") == "ok"
+                and str(r.get("verdict", "")).startswith("PASS")):
+            resample.setdefault(str(r.get("task_id")), str(r.get("run_id")))
+    covered = sorted({str(r.get("run_id")) for r in mismatch_pass_rows
+                      if str(r.get("task_id")) in resample})
+    uncovered = sorted({str(r.get("run_id")) for r in mismatch_pass_rows
+                        if str(r.get("task_id")) not in resample})
 
     m4 = json.loads(M4_METRICS.read_text(encoding="utf-8")) if M4_METRICS.exists() else {}
 
@@ -107,6 +128,10 @@ def build() -> dict:
             # 记下的,按现行闸应为 BLOCKED。任何引用它们的成绩必须同时说明
             # 这一点;checker 钉死"数量不得在无勘误的情况下减少"。
             "product_runs_integrity_mismatch_but_pass": product_mismatch_but_pass,
+            # 干净复样覆盖情况(INTEGRITY-RESAMPLE-1)
+            "clean_resample_by_task": dict(sorted(resample.items())),
+            "mismatch_pass_runs_with_clean_resample": covered,
+            "mismatch_pass_runs_without_clean_resample": uncovered,
         },
         "batch_2": {
             "_note": (

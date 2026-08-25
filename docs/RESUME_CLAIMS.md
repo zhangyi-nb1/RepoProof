@@ -17,7 +17,7 @@
 **RepoProof — 把 GitHub 单个能力转成经独立验证的本地 AI Tool 的 Agent Harness(个人项目,Python)**
 
 - 设计并实现完整产品链路:静态分析 → CapabilityPlanV1(证据化 surface 检测 + 确定性路由 + 用户确认闸)→ 冻结 Tool Contract → DIRECT_WRAP(零模型受信模板)或 AGENT_ADAPT(有界修复循环)→ 四路独立验证 → 干净重放 → 导出 + append-only 运营发布状态 + MCP 暴露。两批预注册真实公开仓库跑完全链路,批次二 submitted 12 / accepted 11 / historical READY 10 / clean replay 10 / 运营可用 9 / false-success 1。
-  - 限定(必带):其中 8 个工具的**交付发次在现行完整性闸下应判 BLOCKED** —— 主仓完整性对账当时在 completion gate 之后才算、不参与判定;历史 verdict 一字不改,每发有 append-only 勘误行。工具功能证据不受影响(clean replay 与 fresh-input 抽查是独立证据线,均已通过)。
+  - 限定(必带):其中 8 个工具的**交付发次在现行完整性闸下应判 BLOCKED** —— 主仓完整性对账当时在 completion gate 之后才算、不参与判定;历史 verdict 一字不改,每发有 append-only 勘误行。工具功能证据不受影响(clean replay 与 fresh-input 抽查是独立证据线,均已通过)。**这 8 道冻结题已于 2026-08-26 按现行闸在静默窗内复样,8/8 PASS_ADAPTED + `integrity=ok`**(预注册 INTEGRITY-RESAMPLE-1,472,949 in);复样不追改原发 verdict、不替换工具包,只证明"这道题今天能干净过"。
   - 证据:`docs/product_summary.json`、`docs/m4_metrics.json`、`benchmarks/v2/`
 - **判定独立性是这个项目的核心**:completion gate 只读四个互不读 agent 自述的 verifier 结构化结果;held-out oracle 对 agent 零泄漏并由测试钉死;上游采用由密码学回执证明(HMAC 签名 + 运行时实际加载模块的 artifact hash + 输入 digest + 采纳谓词四重绑定,缺采纳谓词一律判不通过)。出题本身也要过准入:正控必须过、三类作弊控必须被抓住,否则任务不许冻结。
   - 证据:`src/repoproof/verification/`、`receipts/`、`controls/`(33 个任务的正负控矩阵)

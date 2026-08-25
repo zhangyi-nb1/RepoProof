@@ -150,3 +150,53 @@ product-85..100**,按"同任务彩排在前、真发紧随"成对分配:
 彩排若需重跑(P3 判定环境脏),重跑发另占新号并如实记,不复用。
 另注:台账行的 `run_order` 字段本就写 `UNKNOWN`,编号只活在
 `run_classifications.jsonl` 旁挂里,由收批时统一分配(与批次二同法)。
+
+---
+
+## 执行记录(2026-08-26,用户批准全 8 发)
+
+**结论:判据 A 满分 —— 8/8 干净复样。**
+
+| # | task | 彩排 | 真发 verdict | integrity | in | calls | rounds |
+|---|---|---|---|---|---:|---:|---:|
+| 1 | phonenumbers | PASS/ok | PASS_ADAPTED | **ok** | 41,046 | 8 | 1 |
+| 2 | opencc | PASS/ok | PASS_ADAPTED | **ok** | 56,785 | 9 | 1 |
+| 3 | filetype | PASS/ok | PASS_ADAPTED | **ok** | 44,057 | 8 | 1 |
+| 4 | jieba | PASS/ok | PASS_ADAPTED | **ok** | 40,571 | 7 | 1 |
+| 5 | xmltodict | PASS/ok | PASS_ADAPTED | **ok** | 86,175 | 12 | 1 |
+| 6 | pypinyin | PASS/ok | PASS_ADAPTED | **ok** | 27,080 | 6 | 1 |
+| 7 | inflect | PASS/ok | PASS_ADAPTED | **ok** | 99,404 | 12 | 1 |
+| 8 | emoji | PASS/ok | PASS_ADAPTED | **ok** | 77,831 | 16 | **2** |
+
+- **判据 A**:8/8(`integrity=ok` 且 `PASS_ADAPTED`)。
+- **判据 B**:零脏发,归因层未被触发,无停批事件。
+- **判据 C**:8/8 与原发 verdict 一致。唯一形态差异=emoji `rounds=2`
+  (原发 rounds=1),按 §五 C 记录不判失败。
+- **判据 D**:遵守,本批不产出任何模型能力/对比结论。
+
+**预算**:真发 **472,949 in / 30,737 out**,批帽 1,200,000 未触顶;
+比 §三 估算(~724K)**省 35%**。彩排 8 发零模型成本。
+P1 静默窗全程成立(开跑前三次 `find -newermt` 采样零写入;P3 彩排
+8/8 `integrity=ok` 二次确认);P2 执行期间 AI 侧零仓内写入。
+
+**勘误 2(执行中发现,零 token 损耗)**:首次开跑 8 发全部在秒级失败
+—— `provider env vars missing`。根因:`host-run` 不自动加载 `.env`,
+需按项目既有做法 `set -a; source .env; set +a`(见 `run_ui_live.sh`)。
+失败发生在任何模型调用之前,**零 token 消耗、零台账行**(闸序正确)。
+补做连通取证(`scripts/model_preflight.py`,terra 回显一致、
+`key_leak_in_trajectory: false`)后重跑成功。§二 的"入口"行应理解为
+**须先 source .env**;此条为执行说明,不改任何冻结轴。
+
+**收批落账**(按 §六 执行):16 条新发次分类行入账
+(product-85..100,彩排/真发成对);8 个原交付发次各追加一条勘误覆盖行
+注明同题干净复样 run_id;`product_summary.json` 新增
+`clean_resample_by_task` / `mismatch_pass_runs_with(out)_clean_resample`
+(**按 task_id 结构性推导,不硬编码映射**);README / PROJECT_MAP /
+CLAIMS_MATRIX(新增 C9b、C9c)/ HANDOFF_STATE / RESUME_CLAIMS /
+INTERVIEW_GUIDE 限定句同步升级,且**逐字保留** checker 匹配子串
+「交付发次在现行完整性闸下应判 BLOCKED」。
+
+**残留(如实挂账)**:19 发 MISMATCH-but-PASS 中仍有 4 发无干净复样 ——
+`jsonschema-report` 三发(该工具 REVIEW_REQUIRED,未 ACTIVE)与
+`pyspellchecker` 一发(REVOKED)。二者均非 ACTIVE,不在本批范围内;
+若日后要清,须另立预注册。

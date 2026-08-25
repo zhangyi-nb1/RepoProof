@@ -100,6 +100,14 @@ completion gate 之后、不参与判定,清点存量发现 19 发 PRODUCT 记 P
 一字不改,逐发有 append-only 勘误行;checker 把这句限定机器钉死。
 工具功能证据不受影响:干净重放与 fresh-input 抽查是独立证据线,均已通过。
 
+**已复样(2026-08-26,INTEGRITY-RESAMPLE-1)**:8 道冻结题在静默窗内按现行闸
+重跑,**8/8 PASS_ADAPTED + `integrity=ok`**(472,949 in)。复样证明的是
+"这道冻结题 + 钉版上游今天确实能干净通过";它**不**追改原发 verdict,也
+**不**替换任何工具包 / registry / 发布决定。19 发中 15 发所属任务已有干净
+复样,剩 4 发属 `jsonschema-report`(REVIEW_REQUIRED)与 `pyspellchecker`
+(REVOKED)—— 均非 ACTIVE。映射见 `product_summary.json`
+的 `ledger.clean_resample_by_task`。
+
 ## 证据在哪(全部 append-only)
 
 - `benchmarks/v2/runs.jsonl` —— 每一发真跑一行(FAIL/BLOCKED 也记)

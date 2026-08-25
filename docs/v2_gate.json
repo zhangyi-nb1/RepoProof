@@ -14,8 +14,8 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 140,
-    "assisted_repair_runs": 146,
+    "all_valid_run_outcomes": 156,
+    "assisted_repair_runs": 162,
     "development_baseline_runs": 68,
     "exploratory": 35,
     "exploratory_passes": 26,
@@ -112,8 +112,8 @@
       }
     ],
     "provisional_evidence_runs": 4,
-    "smoke": 135,
-    "smoke_passes": 62,
+    "smoke": 143,
+    "smoke_passes": 70,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -249,9 +249,17 @@
       "tool-emoji-tool-v1-20260823-224510",
       "tool-jsonschema-report-v1-20260825-145621",
       "tool-jsonschema-report-v2-20260825-150443",
-      "tool-rrule-expand-v1-20260825-151400"
+      "tool-rrule-expand-v1-20260825-151400",
+      "tool-phonenumbers-tool-v1-20260826-043618",
+      "tool-opencc-tool-v1-20260826-043711",
+      "tool-filetype-tool-v1-20260826-043736",
+      "tool-jieba-tool-v1-20260826-043756",
+      "tool-xmltodict-tool-v1-20260826-043828",
+      "tool-pypinyin-tool-v1-20260826-043851",
+      "tool-inflect-tool-v1-20260826-043916",
+      "tool-emoji-tool-v1-20260826-043953"
     ],
-    "total": 313,
+    "total": 329,
     "treatment_delivered_runs": 13,
     "treatment_not_delivered_runs": 4
   },
@@ -296,7 +304,7 @@
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "5bf3c26c2b19a11c94072cc703e9ee661f937448eec80e2153e9ff4f263100a4"
+    "runs_jsonl_sha256": "c229a58db7799a1434a403f54bed0dbda9abe578a0fdeca5e334db4bd0503e63"
   },
   "stages": {
     "T1": {

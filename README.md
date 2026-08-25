@@ -196,9 +196,22 @@ bound to exported tools and 8 of those are currently ACTIVE. 用这些数字时�
 时说明:其中 8 个工具的**交付发次在现行完整性闸下应判 BLOCKED**(当时完整性不
 参与判定,且未记归因)。历史 verdict 一字不改;每一发都有 append-only 勘误行
 (`benchmarks/v2/run_classifications.jsonl`),`scripts/check_public_claims.py`
-把这句限定机器钉死。What this does *not* touch: the tools' functional evidence.
-Clean replay and the fresh non-example audit are independent lines that never
-depended on the original run's host integrity, and both passed.
+把这句限定机器钉死。
+
+**Re-sampled on 2026-08-26 (INTEGRITY-RESAMPLE-1).** All eight frozen tasks were
+re-run under the current gate in a verified quiet window: **8/8 PASS_ADAPTED with
+`main_dir_integrity=ok`**, 472,949 input tokens. That proves the frozen task plus
+the pinned upstream *does* pass cleanly today; it does **not** retroactively make
+the original delivery run clean, and it deliberately did not replace any tool
+package, registry entry, or release decision. Every ACTIVE tool flagged above now
+has a clean re-sample; the two export-bound runs still without one belong to
+`jsonschema-report` (REVIEW_REQUIRED) and `pyspellchecker` (REVOKED) — neither is
+ACTIVE. See [product_summary.json](docs/product_summary.json)
+(`ledger.clean_resample_by_task`).
+
+What none of this touches: the tools' functional evidence. Clean replay and the
+fresh non-example audit are independent lines that never depended on the original
+run's host integrity, and both passed.
 
 The flagged `pyspellchecker` v1 result is deliberately preserved as historical
 evidence: its frozen statement declared JSON while its examples and oracle

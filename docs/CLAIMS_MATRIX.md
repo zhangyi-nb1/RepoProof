@@ -39,6 +39,8 @@ or misleading; never claim anywhere).
 | C7 | 系统抓到过自己的假成功:`pyspellchecker` v1 冻结题面声明 JSON,而 examples/oracle 验的是纯文本;运营资格被撤回,冻结合同与真跑一字未改;此后工程化为 ToolSpec v2 输出合同 + T6–T9 装配期检查 | `m4_metrics.json.false_success`、RFC-011、发布台账 REVOKED 行 | VERIFIED |
 | C8 | **主仓完整性存量限定**:完整性对账曾在 completion gate 之后才算、只落 report 不进判定;清点存量发现 19 发 PRODUCT PASS 的 `main_dir_integrity=MISMATCH`,10 发绑定已导出工具、8 个当前 ACTIVE —— 其中 8 个工具的交付发次在现行完整性闸下应判 BLOCKED | `product_summary.json.ledger.product_runs_integrity_mismatch_but_pass`(19 条)+ 每发的 append-only 勘误行 | VERIFIED(限定句,**引用 C6 时必须同时出现**) |
 | C9 | C8 不触及工具功能证据:clean replay 与 fresh non-example 抽查是独立证据线,不依赖原发主仓完整性,且均已通过 | `m4_metrics.json.per_task[].replay` + `m4_audits.jsonl` 22 条 | VERIFIED |
+| C9b | **干净复样已取得**:8 道受 C8 影响的冻结题在静默窗内按现行闸重跑,8/8 `PASS_ADAPTED` + `main_dir_integrity=ok`(472,949 in)。证明"这道冻结题 + 钉版上游今天能干净通过";**不**追改原发 verdict、**不**替换工具包/registry/发布决定。19 发中 15 发所属任务已覆盖,剩 4 发属 `jsonschema-report`(REVIEW_REQUIRED)与 `pyspellchecker`(REVOKED),均非 ACTIVE | 预注册 `benchmarks/v2/preregistrations/INTEGRITY-RESAMPLE-1-20260826.md` + `product_summary.json.ledger.clean_resample_by_task` | VERIFIED |
+| C9c | 复样批采用 `gpt-5.6-terra`,原发为 `gpt-5.5` —— **已知非受控变量**,本批不产出任何模型能力或模型对比结论 | 预注册 §五 D(发前冻结) | VERIFIED(措辞约束) |
 | C10 | 产品线共 84 发(44 真模型 + 40 fake 彩排),真模型 39 PASS_ADAPTED / 5 FAIL,覆盖 27 个不同任务 | `product_summary.json.ledger` | CASE_LEVEL_EVIDENCE |
 | C11 | 彩排是真发前的预算闸:fake 彩排不过就不烧真实模型预算 | `runner/tool_pipeline.py` 九步流水线第 8 步 | VERIFIED |
 | C12 | DIRECT_WRAP 快路径在确定性可解的任务上零模型调用完成并过同一条验证链 | `adoption/planning` + Gate 3 合成 minilib 全链 PASS_DIRECT + wrong-symbol 负控 | VERIFIED |

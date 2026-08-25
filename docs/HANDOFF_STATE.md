@@ -22,7 +22,8 @@ FailureAssessmentV1 九码;REPAIR-VALIDATION-1(terra/luna)已按预注册
 | M0–M3 | 全部关闭；CLI 主旅程=`tool add/build/list/audit/withdraw/mcp` |
 | M4 批次一 | 12 个真实仓均通过流水线、重放与运营审计；见 `docs/EXPLORATION_LOG.md` |
 | M4 批次二 | 12 submitted / 11 accepted / 10 历史流水线 READY / 9 运营可用 / 1 false-success。**引用这行数字必须同时带完整性限定句**(下一行) |
-| **完整性限定(2026-08-26)** | 主仓完整性对账曾排在 completion gate 之后、不参与判定(P0-2)。清点存量:**19 发 PRODUCT 记 PASS 而 `main_dir_integrity=MISMATCH`**,10 发绑定已导出工具、8 个当时 ACTIVE —— 即这 8 个工具的**交付发次在现行完整性闸下应判 BLOCKED**。用户 2026-08-26 裁决:**记事实 + 强制限定句,不撤回运营资格、不重跑**;历史 verdict 一字不改,19 发逐发有 append-only 勘误行,`check_public_claims.py` 机器钉死该限定句。工具功能证据不受影响(clean replay + fresh-input 抽查是独立证据线,均已通过) |
+| **完整性限定(2026-08-26)** | 主仓完整性对账曾排在 completion gate 之后、不参与判定(P0-2)。清点存量:**19 发 PRODUCT 记 PASS 而 `main_dir_integrity=MISMATCH`**,10 发绑定已导出工具、8 个当时 ACTIVE —— 即这 8 个工具的**交付发次在现行完整性闸下应判 BLOCKED**。裁决:记事实 + 强制限定句,不撤回运营资格;历史 verdict 一字不改,19 发逐发有 append-only 勘误行,`check_public_claims.py` 机器钉死该限定句。工具功能证据不受影响(clean replay + fresh-input 抽查是独立证据线,均已通过) |
+| **干净复样已取得(2026-08-26)** | 预注册 `INTEGRITY-RESAMPLE-1-20260826`:8 道冻结题原样重跑于确认静默窗,**8/8 `PASS_ADAPTED` + `main_dir_integrity=ok`**,472,949 in / 30,737 out(批帽 1.2M,估算 724K,实际省 35%);P3 彩排 8/8 也全 `integrity=ok`(零模型成本)。复样**不追改原发 verdict、不替换工具包/registry/release ledger**。19 发中 15 发所属任务已覆盖;剩 4 发属 `jsonschema-report`(REVIEW_REQUIRED)与 `pyspellchecker`(REVOKED),均非 ACTIVE。映射见 `product_summary.json.ledger.clean_resample_by_task`。**换模型(gpt-5.5→terra)属非受控变量,本批不产出模型对比结论** |
 | 批次二锚点 | `c5c958d` (`M4 批次二收官:9 个运营可用+1 false-success 撤回`) |
 | 对外事实源 | **两个,永不合并**:`docs/product_summary.json`(Product,`scripts/build_product_summary.py`)+ `docs/benchmark_summary.json`(Lab)。一致性由 `scripts/check_public_claims.py` 在 CI 强制;产品发次 `task_seen=true`,不进模型能力/held-out 分母 |
 | 批次二原始指标 | `docs/m4_metrics.json` + append-only audit/classification ledgers |
@@ -42,7 +43,8 @@ FailureAssessmentV1 九码;REPAIR-VALIDATION-1(terra/luna)已按预注册
 | 当前阶段门 | **M6 Preview Validated 已关闭(2026-08-25:项目方预览+2 名目标用户三案例测试完成,P0=0;P1 计 7 条全部修复并经用户复验)。M7 强 receipt 已落地/OS 隔离未关闭**;发布、第三批真仓或任何新真实模型发次仍需授权 |
 | 面试材料 | **2026-08-26 重写完毕**(此前停在 2026-08-07 Gate 8 口径):`CLAIMS_MATRIX`(两事实源 + C1–C21 + F1–F17)、`RESUME_CLAIMS`(三版本)、`INTERVIEW_GUIDE`;DEMO 两份不重写,加定位头指向 `scripts/demo_direct_wrap.py` |
 | 保护目录 | **结构性发现**(2026-08-26):本仓自身 + 兄弟 git 仓,不再硬编码个人路径;退化可观测 + 单测钉死"本仓自身必须在保护列表里"。追加仍走 `REPOPROOF_PROTECTED_DIRS` |
-| 挂账未做 | ① 8 个受完整性限定影响的工具在干净环境**复样重跑**(需真实预算与授权);② M6 两份用户测试原始记录表归档;③ 真实模型演示与第三批真仓授权;④ M7 OS 级隔离 |
+| 发次编号(更新) | product-* 现为 **1..100 连续无缺号、撞号 0**(INTEGRITY-RESAMPLE-1 占 85..100,彩排/真发成对) |
+| 挂账未做 | ~~① 8 个工具干净环境复样重跑~~ **已于 2026-08-26 完成(8/8 干净)**;② M6 两份用户测试原始记录表归档;③ 真实模型演示与第三批真仓授权;④ M7 OS 级隔离;⑤(新)`jsonschema-report` 交付发次仍无干净复样(该工具 REVIEW_REQUIRED,未 ACTIVE) |
 
 不变铁律：验证面无 LLM；held-out 对 agent 零泄漏；冻结合同与历史台账
 不可改写；FAIL 也留完整证据；没量到即判死；Product Mode 与 Benchmark
