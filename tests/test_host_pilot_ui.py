@@ -37,11 +37,11 @@ def test_pilot_state_counts_per_model_and_ignores_fake(tmp_path: Path) -> None:
     """v2:自由选择+重复;fake 不计数;per-model run_index 与全局序号正确。"""
     s0 = host_pilot_state(tmp_path)
     assert s0["next_global_order"] == 1
-    assert s0["by_model"] == {"deepseek-v4-pro": 0, "gpt-5.5": 0, "gpt-5.6": 0}
+    assert s0["by_model"] == {"gpt-5.6-terra": 0, "gpt-5.6-luna": 0, "deepseek-v4-pro": 0}
     _seed(tmp_path, ["fake-scripted", "fake-scripted"])
     assert host_pilot_state(tmp_path)["next_global_order"] == 1  # fake 不计
     # 同模型重复两发 + 另一模型一发
-    for i, m in enumerate(["deepseek-v4-pro", "deepseek-v4-pro", "gpt-5.6"]):
+    for i, m in enumerate(["deepseek-v4-pro", "deepseek-v4-pro", "gpt-5.6-terra"]):
         append_run(tmp_path, {
             "host_id": "zhangyi-nb1/offerclaw",
             "run_id": f"{HOST_PILOT['task_id']}-2026081{i}-111111",
@@ -50,8 +50,8 @@ def test_pilot_state_counts_per_model_and_ignores_fake(tmp_path: Path) -> None:
     s = host_pilot_state(tmp_path)
     assert s["next_global_order"] == 4
     assert s["by_model"]["deepseek-v4-pro"] == 2
-    assert s["by_model"]["gpt-5.6"] == 1
-    assert s["by_model"]["gpt-5.5"] == 0
+    assert s["by_model"]["gpt-5.6-terra"] == 1
+    assert s["by_model"]["gpt-5.6-luna"] == 0
     assert len(s["done"]) == 3
 
 
@@ -130,7 +130,7 @@ def test_t4_cannot_be_launched_from_ui(tmp_path: Path) -> None:
     """T4 是零模型调用的确定性专项,无方差可观察 → 两层都必须拒绝。"""
     with pytest.raises(ValueError, match="T4"):
         host_run_argv(tmp_path, run_order=1, task_key="T4")
-    out = start_host_run(tmp_path, model="gpt-5.6", run_order=1, task_key="T4")
+    out = start_host_run(tmp_path, model="gpt-5.6-terra", run_order=1, task_key="T4")
     assert out["ok"] is False and "T4" in out["error"]
 
 
@@ -153,13 +153,13 @@ def test_per_task_counts_are_independent(tmp_path: Path) -> None:
     """同一模型在 T1/T2 各自计数;全局序号跨任务单调(TESTPLAN §9)。"""
     for key in ("T1", "T2", "T2"):
         append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": f"{HOST_TASKS[key]['task_id']}-x{key}"
-                              f"-{next_run_index(tmp_path, key, 'gpt-5.6')}",
+                              f"-{next_run_index(tmp_path, key, 'gpt-5.6-terra')}",
                               "task_id": HOST_TASKS[key]["task_id"],
-                              "model": "gpt-5.6", "verdict": "FAIL"})
-    assert next_run_index(tmp_path, "T1", "gpt-5.6") == 2
-    assert next_run_index(tmp_path, "T2", "gpt-5.6") == 3
-    assert next_run_index(tmp_path, "T3", "gpt-5.6") == 1
-    assert next_run_index(tmp_path, "T1", "gpt-5.5") == 1
+                              "model": "gpt-5.6-terra", "verdict": "FAIL"})
+    assert next_run_index(tmp_path, "T1", "gpt-5.6-terra") == 2
+    assert next_run_index(tmp_path, "T2", "gpt-5.6-terra") == 3
+    assert next_run_index(tmp_path, "T3", "gpt-5.6-terra") == 1
+    assert next_run_index(tmp_path, "T1", "gpt-5.6-luna") == 1
     assert host_task_state(tmp_path, "T2")["next_global_order"] == 4  # 全局
 
 
@@ -169,15 +169,15 @@ def test_older_task_versions_are_disclosed_not_silently_dropped(tmp_path: Path) 
     append_run(tmp_path, {
         "host_id": "zhangyi-nb1/offerclaw",
         "run_id": "t3-old-1", "task_id": "t3-offerclaw-browser-use-v4",
-                          "model": "gpt-5.6", "verdict": "FAIL"})
+                          "model": "gpt-5.6-terra", "verdict": "FAIL"})
     append_run(tmp_path, {
         "host_id": "zhangyi-nb1/offerclaw",
         "run_id": "t3-old-2", "task_id": "t3-offerclaw-browser-use",
-                          "model": "gpt-5.5", "verdict": "FAIL"})
+                          "model": "gpt-5.6-luna", "verdict": "FAIL"})
     append_run(tmp_path, {
         "host_id": "zhangyi-nb1/offerclaw",
         "run_id": "t3-cur", "task_id": HOST_TASKS["T3"]["task_id"],
-                          "model": "gpt-5.6", "verdict": "PASS_ADAPTED"})
+                          "model": "gpt-5.6-terra", "verdict": "PASS_ADAPTED"})
     s = host_task_state(tmp_path, "T3")
     assert len(s["done"]) == 1, "面板只含当前冻结版"
     assert s["older_versions"] == {"t3-offerclaw-browser-use-v4": 1,
@@ -190,7 +190,7 @@ def test_variance_counts_effective_verdict_not_system(tmp_path: Path) -> None:
     tid = HOST_TASKS["T3"]["task_id"]
     for i, v in enumerate(["PASS_ADAPTED", "FAIL", "PASS_ADAPTED"]):
         append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": f"{tid}-2026081{i}-000000", "task_id": tid,
-                              "model": "gpt-5.6", "verdict": v,
+                              "model": "gpt-5.6-terra", "verdict": v,
                               "input_tokens": 100 + i * 50, "rounds_used": 1 + i})
     append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": f"{tid}-fake", "task_id": tid,
                           "model": "fake-scripted", "verdict": "PASS"})
@@ -201,7 +201,7 @@ def test_variance_counts_effective_verdict_not_system(tmp_path: Path) -> None:
         "basis": "钉死用", "evidence_refs": ["tests/test_host_pilot_ui.py"]})
 
     var = variance_summary(tmp_path, "T3")
-    assert [v["model"] for v in var] == ["gpt-5.6"], "fake 不进方差面板"
+    assert [v["model"] for v in var] == ["gpt-5.6-terra"], "fake 不进方差面板"
     v = var[0]
     assert v["n"] == 3 and v["enough_for_variance"] is True
     assert v["passes"] == 1, "系统判 2 个 PASS_ADAPTED,人工作废 1 个 → 有效 1"
@@ -211,8 +211,8 @@ def test_variance_counts_effective_verdict_not_system(tmp_path: Path) -> None:
                                   "mean": 150.0, "spread": 100}
     # n<3 必须自报不足以谈方差(项目纪律:n<3 不排名)
     append_run(tmp_path, {"host_id": "zhangyi-nb1/offerclaw", "run_id": f"{tid}-20260820-000000", "task_id": tid,
-                          "model": "gpt-5.5", "verdict": "FAIL"})
-    small = [x for x in variance_summary(tmp_path, "T3") if x["model"] == "gpt-5.5"][0]
+                          "model": "gpt-5.6-luna", "verdict": "FAIL"})
+    small = [x for x in variance_summary(tmp_path, "T3") if x["model"] == "gpt-5.6-luna"][0]
     assert small["n"] == 1 and small["enough_for_variance"] is False
 
 

@@ -37,7 +37,12 @@ _RE_SECRET = re.compile(
 _RE_TOP_DEF = re.compile(r"^(?:def|class)\s+([A-Za-z_]\w*)", re.MULTILINE)
 _RE_ALL = re.compile(r"__all__\s*=\s*[\[(]([^\])]*)[\])]", re.DOTALL)
 _LICENSE_KEYWORDS = [
-    ("MIT", "MIT License"), ("Apache-2.0", "Apache License"), ("BSD", "BSD"),
+    ("MIT", "MIT License"),
+    # 无标题正文形态(COPYING 惯例常见,jsonschema 实测):直接版权行 +
+    # 特征句 —— 这两句是 MIT/BSD 的专属措辞,识别度高于标题行。
+    ("MIT", "Permission is hereby granted, free of charge"),
+    ("Apache-2.0", "Apache License"), ("BSD", "BSD"),
+    ("BSD", "Redistribution and use in source and binary forms"),
     ("GPL-3.0", "GNU GENERAL PUBLIC LICENSE"), ("MPL-2.0", "Mozilla Public License"),
     ("Unlicense", "unlicense"),
 ]

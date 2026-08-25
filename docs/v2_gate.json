@@ -2,7 +2,7 @@
   "_denominators": {
     "all_valid_run_outcomes": "全部有效发次里的 PASS 数(含机制消融)",
     "development_baseline_runs": "开发套件上的常规发次(**全台账口径**,不限阶段;新前缀的发次也会进这个数)",
-    "heldout_model_evaluation_runs": "未见任务能力评测(已扣除冒烟/探索/无效/机制四类);台账里的宿主:['local-tool/chardet-tool', 'local-tool/emoji-tool', 'local-tool/feedparser-tool', 'local-tool/filetype-tool', 'local-tool/ftfy-tool', 'local-tool/html2md', 'local-tool/humanize-tool', 'local-tool/inflect-tool', 'local-tool/jieba-tool', 'local-tool/json5-tool', 'local-tool/markdown-tool', 'local-tool/num2words-tool', 'local-tool/opencc-tool', 'local-tool/pdf-table', 'local-tool/phonenumbers-tool', 'local-tool/pygments-tool', 'local-tool/pypinyin-tool', 'local-tool/pyspellchecker-tool', 'local-tool/python-dateutil-tool', 'local-tool/python-slugify', 'local-tool/python-slugify-tool', 'local-tool/pyyaml-tool', 'local-tool/tabulate-tool', 'local-tool/tomli-tool', 'local-tool/unidecode-tool', 'local-tool/xmltodict-tool', 'pallets/click', 'tobymao/sqlglot', 'zhangyi-nb1/offerclaw']",
+    "heldout_model_evaluation_runs": "未见任务能力评测(已扣除冒烟/探索/无效/机制四类);台账里的宿主:['local-tool/chardet-tool', 'local-tool/emoji-tool', 'local-tool/feedparser-tool', 'local-tool/filetype-tool', 'local-tool/ftfy-tool', 'local-tool/html2md', 'local-tool/humanize-tool', 'local-tool/inflect-tool', 'local-tool/jieba-tool', 'local-tool/json5-tool', 'local-tool/jsonschema-report', 'local-tool/markdown-tool', 'local-tool/num2words-tool', 'local-tool/opencc-tool', 'local-tool/pdf-table', 'local-tool/phonenumbers-tool', 'local-tool/pygments-tool', 'local-tool/pypinyin-tool', 'local-tool/pyspellchecker-tool', 'local-tool/python-dateutil-tool', 'local-tool/python-slugify', 'local-tool/python-slugify-tool', 'local-tool/pyyaml-tool', 'local-tool/rrule-expand', 'local-tool/tabulate-tool', 'local-tool/tomli-tool', 'local-tool/unidecode-tool', 'local-tool/xmltodict-tool', 'pallets/click', 'tobymao/sqlglot', 'zhangyi-nb1/offerclaw']",
     "heldout_passes": "held-out 里的通过数 —— 其余三类都有分子,只给分母会让人自己配一个",
     "mechanism_ablation_runs": "E1/AR 机制与判据实验 —— 不计能力",
     "observation_policy_qualification_runs": "WV:观测策略(投影旋钮)在线资格审 —— **不充闸门、不计模型能力**",
@@ -14,11 +14,11 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 133,
-    "assisted_repair_runs": 137,
+    "all_valid_run_outcomes": 140,
+    "assisted_repair_runs": 146,
     "development_baseline_runs": 68,
-    "exploratory": 33,
-    "exploratory_passes": 24,
+    "exploratory": 35,
+    "exploratory_passes": 26,
     "exploratory_run_ids": [
       "t3-offerclaw-browser-use-v5-20260812-024353",
       "t3-offerclaw-browser-use-v5-20260812-024503",
@@ -52,7 +52,9 @@
       "tool-phonenumbers-tool-v1-20260823-223351",
       "tool-filetype-tool-v1-20260823-223602",
       "tool-pyspellchecker-tool-v1-20260823-224033",
-      "tool-emoji-tool-v1-20260823-224532"
+      "tool-emoji-tool-v1-20260823-224532",
+      "tool-jsonschema-report-v2-20260825-150510",
+      "tool-rrule-expand-v1-20260825-151425"
     ],
     "heldout_model_evaluation_runs": 8,
     "heldout_passes": 2,
@@ -110,8 +112,8 @@
       }
     ],
     "provisional_evidence_runs": 4,
-    "smoke": 132,
-    "smoke_passes": 59,
+    "smoke": 135,
+    "smoke_passes": 62,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -244,9 +246,12 @@
       "tool-filetype-tool-v1-20260823-223540",
       "tool-pyspellchecker-tool-v1-20260823-223809",
       "tool-pyspellchecker-tool-v1-20260823-224008",
-      "tool-emoji-tool-v1-20260823-224510"
+      "tool-emoji-tool-v1-20260823-224510",
+      "tool-jsonschema-report-v1-20260825-145621",
+      "tool-jsonschema-report-v2-20260825-150443",
+      "tool-rrule-expand-v1-20260825-151400"
     ],
-    "total": 304,
+    "total": 313,
     "treatment_delivered_runs": 13,
     "treatment_not_delivered_runs": 4
   },
@@ -267,6 +272,7 @@
     "local-tool/inflect-tool",
     "local-tool/jieba-tool",
     "local-tool/json5-tool",
+    "local-tool/jsonschema-report",
     "local-tool/markdown-tool",
     "local-tool/num2words-tool",
     "local-tool/opencc-tool",
@@ -279,6 +285,7 @@
     "local-tool/python-slugify",
     "local-tool/python-slugify-tool",
     "local-tool/pyyaml-tool",
+    "local-tool/rrule-expand",
     "local-tool/tabulate-tool",
     "local-tool/tomli-tool",
     "local-tool/unidecode-tool",
@@ -289,7 +296,7 @@
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "56b0e3ee85d44bf86ec963f1861ef01c1dfe5724611011097e070008f0124e46"
+    "runs_jsonl_sha256": "5bf3c26c2b19a11c94072cc703e9ee661f937448eec80e2153e9ff4f263100a4"
   },
   "stages": {
     "T1": {

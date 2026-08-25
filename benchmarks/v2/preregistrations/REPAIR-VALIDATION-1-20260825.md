@@ -76,3 +76,29 @@ INTERVAL 语义、时区裸时间一致性。
 ## 七、勘误区(append-only)
 
 (空)
+
+## 八、勘误/执行记录(append-only,2026-08-25)
+
+- analyzer 两处真实改进随批落地:license 无标题正文形态识别
+  (jsonschema 的 COPYING=MIT 特征句;BSD 同补)——修后 T1 plan 由
+  REVIEW_REQUIRED 转 SUPPORTED+AGENT_ADAPT;此前 src/ 布局修复沿用。
+- T2 plan 实测:analyzer 给出 DIRECT_WRAP 候选 `dateutil.easter:easter`
+  (子模块名撞函数名;与 RRULE 意图无关)——**人闸否决**(callable
+  locator 确认项按设计工作),T2 无 plan 入束走缺省 AGENT_ADAPT。
+  记录为 v1 已知边界:goal 与 locator 的相关性不进规则层,不为个案
+  加启发式。
+- T1 v1 真发被 H9-a 拦(备题 reference 副本残留 /tmp,0 tokens),
+  清残留后按谱系重出 v2(不填洞)。
+- luna 加发第一轮两发 FAIL 系**操作员驱动错误**(直调 run_host_guided_cli
+  传相对 project_root → oracle 快照相对路径在会话 host cwd 解析扑空,
+  no tests/exit4;两发 agent 轮公开其实全绿)。归 HARNESS/操作员,
+  tokens 360,558 in 如实入账为批损耗;按 §二 系统层条款补发。
+- 终局:terra 2/2 首轮 PASS(NO_REPAIR_NEEDED×2);luna 补发
+  jsonschema-report **REPAIR_SUCCEEDED(rounds=2,公开 2/5→5/5)** =
+  反馈面修复后首条干净非平凡 repair 轨迹;luna rrule 首轮 PASS。
+  §五判据:A(plan 驱动 AGENT_ADAPT 真实全链,sha 入 run)✓;
+  B(非平凡 repair 轨迹)✓;C(rescued_at 与 pbr 互证)✓;
+  D(object+required 输出合同真发执法路径覆盖)✓。
+- 额度:terra 均 90,514 in/发(2 发,任务难于历史批)vs gpt-5.5
+  批次一均 143.6K/批次二均 93.1K;调用数 10-13 vs 15-34。luna 有效发
+  均 273K in(修复轮次代价)。总消耗(含损耗)1,087,791 in,帽内。
