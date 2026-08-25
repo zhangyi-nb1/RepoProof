@@ -1,5 +1,17 @@
 # RepoProof — ChatGPT Web 项目交接快照
 
+> **状态勘误(2026-08-25,Gate 0 事实收口)**:本文正文是 2026-08-24 的
+> 历史快照,其中「M6 未合并」「M7 未推送」已过时。当前事实锚:
+> M6 已 no-ff 合入并推送 `main @ 812bb7b`(项目方三固定案例预览通过,
+> P0=0、P1×5 全修复;仍差 2 名目标用户理解测试);M7 分支已推送至
+> `codex/m7-managed-sidecar-tools @ 7ac1a09`,强 U1–U4 回执已落地,
+> 但 v3 全链 E2E、OS 级隔离、导出包 clean replay、授权真实仓未关闭,
+> 状态仍为 EXPERIMENTAL / REVIEW_REQUIRED。下一阶段以
+> `docs/VERIFIED_TOOL_ONBOARDING_NEXT_STAGE_GUIDE.md` 为准
+> (Verified Tool Onboarding Harness:Capability Plan + 确定性路由 +
+> 有界修复控制器 + DIRECT_WRAP)。对外表述禁用「任意 GitHub 仓库自动
+> 成功」,统一为「受支持范围内的内部 alpha」。
+
 > 快照日期：2026-08-24（Asia/Shanghai）
 > 用途：上传到 ChatGPT 网页端项目，帮助一个无法直接读取本机仓库的 GPT
 > 理解 RepoProof 的最新产品方向、真实进度和下一步决策。

@@ -31,7 +31,7 @@ def load_provider_env() -> dict:
 
 
 def main() -> int:
-    model_name = "openai/" + os.environ.get("REPOPROOF_MODEL", "gpt-5.5")
+    model_name = "openai/" + os.environ.get("REPOPROOF_MODEL", "gpt-5.6-terra")
     meta = load_provider_env()
     report: dict = {"model_name": model_name, "api_base_set": meta["api_base_set"]}
 

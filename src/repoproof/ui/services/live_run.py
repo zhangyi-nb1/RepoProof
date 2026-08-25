@@ -209,7 +209,7 @@ def start_run(root: Path, task_id: str, *, guided: bool = False,
 # 如实入账不挑选;fake 冒烟不计数。
 # 2026-08-11:由 T1 单任务泛化为 T1–T4 注册表(用户要在 UI 里对各阶段
 # 重复发以观察方差)。每项指向该阶段**当前冻结版**的契约与预注册。
-MODEL_POOL = ["deepseek-v4-pro", "gpt-5.5", "gpt-5.6"]
+MODEL_POOL = ["gpt-5.6-terra", "gpt-5.6-luna", "deepseek-v4-pro"]
 
 HOST_TASKS: dict[str, dict] = {
     "T1": {

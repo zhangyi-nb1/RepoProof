@@ -174,6 +174,9 @@ def test_fake_positive_reference_reaches_verified_tool_ready(world, monkeypatch,
     report = _run_fake(world, "positive", monkeypatch, 1)
     assert report["verdict"] == "PASS_ADAPTED", report.get("gate_reasons", report)
     assert report["verdict_public"] == "VERIFIED_TOOL_READY"
+    # Gate 2 产品投影:初次候选即过 → 不计 repair rescue
+    from repoproof.adoption.repair.failure_assessment import derive_repair_metrics
+    assert derive_repair_metrics(report)["product_stop_code"] == "NO_REPAIR_NEEDED"
     # 轮末公开面必须真的跑起来(_run_public 并入 _tool_env 的钉子):
     # 修前世界的实据 = 批次一全部 fake 彩排 public_by_round 恒 [0,0,0]
     # (REPOPROOF_TOOL_BIN 未注入,两测试文件 collect 全崩计 0),best 选择
@@ -247,6 +250,10 @@ def test_fake_positive_late_write_selects_best_round(world, monkeypatch):
     assert len(pbr) >= 2, f"迟写形态必须真的走过 ≥2 轮:{pbr}"
     assert pbr[-1] > pbr[0], (
         f"best 选择失明形态复发(实现轮公开未超勘察轮):{pbr}")
+    from repoproof.adoption.repair.failure_assessment import derive_repair_metrics
+    m = derive_repair_metrics(report)
+    assert m["product_stop_code"] == "REPAIR_SUCCEEDED"
+    assert m["rescued_at_attempt"] == m["rounds_used"] - 1
 
 
 @pytest.mark.slow
@@ -289,6 +296,9 @@ def test_fake_noop_fails_honestly(world, monkeypatch, tmp_path):
             tool_contract_path=(world["project"] / "contracts"
                                 / f"{world['task_id']}.yaml"),
             dest_root=tmp_path / "tools")
+    from repoproof.adoption.repair.failure_assessment import derive_repair_metrics
+    assert derive_repair_metrics(report)["product_stop_code"] in (
+        "STOP_NO_PROGRESS", "STOP_BUDGET_EXHAUSTED")
 
 
 @pytest.mark.slow

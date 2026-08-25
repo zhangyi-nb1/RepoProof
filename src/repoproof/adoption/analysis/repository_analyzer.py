@@ -37,7 +37,12 @@ _RE_SECRET = re.compile(
 _RE_TOP_DEF = re.compile(r"^(?:def|class)\s+([A-Za-z_]\w*)", re.MULTILINE)
 _RE_ALL = re.compile(r"__all__\s*=\s*[\[(]([^\])]*)[\])]", re.DOTALL)
 _LICENSE_KEYWORDS = [
-    ("MIT", "MIT License"), ("Apache-2.0", "Apache License"), ("BSD", "BSD"),
+    ("MIT", "MIT License"),
+    # 无标题正文形态(COPYING 惯例常见,jsonschema 实测):直接版权行 +
+    # 特征句 —— 这两句是 MIT/BSD 的专属措辞,识别度高于标题行。
+    ("MIT", "Permission is hereby granted, free of charge"),
+    ("Apache-2.0", "Apache License"), ("BSD", "BSD"),
+    ("BSD", "Redistribution and use in source and binary forms"),
     ("GPL-3.0", "GNU GENERAL PUBLIC LICENSE"), ("MPL-2.0", "Mozilla Public License"),
     ("Unlicense", "unlicense"),
 ]
@@ -232,7 +237,13 @@ def analyze_repository_dir(
     seen_secret: set[str] = set()
     for rel, text in _iter_py_files(root, stats):
         rel_s = str(rel)
-        if rel.name == "__init__.py" and len(rel.parts) <= 2:
+        # 顶层包 __init__:兼容根布局(pkg/__init__.py)与 src 布局
+        # (src/pkg/__init__.py)——后者是现实主流,漏掉它会把整包 API
+        # 判成不存在(Gate 1 fixture 实测;批次二 phonenumbers 同源坑)。
+        top_init = (rel.name == "__init__.py"
+                    and (len(rel.parts) <= 2
+                         or (rel.parts[0] == "src" and len(rel.parts) == 3)))
+        if top_init:
             m = _RE_ALL.search(text)
             if m:
                 names = [n.strip().strip("'\"") for n in m.group(1).split(",") if n.strip()]

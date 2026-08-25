@@ -189,6 +189,42 @@ with tab_review:
                     expected_bytes=uploaded_out.getvalue(),
                 )
             (st.success if result.get("ok") else st.error)(result.get("note") or result.get("error"))
+        # Gate 4:能力计划人读卡(RFC-013)—— 束内 plan.yaml 存在即渲染;
+        # 证据、支持状态与执行路线都可审查,不是一句模糊的"可以做"。
+        plan_file = Path(review_bundle["draft_dir"]) / "plan.yaml"
+        if plan_file.is_file():
+            import yaml as _yaml
+
+            from repoproof.ui.services.product_mode import ROUTE_LABELS
+
+            plan_doc = _yaml.safe_load(plan_file.read_text(encoding="utf-8")) or {}
+            status = str(plan_doc.get("support_status") or "—")
+            route = str(plan_doc.get("implementation_route") or "NONE")
+            st.markdown("#### 能力计划(证据化)")
+            pc1, pc2, pc3 = st.columns(3)
+            pc1.metric("支持状态", status)
+            pc2.metric("执行路线", route)
+            pc3.metric("用户已确认", "是" if plan_doc.get("confirmed") else "否")
+            st.write(f"**路线含义：** {ROUTE_LABELS.get(route, route)}")
+            codes = plan_doc.get("reason_codes") or []
+            if codes:
+                st.write("**理由码：** " + ", ".join(f"`{x}`" for x in codes))
+            surfaces = plan_doc.get("detected_surfaces") or []
+            if surfaces:
+                st.dataframe(
+                    [{
+                        "类型": s.get("kind"),
+                        "定位": s.get("locator"),
+                        "签名": s.get("signature") or "—",
+                        "置信度": s.get("confidence"),
+                        "证据": "; ".join(s.get("evidence") or []) or "—",
+                        "未选用原因": s.get("exclusion_reason") or "(已选用)",
+                    } for s in surfaces],
+                    hide_index=True, use_container_width=True)
+            st.caption(
+                "路由由确定性规则给出;LLM 建议不能改变支持状态或路线,"
+                "未确认的计划不会触发任何真实模型。")
+
         examples = review_bundle["examples"]
         st.metric("已确认样例", len(examples), help="冻结至少需要三组")
         if examples:
@@ -219,6 +255,19 @@ with tab_build:
     build_bundle = product_jobs.read_managed_draft_review(build_dir)
     if build_bundle.get("ok"):
         build_dir = Path(build_bundle["draft_dir"])
+        # Gate 4:构建前的路线预告 —— 用户在点按钮前就知道会不会调模型。
+        bp = build_dir / "plan.yaml"
+        if bp.is_file():
+            import yaml as _byaml
+
+            _pd = _byaml.safe_load(bp.read_text(encoding="utf-8")) or {}
+            _rt = str(_pd.get("implementation_route") or "NONE")
+            if _rt == "DIRECT_WRAP":
+                st.info("本次构建走确定性直连包装:**不会调用任何模型**;"
+                        "验证链(held-out/上游采用/干净重放)照常全跑。")
+            elif _rt == "AGENT_ADAPT":
+                st.info("本次构建需要受限 Coding Agent 适配:"
+                        "先离线彩排,真实模型仅在彩排通过后按预算调用。")
         output_preflight = validate_draft_output_examples(build_dir)
         preview_doc = build_bundle["draft"]
         preview_name = str((preview_doc.get("tool") or {}).get("name") or "")

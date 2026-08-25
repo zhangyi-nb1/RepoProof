@@ -3568,3 +3568,72 @@ main 已推送 origin(用户授权)。完整 Preview Validated 还差 2 名目�
 
 全量 **1408 passed + 60 skipped + 0 failed**(+13,来自两分支新测试);
 main 已推送。
+
+## 状态 · 2026-08-25 · 新阶段开工:Gate 0 事实收口 + Gate 1 CapabilityPlanV1 关闭
+
+新定位基准入库(`docs/VERIFIED_TOOL_ONBOARDING_NEXT_STAGE_GUIDE.md`,
+Verified Tool Onboarding Harness),开发分支 `claude/onboarding-gate1`
+(基于 main@812bb7b;M7 分支按指导冻结)。差距核查:指导声称的零件
+(repository_analyzer/strategy_selector/repair 三件套/RFC-012)全部
+账实相符;真实缺口=证据化 surface 检测与正式路由产物。
+
+**Gate 0**:两份交接文档漂移清零(CHATGPT_WEB_HANDOFF 头部勘误块,
+HANDOFF_STATE 补 M7 现状行+新阶段基准行);M6 两名目标用户测试仍挂账
+(用户侧动作)。**Gate 1 关闭**:RFC-013(schema/六条确定性路由/可信
+边界)+ `capability_plan.py`(AST surface 检测:签名/file:line/单必选
+参数→三档 confidence;路由器;apply_llm_advice 唯一注入口——违规建议
+整体忽略记 risks;confirm 人闸+assert_may_execute 执行闸)+ CLI
+`tool plan`/`plan-confirm`(零模型)。顺手修两真缺口:analyzer 顶层包
+识别兼容 src/ 布局(此前整包 API 判不存在,批次二 phonenumbers 同源);
+路由分类"GPUISH_API_KEY 含 GPU 子串"误伤改特征短语。五类零模型
+fixture(直包/CLI 信号/歧义/GPU+secret/service)+确定性+守卫+双闸
+10/10;CLI 冒烟全链通过。全量 `1418 passed + 60 skipped + 0 failed`。
+下一步:Gate 2(Failure Triage 产品投影+tool build 全链 fixture)→
+Gate 3(DIRECT_WRAP 执行链)→ Gate 4(Studio 投影)。
+
+## 状态 · 2026-08-25 · Gate 2+3+4 连续关闭(新阶段四 Gate 全部落地)
+
+**Gate 2**:FailureAssessmentV1 纯读取侧投影(九种 Product 终止码
+§2.5 映射、owner/repairability/公开失败指纹/进展快照、§2.7 修复指标;
+历史/新 run 同函零回写);泄漏纪律=自由文本规范化后才准进投影,同根因
+同指纹;语义修正一枚:隐藏面失败以「公开已全绿收束」为前提(E2E noop
+实测,骨架态 held 字样不再误判 HIDDEN)。pipeline 真发结果附投影;
+E2E 三形态断言(positive→NO_REPAIR_NEEDED/迟写→REPAIR_SUCCEEDED+
+rescued_at/noop→NO_PROGRESS)。
+**Gate 3**:DIRECT_WRAP 快路径——DirectAdapterSpec(白名单+注入拒)/
+受信模板(同 spec 逐字节确定,真调 pinned 上游)/derive(恰一选中
+callable);tool_build 拆路由执行器(plan.yaml 驱动,assert_may_execute
+前置执法;DIRECT_WRAP=装配期落 adapter+确定 lock→一发 fake="direct"
+零动作提交→零 diff+全门=既有 PASS_DIRECT,gate 零改动;失败不自动切
+AGENT_ADAPT);合成 minilib 世界全链零模型 PASS_DIRECT+wrong-symbol
+负控。**顺手修 provenance 真盲区**:只扫 diff 会把装配期受信交付判
+"重实现"(oracle 7/7 全绿仍被杀,实测)——扫描对象改 diff∪合同能力位,
+AGENT_ADAPT 并集幂等零变化。
+**Gate 4**:Studio 只改两页——能力计划人读卡(状态/路线/理由码/
+surfaces 证据表)、构建前路线预告(DIRECT_WRAP 明示零模型)、活动页
+构建结论卡(终止码中文含义/失败归属/run_id);三固定演示由 fixture
+承载(direct 全链/迟写修复/fixture4+pyspellchecker 拒绝撤回),真实
+模型演示与新真仓仍需授权。
+全量 `1432 passed + 60 skipped + 0 failed`;分支
+claude/onboarding-gate1 已推(0322672)。**四 Gate 关闭;余:M6 两名
+目标用户测试(用户侧)、合回 main 待用户验收。**
+
+## 状态 · 2026-08-25 · REPAIR-VALIDATION-1 收官(四判据全过;模型池换代 terra/luna)
+
+默认模型切 gpt-5.6-terra(对比位 gpt-5.6-luna;连通取证回显一致;
+host_pilot/MODEL_POOL 钉死随换代翻新)。复杂任务架构验证批终局:
+**terra 2/2 首轮 PASS**(jsonschema-report v2:严格 object+required
+输出合同,81K in/10 调用;rrule-expand:边界语义,100K/13 调用);
+条件加发 luna:**jsonschema-report REPAIR_SUCCEEDED(rounds=2,公开
+2/5→5/5)= 反馈面修复后首条干净非平凡真实修复轨迹**;rrule luna 首过。
+§五 A/B/C/D 判据全过(plan 驱动 AGENT_ADAPT 真实全链 plan_sha 入档/
+非平凡修复/投影互证/输出合同真发执法)。
+执行事件五则如实入档(勘误 §八):H9-a 拦备题残留(v1→v2 谱系)、
+analyzer COPYING/MIT 无标题正文识别修复、dateutil.easter 错误
+DIRECT_WRAP 候选被人闸否决(确认项按设计工作)、luna 首轮两发系
+操作员相对 project_root 驱动错误(360K in 损耗入账后补发)。
+**额度结论:terra 均 90.5K in/发(任务更难)vs 5.5 批次一 143.6K/
+批次二 93.1K,调用数 10-13 vs 15-34 —— 换默认模型后确实更省。**
+分类 product-51..59;K11 31 宿主;总耗 1,087,791 in(帽 2M 内);
+全量 1432 passed + 60 skipped + 0 failed;分支推至 ae858d9。
+两新工具 REVIEW_REQUIRED 待 fresh audit。

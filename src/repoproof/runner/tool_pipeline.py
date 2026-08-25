@@ -161,6 +161,37 @@ def tool_build(
                 "previous_task_id": current.get("task_id") if current else None,
             }
 
+    # 0b) 执行路由(RFC-013):draft 束带已确认 plan.yaml → 按计划路线;
+    # 无 plan = 向后兼容缺省 AGENT_ADAPT。DIRECT_WRAP 在此处即执法
+    # assert_may_execute(未确认/被改动的计划连装配都不许进)。
+    route = "AGENT_ADAPT"
+    adapter_src: str | None = None
+    plan_obj = None
+    plan_path = draft_dir / "plan.yaml"
+    if plan_path.is_file():
+        from repoproof.adoption.delivery.direct_adapter import (
+            compile_direct_adapter,
+            derive_adapter_spec,
+        )
+        from repoproof.adoption.planning.capability_plan import (
+            CapabilityPlanV1,
+            assert_may_execute,
+        )
+
+        plan_obj = CapabilityPlanV1.model_validate(
+            yaml.safe_load(plan_path.read_text(encoding="utf-8")))
+        assert_may_execute(plan_obj)
+        route = plan_obj.implementation_route
+        if route == "DIRECT_WRAP":
+            spec = derive_adapter_spec(plan_obj)
+            adapter_src = compile_direct_adapter(spec)
+            stages["route"] = {"route": route, "locator": spec.locator,
+                               "agent_invoked": False,
+                               "plan_sha256": plan_obj.plan_sha256}
+        else:
+            stages["route"] = {"route": route, "agent_invoked": True,
+                               "plan_sha256": plan_obj.plan_sha256}
+
     # 1) 人闸后的确认:D 闸 → 装配 → T 闸 → 冻结
     try:
         info = confirm_tool_draft(draft_dir, project_root)
@@ -186,8 +217,22 @@ def tool_build(
     selected = select_upstream_tests(up, [k for k in kws if k])
     stages["conformance_selected"] = selected
 
-    # 3) 物化(含预检:reference 锁定集建一次性解释器)
+    # 2b) DIRECT_WRAP:受信模板 adapter + 确定 lock **在装配骨架里落位**
+    # (materialize 之前 —— 任务包/bench 副本由骨架拷出)。S0 即完整交付,
+    # agent 零 diff,completion gate 的既有 PASS_DIRECT 语义自然成立。
     pins = _reference_pins(project_root, task_id)
+    if route == "DIRECT_WRAP":
+        skel = (Path(project_root) / "fixtures"
+                / f"tool_skeleton_{draft['tool']['name']}")
+        pkg = str(draft["tool"]["name"]).replace("-", "_")
+        impl_p = skel / "src" / pkg / "impl.py"
+        if not impl_p.is_file():
+            raise PipelineError(f"DIRECT_WRAP 找不到骨架能力位:{impl_p}")
+        impl_p.write_text(adapter_src, encoding="utf-8")
+        (skel / "requirements.lock.txt").write_text(
+            ("\n".join(pins) + "\n") if pins
+            else "# DIRECT_WRAP:上游经会话环境提供,无第三方 pins\n",
+            encoding="utf-8")
     task_dir = Path(project_root) / "tool_tasks" / task_id
     if task_dir.exists() or (Path(bench_root) / task_id).exists():
         raise PipelineError(
@@ -234,33 +279,70 @@ def tool_build(
         raise PipelineError(f"wheelhouse 备轮失败:{r.stderr[-300:]}")
     stages["wheelhouse"] = {"wheels": len(list(wheelhouse.glob('*.whl')))}
 
-    # 5) fake 彩排门:不 PASS 不许烧真预算
-    fake = run_host_guided_cli(contract, project_root, fake="positive",
-                               batch=batch)
-    fk = (fake.get("report") or {})
-    stages["rehearsal"] = {"verdict": fk.get("verdict"),
-                           "run_id": fk.get("run_id"),
-                           "gate_reasons": fk.get("gate_reasons")}
-    if fk.get("verdict") != "PASS_ADAPTED":
-        return {"task_id": task_id, "stages": stages,
-                "verdict": f"REHEARSAL_{fk.get('verdict')}", "exported": None}
+    # 5/6) 路由执行器(Gate 3):两条路线共享前段(confirm/pin/物化/备轮)
+    # 与后段(投影/export/注册);中段按 Capability Plan 分道。
+    if route == "DIRECT_WRAP":
+        # 确定性快路径:骨架已含受信模板交付,零 Agent、零真发 ——
+        # 一发 fake="direct"(零动作提交)走完整验证链;零 diff + 全门过
+        # = PASS_DIRECT(completion gate 既有语义,零改动)。
+        d = run_host_guided_cli(contract, project_root, fake="direct",
+                                batch=batch)
+        if d.get("blocked"):
+            stages["direct"] = d
+            return {"task_id": task_id, "stages": stages,
+                    "verdict": "DIRECT_BLOCKED", "exported": None}
+        rp = d.get("report") or {}
+        stages["direct"] = {"verdict": rp.get("verdict"),
+                            "run_id": rp.get("run_id"),
+                            "gate_reasons": rp.get("gate_reasons"),
+                            "agent_invoked": False, "route": route}
+        # DIRECT_WRAP 失败不得自动切 AGENT_ADAPT(RFC-013 §4):换路线
+        # 必须重新生成并确认计划。
+    else:
+        # 5) fake 彩排门:不 PASS 不许烧真预算
+        fake = run_host_guided_cli(contract, project_root, fake="positive",
+                                   batch=batch)
+        fk = (fake.get("report") or {})
+        stages["rehearsal"] = {"verdict": fk.get("verdict"),
+                               "run_id": fk.get("run_id"),
+                               "gate_reasons": fk.get("gate_reasons")}
+        if fk.get("verdict") != "PASS_ADAPTED":
+            return {"task_id": task_id, "stages": stages,
+                    "verdict": f"REHEARSAL_{fk.get('verdict')}",
+                    "exported": None}
 
-    if not run_real:
-        return {"task_id": task_id, "stages": stages,
-                "verdict": "REHEARSAL_PASS_ONLY", "exported": None}
+        if not run_real:
+            return {"task_id": task_id, "stages": stages,
+                    "verdict": "REHEARSAL_PASS_ONLY", "exported": None}
 
-    # 6) 真模型单发(provider 从 env;未配置由 preflight 如实拦)
-    real = run_host_guided_cli(contract, project_root, fake=None, batch=batch)
-    if real.get("blocked"):
-        stages["real"] = real
-        return {"task_id": task_id, "stages": stages,
-                "verdict": "REAL_BLOCKED", "exported": None}
-    rp = real.get("report") or {}
-    stages["real"] = {"verdict": rp.get("verdict"),
-                      "verdict_public": rp.get("verdict_public"),
-                      "run_id": rp.get("run_id"),
-                      "gate_reasons": rp.get("gate_reasons")}
-    if rp.get("verdict") not in ("PASS_ADAPTED", "PASS_DIRECT"):
+        # 6) 真模型单发(provider 从 env;未配置由 preflight 如实拦)
+        real = run_host_guided_cli(contract, project_root, fake=None,
+                                   batch=batch)
+        if real.get("blocked"):
+            stages["real"] = real
+            return {"task_id": task_id, "stages": stages,
+                    "verdict": "REAL_BLOCKED", "exported": None}
+        rp = real.get("report") or {}
+    # Gate 2:修复循环事实的产品投影(纯读取侧派生,历史/新 run 同函,
+    # 不回写 report 与任何台账)。两条路线共用。
+    from repoproof.adoption.repair.failure_assessment import (
+        assess_report,
+        derive_repair_metrics,
+    )
+
+    proj_key = "direct" if route == "DIRECT_WRAP" else "real"
+    metrics = derive_repair_metrics(rp)
+    stages[proj_key] = {**stages.get(proj_key, {}),
+                        "verdict": rp.get("verdict"),
+                        "verdict_public": rp.get("verdict_public"),
+                        "run_id": rp.get("run_id"),
+                        "gate_reasons": rp.get("gate_reasons"),
+                        "repair_metrics": metrics,
+                        "product_stop_code": metrics["product_stop_code"]}
+    expected = ("PASS_DIRECT",) if route == "DIRECT_WRAP" \
+        else ("PASS_ADAPTED", "PASS_DIRECT")
+    if rp.get("verdict") not in expected:
+        stages[proj_key]["failure_assessment"] = assess_report(rp).model_dump()
         return {"task_id": task_id, "stages": stages,
                 "verdict": rp.get("verdict"), "exported": None}
 

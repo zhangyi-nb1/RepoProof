@@ -355,3 +355,76 @@ def status_label(status: str) -> str:
         "REVOKED": "已撤回",
         "UNVERIFIED": "未验证",
     }.get(str(status), str(status or "未知"))
+
+
+# ---------------------------------------------------- Gate 4:构建结论投影
+
+PRODUCT_STOP_LABELS: dict[str, str] = {
+    "NO_REPAIR_NEEDED": "初次候选即通过(未动用修复)",
+    "REPAIR_SUCCEEDED": "有界修复后通过独立验证",
+    "STOP_NON_REPAIRABLE": "失败类别不允许交给 Agent 修复",
+    "STOP_NEEDS_HUMAN": "需要人决策(合同/样例/范围)",
+    "STOP_NO_PROGRESS": "连续无可测进展,确定性停止",
+    "STOP_SCOPE_DRIFT": "越界/触碰保护面,策略终止",
+    "STOP_BUDGET_EXHAUSTED": "修复预算耗尽",
+    "STOP_HIDDEN_FAILURE": "隐藏验收面未通过(细节不外泄)",
+    "STOP_HARNESS_OR_EXTERNAL": "Harness/外部基础设施故障(可重新发起)",
+}
+
+ROUTE_LABELS: dict[str, str] = {
+    "DIRECT_WRAP": "确定性直连包装 —— 本次不需要 Agent",
+    "AGENT_ADAPT": "受限 Coding Agent 适配(mini-swe,含最多两次有界修复)",
+    "NONE": "不进入实现路线",
+}
+
+
+def parse_build_summary(log_text: str) -> dict | None:
+    """从 tool-build 日志尾部解析结论 JSON(stages/verdict/exported)。
+
+    解析失败返回 None —— 呈现层照常显示原始日志,不猜、不碎页面。
+    """
+    import json as _json
+
+    text = (log_text or "").strip()
+    end = text.rfind("}")
+    while end != -1:
+        depth = 0
+        for start in range(end, -1, -1):
+            ch = text[start]
+            if ch == "}":
+                depth += 1
+            elif ch == "{":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        doc = _json.loads(text[start:end + 1])
+                    except ValueError:
+                        break
+                    if isinstance(doc, dict) and "stages" in doc:
+                        return doc
+                    break
+        end = text.rfind("}", 0, max(end - 1, 0))
+    return None
+
+
+def build_conclusion(summary: dict) -> dict:
+    """构建结论的人读投影(路线/终止码/归因),供活动页渲染。"""
+    stages = summary.get("stages") or {}
+    route = ((stages.get("route") or {}).get("route")
+             or ("DIRECT_WRAP" if "direct" in stages else "AGENT_ADAPT"))
+    seg = stages.get("direct") or stages.get("real") or {}
+    stop = seg.get("product_stop_code") or ""
+    fa = seg.get("failure_assessment") or {}
+    return {
+        "route": route,
+        "route_label": ROUTE_LABELS.get(route, route),
+        "agent_invoked": bool((stages.get("route") or {}).get(
+            "agent_invoked", route != "DIRECT_WRAP")),
+        "verdict": summary.get("verdict"),
+        "exported": summary.get("exported"),
+        "product_stop_code": stop,
+        "stop_label": PRODUCT_STOP_LABELS.get(stop, stop or "—"),
+        "failure_owner": fa.get("failure_owner"),
+        "reason_codes": fa.get("reason_codes") or [],
+        "run_id": seg.get("run_id"),
+    }
