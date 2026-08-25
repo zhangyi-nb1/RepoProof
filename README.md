@@ -187,6 +187,19 @@ The latest batch-two fact source records:
 | ACTIVE for RepoProof-managed exposure after fresh-input audit | 9 |
 | False-success findings | 1 |
 
+**Host-integrity qualifier — read this with every number above.** Main-repo
+integrity reconciliation used to run *after* the completion gate and was only
+written to `report.json`, so it never entered the verdict (fixed 2026-08-25,
+`apply_integrity_to_verdict`). Counting the backlog afterwards found 19 PRODUCT
+runs recorded as PASS while `main_dir_integrity` was `MISMATCH`; 10 of them are
+bound to exported tools and 8 of those are currently ACTIVE. 用这些数字时必须同
+时说明:其中 8 个工具的**交付发次在现行完整性闸下应判 BLOCKED**(当时完整性不
+参与判定,且未记归因)。历史 verdict 一字不改;每一发都有 append-only 勘误行
+(`benchmarks/v2/run_classifications.jsonl`),`scripts/check_public_claims.py`
+把这句限定机器钉死。What this does *not* touch: the tools' functional evidence.
+Clean replay and the fresh non-example audit are independent lines that never
+depended on the original run's host integrity, and both passed.
+
 The flagged `pyspellchecker` v1 result is deliberately preserved as historical
 evidence: its frozen statement declared JSON while its examples and oracle
 accepted plaintext. Its RepoProof-managed release status was withdrawn without

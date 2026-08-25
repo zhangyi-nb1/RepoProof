@@ -3747,3 +3747,64 @@ README 顶部直链。
 总量 1499 守恒;test_host_task_smoke 偶红复核=本机邻仓活写手落
 2.5s 窗的 ~15% 概率事件,CI 无邻仓不受影响,不为本机噪声弱化语义);
 Linux 容器等价预演全量另账(见提交信息)。
+
+## 状态 · 2026-08-26 · 外部审查第二轮:完整性存量补漏 + 产品事实源 + 面试材料重写
+
+第二轮外部审查(零模型零真发)。四条处置完毕,其中一条是本轮**新发现**
+且比预期严重。
+
+**① 主仓完整性存量降级漏了 18 发(新发现,P0)**。2026-08-25 的 P0-2
+修好了闸(`apply_integrity_to_verdict`),但存量只降级了 1 发。本轮按
+台账清点:**19 发 PRODUCT 记 PASS 而 `main_dir_integrity=MISMATCH`**,
+其中 10 发绑定已导出工具、**8 个当时 ACTIVE**;08-23 批次的旧发次
+`self_ok` 全为 None(当时未接自写窗),按本项目自身规则「不传窗口 =
+无归因依据 = 一律不免罪」,按现行闸应记 BLOCKED/UNATTRIBUTED。
+mismatch 一律是 offerclaw[tree|git_refs] —— 邻仓活写手,不是执行缺陷。
+
+**用户 2026-08-26 裁决:记事实 + 强制限定句 —— 不撤回运营资格、不重跑。**
+依据:完整性缺陷说的是"这一发有没有碰过邻仓",不是"工具能不能用";
+后者由两条独立证据线支撑(clean replay 干净环境重装重验 + fresh
+非样例输入抽查),都不依赖原发主仓完整性,且均已通过。处置:19 发逐发
+追加 append-only 勘误行(点名 `MAIN_DIR_INTEGRITY_UNATTRIBUTED`),
+历史 verdict 一字不改;对外凡引用批次二数字必须逐字带上「其中 8 个的
+**交付发次在现行完整性闸下应判 BLOCKED**」,由 checker 机器钉死。
+
+**② 台账 product-51..59 九连撞号(勘误)**。08-25 那批整批误从 51 起编,
+而 product-51..75 已被 08-23 批占用。此前只有 product-58 单条被注意到。
+追加 9 条覆盖行改编为 **product-76..84**(顺序不变),现 product-1..84
+连续无缺号、撞号 0;主键始终是 run_id,不影响任何已发布指标与判定。
+
+**③ claims 纪律机器空转(P1)**。`check_public_claims.py` 只绑
+`benchmark_summary.json`(MVP 时代冻结的 12 发快照),覆盖不到产品线
+—— 全绿地校验一套早已不再对外讲的话。新增
+`scripts/build_product_summary.py` → `docs/product_summary.json`
+(extraction-only,口径一律走 `bench_records.classify_runs()` 既有投影,
+不自创规则),checker 加四条产品规则:事实源新鲜度(源 sha 不符即红)、
+分账铁律(产品发次进 Lab 分母即红)、每发 MISMATCH-but-PASS 必须有勘误行、
+公开文档引用批次二数字必须带限定句。顺手补一个既有缺口:脚本 docstring
+一直写着"检查 CLAIMS_MATRIX",而它从来不在 `PUBLIC_DOCS` 里 —— 规则书
+自己不受规则约束,躺了很久;同时纳入 PROJECT_MAP。
+自测咬出两枚自己的 bug:提取把台账 `main_dir_integrity` 当字典读
+(实为字符串 "ok"/"MISMATCH"),**静默得到空集**;限定句触发词只列了
+`historical_tool_ready`,而 README 写的是 "Historical pipeline READY
+results",**规则装了个空枪**。两枚都已修并各补回归钉。
+
+**④ 保护目录去个人化(P1)**。`DEFAULT_PROTECTED` 曾硬编码
+`~/Desktop/XIANGMU/offerclaw|localflow|RepoProof` —— 在别人机器上是不存在
+的路径(=保护集合为空,护栏静默失效),在作者机器上又把私人目录结构写进
+公开仓。改为**结构性发现** `structural_protected()`:本仓自身(.git +
+pyproject 双证)+ 其兄弟 git 仓库(`.git` 是目录或文件都算,覆盖 worktree)。
+本机实测新旧等价(旧四项全命中)且多保一项 RepoProof-studio-ui(本仓
+worktree,fail-closed 方向),快照开销 +0.23s。退化可观测:推不出仓根时
+`protection_report()["repo_root"]` 记 None,并有单测钉死"开发/CI 环境下
+本仓自身必须在保护列表里"—— 旧断言在 CI 上是**空洞通过**的(runner 上
+那些目录根本不存在,两侧只是同一串归一化路径)。另修 `ui/pages/plan_view.py`
+的硬编码演示宿主路径,改走 `REPOPROOF_DEMO_HOST`。
+
+**面试材料重写**(此前停在 2026-08-07 Gate 8 口径,落后主线 ~490 提交):
+CLAIMS_MATRIX 重写为两事实源 + 21 条允许声明(C1-C21)+ 17 条禁语
+(新增 F13 漏限定句 / F14 拿产品发次充模型成绩 / F15 analyzer 自动理解
+意图 / F16 M6 证据可独立审计 / F17 M7 已完成);RESUME_CLAIMS 三版本与
+INTERVIEW_GUIDE 全部改到 local-tool 新故事,主线叙事定为「系统抓到过
+自己的三次假成功,每次都转成一道确定性防线」。DEMO.md / DEMO_SCRIPT.md
+不重写,加定位头指向产品演示实体 `scripts/demo_direct_wrap.py`。

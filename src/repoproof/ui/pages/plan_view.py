@@ -7,6 +7,7 @@ python-frontmatter 快照。「确认开始」真实走 Human Gate 生成冻结
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -36,10 +37,12 @@ goal = st.text_input("你的目标", value=st.session_state.get("plan_goal",
                      "把 thefuzz 的模糊匹配能力接入我的笔记搜索,输入是查询词,输出为按相似度排序的笔记列表"))
 st.session_state["plan_goal"] = goal
 
-_default_host = "/Users/zhangronglei/Desktop/XIANGMU/demo-notes-app"
+# 演示缺省宿主经 REPOPROOF_DEMO_HOST 指定;未设或不存在则退回本仓根。
+# 不硬编码作者机器路径(外部审查 2026-08-26:公开仓不留私人目录名)。
+_default_host = os.environ.get("REPOPROOF_DEMO_HOST", "").strip()
 host_path = st.text_input(
     "你的项目路径", value=st.session_state.get("plan_host",
-    _default_host if Path(_default_host).is_dir() else str(ROOT)))
+    _default_host if _default_host and Path(_default_host).is_dir() else str(ROOT)))
 st.session_state["plan_host"] = host_path
 
 _repo_options = sorted(str(p) for p in (ROOT / "upstream-cache" / "analysis").glob("*/") if p.is_dir())

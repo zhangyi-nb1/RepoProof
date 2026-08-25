@@ -21,9 +21,12 @@ FailureAssessmentV1 九码;REPAIR-VALIDATION-1(terra/luna)已按预注册
 | 产品方向 | `docs/PRODUCT_REDIRECTION.md` + `docs/rfc/RFC-010-LOCAL-TOOL-PRODUCT-CHARTER.md` |
 | M0–M3 | 全部关闭；CLI 主旅程=`tool add/build/list/audit/withdraw/mcp` |
 | M4 批次一 | 12 个真实仓均通过流水线、重放与运营审计；见 `docs/EXPLORATION_LOG.md` |
-| M4 批次二 | 12 submitted / 11 accepted / 10 历史流水线 READY / 9 运营可用 / 1 false-success |
+| M4 批次二 | 12 submitted / 11 accepted / 10 历史流水线 READY / 9 运营可用 / 1 false-success。**引用这行数字必须同时带完整性限定句**(下一行) |
+| **完整性限定(2026-08-26)** | 主仓完整性对账曾排在 completion gate 之后、不参与判定(P0-2)。清点存量:**19 发 PRODUCT 记 PASS 而 `main_dir_integrity=MISMATCH`**,10 发绑定已导出工具、8 个当时 ACTIVE —— 即这 8 个工具的**交付发次在现行完整性闸下应判 BLOCKED**。用户 2026-08-26 裁决:**记事实 + 强制限定句,不撤回运营资格、不重跑**;历史 verdict 一字不改,19 发逐发有 append-only 勘误行,`check_public_claims.py` 机器钉死该限定句。工具功能证据不受影响(clean replay + fresh-input 抽查是独立证据线,均已通过) |
 | 批次二锚点 | `c5c958d` (`M4 批次二收官:9 个运营可用+1 false-success 撤回`) |
-| 批次二事实源 | `docs/m4_metrics.json` + append-only audit/classification ledgers |
+| 对外事实源 | **两个,永不合并**:`docs/product_summary.json`(Product,`scripts/build_product_summary.py`)+ `docs/benchmark_summary.json`(Lab)。一致性由 `scripts/check_public_claims.py` 在 CI 强制;产品发次 `task_seen=true`,不进模型能力/held-out 分母 |
+| 批次二原始指标 | `docs/m4_metrics.json` + append-only audit/classification ledgers |
+| 发次编号 | `run_classifications.jsonl` 的 product-* 现为 **1..84 连续无缺号、撞号 0**(2026-08-26 勘误:08-25 批误从 51 起编,与 08-23 批九连撞,改编为 product-76..84;主键始终是 run_id) |
 | False success | `tool-pyspellchecker-tool-v1`:冻结声明 JSON、reference/example/oracle 却验纯文本；运营 READY 已撤回，冻结史和真跑均未改写/重跑 |
 | M5 输出合同 | 新 draft=ToolSpec v2；T6–T9 + actual stdout runtime parsing；37 份旧冻结合同原样加载 |
 | M5 发布状态 | 本机 release ledger 22 条迁移决定：21 ACTIVE / 1 REVOKED；另 2 个早期 dogfood 无 fresh audit，保持 REVIEW_REQUIRED |
@@ -37,6 +40,9 @@ FailureAssessmentV1 九码;REPAIR-VALIDATION-1(terra/luna)已按预注册
 | M7 分支现状 | `codex/m7-managed-sidecar-tools @ 7ac1a09` 已推送；强 U1–U4 回执已落地(取证会话+攻击矩阵自证);仍缺 v3 全链 E2E、OS 级隔离、导出包 replay、授权真仓 —— EXPERIMENTAL,功能面冻结 |
 | 下一阶段基准 | `docs/VERIFIED_TOOL_ONBOARDING_NEXT_STAGE_GUIDE.md`(2026-08-25):Verified Tool Onboarding Harness;Gate 0 事实收口 → Gate 1 CapabilityPlanV1+确定性路由 → Gate 2 有界修复控制器产品化 → Gate 3 DIRECT_WRAP → Gate 4 Studio 收口 |
 | 当前阶段门 | **M6 Preview Validated 已关闭(2026-08-25:项目方预览+2 名目标用户三案例测试完成,P0=0;P1 计 7 条全部修复并经用户复验)。M7 强 receipt 已落地/OS 隔离未关闭**;发布、第三批真仓或任何新真实模型发次仍需授权 |
+| 面试材料 | **2026-08-26 重写完毕**(此前停在 2026-08-07 Gate 8 口径):`CLAIMS_MATRIX`(两事实源 + C1–C21 + F1–F17)、`RESUME_CLAIMS`(三版本)、`INTERVIEW_GUIDE`;DEMO 两份不重写,加定位头指向 `scripts/demo_direct_wrap.py` |
+| 保护目录 | **结构性发现**(2026-08-26):本仓自身 + 兄弟 git 仓,不再硬编码个人路径;退化可观测 + 单测钉死"本仓自身必须在保护列表里"。追加仍走 `REPOPROOF_PROTECTED_DIRS` |
+| 挂账未做 | ① 8 个受完整性限定影响的工具在干净环境**复样重跑**(需真实预算与授权);② M6 两份用户测试原始记录表归档;③ 真实模型演示与第三批真仓授权;④ M7 OS 级隔离 |
 
 不变铁律：验证面无 LLM；held-out 对 agent 零泄漏；冻结合同与历史台账
 不可改写；FAIL 也留完整证据；没量到即判死；Product Mode 与 Benchmark

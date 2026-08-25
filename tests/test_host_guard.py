@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from repoproof.harness import host_guard
 from repoproof.harness.host_guard import (
     EXTERNAL,
     SELF,
@@ -65,11 +66,66 @@ def test_path_variants_all_blocked(tmp_path: Path) -> None:
         assert_writable_target(real, purpose="测试写入", protected=prot)
 
 
-def test_default_protected_covers_real_dev_dirs() -> None:
-    assert is_protected("~/Desktop/XIANGMU/offerclaw")
-    assert is_protected("~/Desktop/XIANGMU/OfferClaw/anything")  # 大小写变体
-    assert is_protected("~/Desktop/XIANGMU/RepoProof/src")
+def test_repo_itself_is_always_protected() -> None:
+    """**最硬的不变量**:本仓自身永远在保护集合里。
+
+    旧版本把 `~/Desktop/XIANGMU/offerclaw` 之类写死在 DEFAULT_PROTECTED,
+    这条断言在 CI 上是**空洞通过**的 —— runner 上那些目录根本不存在,
+    `is_protected` 两侧都只是同一串归一化路径。改成结构性发现后,
+    这里钉的是真正要命的那条:仓根推不出来 = 保护静默失效。
+    """
+    root = host_guard._repo_root()
+    assert root is not None, "开发/CI 环境必须能推出仓根(.git + pyproject.toml)"
+    assert is_protected(root)
+    assert is_protected(Path(root) / "src")
+    assert is_protected(str(root).upper() + "/src")      # 大小写变体
     assert not is_protected("~/RepoProofBench/offerclaw-t1-fastapi-mcp")
+
+
+def test_no_personal_paths_hardcoded_in_defaults() -> None:
+    """外部审查 2026-08-26 的回归钉:公开仓的安全模块里不许出现私人目录名。
+
+    硬编码个人路径有两重害处:在别人机器上是不存在的路径(保护集合为空,
+    护栏静默失效),在作者机器上把私人目录结构写进公开代码。
+    """
+    blob = " ".join(host_guard.DEFAULT_PROTECTED).lower()
+    for personal in ("offerclaw", "localflow", "xiangmu", "/users/"):
+        assert personal not in blob, f"DEFAULT_PROTECTED 泄漏私人路径片段:{personal}"
+
+
+def test_sibling_git_repos_discovered_plain_dirs_are_not(tmp_path, monkeypatch) -> None:
+    """兄弟目录里**有 .git 的**才是用户真实开发仓;普通目录不扩权。
+
+    `.git` 可以是目录(普通 clone)也可以是文件(worktree/submodule)——
+    两种都必须命中,因为 worktree 同样是用户在写的真实开发树。
+    """
+    parent = tmp_path / "projects"
+    me = parent / "RepoProof"
+    (me / ".git").mkdir(parents=True)
+    (me / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+    (parent / "neighbour-clone" / ".git").mkdir(parents=True)
+    worktree = parent / "neighbour-worktree"
+    worktree.mkdir()
+    (worktree / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    (parent / "just-a-folder").mkdir()
+
+    monkeypatch.setattr(host_guard, "_repo_root", lambda: str(me))
+    got = set(host_guard.structural_protected())
+    assert str(me) in got
+    assert str(parent / "neighbour-clone") in got
+    assert str(worktree) in got, ".git 是文件的 worktree 同样是真实开发树"
+    assert str(parent / "just-a-folder") not in got
+
+
+def test_unresolvable_repo_root_degrades_observably(monkeypatch) -> None:
+    """推不出仓根时保护退化,但**可观测**:report 记 None,不是静默空集。"""
+    monkeypatch.setattr(host_guard, "_repo_root", lambda: None)
+    assert host_guard.structural_protected() == []
+    assert host_guard.protection_report()["repo_root"] is None
+    # 缺省项与 env 项仍在 —— 退化不等于全无护栏
+    monkeypatch.setenv("REPOPROOF_PROTECTED_DIRS", "/tmp/rp-extra")
+    assert any(d.endswith("RepoProofRuntimes") for d in host_guard.protected_dirs())
+    assert is_protected("/tmp/rp-extra/anything")
 
 
 def test_apply_stage_rollback_have_no_bypass(tmp_path: Path, monkeypatch) -> None:

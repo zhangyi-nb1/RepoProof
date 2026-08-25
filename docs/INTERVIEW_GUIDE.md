@@ -1,98 +1,142 @@
 # Interview guide — answers, red lines, likely follow-ups
 
-Ground rules for every answer: numbers only from
-[benchmark_summary.json](benchmark_summary.json); never merge
-Agent / Harness / Host-Guard contributions; negative results are
-features, not embarrassments.
+三条底线,每个回答都适用:数字只出自
+[product_summary.json](product_summary.json)(Product)与
+[benchmark_summary.json](benchmark_summary.json)(Lab),**两者永不合并**;
+Agent / Harness / Host-Guard 三个贡献面永不混说;负结果是特性不是尴尬。
+措辞禁区见 [CLAIMS_MATRIX.md](CLAIMS_MATRIX.md)。
+
+新读者先给 [PROJECT_MAP.md](PROJECT_MAP.md)(10 分钟单页地图)。
 
 ## 30 秒介绍
 
-"RepoProof 验证 coding agent 的开源库适配是否真的可用。Agent 在隔离容器里
-对着冻结合同写 adapter,但判定完全独立:能力测试、宿主回归、策略审计、干净
-容器重放,四项全过才有 PASS_ADAPTED——agent 的'我做完了'从不是输入。12 次
-记录运行,1 次 PASS,11 次带失败复现的诚实 FAIL,包括一个 31/33 仍被拒绝的
-案例。"
+"你在 GitHub 上看中一个能力,想把它变成自己电脑上能用、也能被 AI Agent
+调用的工具——中间还隔着读文档、配环境、写包装、测试、验收。RepoProof
+把这段固定成一条受控流水线,但它的重点不是'让 agent 写代码',而是
+**不信 agent 说的完成**:判定只出自 agent 摸不到的验证链——隐藏验收、
+宿主回归、策略执法、干净重放、上游回执、主仓完整性对账。两批真实公开
+仓库跑完全链路,批次二 12 提交 / 11 接受 / 10 历史 READY / 9 运营可用 /
+1 个被系统自己抓出来的假成功。"
+
+> **说到这几个数字就必须接上的一句**(F13,checker 机器钉死):其中 8 个
+> 工具的**交付发次在现行完整性闸下应判 BLOCKED** —— 主仓完整性对账当时
+> 排在判定之后、不参与 verdict。工具功能证据不受影响(干净重放与
+> fresh-input 抽查是独立证据线,均已通过)。展开见下面"那 19 发存量"。
 
 ## 90 秒介绍
 
-30 秒版 + :"最有价值的产出是失败分类学。真实运行暴露了 9 类失败,其中两类
-是 harness 自己的 bug——prompt 污染和合同欠规范——被同一条证据链抓出来。
-首个 PASS 的路径也因此不是调 prompt,而是把合同修到机器可判充分:typed
-RequirementSpec、公开真值表、13 项确定性准入门、宿主输入守卫。修好规格后,
-同一个模型单次预注册运行拿到 18/18 含 held-out,并在全新容器重放通过。"
+30 秒版 + :"最能说明这个项目性质的,是它抓自己的三次。第一次是
+`pyspellchecker`:冻结题面写 JSON,examples 和 oracle 却验纯文本,真跑
+PASS 了——这是假成功,我们撤回运营资格但不改冻结合同、不重跑,然后把它
+工程化成输出合同 + 装配期四道检查。第二次是执行闸:它只查'确认过吗 +
+哈希对吗',而哈希防的是'确认后被改',防不了'从未合法确认过'——手工构造
+一个 UNSUPPORTED 但 confirmed=true 的计划再重封哈希就能放行。第三次最
+难堪:主仓完整性对账排在 completion gate **之后**、只落 report 不参与
+判定,于是有一发报着 PASS,而同一份 report 里 ok=false。修完之后回头
+清点存量,发现 19 发受同一根因影响。三次的处理方式一样:根因变成确定性
+闸,历史一字不改,后果用 append-only 勘误如实挂账。"
 
 ## 5 分钟深讲(结构)
 
-1. 问题定义:agent 自述 ≠ 可采用(31/33 案例开场)
-2. 协议:合同冻结 → 充分性准入 → 单 agent 受控执行 → 四重独立验证 → 证据闭环
-3. 失败分类学与两次自查自证(prompt 污染 / 合同欠规范)
-4. 修复哲学:Specification & Responsibility over prompting
-5. PASS_ADAPTED 解剖:agent 拿到什么、host guard 负责什么、gate 怎么判
-6. 边界与负结果(null ablation、被忽略的 ledger、范围限制)
+1. 问题定义:agent 自述 ≠ 可采用;而"可采用"在产品语境里还要加一句"今天还能不能用"
+2. 协议:分析 → CapabilityPlanV1(证据 + 确定性路由 + 用户确认闸)→ 冻结合同 → DIRECT_WRAP 或 AGENT_ADAPT → 四路独立验证 → 干净重放 → 导出 + 运营账本 + MCP
+3. 三次自查自证(上面 90 秒版的三条),以及它们各自变成了哪道闸
+4. 双口径:`historical_verdict` 永不改写 vs `operational_status` append-only —— 一个工具可以"历史 READY + 当前 REVOKED"
+5. 分账:Product 发次不进模型能力/held-out 分母,产品跑通多少不代表模型多强
+6. 边界与负结果:null ablation、被忽略的 ledger、范围限制、M7 未关闭项
 
 ## 高频追问
 
 **为什么不用 Codex / Claude Code 直接做?**
-- 答:它们是更强的 agent,但本项目做的是 agent 之外的判定协议——任何 agent
-  接进来都需要独立 verdict。项目刻意用低成本模型证明"约束域内、合同充分时,
-  判定协议比模型能力更是瓶颈"。
+- 答:它们是更强的执行面,本项目做的是执行之外的**判定与运营**协议。
+  任何 agent 接进来都需要独立 verdict,以及"这个工具今天还能不能用"的
+  可撤回状态。执行面刻意复用现成 harness,不重复造 agent loop。
 - 不能说:低成本模型达到 Codex/Claude Code 能力(F10)。
-- 追问预判:"那接上更强模型会怎样?"→ 诚实答:未测,是自然下一步。
 
 **这不就是 CI Runner 吗?**
-- 答:CI 假设测试对被测者可见且信任提交者;这里 oracle 对 agent 保密、
-  存在 held-out 输入、有行为参考校准、有干净重放,且准入门在 agent 之前
-  拒绝不充分的题目——是"考试院",不是"流水线"。
+- 答:CI 假设测试对被测者可见且信任提交者。这里 oracle 对 agent 保密、
+  有 held-out 输入、有上游采用回执、有干净重放,而且准入门在 agent
+  之前就拒掉不充分的题目——是"考试院",不是"流水线"。再加一层 CI 没有的:
+  发布后还能撤回,且撤回对 MCP 即时生效。
 
-**Agent 和 Harness 的区别?**
-- 答:系统里只有一个自主循环(mini-swe-agent DefaultAgent);其余全是确定
-  性代码。PASS 里 agent 的贡献是 67 行 adapter;harness 的贡献是让这 67 行
-  可被信任。
+**"你的系统真的抓到过错吗?"(最值得主动引导到这)**
+- 答:三次,而且都是抓自己。见 90 秒版。最能说明问题的是第三次:一个
+  以"抓假成功"为立身之本的系统,判定层自己漏了一个假成功。修完之后
+  我把当时最亮眼的成果(首条干净非平凡修复轨迹)自我降级了,因为按
+  修好的闸它应该是 BLOCKED。
 
-**为什么 31/33 仍然 FAIL?**
-- 答:挂掉的 2 项是上游异常包装合同——生产里这是数据管道炸掉的那类缺陷。
-  gate 无部分学分,失败在新容器确定性复现,所以 FAIL 是事实而非苛刻。
+**那 19 发存量怎么处理的?**
+- 答:19 发 PRODUCT 记着 PASS 但 `main_dir_integrity=MISMATCH`,10 发
+  绑定已导出工具、8 个当时 ACTIVE。处理原则是**记事实 + 强制限定句**:
+  历史 verdict 一字不改(改了就是编造当时不存在的事实),逐发追加
+  append-only 勘误说明"按现行闸应判 BLOCKED",对外凡引用批次二数字必须
+  同时带这句限定,并且这句限定由 `check_public_claims.py` 机器钉死——
+  漏了就 CI 红。
+- 为什么不撤回工具:完整性缺陷说的是"这一发有没有碰过邻仓",不是"工具
+  能不能用"。后者由两条独立证据线支撑——干净环境重装重验 + fresh
+  非样例输入抽查,都不依赖原发的主仓完整性,且都通过了。两件事分开说。
+- 不能说:这 8 个工具的历史 READY 是干净的(F13)。
+
+**为什么不是把它们重跑一遍?**
+- 答:那是更贵也更干净的选项,已挂账。当下选择记事实而非重跑,是因为
+  重跑要真实预算和授权,而"删掉一条已知有疑的证据"和"让它继续以全强度
+  流通"都是错的——第三条路是让它带着限定继续流通。
 
 **Contract Adequacy 为什么重要?**
-- 答:Gate 7 实测:一条规则只写在 YAML 注释里,agent 选了一个说得通的错误
-  解读——这是任务作者的锅。若不把"合同充分"变成机器可判,失败归因就永远
-  混乱。13 项检查里含"HARD 规则必须逐字进 prompt""布尔字段必须有真值表"。
+- 答:实测过一次——一条规则只写在 YAML 注释里,agent 选了一个说得通的
+  错误解读。这是任务作者的锅。不把"合同充分"变成机器可判,失败归因就
+  永远混乱。13 项检查里含"HARD 规则必须逐字进 prompt""布尔字段必须有
+  真值表"。同理还有出题准入:正控过不了、或三类作弊控抓不住的任务,
+  不许冻结。
 
-**Input Guard 为什么不交给 Agent?**
-- 答:text=None 这类确定性校验在两个域被 agent 反复遗漏(n=2)。它本就该是
-  宿主契约的一部分——稳定错误码、进 adapter 前拦截。把它下沉后,agent 专注
-  真正需要理解的语义映射。
-- 不能说:guard 的工作是 agent 能力(F9)。
-
-**PASS_ADAPTED 如何产生?**
-- 答:Capability(含 held-out)∧ HostRegression ∧ Policy ∧ clean_adoption
-  Replay,四个独立 verifier 的结构化结果进决策表;`demo verify` 可现场复算。
+**上游回执解决什么?**
+- 答:只记"调用发生过"挡不住"调完上游再返回自己实现的结果"。所以回执
+  同时绑定四件事:谁执行的(HMAC 签名,密钥不在 agent 环境)、执行了
+  什么上游(发行版 + 版本 + **运行时实际加载的模块文件 hash** + 符号)、
+  处理了什么输入(digest + nonce 防重放)、结果是否进入最终输出(采纳
+  谓词)。没登记采纳谓词的任务一律判不通过——fail closed。
 
 **Docker 安全吗?**
-- 答:non-root、cap-drop ALL、network=none、digest 锁定——用于隔离/销毁/
-  重放。不是恶意代码沙箱,SECURITY.md 明说(F6)。
+- 答:non-root、cap-drop ALL、network=none、digest 锁定——用于隔离/
+  销毁/重放。不是恶意代码沙箱,SECURITY.md 明说(F6)。
 
 **Trace 不可伪造吗?**
-- 答:tamper-EVIDENT:hash 链能暴露事后篡改;拥有仓库写权限者可整链重写。
-  诚实边界(F7)。
+- 答:tamper-EVIDENT。hash 链能暴露事后篡改;拥有仓库写权限者可整链
+  重写。诚实边界(F7)。
 
-**Budget Awareness 无效为什么还保留?**
-- 答:预注册单变量实验得到 null——这正是方法论工作的证明。删负结果的
-  benchmark 不可信。
+**analyzer 能理解我的意图吗?**
+- 答:不能,而且我们明确不这么宣传。它只做表面特征检测——导出名单、
+  签名、文件位置、单必选参数,给三档 confidence。候选是否真的符合你的
+  意图,由你在计划确认页把关。实测有过一个 `dateutil.easter` 被选成
+  DIRECT_WRAP 候选、被人闸否决的案例——确认项按设计工作(F15)。
 
-**Coverage Ledger 为什么不做成功率声称?**
-- 答:两次真实检验:一次带来首次主动 Submit 但结果不变,一次被完全忽略
-  (0/9)。跨任务效应 unsupported,默认关闭(F5)。
+**为什么 4000 行的 host_guided.py 不拆?**
+- 答:它是 Benchmark Lab 时代的执行驱动,已宣布**功能面冻结但没有退役**
+  ——产品线的彩排和真发仍调它,它的验证链就是判定来源,所以判定/安全/
+  证据缺陷照修(完整性进闸就是同一天修的)。产品新逻辑一律落
+  `tool_pipeline.py`(384 行)。单人项目里宣布冻结比拆 4000 行便宜得多,
+  且不引入回归风险。边界写在 PROJECT_MAP 的代码分区表里,和 mypy 的
+  豁免边界逐包一致。
 
-**为什么只有一个 Agent?**
-- 答:归因。多 agent 时你无法回答"这个失败是谁的"。单循环 + 全确定性外围
-  让每个失败可归因到 agent / task-author / harness 三者之一。
+**你的质量闸门自己过吗?**
+- 答:CI 三 job——ruff 全仓零错、mypy 可信链八包零错(豁免是显式登记的
+  棘轮,只进不退)、pytest 1499 项全量且 slow 不跳过("跳过的判据等于
+  没有判据")。上线前先在 Linux 容器里预演,咬出五条只在 macOS 上永远
+  不暴露的缺陷,最狠的一条是:保护目录表把小写化的比对键当文件系统路径
+  访问,ext4 上 stat 不到,**快照静默漏保护**——一个安全模块在另一个
+  文件系统上悄悄失效。
 
-**不能泛化到什么范围?**
-- 答:非 Python/需 GPU/私有仓库/大型应用全量融合/任意仓库(F1/F12);每个
-  任务都需要人工合同+oracle+控制组工程。
+**多少代码是 AI 写的?**
+- 答:大部分实现是 AI 写的,设计、判据、闸门语义和所有"什么算通过"是
+  我定的。这个项目本身就是关于"人类定验证纪律、AI 在纪律内干活",而我
+  的开发流程执行的是同一套纪律:预注册不重跑、append-only 台账、失败
+  留证、勘误只追加。真正的技能不在打字,在于知道该拒绝什么。
 
 **进企业生产还缺什么?**
 - 答:多租户与鉴权、任务队列与并发调度、secrets 管理、oracle 生产流水线、
-  更强沙箱(gVisor 级)、模型路由与重试策略、审计存储。这些是工程,不是
-  研究缺口——当前定位是 research-grade MVP。
+  更强隔离(OS 级,M7 未关闭)、模型路由与重试、审计存储。这些是工程,
+  不是研究缺口——当前定位是单人 research-grade 产品原型。
+
+**不能泛化到什么范围?**
+- 答:非 Python / 需 GPU / 私有仓库 / 大型应用全量融合 / 任意仓库
+  (F1/F12)。每个任务仍需人工合同 + oracle + 控制组工程。

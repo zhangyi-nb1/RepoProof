@@ -83,6 +83,23 @@ analyzer、003 admission、004 plan-only、005 human-gate、006 repair-loop、
 007 example-assembly、008 guided-adoption UI(Gate A–F)、009
 host-integrated tasks。没有 RFC-012。
 
+## 对外数字只出自两个事实源
+
+| 事实源 | 覆盖 | 重建 |
+|---|---|---|
+| `docs/product_summary.json` | **Product Mode**:84 发产品运行、两批真实仓、运营状态、完整性存量 | `scripts/build_product_summary.py` |
+| `docs/benchmark_summary.json` | **Benchmark Lab**:MVP 时代冻结的 12 发快照 | `scripts/build_benchmark_summary.py` |
+
+**两者永不合并**;一致性由 `scripts/check_public_claims.py` 在 CI 里强制。
+产品发次 `task_seen=true`,一律不进模型能力/held-out 分母。
+
+一条必须跟着数字走的限定句(2026-08-26 外部审查):主仓完整性对账曾排在
+completion gate 之后、不参与判定,清点存量发现 19 发 PRODUCT 记 PASS 而
+`main_dir_integrity=MISMATCH`,10 发绑定已导出工具、8 个当时 ACTIVE ——
+即这 8 个工具的**交付发次在现行完整性闸下应判 BLOCKED**。历史 verdict
+一字不改,逐发有 append-only 勘误行;checker 把这句限定机器钉死。
+工具功能证据不受影响:干净重放与 fresh-input 抽查是独立证据线,均已通过。
+
 ## 证据在哪(全部 append-only)
 
 - `benchmarks/v2/runs.jsonl` —— 每一发真跑一行(FAIL/BLOCKED 也记)

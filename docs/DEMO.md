@@ -1,5 +1,21 @@
 # No-model demo walkthrough
 
+> **定位说明(2026-08-26)**:本页的三个 case 是 **Benchmark Lab** 时代的
+> 证据复算演示。它们没有过期——命令照常可跑、结论照常可复算——但它们
+> 展示的是"判定协议"这一面,不是当前产品主线。
+>
+> 想看 **Product Mode**(GitHub 能力 → 本地工具)的零模型全链演示,用:
+>
+> ```bash
+> .venv/bin/python scripts/demo_direct_wrap.py
+> ```
+>
+> 那条演示自包含、零网络、零真实模型、零主仓污染(产物全在
+> `/tmp/rp_direct_demo/`),走完 intake 静态分析 → CapabilityPlanV1
+> (SUPPORTED + DIRECT_WRAP,带 file:line 证据)→ 人工确认三项 →
+> 受信模板装配 → 同一条独立验证链 → `PASS_DIRECT`。
+> 产品链路总览见 [PROJECT_MAP.md](PROJECT_MAP.md)。
+
 Everything below runs WITHOUT any LLM provider — it works offline,
 never spends a token, and is immune to API outages. All data comes
 from committed, redaction-scanned evidence bundles.

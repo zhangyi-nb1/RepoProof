@@ -17,11 +17,19 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 SUMMARY = REPO / "docs" / "benchmark_summary.json"
+# 产品口径事实源(2026-08-26,外部审查):benchmark_summary.json 是 MVP 时代
+# 冻结的 12 发快照,覆盖不到产品线,于是本 checker 曾长期"全绿地校验一套
+# 早已不再对外讲的话"。product_summary.json 补上这一半。
+PRODUCT_SUMMARY = REPO / "docs" / "product_summary.json"
 PUBLIC_DOCS = [REPO / "README.md", REPO / "docs" / "BENCHMARK.md", REPO / "docs" / "RESUME_CLAIMS.md",
                REPO / "docs" / "DEMO.md", REPO / "docs" / "DEMO_SCRIPT.md", REPO / "docs" / "ARCHITECTURE.md",
                REPO / "docs" / "PROJECT_EVOLUTION.md", REPO / "docs" / "INTERVIEW_GUIDE.md",
                # 当前态文档(2026-08-12 增):自己声明了闸门数,就要被同一把尺子量
-               REPO / "docs" / "PROCESS-INDEPENDENCE-PLAN.md"]
+               REPO / "docs" / "PROCESS-INDEPENDENCE-PLAN.md",
+               # 2026-08-26 补缺口:本脚本的 docstring 一直写着"检查 CLAIMS_MATRIX",
+               # 但它从来不在这张表里 —— 规则书自己不受规则约束,躺了很久。
+               REPO / "docs" / "CLAIMS_MATRIX.md",
+               REPO / "docs" / "PROJECT_MAP.md"]
 
 # Wording patterns that would state a FORBIDDEN claim AS OURS. Kept
 # deliberately literal; docs may still DENY these claims (denials are
@@ -82,6 +90,85 @@ def find_v2_gate_violations(text: str, passes: dict[str, int], docname: str) -> 
             out.append(f"{docname}: 闸门声明 {stage}={got} 与 v2_gate.json 的 "
                        f"{passes[stage]} 不一致(offset {m.start()})")
     return out
+
+
+# ---------------- 产品口径校验(2026-08-26,外部审查)
+#
+# 三条规则,都针对同一个真实事故:主仓完整性曾在 completion gate **之后**
+# 才计算、只落 report 不参与判定(P0-2)。修复后回头清点存量,发现 19 发
+# PRODUCT PASS 的 integrity=MISMATCH,其中 10 发绑定已导出工具、8 个当时
+# ACTIVE。用户 2026-08-26 裁决:记事实 + 强制限定句,不撤回、不重跑。
+# 于是"限定句"必须是机器强制的,否则下一次写文档的人照旧只写漂亮数字。
+
+# 只有这句话算数(刻意选一句长且唯一的话,防止用近义词糊弄过去)
+INTEGRITY_CAVEAT = "交付发次在现行完整性闸下应判 BLOCKED"
+# 出现批次二运营/历史数字 = 触发限定句义务。**按文档里实际用过的措辞**列举,
+# 不按我以为它会怎么写 —— 首版只列了 `historical_tool_ready`,而 README 写的是
+# "Historical pipeline READY results",于是规则装了个空枪(自测时当场发现)。
+_BATCH2_CLAIM = re.compile(
+    r"运营可用"
+    r"|operational[_ ]ready"
+    r"|historical[_ ](?:tool[_ ]ready|pipeline\s+READY)"
+    r"|ACTIVE for RepoProof-managed exposure",
+    re.IGNORECASE)
+# 每一发受影响运行都必须有勘误行,且勘误行必须点名现行闸的判定
+ERRATA_ANCHOR = "MAIN_DIR_INTEGRITY_UNATTRIBUTED"
+
+
+def _load_classifications() -> dict[str, dict]:
+    """后写覆盖前写 —— 与 bench_records.load_classifications 同语义。"""
+    path = REPO / "benchmarks" / "v2" / "run_classifications.jsonl"
+    out: dict[str, dict] = {}
+    if not path.exists():
+        return out
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            rec = json.loads(line)
+            out[rec["run_id"]] = rec
+    return out
+
+
+def check_product_claims(failures: list[str]) -> None:
+    if not PRODUCT_SUMMARY.exists():
+        _fail(failures, "product_summary.json missing — run scripts/build_product_summary.py")
+        return
+    ps = json.loads(PRODUCT_SUMMARY.read_text(encoding="utf-8"))
+
+    # 1) 事实源必须新鲜:源文件 sha 变了而 summary 没重建 = 数字已经在骗人
+    import hashlib
+    for key, rel in (("runs_jsonl_sha256", "benchmarks/v2/runs.jsonl"),
+                     ("run_classifications_sha256", "benchmarks/v2/run_classifications.jsonl"),
+                     ("m4_metrics_sha256", "docs/m4_metrics.json")):
+        f = REPO / rel
+        want = ps.get("sources", {}).get(key)
+        got = hashlib.sha256(f.read_bytes()).hexdigest() if f.exists() else None
+        if want != got:
+            _fail(failures, f"product_summary.json 过期:{rel} 的 sha 不符 —— "
+                            "重跑 scripts/build_product_summary.py")
+
+    # 2) 产品发次永远不进 Lab 分母(RFC-010 [G4] 分账铁律)
+    led = ps.get("ledger", {})
+    for k in ("counts_toward_model_capability", "counts_toward_heldout_benchmark"):
+        if led.get(k):
+            _fail(failures, f"产品发次进入了 Lab 分母({k}=true)—— 违反 RFC-010 [G4] 分账")
+
+    # 3) 每一发 "integrity=MISMATCH 却 PASS" 都必须有点名现行闸判定的勘误行。
+    #    这条防的是"把发次从列表里悄悄拿掉"和"忘了补勘误"两种漂移。
+    cls = _load_classifications()
+    for rid in led.get("product_runs_integrity_mismatch_but_pass", []):
+        notes = str(cls.get(rid, {}).get("notes") or "")
+        if ERRATA_ANCHOR not in notes:
+            _fail(failures, f"{rid}: integrity=MISMATCH 却记 PASS,但分类台账缺"
+                            f"点名 {ERRATA_ANCHOR} 的勘误行")
+
+    # 4) 公开文档凡引用批次二运营/历史数字,必须同时带完整性限定句
+    for doc in PUBLIC_DOCS:
+        if not doc.exists():
+            continue
+        text = doc.read_text(encoding="utf-8")
+        if _BATCH2_CLAIM.search(text) and INTEGRITY_CAVEAT not in text:
+            _fail(failures, f"{doc.name}: 引用了批次二运营/历史数字,却没有完整性限定句"
+                            f"(必须逐字包含:{INTEGRITY_CAVEAT!r})")
 
 
 def check() -> list[str]:
@@ -157,6 +244,9 @@ def check() -> list[str]:
                 for msg in find_v2_gate_violations(
                         doc.read_text(encoding="utf-8"), passes, doc.name):
                     _fail(failures, msg)
+
+    # 8) 产品口径(2026-08-26):事实源新鲜度、分账铁律、完整性勘误与限定句
+    check_product_claims(failures)
     return failures
 
 

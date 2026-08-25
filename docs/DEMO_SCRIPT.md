@@ -1,5 +1,12 @@
 # Demo scripts (30s / 2min / 5min) — no live model, ever
 
+> **定位说明(2026-08-26)**:下面三段话术属于 **Benchmark Lab** 口径
+> (判定协议 / 31 之 33 / 首个 PASS_ADAPTED),依然真实可演,但已不是
+> 产品主线的开场白。**Product Mode 的当前口径**见
+> [INTERVIEW_GUIDE.md](INTERVIEW_GUIDE.md) 的 30 秒 / 90 秒版本 ——
+> 那里的数字绑 [product_summary.json](product_summary.json),并且带着
+> 强制的完整性限定句。演示实体用 `scripts/demo_direct_wrap.py`。
+
 ## 30-second version
 
 > "Coding agents say 'done'. RepoProof decides whether that's true.

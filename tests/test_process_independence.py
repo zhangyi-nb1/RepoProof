@@ -96,6 +96,71 @@ def test_public_claims_checker_passes_on_current_repo() -> None:
     assert cpc.check() == []
 
 
+# ------------------------------------------------- 产品口径(2026-08-26 外部审查)
+
+def test_product_summary_is_fresh() -> None:
+    """事实源过期 = 数字已经在骗人。源文件改了就必须重建 product_summary。
+
+    修法一行:`.venv/bin/python scripts/build_product_summary.py`。
+    """
+    cpc = _load("check_public_claims.py")
+    failures: list[str] = []
+    cpc.check_product_claims(failures)
+    assert failures == [], failures
+
+
+def test_batch2_numbers_without_integrity_caveat_go_red(tmp_path, monkeypatch) -> None:
+    """核心回归钉:引用批次二运营/历史数字却漏掉完整性限定句,必须变红。
+
+    这条规则存在的理由很具体 —— 19 发 PRODUCT 记着 PASS 而
+    `main_dir_integrity=MISMATCH`(完整性当时不进判定),用户裁决是
+    "记事实 + 强制限定句"。限定句如果只靠人自觉,下一个写文档的人照旧
+    只写漂亮数字,所以它必须是机器强制的。
+    """
+    cpc = _load("check_public_claims.py")
+    bad = tmp_path / "BAD.md"
+    bad.write_text("批次二 9 个运营可用,replay 10/10。", encoding="utf-8")
+    good = tmp_path / "GOOD.md"
+    good.write_text(
+        "批次二 9 个运营可用;其中 8 个的"
+        f"{cpc.INTEGRITY_CAVEAT}。", encoding="utf-8")
+    neutral = tmp_path / "NEUTRAL.md"
+    neutral.write_text("本页只解释判定词汇,不引用任何批次数字。", encoding="utf-8")
+
+    monkeypatch.setattr(cpc, "PUBLIC_DOCS", [bad, good, neutral])
+    failures: list[str] = []
+    cpc.check_product_claims(failures)
+    names = " ".join(failures)
+    assert "BAD.md" in names, "漏限定句必须报错"
+    assert "GOOD.md" not in names, "带了限定句不得误伤"
+    assert "NEUTRAL.md" not in names, "不引用数字的文档不承担限定句义务"
+
+
+def test_english_batch2_phrasing_also_triggers() -> None:
+    """规则首版只列 `historical_tool_ready`,而 README 写的是
+    "Historical pipeline READY results" —— 装了个空枪。按**文档实际用过的
+    措辞**钉死,不按我以为它会怎么写。"""
+    cpc = _load("check_public_claims.py")
+    for phrasing in ("Historical pipeline READY results",
+                     "ACTIVE for RepoProof-managed exposure after fresh-input audit",
+                     "9 个运营可用"):
+        assert cpc._BATCH2_CLAIM.search(phrasing), f"未命中:{phrasing}"
+
+
+def test_every_integrity_mismatch_pass_run_has_errata() -> None:
+    """每一发 "integrity=MISMATCH 却 PASS" 都必须有点名现行闸判定的勘误行。
+
+    防两种漂移:把发次从事实源列表里悄悄拿掉,以及新增同类发次却忘了补勘误。
+    """
+    cpc = _load("check_public_claims.py")
+    ps = json.loads((REPO / "docs" / "product_summary.json").read_text(encoding="utf-8"))
+    ids = ps["ledger"]["product_runs_integrity_mismatch_but_pass"]
+    assert ids, "这个列表不该是空的 —— 空了说明提取逻辑又读错了字段形态"
+    cls = cpc._load_classifications()
+    missing = [r for r in ids if cpc.ERRATA_ANCHOR not in str(cls.get(r, {}).get("notes") or "")]
+    assert not missing, f"缺勘误行的发次:{missing}"
+
+
 # ---------------------------------------------------------------- 变异登记簿
 
 def test_mutation_registry_not_stale() -> None:

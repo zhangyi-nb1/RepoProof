@@ -1,5 +1,71 @@
 # Changelog
 
+## v0.2.0 — 2026-08-26 · GitHub capability → verified local tool
+
+产品定位收敛的第一个发布:主线从"任意 Repository Adaptation"改为
+"GitHub 单能力 → 经独立验证、可撤回的本地工具"。
+
+### 产品线
+
+- RFC-010 M0–M6 全部关闭:章程、首个工具闭环、半自动 intake、单命令旅程
+  (`tool add/build/list/audit/withdraw/mcp`)、两批共 24 个真实公开仓库、
+  Studio(Streamlit)接同一 Core 事实源 + 项目方预览 + 2 名目标用户理解测试。
+- RFC-011 M5:ToolSpec v2 输出合同 + T6–T9 装配期检查 + append-only 运营
+  发布状态(`ACTIVE` / `REVIEW_REQUIRED` / `REVOKED`),`historical_verdict`
+  与 `operational_status` 双口径并列;MCP 仅对历史 READY + 当前 ACTIVE 开放,
+  生成的 adapter 每次 list/call 复核账本。
+- RFC-013 CapabilityPlanV1:证据化 surface 检测(签名 / file:line / 单必选
+  参数 → 三档 confidence)、六条确定性路由、用户确认闸 + 执行闸。
+- DIRECT_WRAP 确定性快路径:受信模板装配,零 agent 零模型,过同一条独立
+  验证链拿 `PASS_DIRECT`。
+- FailureAssessmentV1:九种 Product 终止码的纯读取侧投影,含 owner /
+  repairability / 公开失败指纹。
+
+### 判定与证据
+
+- **主仓完整性进入最终判定**(`apply_integrity_to_verdict`):此前完整性对账
+  排在 completion gate 之后、只落 report 不参与 verdict。修复后 `self_ok=false`
+  → `BLOCKED/MAIN_DIR_INTEGRITY_UNATTRIBUTED`,原判定保留在
+  `verdict_before_integrity`,trace 加 `gate.integrity_override`。
+- **执行闸重查全部语义前提**:此前只查 `confirmed + sha`,而 sha 防的是
+  "确认后被改",防不了"从未合法确认过";新增 `assert_plan_matches_source`
+  把 plan 绑定 draft 上游 url + commit。
+- 保护目录改为**结构性发现**(本仓 + 兄弟 git 仓),不再硬编码个人路径 ——
+  硬编码在别人机器上等于保护集合为空。
+- 上游采用回执:HMAC 签名 + 运行时实际加载模块 hash + 输入 digest + 采纳
+  谓词四重绑定,缺采纳谓词一律判不通过。
+
+### 诚实账
+
+- `pyspellchecker` v1 假成功(冻结题面声明 JSON、oracle 验纯文本)保留为
+  历史证据,运营资格撤回,冻结合同与真跑均未改写。
+- **19 发 PRODUCT 记 PASS 而 `main_dir_integrity=MISMATCH`**(完整性当时不
+  参与判定),10 发绑定已导出工具、8 个当时 ACTIVE。裁决:记事实 + 强制
+  限定句,不撤回、不重跑;逐发 append-only 勘误,限定句由
+  `check_public_claims.py` 机器钉死。工具功能证据不受影响(clean replay +
+  fresh-input 抽查为独立证据线,均已通过)。
+- 台账 product-* 编号勘误:08-25 批误从 51 起编与 08-23 批九连撞,改编为
+  product-76..84;现 1..84 连续无缺号、撞号 0。
+
+### 工程
+
+- **CI 落地**:ruff 全仓 0 错 / mypy 可信链八包 0 错(豁免为显式登记的棘轮)
+  / pytest 全量且 slow 不跳过。上线前 Linux 容器预演咬出五条真缺陷,含
+  "保护目录 lower 化路径被当 fs 路径访问 → ext4 上快照静默漏保护"。
+- 新增第二个机器可读事实源 `docs/product_summary.json`(extraction-only),
+  `check_public_claims.py` 同步覆盖产品口径。
+- `docs/PROJECT_MAP.md` 单页地图:代码分区(= mypy 边界)、四套编号对照、
+  判定词汇三层。Benchmark Lab 执行驱动(`host_guided.py` 等)标注 **FROZEN**
+  —— 功能面冻结但未退役,判定/安全缺陷照修。
+- 面试材料(`CLAIMS_MATRIX` / `RESUME_CLAIMS` / `INTERVIEW_GUIDE`)重写到
+  新定位,数字全部绑两个事实源。
+
+### 已知未完成
+
+OS 级隔离(M7,EXPERIMENTAL);8 个受完整性限定影响的工具尚未在干净环境
+复样重跑;M6 两份用户测试原始记录表尚未归档;第三批真仓与真实模型演示
+待授权。
+
 ## Unreleased — 2026-08-24 · M5 contract coherence and operational release state
 
 - Added additive Tool Contract v2 output contracts for text, JSON, objects,

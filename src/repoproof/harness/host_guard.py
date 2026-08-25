@@ -1,8 +1,9 @@
 """主目录硬护栏 + 保护目录指纹对账(TESTPLAN-V2 §4 第 1/6 层,Phase 0 ①)。
 
-红线:用户真实开发目录(OfferClaw / LocalFlow / RepoProof 自身)绝不
-允许成为任何写入目标;每次运行前后对保护目录做指纹对账,被写必当场
-发现。教训来源(CASEBOOK 案例 1 系/审核实证):路径比较必须 realpath
+红线:用户真实开发目录(本仓自身及其兄弟 git 仓库)绝不允许成为任何
+写入目标;每次运行前后对保护目录做指纹对账,被写必当场发现。保护集合
+按**结构**发现而非硬编码目录名 —— 见 `structural_protected()`。
+教训来源(CASEBOOK 案例 1 系/审核实证):路径比较必须 realpath
 归一化 + 大小写不敏感(APFS),软链/相对路径/`~` 变体全覆盖。
 
 指纹范围:工作树含 untracked(排除 .git 与高噪声缓存目录,见
@@ -33,9 +34,6 @@ _SKIP = {".git", ".venv", "venv", "node_modules", "__pycache__",
          ".mypy_cache", ".ruff_cache", ".pytest_cache", ".DS_Store"}
 
 DEFAULT_PROTECTED = (
-    "~/Desktop/XIANGMU/offerclaw",
-    "~/Desktop/XIANGMU/localflow",
-    "~/Desktop/XIANGMU/RepoProof",
     # harness 独占的 runtime 封存区(A1 provisioning 的产物)。
     #
     # **不放在 `~/RepoProofBench/` 下**:那里的护栏是"白名单外一律算游离物"
@@ -68,15 +66,75 @@ def _real(p: str | Path) -> str:
     return os.path.realpath(os.path.expanduser(str(p))).rstrip("/")
 
 
+def _repo_root() -> str | None:
+    """本仓根目录(.git + pyproject.toml 双证认定;非 editable 安装 → None)。"""
+    here = Path(__file__).resolve()
+    for cand in list(here.parents)[:5]:
+        if (cand / ".git").exists() and (cand / "pyproject.toml").exists():
+            return _real(cand)
+    return None
+
+
+def structural_protected() -> list[str]:
+    """**结构性**保护集合:本仓自身 + 其兄弟 git 仓库。
+
+    为什么不再硬编码目录名(外部审查 2026-08-26):
+    `~/Desktop/XIANGMU/offerclaw` 这类个人路径写进公开仓的安全模块,
+    在别人机器上是**不存在的路径**(=保护集合为空,护栏静默失效),
+    在作者机器上又把私人目录结构公开了。改按结构发现:同一父目录下
+    另有 `.git` 的目录就是"用户的真实开发仓"。这比按名字硬编码更强
+    —— 新增邻仓自动受保护,不依赖谁记得回来改常量,而"忘了改常量"
+    正是静默失去保护的典型路径。
+
+    退化是**可观测**的,不是静默的:非 editable 安装推不出仓根时返回
+    空列表,`protection_report()["repo_root"]` 记 None,且单测钉死
+    "开发/CI 环境下本仓自身必须在保护列表里"(见 test_host_guard)。
+    """
+    root = _repo_root()
+    if root is None:
+        return []
+    out = [root]
+    try:
+        for child in sorted(Path(root).parent.iterdir()):
+            if child.is_dir() and (child / ".git").exists():
+                real = _real(child)
+                if real not in out:
+                    out.append(real)
+    except OSError:
+        pass                      # 父目录不可读 → 只保自身,不静默扩权
+    return out
+
+
+def protection_report() -> dict[str, object]:
+    """保护集合的来源分账 —— 供排障/取证用,不参与判定。"""
+    return {
+        "repo_root": _repo_root(),
+        "structural": structural_protected(),
+        "defaults": [_real(d) for d in DEFAULT_PROTECTED],
+        "env": [_real(d) for d in
+                os.environ.get("REPOPROOF_PROTECTED_DIRS", "").split(":")
+                if d.strip()],
+    }
+
+
 def protected_dirs(extra_env: bool = True) -> list[str]:
-    """当前保护目录(realpath,**保留真实大小写**)。可经
-    REPOPROOF_PROTECTED_DIRS(冒号分隔)追加。大小写不敏感的匹配语义
-    在 is_protected 的比对侧实现,不在这里丢信息。"""
-    dirs = [_real(d) for d in DEFAULT_PROTECTED]
+    """当前保护目录(realpath,**保留真实大小写**)。
+
+    三个来源并集:结构性(本仓 + 兄弟 git 仓)、缺省常量
+    (`~/RepoProofRuntimes`)、以及 REPOPROOF_PROTECTED_DIRS(冒号分隔)
+    追加。大小写不敏感的匹配语义在 is_protected 的比对侧实现,不在
+    这里丢信息。"""
+    dirs = list(structural_protected())
+    for d in DEFAULT_PROTECTED:
+        real = _real(d)
+        if real not in dirs:
+            dirs.append(real)
     if extra_env:
         for d in os.environ.get("REPOPROOF_PROTECTED_DIRS", "").split(":"):
             if d.strip():
-                dirs.append(_real(d))
+                real = _real(d)
+                if real not in dirs:
+                    dirs.append(real)
     return dirs
 
 
