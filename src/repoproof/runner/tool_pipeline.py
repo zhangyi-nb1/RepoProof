@@ -176,11 +176,19 @@ def tool_build(
         from repoproof.adoption.planning.capability_plan import (
             CapabilityPlanV1,
             assert_may_execute,
+            assert_plan_matches_source,
         )
 
         plan_obj = CapabilityPlanV1.model_validate(
             yaml.safe_load(plan_path.read_text(encoding="utf-8")))
         assert_may_execute(plan_obj)
+        # plan 与 draft 上游身份绑定:拿别的仓/别的版本的计划冒充即拒
+        # (外部审计 P0 实证的补丁之二)。
+        if isinstance(draft, dict):
+            _sr = draft.get("source_repo") or {}
+            assert_plan_matches_source(
+                plan_obj, url=str(_sr.get("url") or ""),
+                commit=str(_sr.get("resolved_commit") or ""))
         route = plan_obj.implementation_route
         if route == "DIRECT_WRAP":
             spec = derive_adapter_spec(plan_obj)

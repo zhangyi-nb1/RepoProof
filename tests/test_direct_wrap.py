@@ -29,6 +29,7 @@ from repoproof.adoption.delivery.direct_adapter import (
 from repoproof.adoption.planning.capability_plan import (
     CapabilityPlanV1,
     DetectedSurface,
+    PlanError,
     confirm_plan,
 )
 
@@ -71,9 +72,9 @@ def extract(input_path: Path) -> str:
 '''
 
 
-def _mk_plan(locator: str) -> CapabilityPlanV1:
+def _mk_plan(locator: str, commit: str = "x" * 40) -> CapabilityPlanV1:
     plan = CapabilityPlanV1(
-        source={"url": "file://minilib", "commit": "x" * 40},
+        source={"url": "file://minilib", "commit": commit},
         capability_goal="MINI 文本转 Markdown 行表",
         detected_surfaces=[DetectedSurface(
             kind="python_callable", locator=locator,
@@ -82,6 +83,10 @@ def _mk_plan(locator: str) -> CapabilityPlanV1:
         support_status="SUPPORTED",
         implementation_route="DIRECT_WRAP",
         reason_codes=["PINNED_PUBLIC_PYTHON", "SINGLE_CALLABLE_MAPPED"],
+        # 真 build 恒带默认确认三项;确认闸/执行闸都拒空清单,手搓
+        # fixture 必须如实带上,不许造出产线上不存在的形状。
+        human_confirmations=["callable locator", "input mapping",
+                             "output contract and representative examples"],
     ).seal()
     return confirm_plan(plan, acks=list(plan.human_confirmations))
 
@@ -175,10 +180,12 @@ def _world(tmp_path, monkeypatch, *, locator: str):
         {"input_file": "c.txt", "expected": "contains:| gamma |"},
     ]}, allow_unicode=True), encoding="utf-8")
     (dest / "reference_impl.py").write_text(_REFERENCE, encoding="utf-8")
-    # DIRECT_WRAP 计划(已确认)入束 —— 路由的唯一驱动源
+    # DIRECT_WRAP 计划(已确认)入束 —— 路由的唯一驱动源。commit 必须
+    # 用 draft 的真 head:执行闸现在把 plan 绑定到 draft 上游身份
+    # (外部审计 P0),异源 commit 在路由段即拒。
     (dest / "plan.yaml").write_text(
-        yaml.safe_dump(_mk_plan(locator).model_dump(), allow_unicode=True,
-                       sort_keys=False), encoding="utf-8")
+        yaml.safe_dump(_mk_plan(locator, commit=head).model_dump(),
+                       allow_unicode=True, sort_keys=False), encoding="utf-8")
 
     shim = (
         "import os, pathlib\n"
@@ -229,3 +236,22 @@ def test_direct_wrap_wrong_symbol_fails_without_agent_fallback(tmp_path, monkeyp
     assert "rehearsal" not in out["stages"]
     assert "real" not in out["stages"]
     assert "failure_assessment" in out["stages"]["direct"]
+
+
+@pytest.mark.slow
+def test_forged_foreign_plan_is_rejected_at_route(tmp_path, monkeypatch):
+    """管道层源绑定负控(外部审计 P0):把「别的版本」的计划塞进
+    draft 束 —— 计划自身完全自洽(SUPPORTED+已确认+sha 重封),
+    旧闸放行;现在必须死在路由段的 assert_plan_matches_source。"""
+    from repoproof.runner.tool_pipeline import tool_build
+
+    project, dest, setup = _world(tmp_path, monkeypatch,
+                                  locator="minilib:rows_to_markdown")
+    forged = _mk_plan("minilib:rows_to_markdown", commit="f" * 40)
+    (dest / "plan.yaml").write_text(
+        yaml.safe_dump(forged.model_dump(), allow_unicode=True,
+                       sort_keys=False), encoding="utf-8")
+    with pytest.raises(PlanError, match="不一致"):
+        tool_build(dest, project, bench_root=tmp_path / "bench",
+                   dest_root=tmp_path / "tools", run_real=True,
+                   setup_commands=setup, wheelhouse_cmd=["true"])

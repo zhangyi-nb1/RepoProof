@@ -23,6 +23,7 @@ from repoproof.adoption.planning.capability_plan import (
     PlanError,
     apply_llm_advice,
     assert_may_execute,
+    assert_plan_matches_source,
     build_capability_plan,
     confirm_plan,
 )
@@ -212,6 +213,59 @@ def test_confirm_gate_and_execute_gate(tmp_path):
     plan.capability_goal += "被人动了手脚"
     with pytest.raises(PlanError, match="被改动过"):
         assert_may_execute(plan)
+
+
+def test_forged_unsupported_plan_cannot_execute(tmp_path):
+    """外部审计实证的绕过路径必须死:UNSUPPORTED 计划手工置
+    confirmed=true、补确认清单、**重算 SHA 自洽封口** —— 旧闸(只查
+    confirmed+sha)会放行;现闸重查全部语义前提,必须拒。"""
+    root = _repo(tmp_path, "gpuish2", {
+        "pyproject.toml": _PYPROJECT.format(name="gpuish2", extra=""),
+        "LICENSE": _MIT,
+        "requirements.txt": "torch==2.4.0\n",
+        "src/gpuish2/__init__.py": (
+            'import os\n\n__all__ = ["infer"]\n\n'
+            'TOKEN = os.environ["GPUISH_API_KEY"]\n\n\n'
+            "def infer(path: str) -> str:\n    return path\n"),
+    })
+    plan, _ = _plan(root, "推理")
+    assert plan.support_status == "UNSUPPORTED"
+    plan.confirmed = True                       # 伪造确认
+    plan.human_confirmations = ["callable locator"]
+    plan.plan_sha256 = plan.compute_sha256()    # 重封 SHA,内容自洽
+    with pytest.raises(PlanError, match="非 SUPPORTED"):
+        assert_may_execute(plan)
+    plan.implementation_route = "DIRECT_WRAP"   # 连路线一起伪造也不行
+    plan.plan_sha256 = plan.compute_sha256()
+    with pytest.raises(PlanError, match="非 SUPPORTED"):
+        assert_may_execute(plan)
+
+
+def test_forged_empty_confirmations_cannot_execute(tmp_path):
+    """confirmed=true 但确认清单为空 = 从未有过可确认的东西 → 拒。"""
+    root = _direct_repo(tmp_path)
+    plan, _ = _plan(root, "把文本文件转成 slug")
+    confirm_plan(plan, acks=list(plan.human_confirmations))
+    plan.human_confirmations = []
+    plan.plan_sha256 = plan.compute_sha256()
+    with pytest.raises(PlanError, match="human_confirmations 为空"):
+        assert_may_execute(plan)
+
+
+def test_plan_source_binding_rejects_wrong_upstream(tmp_path):
+    """plan 与 draft 上游身份绑定:别的仓/别的版本的计划冒充即拒;
+    URL 归一化(尾斜杠 / .git / 大小写)不算不一致。"""
+    root = _direct_repo(tmp_path)
+    plan, _ = _plan(root, "把文本文件转成 slug")
+    url, commit = plan.source["url"], plan.source["commit"]
+    assert_plan_matches_source(plan, url=url, commit=commit)          # 同源放行
+    assert_plan_matches_source(plan, url=(url.rstrip("/") + "/").upper(),
+                               commit=commit)                          # 归一化等价
+    with pytest.raises(PlanError, match="commit"):
+        assert_plan_matches_source(plan, url=url, commit="0" * 40)
+    with pytest.raises(PlanError, match="不一致"):
+        assert_plan_matches_source(plan, url="https://example.com/other-repo",
+                                   commit=commit)
 
 
 def test_non_supported_plan_cannot_be_confirmed(tmp_path):

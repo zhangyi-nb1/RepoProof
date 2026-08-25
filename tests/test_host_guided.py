@@ -18,6 +18,7 @@ from repoproof.runner.host_guided import (
     HostRunError,
     _expected_regression_passed,
     _fake_script,
+    apply_integrity_to_verdict,
     build_host_prompt,
     integrity_scope,
 )
@@ -649,7 +650,8 @@ def test_baseline_read_from_pristine_host_copy_not_session(tmp_path: Path) -> No
 def test_dependency_failure_attributed_to_agent_not_harness() -> None:
     """接线钉死:两条分支必须分开归因,且判据读 pip **全文**不读截断尾巴。"""
     src = _runner_src()
-    assert "added_problem_dists(full, self._baseline_dists())" in src  # #38 改名(两种死法合一);语义不变:重放侧按基线归因
+    # #38 改名(两种死法合一);语义不变:重放侧按基线归因
+    assert "added_problem_dists(full, self._baseline_dists())" in src
     assert "raise DependencyNotReproducible(" in src
     assert '"attribution": "agent"' in src and '"attribution": "harness"' in src
     # DependencyNotReproducible 的 except 必须排在**同一 try 的**兜底之前,
@@ -962,3 +964,46 @@ def test_active_is_the_default_and_typos_refuse_at_load(tmp_path: Path) -> None:
         encoding="utf-8")
     with pytest.raises(Exception, match="task_status"):
         HostContract.load(bad)      # 打错字必须炸,不许静默落回 ACTIVE
+
+
+# ------------------------------------------ 主仓完整性 → 最终判定(P0)
+
+def _mismatch(n_self: int, n_external: int) -> dict:
+    return {"dir": "/host/RepoProof", "field": "tree",
+            "attribution": {"verdict": "SELF" if n_self else "EXTERNAL",
+                            "n_self": n_self, "n_external": n_external}}
+
+
+def test_integrity_ok_leaves_verdict_untouched() -> None:
+    vr = {"verdict": "REPAIR_SUCCEEDED", "gate_reasons": []}
+    out, reasons = apply_integrity_to_verdict(
+        vr, [], {"ok": True, "self_ok": True, "mismatches": []})
+    assert out == vr and reasons == []
+
+
+def test_integrity_self_dirty_overrides_to_blocked() -> None:
+    """审计病灶原型:PASS 判定 + self_ok=false(SELF_NO_WINDOW)——
+    覆盖为 BLOCKED,原判定保进 verdict_before_integrity,入参不被改。"""
+    vr = {"verdict": "REPAIR_SUCCEEDED", "gate_reasons": ["all green"]}
+    reasons_in = ["all green"]
+    out, reasons = apply_integrity_to_verdict(
+        vr, reasons_in,
+        {"ok": False, "self_ok": False, "mismatches": [_mismatch(1, 0)]})
+    assert out["verdict"] == "BLOCKED"
+    assert out["state"] == "MAIN_DIR_INTEGRITY_UNATTRIBUTED"
+    assert out["verdict_before_integrity"] == "REPAIR_SUCCEEDED"
+    assert len(reasons) == 2 and "MAIN_DIR_INTEGRITY" in reasons[1]
+    assert out["gate_reasons"] == reasons          # 两处同步,不许各读各的
+    assert vr["verdict"] == "REPAIR_SUCCEEDED"     # 纯函数:入参原样
+    assert reasons_in == ["all green"]
+
+
+def test_integrity_external_only_still_blocks_agent_run() -> None:
+    """host_guard 冻结边界:agent run 走严判 ok,窗口归因只作证据。
+    全部归因 EXTERNAL 也不免罪 —— 但 state 与 reason 要说清证据方向。"""
+    out, reasons = apply_integrity_to_verdict(
+        {"verdict": "PASS_ADAPTED"}, [],
+        {"ok": False, "self_ok": True, "mismatches": [_mismatch(0, 2)]})
+    assert out["verdict"] == "BLOCKED"
+    assert out["state"] == "MAIN_DIR_INTEGRITY_EXTERNAL_ONLY"
+    assert "外部" in reasons[0] and "external=2" in reasons[0]

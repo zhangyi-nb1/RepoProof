@@ -325,7 +325,15 @@ class PlanError(RuntimeError):
 
 
 def confirm_plan(plan: CapabilityPlanV1, *, acks: list[str]) -> CapabilityPlanV1:
-    """人闸:逐项确认后翻 confirmed。缺一项即拒,不许部分确认。"""
+    """人闸:逐项确认后翻 confirmed。缺一项即拒,不许部分确认。
+
+    空确认清单同样拒:build_capability_plan 生成的计划恒带默认三项,
+    清单为空只可能是手搓/剥离 —— 「没有可确认的东西」不等于「都确认
+    过了」,放行它就把人闸变成真空(执行闸 assert_may_execute 重查
+    同一条,双层同律)。"""
+    if not plan.human_confirmations:
+        raise PlanError("human_confirmations 为空 —— 没有确认项清单的"
+                        "计划不具备被确认的资格")
     missing = [c for c in plan.human_confirmations if c not in acks]
     if missing:
         raise PlanError(f"未确认项:{missing} —— 计划不得冻结")
@@ -338,8 +346,42 @@ def confirm_plan(plan: CapabilityPlanV1, *, acks: list[str]) -> CapabilityPlanV1
 
 
 def assert_may_execute(plan: CapabilityPlanV1) -> None:
-    """真发前的硬闸:未确认的计划禁止触发任何真实模型。"""
+    """真发前的硬闸:全部语义前提在执行点**重查**,不信任上游状态。
+
+    只查 confirmed+sha 是不够的(外部审计实证):手工构造
+    `support_status=UNSUPPORTED, confirmed=true` 再重算普通 SHA 即可绕过
+    —— sha 防的是「确认后被改动」,防不了「从未合法确认过」。故本闸
+    把 confirm_plan 的全部前提原样重查:任何一条不满足即拒,
+    UNSUPPORTED/REVIEW_REQUIRED/EXPERIMENTAL 路径保持零模型调用。"""
     if not plan.confirmed:
         raise PlanError("计划未经用户确认(confirmed=false)—— 禁止执行")
+    if plan.support_status != "SUPPORTED":
+        raise PlanError(
+            f"support_status={plan.support_status} —— 非 SUPPORTED 计划"
+            "禁止执行(confirmed 标记不构成豁免)")
+    if plan.implementation_route not in ("DIRECT_WRAP", "AGENT_ADAPT"):
+        raise PlanError(
+            f"implementation_route={plan.implementation_route} 不是可执行"
+            "路线 —— 拒绝执行")
+    if not plan.human_confirmations:
+        raise PlanError("human_confirmations 为空 —— 没有确认项清单的计划"
+                        "不具备被确认的资格,拒绝执行")
     if plan.compute_sha256() != plan.plan_sha256:
         raise PlanError("plan_sha256 与内容不符 —— 计划被改动过,拒绝执行")
+
+
+def assert_plan_matches_source(plan: CapabilityPlanV1, *, url: str,
+                               commit: str) -> None:
+    """plan 与 draft 上游身份绑定:拿别的仓/别的版本的计划冒充即拒。"""
+    plan_commit = str((plan.source or {}).get("commit") or "")
+    plan_url = str((plan.source or {}).get("url") or "")
+    if plan_commit and commit and plan_commit != commit:
+        raise PlanError(
+            f"计划绑定的 commit({plan_commit[:12]})与 draft 上游"
+            f"({str(commit)[:12]})不一致 —— 拒绝执行")
+    def _norm(u: str) -> str:
+        return u.rstrip("/").removesuffix(".git").lower()
+    if plan_url and url and _norm(plan_url) != _norm(url):
+        raise PlanError(
+            f"计划绑定的仓库({plan_url})与 draft 上游({url})不一致 —— "
+            "拒绝执行")

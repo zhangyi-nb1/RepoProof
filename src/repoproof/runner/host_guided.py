@@ -57,6 +57,7 @@ from repoproof.execution.local_worktree_backend import LocalWorktreeBackend
 from repoproof.harness import postflight
 from repoproof.harness.host_guard import (
     HostGuardError,
+    SelfWriteWindow,
     bench_root_strays,
     is_protected,
     snapshot_protected,
@@ -460,6 +461,52 @@ def replay_eligible(cap, reg, pol) -> bool:
     """clean replay 准入 = 能力/回归/策略三绿;额度标记不参与
     (终轮撞线与成功可共存——耗尽的职责是约束 agent,不是取消验证)。"""
     return bool(cap and reg and pol and cap.passed and reg.passed and pol.passed)
+
+
+def apply_integrity_to_verdict(verdict_record: dict, gate_reasons: list[str],
+                               integrity: dict) -> tuple[dict, list[str]]:
+    """主仓完整性对账 → 最终判定(P0,外部审计 2026-08-25)。
+
+    证据链的第一句话是「主仓没被这发碰过」;这句话说不出口,后面的
+    PASS/REPAIR_* 都不许发布。host_guard 已冻结的边界(见其模块注释):
+    **有 agent 在场的正式 run 走原封不动的严判 `ok`,归因只作证据附随**
+    ——孙进程可以活过自写窗把窗外写伪装成 EXTERNAL,所以窗口归因在
+    agent run 里只减轻不免罪。规则:
+
+    - ok=True                 → 原判定不动。
+    - ok=False, self_ok=False → BLOCKED / MAIN_DIR_INTEGRITY_UNATTRIBUTED
+                                (有改动归到本链名下,或无窗口/无时刻无从归因)。
+    - ok=False, self_ok=True  → BLOCKED / MAIN_DIR_INTEGRITY_EXTERNAL_ONLY
+                                (逐条证据都说是外部写手,但 agent run 不走
+                                免罪路径;证据随 reason 附上,供人工复核重跑)。
+
+    纯函数:不改入参;原判定保进 `verdict_before_integrity`;verdict_record
+    自带 gate_reasons 键时同步更新,免得 report 与台账各读各的。"""
+    if integrity.get("ok"):
+        return verdict_record, gate_reasons
+    parts = []
+    for m in integrity.get("mismatches", [])[:5]:
+        attr = m.get("attribution") or {}
+        parts.append(f"{m.get('dir')}[{m.get('field')}] "
+                     f"self={attr.get('n_self', '?')} "
+                     f"external={attr.get('n_external', '?')}")
+    summary = "; ".join(parts) or "<no-detail>"
+    vr = dict(verdict_record)
+    vr["verdict_before_integrity"] = verdict_record.get("verdict")
+    vr["verdict"] = "BLOCKED"
+    if integrity.get("self_ok"):
+        vr["state"] = "MAIN_DIR_INTEGRITY_EXTERNAL_ONLY"
+        reason = ("MAIN_DIR_INTEGRITY: 保护目录有改动;逐条归因均为外部"
+                  f"写手,但 agent run 不走窗口免罪 —— 判定覆盖为 BLOCKED,"
+                  f"证据供人工复核:{summary}")
+    else:
+        vr["state"] = "MAIN_DIR_INTEGRITY_UNATTRIBUTED"
+        reason = ("MAIN_DIR_INTEGRITY: 保护目录改动无法排除本链"
+                  f"(self_ok=false)—— 判定覆盖为 BLOCKED:{summary}")
+    new_reasons = [*gate_reasons, reason]
+    if "gate_reasons" in vr:
+        vr["gate_reasons"] = new_reasons
+    return vr, new_reasons
 
 _ROUND_HEADER = (
     "\n\n==== GUIDED REPAIR ROUND {idx}/{max_rounds} ====\n"
@@ -2376,6 +2423,10 @@ class HostGuidedRunner:
         ev("contract.frozen", actor="harness",
            payload={"task_id": contract.task_id, "sha256": self.contract_sha})
 
+        # 自写窗起点(墙钟,host_guard.SelfWriteWindow 语义)。取在快照
+        # **之前**是保守方向:窗宽只会把更多改动判成 SELF(继续红)。
+        # t0 是 monotonic,量时长的;归因要对上文件 mtime,必须 time.time()。
+        self._self_wall_t0 = time.time()
         integrity_before = snapshot_protected(integrity_scope(self.project_root))
         # 会话根不得落在保护目录内(RepoProof 自身也是保护目录),
         # 放 RepoProofBench 工作区;产物/trace 仍在 runs/<id>/ 下。
@@ -3396,9 +3447,27 @@ class HostGuidedRunner:
                 ev("postflight.process_sweep", actor="harness",
                    payload={"error": str(exc)})
         nested_meter = collect_nested_meter(self.store.run_dir)   # 增强③
-        integrity = verify_protected_unchanged(integrity_before)
+        wall_t0 = getattr(self, "_self_wall_t0", None)
+        integrity = verify_protected_unchanged(
+            integrity_before,
+            self_window=(SelfWriteWindow(start=wall_t0, end=time.time())
+                         if wall_t0 is not None else None))
         if not integrity["ok"]:
             ev("integrity.MISMATCH", actor="harness", payload=integrity)
+        # P0(外部审计 2026-08-25):对账结果**进最终判定**,不再只落
+        # report。此前它算在 completion gate 之后、谁也不拦 —— 于是
+        # main_dir_integrity.ok=false 的发次照样记 REPAIR_SUCCEEDED
+        # (tool-jsonschema-report-v2-20260825-154405,OfferClaw 文档
+        # SELF_NO_WINDOW 改动)。覆盖必须发生在 run.end / report / 台账
+        # 行装配之前,三处读的才是同一个终局。
+        _verdict_before_integrity = verdict_record.get("verdict")
+        verdict_record, gate_reasons = apply_integrity_to_verdict(
+            verdict_record, gate_reasons, integrity)
+        if verdict_record.get("verdict") != _verdict_before_integrity:
+            ev("gate.integrity_override", actor="harness", payload={
+                "from": _verdict_before_integrity,
+                "to": verdict_record.get("verdict"),
+                "state": verdict_record.get("state")})
         self.timings["total_wall_s"] = round(time.monotonic() - t0, 1)
         ev("run.end", actor="runner", payload={
             "verdict": verdict_record.get("verdict"),
