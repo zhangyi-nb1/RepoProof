@@ -1,0 +1,50 @@
+task_id: tool-rrule-expand-v1
+
+source_repo:
+  url: https://github.com/dateutil/dateutil
+  revision: guided
+  resolved_commit: 48bd1af97e71baf8e96fce5b663d589caac8f147
+  license: Apache-2.0
+  distribution: python-dateutil
+  import_module: dateutil
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_rrule-expand
+  package: rrule_expand
+  entry_point: rrule-expand
+
+requirement_spec_file: tool-rrule-expand-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 2, "name": "rrule-expand", "summary": "把 DTSTART+RRULE 两行文本展开为前 10 次发生时间", "interface": {"usage": "rrule-expand <input.txt> [--out FILE]", "input": {"kind": "file", "format": "TXT", "contract": null}, "output": {"kind": "stdout", "format": "text", "contract": {"media_type": "text/plain", "root_type": "text", "required": {}}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    输入文本恰含两行:第 1 行 `DTSTART:<ISO8601 无时区>`;第 2 行 `RRULE:<iCal 规则>`。用 dateutil 的 rrulestr(以 DTSTART 为 dtstart)展开,输出前 10 次发生时间(规则产生不足 10 次则全部输出),每行一个 datetime.isoformat()。行数不足两行、DTSTART 不可解析、RRULE 非法,均属用户输入错误(UserInputError→exit 1)。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/rrule_expand/impl.py 实现 extract(),必须调用 pinned python-dateutil;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:rrule-expand daily.txt -> 见 daily.expected.txt; rrule-expand weekly.txt -> 见 weekly.expected.txt; rrule-expand monthly.txt -> 见 monthly.expected.txt);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: "OccurrenceLines"
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

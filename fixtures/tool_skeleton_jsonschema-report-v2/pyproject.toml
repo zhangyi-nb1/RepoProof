@@ -1,0 +1,8 @@
+[project]
+name = "jsonschema_report"
+version = "1.0.0"
+description = '用文件内嵌 schema 校验 data 并输出结构化 JSON 错误报告'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

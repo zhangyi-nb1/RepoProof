@@ -1,0 +1,21 @@
+{
+ "schema": {
+  "type": "object",
+  "properties": {
+   "items": {
+    "type": "array",
+    "items": {
+     "type": "integer"
+    }
+   }
+  }
+ },
+ "data": {
+  "items": [
+   1,
+   "x",
+   3,
+   "y"
+  ]
+ }
+}

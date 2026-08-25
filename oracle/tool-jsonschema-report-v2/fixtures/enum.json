@@ -1,0 +1,19 @@
+{
+ "schema": {
+  "type": "object",
+  "required": [
+   "color"
+  ],
+  "properties": {
+   "color": {
+    "enum": [
+     "red",
+     "green"
+    ]
+   }
+  }
+ },
+ "data": {
+  "color": "blue"
+ }
+}

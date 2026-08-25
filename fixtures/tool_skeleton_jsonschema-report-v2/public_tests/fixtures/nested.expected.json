@@ -1,0 +1,14 @@
+{
+  "error_count": 2,
+  "errors": [
+    {
+      "message": "'x' is not of type 'integer'",
+      "path": "/items/1"
+    },
+    {
+      "message": "'y' is not of type 'integer'",
+      "path": "/items/3"
+    }
+  ],
+  "valid": false
+}

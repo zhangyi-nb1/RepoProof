@@ -1,0 +1,10 @@
+{
+  "error_count": 1,
+  "errors": [
+    {
+      "message": "'blue' is not one of ['red', 'green']",
+      "path": "/color"
+    }
+  ],
+  "valid": false
+}

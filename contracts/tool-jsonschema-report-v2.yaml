@@ -1,0 +1,50 @@
+task_id: tool-jsonschema-report-v2
+
+source_repo:
+  url: https://github.com/python-jsonschema/jsonschema
+  revision: guided
+  resolved_commit: b37f7be6dc7966a1f1a67557976041ffe0826cb3
+  license: MIT
+  distribution: jsonschema
+  import_module: jsonschema
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_jsonschema-report-v2
+  package: jsonschema_report
+  entry_point: jsonschema-report
+
+requirement_spec_file: tool-jsonschema-report-v2.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 2, "name": "jsonschema-report", "summary": "用文件内嵌 schema 校验 data 并输出结构化 JSON 错误报告", "interface": {"usage": "jsonschema-report <input.json> [--out FILE]", "input": {"kind": "file", "format": "JSON", "contract": null}, "output": {"kind": "stdout", "format": "json-object", "contract": {"media_type": "application/json", "root_type": "object", "required": {"valid": "boolean", "error_count": "integer", "errors": "array"}}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    输入为单个 JSON 文件,顶层对象含 `schema` 与 `data` 两键。用 jsonschema(Draft 2020-12)以 schema 校验 data,输出一个 JSON 对象:`valid`(布尔)、`error_count`(整数)、`errors`(数组;每元素含 `path`=JSON Pointer 字符串与 `message`=错误消息,按 path 再 message 字典序升序)。valid 为 true 时 errors 必须为空数组且 error_count=0。输出 JSON 以 sort_keys=True、ensure_ascii=False、indent=2 序列化。输入不是合法 JSON、顶层缺 schema/data、或 schema 本身非法,均属用户输入错误(UserInputError→exit 1)。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/jsonschema_report/impl.py 实现 extract(),必须调用 pinned jsonschema;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:jsonschema-report valid.json -> 见 valid.expected.json; jsonschema-report missing.json -> 见 missing.expected.json; jsonschema-report nested.json -> 见 nested.expected.json);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: "ValidationReport"
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

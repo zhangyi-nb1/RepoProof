@@ -1,0 +1,48 @@
+{
+ "manifest_version": 1,
+ "name": "jsonschema-report",
+ "version": "1.0.0",
+ "summary": "用文件内嵌 schema 校验 data 并输出结构化 JSON 错误报告",
+ "source": {
+  "url": "https://github.com/python-jsonschema/jsonschema",
+  "resolved_commit": "b37f7be6dc7966a1f1a67557976041ffe0826cb3",
+  "license": "MIT",
+  "distribution": "jsonschema"
+ },
+ "contract_schema_version": 2,
+ "interface": {
+  "usage": "jsonschema-report <input.json> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "JSON",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "json-object",
+   "contract": {
+    "media_type": "application/json",
+    "root_type": "object",
+    "required": {
+     "valid": "boolean",
+     "error_count": "integer",
+     "errors": "array"
+    }
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "ValidationReport"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

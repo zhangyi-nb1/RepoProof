@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "daily.txt", "expected_file": "daily.expected.txt"}, {"input_file": "weekly.txt", "expected_file": "weekly.expected.txt"}, {"input_file": "monthly.txt", "expected_file": "monthly.expected.txt"}]}

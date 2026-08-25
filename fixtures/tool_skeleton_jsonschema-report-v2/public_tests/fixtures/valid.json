@@ -1,0 +1,16 @@
+{
+ "schema": {
+  "type": "object",
+  "required": [
+   "name"
+  ],
+  "properties": {
+   "name": {
+    "type": "string"
+   }
+  }
+ },
+ "data": {
+  "name": "李雷"
+ }
+}

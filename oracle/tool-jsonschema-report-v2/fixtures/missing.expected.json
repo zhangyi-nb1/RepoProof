@@ -1,0 +1,10 @@
+{
+  "error_count": 1,
+  "errors": [
+    {
+      "message": "'name' is a required property",
+      "path": ""
+    }
+  ],
+  "valid": false
+}

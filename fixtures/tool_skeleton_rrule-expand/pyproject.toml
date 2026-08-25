@@ -1,0 +1,8 @@
+[project]
+name = "rrule_expand"
+version = "1.0.0"
+description = '把 DTSTART+RRULE 两行文本展开为前 10 次发生时间'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]
