@@ -3617,3 +3617,23 @@ surfaces 证据表)、构建前路线预告(DIRECT_WRAP 明示零模型)、活�
 全量 `1432 passed + 60 skipped + 0 failed`;分支
 claude/onboarding-gate1 已推(0322672)。**四 Gate 关闭;余:M6 两名
 目标用户测试(用户侧)、合回 main 待用户验收。**
+
+## 状态 · 2026-08-25 · REPAIR-VALIDATION-1 收官(四判据全过;模型池换代 terra/luna)
+
+默认模型切 gpt-5.6-terra(对比位 gpt-5.6-luna;连通取证回显一致;
+host_pilot/MODEL_POOL 钉死随换代翻新)。复杂任务架构验证批终局:
+**terra 2/2 首轮 PASS**(jsonschema-report v2:严格 object+required
+输出合同,81K in/10 调用;rrule-expand:边界语义,100K/13 调用);
+条件加发 luna:**jsonschema-report REPAIR_SUCCEEDED(rounds=2,公开
+2/5→5/5)= 反馈面修复后首条干净非平凡真实修复轨迹**;rrule luna 首过。
+§五 A/B/C/D 判据全过(plan 驱动 AGENT_ADAPT 真实全链 plan_sha 入档/
+非平凡修复/投影互证/输出合同真发执法)。
+执行事件五则如实入档(勘误 §八):H9-a 拦备题残留(v1→v2 谱系)、
+analyzer COPYING/MIT 无标题正文识别修复、dateutil.easter 错误
+DIRECT_WRAP 候选被人闸否决(确认项按设计工作)、luna 首轮两发系
+操作员相对 project_root 驱动错误(360K in 损耗入账后补发)。
+**额度结论:terra 均 90.5K in/发(任务更难)vs 5.5 批次一 143.6K/
+批次二 93.1K,调用数 10-13 vs 15-34 —— 换默认模型后确实更省。**
+分类 product-51..59;K11 31 宿主;总耗 1,087,791 in(帽 2M 内);
+全量 1432 passed + 60 skipped + 0 failed;分支推至 ae858d9。
+两新工具 REVIEW_REQUIRED 待 fresh audit。
