@@ -3704,3 +3704,46 @@ plan 用假 commit("x"*40)+空确认清单——恰是审计说的「产线上�
 束必须死在路由段。②token 执法的累加点行号钉随 host_guided 导入区
 +1 位移,照律翻新。收尾:全量 **1439 passed + 60 skipped + 0 failed**
 (旧基线 1432+新负控 7 枚账合),触达文件 ruff/compile 全绿。
+
+## 状态 · 2026-08-25 · 三短板整改:CI 落地 + Lab 冻结宣言 + 单页地图
+
+**短板 1 · CI(全项目最大反讽的清账)**。`.github/workflows/ci.yml`
+三 job(ruff 全仓 / mypy 可信链 / pytest 全量,ubuntu-latest),README
+挂 badge。ruff 全仓清零(55→0:34 auto-fix + 手修 B905×2/B904/E741/
+UP031/长行;mutation_gate 的 old/new 是逐字节突变匹配串不可断行,
+per-file-ignore E501 并注明)。mypy 首次引入:可信链八包(adoption/
+verification/harness/domain/persistence/execution/receipts/probes)
+232→0 错全真修;runner/ui/agents/cli 为显式登记的冻结区/渐进队列
+(棘轮只进不退),豁免边界与 PROJECT_MAP 代码分区逐包一致。
+
+**CI 预演(colima Linux 容器,非 root+快照树)咬出五条真缺陷,全部
+先于上线修复**:①保护目录表 lower 化路径被当 fs 路径访问 —— ext4
+上 stat 不到,**快照静默漏保护**(比对键/访问路径分离:_norm 只比对,
+protected_dirs 保真实大小写);②PII 扫描把 getpass.getuser() 编成裸
+子串规则 —— GitHub runner 用户名就叫 runner,trace 里 "actor":
+"runner" 全误报(通用账户名白名单豁免,路径形态仍兜底);③pytest 设
+COLUMNS=80,procps ps 尊重之 —— 长命令行截 80 列,postflight 清扫
+"看不见"目标进程、身份哈希哈截断串(ps 改 axww/-ww,BSD/procps 双通);
+④host_guard 五处测试"快照后亚毫秒同尺寸重写"依赖 mtime 粒度 ——
+Linux 内核 ~1ms 粒度下不可见(改不同尺寸重写,size 分量不依赖时钟);
+⑤intake 大小写探测在 ext4 走进另一证据分支(探测统一走大小写不敏感
+目录扫描+真实名回读)。另:pdfplumber 真树资源门从 is_dir 加固为
+查 .git(裸树 rev-parse 会向上漂到外层仓)。dev extras 补
+litellm/mini-swe-agent(测试收集硬需)。
+
+**短板 2 · host_guided 不拆,宣布冻结**。runner/__init__ 分区表 +
+host_guided 顶部 FROZEN 宣言(如实:功能面冻结但**没有退役**——
+tool_pipeline 的彩排/真发仍调它,验证链就是判定来源;判定/安全缺陷
+照修)+ baseline/guided_repair/agent_run 三文件 FROZEN 标记。
+token 行号钉随头部 +13 照律翻新。
+
+**短板 3 · 单页地图**。docs/PROJECT_MAP.md:30 秒定位、10 分钟路径、
+代码分区表(=mypy 边界)、四套编号对照(M0-M7/新 Gate 0-4 现行,
+MVP 数字 Gate 与 RFC-008 字母 Gate 历史)、判定词汇三层(verdict/
+historical/operational 双口径并列)、12 RFC 索引、证据文件索引;
+README 顶部直链。
+
+收尾:本机全量 **1451+48+0**(colima 在跑时 12 个 docker 门测试转真跑,
+总量 1499 守恒;test_host_task_smoke 偶红复核=本机邻仓活写手落
+2.5s 窗的 ~15% 概率事件,CI 无邻仓不受影响,不为本机噪声弱化语义);
+Linux 容器等价预演全量另账(见提交信息)。

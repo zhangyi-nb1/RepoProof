@@ -31,7 +31,8 @@ FailureAssessmentV1 九码;REPAIR-VALIDATION-1(terra/luna)已按预注册
 | MCP 执法 | 仅历史 READY + 当前 ACTIVE 可生成；M5 adapter 每次 list/call 复核 ledger；pre-M5 非 ACTIVE adapter 明示 `LEGACY_SERVER_MUST_BE_DETACHED` |
 | M6 整合锚点 | 工程实现 `d7c1278`；`3818ccb` no-ff 保留 UI 历史；2026-08-24 项目方三固定案例预览通过(P0=0,P1=5 全修复)并合回 `main`；**2026-08-25 两名目标用户三案例理解测试完成(P0=0,P1+2 条已修复并经复验)——M6 关门**。目标用户测试为项目方自报,原始记录表归档位 `docs/evidence/m6_user_tests/` 尚待投入(见该目录 README);在归档落位前,只可声明「项目方报告测试完成」,不可声明「仓库内证据可独立审计」 |
 | M6 可信整合 | Core-only registry 投影；historical/operational/package health 三栏；ProductJobStateV2；Studio/Lab 共享 Core 写锁；Product/Lab 原生分账 |
-| 当前质量基线 | 全量 `1439 passed + 60 skipped + 0 failed`(2026-08-25 外部审计修复批后;含执行闸/完整性闸/源绑定新负控 7 枚),改动面 Ruff 通过 |
+| 当前质量基线 | 本机全量 `1451 passed + 48 skipped + 0 failed`(docker 可用时 12 个隔离测试转真跑,总量 1499 守恒);**CI 已落地**(.github/workflows/ci.yml:ruff 全仓 0 错 + mypy 可信链八包 0 错 + pytest 全量;Linux 容器等价预演 exit 0);mypy 豁免区=显式登记的 Lab 冻结区/渐进队列(棘轮) |
+| 代码分区 | `docs/PROJECT_MAP.md`(单页地图):产品可信链 vs **Lab 冻结区(FROZEN 2026-08-25)**;host_guided 功能面冻结但仍是产品彩排/真发执行引擎,判定/安全缺陷照修 |
 | 后端资格 | Product Mode 缺省 mini-swe；DSH 旗标保留但工具谱系未资格化 |
 | M7 分支现状 | `codex/m7-managed-sidecar-tools @ 7ac1a09` 已推送；强 U1–U4 回执已落地(取证会话+攻击矩阵自证);仍缺 v3 全链 E2E、OS 级隔离、导出包 replay、授权真仓 —— EXPERIMENTAL,功能面冻结 |
 | 下一阶段基准 | `docs/VERIFIED_TOOL_ONBOARDING_NEXT_STAGE_GUIDE.md`(2026-08-25):Verified Tool Onboarding Harness;Gate 0 事实收口 → Gate 1 CapabilityPlanV1+确定性路由 → Gate 2 有界修复控制器产品化 → Gate 3 DIRECT_WRAP → Gate 4 Studio 收口 |

@@ -1,8 +1,14 @@
 # RepoProof
 
+[![CI](https://github.com/zhangyi-nb1/RepoProof/actions/workflows/ci.yml/badge.svg)](https://github.com/zhangyi-nb1/RepoProof/actions/workflows/ci.yml)
+
 **RepoProof turns one capability from a pinned public GitHub repository into a
 CLI-first local tool, then independently verifies the result before reporting
 `VERIFIED_TOOL_READY`.**
+
+New here? Start with the one-page map: [docs/PROJECT_MAP.md](docs/PROJECT_MAP.md)
+(code zones, milestone/gate numbering across generations, and the verdict
+vocabulary — 10 minutes).
 
 The product is designed for a common gap: finding useful open-source code is
 easy, while turning one of its capabilities into a dependable local command
