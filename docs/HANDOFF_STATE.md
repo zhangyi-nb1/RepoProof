@@ -30,7 +30,7 @@ GitHub Capability → Verified Local Tool。RFC-010 的章程、首个工具闭�
 | 后端资格 | Product Mode 缺省 mini-swe；DSH 旗标保留但工具谱系未资格化 |
 | M7 分支现状 | `codex/m7-managed-sidecar-tools @ 7ac1a09` 已推送；强 U1–U4 回执已落地(取证会话+攻击矩阵自证);仍缺 v3 全链 E2E、OS 级隔离、导出包 replay、授权真仓 —— EXPERIMENTAL,功能面冻结 |
 | 下一阶段基准 | `docs/VERIFIED_TOOL_ONBOARDING_NEXT_STAGE_GUIDE.md`(2026-08-25):Verified Tool Onboarding Harness;Gate 0 事实收口 → Gate 1 CapabilityPlanV1+确定性路由 → Gate 2 有界修复控制器产品化 → Gate 3 DIRECT_WRAP → Gate 4 Studio 收口 |
-| 当前阶段门 | **M6 项目方预览已过、2 名目标用户测试待补**；main 推送已获用户授权执行；发布、第三批真仓或任何新真实模型发次仍需授权 |
+| 当前阶段门 | **M6:2 名目标用户测试已完成(2026-08-25,P0=0;P1×2——停用入口不可发现、术语堆叠看不懂——已修复,待用户复验后正式关门);M7 强 receipt 已落地/OS 隔离未关闭**；发布、第三批真仓或任何新真实模型发次仍需授权 |
 
 不变铁律：验证面无 LLM；held-out 对 agent 零泄漏；冻结合同与历史台账
 不可改写；FAIL 也留完整证据；没量到即判死；Product Mode 与 Benchmark

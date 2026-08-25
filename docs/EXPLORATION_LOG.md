@@ -3637,3 +3637,17 @@ DIRECT_WRAP 候选被人闸否决(确认项按设计工作)、luna 首轮两发�
 分类 product-51..59;K11 31 宿主;总耗 1,087,791 in(帽 2M 内);
 全量 1432 passed + 60 skipped + 0 failed;分支推至 ae858d9。
 两新工具 REVIEW_REQUIRED 待 fresh audit。
+
+## 状态 · 2026-08-25 · M6 两名目标用户测试完成 + P1×2 语义修复
+
+用户主持完成 2 名目标用户三案例测试:**P0=0,基本全过**;两条 P1:
+①不知道如何停用(撤回)已成功的工具——入口藏在折叠区且命名系统腔;
+②「只有通过 fresh-input 审核的 ACTIVE 工具可以生成或启用 MCP」字面
+能读但不知所云。系统性修复(文案纪律=「先人话,括号给术语」,语义
+唯一来源 services.product_mode):AUDIT_EXPLAINER/STATUS_EXPLAINERS/
+REASON_CODE_LABELS(10 码全中文,USER_WITHDRAWAL 明示不可普通恢复);
+工具库页重写(状态原因逐条中文/MCP 警告按状态分流/管理区改名带图标、
+待抽查默认展开/停用区写明后果/ACTIVE 加停用引导);仪表盘三 metric
+人话化+原因表加中文列;工作台旅程句同步。Streamlit 目验:新文案
+上线(services 模块缓存需重启进程,热重载不覆盖——运维注意)。
+全量 1432+60+0。**M6 门=修复待用户复验后正式关闭。**
