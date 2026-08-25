@@ -152,7 +152,7 @@ class _FakeDeepSeek:
         self.srv.daemon_threads = True
         self.base_url = f"http://127.0.0.1:{self.srv.server_port}"
 
-    def __enter__(self) -> "_FakeDeepSeek":
+    def __enter__(self) -> _FakeDeepSeek:
         threading.Thread(target=self.srv.serve_forever, daemon=True).start()
         return self
 
@@ -180,7 +180,7 @@ def _run(tmp: Path, scripts: list[dict], prompt: str = "做点事。",
     return r, fake, job
 
 
-def _tool_msgs(fake: "_FakeDeepSeek", req_index: int = -1) -> list[dict]:
+def _tool_msgs(fake: _FakeDeepSeek, req_index: int = -1) -> list[dict]:
     msgs = fake.requests[req_index]["body"]["messages"]
     return [m for m in msgs if m.get("role") == "tool"]
 

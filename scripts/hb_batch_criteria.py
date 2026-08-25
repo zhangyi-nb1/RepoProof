@@ -186,7 +186,7 @@ def _task_status_of(task_id: str) -> str:
     """任务**当下**的计分池状态(P1-b)。读契约本体、复用模型的校验与缺省,
     不在这里重写一份"缺省 ACTIVE" —— 判定副本会静默漂移(M58a 的形状)。"""
     sys.path.insert(0, str(REPO / "src"))
-    from repoproof.runner.host_guided import HostContract   # noqa: PLC0415
+    from repoproof.runner.host_guided import HostContract  # noqa: PLC0415
 
     pkg = task_id.replace("-", "_")
     contract, _ = HostContract.load(REPO / "benchmarks/v2/tasks" / pkg / "contract.yaml")

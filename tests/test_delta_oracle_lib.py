@@ -18,10 +18,10 @@ from delta_oracle_lib import (  # noqa: E402
     ABSENT,
     guarded_root_state,
     instrument_problems,
-    materialization_problems,
     run_delta_oracle,
 )
 from delta_oracle_lib import tests_tree_digest as _tree_digest  # noqa: E402
+
 # 别名导入:裸名以 tests_ 开头会被 pytest 当测试项收集
 
 

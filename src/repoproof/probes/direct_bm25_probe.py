@@ -24,7 +24,7 @@ def main() -> int:
 
     tokenized = [d["text"].lower().split() for d in docs]
     bm25 = BM25Okapi(tokenized)
-    out = {"upstream": "rank_bm25.BM25Okapi", "tokenization": "lower+whitespace", "rankings": {}}
+    out: dict = {"upstream": "rank_bm25.BM25Okapi", "tokenization": "lower+whitespace", "rankings": {}}
     for q in queries:
         scores = bm25.get_scores(q["text"].lower().split())
         pairs = [

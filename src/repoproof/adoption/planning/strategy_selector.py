@@ -97,7 +97,7 @@ def select_strategies(
         return opts, "", "空目录有三种可行的开始方式,系统不代替你选:请在计划页选定一种再继续", True
 
     excluded: list[str] = []
-    opts: list = []
+    opts = []
 
     if api_names:
         opts.append(_strategy(

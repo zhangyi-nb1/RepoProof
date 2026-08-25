@@ -98,7 +98,10 @@ class UpstreamSpec:
         `__name__` 与 `__version__`(T3 批 13 连 `UPSTREAM_COMMIT` 都照抄
         了),骗不过这个。"""
         mod = self.loader() if self.loader is not None else __import__(self.import_module)
-        root = Path(mod.__file__).resolve().parent
+        mod_file = mod.__file__
+        if mod_file is None:      # namespace/内建包拿不到落盘位置 → 无从哈希
+            raise RuntimeError(f"{self.import_module} 没有 __file__ —— 无法哈希 artifact")
+        root = Path(mod_file).resolve().parent
         h = hashlib.sha256()
         for f in sorted(root.rglob("*.py")):
             if "__pycache__" in f.parts:

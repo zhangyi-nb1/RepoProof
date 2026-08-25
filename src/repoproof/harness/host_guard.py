@@ -54,24 +54,37 @@ class HostGuardError(RuntimeError):
 
 
 def _norm(p: str | Path) -> str:
-    """realpath 归一化 + 小写(APFS 大小写不敏感)。"""
+    """**比对键**归一化:realpath + 小写(APFS 大小写不敏感)。
+
+    只许用于比较,不许当文件系统路径访问 —— lower 后的路径在
+    大小写敏感的 fs(ext4,CI Linux)上可能根本不存在;拿它去
+    is_dir()/rglob() 会把保护目录**静默漏出快照**(CI 预演实测:
+    macOS 上碰巧全绿,Linux 上 snapshot_protected 返回空集)。"""
     return os.path.realpath(os.path.expanduser(str(p))).lower().rstrip("/")
 
 
+def _real(p: str | Path) -> str:
+    """**访问路径**归一化:realpath 保留真实大小写(fs 访问用这个)。"""
+    return os.path.realpath(os.path.expanduser(str(p))).rstrip("/")
+
+
 def protected_dirs(extra_env: bool = True) -> list[str]:
-    """当前保护目录(归一化)。可经 REPOPROOF_PROTECTED_DIRS(冒号分隔)追加。"""
-    dirs = [_norm(d) for d in DEFAULT_PROTECTED]
+    """当前保护目录(realpath,**保留真实大小写**)。可经
+    REPOPROOF_PROTECTED_DIRS(冒号分隔)追加。大小写不敏感的匹配语义
+    在 is_protected 的比对侧实现,不在这里丢信息。"""
+    dirs = [_real(d) for d in DEFAULT_PROTECTED]
     if extra_env:
         for d in os.environ.get("REPOPROOF_PROTECTED_DIRS", "").split(":"):
             if d.strip():
-                dirs.append(_norm(d))
+                dirs.append(_real(d))
     return dirs
 
 
 def is_protected(path: str | Path, protected: list[str] | None = None) -> bool:
     target = _norm(path)
     for p in (protected if protected is not None else protected_dirs()):
-        if target == p or target.startswith(p + "/"):
+        q = p.lower().rstrip("/")     # 兼容调用方传 lower 键或真实路径
+        if target == q or target.startswith(q + "/"):
             return True
     return False
 

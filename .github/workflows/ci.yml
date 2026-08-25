@@ -1,0 +1,56 @@
+# RepoProof CI —— 与本机纪律同一口径:ruff 全仓零错、mypy 可信链零错、
+# pytest 全量(slow 不跳过;零网络零密钥,任何测试需要真实 provider 都是缺陷)。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "ruff>=0.6"
+      - run: ruff check src tests scripts
+
+  type:
+    name: mypy (trusted chain)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      # 覆盖边界 = 产品可信链(判定/闸门/证据链所在的包)0 错;
+      # 冻结区豁免是 pyproject 里显式登记的棘轮,见 docs/PROJECT_MAP.md。
+      - run: mypy src/repoproof
+
+  test:
+    name: pytest (full suite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev,ui]"
+      # 部分 fixture 建临时 git 仓;runner 环境无全局身份,补上(仅 CI 环境)
+      - run: |
+          git config --global user.email ci@repoproof.local
+          git config --global user.name repoproof-ci
+      - run: python -m pytest -q

@@ -110,11 +110,17 @@ def extract_import_module(repo_dir: Path, distribution: str) -> tuple[str, str]:
     distribution 的下划线化;都不在则扫唯一顶层包。"""
     cand = distribution.replace("-", "_").replace(".", "_")
     for base, label in ((repo_dir / "src", "src 布局"), (repo_dir, "顶层布局")):
-        if cand and (base / cand / "__init__.py").is_file():
-            # APFS 大小写不敏感陷阱(M4 Unidecode 实测):路径命中不等于
-            # 名字正确 —— 必须回读目录**真实名**,否则 Linux 上 import 炸。
-            real = next((e.name for e in base.iterdir()
-                         if e.name.lower() == cand.lower() and e.is_dir()), cand)
+        # APFS 大小写不敏感陷阱(M4 Unidecode 实测):路径探测命中不等于
+        # 名字正确 —— 必须回读目录**真实名**,否则 Linux 上 import 炸。
+        # 探测本身也必须大小写不敏感地扫目录,不许走 `(base/cand)` 路径
+        # 命中:那条路在 APFS 命中、在 ext4 miss,同一仓库两平台会走进
+        # **不同证据分支**(CI Linux 预演实测)。
+        if not cand or not base.is_dir():
+            continue
+        real = next((e.name for e in sorted(base.iterdir())
+                     if e.is_dir() and e.name.lower() == cand.lower()
+                     and (e / "__init__.py").is_file()), "")
+        if real:
             return real, f"{label}:{real}/__init__.py 存在(真实目录名回读)"
     for base, label in ((repo_dir / "src", "src 布局"), (repo_dir, "顶层布局")):
         if not base.is_dir():
@@ -262,8 +268,9 @@ def run_tool_intake(
     local_path: Path | None = None,
 ) -> ToolIntakeReport:
     """source = GitHub URL(联网浅克隆)或忽略(local_path 直读,零网络)。"""
+    repo_dir: Path | None
     if local_path is not None:
-        repo_dir: Path | None = Path(local_path).resolve()
+        repo_dir = Path(local_path).resolve()
         repo = analyze_repository_dir(repo_dir, url=source or str(repo_dir))
     else:
         # 与 analyze_repository 同两步,但持有仓目录(草稿提取要读它)

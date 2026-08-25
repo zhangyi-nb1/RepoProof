@@ -148,7 +148,8 @@ def test_parse_two_items_complete():
 
 def test_parse_one_more_item_wording():
     log = _LOG_TWO.replace(
-        "E       AssertionError: ['tests.test_thing.TestThing::test_old_intact', 'tests.test_thing.TestThing::test_brand_new']",
+        "E       AssertionError: ['tests.test_thing.TestThing::test_old_intact',"
+        " 'tests.test_thing.TestThing::test_brand_new']",
         "E       AssertionError: ['tests.test_thing.TestThing::test_old_intact']",
     ).replace("Left contains 2 more items", "Left contains one more item")
     r = parse_regression_broken(log)
@@ -177,7 +178,8 @@ def test_parse_garbled_section_fail_closed():
 
 def test_parse_multiline_list():
     log = _LOG_TWO.replace(
-        "E       AssertionError: ['tests.test_thing.TestThing::test_old_intact', 'tests.test_thing.TestThing::test_brand_new']",
+        "E       AssertionError: ['tests.test_thing.TestThing::test_old_intact',"
+        " 'tests.test_thing.TestThing::test_brand_new']",
         "E       AssertionError: ['tests.test_thing.TestThing::test_old_intact',\n"
         "E        'tests.test_thing.TestThing::test_brand_new']",
     )

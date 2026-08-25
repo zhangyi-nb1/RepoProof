@@ -31,7 +31,7 @@ def main() -> int:
         docs = json.load(fh)["documents"]
     import frontmatter
 
-    out = {"upstream": "python-frontmatter.parse", "records": {}}
+    out: dict = {"upstream": "python-frontmatter.parse", "records": {}}
     for d in docs:
         try:
             meta, content = frontmatter.parse(d["text"])

@@ -99,7 +99,7 @@ class _FakeOpenAI:
         self.srv.daemon_threads = True
         self.base_url = f"http://127.0.0.1:{self.srv.server_port}/v1"
 
-    def __enter__(self) -> "_FakeOpenAI":
+    def __enter__(self) -> _FakeOpenAI:
         threading.Thread(target=self.srv.serve_forever, daemon=True).start()
         return self
 
@@ -468,14 +468,14 @@ def test_gs3b_deepseek_admission_fingerprint_would_catch_shim_swap(
     from repoproof.agents.dsh_bridge import (
         UPSTREAM_DEEPSEEK,
         UPSTREAM_GPT_SHIM,
+        bridge_budget,
+        composition_fingerprint,
         treatment_fidelity,
     )
 
     # 借 test_dsh_bridge 的假封存根构造两份只差 upstream_protocol 的指纹
     from tests.test_dsh_bridge import _HB as _BHB
     from tests.test_dsh_bridge import _report, _runtime_root
-
-    from repoproof.agents.dsh_bridge import bridge_budget, composition_fingerprint
 
     root = _runtime_root(tmp_path)
     fp_shim = composition_fingerprint(root, model="gpt-5.5",

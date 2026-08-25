@@ -31,7 +31,7 @@ def main() -> int:
         docs = json.load(fh)["documents"]
     import frontmatter
 
-    out = {"upstream": "python-frontmatter.loads", "records": {}}
+    out: dict = {"upstream": "python-frontmatter.loads", "records": {}}
     for d in docs:
         try:
             post = frontmatter.loads(d["text"])

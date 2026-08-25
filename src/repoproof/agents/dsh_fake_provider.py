@@ -101,7 +101,7 @@ class FakeDeepSeekProvider:
         self.srv.daemon_threads = True
         self.base_url = f"http://127.0.0.1:{self.srv.server_port}"
 
-    def __enter__(self) -> "FakeDeepSeekProvider":
+    def __enter__(self) -> FakeDeepSeekProvider:
         threading.Thread(target=self.srv.serve_forever, daemon=True).start()
         return self
 

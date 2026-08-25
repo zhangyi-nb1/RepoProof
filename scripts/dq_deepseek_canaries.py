@@ -37,7 +37,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -402,7 +402,7 @@ def main() -> int:
         "kind": "DQ_DEEPSEEK_CANARIES",
         "run_kind": run_kind,
         "test_mode": "DQ",
-        "timestamp_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timestamp_utc": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "harness_commit": head,
         "adapter_sha256": adapter_sha,
         "litellm_version": _pkg_version("litellm"),

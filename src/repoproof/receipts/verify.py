@@ -207,7 +207,7 @@ def verify_receipts(
                          "harness 没有给出待办单元清单 —— 无从判断是不是只象征性"
                          "调了一次。不给清单一律判不过,不猜。"))
     else:
-        by_nonce = {}
+        by_nonce: dict[str, list] = {}
         for r in id_ok:
             by_nonce.setdefault(r.binding.request_nonce, []).append(r)
         uncovered = []

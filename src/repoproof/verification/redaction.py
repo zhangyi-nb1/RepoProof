@@ -25,6 +25,18 @@ _PATTERNS: list[tuple[str, re.Pattern]] = [
 ]
 
 
+# 通用运行账户名不入用户名规则:它们同时是普通英文词,裸子串规则在
+# 这类环境里全是误报(CI Linux 预演实测:GitHub Actions 的用户就叫
+# runner,而 trace.jsonl 的 "actor": "runner" 是 harness 事件的正常
+# 词汇,扫描一命中就把干净证据判死)。代价如实声明:真用户名恰为
+# 这些词的机器失去裸子串保护 —— 路径形态(/Users/<n>、/home/<n>)
+# 仍由 host_path 模式兜底。
+_GENERIC_ACCOUNTS = frozenset({
+    "runner", "user", "admin", "build", "agent", "worker", "deploy",
+    "jenkins", "ubuntu", "debian", "root", "test", "node",
+})
+
+
 def _username_patterns() -> list[tuple[str, re.Pattern]]:
     names = set()
     try:
@@ -33,7 +45,8 @@ def _username_patterns() -> list[tuple[str, re.Pattern]]:
         pass
     home = Path.home().name
     names.add(home)
-    return [("username", re.compile(re.escape(n))) for n in names if len(n) >= 4]
+    return [("username", re.compile(re.escape(n))) for n in names
+            if len(n) >= 4 and n.lower() not in _GENERIC_ACCOUNTS]
 
 
 def scan_file(path: Path) -> list[dict]:

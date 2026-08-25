@@ -89,7 +89,7 @@ def _held_out_failed(report: dict) -> bool:
 
 def _receipt_failed(report: dict) -> bool:
     rv = report.get("receipt_verification")
-    return bool(rv) and rv.get("ok") is False
+    return isinstance(rv, dict) and rv.get("ok") is False
 
 
 # ------------------------------------------------------ Product 终止码投影

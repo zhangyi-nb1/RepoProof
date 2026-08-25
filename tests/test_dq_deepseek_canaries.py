@@ -63,7 +63,7 @@ class FakeModel:
     def format_observation_messages(self, message, outputs, tvars):
         acts = message["extra"]["actions"]
         return [{"role": "tool", "content": o["output"], "tool_call_id": a["tool_call_id"]}
-                for a, o in zip(acts, outputs)]
+                for a, o in zip(acts, outputs, strict=True)]
 
 
 # ---------------------------------------------------------------- 纯函数

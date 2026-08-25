@@ -969,10 +969,10 @@ MUTATIONS: list[dict] = [
                   "只在于它会让人误以为有闸门",
         "file": _PP,
         "old": ('    if not mine:\n'
-                '        seen = sorted({m.get("profile_id") for m in mats if m})\n'
+                '        seen = sorted({str(m.get("profile_id")) for m in mats if m})\n'
                 '        return [Check("G1-G4.evidence", False,'),
         "new": ('    if not mine:\n'
-                '        seen = sorted({m.get("profile_id") for m in mats if m})\n'
+                '        seen = sorted({str(m.get("profile_id")) for m in mats if m})\n'
                 '        return [Check("G1-G4.evidence", True,'),
         "catchers": _T_PP,
         "expected_catcher": ["test_p1_missing_evidence_refuses"],

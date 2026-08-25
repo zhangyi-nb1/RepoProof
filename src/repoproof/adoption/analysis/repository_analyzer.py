@@ -337,7 +337,7 @@ def sort_release_tags(tags: list[str]) -> list[str]:
     """发布 Tag 按版本号降序(可解析的在前,无法解析的字符串降序在后)。"""
     from packaging.version import InvalidVersion, Version
 
-    parseable: list[tuple[object, str]] = []
+    parseable: list[tuple[Version, str]] = []
     other: list[str] = []
     for t in tags:
         s = t[1:] if t[:1] in ("v", "V") else t
@@ -345,7 +345,7 @@ def sort_release_tags(tags: list[str]) -> list[str]:
             parseable.append((Version(s), t))
         except InvalidVersion:
             other.append(t)
-    parseable.sort(key=lambda p: p[0], reverse=True)  # type: ignore[arg-type]
+    parseable.sort(key=lambda p: p[0], reverse=True)
     return [t for _, t in parseable] + sorted(other, reverse=True)
 
 

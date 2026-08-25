@@ -18,6 +18,12 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
+    "mypy>=1.14",
+    # provider 通道(litellm 路)与 agent 执行后端(mini-swe-agent)是
+    # 运行期可选件,但测试收集要 import 它们(conftest 连接池隔离夹具、
+    # runner 协议钉)—— 测试环境必备,故入 dev。
+    "litellm>=1.75",
+    "mini-swe-agent>=2.0",
 ]
 ui = [
     "streamlit==1.60.0",
@@ -44,3 +50,26 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src/repoproof"]
+ignore_missing_imports = true
+
+# 类型兜底的覆盖边界 = 产品可信链(adoption/verification/harness/domain/
+# persistence/execution/receipts/probes):判定、闸门、证据链所在的代码
+# 必须 0 错。下列豁免是**显式登记的冻结区/渐进队列**,不是默认放水:
+# - runner.* :Benchmark Lab 执行引擎(功能面冻结,见 docs/PROJECT_MAP.md);
+# - agents.* :DSH 后端线(E 轨已关闭);
+# - ui.*    :Streamlit 展示面,不参与判定;
+# - cli     :入口聚合层。
+# 从队列里摘除一个模块 = 把它的错清零后删掉对应 override(棘轮只进不退)。
+[[tool.mypy.overrides]]
+module = ["repoproof.runner.*", "repoproof.ui.*", "repoproof.agents.*",
+          "repoproof.cli"]
+ignore_errors = true
+
+[tool.ruff.lint.per-file-ignores]
+# 突变闸的 old/new 是对目标源码的**逐字节精确匹配串**——断行即废掉
+# 突变注入(注不进去 = 闸静默失效),长行在此是机械要求不是风格债。
+"scripts/mutation_gate.py" = ["E501"]

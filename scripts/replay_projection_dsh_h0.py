@@ -42,6 +42,8 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(REPO / "scripts"))
 
+from replay_projection_exposure import alignment_audit  # noqa: E402
+
 from repoproof.agents import context_projector as cp  # noqa: E402
 from repoproof.agents.context_projector import (  # noqa: E402
     WINDOW_POLICY,
@@ -50,7 +52,6 @@ from repoproof.agents.context_projector import (  # noqa: E402
     project_window,
 )
 from repoproof.agents.token_budget import estimate_prompt_tokens  # noqa: E402
-from replay_projection_exposure import alignment_audit  # noqa: E402
 
 # ------------------------------------------------------------------ 修前量具
 # v1 的读取分类器,原文取自 34c6b20;只为算"修前覆盖率",与 v1.1 的差

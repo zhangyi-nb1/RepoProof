@@ -113,6 +113,7 @@ def _cli_test(e: Example, idx: int, *, validate_output: bool = False) -> str:
             f"    assert _norm(r.stdout) == want, "
             f"f\"输出与期望文件 {e.expected_file} 不符(规范化行尾后);"
             f"实际前 200 字: {{r.stdout[:200]}}\"\n")
+    assert e.expected is not None   # 模型校验:expected/expected_file 恰一
     if e.expected.startswith(CONTAINS):
         want = e.expected[len(CONTAINS):]
         # 消息用**运行时** f-string 求值(want 先落局部变量):把 repr 裸插进

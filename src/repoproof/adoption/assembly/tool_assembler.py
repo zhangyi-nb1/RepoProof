@@ -299,6 +299,7 @@ def extract(input_path: Path) -> str:
 def _expected_text(e: Example, src_dir: Path) -> str:
     if e.expected_file is not None:
         return (src_dir / e.expected_file).read_text(encoding="utf-8")
+    assert e.expected is not None   # 模型校验:expected/expected_file 恰一
     if e.expected.startswith("contains:"):
         return e.expected[len("contains:"):]
     return e.expected
@@ -665,8 +666,9 @@ requirements:
             if fragment in candidate and not validate_output_text(candidate, output.contract):
                 return candidate
 
-        defaults = {"any": None, "string": "", "integer": 0, "number": 0,
-                    "boolean": False, "object": {}, "array": [], "null": None}
+        defaults: dict[str, object] = {
+            "any": None, "string": "", "integer": 0, "number": 0,
+            "boolean": False, "object": {}, "array": [], "null": None}
         root_type = output.contract.root_type
         if root_type == "array":
             value: object = [fragment]

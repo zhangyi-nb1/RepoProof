@@ -141,6 +141,8 @@ def _lazy_register(pid: str) -> bool:
     if name in sys.modules:
         return pid in _REGISTRY
     spec = importlib.util.spec_from_file_location(name, f)
+    if spec is None or spec.loader is None:   # 原本在下一行 AttributeError,同为炸,消息更准
+        raise RuntimeError(f"无法为 {f} 构建 import spec")
     mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod
     spec.loader.exec_module(mod)

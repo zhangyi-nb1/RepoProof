@@ -316,7 +316,7 @@ def classify_runs(project_root: str | Path) -> list[dict]:
     cls = load_classifications(project_root)
     rows = []
     for r in adjudicated_runs(project_root):
-        c = cls.get(r.get("run_id"), {})
+        c = cls.get(r.get("run_id") or "", {})
         # backend 第三锁(M-DSH-13,2026-08-17):非基线 backend 的发次不入
         # 能力池、不入 held-out,**分类文件说什么都不算**(自述不能自证,
         # 与下面 oracle 两道锁同款结构)。B-dsh 桥接批只回答机制效应

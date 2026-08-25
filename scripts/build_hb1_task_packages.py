@@ -74,7 +74,9 @@ TASKS = [
         # 题面(三选项开放式讨论,结尾 "# My preference?")一个字没提。
         # 保留任务包作探针(教导面改动后可复跑),但不再计分。
         "task_status": "RETIRED",
-        "task_status_note": "题面欠定探针:隐藏节点要求的公共 API 形状不在题面内(V2GEN-GPT-EXT-1 双模型同节点 FAIL 定因);退出计分池,只作教导面回归探针",
+        "task_status_note": ("题面欠定探针:隐藏节点要求的公共 API 形状不在题面内"
+                             "(V2GEN-GPT-EXT-1 双模型同节点 FAIL 定因);"
+                             "退出计分池,只作教导面回归探针"),
     },
     {
         "pkg": "hb1_sqlglot_8042",
@@ -162,7 +164,9 @@ TASKS_V2 = [
         # 题面(三选项开放式讨论,结尾 "# My preference?")一个字没提。
         # 保留任务包作探针(教导面改动后可复跑),但不再计分。
         "task_status": "RETIRED",
-        "task_status_note": "题面欠定探针:隐藏节点要求的公共 API 形状不在题面内(V2GEN-GPT-EXT-1 双模型同节点 FAIL 定因);退出计分池,只作教导面回归探针",
+        "task_status_note": ("题面欠定探针:隐藏节点要求的公共 API 形状不在题面内"
+                             "(V2GEN-GPT-EXT-1 双模型同节点 FAIL 定因);"
+                             "退出计分池,只作教导面回归探针"),
     },
 ]
 

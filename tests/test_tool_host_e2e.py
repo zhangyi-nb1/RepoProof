@@ -149,8 +149,8 @@ def world(tmp_path_factory):
 
 def _run_fake(world, mode: str, monkeypatch, run_index: int) -> dict:
     from repoproof.agents.fake_model import FakeModel
-    from repoproof.runner import host_guided
     from repoproof.harness import host_guard
+    from repoproof.runner import host_guided
 
     # 并行会话写本仓会打脏秒级指纹窗口(smoke 实测);指纹面自有专测。
     monkeypatch.setattr(host_guard, "DEFAULT_PROTECTED", ())
@@ -222,8 +222,8 @@ def test_fake_positive_late_write_selects_best_round(world, monkeypatch):
     gpt-5.5 批次一 12/12 自写 conftest 又把它盖住 —— 故此形态常驻。
     """
     from repoproof.agents.fake_model import FakeModel
-    from repoproof.runner import host_guided
     from repoproof.harness import host_guard
+    from repoproof.runner import host_guided
 
     monkeypatch.setattr(host_guard, "DEFAULT_PROTECTED", ())
     monkeypatch.delenv("REPOPROOF_PROTECTED_DIRS", raising=False)
@@ -303,7 +303,7 @@ def test_fake_noop_fails_honestly(world, monkeypatch, tmp_path):
 
 @pytest.mark.slow
 def test_ledger_rows_written_with_tool_host_id(world):
-    rows = [json.loads(l) for l in
+    rows = [json.loads(line) for line in
             (world["project"] / "benchmarks" / "v2" / "runs.jsonl")
             .read_text(encoding="utf-8").splitlines()]
     assert len(rows) >= 4

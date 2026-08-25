@@ -75,7 +75,7 @@ def _redact(lines: list[str]) -> list[str]:
     return [ln.replace(secret, "«REDACTED»") for ln in lines]
 
 
-def _emit(result: dict, code: int) -> "int":
+def _emit(result: dict, code: int) -> int:
     sys.stdout.write(json.dumps(result, ensure_ascii=False, sort_keys=True) + "\n")
     sys.stdout.flush()
     return code
@@ -98,9 +98,13 @@ def _base_result(job: dict | None, session_id: str | None) -> dict:
 
 def run(job: dict) -> tuple[dict, int]:
     from deepseek_harness import DeepSeekHarness, DeepSeekHarnessConfig
+
     # 错误族在子模块;顶层只出口 SdkProtocolError(0.1.0rc6 实测)。
     from deepseek_harness.errors import (
-        HarnessError, JsonRpcError, SdkProtocolError, TransportClosedError,
+        HarnessError,
+        JsonRpcError,
+        SdkProtocolError,
+        TransportClosedError,
     )
 
     session_id = job.get("session_id") or f"dshw-{uuid.uuid4().hex}"

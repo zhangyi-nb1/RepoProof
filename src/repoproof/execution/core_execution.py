@@ -180,7 +180,9 @@ def process_identity(pid: int | None) -> dict[str, Any] | None:
                 check=False,
             )
             command_result = subprocess.run(
-                ["ps", "-p", str(pid), "-o", "command="],
+                # -ww:procps 的 ps 尊重 COLUMNS(pytest 设 80),长命令行
+                # 会被截——身份哈希对截断串就是换个人(postflight 同病)。
+                ["ps", "-ww", "-p", str(pid), "-o", "command="],
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -206,10 +208,14 @@ def process_identity(pid: int | None) -> dict[str, Any] | None:
 
 def process_matches(pid: int | None, expected: object) -> bool:
     """Check both liveness and process birth identity (PID-reuse safe)."""
-    if not isinstance(expected, dict) or process_identity(pid) != expected:
+    # pid=None 时 process_identity 恒返回 None ≠ dict,原本也在此返回 False;
+    # 前置显式判掉只是让类型收窄可证。
+    if pid is None or not isinstance(expected, dict) or process_identity(pid) != expected:
         return False
-    state = _process_state(int(pid))
-    return bool(state) and "Z" not in state
+    state = _process_state(pid)
+    if not state:
+        return False
+    return "Z" not in state
 
 
 def pid_is_running(pid: object) -> bool:
@@ -217,7 +223,9 @@ def pid_is_running(pid: object) -> bool:
     if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
         return False
     state = _process_state(pid)
-    return bool(state) and "Z" not in state
+    if not state:
+        return False
+    return "Z" not in state
 
 
 def legacy_state_blocker(path: Path) -> str | None:

@@ -29,12 +29,16 @@ from repoproof.harness.host_guard import (
 
 
 def _prot(tmp_path: Path) -> tuple[Path, list[str]]:
+    # 保护表登记**真实大小写** realpath(protected_dirs 现行为)——lower
+    # 键只活在比对侧;登记 lower 路径在 ext4 上根本 stat 不到,快照会
+    # 静默漏保护(CI Linux 预演实测)。大小写变体拦截语义由
+    # test_path_variants_all_blocked 钉。
     real = tmp_path / "XIANGMU" / "offerclaw"
     (real / "src").mkdir(parents=True)
     (real / "src" / "app.py").write_text("X = 1\n", encoding="utf-8")
     import os
 
-    return real, [os.path.realpath(str(real)).lower()]
+    return real, [os.path.realpath(str(real))]
 
 
 def test_path_variants_all_blocked(tmp_path: Path) -> None:
@@ -160,7 +164,9 @@ def test_write_outside_self_window_is_attributed_external(tmp_path: Path) -> Non
     """窗外发生的写 = 会话当时根本不存在 → 免罪,但严判 ok 照样为 False。"""
     real, prot = _prot(tmp_path)
     before = snapshot_protected(prot)
-    (real / "src" / "app.py").write_text("X = 2\n", encoding="utf-8")
+    # 尺寸必须变:Linux 内核 mtime 粒度 ~1ms,快照后亚毫秒内的**同尺寸**
+    # 重写两平台可见性不同(CI 预演实测);size 分量不依赖时钟。
+    (real / "src" / "app.py").write_text("X = 2 + 40\n", encoding="utf-8")
 
     now = time.time()
     out = verify_protected_unchanged(          # 窗口整个落在未来 → 此写在窗外
@@ -178,7 +184,7 @@ def test_quiet_write_inside_self_window_stays_red(tmp_path: Path) -> None:
     """**负控**:窗内写、拆除后不再动 → 只能是本链干的,照样红。"""
     real, prot = _prot(tmp_path)
     before = snapshot_protected(prot)
-    (real / "src" / "app.py").write_text("X = 2\n", encoding="utf-8")
+    (real / "src" / "app.py").write_text("X = 2 + 40\n", encoding="utf-8")   # 尺寸变 → 跨平台确定可见
 
     now = time.time()
     out = verify_protected_unchanged(
@@ -222,7 +228,7 @@ def test_busy_sibling_does_not_launder_a_quiet_self_write(tmp_path: Path) -> Non
     (real / "src" / "busy.log").write_text("0\n", encoding="utf-8")
     before = snapshot_protected(prot)
 
-    (real / "src" / "app.py").write_text("X = 2\n", encoding="utf-8")   # 静默自写
+    (real / "src" / "app.py").write_text("X = 2 + 40\n", encoding="utf-8")   # 尺寸变 → 跨平台确定可见   # 静默自写
     stop = threading.Event()
     _bg_writer(real / "src" / "busy.log", stop)                         # 忙邻居
     time.sleep(0.1)
@@ -263,7 +269,7 @@ def test_without_window_nothing_is_ever_exonerated(tmp_path: Path) -> None:
     有 agent 在场时归因只作证据,一个字节的免罪权都没有。"""
     real, prot = _prot(tmp_path)
     before = snapshot_protected(prot)
-    (real / "src" / "app.py").write_text("X = 2\n", encoding="utf-8")
+    (real / "src" / "app.py").write_text("X = 2 + 40\n", encoding="utf-8")   # 尺寸变 → 跨平台确定可见
 
     out = verify_protected_unchanged(before, prot)
     assert not out["ok"] and not out["self_ok"] and not out["attributed"]
@@ -279,7 +285,7 @@ def test_baseline_without_entries_is_not_amnesty(tmp_path: Path) -> None:
     before = snapshot_protected(prot)
     legacy = {d: {k: v for k, v in fp.items() if k != "entries"}
               for d, fp in before.items()}          # 退化成旧格式指纹
-    (real / "src" / "app.py").write_text("X = 2\n", encoding="utf-8")
+    (real / "src" / "app.py").write_text("X = 2 + 40\n", encoding="utf-8")   # 尺寸变 → 跨平台确定可见
 
     now = time.time()
     out = verify_protected_unchanged(               # 窗口全在未来也不许免

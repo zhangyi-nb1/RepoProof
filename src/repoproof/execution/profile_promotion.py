@@ -164,7 +164,9 @@ def _mutation_evidence_for_head(repo: Path) -> tuple[dict | None, str]:
     cands: list[tuple[int, dict, str]] = []
     for f in d.glob("*.json"):
         ev = _read_json(f)
-        c = (ev or {}).get("head_commit") or ""
+        if not ev:                    # 读不出 = 没有 head_commit,原本同样 continue
+            continue
+        c = ev.get("head_commit") or ""
         if not c:
             continue
         anc = subprocess.run(                                # noqa: S603 固定 argv
@@ -212,7 +214,7 @@ def _check_conformance(repo: Path, p: RuntimeProfile) -> list[Check]:
     mats = [_read_json(f) for f in sorted(root.glob("*conformance*/matrix.json"))]
     mine = [m for m in mats if m and m.get("profile_id") == p.id]
     if not mine:
-        seen = sorted({m.get("profile_id") for m in mats if m})
+        seen = sorted({str(m.get("profile_id")) for m in mats if m})
         return [Check("G1-G4.evidence", False,
                       f"没有 {p.id!r} 的 conformance 矩阵证据(现有的是 {seen})—— "
                       "跑对应的 conformance 脚本。查不到证据一律拒绝晋级,不假设")]

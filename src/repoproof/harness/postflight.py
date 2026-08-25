@@ -64,8 +64,13 @@ def enabled() -> bool:
 
 
 def list_procs() -> list[ProcInfo]:
+    # ww 必须给:procps(Linux)的 ps 尊重 COLUMNS 环境变量,而 pytest
+    # 会设 COLUMNS=80 —— 长命令行被截到 80 列,nonce/调试标记全落在
+    # 截断区外,清扫就"看不见"目标进程(CI Linux 预演实测;macOS 的
+    # BSD ps 不理 COLUMNS,本机侥幸全绿)。写成 BSD 风格 `axww`:
+    # macOS 对 `-ww ax` 报 illegal argument,`axww` 两家都认、无限宽。
     out = subprocess.run(  # noqa: S603 — 固定 argv,只读查询
-        ["ps", "ax", "-o", "pid=,ppid=,command="],
+        ["ps", "axww", "-o", "pid=,ppid=,command="],
         capture_output=True, text=True, check=False).stdout
     return parse_ps(out)
 

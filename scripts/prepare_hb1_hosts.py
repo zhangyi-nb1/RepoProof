@@ -62,7 +62,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -620,7 +620,7 @@ def main() -> int:
     })
     evidence.setdefault("invocations", []).append(
         {"argv": sys.argv, "stages": stages, "round": ROUND,
-         "utc": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+         "utc": datetime.now(UTC).isoformat(timespec="seconds")})
 
     hosts_sec = evidence.setdefault("hosts", {})
     this_run_ok = True

@@ -39,8 +39,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from hb_batch_criteria import (  # noqa: E402 — 复用而非复制(见模块头)
-    RUNS_LEDGER,
     RUNS_DIR,
+    RUNS_LEDGER,
     _delta_nodes_of,
     _facts_of,
     classify_run,
@@ -95,7 +95,7 @@ def leak_guardrail(task_key: str = "sqlglot-8042") -> dict:
     if not checked["effective_fingerprints"]:
         bad.append("有效指纹数为 0 —— 等于没扫")
 
-    import blind_attack_admission as _baa   # 原件量法,不复制
+    import blind_attack_admission as _baa  # 原件量法,不复制
     bench = Path(h["bench_dir"])
     now = _baa._digest_tree(bench / "host")
     checked["digest_match"] = (now == h.get("host_digest"))
@@ -164,7 +164,7 @@ def judge_arms(runs: list[dict], *, extra_breaches: list[str] | None = None) -> 
     md = [d for _, d in sorted(per_arm["minimal"]["delta"])]
     pairs = [{"k": k + 1, "guided": a, "minimal": b,
               "winner": "guided" if a > b else "minimal" if b > a else "tie"}
-             for k, (a, b) in enumerate(zip(gd, md))]
+             for k, (a, b) in enumerate(zip(gd, md, strict=True))]
     g_wins = sum(1 for p in pairs if p["winner"] == "guided")
     m_wins = sum(1 for p in pairs if p["winner"] == "minimal")
     need = (2 * len(pairs) + 2) // 3          # ≥2/3 向上取整(n=3 → 2)

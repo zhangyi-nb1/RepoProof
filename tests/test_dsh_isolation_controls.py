@@ -17,7 +17,6 @@ N8 改 wheel → 供应链钉现场复核;N9 伪造 JSONL / N10 伪造 final_res
 
 from __future__ import annotations
 
-import hashlib
 import json
 import subprocess
 import sys
@@ -26,7 +25,10 @@ from pathlib import Path
 import pytest
 
 from repoproof.agents.dsh_backend import (
-    _ENV_ALLOWLIST, _forbidden_roots, run_dsh_worker, worker_env,
+    _ENV_ALLOWLIST,
+    _forbidden_roots,
+    run_dsh_worker,
+    worker_env,
 )
 
 REPO = Path(__file__).resolve().parents[1]

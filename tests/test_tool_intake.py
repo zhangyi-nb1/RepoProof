@@ -218,8 +218,10 @@ def test_intake_missing_metadata_becomes_user_gaps(tmp_path):
 
 # ---------------------------------------------------- 真仓集成(资源护栏)
 
-@pytest.mark.skipif(not PDFPLUMBER.is_dir(),
-                    reason="pdfplumber 钉版树不在本机(upstream-cache 已清理);"
+@pytest.mark.skipif(not (PDFPLUMBER / ".git").exists(),
+                    reason="pdfplumber 钉版树(含 .git)不在本机;资源门查 .git"
+                           " 而非裸目录 —— 树在而 .git 不在时 rev-parse 会向上"
+                           "漂到外层仓,给出误导性失败(容器预演实测)。"
                            "git clone jsvine/pdfplumber@v0.11.10 后可跑")
 def test_intake_on_real_pdfplumber_tree():
     rep = run_tool_intake("https://github.com/jsvine/pdfplumber",

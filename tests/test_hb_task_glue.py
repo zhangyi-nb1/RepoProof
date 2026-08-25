@@ -25,9 +25,9 @@ import pytest
 
 from repoproof.runner.host_guided import (
     HostContract,
+    _fake_script,
     build_host_prompt,
     source_commit_of,
-    _fake_script,
 )
 
 REPO = Path(__file__).resolve().parents[1]

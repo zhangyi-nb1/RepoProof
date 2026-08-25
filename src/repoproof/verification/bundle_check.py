@@ -194,8 +194,9 @@ def verify_bundle(run_dir: Path, project_root: Path, contract_path: Path | None)
     am_path = run_dir / "adaptation_manifest.json"
     zone = run_dir / "adaptation"
     if am_path.exists() and zone.exists():
-        manifest = AdaptationManifest.model_validate(json.loads(am_path.read_text(encoding="utf-8")))
-        ok_a, detail_a = verify_frozen(zone, manifest)
+        adaptation = AdaptationManifest.model_validate(
+            json.loads(am_path.read_text(encoding="utf-8")))
+        ok_a, detail_a = verify_frozen(zone, adaptation)
         add("adaptation", ok_a, detail_a)
     else:
         detail = (

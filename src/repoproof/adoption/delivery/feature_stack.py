@@ -30,7 +30,7 @@ import os
 import shutil
 import subprocess
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -70,8 +70,8 @@ class CascadeConfirmationRequired(FeatureStackError):
     def __init__(self, plan: dict):
         self.plan = plan
         super().__init__(
-            "撤销 %s 将级联撤销:%s——请确认完整级联清单后重试"
-            % (plan["target"], " → ".join(plan["cascade_order"])))
+            f"撤销 {plan['target']} 将级联撤销:"
+            f"{' → '.join(plan['cascade_order'])}——请确认完整级联清单后重试")
 
 
 class SelectiveRemovalNotSafe(FeatureStackError):
@@ -145,7 +145,7 @@ class FeatureBundle:
         self.source_commit: str = meta.get("source_commit", "")
 
     @classmethod
-    def load(cls, bundle_dir: str | Path) -> "FeatureBundle":
+    def load(cls, bundle_dir: str | Path) -> FeatureBundle:
         root = Path(bundle_dir).expanduser().resolve()
         meta_path = root / "feature.yaml"
         if not meta_path.is_file():
@@ -177,7 +177,7 @@ class FeatureBundle:
 # ---------------------------------------------------------------- 工具
 
 def _utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def _sha256_file(p: Path) -> str:
@@ -321,7 +321,7 @@ class FeatureStack:
     # ------------------------------------------------------------ 初始化
 
     @classmethod
-    def init(cls, stack_root: str | Path, ledger_dir: str | Path) -> "FeatureStack":
+    def init(cls, stack_root: str | Path, ledger_dir: str | Path) -> FeatureStack:
         from repoproof.harness.host_guard import assert_writable_target
 
         assert_writable_target(stack_root, purpose="以该副本为 Feature 事务栈")
@@ -343,7 +343,7 @@ class FeatureStack:
         return stack
 
     @classmethod
-    def load(cls, stack_root: str | Path, ledger_dir: str | Path) -> "FeatureStack":
+    def load(cls, stack_root: str | Path, ledger_dir: str | Path) -> FeatureStack:
         stack = cls(stack_root, ledger_dir)
         if stack.ledger is None:
             raise FeatureStackError(f"台账不存在:{stack._ledger_path}")
@@ -449,11 +449,12 @@ class FeatureStack:
                     user_viewed_files=True, user_viewed_diff=True,
                     confirm_token=CONFIRM_TOKEN,
                     apply_timestamp=_utcnow())
-            except Exception:
+            except Exception as exc:
                 # apply_confirmed 已自回滚;核树后清 journal 再抛
                 if self.tree_sha() != parent.tree_sha:
                     raise FeatureStackError(
-                        "apply 失败且自动回滚未复位——保留 journal,需 recover_interrupted()")
+                        "apply 失败且自动回滚未复位——保留 journal,"
+                        "需 recover_interrupted()") from exc
                 self._journal_path.unlink(missing_ok=True)
                 raise
 

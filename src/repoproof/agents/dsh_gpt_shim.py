@@ -240,7 +240,7 @@ class DshGptShim:
         return 200, synthesize_sse(upstream, model=self.upstream_model), \
             "text/event-stream", usage_detail_projection(upstream.get("usage") or {})
 
-    def __enter__(self) -> "DshGptShim":
+    def __enter__(self) -> DshGptShim:
         threading.Thread(target=self.srv.serve_forever, daemon=True).start()
         return self
 

@@ -176,13 +176,20 @@ def test_integrity_scope_excludes_repoproof_itself(tmp_path: Path, monkeypatch) 
     a.mkdir()
     b.mkdir()
     monkeypatch.setenv("REPOPROOF_PROTECTED_DIRS", f"{a}:{b}")
-    scope = integrity_scope(a)
+    # scope 元素保留真实大小写(fs 访问用),排除/比对语义按 lower 键
+    # (与 host_guard._norm 同律)—— 断言按同一口径,不许 lower 后比原串。
+    scope_low = [d.lower() for d in integrity_scope(a)]
     norm_a = os.path.realpath(str(a)).lower().rstrip("/")
     norm_b = os.path.realpath(str(b)).lower().rstrip("/")
-    assert norm_a not in scope, "自身必须被排除(对自己拍指纹必然自误报)"
-    assert norm_b in scope, "其余保护目录一个不能少"
+    assert norm_a not in scope_low, "自身必须被排除(对自己拍指纹必然自误报)"
+    assert norm_b in scope_low, "其余保护目录一个不能少"
     # 传入非保护路径时,保护集完整保留(worktree 场景)
-    assert norm_b in integrity_scope(tmp_path / "elsewhere")
+    assert norm_b in [d.lower() for d in integrity_scope(tmp_path / "elsewhere")]
+    # 访问语义:注入的保护目录必须以**真实可 stat 的形态**出现在 scope
+    # (lower 键当路径用的旧病,在大小写敏感 fs 上这条会失败;
+    # DEFAULT_PROTECTED 允许含本机不存在的目录,故不对全表断 isdir)
+    assert any(d.lower() == norm_b and os.path.isdir(d)
+               for d in integrity_scope(a))
 
 
 # ---------------------------------------------------------------- 冒烟脚本
