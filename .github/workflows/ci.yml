@@ -36,9 +36,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e ".[dev]"
-      # 覆盖边界 = 产品可信链(判定/闸门/证据链所在的包)0 错;
-      # 冻结区豁免是 pyproject 里显式登记的棘轮,见 docs/PROJECT_MAP.md。
+      # 必须带 [ui]:类型检查要跑在**与代码相同的依赖集**上。只装
+      # [dev] 时 streamlit 缺失 → ignore_missing_imports 把 st 降成
+      # Any → `st.stop()` 的 NoReturn 语义丢失 → 页面里的窄化全部失效,
+      # 于是本机绿、CI 红(2026-08-27 实录)。装齐依赖后两侧同口径。
+      - run: pip install -e ".[dev,ui]"
+      # 覆盖边界 = 除 Lab 冻结区外的全部源码 0 错;冻结区豁免是
+      # pyproject 里显式登记的棘轮,见 docs/PROJECT_MAP.md。
       - run: mypy src/repoproof
 
   test:

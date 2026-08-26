@@ -3875,3 +3875,12 @@ message 的 TextChoices)等,一律显式判空 + 消息可读的 fail-loud。
 M75j 突变串随 deepseek_native 改动同步翻新(突变闸自钉当场咬出)。
 
 全量 **1463+48+0**;ruff/mypy 全绿。
+
+**CI 复红一次并修复(同日)**:上面这批推上去后 mypy job 红,报 ui
+页面十几处 union-attr —— 本机(含冷跑、清缓存)全绿。定因不在缓存
+而在**依赖集**:mypy job 只装 `[dev]`,streamlit 缺失被
+`ignore_missing_imports` 降成 `Any`,`st.stop()` 的 `NoReturn` 语义
+随之丢失,页面里所有 `if not job: st.stop()` 之后的窄化失效。改法 =
+mypy job 与 pytest job 装同一套 extras(`[dev,ui]`)。隔离 venv 红绿
+双验:不装 ui → 14 错;装齐 → 0 错。教训入 LESSONS #48(与 #47 同一
+母题:判定依据必须两侧同构)。
