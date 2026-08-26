@@ -6,6 +6,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # 手动触发:GitHub Actions 故障期(2026-08-26 实录:一发在队列里卡了
+  # 3 小时未启动)之后需要能重投一发,而不必造一个空提交污染历史。
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
