@@ -297,7 +297,11 @@ def run_preflight(
             if typed in hard:
                 return result(typed, None)
             continue
-        action = _extract_native_action(body) if protocol == "native" else _extract_textbased_action(body)
+        # typed 为空即视为拿到了响应体;body 仍可能是 None(空响应),
+        # 传 {} 让解析器走"解不出 action"的既有分支,不在这里炸
+        body_doc = body if isinstance(body, dict) else {}
+        action = (_extract_native_action(body_doc) if protocol == "native"
+                  else _extract_textbased_action(body_doc))
         if action and "echo" in action.get("command", ""):
             evidence.append(f"{protocol} action parsed: {action['command'][:60]!r}")
             return result("PROVIDER_READY", protocol)

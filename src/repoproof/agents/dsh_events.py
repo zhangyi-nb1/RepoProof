@@ -58,7 +58,7 @@ def _extract_usage(data: dict) -> dict | None:
     u = data.get("usage")
     if not isinstance(u, dict):
         return None
-    out = {}
+    out: dict[str, int] = {}
     for norm, aliases in _USAGE_KEYS:
         for a in aliases:
             if isinstance(u.get(a), (int, float)):
@@ -120,7 +120,8 @@ def normalize(raw_lines: list[str]) -> DshTrace:
             t.problems.append(f"seq 乱序:{seq} < {last_seq}(行 {i})")
         seen_seq.add(seq)
         last_seq = max(last_seq, seq)
-        data = ev.get("data") if isinstance(ev.get("data"), dict) else {}
+        raw_data = ev.get("data")
+        data = raw_data if isinstance(raw_data, dict) else {}
 
         if etype == "turn/start":
             c["turn_starts"] += 1

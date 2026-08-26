@@ -131,3 +131,58 @@ def test_tool_add_drafter_failure_is_nonzero_even_when_skeleton_exists(
     assert payload["ok"] is False
     assert payload["draft_bundle"] == str(bundle)
     assert payload["draft_error"] == "drafter unavailable"
+
+
+def test_tool_plan_with_repo_passes_cache_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`tool plan --repo` 必须真能调通分析器。
+
+    2026-08-27 实录:该调用点漏传必填关键字 `cache_root`,于是这条路径
+    **每次必崩**(TypeError 在调用点抛出,连克隆都没开始),而 `--dir`
+    那条正常 —— 所以整条 CLI 旅程的测试全绿。mypy 首次覆盖 cli 时揪出。
+    本钉只认「按真实签名可调用」:用真函数对象的签名做绑定检查,不
+    monkeypatch 掉签名本身,否则钉子就跟着假签名一起瞎。
+    """
+    import inspect
+
+    from repoproof.adoption.analysis import repository_analyzer
+
+    seen: dict = {}
+    real_sig = inspect.signature(repository_analyzer.analyze_repository)
+
+    def _spy(*args: object, **kwargs: object):
+        real_sig.bind(*args, **kwargs)          # 真签名绑定:漏参在这里就炸
+        seen.update(kwargs)
+        return SimpleNamespace(sources=[str(tmp_path)], to_dict=lambda: {})
+
+    monkeypatch.setattr(repository_analyzer, "analyze_repository", _spy)
+    monkeypatch.setattr(
+        "repoproof.adoption.admission.support_policy.evaluate_tool_policy",
+        lambda _report: SimpleNamespace(),
+    )
+    plan_obj = SimpleNamespace(
+        model_dump=lambda: {"support_status": "SUPPORTED"},
+        support_status="SUPPORTED",
+        implementation_route="DIRECT_WRAP",
+        reason_codes=[],
+        detected_surfaces=[],
+        plan_sha256="x" * 64,
+    )
+    monkeypatch.setattr(
+        "repoproof.adoption.planning.capability_plan.build_capability_plan",
+        lambda *_a, **_k: plan_obj,
+    )
+
+    out = tmp_path / "plan.yaml"
+    code = cli.main([
+        "tool", "plan",
+        "--repo", "https://github.com/acme/demo",
+        "--capability", "把文本转成 slug",
+        "--out", str(out),
+    ])
+
+    assert code == 0
+    assert "cache_root" in seen, "调用点漏传 cache_root —— 这条路径运行时必崩"
+    assert out.is_file()

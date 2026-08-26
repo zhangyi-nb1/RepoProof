@@ -399,7 +399,7 @@ elif step == 4:
         from repoproof.adoption.analysis.host_analyzer import HostProjectReport
         from repoproof.adoption.analysis.repository_analyzer import RepositoryReport
         from repoproof.adoption.intent.intent_parser import parse_intent
-        from repoproof.adoption.planning.adoption_plan import build_plan
+        from repoproof.adoption.planning.adoption_plan import AdoptionPlan, build_plan
 
         _host_m = HostProjectReport.model_validate(ss["wz_host_report"])
         _repo_m = RepositoryReport.model_validate(ss["wz_repo_report"])
@@ -411,6 +411,7 @@ elif step == 4:
         _accepted = ss.get("wz_accepted_risks", [])
         st.divider()
         st.subheader("接入方式(系统比较了可行方案)")
+        _plan: AdoptionPlan | None
         try:
             _plan = build_plan(_intent_m, _host_m, _repo_m, _adm_m,
                                accepted_risks=_accepted or None)
@@ -613,7 +614,11 @@ elif step == 5:
                     else:
                         _s.update(label="冻结未通过", state="error")
                         st.error("冻结失败(通常是控制组自检或依赖构建问题)。技术输出末段:")
-                        st.code((proc.stdout + proc.stderr)[-1200:], language="text")
+                        # steps 恒非空故 proc 必被赋值;None 分支只为不
+                        # 在"一步都没跑"的退化态里以 AttributeError 收场
+                        tail = ((proc.stdout + proc.stderr)[-1200:] if proc
+                                else "(没有任何步骤被执行)")
+                        st.code(tail, language="text")
         except CompileError as exc:
             st.error(f"样例不满足要求:{exc}")
         except CoreExecutionConflictError as exc:

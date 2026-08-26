@@ -221,8 +221,11 @@ class DeepSeekNativeModel(LitellmModel):
             raise RuntimeError("deepseek stream yielded no usable chunks")
         # builder 版本差异兜底:delta 里见过 reasoning_content 而组装件
         # 丢了 → 注回消息对象(litellm Message extra=allow,dump 会带出)。
-        message = response.choices[0].message
-        if reasoning_parts and not getattr(message, "reasoning_content", None):
+        # litellm 的 choices 联合类型含 TextChoices(无 message);组装件
+        # 不带 message 就没有可注回的对象,如实跳过而不是硬取属性。
+        message = getattr(response.choices[0], "message", None)
+        if (message is not None and reasoning_parts
+                and not getattr(message, "reasoning_content", None)):
             message.reasoning_content = "".join(reasoning_parts)
         return response
 

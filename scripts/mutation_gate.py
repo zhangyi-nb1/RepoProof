@@ -2377,7 +2377,7 @@ MUTATIONS: list[dict] = [
         "lesson": "builder 版本丢 reasoning 时的兜底死了 —— 存档消息缺思考链,"
                   "canary-2 的回传判定失去证据来源",
         "file": _DSN,
-        "old": '        if reasoning_parts and not getattr(message, "reasoning_content", None):\n            message.reasoning_content = "".join(reasoning_parts)',
+        "old": '        if (message is not None and reasoning_parts\n                and not getattr(message, "reasoning_content", None)):\n            message.reasoning_content = "".join(reasoning_parts)',
         "new": '        if False:\n            message.reasoning_content = "".join(reasoning_parts)',
         "catchers": _T_DSN,
         "expected_catcher": ["test_reasoning_salvage_when_builder_drops_it"],

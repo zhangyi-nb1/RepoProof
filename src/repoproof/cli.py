@@ -354,11 +354,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "analyze-host":
         from repoproof.adoption.analysis.host_analyzer import analyze_host_project
 
-        report = analyze_host_project(args.path)
-        payload = report.to_dict()
+        host_report = analyze_host_project(args.path)
+        host_payload = host_report.to_dict()
         if args.json:
-            payload = {"schema_version": 1, "kind": "host_project_report", "report": payload}
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+            host_payload = {"schema_version": 1, "kind": "host_project_report",
+                            "report": host_payload}
+        print(json.dumps(host_payload, ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd in ("analyze-repo", "analyze-source"):
@@ -370,8 +371,14 @@ def main(argv: list[str] | None = None) -> int:
         url = getattr(args, "url", None) or getattr(args, "repo", None)
         if args.local_path:
             rep = analyze_repository_dir(args.local_path, requested_revision=args.revision)
+        elif not url:
+            # 互斥组保证二选一,但 --url/--repo 两种别名经 getattr 取值;
+            # 取空时如实拒绝,不把 None 送进分析器(那会在克隆层炸出难读的栈)
+            print(json.dumps({"ok": False, "error": "缺少 --url/--repo"},
+                             ensure_ascii=False))
+            return 2
         else:
-            rep = analyze_repository(url, args.revision,
+            rep = analyze_repository(str(url), args.revision,
                                      cache_root=PROJECT_ROOT / "upstream-cache")
         payload = rep.to_dict()
         if args.json:
@@ -383,14 +390,14 @@ def main(argv: list[str] | None = None) -> int:
         from repoproof.adoption.intake.tool_confirm import write_draft_bundle
         from repoproof.adoption.intake.tool_intake import run_tool_intake
 
-        rep = run_tool_intake(
+        intake_rep = run_tool_intake(
             args.repo or "", args.capability,
             cache_root=PROJECT_ROOT / "upstream-cache",
             revision=args.revision, local_path=args.local_path)
         payload = {"schema_version": 1, "kind": "tool_intake_report",
-                   **rep.to_dict()}
-        if args.draft_out is not None and rep.draft:
-            payload["draft_bundle"] = str(write_draft_bundle(rep, args.draft_out))
+                   **intake_rep.to_dict()}
+        if args.draft_out is not None and intake_rep.draft:
+            payload["draft_bundle"] = str(write_draft_bundle(intake_rep, args.draft_out))
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0
 
@@ -405,24 +412,24 @@ def main(argv: list[str] | None = None) -> int:
             )
             from repoproof.adoption.intake.tool_intake import run_tool_intake
 
-            rep = run_tool_intake(args.repo, args.capability,
+            add_rep = run_tool_intake(args.repo, args.capability,
                                   cache_root=PROJECT_ROOT / "upstream-cache",
                                   revision=args.revision)
-            payload: dict = {"admission": rep.admission.to_dict()}
-            if rep.admission.status == "UNSUPPORTED" or not rep.draft:
-                print(json.dumps({"ok": False, **payload},
+            add_payload: dict = {"admission": add_rep.admission.to_dict()}
+            if add_rep.admission.status == "UNSUPPORTED" or not add_rep.draft:
+                print(json.dumps({"ok": False, **add_payload},
                                  ensure_ascii=False, indent=2))
                 return 3
-            bundle = write_draft_bundle(rep, args.draft_out)
-            payload["draft_bundle"] = str(bundle)
+            bundle = write_draft_bundle(add_rep, args.draft_out)
+            add_payload["draft_bundle"] = str(bundle)
             try:
                 drafter = FakeDrafter() if args.fake_drafter else LiteLLMDrafter()
-                payload["drafted"] = draft_into_bundle(rep, bundle, drafter)
+                add_payload["drafted"] = draft_into_bundle(add_rep, bundle, drafter)
             except DraftError as exc:
-                payload["draft_error"] = str(exc)
-                print(json.dumps({"ok": False, **payload}, ensure_ascii=False, indent=2))
+                add_payload["draft_error"] = str(exc)
+                print(json.dumps({"ok": False, **add_payload}, ensure_ascii=False, indent=2))
                 return 3
-            payload["your_todo"] = [
+            add_payload["your_todo"] = [
                 f"1. 审阅并修改 {bundle}/draft.yaml(statement/summary/格式;"
                 "工具名 tool.name 由你定)",
                 f"2. 审阅 {bundle}/reference_impl.py(必须真调上游;起草仅供参考)",
@@ -432,7 +439,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"5. 跑:repoproof tool build --draft-dir {bundle}",
                 "6. build 成功后另备 fresh non-example 输入/真值，跑 tool audit 才会 ACTIVE",
             ]
-            print(json.dumps({"ok": True, **payload}, ensure_ascii=False, indent=2))
+            print(json.dumps({"ok": True, **add_payload}, ensure_ascii=False, indent=2))
             return 0
         if args.tool_cmd == "build":
             from repoproof.adoption.intake.tool_confirm import ConfirmError
@@ -484,14 +491,20 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             if args.local_dir:
                 root = Path(args.local_dir).expanduser().resolve()
-                report = analyze_repository_dir(root)
+                plan_report = analyze_repository_dir(root)
             else:
-                report = analyze_repository(args.repo, revision=args.revision)
-                root = Path(report.sources[0]) if report.sources else Path(".")
+                # cache_root 是必填关键字参数,漏给会在调用点直接 TypeError
+                # ——`tool plan --repo` 这条路径此前**每次必崩**(2026-08-27
+                # mypy 首次覆盖 cli 时揪出,已补回归钉)。
+                plan_report = analyze_repository(
+                    args.repo, revision=args.revision,
+                    cache_root=PROJECT_ROOT / "upstream-cache")
+                root = (Path(plan_report.sources[0])
+                        if plan_report.sources else Path("."))
                 # analyze_repository 的分析克隆根:从 to_dict 元数据取不到时
                 # 由 clone 缓存约定推导 —— 保守起见要求本地分析用 --dir。
-            policy = evaluate_tool_policy(report)
-            plan = build_capability_plan(root, report, policy,
+            policy = evaluate_tool_policy(plan_report)
+            plan = build_capability_plan(root, plan_report, policy,
                                          goal=args.capability)
             out_p = Path(args.out)
             out_p.parent.mkdir(parents=True, exist_ok=True)
@@ -626,13 +639,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         from repoproof.adoption.intake.tool_intake import run_tool_intake
 
-        rep = run_tool_intake(
+        draft_rep = run_tool_intake(
             args.repo or "", args.capability,
             cache_root=PROJECT_ROOT / "upstream-cache",
             revision=args.revision, local_path=args.local_path)
         try:
             drafter = FakeDrafter() if args.fake else LiteLLMDrafter()
-            out = draft_into_bundle(rep, args.draft_dir, drafter)
+            out = draft_into_bundle(draft_rep, args.draft_dir, drafter)
         except DraftError as exc:
             print(json.dumps({"ok": False, "error": str(exc)},
                              ensure_ascii=False, indent=2))
@@ -677,8 +690,8 @@ def main(argv: list[str] | None = None) -> int:
 
         host = HostProjectReport.model_validate(_load_report(args.host_report, "report"))
         repo = RepositoryReport.model_validate(_load_report(args.source_report, "report"))
-        result = decide(host, repo)
-        payload = result.to_dict()
+        admission_result = decide(host, repo)
+        payload = admission_result.to_dict()
         if args.json:
             payload = {"schema_version": 1, "kind": "admission_report", "report": payload}
         print(json.dumps(payload, ensure_ascii=False, indent=2))

@@ -150,14 +150,19 @@ def run_dsh_worker(job: dict, *, worker_python: str | Path,
     proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True,
                             start_new_session=True, env=env)
+    # stdin=PIPE 时 proc.stdin 必非 None;显式取一次局部量让类型可证,
+    # 顺带把"管道没建起来"这种不可能态变成可读的错而不是 AttributeError。
+    stdin = proc.stdin
+    if stdin is None:      # pragma: no cover - stdin=PIPE 下不可达
+        raise RuntimeError("worker 进程没有 stdin 管道")
     try:
-        proc.stdin.write(json.dumps(job))
-        proc.stdin.flush()
+        stdin.write(json.dumps(job))
+        stdin.flush()
     except BrokenPipeError:
         pass
     finally:
         try:
-            proc.stdin.close()
+            stdin.close()
         except BrokenPipeError:
             pass
         # 真 worker 靠 stdin EOF 才开工,必须现在关;关完置 None,

@@ -13,7 +13,7 @@ import json
 import os
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import ValidationError
@@ -76,7 +76,8 @@ def _project_tool(row: dict[str, Any], root: Path) -> dict[str, Any]:
     if isinstance(exposure_warning, str) and exposure_warning not in reason_codes:
         reason_codes.append(exposure_warning)
 
-    source = row.get("source") if isinstance(row.get("source"), dict) else {}
+    raw_source = row.get("source")
+    source = raw_source if isinstance(raw_source, dict) else {}
     package_path = row.get("path")
     if not isinstance(package_path, str) or not package_path:
         package_path = str(root / str(row.get("name") or ""))
@@ -187,9 +188,12 @@ def default_output_contract(format_name: str) -> dict[str, Any]:
             media_type="application/x-ndjson", root_type="json_lines"
         )
     else:
-        root_type = {"json_object": "object", "json_array": "array"}.get(
-            family, "json"
-        )
+        # root_type 是 Literal 字面量集合;经 dict.get 会退化成 str,
+        # 显式分支保住字面量身份(拼错的键会在这里当场露馅)
+        root_type: Literal["object", "array", "json"] = (
+            "object" if family == "json_object"
+            else "array" if family == "json_array"
+            else "json")
         contract = ToolOutputContract(
             media_type="application/json", root_type=root_type
         )

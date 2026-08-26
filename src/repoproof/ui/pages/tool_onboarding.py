@@ -155,7 +155,11 @@ with tab_review:
         c_in, c_out = st.columns(2)
         uploaded_in = c_in.file_uploader("输入文件", key="golden_input")
         uploaded_out = c_out.file_uploader("期望输出文件", key="golden_expected")
-        if st.button("加入这一组样例", disabled=not (uploaded_in and uploaded_out)):
+        # disabled 只挡点击,挡不住类型(也挡不住 Streamlit 版本差异下的
+        # 意外触发)—— 两个文件都在场才进这一段,缺一个如实不做事。
+        if (st.button("加入这一组样例",
+                      disabled=not (uploaded_in and uploaded_out))
+                and uploaded_in is not None and uploaded_out is not None):
             current_contract, contract_errors = parse_output_contract(
                 output_contract_text,
                 output_format=output_format,

@@ -36,7 +36,11 @@ c3.metric("任务", str(job.get("label") or "—"))
 c4.metric("进程", str(job.get("pid") or "—"))
 
 if job.get("alive"):
-    st.progress(None, text="后台执行中；刷新页面可获取最新状态。")
+    # st.progress 只收 int[0,100]/float[0,1] —— 传 None 会当场抛
+    # StreamlitAPIException("Progress Value has invalid type: NoneType"),
+    # 也就是**任务正在跑的时候**这一屏必炸(2026-08-27 mypy 首次覆盖 ui
+    # 时揪出)。构建没有可靠的百分比进度,给个不谎报进度的运行态提示。
+    st.info("⏳ 后台执行中；刷新页面可获取最新状态。")
 elif job.get("ok"):
     st.success(job.get("note") or "任务已完成。")
 else:

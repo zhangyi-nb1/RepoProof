@@ -386,11 +386,12 @@ def start_tool_add(
         return {"ok": False, "error": "当前只支持公开 GitHub 仓库地址。"}
     if len(capability.strip()) < 8:
         return {"ok": False, "error": "请用一句完整的话描述想要的能力。"}
-    draft_dir, path_error = _validated_draft_dir(
+    checked_dir, path_error = _validated_draft_dir(
         Path(draft_dir), require_existing=False
     )
-    if draft_dir is None:
+    if checked_dir is None:
         return {"ok": False, "error": path_error}
+    draft_dir = checked_dir       # 判空后再回赋:参数类型不被 None 污染
     root = _product_root()
     return _start_product_job(
         tool_add_argv(
@@ -413,14 +414,16 @@ def start_tool_build(
     dest_root: Path,
     rehearsal_only: bool,
 ) -> dict:
-    draft_dir, path_error = _validated_draft_dir(
+    checked_dir, path_error = _validated_draft_dir(
         Path(draft_dir), require_existing=True
     )
-    if draft_dir is None:
+    if checked_dir is None:
         return {"ok": False, "error": path_error}
-    dest_root, dest_error = _validated_dest_root(Path(dest_root))
-    if dest_root is None:
+    draft_dir = checked_dir       # 判空后再回赋:参数类型不被 None 污染
+    checked_root, dest_error = _validated_dest_root(Path(dest_root))
+    if checked_root is None:
         return {"ok": False, "error": dest_error}
+    dest_root = checked_root      # 判空后再回赋,同上
     draft_path = draft_dir / "draft.yaml"
     if not draft_path.is_file():
         return {"ok": False, "error": f"未找到草稿：{draft_path}"}
@@ -470,11 +473,12 @@ def save_draft_review(
     reference_impl: str,
     output_contract: dict | None = None,
 ) -> dict:
-    draft_dir, path_error = _validated_draft_dir(
+    checked_dir, path_error = _validated_draft_dir(
         Path(draft_dir), require_existing=True
     )
-    if draft_dir is None:
+    if checked_dir is None:
         return {"ok": False, "error": path_error}
+    draft_dir = checked_dir       # 判空后再回赋:参数类型不被 None 污染
     clean_name = tool_name.strip()
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", clean_name):
         return {"ok": False, "error": "工具名只能包含小写字母、数字和连字符。"}
@@ -527,11 +531,12 @@ def add_golden_example(
     expected_name: str,
     expected_bytes: bytes,
 ) -> dict:
-    draft_dir, path_error = _validated_draft_dir(
+    checked_dir, path_error = _validated_draft_dir(
         Path(draft_dir), require_existing=True
     )
-    if draft_dir is None:
+    if checked_dir is None:
         return {"ok": False, "error": path_error}
+    draft_dir = checked_dir       # 判空后再回赋:参数类型不被 None 污染
     invalid_names = {"", ".", ".."}
     if (
         input_name in invalid_names
@@ -621,9 +626,10 @@ def product_tool_commands() -> set[str]:
 
 
 def start_tool_mcp(name: str, dest_root: Path) -> dict:
-    dest_root, path_error = _validated_dest_root(Path(dest_root))
-    if dest_root is None:
+    checked_root, path_error = _validated_dest_root(Path(dest_root))
+    if checked_root is None:
         return {"ok": False, "error": path_error}
+    dest_root = checked_root      # 判空后再回赋,同上
     try:
         name = validate_tool_name(name)
     except ToolPathError as exc:
@@ -655,9 +661,10 @@ def start_tool_audit(
 ) -> dict:
     if not input_path.is_file() or not expected_path.is_file():
         return {"ok": False, "error": "新鲜输入和期望输出文件都必须存在。"}
-    dest_root, path_error = _validated_dest_root(Path(dest_root))
-    if dest_root is None:
+    checked_root, path_error = _validated_dest_root(Path(dest_root))
+    if checked_root is None:
         return {"ok": False, "error": path_error}
+    dest_root = checked_root      # 判空后再回赋,同上
     try:
         name = validate_tool_name(name)
     except ToolPathError as exc:
@@ -687,9 +694,10 @@ def start_tool_audit(
 def start_tool_withdraw(name: str, reason: str, dest_root: Path) -> dict:
     if not reason.strip():
         return {"ok": False, "error": "请填写撤回原因。"}
-    dest_root, path_error = _validated_dest_root(Path(dest_root))
-    if dest_root is None:
+    checked_root, path_error = _validated_dest_root(Path(dest_root))
+    if checked_root is None:
         return {"ok": False, "error": path_error}
+    dest_root = checked_root      # 判空后再回赋,同上
     try:
         name = validate_tool_name(name)
     except ToolPathError as exc:

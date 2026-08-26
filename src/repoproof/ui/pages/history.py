@@ -133,6 +133,10 @@ with tech_expander("两次运行对比(技术详情)"):
                           placeholder="请选择两条")
     if len(pick) == 2:
         a, b = (facts.summary_row(cid) for cid in pick)
+        if a is None or b is None:
+            # summary_row 查无此行 → 事实源里没有这条运行,如实说,不并排空表
+            st.warning("所选运行在事实源里查不到,无法并排(可能是刚清理过的旧 case)。")
+            st.stop()
         fields = [
             ("任务版本", "task_version"), ("运行类型", "run_type"), ("模型", "model"),
             ("Capability 通过", "capability_passed"), ("Capability 总数", "capability_total"),
@@ -141,8 +145,8 @@ with tech_expander("两次运行对比(技术详情)"):
             ("输出 Tokens", "output_tokens"), ("Adapter 行数", "adaptation_lines"),
             ("失败类型", "failure_type"),
         ]
-        st.dataframe(
-            [{"指标": lb, pick[0]: dash(a.get(k)), pick[1]: dash(b.get(k))} for lb, k in fields],
-            width="stretch", hide_index=True,
-        )
+        compare_rows: list[dict] = [
+            {"指标": lb, pick[0]: dash(a.get(k)), pick[1]: dash(b.get(k))}
+            for lb, k in fields]
+        st.dataframe(compare_rows, width="stretch", hide_index=True)
         st.caption("仅事实并排:两次运行的任务版本/规格/预算可能不同,不构成任何提升声称。")

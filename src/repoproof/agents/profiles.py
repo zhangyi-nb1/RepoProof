@@ -260,7 +260,8 @@ def semantic_fingerprints(repo: Path) -> dict:
             face = face_of(rel)
             if face:
                 buckets[face].append([rel, sha256_bytes(p.read_bytes())[:16]])
-    out = {f"{f}_fingerprint": _hash({"files": buckets[f]}) for f in FACES}
+    out: dict[str, object] = {f"{f}_fingerprint": _hash({"files": buckets[f]})
+                              for f in FACES}
     out["analysis_schema_version"] = ANALYSIS_SCHEMA_VERSION
     return out
 

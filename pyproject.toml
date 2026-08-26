@@ -56,18 +56,14 @@ python_version = "3.12"
 files = ["src/repoproof"]
 ignore_missing_imports = true
 
-# 类型兜底的覆盖边界 = 产品可信链(adoption/verification/harness/domain/
-# persistence/execution/receipts/probes)+ **在役 runner 七件**
-# (tool_pipeline/export/registry/release/mcp/paths/host_bridge,
-# 2026-08-26 摘出豁免队列):判定、闸门、证据链、产品运营所在的代码
-# 必须 0 错。下列豁免是**显式登记的冻结区/渐进队列**,不是默认放水:
-# - runner 冻结区逐文件列名(Benchmark Lab 执行引擎,FROZEN 2026-08-25,
-#   见 docs/PROJECT_MAP.md)—— 不再用 runner.* 整包兜底,新增 runner
-#   模块默认受检;
-# - agents.* :DSH 后端线(E 轨已关闭);
-# - ui.*    :Streamlit 展示面,不参与判定;
-# - cli     :入口聚合层。
-# 从队列里摘除一个模块 = 把它的错清零后删掉对应 override(棘轮只进不退)。
+# 类型兜底现覆盖**除 Lab 冻结区外的全部源码**:产品可信链、在役 runner
+# 七件、ui 展示面、agents(DSH 线)、cli —— 一律 0 错。
+# 渐进队列已清空(2026-08-26 摘 runner 在役件 19 错;2026-08-27 摘
+# ui/agents/cli 63 错,其中两枚是真崩溃:`tool plan --repo` 漏传必填
+# cache_root、运行活动页 st.progress(None) 抛 StreamlitAPIException)。
+# 唯一剩下的豁免 = Lab 冻结区,**逐文件列名**(FROZEN 2026-08-25,见
+# docs/PROJECT_MAP.md):整包通配会给新增模块开暗门,故不用 runner.*。
+# 棘轮只进不退:名单只许减,新增受检模块不得靠加 override 绕过。
 [[tool.mypy.overrides]]
 module = [
     "repoproof.runner.host_guided",
@@ -78,9 +74,6 @@ module = [
     "repoproof.runner.calibration",
     "repoproof.runner.demo",
     "repoproof.runner.scaffold",
-    "repoproof.ui.*",
-    "repoproof.agents.*",
-    "repoproof.cli",
 ]
 ignore_errors = true
 

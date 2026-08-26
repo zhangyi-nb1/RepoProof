@@ -35,7 +35,7 @@ FailureAssessmentV1 九码;REPAIR-VALIDATION-1(terra/luna)已按预注册
 | MCP 执法 | 仅历史 READY + 当前 ACTIVE 可生成；M5 adapter 每次 list/call 复核 ledger；pre-M5 非 ACTIVE adapter 明示 `LEGACY_SERVER_MUST_BE_DETACHED` |
 | M6 整合锚点 | 工程实现 `d7c1278`；`3818ccb` no-ff 保留 UI 历史；2026-08-24 项目方三固定案例预览通过(P0=0,P1=5 全修复)并合回 `main`；**2026-08-25 两名目标用户三案例理解测试完成(P0=0,P1+2 条已修复并经复验)——M6 关门**。目标用户测试为项目方自报,原始记录表归档位 `docs/evidence/m6_user_tests/` 尚待投入(见该目录 README);在归档落位前,只可声明「项目方报告测试完成」,不可声明「仓库内证据可独立审计」 |
 | M6 可信整合 | Core-only registry 投影；historical/operational/package health 三栏；ProductJobStateV2；Studio/Lab 共享 Core 写锁；Product/Lab 原生分账 |
-| 当前质量基线 | 本机全量 `1446 passed + 60 skipped + 0 failed`(2026-08-26,docker 停时形态;docker 起时 12 个隔离测试转真跑,总量 1506 守恒);**CI 已落地**(.github/workflows/ci.yml:ruff 全仓 0 错 + mypy 0 错 + pytest 全量);mypy 覆盖=可信链八包 + **在役 runner 七件(tool_pipeline/export/registry/release/mcp/paths/host_bridge,2026-08-26 摘出豁免,19 错清零)**;豁免区=Lab 冻结区逐文件列名 + ui/agents/cli 渐进队列(棘轮只进不退) |
+| 当前质量基线 | 本机全量 `1463 passed + 48 skipped + 0 failed`(2026-08-27,docker 起时形态;docker 停时 12 个隔离测试转 skip,总量 1511 守恒);**CI 三 job 全绿**(.github/workflows/ci.yml:ruff 全仓 0 错 + mypy 0 错 + pytest 全量);**mypy 覆盖除 Lab 冻结区外的全部源码**(2026-08-26 摘在役 runner 七件 19 错;2026-08-27 摘 ui/agents/cli 63 错 —— 其中两枚真崩溃:`tool plan --repo` 漏传必填 cache_root、运行活动页 `st.progress(None)` 抛 StreamlitAPIException,均已补回归钉);渐进队列清空,豁免只剩冻结区逐文件列名(棘轮只减不增) |
 | 代码分区 | `docs/PROJECT_MAP.md`(单页地图):产品可信链 vs **Lab 冻结区(FROZEN 2026-08-25)**;host_guided 功能面冻结但仍是产品彩排/真发执行引擎,判定/安全缺陷照修 |
 | 后端资格 | Product Mode 缺省 mini-swe；DSH 旗标保留但工具谱系未资格化 |
 | M7 分支现状 | `codex/m7-managed-sidecar-tools @ 7ac1a09` 已推送；强 U1–U4 回执已落地(取证会话+攻击矩阵自证);仍缺 v3 全链 E2E、OS 级隔离、导出包 replay、授权真仓 —— EXPERIMENTAL,功能面冻结 |

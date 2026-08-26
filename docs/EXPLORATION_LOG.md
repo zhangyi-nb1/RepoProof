@@ -3843,3 +3843,35 @@ LESSONS #47。红/绿取证:全新 clone(mtime 全同,CI 等价)复验通过;
 里卡 3 小时未启动;补 `workflow_dispatch`(顺带得到手动重投能力)后新
 push 顶上一发立即开跑。停摆期间用 Linux 容器(真全历史 clone)跑三 job
 等价验证全绿,不拿"本机过了"充远端证据。
+
+## 状态 · 2026-08-27 · mypy 覆盖收口:ui/agents/cli 63 错清零,揪出两枚真崩溃
+
+摘掉最后三块豁免(ui.* / agents.* / cli),63 错全部真修,**无一条用
+ignore 压掉**。渐进队列就此清空 —— 豁免只剩 Lab 冻结区,且**逐文件
+列名**(整包通配会给新增模块开暗门)。
+
+**两枚是真崩溃,不是类型洁癖**:
+① `repoproof tool plan --repo <url>` **每次必崩** —— 调用点漏传
+`analyze_repository` 的必填关键字 `cache_root`,TypeError 在调用点抛出,
+连克隆都没开始;`--dir` 那条正常,所以整条 CLI 旅程测试全绿。已复现、
+已修、已补回归钉(钉子拿真函数签名做 bind 检查,不 monkeypatch 签名
+本身,否则钉子跟着假签名一起瞎;红/绿双向验证过)。
+② `运行活动` 页在「任务正在跑」分支写 `st.progress(None, text=...)`,
+而 Streamlit 的 progress 只收 int[0,100]/float[0,1] —— 于是**用户盯着
+构建跑的那一屏必抛** `StreamlitAPIException: Progress Value has invalid
+type: NoneType`。改为不谎报进度的运行态提示;新增
+`tests/ui/test_ui_page_render_smoke.py` 用官方 AppTest 端到端渲染四条
+状态分支(running/succeeded/failed/no-job)—— 此前 UI 测试只测服务层
+投影,没有一条真把页面渲染出来,这才是它活这么久的原因。红/绿双向
+验证:旧代码在 AppTest 下如实抛该异常。
+
+其余 61 条按类型修:cli 的巨型 `main()` 里 `rep`/`payload`/`report`
+被多分支重绑 → 逐分支改唯一名(过程中一次正则替换差点误伤 JSON 里的
+`"report"` 键名,靠命中数断言拦下 —— 计数断言值这个钱);product_jobs
+八处「校验结果回写参数」→ 先落新局部量、判空后再回赋,下游一行不改;
+dsh_backend 的 `proc.stdin`、live_run 的 `latest`、provider_gate 的
+`body`、deepseek_native 的 `choices[0].message`(litellm 联合类型含无
+message 的 TextChoices)等,一律显式判空 + 消息可读的 fail-loud。
+M75j 突变串随 deepseek_native 改动同步翻新(突变闸自钉当场咬出)。
+
+全量 **1463+48+0**;ruff/mypy 全绿。

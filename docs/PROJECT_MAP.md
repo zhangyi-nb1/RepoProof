@@ -29,16 +29,20 @@ URL+一句话 → 静态分析 → CapabilityPlanV1(证据+确定性路由,用�
 
 ## 代码地图:产品可信链 vs Lab 冻结区
 
-一句话:**判定发生的地方有类型兜底和 CI;历史研究资产显式冻结。**
-(mypy 的豁免边界与这张表逐包一致 —— 见 `pyproject.toml [tool.mypy]`。)
+一句话:**除 Lab 冻结区外全部源码都有类型兜底和 CI;历史研究资产显式冻结。**
+(mypy 的豁免边界与这张表逐行一致 —— 见 `pyproject.toml [tool.mypy]`。)
 
 | 分区 | 包/文件 | 状态 |
 |---|---|---|
 | 产品主编排 | `runner/tool_pipeline.py`(384 行) | 在役,新逻辑落这里 |
 | 产品可信链 | `adoption/`(analyzer/plan/intake/assembly/repair)、`verification/`、`harness/`、`domain/`、`persistence/`、`execution/`、`receipts/`、`probes/` | 在役,mypy 0 错 |
 | 产品运营 | `runner/tool_export|registry|release|mcp|paths|host_bridge` | 在役,mypy 0 错(2026-08-26 摘出豁免) |
-| 展示面 | `ui/`(Streamlit Studio,不参与判定)、`cli.py` | 在役,mypy 渐进队列 |
-| **Lab 冻结区** | `runner/host_guided.py`、`baseline.py`、`guided_repair.py`、`agent_run.py`、`sidecar_session.py`、`calibration.py`、`agents/`(DSH) | **FROZEN 2026-08-25** |
+| 展示面 | `ui/`(Streamlit Studio,不参与判定)、`cli.py` | 在役,mypy 0 错(2026-08-27 摘出豁免) |
+| DSH 后端线 | `agents/`(E 轨已关闭,功能面随 Lab 冻结) | mypy 0 错(2026-08-27) |
+| **Lab 冻结区** | `runner/host_guided.py`、`baseline.py`、`guided_repair.py`、`agent_run.py`、`sidecar_session.py`、`calibration.py`、`demo.py`、`scaffold.py` | **FROZEN 2026-08-25**;mypy 唯一豁免,逐文件列名(整包通配会给新增模块开暗门) |
+
+渐进队列已清空:类型覆盖是**棘轮**,名单只许减。新增模块默认受检,
+不得靠加 override 绕过。
 
 冻结区的特殊件:`host_guided.py`(3900+ 行)**功能面冻结但没有退役**——
 产品的彩排与真发仍由 `tool_pipeline` 调用它执行,其验证链就是判定来源。

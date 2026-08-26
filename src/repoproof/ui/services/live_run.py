@@ -46,14 +46,14 @@ def frozen_tasks_detailed(root: Path) -> list[dict]:
     冻结的是哪个"。"""
     import datetime as _dt
 
-    items = [
+    items: list[dict] = [
         {"task_id": p.name.replace(".package.json", ""), "frozen_ts": p.stat().st_mtime}
         for p in (root / "contracts").glob("*.package.json")
     ]
-    items.sort(key=lambda d: d["frozen_ts"], reverse=True)
+    items.sort(key=lambda d: float(d["frozen_ts"]), reverse=True)
     today = _dt.date.today()
     for i, it in enumerate(items):
-        t = _dt.datetime.fromtimestamp(it["frozen_ts"])
+        t = _dt.datetime.fromtimestamp(float(it["frozen_ts"]))
         if t.date() == today:
             when = f"今天 {t:%H:%M}"
         elif (today - t.date()).days == 1:
@@ -125,7 +125,7 @@ def active_run(root: Path) -> dict | None:
     started = str(info.get("started_at", ""))
     run_dirs = sorted((root / "runs").glob(f"{tid}-2*"), reverse=True) if tid else []
     latest = run_dirs[0] if run_dirs else None
-    fresh = bool(latest) and (not started or latest.name[-15:] >= started)
+    fresh = latest is not None and (not started or latest.name[-15:] >= started)
     info["latest_run"] = latest.name if (latest and fresh) else None
     report_exists = bool(latest and fresh and (latest / "report.json").exists())
     # V2 outcome is owned by the durable worker.  A command that writes a
@@ -139,7 +139,9 @@ def active_run(root: Path) -> dict | None:
             info["alive"] = False
         try:
             import json as _j
-            info["verdict"] = _j.loads((latest / "report.json").read_text())["final_verdict"]
+            assert latest is not None      # report_ready 蕴含 latest 非 None
+            info["verdict"] = _j.loads(
+                (latest / "report.json").read_text())["final_verdict"]
         except Exception:  # noqa: BLE001
             info["verdict"] = None
         return info
