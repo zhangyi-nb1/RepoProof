@@ -44,6 +44,10 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 全历史必须拉:证据类测试按 head_commit 的祖先距离选「最近
+          # 一次」记录(mtime 在 checkout 后不可信),浅克隆查不了祖先。
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

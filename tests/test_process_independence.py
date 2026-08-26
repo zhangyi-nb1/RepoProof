@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -258,11 +259,39 @@ def test_verify_integrity_entrypoint_exists() -> None:
 
 
 def test_evidence_json_records_capture_rate() -> None:
-    """变异闸门跑过至少一次,且最近一次捕获率 100%(ESCAPED/STALE 清零)。"""
+    """变异闸门跑过至少一次,且最近一次捕获率 100%(ESCAPED/STALE 清零)。
+
+    「最近一次」按 **head_commit 在当前 HEAD 祖先链上距 HEAD 的提交数**
+    选,与 profile_promotion 的证据选择同款语义 —— 不许按 mtime:git
+    不保存 mtime,CI checkout 后全部文件同一时刻,排序退化成枚举序,
+    「最近」会随机选中历史旧份(2026-08-26 CI 实红:选中了修复前带
+    M49b/M49e 逃逸的老记录)。浅克隆查不了祖先 → workflow 已配
+    fetch-depth: 0;本测试对查不到祖先如实红,不降级。"""
     ev_dir = REPO / "docs" / "evidence" / "mutation_gate"
-    files = sorted(ev_dir.glob("*.json"), key=lambda p: p.stat().st_mtime)
+    files = sorted(ev_dir.glob("*.json"))
     assert files, "变异闸门从未跑过 —— .venv/bin/python scripts/mutation_gate.py"
-    latest = json.loads(files[-1].read_text(encoding="utf-8"))
+    head = subprocess.run(
+        ["git", "-C", str(REPO), "rev-parse", "HEAD"],
+        capture_output=True, text=True, check=False).stdout.strip()
+    assert head, "取不到 HEAD —— 无从判定哪份证据是最近一次"
+    cands: list[tuple[int, str]] = []
+    for f in files:
+        doc = json.loads(f.read_text(encoding="utf-8"))
+        commit = str(doc.get("head_commit") or "")
+        if not commit:
+            continue
+        anc = subprocess.run(
+            ["git", "-C", str(REPO), "merge-base", "--is-ancestor", commit, head],
+            capture_output=True, check=False).returncode
+        if anc != 0:
+            continue
+        n = subprocess.run(
+            ["git", "-C", str(REPO), "rev-list", "--count", f"{commit}..{head}"],
+            capture_output=True, text=True, check=False).stdout.strip()
+        cands.append((int(n or 10**9), str(f)))
+    assert cands, ("没有一份变异证据的 head_commit 是当前 HEAD 的祖先 —— "
+                   "浅克隆或从未跑过;先 fetch 全历史再跑 mutation_gate")
+    latest = json.loads(Path(min(cands)[1]).read_text(encoding="utf-8"))
     assert latest["escaped"] == [] and latest["stale"] == [], (
         f"最近一次变异闸门未达 100%:{latest['escaped']} {latest['stale']}")
     assert latest["caught"] == latest["mutations"]
