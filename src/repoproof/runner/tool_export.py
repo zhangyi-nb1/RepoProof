@@ -158,6 +158,9 @@ def _materialize_verified_tool(
 ) -> Path:
     """Build a complete candidate at an absent path; clean it on failure."""
 
+    tool = contract.tool
+    if tool is None:      # _export_context 已把守;此处防绕过直调
+        raise ToolExportError(f"{contract.task_id}: 契约缺 tool 段,不可导出")
     if dest.exists():
         raise ToolExportError(f"候选导出目标已存在:{dest}")
     try:
@@ -217,7 +220,7 @@ def _materialize_verified_tool(
         (ev / "provenance.json").write_text(
             json.dumps(
                 {
-                    "tool": contract.tool.name,
+                    "tool": tool.name,
                     "task_id": contract.task_id,
                     "run_id": report.get("run_id"),
                     "source": {
@@ -236,7 +239,7 @@ def _materialize_verified_tool(
             encoding="utf-8",
         )
 
-        for rel in (f"bin/{contract.tool.name}", "build.sh"):
+        for rel in (f"bin/{tool.name}", "build.sh"):
             path = dest / rel
             if path.is_file():
                 path.chmod(0o755)
@@ -262,16 +265,19 @@ def export_verified_tool(
         host_contract_path=host_contract_path,
         tool_contract_path=tool_contract_path,
     )
+    tool = contract.tool
+    if tool is None:      # _export_context 已把守;此处防绕过直调
+        raise ToolExportError(f"{contract.task_id}: 契约缺 tool 段,不可导出")
     dest_root = Path(dest_root).resolve()
     dest_root.mkdir(parents=True, exist_ok=True)
     with tool_install_lock(dest_root):
-        dest = _tool_path(dest_root, contract.tool.name)
+        dest = _tool_path(dest_root, tool.name)
         if dest.exists():
             raise ToolExportError(f"导出目标已存在,拒绝覆盖:{dest}")
         stage_root = Path(
             tempfile.mkdtemp(prefix=".repoproof-export-", dir=dest_root)
         )
-        candidate = _tool_path(stage_root, contract.tool.name)
+        candidate = _tool_path(stage_root, tool.name)
         try:
             _materialize_verified_tool(
                 run_dir,
@@ -487,14 +493,17 @@ def install_verified_tool(
         host_contract_path=host_contract_path,
         tool_contract_path=tool_contract_path,
     )
+    tool = contract.tool
+    if tool is None:      # _export_context 已把守;此处防绕过直调
+        raise ToolExportError(f"{contract.task_id}: 契约缺 tool 段,不可导出")
     dest_root = Path(dest_root).resolve()
     dest_root.mkdir(parents=True, exist_ok=True)
     with tool_install_lock(dest_root):
-        current = preflight_tool_install(dest_root, contract.tool.name, contract.task_id)
+        current = preflight_tool_install(dest_root, tool.name, contract.task_id)
         stage_root = Path(
             tempfile.mkdtemp(prefix=".repoproof-install-", dir=dest_root)
         )
-        candidate = _tool_path(stage_root, contract.tool.name)
+        candidate = _tool_path(stage_root, tool.name)
         archive: Path | None = None
         old_moved = False
         candidate_live = False
@@ -511,7 +520,7 @@ def install_verified_tool(
             if current is not None:
                 try:
                     archive_parent = ensure_managed_directory(
-                        dest_root, ".repoproof-versions", contract.tool.name
+                        dest_root, ".repoproof-versions", tool.name
                     )
                 except ToolPathError as exc:
                     raise ToolExportError(str(exc)) from exc
@@ -542,14 +551,16 @@ def install_verified_tool(
             manifest_bytes = (candidate / "tool.json").read_bytes()
             ensure_initial_review_decision(
                 dest_root,
-                tool=contract.tool.name,
+                tool=tool.name,
                 task_id=contract.task_id,
                 run_id=report.get("run_id"),
                 evidence_sha256=hashlib.sha256(manifest_bytes).hexdigest(),
             )
 
-            dest = _tool_path(dest_root, contract.tool.name)
-            if current is not None:
+            dest = _tool_path(dest_root, tool.name)
+            # archive 恰在 current 非 None 时被赋值;按 archive 判等价,
+            # 且类型可证(mypy 不传导 current→archive 的耦合)
+            if archive is not None:
                 try:
                     os.replace(dest, archive)
                 finally:
@@ -578,7 +589,7 @@ def install_verified_tool(
                 # a split-brain installation.
                 if _registry_commit_matches_install(
                     dest_root,
-                    tool_name=contract.tool.name,
+                    tool_name=tool.name,
                     task_id=contract.task_id,
                     run_id=report.get("run_id"),
                     contract_sha256=digest,
@@ -614,7 +625,7 @@ def install_verified_tool(
                 raise
         except BaseException:
             if not install_committed:
-                dest = _tool_path(dest_root, contract.tool.name)
+                dest = _tool_path(dest_root, tool.name)
                 if candidate_live:
                     try:
                         _replace_for_recovery(dest, candidate)
@@ -630,4 +641,4 @@ def install_verified_tool(
             raise
         else:
             shutil.rmtree(stage_root, ignore_errors=True)
-            return _tool_path(dest_root, contract.tool.name)
+            return _tool_path(dest_root, tool.name)

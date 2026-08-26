@@ -462,7 +462,8 @@ def list_tools(
                 if row["status"] == "MISSING"
                 else "HISTORICAL_VERIFICATION_NOT_READY"
             )
-        elif release_matches:
+        elif release is not None and release_matches:
+            # release_matches 定义即含非 None;重述一遍只为类型可证,恒等
             row["operational_status"] = release["decision"]
             row["operational_reason_code"] = release["reason_code"]
             row["operational_task_id"] = release["task_id"]

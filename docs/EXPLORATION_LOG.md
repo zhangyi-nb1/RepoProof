@@ -3808,3 +3808,18 @@ CLAIMS_MATRIX 重写为两事实源 + 21 条允许声明(C1-C21)+ 17 条禁语
 INTERVIEW_GUIDE 全部改到 local-tool 新故事,主线叙事定为「系统抓到过
 自己的三次假成功,每次都转成一道确定性防线」。DEMO.md / DEMO_SCRIPT.md
 不重写,加定位头指向产品演示实体 `scripts/demo_direct_wrap.py`。
+
+## 状态 · 2026-08-26 · mypy 豁免收窄:在役 runner 七件入检查范围
+
+`runner.*` 整包豁免改为**冻结区逐文件列名**(host_guided/baseline/
+guided_repair/agent_run/sidecar_session/calibration/demo/scaffold)——
+在役七件(tool_pipeline/export/registry/release/mcp/paths/host_bridge)
+从此受检,且新增 runner 模块默认受检(整包通配的暗门关掉)。暴露 19 错
+全部真修:tool_export 14(contract.tool 为 Optional,三个入口函数各加
+一次窄化 + 引用改局部变量;archive 使用处按 archive 本身判非 None,
+与 current 耦合恒等但类型可证)、tool_registry 3(release_matches 定义
+即含非 None,条件重述一遍)、tool_release 1(get+isinstance 两步写)、
+tool_pipeline 1(DIRECT_WRAP 路由却无已编译适配器源 → 显式
+PipelineError,防路由段状态失配)。全量 **1446+60+0**(docker 停时
+形态,总量 1506);ruff/mypy 全绿。PROJECT_MAP 代码地图与 HANDOFF
+基线行同步。

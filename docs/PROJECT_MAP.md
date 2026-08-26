@@ -36,7 +36,7 @@ URL+一句话 → 静态分析 → CapabilityPlanV1(证据+确定性路由,用�
 |---|---|---|
 | 产品主编排 | `runner/tool_pipeline.py`(384 行) | 在役,新逻辑落这里 |
 | 产品可信链 | `adoption/`(analyzer/plan/intake/assembly/repair)、`verification/`、`harness/`、`domain/`、`persistence/`、`execution/`、`receipts/`、`probes/` | 在役,mypy 0 错 |
-| 产品运营 | `runner/tool_export|registry|release|mcp|paths|host_bridge` | 在役 |
+| 产品运营 | `runner/tool_export|registry|release|mcp|paths|host_bridge` | 在役,mypy 0 错(2026-08-26 摘出豁免) |
 | 展示面 | `ui/`(Streamlit Studio,不参与判定)、`cli.py` | 在役,mypy 渐进队列 |
 | **Lab 冻结区** | `runner/host_guided.py`、`baseline.py`、`guided_repair.py`、`agent_run.py`、`sidecar_session.py`、`calibration.py`、`agents/`(DSH) | **FROZEN 2026-08-25** |
 

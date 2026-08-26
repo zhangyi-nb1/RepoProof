@@ -57,16 +57,31 @@ files = ["src/repoproof"]
 ignore_missing_imports = true
 
 # 类型兜底的覆盖边界 = 产品可信链(adoption/verification/harness/domain/
-# persistence/execution/receipts/probes):判定、闸门、证据链所在的代码
+# persistence/execution/receipts/probes)+ **在役 runner 七件**
+# (tool_pipeline/export/registry/release/mcp/paths/host_bridge,
+# 2026-08-26 摘出豁免队列):判定、闸门、证据链、产品运营所在的代码
 # 必须 0 错。下列豁免是**显式登记的冻结区/渐进队列**,不是默认放水:
-# - runner.* :Benchmark Lab 执行引擎(功能面冻结,见 docs/PROJECT_MAP.md);
+# - runner 冻结区逐文件列名(Benchmark Lab 执行引擎,FROZEN 2026-08-25,
+#   见 docs/PROJECT_MAP.md)—— 不再用 runner.* 整包兜底,新增 runner
+#   模块默认受检;
 # - agents.* :DSH 后端线(E 轨已关闭);
 # - ui.*    :Streamlit 展示面,不参与判定;
 # - cli     :入口聚合层。
 # 从队列里摘除一个模块 = 把它的错清零后删掉对应 override(棘轮只进不退)。
 [[tool.mypy.overrides]]
-module = ["repoproof.runner.*", "repoproof.ui.*", "repoproof.agents.*",
-          "repoproof.cli"]
+module = [
+    "repoproof.runner.host_guided",
+    "repoproof.runner.baseline",
+    "repoproof.runner.guided_repair",
+    "repoproof.runner.agent_run",
+    "repoproof.runner.sidecar_session",
+    "repoproof.runner.calibration",
+    "repoproof.runner.demo",
+    "repoproof.runner.scaffold",
+    "repoproof.ui.*",
+    "repoproof.agents.*",
+    "repoproof.cli",
+]
 ignore_errors = true
 
 [tool.ruff.lint.per-file-ignores]

@@ -236,6 +236,8 @@ def tool_build(
         impl_p = skel / "src" / pkg / "impl.py"
         if not impl_p.is_file():
             raise PipelineError(f"DIRECT_WRAP 找不到骨架能力位:{impl_p}")
+        if adapter_src is None:    # route=DIRECT_WRAP 时路由段必已编译;防失配
+            raise PipelineError("DIRECT_WRAP 路由却没有已编译的适配器源 —— 路由段状态失配")
         impl_p.write_text(adapter_src, encoding="utf-8")
         (skel / "requirements.lock.txt").write_text(
             ("\n".join(pins) + "\n") if pins

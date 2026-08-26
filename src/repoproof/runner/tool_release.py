@@ -896,7 +896,8 @@ def _import_audit_decisions_install_locked(
                 f"{audits_path}:{line_no}: input_is_example 必须显式为 false"
             )
 
-        note = audit.get("note") if isinstance(audit.get("note"), str) else ""
+        raw_note = audit.get("note")
+        note = raw_note if isinstance(raw_note, str) else ""
         mismatch = decision == REVOKED and any(
             marker in note.lower() for marker in ("contract", "oracle", "合同", "题面")
         )
