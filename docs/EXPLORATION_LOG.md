@@ -3823,3 +3823,23 @@ tool_pipeline 1(DIRECT_WRAP 路由却无已编译适配器源 → 显式
 PipelineError,防路由段状态失配)。全量 **1446+60+0**(docker 停时
 形态,总量 1506);ruff/mypy 全绿。PROJECT_MAP 代码地图与 HANDOFF
 基线行同步。
+
+## 状态 · 2026-08-26 · CI 首红修复 + 推送收官(main + v0.2.0)
+
+mypy 收窄那一发把 CI 跑红,红的不是收窄本身而是一枚老暗雷:
+`test_evidence_json_records_capture_rate` 按 **mtime** 选"最近一次变异
+闸门证据"。git 不存 mtime,CI checkout 后 99 份证据同一时刻,排序退化
+成 readdir 顺序 —— 而这 99 份里 **16 份是带 escaped/stale 的历史记录**
+(append-only 老份,当时如实)。本机 readdir 抽中干净份,CI 抽中带逃逸
+的。改为按记录自带 `head_commit` 到 HEAD 的祖先距离选(与
+profile_promotion 同款语义),workflow 补 `fetch-depth: 0`;教训入
+LESSONS #47。红/绿取证:全新 clone(mtime 全同,CI 等价)复验通过;
+量化确认 16/99 的抽签面。
+
+**推送收官**:main 推至 `cdf7226`(含此前 4 发未推 + mypy 收窄 + CI 红
+修复 + workflow_dispatch),标签 **v0.2.0 → 1ec83cd** 已推。远端 CI
+**三 job 全绿**(ruff 9s / mypy 1m7s / pytest 3m12s,run 32999231409)。
+过程实录:GitHub Actions 当日 major outage,一发 push 触发的 run 在队列
+里卡 3 小时未启动;补 `workflow_dispatch`(顺带得到手动重投能力)后新
+push 顶上一发立即开跑。停摆期间用 Linux 容器(真全历史 clone)跑三 job
+等价验证全绿,不拿"本机过了"充远端证据。

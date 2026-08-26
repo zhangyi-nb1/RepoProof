@@ -1217,3 +1217,32 @@ G6 能过**。这正是 #44 那句话的第二次现形:
 
 **它挡不住什么**(写在模块 docstring 里):敷衍的攻击。攻得烂分数自然低,
 题就"合格"了。判据只挡得住**没人量过**,所以 `method` 必填。
+
+## #47 · 按 mtime 选"最近一次证据",等于让文件系统替你判定(2026-08-26,CI 实红)
+
+`test_evidence_json_records_capture_rate` 原本这样挑最近一次变异闸门记录:
+
+```python
+files = sorted(ev_dir.glob("*.json"), key=lambda p: p.stat().st_mtime)
+latest = json.loads(files[-1].read_text())      # ← 病灶
+```
+
+本机全绿了很久。CI 首次跑就红,点名两条早已修好的逃逸
+(`M49b-signature-always-valid` / `M49e-run-nonce-not-checked`)。
+
+**根因**:git 不保存 mtime。`checkout` 后 99 份证据的 mtime **完全相同**,
+Python 的 `sorted` 稳定,于是次序退化成 `glob` 的 readdir 顺序 —— 那是
+**文件系统的实现细节**(APFS 与 ext4 不同)。`files[-1]` 因此是"抽签",
+而这 99 份里有 **16 份历史记录带 escaped/stale**(append-only 的老份,
+当时如实)。本机抽中干净的,CI 抽中带逃逸的。**16/99 的暗雷,踩中只是
+时间问题;它没有更早爆,只是因为一直没在别的文件系统上跑过。**
+
+**改法**:证据的"最近"必须由**内容里的身份**决定,不由文件系统的元数据
+决定 —— 按记录自带的 `head_commit` 在当前 HEAD 祖先链上的提交距离选
+(与 `profile_promotion` 早就在用的选择语义同款,那里判得对,这里没跟上)。
+非祖先的跳过(未来分支上的证据不算数),一份祖先都查不到就如实红,不降级。
+浅克隆查不了祖先 → workflow 的 pytest job 配 `fetch-depth: 0`。
+
+**同型问法**(下次写"取最新的那份"时先问一遍):这个"最新"是**谁**说的?
+文件系统 mtime / 目录枚举顺序 / 文件名排序,都不是判定依据 —— 判定依据
+只能是证据自己带的、跨机器可复算的身份(commit、序号、内容里的时间戳)。
