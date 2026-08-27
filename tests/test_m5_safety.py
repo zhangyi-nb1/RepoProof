@@ -894,13 +894,13 @@ def test_audit_uses_the_same_yardstick_as_the_contract(tmp_path: Path):
     比合同更严不是更严谨,是换了一把尺子 —— 那样"通过合同"推不出
     "通过抽查",两个结论各说各话。
     """
-    from repoproof.runner.tool_release import _norm_output
+    from repoproof.verification.output_match import compare_output
 
-    stdout = b'{"a":1}\n'
-    golden = b'{"a":1}'                       # 金标准文件就是这个形状
-    assert stdout != golden                    # 裸字节:不等(旧口径判撤回)
-    assert _norm_output(stdout) == _norm_output(golden)   # 合同口径:相等
+    stdout, golden = '{"a":1}\n', '{"a":1}'   # 金标准文件不以换行结尾
+    assert stdout != golden                     # 裸字节:不等(旧口径判撤回)
+    assert compare_output(stdout, golden, root_type="object")[0]   # 合同口径:相等
+    assert compare_output(stdout, golden, root_type="text")[0]
 
     # 真正的不一致仍然必须被抓住
-    assert _norm_output(b'{"a":1}\n') != _norm_output(b'{"a":2}\n')
-    assert _norm_output(b'red\n') != _norm_output(b'blue\n')
+    assert not compare_output('{"a":1}', '{"a":2}', root_type="object")[0]
+    assert not compare_output("red\n", "blue\n", root_type="text")[0]

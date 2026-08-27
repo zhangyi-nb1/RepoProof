@@ -18,6 +18,7 @@ from repoproof.adoption.assembly.output_contract import (
     render_pytest_validator,
 )
 from repoproof.domain.models import ToolOutputContract
+from repoproof.verification.output_match import canonical_source
 
 CONTAINS = "contains:"
 
@@ -88,8 +89,6 @@ def _run(args):
     return subprocess.run([_TOOL, *args], capture_output=True, text=True, timeout=120)
 
 
-def _norm(s):
-    return "\\n".join(line.rstrip() for line in s.strip().splitlines())
 '''
 
 
@@ -109,9 +108,10 @@ def _cli_test(e: Example, idx: int, *, validate_output: bool = False) -> str:
         head += "    _assert_output_contract(r.stdout)\n"
     if e.expected_file is not None:
         return head + (
-            f"    want = _norm((_FIX / {e.expected_file!r}).read_text(encoding=\"utf-8\"))\n"
-            f"    assert _norm(r.stdout) == want, "
-            f"f\"输出与期望文件 {e.expected_file} 不符(规范化行尾后);"
+            f"    want = (_FIX / {e.expected_file!r}).read_text(encoding=\"utf-8\")\n"
+            f"    ok, mode = compare_output(r.stdout, want, root_type=_ROOT_TYPE)\n"
+            f"    assert ok, "
+            f"f\"输出与期望文件 {e.expected_file} 不符(判据={{mode}});"
             f"实际前 200 字: {{r.stdout[:200]}}\"\n")
     assert e.expected is not None   # 模型校验:expected/expected_file 恰一
     if e.expected.startswith(CONTAINS):
@@ -154,5 +154,15 @@ def compile_pytest(
         )
         validator = (render_pytest_validator(output_contract)
                      if output_contract is not None else "")
-        return doc + _CLI_PRELUDE + validator + "\n\n" + body + "\n"
+        # 判据源**内联同一份实现**(会话 venv 装不了 repoproof)。照着再写
+        # 一份的话,两把尺子迟早分家 —— 那正是 LESSONS #57 的病根。
+        root_type = "text"
+        if output_contract is not None:
+            rt = (output_contract.root_type
+                  if isinstance(output_contract, ToolOutputContract)
+                  else (output_contract or {}).get("root_type"))
+            root_type = str(rt or "text")
+        judge = (f"_ROOT_TYPE = {root_type!r}\n\n\n"
+                 + canonical_source() + "\n")
+        return doc + _CLI_PRELUDE + judge + validator + "\n\n" + body + "\n"
     raise CompileError(f"未知编译模式:{mode!r}(支持 seam / cli)")
