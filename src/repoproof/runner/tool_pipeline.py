@@ -171,11 +171,23 @@ def tool_build_real_from_frozen(
     → 导出 + 注册,与 `tool_build` 的后半段同一条路径。
     """
     project_root = Path(project_root)
-    contract = project_root / "contracts" / f"{task_id}.yaml"
-    if not contract.is_file():
-        raise PipelineError(f"找不到已冻结的任务合同:{contract}")
-    stages: dict = {"resumed_from_frozen": {"task_id": task_id,
-                                            "contract": str(contract)}}
+    # 两份合同别混:`contracts/<task>.yaml` 是**工具合同**(TaskContract),
+    # 而 run_host_guided_cli 要的是物化出来的**宿主合同**
+    # (`tool_tasks/<task>/contract.yaml`,HostContract schema)。
+    # 2026-08-28 实测:传错那份会在加载时抛一串 pydantic
+    # "Field required: budgets.max_rounds / acceptance.hidden_oracle_command",
+    # 看起来像题面缺字段,其实是拿错了文件。
+    tool_contract = project_root / "contracts" / f"{task_id}.yaml"
+    host_contract = project_root / "tool_tasks" / task_id / "contract.yaml"
+    if not tool_contract.is_file():
+        raise PipelineError(f"找不到已冻结的任务合同:{tool_contract}")
+    if not host_contract.is_file():
+        raise PipelineError(
+            f"找不到物化的宿主合同:{host_contract} —— 该任务尚未物化"
+            "(或 tool_tasks 目录被清理过),无法续跑真发。")
+    stages: dict = {"resumed_from_frozen": {
+        "task_id": task_id, "tool_contract": str(tool_contract),
+        "host_contract": str(host_contract)}}
 
     from repoproof.adoption.repair.failure_assessment import (
         assess_report,
@@ -183,7 +195,7 @@ def tool_build_real_from_frozen(
     )
     from repoproof.runner.host_guided import run_host_guided_cli
 
-    real = run_host_guided_cli(contract, project_root, fake=None,
+    real = run_host_guided_cli(host_contract, project_root, fake=None,
                                batch=batch, backend=agent_backend)
     if real.get("blocked"):
         stages["real"] = real
@@ -206,8 +218,8 @@ def tool_build_real_from_frozen(
     try:
         dest = install_verified_tool(
             project_root / "runs" / rp["run_id"],
-            host_contract_path=contract,
-            tool_contract_path=contract,
+            host_contract_path=host_contract,
+            tool_contract_path=tool_contract,
             dest_root=Path(dest_root),
             exported_at=datetime.datetime.now(datetime.UTC).strftime(
                 "%Y-%m-%dT%H:%M:%SZ"),

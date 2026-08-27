@@ -380,3 +380,50 @@ def test_resume_refuses_when_the_task_was_never_frozen(tmp_path: Path):
     with pytest.raises(PipelineError, match="找不到已冻结的任务合同"):
         tool_build_real_from_frozen("tool-nope-v1", tmp_path,
                                     dest_root=tmp_path / "tools")
+
+
+def test_resume_passes_the_host_contract_not_the_tool_contract(tmp_path: Path, monkeypatch):
+    """**续跑必须传物化出来的宿主合同** —— 传错那份会炸得像"题面缺字段"。
+
+    2026-08-28 实测:第一版续跑把 `contracts/<task>.yaml`(工具合同,
+    TaskContract)喂给了 run_host_guided_cli(它要 HostContract),于是
+    抛一串 pydantic `Field required: budgets.max_rounds /
+    acceptance.hidden_oracle_command` —— 看起来像题面写漏了字段,其实是
+    拿错了文件。两份合同同名不同 schema,这类错必须被钉住。
+    """
+    from repoproof.runner import tool_pipeline
+
+    (tmp_path / "contracts").mkdir()
+    (tmp_path / "contracts" / "tool-demo-v1.yaml").write_text("kind: tool\n", encoding="utf-8")
+    host = tmp_path / "tool_tasks" / "tool-demo-v1"
+    host.mkdir(parents=True)
+    (host / "contract.yaml").write_text("kind: host_integrated\n", encoding="utf-8")
+
+    seen: dict = {}
+
+    def _spy(contract, project_root, **kwargs):
+        seen["contract"] = Path(contract)
+        return {"blocked": True, "reason": "spy"}
+
+    monkeypatch.setattr(tool_pipeline, "run_host_guided_cli", _spy, raising=False)
+    monkeypatch.setattr("repoproof.runner.host_guided.run_host_guided_cli", _spy)
+
+    tool_pipeline.tool_build_real_from_frozen(
+        "tool-demo-v1", tmp_path, dest_root=tmp_path / "tools")
+
+    assert seen["contract"] == host / "contract.yaml", seen
+    assert seen["contract"].name == "contract.yaml"          # 不是 contracts/*.yaml
+
+
+def test_resume_refuses_when_task_was_never_materialised(tmp_path: Path):
+    """**负控**:只有工具合同、没有物化产物 → 如实拒绝并说清原因。"""
+    from repoproof.runner.tool_pipeline import (
+        PipelineError,
+        tool_build_real_from_frozen,
+    )
+
+    (tmp_path / "contracts").mkdir()
+    (tmp_path / "contracts" / "tool-demo-v1.yaml").write_text("kind: tool\n", encoding="utf-8")
+    with pytest.raises(PipelineError, match="物化的宿主合同"):
+        tool_build_real_from_frozen("tool-demo-v1", tmp_path,
+                                    dest_root=tmp_path / "tools")
