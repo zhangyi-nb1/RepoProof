@@ -190,3 +190,57 @@ def test_gateway_unconfigured_label_points_at_the_working_channel(monkeypatch):
     st = td.online_drafter_status()
     assert st["backend"] == "litellm" and not st["ready"]      # 默认没被偷换
     assert "run_ui_codex.sh" in str(st["label"])               # 但指了路
+
+
+# --------------- temperature 降级(2026-08-28:同一模型时通时不通) ---------------
+
+def test_temperature_is_dropped_only_when_the_model_rejects_it():
+    """先要确定性,模型不收就**显式降级**重试一次,并记下这个事实。
+
+    实录:同一台机器、同一个模型(openai/gpt-5.6-terra),起草一会儿能通、
+    一会儿抛 `UnsupportedParamsError: gpt-5 models don't support
+    temperature=0` —— litellm 的模型能力表是联网拉取的,拉不到就回落本地
+    备份,而本地备份把 gpt-5.* 一律按"只收 temperature=1"处理。**能不能
+    起草竟取决于此刻能不能连上 GitHub**,这种脆弱性不能留。
+    """
+    from repoproof.adoption.intake.tool_drafter import (
+        _completion_with_temperature_fallback,
+    )
+
+    calls: list[dict] = []
+
+    class _Picky:
+        @staticmethod
+        def completion(**kwargs):
+            calls.append(kwargs)
+            if "temperature" in kwargs:
+                raise RuntimeError(
+                    "UnsupportedParamsError: gpt-5 models don't support temperature=0")
+            return "ok"
+
+    resp, dropped = _completion_with_temperature_fallback(_Picky, model="m")
+    assert resp == "ok" and dropped is True
+    assert "temperature" in calls[0] and "temperature" not in calls[1]  # 先试后降
+
+
+def test_temperature_kept_when_supported_and_other_errors_still_raise():
+    """正控 + 负控:支持就保留;**别的错误照旧抛**,不许被降级逻辑吞掉。"""
+    from repoproof.adoption.intake.tool_drafter import (
+        _completion_with_temperature_fallback,
+    )
+
+    class _Fine:
+        @staticmethod
+        def completion(**kwargs):
+            assert kwargs.get("temperature") == 0
+            return "ok"
+
+    assert _completion_with_temperature_fallback(_Fine, model="m") == ("ok", False)
+
+    class _Broken:
+        @staticmethod
+        def completion(**kwargs):
+            raise RuntimeError("AuthenticationError: bad key")
+
+    with pytest.raises(RuntimeError, match="AuthenticationError"):
+        _completion_with_temperature_fallback(_Broken, model="m")

@@ -1424,3 +1424,26 @@ Streamlit 的 `value` 只是**初值**,一旦控件在会话里存在过,后续�
 **同型问法**:任何"跨进程/跨重载边界"的接口约定,都不能只验存在性。
 问一句:调用方**怎么用**它?就验到那个粒度。
 
+## #54 · 能不能起草,取决于此刻能不能连上 GitHub(2026-08-28)
+
+用户点「生成候选」拿到
+`UnsupportedParamsError: gpt-5 models don't support temperature=0`。
+但同一台机器、同一个模型(`openai/gpt-5.6-terra`),一小时前的摘要调用
+是通的。
+
+真因在 litellm 的模型能力表:它**联网**拉
+`raw.githubusercontent.com/.../model_prices_and_context_window.json`,
+拉不到就回落本地备份 —— 而本地备份把 `gpt-5.*` 一律按"只收
+temperature=1"处理。于是同一份代码、同一个模型,**行为取决于此刻的网络**
+(日志里那句 `Failed to fetch remote model cost map ... Falling back to
+local backup` 就是分界线)。
+
+改法**不是** `litellm.drop_params = True` —— 那是全局开关,会把所有不被
+支持的参数静默丢掉,以后哪个参数被吃掉都查不出来。改为:只针对
+temperature、只在明确报"不支持"时降级重试一次,并把"这次丢了没有"记成
+可读属性。要确定性时仍然要;要不到就如实降级,而不是假装没要过。
+
+**同型问法**:第三方库里凡是"运行时联网拿元数据"的地方,都要问一句
+"拿不到时它会怎样?" —— 通常不是报错,而是**换一套默认值继续跑**。
+那意味着你的行为有两个版本,而你只测过其中一个。
+

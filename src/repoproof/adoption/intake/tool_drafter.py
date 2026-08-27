@@ -103,6 +103,28 @@ def _with_provider(model: str) -> str:
     return m if (not m or "/" in m) else f"openai/{m}"
 
 
+def _completion_with_temperature_fallback(litellm, **kwargs):
+    """先按 `temperature=0` 要确定性;模型不收就**显式降级**重试一次。
+
+    2026-08-28 实测:同一台机器、同一个模型(`openai/gpt-5.6-terra`),
+    起草一会儿能通、一会儿抛
+    `UnsupportedParamsError: gpt-5 models ... don't support temperature=0`
+    —— 因为 litellm 的模型能力表是**联网拉取**的,拉不到就回落本地备份,
+    而本地备份把 gpt-5.* 一律按"只收 temperature=1"处理。也就是说:
+    **能不能起草,取决于此刻能不能连上 raw.githubusercontent.com**。
+
+    不设 `litellm.drop_params = True`(那是全局开关,会把**所有**不被支持
+    的参数静默丢掉,以后哪个参数被吃掉都查不出来)。这里只针对
+    temperature 这一个参数、只在明确报不支持时降级,并把降级事实记下来。
+    """
+    try:
+        return litellm.completion(temperature=0, **kwargs), False
+    except Exception as exc:                      # noqa: BLE001 — 只挑这一种
+        if "temperature" not in str(exc).lower():
+            raise
+        return litellm.completion(**kwargs), True
+
+
 class DraftError(RuntimeError):
     pass
 
@@ -260,6 +282,8 @@ class CodexDrafter:
         self.config = replace(config, model_name=model_override) if model_override else config
         self.name = f"codex-cli:{self.config.model_name}"
         self.last_usage: dict = {}
+        # 这次调用有没有因模型不收而丢掉 temperature=0(如实记账)
+        self.temperature_dropped = False
 
     def _structured(
         self,
@@ -417,15 +441,18 @@ class LiteLLMDrafter:
         self.model = _with_provider(self.model)
         self.name = f"litellm:{self.model}"
         self.last_usage: dict = {}
+        # 这次调用有没有因模型不收而丢掉 temperature=0(如实记账)
+        self.temperature_dropped = False
 
     def _once(self, user_msg: str) -> str:
         import litellm
 
-        resp = litellm.completion(
+        resp, dropped = _completion_with_temperature_fallback(
+            litellm,
             model=self.model, api_base=self.api_base, api_key=self.api_key,
-            temperature=0,
             messages=[{"role": "system", "content": _SYSTEM},
                       {"role": "user", "content": user_msg}])
+        self.temperature_dropped = dropped
         u = getattr(resp, "usage", None)
         if u is not None:
             self.last_usage = {"prompt_tokens": getattr(u, "prompt_tokens", None),
@@ -492,11 +519,12 @@ class LiteLLMDrafter:
     def _once_with_system(self, system: str, user_msg: str) -> str:
         import litellm
 
-        resp = litellm.completion(
+        resp, dropped = _completion_with_temperature_fallback(
+            litellm,
             model=self.model, api_base=self.api_base, api_key=self.api_key,
-            temperature=0,
             messages=[{"role": "system", "content": system},
                       {"role": "user", "content": user_msg}])
+        self.temperature_dropped = dropped
         u = getattr(resp, "usage", None)
         if u is not None:
             self.last_usage = {"prompt_tokens": getattr(u, "prompt_tokens", None),
