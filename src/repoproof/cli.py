@@ -118,6 +118,14 @@ def main(argv: list[str] | None = None) -> int:
               "(产品默认);codex-cli=ChatGPT 订阅登录的官方 Codex harness"),
     )
     pt_build.add_argument("--batch", default="EXPLORATORY_UNPREREGISTERED")
+    pt_real = tsub.add_parser(
+        "build-real",
+        help="对**已冻结**任务跑真实构建(彩排通过后的下半程;题面不重冻)")
+    pt_real.add_argument("--task-id", required=True)
+    pt_real.add_argument("--dest-root", type=Path,
+                         default=Path("~/tools").expanduser())
+    pt_real.add_argument("--agent-backend", default="mini-swe")
+    pt_real.add_argument("--batch", default="EXPLORATORY_UNPREREGISTERED")
     pt_plan = tsub.add_parser(
         "plan", help="RFC-013 Gate1:证据化能力表面 + 确定性路由(零模型)")
     pt_plan.add_argument("--repo", default=None, help="公开仓 URL(匿名克隆分析)")
@@ -448,6 +456,23 @@ def main(argv: list[str] | None = None) -> int:
             ]
             print(json.dumps({"ok": True, **add_payload}, ensure_ascii=False, indent=2))
             return 0
+        if args.tool_cmd == "build-real":
+            from repoproof.runner.tool_pipeline import (
+                PipelineError,
+                tool_build_real_from_frozen,
+            )
+
+            try:
+                out = tool_build_real_from_frozen(
+                    args.task_id, PROJECT_ROOT, dest_root=args.dest_root,
+                    agent_backend=args.agent_backend, batch=args.batch)
+            except PipelineError as exc:
+                print(json.dumps({"ok": False, "error": str(exc)},
+                                 ensure_ascii=False, indent=2))
+                return 3
+            print(json.dumps({"ok": bool(out.get("exported")), **out},
+                             ensure_ascii=False, indent=2, default=str))
+            return 0 if out.get("exported") else 3
         if args.tool_cmd == "build":
             from repoproof.adoption.intake.tool_confirm import ConfirmError
             from repoproof.runner.tool_pipeline import (

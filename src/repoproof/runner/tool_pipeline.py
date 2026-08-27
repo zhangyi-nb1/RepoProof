@@ -148,6 +148,117 @@ def _build_preflight_venv(task_dir: Path, pins: list[str]) -> Path:
     return py
 
 
+
+def tool_build_real_from_frozen(
+    task_id: str,
+    project_root: Path,
+    *,
+    dest_root: Path,
+    agent_backend: str = "mini-swe",
+    batch: str = "EXPLORATORY_UNPREREGISTERED",
+) -> dict:
+    """对**已冻结**的任务跑真实构建 —— 彩排之后的续跑入口。
+
+    为什么必须有(2026-08-28 用户实测):`tool_build` 在**彩排之前**就把
+    草稿 `shutil.move` 进了 `tool_tasks/_drafts`(冻结即消耗,这本身是对的
+    —— 题面已冻结,草稿不该再被编辑)。但 UI 只有"从草稿构建"一个入口,
+    于是**彩排通过之后无路可走**:回到构建页只会看到"草稿目录不存在",
+    用户只能重建一份新草稿再来 —— 那会冻出 v2、v3、v4…(用户手上那串
+    版本号就是这么来的),而且每次都要重新准备样例。
+
+    "先彩排、通过再真发"是对的流程;缺的是它的下半程。这里补上:
+    题面不重冻(冻结是不可改写的),直接对同一份合同跑真发 → 独立验证
+    → 导出 + 注册,与 `tool_build` 的后半段同一条路径。
+    """
+    project_root = Path(project_root)
+    contract = project_root / "contracts" / f"{task_id}.yaml"
+    if not contract.is_file():
+        raise PipelineError(f"找不到已冻结的任务合同:{contract}")
+    stages: dict = {"resumed_from_frozen": {"task_id": task_id,
+                                            "contract": str(contract)}}
+
+    from repoproof.adoption.repair.failure_assessment import (
+        assess_report,
+        derive_repair_metrics,
+    )
+    from repoproof.runner.host_guided import run_host_guided_cli
+
+    real = run_host_guided_cli(contract, project_root, fake=None,
+                               batch=batch, backend=agent_backend)
+    if real.get("blocked"):
+        stages["real"] = real
+        return {"task_id": task_id, "stages": stages,
+                "verdict": "REAL_BLOCKED", "exported": None}
+    rp = real.get("report") or {}
+    metrics = derive_repair_metrics(rp)
+    stages["real"] = {"verdict": rp.get("verdict"),
+                      "verdict_public": rp.get("verdict_public"),
+                      "run_id": rp.get("run_id"),
+                      "gate_reasons": rp.get("gate_reasons"),
+                      "repair_metrics": metrics,
+                      "product_stop_code": metrics["product_stop_code"]}
+    if rp.get("verdict") not in ("PASS_ADAPTED", "PASS_DIRECT"):
+        stages["real"]["failure_assessment"] = assess_report(rp).model_dump()
+        return {"task_id": task_id, "stages": stages,
+                "verdict": rp.get("verdict"), "exported": None}
+
+    historical_verdict = rp.get("verdict_public") or rp.get("verdict")
+    try:
+        dest = install_verified_tool(
+            project_root / "runs" / rp["run_id"],
+            host_contract_path=contract,
+            tool_contract_path=contract,
+            dest_root=Path(dest_root),
+            exported_at=datetime.datetime.now(datetime.UTC).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"),
+        )
+    except (ToolExportError, ReleaseLedgerError, OSError, ValueError) as exc:
+        stages["export"] = {"ok": False, "error": str(exc)}
+        raise PipelineError(f"工具安装结算失败:{exc}") from exc
+    release_status = operational_status(Path(dest_root), dest.name, task_id=task_id)
+    stages["export"] = {"dest": str(dest),
+                        "historical_verdict": historical_verdict,
+                        "operational_status": release_status}
+    return {"task_id": task_id, "stages": stages,
+            "verdict": historical_verdict,
+            "historical_verdict": historical_verdict,
+            "operational_status": release_status,
+            "exported": str(dest)}
+
+
+def rehearsed_tasks(project_root: Path) -> list[dict]:
+    """已冻结、彩排过、但**还没导出**的任务 —— 构建页的"待续跑"清单。
+
+    判据全部来自盘上事实:合同存在 + 台账里有该任务的彩排发次
+    (`fake-scripted:*`)+ 尚无真发导出。
+    """
+    import json
+
+    project_root = Path(project_root)
+    ledger = project_root / "benchmarks" / "v2" / "runs.jsonl"
+    rehearsed: dict[str, dict] = {}
+    exported: set[str] = set()
+    if ledger.is_file():
+        for line in ledger.read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            tid, model = str(row.get("task_id") or ""), str(row.get("model") or "")
+            if not tid.startswith("tool-"):
+                continue
+            if model.startswith("fake-scripted"):
+                rehearsed[tid] = {"task_id": tid,
+                                  "last_rehearsal": row.get("run_id"),
+                                  "verdict": row.get("verdict")}
+            else:
+                exported.add(tid)
+    out = [v for k, v in rehearsed.items()
+           if k not in exported
+           and (project_root / "contracts" / f"{k}.yaml").is_file()]
+    return sorted(out, key=lambda r: str(r["task_id"]), reverse=True)
+
+
 def tool_build(
     draft_dir: Path,
     project_root: Path,

@@ -335,3 +335,48 @@ def test_underivable_pin_refuses_loudly_instead_of_building_a_doomed_wheelhouse(
         resolve_upstream_pins(
             tmp_path, "t2", distribution="webcolors",
             upstream_dir=_pinned_tree(tmp_path, version=None))
+
+
+# ------------- 彩排之后的下半程(2026-08-28:用户切走再回来,草稿没了) -------------
+
+def test_rehearsed_tasks_lists_frozen_but_unexported(tmp_path: Path):
+    """彩排过、还没导出的任务要能被列出来 —— 否则彩排通过就无路可走。
+
+    实录:`tool_build` 在彩排**之前**就把草稿 `shutil.move` 进归档区
+    (冻结即消耗,本身是对的:题面已冻结,草稿不该再被编辑)。但 UI 只有
+    "从草稿构建"一个入口,于是用户彩排通过、切去看运行记录、回来一看
+    "草稿目录不存在" —— 只能重建草稿再冻一版(用户手上 v1..v5 就是这么
+    来的)。缺的不是纪律,是**流程的下半程**。
+    """
+    from repoproof.runner.tool_pipeline import rehearsed_tasks
+
+    (tmp_path / "contracts").mkdir()
+    (tmp_path / "contracts" / "tool-demo-v1.yaml").write_text("kind: x\n", encoding="utf-8")
+    (tmp_path / "contracts" / "tool-done-v1.yaml").write_text("kind: x\n", encoding="utf-8")
+    ledger = tmp_path / "benchmarks" / "v2"
+    ledger.mkdir(parents=True)
+    (ledger / "runs.jsonl").write_text("\n".join([
+        json.dumps({"task_id": "tool-demo-v1", "run_id": "r1",
+                    "model": "fake-scripted:positive", "verdict": "PASS_ADAPTED"}),
+        json.dumps({"task_id": "tool-done-v1", "run_id": "r2",
+                    "model": "fake-scripted:positive", "verdict": "PASS_ADAPTED"}),
+        json.dumps({"task_id": "tool-done-v1", "run_id": "r3",
+                    "model": "gpt-5.6-terra", "verdict": "PASS_ADAPTED"}),
+    ]) + "\n", encoding="utf-8")
+
+    got = rehearsed_tasks(tmp_path)
+    ids = [r["task_id"] for r in got]
+    assert ids == ["tool-demo-v1"]            # 已真发过的不再列
+    assert got[0]["verdict"] == "PASS_ADAPTED"
+
+
+def test_resume_refuses_when_the_task_was_never_frozen(tmp_path: Path):
+    """**负控**:没有冻结合同就没有可续跑的东西 —— 如实拒绝,不臆造。"""
+    from repoproof.runner.tool_pipeline import (
+        PipelineError,
+        tool_build_real_from_frozen,
+    )
+
+    with pytest.raises(PipelineError, match="找不到已冻结的任务合同"):
+        tool_build_real_from_frozen("tool-nope-v1", tmp_path,
+                                    dest_root=tmp_path / "tools")

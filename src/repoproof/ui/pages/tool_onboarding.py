@@ -654,6 +654,31 @@ with tab_build:
         )
         (st.success if result.get("ok") else st.error)(result.get("note") or result.get("error"))
 
+    # 彩排通过之后的**下半程**入口(2026-08-28 实录):tool_build 在彩排前
+    # 就把草稿归档(冻结即消耗,这是对的),但此前 UI 只有"从草稿构建"一个
+    # 入口 —— 于是彩排一过,回到本页只看到"草稿目录不存在",用户只能重建
+    # 草稿再冻一版(v2/v3/v4…)。题面不重冻,直接对同一份合同续跑。
+    if _require_service("list_rehearsed_tasks"):
+        _pending = product_jobs.list_rehearsed_tasks()
+        if _pending:
+            st.divider()
+            st.markdown("#### 已冻结、彩排过、还没导出的任务")
+            st.caption("草稿在冻结时已被归档（题面不可再改）；这里直接对同一份合同跑真实构建。")
+            _labels = {f"{r['task_id']}（最近彩排：{r.get('verdict') or '—'}）": r["task_id"]
+                       for r in _pending}
+            _pick = st.selectbox("选择任务", list(_labels))
+            _ok_to_resume = str(
+                next((r.get("verdict") for r in _pending
+                      if r["task_id"] == _labels[_pick]), "")) in ("PASS_ADAPTED", "PASS_DIRECT")
+            if not _ok_to_resume:
+                st.warning("这个任务最近一次彩排没过 —— 先让彩排过再谈真发（真发要烧预算）。")
+            if st.button("对已冻结任务跑真实构建", type="primary",
+                         disabled=not _ok_to_resume):
+                res = product_jobs.start_tool_build_real(
+                    _labels[_pick], dest_root, agent_backend=agent_backend)
+                (st.success if res.get("ok") else st.error)(
+                    res.get("note") or res.get("error"))
+
     st.markdown("**构建全流程(每一步失败即停,不烧后续预算):**")
     st.markdown(
         "1. 确认闸 → 2. 装配冻结 → 3. 离线彩排 → 4. Agent 构建 → "

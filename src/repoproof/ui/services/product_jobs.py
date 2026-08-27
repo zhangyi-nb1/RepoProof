@@ -448,6 +448,43 @@ def start_tool_add(
     )
 
 
+def list_rehearsed_tasks() -> list[dict]:
+    """已冻结且彩排过、但还没导出的任务(构建页"待续跑")。"""
+    from repoproof.runner.tool_pipeline import rehearsed_tasks
+    from repoproof.ui.services.product_mode import project_root
+
+    try:
+        return rehearsed_tasks(project_root())
+    except OSError:
+        return []
+
+
+def start_tool_build_real(task_id: str, dest_root: Path,
+                          agent_backend: str = "mini-swe") -> dict:
+    """对已冻结任务跑真实构建 —— 彩排通过之后的下半程。
+
+    2026-08-28 实录:`tool_build` 在彩排**之前**就把草稿归档(冻结即消耗,
+    这是对的),但 UI 只有"从草稿构建"一个入口 —— 于是彩排通过后回到构建
+    页只看到"草稿目录不存在",用户只能重建草稿再冻一版(v2/v3/v4…)。
+    题面不重冻,直接对同一份合同续跑。
+    """
+    checked_root, dest_error = _validated_dest_root(Path(dest_root))
+    if checked_root is None:
+        return {"ok": False, "error": dest_error}
+    clean = str(task_id or "").strip()
+    if not clean or "/" in clean or clean.startswith("."):
+        return {"ok": False, "error": "任务 id 非法"}
+    root = _product_root()
+    return _start_product_job(
+        [_product_python(root), "-m", "repoproof.cli", "tool", "build-real",
+         "--task-id", clean, "--dest-root", str(checked_root),
+         "--agent-backend", agent_backend],
+        kind="tool-build",
+        label=f"真实构建 {clean}（已冻结任务续跑）",
+        expected_artifact=None,
+    )
+
+
 def start_tool_build(
     *,
     draft_dir: Path,
