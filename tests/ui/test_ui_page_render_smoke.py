@@ -168,3 +168,34 @@ def test_stale_service_process_gets_a_readable_warning(monkeypatch: pytest.Monke
 
     assert not [str(e.value) for e in at.exception], [str(e.value) for e in at.exception]
     assert any("重启" in w.value for w in at.warning), [w.value for w in at.warning]
+
+
+def test_stale_service_signature_is_caught_before_the_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """**负控 · 同一坑第三次**:接口还在、但**签名旧了**,也要给人话提示。
+
+    LESSONS #50 的第一版守卫只查 `hasattr` —— 而 2026-08-28 用户吃到的是
+    `TypeError: save_draft_review() got an unexpected keyword argument
+    'distribution'`:函数在,参数不认。所以守卫必须连参数一起查,并且在
+    **页面顶部**就体检,而不是等用户点了保存才炸。
+    """
+    from repoproof.ui.services import product_jobs
+
+    def _old_save(draft_dir, *, tool_name, summary, statement, input_format,
+                  output_format, output_schema, reference_impl,
+                  output_contract=None):          # 旧签名:不收上游身份三件
+        return {"ok": True}
+
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(product_jobs, "save_draft_review", _old_save)
+
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=90).run()
+
+    assert not [str(e.value) for e in at.exception], [str(e.value) for e in at.exception]
+    said = [m.value for m in at.error] + [m.value for m in at.warning]
+    assert any("重启" in m for m in said), said
+    assert any("distribution" in m for m in said), said     # 点名到具体参数
+

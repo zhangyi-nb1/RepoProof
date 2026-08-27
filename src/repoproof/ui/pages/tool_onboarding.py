@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 from pathlib import Path
 
@@ -34,19 +35,50 @@ if job and job.get("alive"):
 elif job and job.get("finished"):
     (st.success if job.get("ok") else st.error)(job.get("note") or "任务已结束")
 
-def _require_service(name: str) -> bool:
-    """新接口是否已在**运行中的进程**里(LESSONS #50)。
+def _service_gap(name: str, *params: str) -> str:
+    """运行中的进程里,这个接口**在不在、能不能收这些参数**(LESSONS #50)。
 
-    Streamlit 只重新 exec 页面文件,不重载它 import 的 services 模块 ——
-    刚加的函数在磁盘上有、在进程里没有,直接调用会甩一串英文
-    AttributeError 给用户。这里探测一次,给人话提示。
+    Streamlit 只重新 exec 页面文件,不重载它 import 的 services 模块。
+    第一次咬人是"函数磁盘上有、进程里没有"(AttributeError);第二次是
+    **签名变了** —— 函数还在,`hasattr` 照样通过,于是甩出
+    `TypeError: got an unexpected keyword argument 'distribution'`
+    (2026-08-28 用户实测,同一坑第三次)。所以只查存在性不够,得连参数
+    一起查:页面要传什么,就验什么。
     """
-    if hasattr(product_jobs, name):
+    fn = getattr(product_jobs, name, None)
+    if fn is None:
+        return f"缺少接口 {name}"
+    try:
+        sig = inspect.signature(fn).parameters
+    except (TypeError, ValueError):      # 拿不到签名就不拦(宁可放行也不误伤)
+        return ""
+    missing = [p for p in params if p not in sig]
+    return f"{name} 不认识参数 {missing}" if missing else ""
+
+
+_STALE_WARNING = (
+    "当前 Studio 进程加载的是**旧版服务模块**(Streamlit 只热重载页面,"
+    "不重载后台服务)。**请重启 Studio 后再用本页功能**;"
+    "已有的草稿和工具不受影响。"
+)
+
+# 本页会用到的服务接口及其参数 —— 在页面顶部一次性体检,而不是等你点了
+# 按钮才炸。新增接口/参数时把它登记进来,这张表就是"页面对服务的期望"。
+_SERVICE_EXPECTATIONS = (
+    ("read_repo_overview", ()),
+    ("propose_example_candidates", ()),
+    ("save_draft_review", ("distribution", "import_module", "license_id")),
+)
+_STALE_GAPS = [g for g in (_service_gap(n, *ps) for n, ps in _SERVICE_EXPECTATIONS) if g]
+if _STALE_GAPS:
+    st.error(f"{_STALE_WARNING}\n\n检测到:{'；'.join(_STALE_GAPS)}")
+
+
+def _require_service(name: str, *params: str) -> bool:
+    gap = _service_gap(name, *params)
+    if not gap:
         return True
-    st.warning(
-        "这个功能刚更新过,但当前 Studio 进程还是旧的(Streamlit 只热重载页面,"
-        "不重载后台服务模块)。**请重启 Studio 后再用**;已有的草稿和工具不受影响。"
-    )
+    st.warning(f"{_STALE_WARNING}\n\n检测到:{gap}")
     return False
 
 
@@ -258,6 +290,9 @@ with tab_review:
             )
             if contract_errors:
                 result = {"ok": False, "error": "；".join(contract_errors)}
+            elif not _require_service("save_draft_review", "distribution",
+                                      "import_module", "license_id"):
+                result = {"ok": False, "error": "请先重启 Studio 再保存（服务模块过期）"}
             elif parsed_contract is not None:
                 result = product_jobs.save_draft_review(
                     inspect_dir,
