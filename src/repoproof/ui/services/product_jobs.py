@@ -516,6 +516,12 @@ def save_draft_review(
     output_schema: str,
     reference_impl: str,
     output_contract: dict | None = None,
+    # intake 把这三个标为 owner=USER(提取不到时要人来定),但审核页一直
+    # 没有入口、本函数也不收 —— 声明了责任却没有履行路径,Studio 用户
+    # 只能去手改 YAML(2026-08-28 AUTO/USER 全量核账发现的第二笔账)。
+    distribution: str | None = None,
+    import_module: str | None = None,
+    license_id: str | None = None,
 ) -> dict:
     checked_dir, path_error = _validated_draft_dir(
         Path(draft_dir), require_existing=True
@@ -539,6 +545,12 @@ def save_draft_review(
         if output_contract is not None:
             draft["tool"]["interface"]["output"]["contract"] = output_contract
         draft["capability"]["statement"] = statement.strip()
+        sr = draft.setdefault("source_repo", {})
+        for key, value in (("distribution", distribution),
+                           ("import_module", import_module),
+                           ("license", license_id)):
+            if value is not None and value.strip():
+                sr[key] = value.strip()
         draft["capability"]["output_schema"] = output_schema.strip()
         draft["task_id"] = f"tool-{clean_name}-v1"
         target = draft.get("target_project") or {}

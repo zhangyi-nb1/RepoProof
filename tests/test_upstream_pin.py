@@ -10,6 +10,7 @@ controls 锁 / 备轮不下上游 / positive 彩排不预装)→ `import <上游
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from repoproof.adoption.intake.upstream_pin import (
@@ -130,3 +131,55 @@ def test_review_bundle_says_missing_when_nothing_can_be_derived(tmp_path: Path, 
     lock = product_jobs.read_managed_draft_review(draft)["dependency_lock"]
     assert lock["source"] == "missing" and lock["pins"] == []
     assert "reference.lock.txt" in lock["note"]
+
+
+# ---------------- 全量核账:每条声明的缺口都必须有履行者(2026-08-28) ----------------
+
+def test_every_declared_gap_has_a_fulfiller():
+    """**制度钉**:GAPS 里每条 owner 都得有人真的履行。
+
+    这一课的来由:`reference_lock` 标着 owner=AUTO(系统生成),却没有
+    任何组件真的生成 —— 用户按 UI 每一步都做对,仍连拿四发必崩的构建。
+    "声明了责任、没有履行者"是一类病,不是一个 bug,所以在这里钉住:
+
+      owner=LLM  → 必须在起草器的字段白名单里;
+      owner=AUTO → 必须有确定性产出路径(此处即上游 pin 派生);
+      owner=USER → 必须在 UI 有填写入口(见下一条钉)。
+    """
+    import inspect
+
+    from repoproof.adoption.intake import tool_intake
+    from repoproof.adoption.intake.tool_drafter import _LLM_FIELDS
+
+    src = inspect.getsource(tool_intake)
+    declared = re.findall(r'DraftGap\(field="([^"]+)",\s*owner="([^"]+)"', src)
+    assert declared, "一条缺口都没扫到 —— 钉子自身失效"
+
+    llm = {f for f, o in declared if o == "LLM"}
+    assert llm <= set(_LLM_FIELDS), f"标了 owner=LLM 但起草器不填:{llm - set(_LLM_FIELDS)}"
+
+    auto = {f for f, o in declared if o == "AUTO"}
+    assert auto <= {"reference_lock"}, (
+        f"新增了 owner=AUTO 缺口 {auto - {'reference_lock'}} —— "
+        "必须同时给出确定性产出路径,并在这里登记(否则又是一次'承诺没兑现')")
+
+
+def test_user_owned_source_fields_are_editable_in_the_ui():
+    """owner=USER 的上游身份三件必须能在审核页填 —— 否则提取失败即死路。
+
+    实录:它们标着 owner=USER,但审核页没有入口、save_draft_review 也不
+    收,Studio 用户只能去手改 draft.yaml。
+    """
+    import inspect
+
+    from repoproof.ui.services import product_jobs
+
+    sig = inspect.signature(product_jobs.save_draft_review).parameters
+    for field in ("distribution", "import_module", "license_id"):
+        assert field in sig, f"save_draft_review 不收 {field},UI 就没法让人填"
+
+    page = (Path(__file__).resolve().parents[1] / "src" / "repoproof" / "ui"
+            / "pages" / "tool_onboarding.py").read_text(encoding="utf-8")
+    for probe in ("distribution=distribution", "import_module=import_module",
+                  "license_id=license_id"):
+        assert probe in page, f"审核页没把 {probe} 传下去"

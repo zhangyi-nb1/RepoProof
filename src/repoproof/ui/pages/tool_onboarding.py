@@ -207,6 +207,16 @@ with tab_review:
             input_format = a.text_input("输入格式", value=str((iface.get("input") or {}).get("format") or ""))
             output_format = b.text_input("输出格式", value=saved_output_format)
             output_schema = st.text_input("输出结构名称", value=str(cap.get("output_schema") or ""))
+            # 上游身份三件:分析器提取不到时归 owner=USER,却一直没有入口
+            # (2026-08-28 核账)。提取得到时这里就是只读复核,不必改。
+            _sr = draft.get("source_repo") or {}
+            st.caption("上游身份（分析器已提取则无需改动；提取不到时必须由你定）")
+            sd1, sd2, sd3 = st.columns(3)
+            distribution = sd1.text_input("PyPI 包名", value=str(_sr.get("distribution") or ""),
+                                          help="装进会话的分发名，例如 webcolors")
+            import_module = sd2.text_input("import 名", value=str(_sr.get("import_module") or ""),
+                                           help="代码里 import 的模块名，通常与包名一致")
+            license_id = sd3.text_input("许可证", value=str(_sr.get("license") or ""))
             output_contract_text = st.text_area(
                 "可执行输出合同（所有 v2 工具必填）",
                 value=json.dumps(existing_contract, ensure_ascii=False, indent=2),
@@ -240,6 +250,9 @@ with tab_review:
                     output_schema=output_schema,
                     reference_impl=reference,
                     output_contract=parsed_contract.model_dump(mode="json"),
+                    distribution=distribution,
+                    import_module=import_module,
+                    license_id=license_id,
                 )
             else:  # pragma: no cover - defensive, parser returns one side
                 result = {"ok": False, "error": "OUTPUT_CONTRACT_INVALID"}
