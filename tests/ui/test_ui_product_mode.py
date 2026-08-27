@@ -590,3 +590,30 @@ def test_benchmark_lab_entrypoint_renders_independently() -> None:
     at.run()
     assert not at.exception
     assert "把一个开源仓库的能力" in _all_text(at)
+
+
+def test_inline_audit_material_is_written_byte_for_byte(tmp_path, monkeypatch):
+    """抽查可以「直接填内容」,且**逐字节原样落盘**。
+
+    2026-08-28 实录:抽查两个字段原来只收**路径**,用户很自然地直接填了
+    值(`#000080` / `navy`),只得到一句"文件必须存在" —— 界面要什么、人给
+    什么对不上时,该由界面兼容,而不是让人猜。
+    判据是逐字节比对,所以这里不许悄悄补尾换行:补一个 \\n 就会让一次
+    本该通过的抽查莫名其妙失败。
+    """
+    from repoproof.ui.services import product_jobs
+
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: tmp_path)
+    got = product_jobs.materialize_audit_pair("demo-tool", "navy", '{"a":1}')
+    assert got["ok"], got
+    assert Path(got["input"]).read_text(encoding="utf-8") == "navy"      # 无尾换行
+    assert Path(got["expected"]).read_text(encoding="utf-8") == '{"a":1}'
+
+
+def test_inline_audit_rejects_empty_material(tmp_path, monkeypatch):
+    """**负控**:空输入/空期望不成其为抽查 —— 当场拒绝。"""
+    from repoproof.ui.services import product_jobs
+
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: tmp_path)
+    assert not product_jobs.materialize_audit_pair("demo-tool", "  ", "x")["ok"]
+    assert not product_jobs.materialize_audit_pair("demo-tool", "x", "")["ok"]

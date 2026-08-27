@@ -158,15 +158,37 @@ with st.expander("🔧 管理这个工具（做抽查 / 停用 / 查证据）", 
     if "audit" in available:
         st.markdown("##### 新输入抽查")
         st.caption(AUDIT_EXPLAINER)
+        # 两种给法都收(2026-08-28 实录):字段原来只收**路径**,而用户很自然
+        # 地直接填了值(`#000080` / `navy`),只得到一句"文件必须存在" ——
+        # 界面要什么、人给什么,对不上时该由界面兼容,而不是让人猜。
+        _mode = st.radio("怎么给这次抽查的输入", ["直接填内容", "给文件路径"],
+                         horizontal=True, key="audit_mode")
         a, b = st.columns(2)
-        audit_input = a.text_input(
-            "输入文件路径（一份这个工具从没见过的输入）", key="audit_input")
-        audit_expected = b.text_input(
-            "正确结果文件路径（你自己核实过的期望输出）", key="audit_expected")
+        if _mode == "直接填内容":
+            audit_input = a.text_area(
+                "输入内容（一份这个工具从没见过的输入）", key="audit_input_text",
+                height=90)
+            audit_expected = b.text_area(
+                "期望输出（你自己核实过的正确结果，逐字节比对）",
+                key="audit_expected_text", height=90)
+        else:
+            audit_input = a.text_input(
+                "输入文件路径（一份这个工具从没见过的输入）", key="audit_input")
+            audit_expected = b.text_input(
+                "正确结果文件路径（你自己核实过的期望输出）", key="audit_expected")
         if st.button("运行新输入抽查", disabled=not (audit_input and audit_expected)):
+            if _mode == "直接填内容":
+                _paths = product_jobs.materialize_audit_pair(
+                    tool["name"], audit_input, audit_expected)
+                if not _paths.get("ok"):
+                    st.error(_paths.get("error"))
+                    st.stop()
+                in_path, exp_path = Path(_paths["input"]), Path(_paths["expected"])
+            else:
+                in_path = Path(audit_input).expanduser()
+                exp_path = Path(audit_expected).expanduser()
             result = product_jobs.start_tool_audit(
-                tool["name"], Path(audit_input).expanduser(),
-                Path(audit_expected).expanduser(), Path(library["root"]),
+                tool["name"], in_path, exp_path, Path(library["root"]),
             )
             (st.success if result.get("ok") else st.error)(result.get("note") or result.get("error"))
     else:

@@ -789,6 +789,34 @@ def start_tool_mcp(name: str, dest_root: Path) -> dict:
     )
 
 
+def materialize_audit_pair(tool_name: str, input_text: str,
+                           expected_text: str) -> dict:
+    """把「直接填的」抽查内容落成文件 → {ok, input, expected}。
+
+    抽查的判据是**逐字节比对**,所以这里原样写入、不加尾换行、不做任何
+    规范化 —— 悄悄补一个 \n 就会让一次本该通过的抽查莫名其妙地失败。
+    落在受管目录下(带时间戳),事后可追溯这次抽查到底喂了什么。
+    """
+    from repoproof.runner.tool_paths import ToolPathError, validate_tool_name
+
+    try:
+        name = validate_tool_name(tool_name)
+    except ToolPathError as exc:
+        return {"ok": False, "error": str(exc)}
+    if not str(input_text).strip() or not str(expected_text).strip():
+        return {"ok": False, "error": "输入与期望输出都不能为空。"}
+    stamp = f"{time.strftime('%Y%m%d-%H%M%S')}-{time.time_ns()}"
+    out = ui_state_root() / "audits" / f"{name}-{stamp}"
+    try:
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "input.txt").write_text(input_text, encoding="utf-8")
+        (out / "expected.txt").write_text(expected_text, encoding="utf-8")
+    except OSError as exc:
+        return {"ok": False, "error": f"无法写入抽查材料:{exc}"}
+    return {"ok": True, "input": str(out / "input.txt"),
+            "expected": str(out / "expected.txt")}
+
+
 def start_tool_audit(
     name: str,
     input_path: Path,
