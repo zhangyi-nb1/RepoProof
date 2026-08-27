@@ -183,3 +183,60 @@ def test_user_owned_source_fields_are_editable_in_the_ui():
     for probe in ("distribution=distribution", "import_module=import_module",
                   "license_id=license_id"):
         assert probe in page, f"审核页没把 {probe} 传下去"
+
+
+# ---------------- 保存不许把起草成果抹白(2026-08-28 用户截图实录) ----------------
+
+def _managed_draft(tmp_path: Path, monkeypatch, *, summary: str) -> Path:
+    from repoproof.ui.services import product_jobs
+
+    state = tmp_path / "state"
+    draft = state / "drafts" / "d"
+    (draft / "examples").mkdir(parents=True)
+    (draft / "draft.yaml").write_text(
+        "tool:\n  name: demo-tool\n"
+        f"  summary: {summary}\n"
+        "  interface:\n    input: {format: TEXT}\n"
+        "    output: {format: JSON}\n"
+        "capability:\n  statement: 原有的能力陈述\n  output_schema: DemoOut\n"
+        "source_repo:\n  distribution: webcolors\n"
+        f"  resolved_commit: {_COMMIT}\n", encoding="utf-8")
+    (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+    (draft / "reference_impl.py").write_text("# demo\n", encoding="utf-8")
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+    return draft
+
+
+def test_save_refuses_to_blank_out_drafted_fields(tmp_path: Path, monkeypatch):
+    """**保命闸**:提交上来的空值不许覆盖已有内容。
+
+    实录:Streamlit 控件值是首次渲染时定的 —— 用户在草稿还空着时打开审核页,
+    控件记住空值;起草器随后填满草稿,页面仍显示空白。此时点「保存」就会把
+    起草成果抹掉,而用户看不见自己抹了什么。清空不是一种编辑意图。
+    """
+    from repoproof.ui.services import product_jobs
+
+    draft = _managed_draft(tmp_path, monkeypatch, summary="起草器写的摘要")
+    got = product_jobs.save_draft_review(
+        draft, tool_name="demo-tool", summary="", statement="",
+        input_format="", output_format="", output_schema="",
+        reference_impl="# demo\n")
+
+    assert not got["ok"]
+    assert "拒绝保存" in got["error"] and "一句话摘要" in got["error"]
+    # 盘上内容一字未动
+    assert "起草器写的摘要" in (draft / "draft.yaml").read_text(encoding="utf-8")
+
+
+def test_save_still_accepts_a_real_edit(tmp_path: Path, monkeypatch):
+    """正控:真编辑照常放行 —— 闸拦的是"抹白",不是"修改"。"""
+    from repoproof.ui.services import product_jobs
+
+    draft = _managed_draft(tmp_path, monkeypatch, summary="旧摘要")
+    got = product_jobs.save_draft_review(
+        draft, tool_name="demo-tool", summary="新摘要", statement="新的能力陈述",
+        input_format="TEXT", output_format="JSON", output_schema="DemoOut",
+        reference_impl="# demo\n")
+    assert got.get("ok"), got
+    assert "新摘要" in (draft / "draft.yaml").read_text(encoding="utf-8")

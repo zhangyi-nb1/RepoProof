@@ -538,6 +538,27 @@ def save_draft_review(
         draft = yaml.safe_load(
             _read_file_at(draft_fd, "draft.yaml").decode("utf-8")
         ) or {}
+        # 保命闸(2026-08-28 实录):控件值一旦因任何原因是空的,保存就会把
+        # 起草器辛苦填出来的内容抹掉,而用户看不见自己抹了什么。语义很清楚:
+        # **清空不是一种编辑意图** —— 想改就写新的,想删没有正当场景。
+        blanked = [name for name, new_value, old_value in (
+            ("一句话摘要", summary, (draft.get("tool") or {}).get("summary")),
+            ("能力和边界", statement,
+             (draft.get("capability") or {}).get("statement")),
+            ("输入格式", input_format,
+             ((draft.get("tool") or {}).get("interface") or {})
+             .get("input", {}).get("format")),
+            ("输出格式", output_format,
+             ((draft.get("tool") or {}).get("interface") or {})
+             .get("output", {}).get("format")),
+            ("输出结构名称", output_schema,
+             (draft.get("capability") or {}).get("output_schema")),
+        ) if not str(new_value or "").strip() and str(old_value or "").strip()]
+        if blanked:
+            return {"ok": False,
+                    "error": ("拒绝保存:这些字段原本有内容，提交上来却是空的"
+                              f"（{'、'.join(blanked)}）。多半是页面显示过期——"
+                              "请刷新本页再改；清空不会被当作一次编辑。")}
         draft["tool"]["name"] = clean_name
         draft["tool"]["summary"] = summary.strip()
         draft["tool"]["interface"]["input"]["format"] = input_format.strip()

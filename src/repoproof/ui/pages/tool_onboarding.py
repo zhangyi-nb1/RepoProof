@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -199,24 +200,42 @@ with tab_review:
         existing_contract = (iface.get("output") or {}).get("contract")
         if not existing_contract:
             existing_contract = default_output_contract(saved_output_format)
+        # Streamlit 的控件值是**首次渲染时**定的:后来 `value=` 变了也不刷新
+        # (会话状态优先)。实录 2026-08-28:用户先在草稿还空着时打开本页,
+        # 控件把空值记住;起草器随后把草稿填满,页面却仍显示空白 —— 更危险
+        # 的是,此时点「保存」会用这些空值**覆盖掉起草器的成果**。
+        # 解法:让控件 key 跟着草稿内容走 —— 草稿一变就是新控件,按新值初始化。
+        _sig = hashlib.sha256(
+            (review_bundle.get("raw_draft") or "").encode("utf-8")).hexdigest()[:12]
         with st.form("draft_review_form"):
-            tool_name = st.text_input("工具名", value=str(tool.get("name") or ""))
-            summary = st.text_input("一句话摘要", value=str(tool.get("summary") or ""))
-            statement = st.text_area("能力和边界", value=str(cap.get("statement") or ""), height=130)
+            tool_name = st.text_input("工具名", value=str(tool.get("name") or ""),
+                                      key=f"rv_name_{_sig}")
+            summary = st.text_input("一句话摘要", value=str(tool.get("summary") or ""),
+                                    key=f"rv_summary_{_sig}")
+            statement = st.text_area("能力和边界", value=str(cap.get("statement") or ""),
+                                     height=130, key=f"rv_stmt_{_sig}")
             a, b = st.columns(2)
-            input_format = a.text_input("输入格式", value=str((iface.get("input") or {}).get("format") or ""))
-            output_format = b.text_input("输出格式", value=saved_output_format)
-            output_schema = st.text_input("输出结构名称", value=str(cap.get("output_schema") or ""))
+            input_format = a.text_input("输入格式",
+                                        value=str((iface.get("input") or {}).get("format") or ""),
+                                        key=f"rv_in_{_sig}")
+            output_format = b.text_input("输出格式", value=saved_output_format,
+                                         key=f"rv_out_{_sig}")
+            output_schema = st.text_input("输出结构名称",
+                                          value=str(cap.get("output_schema") or ""),
+                                          key=f"rv_schema_{_sig}")
             # 上游身份三件:分析器提取不到时归 owner=USER,却一直没有入口
             # (2026-08-28 核账)。提取得到时这里就是只读复核,不必改。
             _sr = draft.get("source_repo") or {}
             st.caption("上游身份（分析器已提取则无需改动；提取不到时必须由你定）")
             sd1, sd2, sd3 = st.columns(3)
             distribution = sd1.text_input("PyPI 包名", value=str(_sr.get("distribution") or ""),
+                                          key=f"rv_dist_{_sig}",
                                           help="装进会话的分发名，例如 webcolors")
             import_module = sd2.text_input("import 名", value=str(_sr.get("import_module") or ""),
+                                           key=f"rv_mod_{_sig}",
                                            help="代码里 import 的模块名，通常与包名一致")
-            license_id = sd3.text_input("许可证", value=str(_sr.get("license") or ""))
+            license_id = sd3.text_input("许可证", value=str(_sr.get("license") or ""),
+                                        key=f"rv_lic_{_sig}")
             output_contract_text = st.text_area(
                 "可执行输出合同（所有 v2 工具必填）",
                 value=json.dumps(existing_contract, ensure_ascii=False, indent=2),
