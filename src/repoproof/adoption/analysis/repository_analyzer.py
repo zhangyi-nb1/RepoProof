@@ -71,6 +71,10 @@ class RepositoryReport(BaseModel):
     external_services: Finding = Finding.unknown()
     secrets_required: list[Finding] = []
     quickstart: Finding = Finding.unknown()
+    # README 正文摘录(有界):此前只留第一个代码块当 quickstart,正文丢掉了,
+    # 于是"这个仓库到底是干什么的"在 UI 里无从展示。**它是展示件**:不参与
+    # 任何判定,也不得自动填进用户的能力描述(那会把人闸架空)。
+    readme_excerpt: str = ""
     tests: Finding = Finding.unknown()
     capability_candidates: list[CapabilityCandidate] = []
     sources: list[str] = []
@@ -79,6 +83,45 @@ class RepositoryReport(BaseModel):
 
     def to_dict(self) -> dict:
         return self.model_dump()
+
+
+_README_PROSE_CAP = 1200          # 展示用摘录上限,避免把报告撑大
+# 徽章/图片/HTML 壳/标题下划线(Markdown),以及 RST 的指令、注释与字段行
+# —— `.. image::` / `:alt:` 这类在纯 RST 的 README 里占满开头(webcolors 实测)。
+_BADGE_LINE = re.compile(
+    r"^\s*(\[!\[|!\[|<img|<a\s|<p\s|<div\s|=+\s*$|-+\s*$|~+\s*$"
+    r"|\.\.\s|:[A-Za-z][\w-]*:\s)")
+_MOSTLY_URL = re.compile(r"^\s*(https?://\S+\s*)+$")
+
+
+def readme_prose(readme_text: str, *, cap: int = _README_PROSE_CAP) -> str:
+    """README 正文摘录(确定性,零模型):去掉徽章/图片/HTML 壳与标题装饰,
+    取前若干段落。
+
+    只做**提取**,不做概括 —— 概括是模型的活,而模型产物在本项目里只能
+    进展示层。这一份是"仓库自己怎么说自己",来源可指认(README 原文)。
+    """
+    out: list[str] = []
+    used = 0
+    for para in re.split(r"\n\s*\n", readme_text or ""):
+        lines = [ln for ln in para.strip().splitlines()
+                 if ln.strip() and not _BADGE_LINE.match(ln)]
+        if not lines:
+            continue
+        text = " ".join(ln.strip() for ln in lines)
+        if text.startswith("#"):                  # 标题:留文字,去井号
+            text = text.lstrip("#").strip()
+            if not text:
+                continue
+        if text.startswith("```") or text.startswith("::"):   # 代码块另有 quickstart
+            continue
+        if _MOSTLY_URL.match(text):               # 纯链接行不算介绍
+            continue
+        out.append(text)
+        used += len(text)
+        if used >= cap:
+            break
+    return "\n\n".join(out)[:cap].strip()
 
 
 def clone_for_analysis(url: str, revision: str | None, cache_root: Path) -> tuple[Path | None, str]:
@@ -300,6 +343,7 @@ def analyze_repository_dir(
         external_services=external,
         secrets_required=secrets[:20],
         quickstart=quickstart,
+        readme_excerpt=readme_prose(readme_text),
         tests=tests,
         capability_candidates=candidates,
         sources=sorted(set(sources)),

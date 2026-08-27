@@ -30,6 +30,31 @@ _LLM_FIELDS = ("tool.summary", "tool.interface.input.format",
                "capability.statement",
                "capability.output_schema", "reference_impl")
 
+_SUMMARY_SYSTEM = (
+    "You write a SHORT plain-language summary (Chinese unless the excerpt is "
+    "clearly another language) of what an open-source repository does, for a "
+    "user who is about to decide which single capability to extract from it. "
+    "Use ONLY the given README excerpt and entry-point list; if something is "
+    "not in them, say you cannot tell rather than guessing. 3-5 sentences. "
+    "Do NOT recommend which capability to pick and do NOT write the user's "
+    "goal for them: choosing the capability is the human's decision."
+)
+
+
+_INPUTS_SYSTEM = (
+    "You propose CANDIDATE INPUT FILES for testing a local CLI tool that wraps "
+    "one capability of a pinned Python library. Output STRICT JSON only "
+    "(no markdown fences): {\"inputs\": [{\"input_name\": \"...\", "
+    "\"input_text\": \"...\", \"why\": \"...\"}]}. "
+    "Cover a typical case AND edge cases (empty, whitespace, non-ASCII, "
+    "malformed/invalid values) that would expose an under-specified contract. "
+    "`why` is one short line in the SAME LANGUAGE as capability_goal. "
+    "NEVER include an expected output, expected value, assertion or verdict of "
+    "any kind: the expected output is obtained by actually running the pinned "
+    "upstream and is confirmed by the human. Inputs must be plain UTF-8 text."
+)
+
+
 _SYSTEM = (
     "You draft ONE structured proposal for packaging a single capability of a "
     "pinned open-source Python library as a local CLI tool. Output STRICT JSON "
@@ -91,6 +116,30 @@ class FakeDrafter:
             ],
         }
 
+    def summarize_repo(self, context: dict) -> dict:
+        """仓库摘要(确定性模板)。产物只进展示层,不进 draft、不填能力描述。"""
+        head = str(context.get("headline") or "").strip()
+        n = len(context.get("surfaces") or [])
+        return {"summary": f"(离线模板摘要)这个仓库自述为:{head[:120]}"
+                           f"。静态扫描到 {n} 个公开入口。"}
+
+    def propose_example_inputs(self, context: dict) -> dict:
+        """候选**输入**(确定性模板)。只出输入 —— 期望输出由上游真跑给出。"""
+        n = int(context.get("how_many") or 3)
+        goal = context.get("capability_goal", "")
+        shapes = [("typical.txt", "典型输入", "覆盖最常见的一种用法"),
+                  ("edge_empty.txt", "", "空输入:边界行为必须被题面写死"),
+                  ("edge_unicode.txt", "非 ASCII 输入 · 测试", "非 ASCII:编码路径"),
+                  ("edge_long.txt", "x" * 200, "超长输入:截断/性能路径"),
+                  ("edge_spaces.txt", "  前后空白  ", "首尾空白:规范化行为"),
+                  ("edge_multiline.txt", "第一行\n第二行", "多行输入"),
+                  ("edge_symbols.txt", "!@#$%^&*()", "符号输入:非法值路径"),
+                  ("edge_numeric.txt", "1234567890", "纯数字输入")]
+        return {"inputs": [
+            {"input_name": nm, "input_text": txt or "",
+             "why": f"{why}(fake 起草;目标:{goal[:40]})"}
+            for nm, txt, why in shapes[:n]]}
+
 
 class LiteLLMDrafter:
     """真 LLM 起草(litellm 通道;JSON 解析失败重试一次后如实抛)。"""
@@ -141,6 +190,58 @@ class LiteLLMDrafter:
                     user_msg + "\n\nYour previous output was not valid JSON. "
                     "Output ONLY the JSON object.")
         raise DraftError("unreachable")
+
+    def summarize_repo(self, context: dict) -> dict:
+        """仓库摘要/翻译(真 LLM)。**展示件**:不进 draft,不参与判定。
+
+        提示词显式要求"只依据给到的 README 摘录与入口清单",并且不得替
+        用户判断该用哪个能力 —— 那是人闸的活。
+        """
+        text = self._once_with_system(
+            _SUMMARY_SYSTEM, json.dumps(context, ensure_ascii=False, indent=1))
+        return {"summary": text.strip()}
+
+    def propose_example_inputs(self, context: dict) -> dict:
+        """候选**输入**(真 LLM)。
+
+        提示词刻意**不要**模型给期望输出:它给了也不会被采用,而让它给
+        等于邀请它去猜判定 —— 判定的来源只能是上游真跑 + 人确认。
+        """
+        user_msg = json.dumps(context, ensure_ascii=False, indent=1)
+        text = self._once_with_system(_INPUTS_SYSTEM, user_msg)
+        for attempt in (1, 2):
+            try:
+                body = text.strip()
+                if body.startswith("```"):
+                    body = body.strip("`\n")
+                    body = body[body.index("{"):]
+                doc = json.loads(body[body.index("{"): body.rindex("}") + 1])
+                if not isinstance(doc.get("inputs"), list):
+                    raise ValueError("missing 'inputs' list")
+                return doc
+            except (ValueError, IndexError) as exc:
+                if attempt == 2:
+                    raise DraftError(
+                        f"候选输入输出无法解析为 JSON:{text[:300]}") from exc
+                text = self._once_with_system(
+                    _INPUTS_SYSTEM,
+                    user_msg + "\n\nYour previous output was not valid JSON. "
+                    "Output ONLY the JSON object with an 'inputs' array.")
+        raise DraftError("unreachable")
+
+    def _once_with_system(self, system: str, user_msg: str) -> str:
+        import litellm
+
+        resp = litellm.completion(
+            model=self.model, api_base=self.api_base, api_key=self.api_key,
+            temperature=0,
+            messages=[{"role": "system", "content": system},
+                      {"role": "user", "content": user_msg}])
+        u = getattr(resp, "usage", None)
+        if u is not None:
+            self.last_usage = {"prompt_tokens": getattr(u, "prompt_tokens", None),
+                               "completion_tokens": getattr(u, "completion_tokens", None)}
+        return resp.choices[0].message.content or ""
 
 
 def _drafter_context(report_like: dict) -> dict:

@@ -720,3 +720,160 @@ def start_tool_withdraw(name: str, reason: str, dest_root: Path) -> dict:
         label=f"撤回 {name}",
         expected_artifact=Path(dest_root) / ".repoproof-release-decisions.jsonl",
     )
+
+
+# ------------------------------------------------------------ 仓库概览 + 样例助手
+#
+# 两件都是"降低上手门槛"的辅助件,共享一条纪律:**它们不产出判据**。
+# 概览是展示件(不进 draft、不填能力描述);样例助手只出候选,真值要人
+# 逐条确认。详见 adoption/analysis/repo_overview.py 与
+# adoption/intake/example_proposer.py 的模块注释。
+
+def read_repo_overview(repo: str, revision: str | None = None) -> dict:
+    """匿名浅克隆 + 静态分析 → 仓库概览(零模型;永不执行仓库代码)。"""
+    from repoproof.adoption.analysis.repo_overview import build_repo_overview
+    from repoproof.adoption.analysis.repository_analyzer import analyze_repository
+    from repoproof.ui.services.product_mode import project_root
+
+    if not _valid_public_github_repo(repo):
+        return {"ok": False, "error": "当前只支持公开 GitHub 仓库地址。"}
+    try:
+        report = analyze_repository(
+            repo, revision or None,
+            cache_root=project_root() / "upstream-cache")
+    except Exception as exc:                                    # noqa: BLE001
+        return {"ok": False, "error": f"读取失败:{exc}"}
+    if report.is_public.value is False:
+        return {"ok": False,
+                "error": "无法匿名克隆(仓库不存在、私有,或网络到 github.com 被打断)。"}
+    return {"ok": True, "overview": build_repo_overview(report),
+            "admission_hint": report.risks[:3]}
+
+
+def summarize_repo_overview(overview: dict, *, offline: bool) -> dict:
+    """可选的模型摘要/翻译。产物**只进展示层**,与原文摘录分开标注。"""
+    from repoproof.adoption.intake.tool_drafter import (
+        DraftError,
+        FakeDrafter,
+        LiteLLMDrafter,
+    )
+
+    try:
+        drafter = FakeDrafter() if offline else LiteLLMDrafter()
+        doc = drafter.summarize_repo({
+            "repository": overview.get("repository", ""),
+            "headline": overview.get("headline", ""),
+            "prose": (overview.get("prose") or "")[:1500],
+            "surfaces": [s.get("value") for s in (overview.get("surfaces") or [])][:15],
+        })
+    except DraftError as exc:
+        return {"ok": False, "error": f"模型摘要失败:{exc}"}
+    except Exception as exc:                                     # noqa: BLE001
+        return {"ok": False, "error": f"模型摘要失败:{exc}"}
+    return {"ok": True, "summary": str(doc.get("summary") or ""),
+            "drafter": getattr(drafter, "name", "unknown")}
+
+
+def _draft_upstream_dir(draft_dir: Path) -> tuple[Path | None, str]:
+    """从 draft 束推出**钉版**上游目录(候选输出必须来自钉住的那一版)。"""
+    from repoproof.runner.tool_pipeline import ensure_pinned_upstream
+    from repoproof.ui.services.product_mode import project_root
+
+    doc = yaml.safe_load((Path(draft_dir) / "draft.yaml").read_text(encoding="utf-8")) or {}
+    src = doc.get("source_repo") or {}
+    url, commit = str(src.get("url") or ""), str(src.get("resolved_commit") or "")
+    if not (url and commit):
+        return None, "draft 束里没有钉住的上游(url/resolved_commit 缺失)"
+    try:
+        return ensure_pinned_upstream(url, commit, project_root()), ""
+    except Exception as exc:                                     # noqa: BLE001
+        return None, f"钉版上游不可用:{exc}"
+
+
+def existing_example_inputs(draft_dir: Path) -> list[str]:
+    """已放进 examples/inputs 的输入原文(去重闸与"别再给重复的"都要用)。"""
+    out: list[str] = []
+    for p in sorted((Path(draft_dir) / "examples" / "inputs").glob("*")):
+        if p.is_file():
+            try:
+                out.append(p.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError):
+                continue          # 二进制样例不参与文本去重,如实跳过
+    return out
+
+
+def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dict:
+    """① 模型出候选输入 → ② 钉版上游真跑出实际输出。**不产出真值**。"""
+    from repoproof.adoption.intake.example_proposer import (
+        ExampleProposalError,
+        propose_inputs,
+        run_reference_on_candidates,
+    )
+    from repoproof.adoption.intake.tool_drafter import (
+        DraftError,
+        FakeDrafter,
+        LiteLLMDrafter,
+    )
+
+    checked_dir, path_error = _validated_draft_dir(Path(draft_dir), require_existing=True)
+    if checked_dir is None:
+        return {"ok": False, "error": path_error}
+    draft_dir = checked_dir
+
+    overview_doc = yaml.safe_load(
+        (draft_dir / "draft.yaml").read_text(encoding="utf-8")) or {}
+    goal = str((overview_doc.get("capability") or {}).get("statement")
+               or (overview_doc.get("tool") or {}).get("summary") or "")
+    upstream, up_err = _draft_upstream_dir(draft_dir)
+    if upstream is None:
+        return {"ok": False, "error": up_err}
+
+    try:
+        drafter = FakeDrafter() if offline else LiteLLMDrafter()
+        batch = propose_inputs(
+            goal=goal,
+            overview={"repository": str((overview_doc.get("source_repo") or {}).get("url") or "")},
+            drafter=drafter, n=n,
+            existing_inputs=existing_example_inputs(draft_dir))
+        batch = run_reference_on_candidates(
+            batch, draft_dir=draft_dir, upstream_dir=upstream)
+    except (DraftError, ExampleProposalError) as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:                                     # noqa: BLE001
+        return {"ok": False, "error": f"候选生成失败:{exc}"}
+
+    return {"ok": True, "drafter": batch.drafter, "note": batch.note,
+            "candidates": [c.model_dump() for c in batch.candidates]}
+
+
+def confirm_candidate_as_example(draft_dir: Path, candidate: dict, *,
+                                 expected_text: str, input_text: str) -> dict:
+    """③ 人闸:确认一条候选 → 落成 golden 样例文件。
+
+    一次一条,没有批量口子(与计划确认逐项同律)。
+    """
+    from repoproof.adoption.intake.example_proposer import (
+        CandidateExample,
+        ExampleProposalError,
+        confirm_candidate,
+    )
+
+    try:
+        c = CandidateExample.model_validate({**candidate, "input_text": input_text})
+        done = confirm_candidate(c, expected_text=expected_text)
+    except ExampleProposalError as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:                                     # noqa: BLE001
+        return {"ok": False, "error": f"确认失败:{exc}"}
+
+    stem = Path(done.input_name).stem or "case"
+    result = add_golden_example(
+        draft_dir,
+        input_name=done.input_name,
+        input_bytes=done.input_text.encode("utf-8"),
+        expected_name=f"{stem}.expected.txt",
+        expected_bytes=(done.upstream_output or "").encode("utf-8"),
+    )
+    if result.get("ok"):
+        result["truth_provenance"] = done.truth_provenance()
+    return result

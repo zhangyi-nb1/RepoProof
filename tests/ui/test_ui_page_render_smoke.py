@@ -51,3 +51,40 @@ def test_activity_page_renders_every_state(
     at = AppTest.from_file(str(PAGES / "product_activity.py"), default_timeout=60).run()
     assert not [str(e.value) for e in at.exception], (
         f"{label} 分支渲染抛异常:{[str(e.value) for e in at.exception]}")
+
+
+def test_onboarding_page_renders_with_repo_overview(monkeypatch: pytest.MonkeyPatch) -> None:
+    """新建工具页 + 仓库简介面板真渲染一次。
+
+    2026-08-27 新增「仓库简介」与「样例助手」两块都在这一页;它们含表格、
+    可编辑区与逐条确认按钮,正是最容易写出运行期崩溃的形态(上一次
+    `st.progress(None)` 的教训)。这里只钉「渲染得出来」,不钉文案。
+    """
+    from repoproof.ui.services import product_jobs
+
+    overview = {
+        "repository": "https://example.invalid/demo",
+        "headline": "demo does one thing well",
+        "prose": "demo does one thing well\n\nIt has two modes.",
+        "prose_source": "README 原文摘录(未经模型改写)",
+        "quickstart": "import demo",
+        "quickstart_evidence": "README.md 首个代码块",
+        "facts": [{"label": "许可证", "value": "MIT",
+                   "evidence": "LICENSE", "provenance": "FACT"}],
+        "surfaces": [{"kind": "公开符号", "value": "convert", "evidence": "__all__"}],
+        "risks": ["无测试目录"],
+        "sources": ["README.md"],
+    }
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(product_jobs, "read_repo_overview",
+                        lambda *a, **k: {"ok": True, "overview": overview})
+
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=90)
+    at.session_state["rp_overview"] = {"ok": True, "overview": overview}
+    at.run()
+    assert not [str(e.value) for e in at.exception], [str(e.value) for e in at.exception]
+    labels = [b.label for b in at.button]
+    assert any("仓库简介" in x for x in labels), labels
+    assert any("候选" in x for x in labels), labels

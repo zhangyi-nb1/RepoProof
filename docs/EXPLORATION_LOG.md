@@ -3903,3 +3903,39 @@ mypy job 与 pytest job 装同一套 extras(`[dev,ui]`)。隔离 venv 红绿
 验证:模拟邻仓写手(8 秒周期,同 OfferClaw)下 —— 修前 5/5 红、修后
 5/5 绿;伪造"第三个来源"确认自检会当场触发。全量 1451+60+0
 (docker 未起形态)。教训入 LESSONS #49。
+
+## 状态 · 2026-08-27 · 上手门槛两件套:仓库简介栏 + Golden 样例助手
+
+用户需求两条,第一条碰红线,故改形状后落地。
+
+**① 仓库简介栏**(URL 与"你想要的能力"之间)。analyzer 本就在读 README,
+但只留第一个代码块当 quickstart,正文丢掉了 —— 现在留一份**有界正文
+摘录**(`readme_excerpt`,确定性提取:去徽章/图片/HTML 壳/RST 指令与
+字段行,webcolors 那种纯 RST README 实测)。新模块
+`adoption/analysis/repo_overview.py` 出"可指认事实 + 出处"的概览;UI 在
+表单外先读简介(零模型),旁边可选「让模型总结/翻译」。纪律:概览是
+**展示件** —— 不进 draft、不参与判定、**数据形状上就没有 goal 字段**,
+UI 不可能顺手把模型对仓库的理解填成用户的能力描述(负控钉死)。
+
+**② Golden 样例助手**(`adoption/intake/example_proposer.py`)。红线:
+模型不能产出期望输出(模型出题+模型答题 = PASS 失去意义,pyspellchecker
+false-success 同型)。改成三段式:① 候选**输入**由模型出(输入不是判据,
+模型反而补齐边界/畸形样本);② 候选**输出**由**钉版上游真跑**给出 ——
+刻意复用 draft 束的 `reference_impl`(按纪律必须真 import 上游),不另造
+第二套执行路径就没有第二套语义可漂移;③ **逐条人工确认**,没有「全部
+接受」(与 confirm_plan 逐项同律)。执行第三方代码走净化子进程(临时
+HOME/cwd、无密钥、超时),负控钉死"reference 看不见 API key"。
+配套:上游抛错的候选**不算**可做 golden(样例只表达成功路径),但如实
+留作"这类输入会炸"的题面证据;fresh 抽查料有**去重硬闸**(见过的输入
+= 复读,不是独立检查);真值溯源 `UPSTREAM_DERIVED_USER_CONFIRMED` 入账。
+
+**用户实测当场喂回来两个真缺陷**:(a) 17:57 那次彩排 exit 3 卡在
+「examples 仅 0 组」—— 正是本功能要拆的墙;(b) 更要紧:那份 draft 的
+reference 是离线模板占位 `return str(webcolors)`,它**真 import 了上游、
+也有确定性输出**,骨架检查(NotImplementedError)放它过去 —— 拿它跑候选
+每条"上游实际输出"都是模块地址,用户一确认就把 `<module ...>` 冻进验收
+真值,一个看起来全绿、实则空心的合同。新增 AST 占位检测(只认
+"extract 返回 `str(<顶层 import 模块>)`"这一个精确形状,不误伤真实现)。
+
+UI 侧另加:在线填写样例(文本;二进制仍走上传)。渲染钉扩到新建工具页。
+全量 1467+60+0(+22 测试);ruff/mypy 全绿。

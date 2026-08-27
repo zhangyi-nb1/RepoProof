@@ -37,17 +37,77 @@ tab_discover, tab_review, tab_build = st.tabs(["1 · 描述能力", "2 · 审核
 
 with tab_discover:
     section_intro("告诉系统你想保留哪项能力", "只选择一个输入输出明确、能用样例验证的能力。")
+    # 仓库与版本放在表单**之外**:这样填完仓库就能先读一份简介,再回来
+    # 写"你想要的能力" —— 不了解这个仓库的人,写不出准确的能力描述。
+    repo = st.text_input(
+        "公开 GitHub 仓库",
+        placeholder="https://github.com/owner/project",
+        key="rp_repo_url",
+    )
+    revision = st.text_input("版本或 Commit（可选）", placeholder="v1.2.3 或完整 commit",
+                             key="rp_repo_rev")
+
+    if st.button("读取仓库简介（零模型，只做静态分析）", disabled=not repo.strip()):
+        with st.spinner("匿名浅克隆并静态分析中……（不会执行仓库代码）"):
+            st.session_state["rp_overview"] = product_jobs.read_repo_overview(
+                repo, revision or None)
+        st.session_state.pop("rp_overview_summary", None)
+
+    _ov_result = st.session_state.get("rp_overview") or {}
+    if _ov_result and not _ov_result.get("ok"):
+        st.error(_ov_result.get("error") or "读取失败")
+    elif _ov_result.get("ok"):
+        _ov = _ov_result["overview"]
+        with st.container(border=True):
+            st.markdown("#### 这个仓库是做什么的")
+            if _ov.get("headline"):
+                st.markdown(f"**{_ov['headline']}**")
+            if _ov.get("prose"):
+                with st.expander("README 原文摘录（未经模型改写）", expanded=True):
+                    st.write(_ov["prose"])
+                    st.caption(f"来源：{_ov.get('prose_source') or 'README'}")
+            if _ov.get("quickstart"):
+                st.caption(f"上手片段（{_ov.get('quickstart_evidence') or 'README'}）")
+                st.code(_ov["quickstart"], language="python")
+
+            if _ov.get("facts"):
+                st.markdown("**静态分析确认的事实**（每条都可追到出处）")
+                st.dataframe(
+                    [{"事实": f["label"], "值": f["value"],
+                      "依据": f.get("evidence") or "—",
+                      "来源档位": f.get("provenance") or "—"} for f in _ov["facts"]],
+                    hide_index=True, width="stretch")
+            if _ov.get("surfaces"):
+                st.markdown("**它对外提供的入口**（你要的能力大概率在这里面）")
+                st.dataframe(
+                    [{"类型": s["kind"], "名称": s["value"],
+                      "依据": s.get("evidence") or "—"} for s in _ov["surfaces"]],
+                    hide_index=True, width="stretch")
+            if _ov.get("risks"):
+                st.warning("需要注意：" + "；".join(_ov["risks"][:3]))
+
+            sc1, sc2 = st.columns([1, 2])
+            _sum_offline = sc2.checkbox("用离线模板（零模型调用）", value=False,
+                                        key="rp_sum_offline")
+            if sc1.button("让模型总结/翻译一下"):
+                with st.spinner("生成摘要中……"):
+                    st.session_state["rp_overview_summary"] = (
+                        product_jobs.summarize_repo_overview(_ov, offline=_sum_offline))
+            _sum = st.session_state.get("rp_overview_summary") or {}
+            if _sum and not _sum.get("ok"):
+                st.error(_sum.get("error"))
+            elif _sum.get("ok"):
+                st.info(f"**模型摘要（{_sum.get('drafter')}）**\n\n{_sum['summary']}")
+                st.caption(
+                    "这是模型对上面原文的复述，**不是事实来源**；判定只认原文与静态分析。"
+                    "它也不会替你决定要哪个能力——那一句必须你自己写。")
+
     with st.form("tool_add_form"):
-        repo = st.text_input(
-            "公开 GitHub 仓库",
-            placeholder="https://github.com/owner/project",
-        )
         capability = st.text_area(
             "你想要的能力",
             placeholder="例如：给一个 PDF 文件，提取其中所有表格并输出 Markdown。",
             height=110,
         )
-        revision = st.text_input("版本或 Commit（可选）", placeholder="v1.2.3 或完整 commit")
         draft_default = str(ui_state_root() / "drafts" / "my-tool-draft")
         draft_dir = st.text_input("草稿保存位置", value=draft_default)
         offline = st.checkbox("先用离线模板起草（零模型调用）", value=False)
@@ -150,8 +210,86 @@ with tab_review:
                     f"冻结版本只读预览：`{preview['task_id']}`。{preview['note']}"
                 )
 
+        # ---------------- 样例助手:模型出输入、上游出输出、你逐条确认 ----------------
+        with st.expander("🧪 不知道样例怎么写？让系统给你候选（真值仍由你确认）",
+                         expanded=False):
+            st.caption(
+                "分工是固定的：**候选输入**由模型出（输入不是判据）；**期望输出**由"
+                "钉住的那一版上游**真跑**给出（不是模型猜的）；最后**每一条都要你点确认**"
+                "才会成为验收真值。没有「全部确认」——一次点击只为一条负责。"
+            )
+            gp1, gp2, gp3 = st.columns([1, 1, 2])
+            _n = gp1.number_input("要几条候选", min_value=1, max_value=8, value=4,
+                                  key="rp_cand_n")
+            _cand_offline = gp2.checkbox("离线模板", value=True, key="rp_cand_offline",
+                                         help="零模型调用，先把流程走通")
+            if gp3.button("生成候选（含边界/畸形输入）", key="rp_cand_go"):
+                with st.spinner("模型出候选输入 → 钉版上游真跑……"):
+                    st.session_state["rp_cands"] = product_jobs.propose_example_candidates(
+                        inspect_dir, n=int(_n), offline=_cand_offline)
+
+            _cr = st.session_state.get("rp_cands") or {}
+            if _cr and not _cr.get("ok"):
+                st.error(_cr.get("error"))
+            elif _cr.get("ok"):
+                st.caption(f"候选来源：{_cr.get('drafter')} · {_cr.get('note')}")
+                _usable = [c for c in _cr["candidates"]
+                           if c.get("upstream_output") and not c.get("upstream_error")]
+                _errs = [c for c in _cr["candidates"] if c.get("upstream_error")]
+
+                for i, c in enumerate(_usable):
+                    with st.container(border=True):
+                        st.markdown(f"**候选 {i + 1} · `{c['input_name']}`**"
+                                    + (f" — {c['why']}" if c.get("why") else ""))
+                        e1, e2 = st.columns(2)
+                        _in_text = e1.text_area(
+                            "输入（可改）", value=c["input_text"], height=120,
+                            key=f"rp_cand_in_{i}")
+                        _out_text = e2.text_area(
+                            "上游实际输出（可改；改了以你的为准）",
+                            value=c["upstream_output"], height=120,
+                            key=f"rp_cand_out_{i}")
+                        st.caption(
+                            "⚠️ 这是**上游此刻的实际输出，不是对错判定**——"
+                            "它是不是你要的能力，仍然由你判断。")
+                        if st.button("✅ 我确认这一条，加入样例", key=f"rp_cand_ok_{i}"):
+                            r = product_jobs.confirm_candidate_as_example(
+                                inspect_dir, c, expected_text=_out_text,
+                                input_text=_in_text)
+                            (st.success if r.get("ok") else st.error)(
+                                (r.get("note") or r.get("error") or "")
+                                + (f"（真值来源：{r.get('truth_provenance')}）"
+                                   if r.get("ok") else ""))
+
+                if _errs:
+                    st.markdown("**这些候选让上游抛了错——它们做不成样例，但很有用**")
+                    st.caption(
+                        "Golden 样例只表达成功路径。这些是「这类输入会炸」的行为证据："
+                        "把它们写进上面的**能力和边界**，别等真发时被隐藏验收撞出来。")
+                    st.dataframe(
+                        [{"输入": (c["input_text"][:40] or "（空）"),
+                          "上游错误": c["upstream_error"]} for c in _errs],
+                        hide_index=True, width="stretch")
+
         st.markdown("#### 加入确认过的 Golden 样例")
         st.caption("至少三组，其中每四组的最后一组会自动成为不交给 Agent 的 held-out 样例。")
+        st.caption("文本样例可以直接在下方「在线填写」；二进制输入（PDF、图片等）请用上传。")
+
+        with st.expander("✍️ 在线填写一组样例（文本）", expanded=False):
+            w1, w2 = st.columns(2)
+            _wname = w1.text_input("样例文件名", value="case_1.txt", key="rp_write_name")
+            _wint = w1.text_area("输入内容", height=140, key="rp_write_in")
+            _woutt = w2.text_area("期望输出（你核实过的真值）", height=185, key="rp_write_out")
+            if st.button("加入这一组（在线填写）", disabled=not _wname.strip()):
+                r = product_jobs.add_golden_example(
+                    inspect_dir,
+                    input_name=Path(_wname).name,
+                    input_bytes=_wint.encode("utf-8"),
+                    expected_name=f"{Path(_wname).stem}.expected.txt",
+                    expected_bytes=_woutt.encode("utf-8"))
+                (st.success if r.get("ok") else st.error)(
+                    r.get("note") or r.get("error"))
+
         c_in, c_out = st.columns(2)
         uploaded_in = c_in.file_uploader("输入文件", key="golden_input")
         uploaded_out = c_out.file_uploader("期望输出文件", key="golden_expected")
