@@ -422,6 +422,10 @@ def test_k11_the_heldout_prose_is_derived_from_data_not_written_down():
         "local-tool/tabulate-tool",
         "local-tool/tomli-tool",
         "local-tool/unidecode-tool",
+        # 2026-08-28 再翻一页:用户在 Studio 里实测 webcolors(v1/v2 两发
+        # **零模型离线彩排**,fake-scripted:positive,均 FAIL,批次
+        # EXPLORATORY_UNPREREGISTERED)。台账 append-only,彩排发同样占宿主。
+        "local-tool/webcolors-tool",
         "local-tool/xmltodict-tool",
         "pallets/click",
         "tobymao/sqlglot",

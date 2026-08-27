@@ -504,9 +504,33 @@ class LiteLLMDrafter:
         return resp.choices[0].message.content or ""
 
 
-def configured_drafter_backend() -> str:
-    """Return the Product drafting backend, defaulting to the API gateway."""
+def _litellm_ready() -> bool:
+    """litellm 三键齐不齐(只看在不在,**不读值**)。"""
+    return bool(
+        (os.environ.get("REPOPROOF_DRAFTER_MODEL") or os.environ.get("REPOPROOF_MODEL"))
+        and (os.environ.get("REPOPROOF_DRAFTER_BASE") or os.environ.get("REPOPROOF_API_BASE"))
+        and (os.environ.get("REPOPROOF_DRAFTER_KEY") or os.environ.get("REPOPROOF_API_KEY"))
+    )
 
+
+def _codex_ready() -> bool:
+    from repoproof.agents.codex_cli_backend import (
+        run_subscription_preflight,
+        subscription_config,
+    )
+
+    return bool(run_subscription_preflight(subscription_config()).ready)
+
+
+def configured_drafter_backend() -> str:
+    """起草后端:未指定 = API 网关(产品默认,见 2ab838f)。
+
+    **不做自动回退**:网关没配就如实报"未配置",而不是悄悄改走 Codex ——
+    换通道会换掉计费主体、模型身份与可复现性,这种事必须是操作员的显式
+    决定。回退入口是显式的:`scripts/run_ui_codex.sh`(或
+    `REPOPROOF_DRAFTER_BACKEND=codex-cli`)。UI 侧负责把"当前哪条通道、
+    为什么不可用、怎么换"说清楚,而不是替人换。
+    """
     raw = os.environ.get("REPOPROOF_DRAFTER_BACKEND", "litellm").strip().lower()
     aliases = {
         "codex": "codex-cli",
@@ -535,16 +559,13 @@ def online_drafter_status() -> dict[str, str | bool]:
     except DraftError as exc:
         return {"ready": False, "backend": "INVALID", "label": str(exc)}
     if backend == "litellm":
-        ready = bool(
-            (os.environ.get("REPOPROOF_DRAFTER_MODEL") or os.environ.get("REPOPROOF_MODEL"))
-            and (os.environ.get("REPOPROOF_DRAFTER_BASE") or os.environ.get("REPOPROOF_API_BASE"))
-            and (os.environ.get("REPOPROOF_DRAFTER_KEY") or os.environ.get("REPOPROOF_API_KEY"))
-        )
-        return {
-            "ready": ready,
-            "backend": "litellm",
-            "label": "API provider 已配置" if ready else "API provider 未配置",
-        }
+        ready = _litellm_ready()
+        label = "API provider 已配置" if ready else "API provider 未配置"
+        if not ready and _codex_ready():
+            # 不替人换通道,但要让人知道**手边就有一条通的**(2026-08-28
+            # 实测:用户被"未配置"挡住,而本机 Codex 订阅一直就绪)。
+            label += "；本机 Codex 订阅可用，改用 scripts/run_ui_codex.sh 即可"
+        return {"ready": ready, "backend": "litellm", "label": label}
 
     from repoproof.agents.codex_cli_backend import (
         run_subscription_preflight,

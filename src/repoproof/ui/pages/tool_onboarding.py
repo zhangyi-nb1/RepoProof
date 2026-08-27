@@ -121,14 +121,20 @@ with tab_discover:
             if _ov.get("risks"):
                 st.warning("需要注意：" + "；".join(_ov["risks"][:3]))
 
-            sc1, sc2 = st.columns([1, 2])
-            _sum_offline = sc2.checkbox("用离线模板（零模型调用）",
-                                        value=not bool(_drafter_state.get("ready")),
-                                        key="rp_sum_offline")
-            if sc1.button("让模型总结/翻译一下"):
+            # 摘要**只走模型**:离线模板对"这个仓库是干什么的"帮不上忙
+            # (它出的是格式骨架,不是对这一份 README 的复述)——用户实测
+            # 反馈 2026-08-28。没有可用通道时不给一个没用的兜底,而是
+            # 直接说清楚怎么才能用。
+            _ready = bool(_drafter_state.get("ready"))
+            if st.button("让模型总结/翻译一下", disabled=not _ready,
+                         help=None if _ready else str(_drafter_state.get("label") or "")):
                 with st.spinner("生成摘要中……"):
                     st.session_state["rp_overview_summary"] = (
-                        product_jobs.summarize_repo_overview(_ov, offline=_sum_offline))
+                        product_jobs.summarize_repo_overview(_ov, offline=False))
+            if not _ready:
+                st.caption(
+                    f"模型摘要暂不可用：{_drafter_state.get('label')}。"
+                    "上面的 README 原文摘录与静态分析事实是零模型的，照常可读。")
             _sum = st.session_state.get("rp_overview_summary") or {}
             if _sum and not _sum.get("ok"):
                 st.error(_sum.get("error"))

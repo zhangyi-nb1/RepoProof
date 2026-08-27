@@ -169,3 +169,24 @@ def test_unconfigured_channel_raises_not_silently_degrades(monkeypatch):
         monkeypatch.delenv(k, raising=False)
     with pytest.raises(DraftError):
         LiteLLMDrafter()
+
+
+# ---------------------------------- 通道不可用时要**指路**(2026-08-28 实测)
+
+def test_gateway_unconfigured_label_points_at_the_working_channel(monkeypatch):
+    """网关没配、而本机 Codex 就绪时,提示必须说出"手边有一条通的"。
+
+    纪律边界:**不替人换通道**(换通道 = 换计费主体/模型身份/可复现性,
+    必须是操作员的显式决定,见 2ab838f 恢复网关默认);但也不能让人对着
+    一句"API provider 未配置"干瞪眼 —— 用户实测就是被这句挡住,而 Codex
+    订阅一直就绪。所以:不自动换,但要指路。
+    """
+    from repoproof.adoption.intake import tool_drafter as td
+
+    monkeypatch.delenv("REPOPROOF_DRAFTER_BACKEND", raising=False)
+    monkeypatch.setattr(td, "_litellm_ready", lambda: False)
+    monkeypatch.setattr(td, "_codex_ready", lambda: True)
+
+    st = td.online_drafter_status()
+    assert st["backend"] == "litellm" and not st["ready"]      # 默认没被偷换
+    assert "run_ui_codex.sh" in str(st["label"])               # 但指了路
