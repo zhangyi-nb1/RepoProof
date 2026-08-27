@@ -15,7 +15,7 @@
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
     "all_valid_run_outcomes": 156,
-    "assisted_repair_runs": 165,
+    "assisted_repair_runs": 166,
     "development_baseline_runs": 68,
     "exploratory": 35,
     "exploratory_passes": 26,
@@ -112,7 +112,7 @@
       }
     ],
     "provisional_evidence_runs": 4,
-    "smoke": 146,
+    "smoke": 147,
     "smoke_passes": 70,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
@@ -260,9 +260,10 @@
       "tool-emoji-tool-v1-20260826-043953",
       "tool-webcolors-tool-v1-20260828-014435",
       "tool-webcolors-tool-v2-20260828-014640",
-      "tool-webcolors-tool-v3-20260828-032304"
+      "tool-webcolors-tool-v3-20260828-032304",
+      "tool-webcolors-tool-v4-20260828-040742"
     ],
-    "total": 332,
+    "total": 333,
     "treatment_delivered_runs": 13,
     "treatment_not_delivered_runs": 4
   },
@@ -308,7 +309,7 @@
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "f8fffe451cf506d21bd4db2a39c7d9b54f8862832e771c63724afcfe4b7374d8"
+    "runs_jsonl_sha256": "d8132b49718b3fcc94dac4de1ccf23c47928e5c0cade051e6774617953087dd3"
   },
   "stages": {
     "T1": {

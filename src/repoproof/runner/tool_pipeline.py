@@ -30,6 +30,10 @@ from repoproof.adoption.intake.tool_confirm import (
     confirm_tool_draft,
 )
 from repoproof.adoption.intake.upstream_conformance import select_upstream_tests
+from repoproof.adoption.intake.upstream_pin import (
+    normalize_dist_name,
+    upstream_version,
+)
 from repoproof.runner.tool_export import (
     ToolExportError,
     install_verified_tool,
@@ -100,41 +104,6 @@ def _reference_pins(project_root: Path, task_id: str) -> list[str]:
             if ln.strip() and not ln.strip().startswith("#")]
 
 
-def _upstream_version(upstream_dir: Path) -> str:
-    """从**钉版上游树自己**读声明版本(pyproject / setup.cfg / PKG-INFO)。
-
-    用树里的版本而不是 PyPI 上的最新版:pin 的语义是"就这一版",
-    去解析最新版等于把钉版偷偷放开。
-    """
-    py = Path(upstream_dir) / "pyproject.toml"
-    if py.is_file():
-        try:
-            import tomllib
-            data = tomllib.loads(py.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            data = {}
-        v = ((data.get("project") or {}).get("version")
-             or (((data.get("tool") or {}).get("poetry") or {}).get("version")))
-        if isinstance(v, str) and v.strip():
-            return v.strip()
-    cfg = Path(upstream_dir) / "setup.cfg"
-    if cfg.is_file():
-        m = re.search(r"^\s*version\s*=\s*(\S+)\s*$",
-                      cfg.read_text(encoding="utf-8", errors="replace"), re.MULTILINE)
-        if m:
-            return m.group(1).strip()
-    for info in sorted(Path(upstream_dir).glob("*.egg-info/PKG-INFO")):
-        m = re.search(r"^Version:\s*(\S+)\s*$",
-                      info.read_text(encoding="utf-8", errors="replace"), re.MULTILINE)
-        if m:
-            return m.group(1).strip()
-    return ""
-
-
-def _norm_dist_name(name: str) -> str:
-    return re.sub(r"[-_.]+", "-", (name or "").strip()).lower()
-
-
 def resolve_upstream_pins(project_root: Path, task_id: str, *,
                           distribution: str, upstream_dir: Path) -> list[str]:
     """备轮用的 pin 集合 —— **必须含上游本体**,否则当场拒发。
@@ -151,12 +120,12 @@ def resolve_upstream_pins(project_root: Path, task_id: str, *,
     上游的 wheelhouse(静默降级 → 当场拒发)。
     """
     pins = _reference_pins(project_root, task_id)
-    want = _norm_dist_name(distribution)
+    want = normalize_dist_name(distribution)
     if not want:
         return pins
-    if any(_norm_dist_name(re.split(r"[=<>!~\[]", p, maxsplit=1)[0]) == want for p in pins):
+    if any(normalize_dist_name(re.split(r"[=<>!~\[]", p, maxsplit=1)[0]) == want for p in pins):
         return pins
-    version = _upstream_version(upstream_dir)
+    version = upstream_version(upstream_dir)
     if not version:
         raise PipelineError(
             f"备轮缺上游 {distribution!r}:controls/{task_id}/reference/"
@@ -368,8 +337,8 @@ def tool_build(
     # 东西可核 —— 核一个没发生的动作只会得出假结论。生产侧无人传此参数。
     downloaded = ([f.name for f in wheelhouse.iterdir() if f.is_file()]
                   if wheelhouse_cmd is None else [])
-    want = _norm_dist_name(sr["distribution"]) if wheelhouse_cmd is None else ""
-    if want and not any(_norm_dist_name(n.split("-")[0]) == want for n in downloaded):
+    want = normalize_dist_name(sr["distribution"]) if wheelhouse_cmd is None else ""
+    if want and not any(normalize_dist_name(n.split("-")[0]) == want for n in downloaded):
         # 事后核账:pip 说成功不等于上游真躺在那儿。不量一次就等于假设。
         raise PipelineError(
             f"备轮完成但 wheelhouse 里没有上游 {sr['distribution']!r}:"

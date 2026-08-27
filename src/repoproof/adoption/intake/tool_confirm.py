@@ -24,6 +24,7 @@ from pydantic import ValidationError
 from repoproof.adoption.assembly.example_compiler import CompileError
 from repoproof.adoption.assembly.output_contract import output_contract_matches_format
 from repoproof.adoption.assembly.tool_assembler import assemble_tool_task
+from repoproof.adoption.intake.upstream_pin import derive_reference_lock
 from repoproof.domain.models import TaskContract, ToolOutputContract, ToolSpec
 from repoproof.harness.contract_adequacy import evaluate_adequacy
 from repoproof.harness.requirement_spec import load_requirement_spec
@@ -211,8 +212,15 @@ def confirm_tool_draft(draft_dir: Path, project_root: Path) -> dict:
             license_id=sr["license"], tool=spec, examples=examples,
             example_src_dir=draft_dir / "examples",
             reference_impl=(draft_dir / REFERENCE_PY).read_text(encoding="utf-8"),
+            # 草稿束写了就以人写的为准;没写就从钉版树派生 —— 这份锁
+            # 缺席会让备轮漏装上游、positive 彩排也不预装,`import <上游>`
+            # 在会话里必炸(2026-08-28 webcolors 四发实测)。"可选"是假的。
             reference_lock=(ref_lock.read_text(encoding="utf-8")
-                            if ref_lock.is_file() else ""),
+                            if ref_lock.is_file()
+                            else derive_reference_lock(
+                                Path(project_root),
+                                distribution=sr["distribution"],
+                                resolved_commit=sr["resolved_commit"])),
             capability_output_schema=draft["capability"]["output_schema"],
             input_ext=input_ext,
             # 域适用性(M4 chardet):"全域合法输入"类工具声明豁免 malformed
