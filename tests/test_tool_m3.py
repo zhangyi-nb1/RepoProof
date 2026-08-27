@@ -22,6 +22,7 @@ import yaml
 from repoproof.runner.tool_mcp import write_mcp_server
 from repoproof.runner.tool_registry import list_tools, register_tool
 from repoproof.runner.tool_release import ACTIVE, append_release_decision
+from tests.conftest import isolate_protected_dirs
 
 _REPO_PY = sys.executable
 _REPO_SITE = sysconfig.get_paths()["purelib"]
@@ -178,11 +179,11 @@ def test_pipeline_runs_to_rehearsal_gate_offline(tmp_path, monkeypatch):
         write_draft_bundle,
     )
     from repoproof.adoption.intake.tool_intake import run_tool_intake
-    from repoproof.harness import host_guard
     from repoproof.runner.tool_pipeline import tool_build
 
-    monkeypatch.setattr(host_guard, "DEFAULT_PROTECTED", ())
-    monkeypatch.delenv("REPOPROOF_PROTECTED_DIRS", raising=False)
+    # 只按 DEFAULT_PROTECTED 不够:结构性发现会把真兄弟仓拉回来
+    # (2026-08-26 上线后隔离一度悄悄失效)。走会自检的共用夹具。
+    isolate_protected_dirs(monkeypatch)
 
     project = tmp_path / "proj"
     # 合成 minilib 上游(git)+ 直接落 pinned 位(ensure 走"已存在"分支,零网)

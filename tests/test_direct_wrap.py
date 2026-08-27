@@ -32,6 +32,7 @@ from repoproof.adoption.planning.capability_plan import (
     PlanError,
     confirm_plan,
 )
+from tests.conftest import isolate_protected_dirs
 
 _REPO_PY = sys.executable
 _REPO_SITE = sysconfig.get_paths()["purelib"]
@@ -128,10 +129,10 @@ def test_derive_requires_confirmed_single_high_callable():
 def _world(tmp_path, monkeypatch, *, locator: str):
     from repoproof.adoption.intake.tool_confirm import write_draft_bundle
     from repoproof.adoption.intake.tool_intake import run_tool_intake
-    from repoproof.harness import host_guard
 
-    monkeypatch.setattr(host_guard, "DEFAULT_PROTECTED", ())
-    monkeypatch.delenv("REPOPROOF_PROTECTED_DIRS", raising=False)
+    # 只按 DEFAULT_PROTECTED 不够:结构性发现会把真兄弟仓拉回来
+    # (2026-08-26 上线后隔离一度悄悄失效)。走会自检的共用夹具。
+    isolate_protected_dirs(monkeypatch)
 
     project = tmp_path / "proj"
     up_src = tmp_path / "up"

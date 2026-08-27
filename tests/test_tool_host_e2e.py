@@ -28,6 +28,7 @@ import pytest
 from repoproof.adoption.assembly.tool_assembler import assemble_tool_task
 from repoproof.domain.models import ToolInterface, ToolInterfaceIO, ToolSpec
 from repoproof.runner.tool_host_bridge import materialize_tool_task
+from tests.conftest import isolate_protected_dirs
 
 _REPO_PY = sys.executable
 _REPO_SITE = sysconfig.get_paths()["purelib"]
@@ -149,12 +150,12 @@ def world(tmp_path_factory):
 
 def _run_fake(world, mode: str, monkeypatch, run_index: int) -> dict:
     from repoproof.agents.fake_model import FakeModel
-    from repoproof.harness import host_guard
     from repoproof.runner import host_guided
 
     # 并行会话写本仓会打脏秒级指纹窗口(smoke 实测);指纹面自有专测。
-    monkeypatch.setattr(host_guard, "DEFAULT_PROTECTED", ())
-    monkeypatch.delenv("REPOPROOF_PROTECTED_DIRS", raising=False)
+    # 只按 DEFAULT_PROTECTED 不够:结构性发现会把真兄弟仓拉回来
+    # (2026-08-26 上线后隔离一度悄悄失效)。走会自检的共用夹具。
+    isolate_protected_dirs(monkeypatch)
 
     runner = host_guided.HostGuidedRunner(
         world["contract"], world["project"], wheelhouse=world["wheelhouse"])
@@ -222,11 +223,11 @@ def test_fake_positive_late_write_selects_best_round(world, monkeypatch):
     gpt-5.5 批次一 12/12 自写 conftest 又把它盖住 —— 故此形态常驻。
     """
     from repoproof.agents.fake_model import FakeModel
-    from repoproof.harness import host_guard
     from repoproof.runner import host_guided
 
-    monkeypatch.setattr(host_guard, "DEFAULT_PROTECTED", ())
-    monkeypatch.delenv("REPOPROOF_PROTECTED_DIRS", raising=False)
+    # 只按 DEFAULT_PROTECTED 不够:结构性发现会把真兄弟仓拉回来
+    # (2026-08-26 上线后隔离一度悄悄失效)。走会自检的共用夹具。
+    isolate_protected_dirs(monkeypatch)
 
     runner = host_guided.HostGuidedRunner(
         world["contract"], world["project"], wheelhouse=world["wheelhouse"])

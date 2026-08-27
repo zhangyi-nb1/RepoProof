@@ -10,14 +10,13 @@ import subprocess
 import sys
 import threading
 import time
-import warnings
 from pathlib import Path
 
 import pytest
 
-from repoproof.harness import host_guard
 from repoproof.harness.host_guard import EXTERNAL, SELF, HostGuardError
 from repoproof.harness.host_task import HostTaskError, HostTaskSpec, run_host_smoke
+from tests.conftest import isolate_protected_dirs
 
 PY = sys.executable
 
@@ -63,7 +62,21 @@ def _mini_world(tmp_path: Path) -> HostTaskSpec:
     )
 
 
-def test_smoke_chain_end_to_end(tmp_path: Path) -> None:
+def test_smoke_chain_end_to_end(tmp_path: Path, monkeypatch) -> None:
+    """全链跑通 + 保护目录**逐位零改动**。
+
+    保护清单换成可控假邻仓(`_fake_neighbour`,定义见下方归因控制组)——
+    2026-08-27 修:此前这条读**真实环境**的保护集,于是它的红绿取决于
+    「你此刻有没有在跑 OfferClaw」:邻仓 logs 每 7–28 秒落盘一次,撞进
+    会话存在的那 ~2.5 秒(约 15% 概率)、而拆除后的 6 秒探针又赶不上它
+    下一次写(周期 ≥7 秒)→ 归因判 SELF → 整条链红。守卫没错,是这条
+    测试把**别的项目在不在运行**当成了判据。
+
+    换成受控主体后判据反而**更严**:不再退让到 `self_ok`,直接要求严判
+    `ok`(逐位零改动)。降级语义没有丢 —— 外部活写手免罪与本链写穿必杀
+    各有一条专控在下面,都用同一条真链、同一个 verify,不走捷径。
+    """
+    _fake_neighbour(tmp_path, monkeypatch)
     spec = _mini_world(tmp_path)
     report = run_host_smoke(spec, tmp_path / "sessions")
 
@@ -76,22 +89,23 @@ def test_smoke_chain_end_to_end(tmp_path: Path) -> None:
     assert "NotImplementedError" in s["hidden_oracle"]["tail"] \
         or "failed" in s["hidden_oracle"]["tail"]
     assert s["teardown"]["session_removed"]           # 会话拆净
-    # ①保护目录零"本链写入"。这里断言 self_ok 而非 ok:保护清单含 XIANGMU
-    # 下全部邻仓,邻仓各有活写手,严判 ok 会被外生变化偶发拖红(守卫无辜)。
-    # 归因逐条留痕,窗内的照杀——负控见下面两条。
+    # ①保护目录严判:受控主体下不许有任何改动,也不许有任何降级警告。
+    # 一旦这里红,说明是**本链**碰了保护目录 —— 没有"邻仓在忙"可推诿。
     integrity = report["main_dir_integrity"]
+    assert integrity["ok"], integrity
     assert integrity["self_ok"], integrity
-    assert all(m["attribution"]["verdict"] == EXTERNAL      # 免罪的必须是外部写手
-               for m in integrity["mismatches"]), integrity
-    for w in report["warnings"]:
-        # 降级不等于噤声:外生改动照样喊出来,进 pytest 的 warnings summary。
-        # 静默放过会训练人忽略这条线,那正是加归因层要避免的第二种坏结局。
-        warnings.warn(f"{w['code']}: {w['dirs']} {w['paths']}", stacklevel=1)
+    assert not integrity["mismatches"], integrity
+    assert not report["warnings"], report["warnings"]
 
 
 def test_smoke_session_contains_no_pii_or_runtime_and_oracle_stays_out(
         tmp_path: Path, monkeypatch) -> None:
-    """会话内不得有真实 PII/运行态;oracle 路径不进会话也不进 agent 环境。"""
+    """会话内不得有真实 PII/运行态;oracle 路径不进会话也不进 agent 环境。
+
+    同样用可控假邻仓:本条断的是会话内容,与真实保护集无关 —— 拿真目录
+    当主体只会白扫几十秒,还把「别的项目在不在跑」引进判据(同上一条)。
+    """
+    _fake_neighbour(tmp_path, monkeypatch)
     spec = _mini_world(tmp_path)
     captured: dict = {}
 
@@ -133,8 +147,7 @@ def _fake_neighbour(tmp_path: Path, monkeypatch) -> Path:
     neighbour = tmp_path / "neighbour-repo"
     (neighbour / "logs").mkdir(parents=True)
     (neighbour / "logs" / "usage.jsonl").write_text("{}\n", encoding="utf-8")
-    monkeypatch.setattr(host_guard, "DEFAULT_PROTECTED", ())
-    monkeypatch.setenv("REPOPROOF_PROTECTED_DIRS", str(neighbour))
+    isolate_protected_dirs(monkeypatch, neighbour)
     return neighbour
 
 
