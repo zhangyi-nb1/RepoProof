@@ -161,6 +161,38 @@ with st.expander("🔧 管理这个工具（做抽查 / 停用 / 查证据）", 
         # 两种给法都收(2026-08-28 实录):字段原来只收**路径**,而用户很自然
         # 地直接填了值(`#000080` / `navy`),只得到一句"文件必须存在" ——
         # 界面要什么、人给什么,对不上时该由界面兼容,而不是让人猜。
+        # 抽查助手:模型出输入、**冻结的参考实现**出期望值(不是被测工具
+        # 自己 —— 那样抽查会自证)。人仍然逐条确认,只是不必从零创造。
+        with st.expander("🧪 不知道期望输出?让系统给候选", expanded=False):
+            st.caption(
+                "输入由模型提议;**期望值由出题期冻结的参考实现真跑上游得出**，"
+                "与被测工具是两条独立实现路径，所以这次比较仍然有判别力。"
+                "选中的候选会填进下面两栏，请你过目后再运行。")
+            _ac1, _ac2 = st.columns([1, 2])
+            _a_offline = _ac2.checkbox("用离线模板（零模型调用）", value=False,
+                                       key="audit_prop_offline")
+            if _ac1.button("给我候选", key="audit_propose"):
+                with st.spinner("生成候选并真跑参考实现……"):
+                    st.session_state["audit_props"] = (
+                        product_jobs.propose_audit_candidates(
+                            tool["name"], n=5, offline=_a_offline))
+            _props = st.session_state.get("audit_props") or {}
+            if _props and not _props.get("ok"):
+                st.error(_props.get("error"))
+            elif _props.get("ok"):
+                _cands = _props.get("candidates") or []
+                if not _cands:
+                    st.warning(
+                        "这一批候选参考实现都接不住（多半是输入形态不对）。"
+                        "取消勾选「离线模板」用模型再试一次通常更准。")
+                for _i, _c in enumerate(_cands):
+                    st.code(f"输入：{_c['input_text']}\n期望：{_c['expected']}",
+                            language="text")
+                    if st.button("用这一条", key=f"use_cand_{_i}"):
+                        st.session_state["audit_input_text"] = _c["input_text"]
+                        st.session_state["audit_expected_text"] = _c["expected"]
+                        st.rerun()
+
         _mode = st.radio("怎么给这次抽查的输入", ["直接填内容", "给文件路径"],
                          horizontal=True, key="audit_mode")
         a, b = st.columns(2)

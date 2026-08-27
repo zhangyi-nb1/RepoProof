@@ -789,6 +789,83 @@ def start_tool_mcp(name: str, dest_root: Path) -> dict:
     )
 
 
+def propose_audit_candidates(tool_name: str, *, n: int = 4,
+                             offline: bool = False) -> dict:
+    """给「新输入抽查」出候选:输入由模型出,**期望值由冻结的 reference 真跑**。
+
+    用户原话:"我可能给出颜色的名字,但是希望得到的预期输出不一定知道"——
+    让人从零手写一个逐字节正确的期望值门槛太高,写错还会误撤回一个好工具
+    (2026-08-28 实录)。
+
+    **红线**:期望值绝不能来自**被测工具自己** —— 那样抽查就成了自证,
+    永远通过,也就永远抓不出 pyspellchecker 那类 false-success。这里用的是
+    `controls/<task>/reference/impl.py`:出题期冻结的参考实现,按纪律必须
+    真 import 钉版上游,与交付物是两条独立实现路径,所以"工具输出 == 参考
+    输出"仍有判别力。最后仍由人逐条确认 —— 系统只把"从零创造"降成"看一眼"。
+    """
+    import shutil
+    import tempfile
+
+    from repoproof.adoption.intake.example_proposer import (
+        ExampleProposalError,
+        mine_evidence_literals,
+        propose_inputs,
+        run_reference_on_candidates,
+    )
+    from repoproof.adoption.intake.tool_drafter import FakeDrafter, online_drafter
+    from repoproof.runner.tool_paths import ToolPathError, validate_tool_name
+    from repoproof.ui.services.product_mode import list_tools, project_root
+
+    try:
+        name = validate_tool_name(tool_name)
+    except ToolPathError as exc:
+        return {"ok": False, "error": str(exc)}
+    root = project_root()
+    entry = next((r for r in list_tools()["tools"] if r["name"] == name), None)
+    task_id = str((entry or {}).get("task_id") or "")
+    if not task_id:
+        return {"ok": False, "error": f"找不到 {name} 的冻结任务,无法出候选。"}
+    ref_impl = root / "controls" / task_id / "reference" / "impl.py"
+    upstream_commit = str((entry or {}).get("resolved_commit") or "")
+    upstream = root / "upstream-cache" / f"upstream-{upstream_commit[:12]}"
+    if not ref_impl.is_file():
+        return {"ok": False,
+                "error": f"找不到冻结的参考实现:{ref_impl} —— 没有独立真值源,"
+                         "不能替你出期望值。"}
+    if not upstream.is_dir():
+        return {"ok": False, "error": f"钉版上游树不在:{upstream}"}
+
+    tmp = Path(tempfile.mkdtemp(prefix="rp-audit-propose-"))
+    try:
+        # 组一个**临时 draft 束形态**给既有的执行器用:只读地拷一份冻结
+        # reference,不碰任何冻结件(controls/ 是不可改写的证据面)。
+        (tmp / "examples" / "inputs").mkdir(parents=True)
+        shutil.copy2(ref_impl, tmp / "reference_impl.py")
+        drafter = FakeDrafter() if offline else online_drafter()
+        batch = propose_inputs(
+            goal=str((entry or {}).get("summary") or name),
+            overview={"repository": str((entry or {}).get("source_url") or ""),
+                      "evidence_literals": mine_evidence_literals(upstream)},
+            drafter=drafter, n=n, existing_inputs=[])
+        cands = run_reference_on_candidates(
+            batch, draft_dir=tmp, upstream_dir=upstream)
+    except (ExampleProposalError, OSError, ValueError) as exc:
+        return {"ok": False, "error": _provider_hint(str(exc))}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # 候选是 pydantic 对象(CandidateExample),不是 dict —— 按 dict 取值会
+    # 全部读空,于是"有候选"被悄悄变成"没候选"(2026-08-28 自查发现)。
+    usable = [{"input_name": c.input_name, "input_text": c.input_text,
+               "why": c.why, "expected": c.upstream_output}
+              for c in cands.candidates
+              if c.upstream_output and not c.upstream_error]
+    return {"ok": True, "drafter": getattr(drafter, "name", "?"),
+            "candidates": usable,
+            "note": ("期望值来自**冻结的参考实现**(真调钉版上游),不是被测"
+                     "工具自己 —— 所以这次比较仍然有判别力。请逐条确认。")}
+
+
 def materialize_audit_pair(tool_name: str, input_text: str,
                            expected_text: str) -> dict:
     """把「直接填的」抽查内容落成文件 → {ok, input, expected}。

@@ -498,6 +498,24 @@ def _output_contract_errors(manifest: dict[str, Any], actual: bytes) -> list[str
         return ["[tool-output-contract] declared contract is invalid"]
 
 
+def _norm_output(raw: bytes) -> str:
+    """与**合同自己的验收测试**同一口径的输出规范化。
+
+    2026-08-28 实录:抽查用的是裸字节比对(`result.stdout != expected`),
+    而 example_compiler 生成的能力测试用的是
+    `_norm(s) = "\\n".join(line.rstrip() for line in s.strip().splitlines())`
+    —— 于是**抽查比合同本身还严**:金标准样例文件都不以换行结尾,工具
+    stdout 却带 `\n`;工具通过了全部 6 条能力测试,却因为这一个换行被抽查
+    判 MISMATCH、自动撤回。用户照着看到的输出原样粘贴,照样被撤回。
+
+    抽查是"拿没见过的输入再验一次同一份合同",它的判据就该是**合同的
+    判据**。比合同更严不是更严谨,是换了一把尺子 —— 那样"通过合同"就
+    推不出"通过抽查",两个结论各说各话。
+    """
+    text = raw.decode("utf-8", errors="replace")
+    return "\n".join(line.rstrip() for line in text.strip().splitlines())
+
+
 def _record_audit_decision(
     dest_root: Path,
     *,
@@ -751,7 +769,11 @@ def _audit_tool_locked(
             reason="Tool returned a non-zero exit code for the fresh input.",
             evidence=evidence,
         )
-    if result.stdout != expected:
+    stdout_matches = (result.stdout == expected
+                      or _norm_output(result.stdout) == _norm_output(expected))
+    evidence["execution"]["comparison"] = (
+        "exact" if result.stdout == expected else "contract_normalized")
+    if not stdout_matches:
         return _record_audit_decision(
             dest_root,
             name=name,

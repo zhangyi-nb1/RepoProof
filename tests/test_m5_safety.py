@@ -881,3 +881,26 @@ def test_generated_mcp_holds_release_lock_from_active_check_through_execution(
     assert reply["result"]["content"][0]["text"] == "authorized-before-revoke\n"
     assert revoke_rows[0]["decision"] == REVOKED
     assert load_release_decisions(dest_root)[-1]["reason_code"] == "CONCURRENT_REVOKE"
+
+def test_audit_uses_the_same_yardstick_as_the_contract(tmp_path: Path):
+    """抽查的比对口径必须与**合同自己的验收测试**一致。
+
+    2026-08-28 实录:抽查用裸字节比对,而 example_compiler 生成的能力测试
+    用 `_norm`(去首尾空白 + 行尾空白)。金标准样例文件不以换行结尾、工具
+    stdout 带 `\\n` —— 工具通过了全部 6 条能力测试,却被抽查判 MISMATCH
+    并**自动撤回**。用户照着实际输出原样粘贴,同样被撤回。
+
+    抽查是"拿没见过的输入再验一次同一份合同",判据就该是合同的判据。
+    比合同更严不是更严谨,是换了一把尺子 —— 那样"通过合同"推不出
+    "通过抽查",两个结论各说各话。
+    """
+    from repoproof.runner.tool_release import _norm_output
+
+    stdout = b'{"a":1}\n'
+    golden = b'{"a":1}'                       # 金标准文件就是这个形状
+    assert stdout != golden                    # 裸字节:不等(旧口径判撤回)
+    assert _norm_output(stdout) == _norm_output(golden)   # 合同口径:相等
+
+    # 真正的不一致仍然必须被抓住
+    assert _norm_output(b'{"a":1}\n') != _norm_output(b'{"a":2}\n')
+    assert _norm_output(b'red\n') != _norm_output(b'blue\n')

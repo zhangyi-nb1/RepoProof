@@ -617,3 +617,41 @@ def test_inline_audit_rejects_empty_material(tmp_path, monkeypatch):
     monkeypatch.setattr(product_jobs, "ui_state_root", lambda: tmp_path)
     assert not product_jobs.materialize_audit_pair("demo-tool", "  ", "x")["ok"]
     assert not product_jobs.materialize_audit_pair("demo-tool", "x", "")["ok"]
+
+
+def test_audit_expectation_never_comes_from_the_tool_under_test(monkeypatch, tmp_path):
+    """**红线**:抽查的期望值来自**冻结的参考实现**,不是被测工具自己。
+
+    用户提的需求是"我不一定知道期望输出,别让我从零创造"。可以帮 —— 但
+    帮法有红线:若期望值取自被测工具的输出,抽查就成了自证,永远通过,
+    也就永远抓不出 pyspellchecker 那类 false-success(声明 JSON、实际
+    输出纯文本,一路绿到运营态)。
+
+    这里钉的是**取值来源**:实现里必须跑 controls/<task>/reference/impl.py
+    (按纪律真 import 钉版上游),而不是 ~/tools 下的交付物。
+    """
+    import inspect
+
+    from repoproof.ui.services import product_jobs
+
+    src = inspect.getsource(product_jobs.propose_audit_candidates)
+    assert "controls" in src and "reference" in src, "期望值必须取自冻结参考实现"
+    assert "run_reference_on_candidates" in src
+    # 不许出现"跑被测工具"的取值路径
+    for forbidden in ("tool_root(", "bin/", "install_verified_tool"):
+        assert forbidden not in src, f"抽查期望值不得来自被测工具({forbidden})"
+
+
+def test_audit_proposal_refuses_without_a_frozen_reference(monkeypatch):
+    """**负控**:没有冻结参考实现 = 没有独立真值源 → 如实拒绝,不拿工具凑数。"""
+    from repoproof.ui.services import product_jobs
+
+    monkeypatch.setattr(
+        "repoproof.ui.services.product_mode.list_tools",
+        lambda *a, **k: {"tools": [{"name": "ghost-tool", "task_id": "tool-ghost-v1",
+                                    "summary": "x", "resolved_commit": "0" * 40}],
+                         "root": "/tmp", "registry_error": None, "release_error": None},
+    )
+    got = product_jobs.propose_audit_candidates("ghost-tool", n=2, offline=True)
+    assert not got["ok"]
+    assert "参考实现" in got["error"]
