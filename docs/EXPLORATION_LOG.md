@@ -3939,3 +3939,18 @@ reference 是离线模板占位 `return str(webcolors)`,它**真 import 了上�
 
 UI 侧另加:在线填写样例(文本;二进制仍走上传)。渲染钉扩到新建工具页。
 全量 1467+60+0(+22 测试);ruff/mypy 全绿。
+
+**同日续:用户点新按钮吃到 AttributeError(LESSONS #50)**。
+`product_jobs has no attribute 'read_repo_overview'` —— 磁盘上有,进程里
+没有:Streamlit 只重新 exec **页面文件**,不重载它 import 的 services
+模块(Studio 进程起于 17:55,函数是 18:15 后加的)。**这是第二次**
+(M6 改 product_mode 常量时同型),上次的结论只写成"运维注意:改常量须
+重启",靠人记得,没拦住第二次。现在两层:加功能后主动重启进程;页面侧
+对新接口做**能力探测**,缺失时给"请重启 Studio"的人话提示(渲染钉钉死)。
+
+顺带修了浏览器实测发现的两处:①「上手片段」把 `README 存在但无代码块`
+这句**说明文字**当代码渲染了 —— 概览层没看 provenance 就取 Finding.value,
+现在只有 FACT 档才当代码,其余走 `quickstart_note`;②根因是 RST 的 README
+不用 ``` 围栏,纯 RST 仓库永远抓不到上手片段 —— 补 doctest/`::` 缩进块提取,
+webcolors 现在能给出 `hex_to_name("#daa520") → 'goldenrod'` 这段现成例子。
+全量 1471+60+0。

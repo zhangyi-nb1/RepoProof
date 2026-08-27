@@ -114,3 +114,45 @@ def test_overview_never_writes_the_users_capability(tmp_path: Path):
     ov = build_repo_overview(report)
     for forbidden in ("capability_goal", "goal", "capability", "statement"):
         assert forbidden not in ov, f"概览不该产出 {forbidden}(那是用户的话)"
+
+
+# ------------------------------------------- quickstart:是代码才当代码渲染
+
+_RST_WITH_DOCTEST = """rstkit
+======
+
+``rstkit`` converts widgets.
+
+For example:
+
+    >>> import rstkit
+    >>> rstkit.convert("a")
+    'A'
+
+Full documentation is available online.
+"""
+
+
+def test_rst_doctest_is_recognised_as_quickstart(tmp_path: Path):
+    """RST 的 README 不用 ``` 围栏 —— 只认围栏等于对纯 RST 仓库永远抓不到
+    上手片段(webcolors 实测:README 里有现成 doctest,却被报成"无代码块")。"""
+    root = _repo(tmp_path)
+    (root / "README.md").unlink()
+    (root / "README.rst").write_text(_RST_WITH_DOCTEST, encoding="utf-8")
+    ov = build_repo_overview(
+        analyze_repository_dir(root, url="https://example.invalid/rstkit"))
+    assert ">>> rstkit.convert" in ov["quickstart"]
+    assert ov["quickstart_note"] == ""
+
+
+def test_non_code_quickstart_is_never_offered_as_code(tmp_path: Path):
+    """**负控**:抓不到代码块时,quickstart 的 value 是一句**说明**
+    ("README 存在但无代码块")。把它塞进代码框会让用户以为上手片段长这样
+    (2026-08-27 浏览器实测发现)。所以只有 FACT 档才允许当代码给出去。"""
+    root = _repo(tmp_path)
+    (root / "README.md").write_text("# coolkit\n\ncoolkit turns widgets into gadgets.\n",
+                                    encoding="utf-8")
+    ov = build_repo_overview(
+        analyze_repository_dir(root, url="https://example.invalid/coolkit"))
+    assert ov["quickstart"] == ""                       # 不给假代码
+    assert "无代码块" in ov["quickstart_note"]            # 但如实说明为什么没有

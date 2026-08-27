@@ -85,6 +85,39 @@ class RepositoryReport(BaseModel):
         return self.model_dump()
 
 
+def _rst_code_block(text: str) -> str:
+    """RST README 里的上手片段:优先 doctest(`>>>` 连续行),其次 `::` 缩进块。
+
+    只做提取,取第一段即可 —— 它的用途是"让人看一眼这库怎么用",不是文档。
+    """
+    lines = (text or "").splitlines()
+    doctest: list[str] = []
+    for ln in lines:
+        s = ln.strip()
+        if s.startswith(">>>") or (doctest and s and not s.startswith(("..", ":"))):
+            doctest.append(s)
+        elif doctest:
+            break
+    if doctest:
+        return "\n".join(doctest)
+
+    for i, ln in enumerate(lines):                 # `::` 之后的缩进块
+        if ln.rstrip().endswith("::"):
+            block: list[str] = []
+            for nxt in lines[i + 1:]:
+                if not nxt.strip():
+                    if block:
+                        break
+                    continue
+                if nxt[:1] in (" ", "\t"):
+                    block.append(nxt.strip())
+                else:
+                    break
+            if block:
+                return "\n".join(block)
+    return ""
+
+
 _README_PROSE_CAP = 1200          # 展示用摘录上限,避免把报告撑大
 # 徽章/图片/HTML 壳/标题下划线(Markdown),以及 RST 的指令、注释与字段行
 # —— `.. image::` / `:alt:` 这类在纯 RST 的 README 里占满开头(webcolors 实测)。
@@ -250,6 +283,11 @@ def analyze_repository_dir(
         m = re.search(r"```(?:python|bash|sh)?\n(.*?)```", readme_text, re.DOTALL)
         if m:
             quickstart = Finding.fact(m.group(1).strip()[:500], f"{readme.name} 首个代码块")
+        elif (rst := _rst_code_block(readme_text)):
+            # RST 的 README 不用 ``` 围栏,只认它等于对纯 RST 仓库永远抓不到
+            # 上手片段(webcolors 实测:README 里有现成的 doctest 例子,却被
+            # 报成"无代码块")。
+            quickstart = Finding.fact(rst[:500], f"{readme.name} doctest/代码块(RST)")
         else:
             quickstart = Finding.inference("README 存在但无代码块", readme.name)
     else:

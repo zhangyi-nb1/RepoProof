@@ -1298,3 +1298,30 @@ Python 的 `sorted` 稳定,于是次序退化成 `glob` 的 readdir 顺序 —�
 别急着怪环境** —— 夹具是会过期的,尤其在它保护的那个集合换了实现之后。
 顺带一提:被隔离的判据这次反而**更严**了(从 `self_ok` 提到严判
 `ok`),去 flake 不等于降标准。
+
+## #50 · Streamlit 只热重载页面,不重载被它 import 的模块(第二次咬人)
+
+现象:用户点新加的按钮,拿到
+`AttributeError: module 'product_jobs' has no attribute 'read_repo_overview'`
+—— 而磁盘上那个函数明明在。
+
+因果:Streamlit 每次 rerun 会重新 exec **页面文件**,但
+`from ... import product_jobs` 拿到的是**进程里缓存的模块对象**。于是
+"页面是新代码、services 是旧对象",两边对不上就抛 AttributeError。
+Studio 进程起于 17:55,而函数是 18:15 之后加的。
+
+**这是第二次**:M6 那轮改 `product_mode` 的文案常量也遇到过同一件事
+(当时的结论写成了"运维注意:改常量须重启")。写成注意事项没能拦住第二
+次,因为注意事项要靠人记得。
+
+改法两层:
+1. 加功能后**主动重启 Studio 进程**(preview_stop + preview_start),
+   不要指望热重载;
+2. 页面侧对新接口做**能力探测**并给人话提示(见 tool_onboarding 的
+   `_require_service`),让下一次的表现是"请重启 Studio 以加载新功能",
+   而不是一串英文 AttributeError 甩在用户脸上。
+
+**同型问法**:凡是"改了代码但运行中的进程行为没变",先问**谁在缓存**
+—— 是模块对象、是 `@st.cache_*`、还是 venv 里装的是旧版本。这一条与
+#47(文件系统元数据)、#48(依赖集)同一母题:**你以为你在测新代码,
+其实你在测一个旧状态。**

@@ -33,6 +33,22 @@ if job and job.get("alive"):
 elif job and job.get("finished"):
     (st.success if job.get("ok") else st.error)(job.get("note") or "任务已结束")
 
+def _require_service(name: str) -> bool:
+    """新接口是否已在**运行中的进程**里(LESSONS #50)。
+
+    Streamlit 只重新 exec 页面文件,不重载它 import 的 services 模块 ——
+    刚加的函数在磁盘上有、在进程里没有,直接调用会甩一串英文
+    AttributeError 给用户。这里探测一次,给人话提示。
+    """
+    if hasattr(product_jobs, name):
+        return True
+    st.warning(
+        "这个功能刚更新过,但当前 Studio 进程还是旧的(Streamlit 只热重载页面,"
+        "不重载后台服务模块)。**请重启 Studio 后再用**;已有的草稿和工具不受影响。"
+    )
+    return False
+
+
 tab_discover, tab_review, tab_build = st.tabs(["1 · 描述能力", "2 · 审核成功标准", "3 · 构建与验证"])
 
 with tab_discover:
@@ -47,7 +63,8 @@ with tab_discover:
     revision = st.text_input("版本或 Commit（可选）", placeholder="v1.2.3 或完整 commit",
                              key="rp_repo_rev")
 
-    if st.button("读取仓库简介（零模型，只做静态分析）", disabled=not repo.strip()):
+    if (st.button("读取仓库简介（零模型，只做静态分析）", disabled=not repo.strip())
+            and _require_service("read_repo_overview")):
         with st.spinner("匿名浅克隆并静态分析中……（不会执行仓库代码）"):
             st.session_state["rp_overview"] = product_jobs.read_repo_overview(
                 repo, revision or None)
@@ -69,6 +86,9 @@ with tab_discover:
             if _ov.get("quickstart"):
                 st.caption(f"上手片段（{_ov.get('quickstart_evidence') or 'README'}）")
                 st.code(_ov["quickstart"], language="python")
+            elif _ov.get("quickstart_note"):
+                st.caption(f"上手片段：{_ov['quickstart_note']}"
+                           f"（{_ov.get('quickstart_evidence') or 'README'}）")
 
             if _ov.get("facts"):
                 st.markdown("**静态分析确认的事实**（每条都可追到出处）")
@@ -223,7 +243,8 @@ with tab_review:
                                   key="rp_cand_n")
             _cand_offline = gp2.checkbox("离线模板", value=True, key="rp_cand_offline",
                                          help="零模型调用，先把流程走通")
-            if gp3.button("生成候选（含边界/畸形输入）", key="rp_cand_go"):
+            if (gp3.button("生成候选（含边界/畸形输入）", key="rp_cand_go")
+                    and _require_service("propose_example_candidates")):
                 with st.spinner("模型出候选输入 → 钉版上游真跑……"):
                     st.session_state["rp_cands"] = product_jobs.propose_example_candidates(
                         inspect_dir, n=int(_n), offline=_cand_offline)

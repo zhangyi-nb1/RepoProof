@@ -87,7 +87,13 @@ def build_repo_overview(report: RepositoryReport) -> dict:
         "headline": headline,
         "prose": prose,
         "prose_source": "README 原文摘录(未经模型改写)" if prose else "",
-        "quickstart": _val(report.quickstart),
+        # quickstart 只在 provenance=FACT 时才是**真代码块**;INFERENCE/UNKNOWN
+        # 时它的 value 是一句说明("README 存在但无代码块"),把那句话塞进
+        # 代码框会让用户以为上手片段长这样(2026-08-27 浏览器实测发现)。
+        "quickstart": (_val(report.quickstart)
+                       if getattr(report.quickstart, "provenance", "") == "FACT" else ""),
+        "quickstart_note": ("" if getattr(report.quickstart, "provenance", "") == "FACT"
+                            else _val(report.quickstart)),
         "quickstart_evidence": str(getattr(report.quickstart, "evidence", "") or ""),
         "facts": facts,
         "surfaces": surfaces,

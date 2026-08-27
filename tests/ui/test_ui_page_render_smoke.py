@@ -88,3 +88,27 @@ def test_onboarding_page_renders_with_repo_overview(monkeypatch: pytest.MonkeyPa
     labels = [b.label for b in at.button]
     assert any("仓库简介" in x for x in labels), labels
     assert any("候选" in x for x in labels), labels
+
+
+def test_stale_service_process_gets_a_readable_warning(monkeypatch: pytest.MonkeyPatch) -> None:
+    """**负控**:运行中的 Studio 进程缺少新接口时,给人话提示而不是 AttributeError。
+
+    LESSONS #50(第二次咬人):Streamlit 只重新 exec 页面文件,不重载它
+    import 的 services 模块 —— 刚加的函数"磁盘上有、进程里没有",用户点
+    按钮就吃一串英文 AttributeError(2026-08-27 用户实测)。
+    """
+    from repoproof.ui.services import product_jobs
+
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.delattr(product_jobs, "read_repo_overview", raising=False)
+
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=90)
+    at.session_state["rp_repo_url"] = "https://github.com/example/demo"
+    at.run()
+    btn = [b for b in at.button if "仓库简介" in b.label][0]
+    btn.click().run()
+
+    assert not [str(e.value) for e in at.exception], [str(e.value) for e in at.exception]
+    assert any("重启" in w.value for w in at.warning), [w.value for w in at.warning]
