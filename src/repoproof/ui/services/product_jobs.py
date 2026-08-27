@@ -729,6 +729,22 @@ def start_tool_withdraw(name: str, reason: str, dest_root: Path) -> dict:
 # 逐条确认。详见 adoption/analysis/repo_overview.py 与
 # adoption/intake/example_proposer.py 的模块注释。
 
+def provider_configured() -> bool:
+    """进程里有没有模型连接配置(只看在不在,**不读值**)。"""
+    return bool(os.environ.get("REPOPROOF_API_KEY")
+                and os.environ.get("REPOPROOF_API_BASE"))
+
+
+def _provider_hint(raw: str) -> str:
+    """把"起草通道未配置"翻成人话 + 明确出路(2026-08-27 用户实测)。"""
+    if provider_configured():
+        return f"模型调用失败:{raw}"
+    return ("Studio 启动时没有加载模型连接配置,所以模型相关功能不可用。"
+            "两条出路:①勾上「用离线模板(零模型调用)」先把流程走通;"
+            "②用 `scripts/run_studio_live.sh` 重启 Studio(它会从 .env 注入连接配置)。"
+            f"(原始信息:{raw})")
+
+
 def read_repo_overview(repo: str, revision: str | None = None) -> dict:
     """匿名浅克隆 + 静态分析 → 仓库概览(零模型;永不执行仓库代码)。"""
     from repoproof.adoption.analysis.repo_overview import build_repo_overview
@@ -767,7 +783,7 @@ def summarize_repo_overview(overview: dict, *, offline: bool) -> dict:
             "surfaces": [s.get("value") for s in (overview.get("surfaces") or [])][:15],
         })
     except DraftError as exc:
-        return {"ok": False, "error": f"模型摘要失败:{exc}"}
+        return {"ok": False, "error": _provider_hint(str(exc))}
     except Exception as exc:                                     # noqa: BLE001
         return {"ok": False, "error": f"模型摘要失败:{exc}"}
     return {"ok": True, "summary": str(doc.get("summary") or ""),

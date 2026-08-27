@@ -106,8 +106,15 @@ with tab_discover:
             if _ov.get("risks"):
                 st.warning("需要注意：" + "；".join(_ov["risks"][:3]))
 
+            _has_provider = product_jobs.provider_configured()
+            if not _has_provider:
+                st.caption(
+                    "ℹ️ 当前 Studio 没有加载模型连接配置：模型摘要/在线起草/真发构建不可用。"
+                    "零模型的部分（仓库简介、离线模板、离线彩排）照常。"
+                    "要用模型：`scripts/run_studio_live.sh` 重启 Studio。")
             sc1, sc2 = st.columns([1, 2])
-            _sum_offline = sc2.checkbox("用离线模板（零模型调用）", value=False,
+            _sum_offline = sc2.checkbox("用离线模板（零模型调用）",
+                                        value=not _has_provider,
                                         key="rp_sum_offline")
             if sc1.button("让模型总结/翻译一下"):
                 with st.spinner("生成摘要中……"):
