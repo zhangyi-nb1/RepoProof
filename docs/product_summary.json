@@ -20,10 +20,10 @@
     "tool_ready_rate": 0.909
   },
   "frozen_artifacts": {
-    "contracts": 77,
-    "controls": 35,
-    "oracles": 41,
-    "tool_tasks": 39
+    "contracts": 79,
+    "controls": 36,
+    "oracles": 42,
+    "tool_tasks": 40
   },
   "ledger": {
     "clean_resample_by_task": {
@@ -67,8 +67,8 @@
       "FAIL": 5,
       "PASS_ADAPTED": 47
     },
-    "product_rehearsal_runs": 50,
-    "product_runs": 102,
+    "product_rehearsal_runs": 51,
+    "product_runs": 103,
     "product_runs_integrity_mismatch": [
       "tool-emoji-tool-v1-20260823-224510",
       "tool-emoji-tool-v1-20260823-224532",
@@ -114,12 +114,12 @@
       "tool-pyspellchecker-tool-v1-20260823-224033",
       "tool-xmltodict-tool-v1-20260823-220549"
     ],
-    "rows_total": 331
+    "rows_total": 332
   },
   "note": "Machine-readable fact source for RepoProof PRODUCT-mode claims. Extraction-only from committed ledgers; null = evidence does not prove it. Benchmark Lab numbers live in benchmark_summary.json and are never merged with these. Rebuild: scripts/build_product_summary.py; enforced by check_public_claims.py.",
   "sources": {
     "m4_metrics_sha256": "9ddda6fe0b6b35d85e93937d5506f73e1e6cd08e2780312bd47a21edc69deae0",
     "run_classifications_sha256": "d44a7bcf3bf1d57a96d5ce07d85d9e50040908a131789e7ff0d0fec96fc680cf",
-    "runs_jsonl_sha256": "d13bbaf327f8a0cb5c7cef05989ac30a09ac07fee721e6c456a917ab39d501a7"
+    "runs_jsonl_sha256": "f8fffe451cf506d21bd4db2a39c7d9b54f8862832e771c63724afcfe4b7374d8"
   }
 }

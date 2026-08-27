@@ -3991,3 +3991,22 @@ golden,另 6 条如实归为题面证据(`chucknorris`、`#123456` 等)。
 顺带:把用户草稿里的占位 reference(`return str(webcolors)`)补成真调
 `hex_to_name` 的实现(严格忠实上游:不带 `#`、无对应名一律 UserInputError,
 "要不要宽松"留作产品决定),占位检测随即放行。全量 1475+60+0。
+
+## 状态 · 2026-08-28 · webcolors 三发白跑的真因:备轮漏装上游
+
+用户判断"项目能力不足"。取证结论:**与能力无关,一个模型都没调**
+(三发全 `fake-scripted:positive`),死于 `ModuleNotFoundError:
+No module named 'webcolors'` —— wheelhouse 只有 7 个轮子(pytest 那套),
+缺上游本体;对照 emoji/xmltodict/tomli 都是 8 轮含上游,它们的
+`controls/<task>/reference/requirements.lock.txt` 都写着上游 pin,而
+webcolors 那份**根本没有这个文件**(人务清单标着"可选")。
+
+修复(`resolve_upstream_pins`):锁缺上游 → 从钉版树声明版本派生
+`webcolors==25.10.0`(实测:修复前 pins=[],修复后有了);派生不出 →
+当场 PipelineError 拒发;真备轮后再核一次 wheelhouse 里上游是否真在
+(测试注入 `wheelhouse_cmd` 时不核 —— 核一个没发生的动作只会得假结论)。
+配套三测(派生/不覆盖人写的锁/负控拒发)。教训 #52 入册。
+
+顺带:两条既有测试的合成上游没声明版本(空目录桩 / minilib 有版本),
+按"真实钉版树都声明版本"补齐桩;台账 v3 行的派生件重算。
+全量 1498+60+0。

@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -97,6 +98,73 @@ def _reference_pins(project_root: Path, task_id: str) -> list[str]:
         return []
     return [ln.strip() for ln in lock.read_text(encoding="utf-8").splitlines()
             if ln.strip() and not ln.strip().startswith("#")]
+
+
+def _upstream_version(upstream_dir: Path) -> str:
+    """从**钉版上游树自己**读声明版本(pyproject / setup.cfg / PKG-INFO)。
+
+    用树里的版本而不是 PyPI 上的最新版:pin 的语义是"就这一版",
+    去解析最新版等于把钉版偷偷放开。
+    """
+    py = Path(upstream_dir) / "pyproject.toml"
+    if py.is_file():
+        try:
+            import tomllib
+            data = tomllib.loads(py.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            data = {}
+        v = ((data.get("project") or {}).get("version")
+             or (((data.get("tool") or {}).get("poetry") or {}).get("version")))
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    cfg = Path(upstream_dir) / "setup.cfg"
+    if cfg.is_file():
+        m = re.search(r"^\s*version\s*=\s*(\S+)\s*$",
+                      cfg.read_text(encoding="utf-8", errors="replace"), re.MULTILINE)
+        if m:
+            return m.group(1).strip()
+    for info in sorted(Path(upstream_dir).glob("*.egg-info/PKG-INFO")):
+        m = re.search(r"^Version:\s*(\S+)\s*$",
+                      info.read_text(encoding="utf-8", errors="replace"), re.MULTILINE)
+        if m:
+            return m.group(1).strip()
+    return ""
+
+
+def _norm_dist_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", (name or "").strip()).lower()
+
+
+def resolve_upstream_pins(project_root: Path, task_id: str, *,
+                          distribution: str, upstream_dir: Path) -> list[str]:
+    """备轮用的 pin 集合 —— **必须含上游本体**,否则当场拒发。
+
+    2026-08-28 实测(webcolors,三发白跑):`reference.lock.txt` 在人务清单
+    里写着"(可选)",而它一旦缺席,`_reference_pins` **静默返回空** ——
+    wheelhouse 只装 pytest 那套,会话里根本没有上游,于是每条能力测试都
+    炸 `ModuleNotFoundError`,再被包装成 `DEPENDENCY_ERROR` +
+    `REGRESSION_FAILURE`,在**三轮修复之后**才浮出来,离病因十万八千里。
+    "可选"是假的:不写就必崩。
+
+    两件事:①锁文件缺上游时,从**钉版上游树自己**声明的版本派生
+    `dist==version`(陷阱消灭);②派生不出来就抛错,绝不建一个注定装不上
+    上游的 wheelhouse(静默降级 → 当场拒发)。
+    """
+    pins = _reference_pins(project_root, task_id)
+    want = _norm_dist_name(distribution)
+    if not want:
+        return pins
+    if any(_norm_dist_name(re.split(r"[=<>!~\[]", p, maxsplit=1)[0]) == want for p in pins):
+        return pins
+    version = _upstream_version(upstream_dir)
+    if not version:
+        raise PipelineError(
+            f"备轮缺上游 {distribution!r}:controls/{task_id}/reference/"
+            "requirements.lock.txt 没有它,钉版树里也读不出声明版本。"
+            f"请在 draft 束的 reference.lock.txt 写上 `{distribution}==<版本>`"
+            " —— 没有它,会话里 import 不到上游,所有能力测试都会以 "
+            "ModuleNotFoundError 失败。")
+    return [*pins, f"{distribution}=={version}"]
 
 
 def _build_preflight_venv(task_dir: Path, pins: list[str]) -> Path:
@@ -235,7 +303,8 @@ def tool_build(
     # 2b) DIRECT_WRAP:受信模板 adapter + 确定 lock **在装配骨架里落位**
     # (materialize 之前 —— 任务包/bench 副本由骨架拷出)。S0 即完整交付,
     # agent 零 diff,completion gate 的既有 PASS_DIRECT 语义自然成立。
-    pins = _reference_pins(project_root, task_id)
+    pins = resolve_upstream_pins(project_root, task_id,
+                                 distribution=sr["distribution"], upstream_dir=up)
     if route == "DIRECT_WRAP":
         skel = (Path(project_root) / "fixtures"
                 / f"tool_skeleton_{draft['tool']['name']}")
@@ -294,7 +363,19 @@ def tool_build(
         capture_output=True, text=True, timeout=900)
     if r.returncode != 0:
         raise PipelineError(f"wheelhouse 备轮失败:{r.stderr[-300:]}")
-    stages["wheelhouse"] = {"wheels": len(list(wheelhouse.glob('*.whl')))}
+    # 事后核账只在**真备轮**时成立:`wheelhouse_cmd` 是测试注入口(E2E 用
+    # `true` 跳过下载、改由 PYTHONPATH shim 提供上游),那种情况下这里没有
+    # 东西可核 —— 核一个没发生的动作只会得出假结论。生产侧无人传此参数。
+    downloaded = ([f.name for f in wheelhouse.iterdir() if f.is_file()]
+                  if wheelhouse_cmd is None else [])
+    want = _norm_dist_name(sr["distribution"]) if wheelhouse_cmd is None else ""
+    if want and not any(_norm_dist_name(n.split("-")[0]) == want for n in downloaded):
+        # 事后核账:pip 说成功不等于上游真躺在那儿。不量一次就等于假设。
+        raise PipelineError(
+            f"备轮完成但 wheelhouse 里没有上游 {sr['distribution']!r}:"
+            f"{sorted(downloaded)[:8]} —— 会话将 import 不到上游,拒绝继续。")
+    stages["wheelhouse"] = {"wheels": len(list(wheelhouse.glob('*.whl'))),
+                            "upstream_present": True}
 
     # 5/6) 路由执行器(Gate 3):两条路线共享前段(confirm/pin/物化/备轮)
     # 与后段(投影/export/注册);中段按 Capability Plan 分道。

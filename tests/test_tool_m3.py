@@ -279,3 +279,59 @@ def test_pipeline_runs_to_rehearsal_gate_offline(tmp_path, monkeypatch):
     (dest / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
     with pytest.raises(ConfirmError):
         confirm_tool_draft(dest, project)
+
+# ---------------- 备轮必须含上游(2026-08-28 webcolors 三发白跑的根因) ----------------
+
+def _pinned_tree(tmp_path: Path, *, version: str | None) -> Path:
+    up = tmp_path / "upstream-e6392ba6eeba"
+    up.mkdir(parents=True)
+    body = '[project]\nname = "webcolors"\n'
+    if version:
+        body += f'version = "{version}"\n'
+    (up / "pyproject.toml").write_text(body, encoding="utf-8")
+    return up
+
+
+def test_missing_lock_derives_upstream_pin_from_the_pinned_tree(tmp_path: Path):
+    """锁文件缺席时,从**钉版树自己**声明的版本派生上游 pin。
+
+    实录:`reference.lock.txt` 在人务清单里写着"(可选)",而它一旦缺席,
+    `_reference_pins` 静默返回空 → wheelhouse 只装 pytest 那套 → 会话里
+    没有上游 → 每条能力测试炸 ModuleNotFoundError,再被包装成
+    DEPENDENCY_ERROR,在三轮修复之后才浮出来。"可选"是假的:不写就必崩。
+    """
+    from repoproof.runner.tool_pipeline import resolve_upstream_pins
+
+    pins = resolve_upstream_pins(
+        tmp_path, "tool-webcolors-tool-v3",
+        distribution="webcolors", upstream_dir=_pinned_tree(tmp_path, version="25.10.0"))
+    assert pins == ["webcolors==25.10.0"]
+
+
+def test_existing_lock_wins_and_is_not_duplicated(tmp_path: Path):
+    """锁文件已写了上游就以它为准 —— 派生只补缺,不覆盖人的选择。"""
+    from repoproof.runner.tool_pipeline import resolve_upstream_pins
+
+    lock = tmp_path / "controls" / "t1" / "reference"
+    lock.mkdir(parents=True)
+    (lock / "requirements.lock.txt").write_text(
+        "# 人写的\nwebcolors==24.11.1\n", encoding="utf-8")
+
+    pins = resolve_upstream_pins(
+        tmp_path, "t1", distribution="webcolors",
+        upstream_dir=_pinned_tree(tmp_path, version="25.10.0"))
+    assert pins == ["webcolors==24.11.1"]        # 不被派生版本挤掉,也不重复
+
+
+def test_underivable_pin_refuses_loudly_instead_of_building_a_doomed_wheelhouse(tmp_path: Path):
+    """**负控**:既没有锁、也读不出版本 → 当场拒发。
+
+    绝不建一个"注定装不上上游"的 wheelhouse 然后让它在三轮之后炸 ——
+    静默降级正是这个 bug 的全部危害所在。
+    """
+    from repoproof.runner.tool_pipeline import PipelineError, resolve_upstream_pins
+
+    with pytest.raises(PipelineError, match="备轮缺上游"):
+        resolve_upstream_pins(
+            tmp_path, "t2", distribution="webcolors",
+            upstream_dir=_pinned_tree(tmp_path, version=None))

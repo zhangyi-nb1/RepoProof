@@ -661,6 +661,10 @@ def test_pipeline_preflights_upgrade_before_models_and_uses_safe_installer(
     )
     upstream = tmp_path / "upstream"
     upstream.mkdir()
+    # 真实的钉版树都声明版本;备轮要靠它派生上游 pin(2026-08-28:锁文件
+    # 缺席 + 派生不出版本 = 会话装不上上游,现在会当场拒发而不是三轮后炸)。
+    (upstream / "pyproject.toml").write_text(
+        '[project]\nname = "alpha-dist"\nversion = "1.0.0"\n', encoding="utf-8")
     monkeypatch.setattr(
         tool_pipeline, "ensure_pinned_upstream", lambda *_args: upstream
     )
