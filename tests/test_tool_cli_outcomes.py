@@ -92,6 +92,28 @@ def test_tool_build_cli_exit_matches_completion_boundary(
     assert payload["ok"] is (expected_code == 0)
 
 
+def test_tool_build_cli_defaults_product_agent_to_codex(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: dict[str, object] = {}
+
+    def _build(*_args: object, **kwargs: object) -> dict:
+        seen.update(kwargs)
+        return {"verdict": "REHEARSAL_PASS_ONLY", "exported": None}
+
+    monkeypatch.setattr(tool_pipeline, "tool_build", _build)
+    code = cli.main([
+        "tool", "build",
+        "--draft-dir", str(tmp_path / "draft"),
+        "--dest-root", str(tmp_path / "tools"),
+        "--rehearsal-only",
+    ])
+
+    assert code == 0
+    assert seen["agent_backend"] == "codex-cli"
+
+
 def test_tool_add_drafter_failure_is_nonzero_even_when_skeleton_exists(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -118,6 +118,7 @@ def tool_build(
     bench_root: Path,
     dest_root: Path,
     run_real: bool = True,
+    agent_backend: str = "codex-cli",
     conformance_keywords: list[str] | None = None,
     batch: str = "EXPLORATORY_UNPREREGISTERED",
     setup_commands: list[list[str]] | None = None,   # 测试注入(E2E shim)
@@ -128,6 +129,12 @@ def tool_build(
     哪一步、为何停)。兼容字段 ``verdict`` 仍表示历史验证结论。
     """
     from repoproof.runner.host_guided import run_host_guided_cli
+
+    if agent_backend not in {"codex-cli", "mini-swe"}:
+        raise PipelineError(
+            f"Product Mode 不支持 agent backend={agent_backend!r};"
+            "可选 codex-cli / mini-swe"
+        )
 
     project_root = Path(project_root)
     draft_dir = Path(draft_dir)
@@ -326,13 +333,23 @@ def tool_build(
                     "verdict": "REHEARSAL_PASS_ONLY", "exported": None}
 
         # 6) 真模型单发(provider 从 env;未配置由 preflight 如实拦)
-        real = run_host_guided_cli(contract, project_root, fake=None,
-                                   batch=batch)
+        real = run_host_guided_cli(
+            contract,
+            project_root,
+            fake=None,
+            batch=batch,
+            backend=agent_backend,
+        )
         if real.get("blocked"):
             stages["real"] = real
             return {"task_id": task_id, "stages": stages,
                     "verdict": "REAL_BLOCKED", "exported": None}
         rp = real.get("report") or {}
+        stages["agent_backend"] = {
+            "id": agent_backend,
+            "product_mode_only": agent_backend == "codex-cli",
+            "benchmark_eligible": False,
+        }
     # Gate 2:修复循环事实的产品投影(纯读取侧派生,历史/新 run 同函,
     # 不回写 report 与任何台账)。两条路线共用。
     from repoproof.adoption.repair.failure_assessment import (

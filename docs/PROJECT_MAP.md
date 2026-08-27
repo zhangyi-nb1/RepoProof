@@ -38,7 +38,8 @@ URL+一句话 → 静态分析 → CapabilityPlanV1(证据+确定性路由,用�
 | 产品可信链 | `adoption/`(analyzer/plan/intake/assembly/repair)、`verification/`、`harness/`、`domain/`、`persistence/`、`execution/`、`receipts/`、`probes/` | 在役,mypy 0 错 |
 | 产品运营 | `runner/tool_export|registry|release|mcp|paths|host_bridge` | 在役,mypy 0 错(2026-08-26 摘出豁免) |
 | 展示面 | `ui/`(Streamlit Studio,不参与判定)、`cli.py` | 在役,mypy 0 错(2026-08-27 摘出豁免) |
-| DSH 后端线 | `agents/`(E 轨已关闭,功能面随 Lab 冻结) | mypy 0 错(2026-08-27) |
+| 产品 Agent 连接器 | `agents/codex_cli_backend.py`、`codex_hook_guard.py` | 在役,mypy 0 错;仅 Product Mode,不计 Lab 成绩 |
+| mini-swe / DSH 历史后端线 | `agents/` 其余执行件(E 轨已关闭,DSH 功能面随 Lab 冻结) | mini-swe 保留 API 兼容;DSH 仅 Lab;mypy 0 错 |
 | **Lab 冻结区** | `runner/host_guided.py`、`baseline.py`、`guided_repair.py`、`agent_run.py`、`sidecar_session.py`、`calibration.py`、`demo.py`、`scaffold.py` | **FROZEN 2026-08-25**;mypy 唯一豁免,逐文件列名(整包通配会给新增模块开暗门) |
 
 渐进队列已清空:类型覆盖是**棘轮**,名单只许减。新增模块默认受检,

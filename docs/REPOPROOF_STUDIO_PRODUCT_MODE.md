@@ -73,7 +73,10 @@ Completion Gate，也不把 Agent 的自述转成成功结论。
 - 历史 run、旧 ledger 与 M4 指标不回填、不迁移、不改写；
 - 产品构建结果不能充当模型能力成绩，Lab 的研究流程也不阻塞普通产品任务。
 
-默认执行 backend 为 mini-swe；DSH 只标记为 optional/experimental。
+默认执行 backend 为官方 Codex CLI（复用本机 ChatGPT 订阅登录）；mini-swe
+保留为显式 API/provider 兼容选项。DSH 属冻结的 Benchmark Lab 研究线，
+不作为 Studio Product Mode 选项。Codex 内部 agent loop 不参与 RepoProof
+的模型能力评分，最终判定仍只来自 RepoProof 独立验证与 clean replay。
 Agent 只有在用户确认合同与代表性样例后才尝试构建；只有独立验证、clean
 replay 与 fresh audit 均成立，当前 task version 才能成为 `ACTIVE`。
 

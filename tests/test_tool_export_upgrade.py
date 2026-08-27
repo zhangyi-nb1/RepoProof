@@ -680,8 +680,11 @@ def test_pipeline_preflights_upgrade_before_models_and_uses_safe_installer(
         *,
         fake: str | None,
         batch: str,
+        backend: str = "mini-swe",
     ) -> dict:
         assert batch == "TEST"
+        if fake is None:
+            assert backend == "codex-cli"
         events.append("rehearsal" if fake else "real")
         return {
             "report": {

@@ -174,10 +174,12 @@ DIRECT_WRAP 不调用 Coding Agent，但仍必须经过同一合同、上游采�
 #### AGENT_ADAPT
 
 适用于 callable 明确，但需要有限输入转换、输出规范化、异常映射或依赖处理的
-任务。它继续复用现有 mini-swe 主路径和验证体系。
+任务。产品默认复用官方 Codex CLI 的原生 agent loop，并继续使用 RepoProof 自己的
+有界 repair、合同和验证体系；mini-swe 保留为需要 API provider 时的兼容后端。
 
-DSH 保持 optional/experimental。除非出现 mini-swe 无法满足、且 DSH 能以可测
-方式消除的具体阻塞，不应把“资格化 DSH”设为产品 alpha 的前置里程碑。
+DSH 与旧宿主适配引擎一起冻结在 Benchmark Lab。除非出现当前两个产品后端都无法
+满足、且 DSH 能以可测方式消除的具体阻塞，不应把“资格化 DSH”设为产品 alpha
+的前置里程碑。
 
 ### 5.3 四种面向用户的分析结论
 
@@ -358,7 +360,7 @@ ledger 或 package identity 损坏、held-out 失败、receipt 可信面缺失�
 ### 7.2 路由与执行
 
 - DIRECT_WRAP 不能触发 Agent backend；
-- AGENT_ADAPT 默认使用 mini-swe，DSH 未资格化时 fail closed；
+- AGENT_ADAPT 默认使用 Codex CLI，mini-swe 是显式兼容后端；DSH 不进入 Product Mode；
 - 两条路径共享合同与最终 gate，不能各写一套“成功”；
 - route、backend、model invocation 和 Product/Lab 计分字段进入 run 元数据；
 - Product run 永不进入 Benchmark Lab 模型能力指标。
@@ -436,7 +438,7 @@ M7 仍属于当前 Local Tool 产品，但它是 delivery profile 扩展，不�
 3. 展示 DIRECT_WRAP 不调用模型，或 AGENT_ADAPT 只获得有限公开反馈；
 4. 展示独立验证、receipt 与 replay；
 5. 展示 historical READY 但 current REVOKED 仍被 MCP 拦截；
-6. 最后再说明 mini-swe/DSH 是可替换执行器，不是判官。
+6. 最后再说明 Codex CLI/mini-swe 是可替换执行器，不是判官；DSH 是冻结研究资产。
 
 这个故事同时体现产品判断、Harness 设计、Agent 工程、可复现性和安全边界，技术
 含量明显高于“把函数包成 MCP”，范围又小于重做一个通用 Agent 平台。

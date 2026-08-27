@@ -109,9 +109,10 @@ with tab_discover:
             _has_provider = product_jobs.provider_configured()
             if not _has_provider:
                 st.caption(
-                    "ℹ️ 当前 Studio 没有加载模型连接配置：模型摘要/在线起草/真发构建不可用。"
+                    "ℹ️ 当前 Studio 没有加载 API provider：模型摘要/在线起草不可用。"
                     "零模型的部分（仓库简介、离线模板、离线彩排）照常。"
-                    "要用模型：`scripts/run_studio_live.sh` 重启 Studio。")
+                    "真实构建仍可选择已登录的 Codex CLI；这条提示不代表 Codex 登录状态。"
+                    "如要启用摘要/在线起草，再用 `scripts/run_studio_live.sh` 重启 Studio。")
             sc1, sc2 = st.columns([1, 2])
             _sum_offline = sc2.checkbox("用离线模板（零模型调用）",
                                         value=not _has_provider,
@@ -417,8 +418,9 @@ with tab_review:
 with tab_build:
     section_intro("先彩排，再决定是否启动真实 Agent", "彩排门失败不会消耗真实模型预算；成功后仍需独立验证和干净重放。")
     st.caption(
-        "默认 Agent backend：mini-swe。DeepSeek Harness（DSH）目前仅为可选实验后端，"
-        "不作为 Studio 默认执行路径。"
+        "产品默认 Agent backend：Codex CLI（使用本机 ChatGPT 登录）；"
+        "mini-swe 保留为 API provider 兼容后端。DSH 属于冻结的 Benchmark Lab 研究线，"
+        "不进入 Studio 产品构建。"
     )
     build_dir = Path(
         st.text_input(
@@ -429,6 +431,18 @@ with tab_build:
     ).expanduser()
     dest_root = Path(st.text_input("工具库位置", value=str(tool_root()))).expanduser()
     rehearsal_only = st.toggle("只运行离线彩排", value=True)
+    backend_label = st.selectbox(
+        "真实构建 Agent",
+        options=["Codex CLI（ChatGPT 订阅）", "mini-swe（API 网关）"],
+        disabled=rehearsal_only,
+        help=("离线彩排不调用模型。Codex CLI 复用官方 agent loop；"
+              "RepoProof 仍负责合同、repair、独立验证与发布状态。"),
+    )
+    agent_backend = (
+        "codex-cli"
+        if backend_label.startswith("Codex CLI")
+        else "mini-swe"
+    )
     confirmed = st.checkbox("我已确认输入输出、样例真值、上游版本和许可证")
     lineage_ready = True
     build_bundle = product_jobs.read_managed_draft_review(build_dir)
@@ -482,6 +496,7 @@ with tab_build:
             draft_dir=build_dir,
             dest_root=dest_root,
             rehearsal_only=rehearsal_only,
+            agent_backend=agent_backend,
         )
         (st.success if result.get("ok") else st.error)(result.get("note") or result.get("error"))
 

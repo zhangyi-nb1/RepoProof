@@ -174,6 +174,8 @@ _FACE_MAP: tuple[tuple[str, str], ...] = (
     ("agents/backend.py", "executor_semantics"),             # agent 循环
     ("agents/dsh_worker.py", "executor_semantics"),          # DSH 外来循环(阶段 3)
     ("agents/dsh_backend.py", "executor_semantics"),         # DSH 预算长牙处(阶段 4)
+    ("agents/codex_cli_backend.py", "executor_semantics"),   # Product Codex 原生 harness 连接器
+    ("agents/codex_hook_guard.py", "executor_semantics"),    # Codex 命令策略钩子
     # 桥接件归 executor 面的裁决点:bridge_budget 决定 H1 臂跑在什么总额下
     # (= 改运行预算)。fidelity/指纹虽是量具,F1 一模一面,按主导语义归。
     ("agents/dsh_bridge.py", "executor_semantics"),          # 等总额映射(阶段 8)

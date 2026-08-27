@@ -110,6 +110,13 @@ def main(argv: list[str] | None = None) -> int:
                           default=Path("~/tools").expanduser())
     pt_build.add_argument("--rehearsal-only", action="store_true",
                           help="只到 fake 彩排门,不烧真模型预算")
+    pt_build.add_argument(
+        "--agent-backend",
+        choices=["codex-cli", "mini-swe"],
+        default="codex-cli",
+        help=("真实 AGENT_ADAPT 执行后端:codex-cli=ChatGPT 订阅登录的官方 "
+              "Codex harness(产品默认);mini-swe=API provider + 仓内循环"),
+    )
     pt_build.add_argument("--batch", default="EXPLORATORY_UNPREREGISTERED")
     pt_plan = tsub.add_parser(
         "plan", help="RFC-013 Gate1:证据化能力表面 + 确定性路由(零模型)")
@@ -454,6 +461,7 @@ def main(argv: list[str] | None = None) -> int:
                                  bench_root=args.bench_root,
                                  dest_root=args.dest_root,
                                  run_real=not args.rehearsal_only,
+                                 agent_backend=args.agent_backend,
                                  batch=args.batch)
             except (ConfirmError, PipelineError) as exc:
                 print(json.dumps({"ok": False, "error": str(exc),

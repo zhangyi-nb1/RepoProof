@@ -19,8 +19,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from minisweagent.agents.default import DefaultAgent
-
 SYSTEM_TEMPLATE = """You are a careful software engineer working alone in a
 sandboxed Linux container (no network). You interact ONLY by issuing bash
 commands; each reply must contain exactly the command(s) to run next.
@@ -40,6 +38,12 @@ class AgentRunResult:
     trajectory_path: Path | None
     commands_used: int
     denied_count: int
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    model_calls_observed: bool = True
+    policy_denials: tuple[str, ...] = ()
+    policy_audit_complete: bool = True
 
 
 class MiniSWEBackend:
@@ -54,6 +58,11 @@ class MiniSWEBackend:
         self.run_count = 0
 
     def run_task(self, task: str) -> AgentRunResult:
+        # Keep the Product Codex connector independent from mini-swe's import
+        # side effects (including loading its global provider .env).  The
+        # compatibility backend is imported only when explicitly selected.
+        from minisweagent.agents.default import DefaultAgent
+
         assert self.run_count == 0, "MiniSWEBackend.run_task may be called exactly once"
         self.run_count += 1
         agent = DefaultAgent(

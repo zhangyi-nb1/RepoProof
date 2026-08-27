@@ -49,16 +49,24 @@ REVIEW_REQUIRED → fresh non-example audit
 ACTIVE RepoProof-managed MCP / upgrade release (or append-only REVOKED)
 ```
 
-The coding agent can inspect the public contract, public examples, and runnable
-public tests. It cannot read held-out examples or the acceptance oracle. Its
-own completion claim never produces a passing verdict.
+The coding agent receives only the public contract, public examples, and
+runnable public tests. Held-out examples and the acceptance oracle are never
+placed in its prompt or disposable workspace. The Product Mode Codex connector
+also installs a RepoProof `PreToolUse` hook that rejects explicit reads outside
+that session and records denials. This command detector is intentionally
+described as defense in depth, not a hostile-code security boundary; Codex
+Product runs are therefore never counted as Benchmark Lab measurements. The
+agent's own completion claim never produces a passing verdict.
 
 ## Quickstart
 
-Prerequisites: Python 3.12, Git, and a supported model/provider configuration
-for real builds. Docker is still used by the Benchmark Lab and selected replay
-paths; it is an isolation and reproducibility mechanism, not a boundary for
-running hostile code.
+Prerequisites: Python 3.12 and Git. Real Product Mode builds default to the
+official Codex CLI authenticated with a ChatGPT subscription (`codex login`);
+this path does not require `OPENAI_API_KEY` and does not use the legacy private
+API gateway. `--agent-backend mini-swe` remains available for separately billed
+API/provider configurations. Docker is still used by the Benchmark Lab and
+selected replay paths; it is an isolation and reproducibility mechanism, not a
+boundary for running hostile code.
 
 ```bash
 python3 -m venv .venv
@@ -76,6 +84,10 @@ python3 -m venv .venv
 #    A successful export is historical VERIFIED_TOOL_READY but operationally
 #    REVIEW_REQUIRED until the next step.
 .venv/bin/repoproof tool build --draft-dir ./tool-draft
+
+# Optional legacy/provider route instead of the Product default:
+# .venv/bin/repoproof tool build --draft-dir ./tool-draft \
+#   --agent-backend mini-swe
 
 # 4. Audit with a fresh non-example input and independently prepared truth.
 .venv/bin/repoproof tool audit <tool-name> \
@@ -240,9 +252,18 @@ paths:
   mutation checks, model comparisons, and historical `PASS_ADAPTED` / honest
   failure evidence. Product runs do not inflate benchmark model scores.
 
-The default qualified Product Mode backend remains mini-swe-agent. A DSH
-backend integration exists, but it is not qualified for the local-tool lineage
-until its runtime provisioning and budget axis are redesigned and reviewed.
+The default Product Mode backend is the official Codex CLI using the local
+ChatGPT subscription login. RepoProof deliberately reuses Codex's native agent
+loop while retaining its own contract, bounded repair controller, independent
+verification, clean replay, evidence, and release governance. Internal Codex
+model-call counts are not exposed, so RepoProof records logical `codex exec`
+invocations and reported token usage without fabricating a call count or dollar
+cost. This backend is Product-only and ineligible for Benchmark Lab scoring.
+
+mini-swe-agent remains an explicit API/provider compatibility backend. The DSH
+integration remains part of the frozen Benchmark Lab research line and is not a
+Studio Product Mode choice. See
+[ADR: Codex CLI Product backend](docs/adr/ADR-CODEX-CLI-PRODUCT-BACKEND.md).
 
 ## Repository layout
 

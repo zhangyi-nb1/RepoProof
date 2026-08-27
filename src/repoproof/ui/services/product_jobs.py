@@ -281,6 +281,7 @@ def tool_build_argv(
     draft_dir: Path,
     dest_root: Path,
     rehearsal_only: bool,
+    agent_backend: str = "codex-cli",
 ) -> list[str]:
     argv = [
         _product_python(root),
@@ -292,6 +293,8 @@ def tool_build_argv(
         str(draft_dir),
         "--dest-root",
         str(dest_root),
+        "--agent-backend",
+        agent_backend,
     ]
     if rehearsal_only:
         argv.append("--rehearsal-only")
@@ -413,7 +416,10 @@ def start_tool_build(
     draft_dir: Path,
     dest_root: Path,
     rehearsal_only: bool,
+    agent_backend: str = "codex-cli",
 ) -> dict:
+    if agent_backend not in {"codex-cli", "mini-swe"}:
+        return {"ok": False, "error": "未知 Agent backend。"}
     checked_dir, path_error = _validated_draft_dir(
         Path(draft_dir), require_existing=True
     )
@@ -454,6 +460,7 @@ def start_tool_build(
             draft_dir=draft_dir,
             dest_root=dest_root,
             rehearsal_only=rehearsal_only,
+            agent_backend=agent_backend,
         ),
         kind="tool-build",
         label=("离线彩排" if rehearsal_only else "完整构建") + f" {name}",

@@ -377,7 +377,7 @@ PRODUCT_STOP_LABELS: dict[str, str] = {
 
 ROUTE_LABELS: dict[str, str] = {
     "DIRECT_WRAP": "确定性直连包装 —— 本次不需要 Agent",
-    "AGENT_ADAPT": "受限 Coding Agent 适配(mini-swe,含最多两次有界修复)",
+    "AGENT_ADAPT": "受限 Coding Agent 适配(可插拔 backend,含有界失败修复)",
     "NONE": "不进入实现路线",
 }
 
