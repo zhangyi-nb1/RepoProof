@@ -158,6 +158,37 @@ def validate_managed_draft_dir(
     return _validated_draft_dir(Path(value), require_existing=require_existing)
 
 
+def _dependency_lock_state(draft_dir: Path, draft: dict) -> dict:
+    """→ {source, pins, note}:这次构建会拿什么版本的上游进会话。
+
+    source = "user"(草稿束里你写的 reference.lock.txt)
+           | "derived"(从钉版树声明版本派生)
+           | "missing"(两者都没有 —— 构建会当场拒发,不会再白跑三轮)
+    """
+    from repoproof.adoption.intake.upstream_pin import derive_reference_lock
+    from repoproof.ui.services.product_mode import project_root
+
+    lock = Path(draft_dir) / "reference.lock.txt"
+    if lock.is_file() and lock.read_text(encoding="utf-8").strip():
+        pins = [ln.strip() for ln in lock.read_text(encoding="utf-8").splitlines()
+                if ln.strip() and not ln.startswith("#")]
+        return {"source": "user", "pins": pins,
+                "note": "以你在草稿束里写的 reference.lock.txt 为准。"}
+    sr = draft.get("source_repo") or {}
+    derived = derive_reference_lock(
+        project_root(), distribution=str(sr.get("distribution") or ""),
+        resolved_commit=str(sr.get("resolved_commit") or ""))
+    if derived:
+        pins = [ln.strip() for ln in derived.splitlines()
+                if ln.strip() and not ln.startswith("#")]
+        return {"source": "derived", "pins": pins,
+                "note": "你没写依赖锁，系统按钉版上游树自己声明的版本派生。"}
+    return {"source": "missing", "pins": [],
+            "note": ("钉版树读不出声明版本（多半是动态版本）。请在草稿目录下"
+                     "新建 reference.lock.txt 写上 `<包名>==<版本>` —— "
+                     "没有它，会话里装不上上游，构建会被拒发。")}
+
+
 def read_managed_draft_review(value: Path) -> dict:
     """Read the bounded review surface without following optional symlinks."""
 
@@ -186,6 +217,12 @@ def read_managed_draft_review(value: Path) -> dict:
             "examples": examples_doc.get("examples") or [],
             "reference_impl": reference,
             "gaps": gaps,
+            # 依赖锁的**可见状态**(2026-08-28 用户实测):GAPS.md 一直写着
+            # `reference_lock(owner=AUTO):由 pip 冻结闭包生成`,但从没有
+            # 组件真的生成它 —— 承诺了没兑现,而审核页也从不显示它,于是
+            # 用户走完全部步骤仍拿到一个必崩的构建。现在既然真会派生,
+            # 就得让人看得见、能核对。
+            "dependency_lock": _dependency_lock_state(draft_dir, draft),
         }
     except (OSError, UnicodeError, TypeError, yaml.YAMLError) as exc:
         return {"ok": False, "error": f"草稿无法安全读取：{exc}"}

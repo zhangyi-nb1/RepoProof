@@ -71,3 +71,62 @@ def test_derived_lock_carries_the_pin_and_its_provenance(tmp_path: Path):
 def test_dist_name_normalisation_is_pep503():
     assert normalize_dist_name("Foo_Bar.baz") == "foo-bar-baz"
     assert normalize_dist_name(" webcolors ") == "webcolors"
+
+
+# ------------------------- 审核页必须**看得见**依赖锁(UI 侧的同一课)
+
+def test_review_bundle_exposes_dependency_lock(tmp_path: Path, monkeypatch):
+    """草稿审核件要带依赖锁状态 —— 这是用户唯一能提前发现问题的地方。
+
+    2026-08-28 实测:GAPS.md 白纸黑字写着 `reference_lock(owner=AUTO):
+    由 pip 冻结闭包生成`,但没有任何组件真的生成它;审核页也从不显示它。
+    于是用户按 UI 说的每一步都做了,仍然连拿四发必崩的构建 —— **系统
+    承诺了没兑现,而且不给人看见的机会**。
+    """
+    from repoproof.ui.services import product_jobs
+
+    state = tmp_path / "state"
+    draft = state / "drafts" / "d1"
+    (draft / "examples").mkdir(parents=True)
+    (draft / "draft.yaml").write_text(
+        "tool:\n  name: demo-tool\n"
+        "source_repo:\n  distribution: webcolors\n"
+        f"  resolved_commit: {_COMMIT}\n", encoding="utf-8")
+    (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+    (draft / "reference_impl.py").write_text("# demo\n", encoding="utf-8")
+    _tree(tmp_path / "repo", '[project]\nname = "webcolors"\nversion = "25.10.0"\n')
+
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+    monkeypatch.setattr("repoproof.ui.services.product_mode.project_root",
+                        lambda: tmp_path / "repo")
+
+    got = product_jobs.read_managed_draft_review(draft)
+    assert got["ok"], got.get("error")
+    lock = got["dependency_lock"]
+    assert lock["source"] == "derived"
+    assert lock["pins"] == ["webcolors==25.10.0"]
+
+
+def test_review_bundle_says_missing_when_nothing_can_be_derived(tmp_path: Path, monkeypatch):
+    """**负控**:派生不出来时如实说"缺",并给出该写什么 —— 不装作没事。"""
+    from repoproof.ui.services import product_jobs
+
+    state = tmp_path / "state"
+    draft = state / "drafts" / "d2"
+    (draft / "examples").mkdir(parents=True)
+    (draft / "draft.yaml").write_text(
+        "tool:\n  name: demo-tool\n"
+        "source_repo:\n  distribution: mystery\n"
+        f"  resolved_commit: {_COMMIT}\n", encoding="utf-8")
+    (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+    (draft / "reference_impl.py").write_text("# demo\n", encoding="utf-8")
+
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+    monkeypatch.setattr("repoproof.ui.services.product_mode.project_root",
+                        lambda: tmp_path / "repo")
+
+    lock = product_jobs.read_managed_draft_review(draft)["dependency_lock"]
+    assert lock["source"] == "missing" and lock["pins"] == []
+    assert "reference.lock.txt" in lock["note"]

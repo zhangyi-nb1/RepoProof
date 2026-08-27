@@ -365,6 +365,22 @@ with tab_review:
                           "上游错误": c["upstream_error"]} for c in _errs],
                         hide_index=True, width="stretch")
 
+        # 依赖锁**可见化**:此前 GAPS.md 承诺 owner=AUTO 由系统生成,却没有
+        # 任何组件真的生成,而审核页也从不显示 —— 用户走完全部步骤仍拿到
+        # 一个必崩的构建(2026-08-28 实测四发)。现在既然真会派生,就摆出来。
+        _lock = review_bundle.get("dependency_lock") or {}
+        if _lock:
+            _src_label = {"user": "你写的依赖锁",
+                          "derived": "系统按钉版树派生",
+                          "missing": "缺依赖锁"}.get(str(_lock.get("source")), "—")
+            if _lock.get("source") == "missing":
+                st.error(f"**依赖锁:{_src_label}** —— {_lock.get('note')}")
+            else:
+                st.info(f"**依赖锁({_src_label})**：`"
+                        + "`、`".join(_lock.get("pins") or []) + "`\n\n"
+                        + str(_lock.get("note") or ""))
+            st.caption("这决定会话里装的是哪一版上游；装不上就没有任何测试能过。")
+
         st.markdown("#### 加入确认过的 Golden 样例")
         st.caption("至少三组，其中每四组的最后一组会自动成为不交给 Agent 的 held-out 样例。")
         st.caption("文本样例可以直接在下方「在线填写」；二进制输入（PDF、图片等）请用上传。")
