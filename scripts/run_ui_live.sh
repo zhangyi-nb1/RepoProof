@@ -1,5 +1,5 @@
 #!/bin/bash
-# 带模型连接的工作台启动:读取 RepoProof 自己的 .env(私密,已 gitignore)。
+# 旧 API/provider 兼容启动器；缺省 Codex 订阅路径请用 run_ui.sh。
 # 密钥仅进进程环境——不写日志、不进 UI、不进任何产物。
 set -e
 cd "$(dirname "$0")/.."

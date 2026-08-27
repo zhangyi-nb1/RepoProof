@@ -98,6 +98,8 @@ def evaluate_hook(event: dict[str, Any]) -> dict[str, Any]:
     cwd = Path(str(event.get("cwd") or ".")).resolve()
     allowed_raw = os.environ.get("REPOPROOF_CODEX_ALLOWED_ROOT", "")
     reasons: list[str] = []
+    if os.environ.get("REPOPROOF_CODEX_NO_TOOLS") == "1":
+        reasons.append("codex_text_mode_tools_disabled")
     if not allowed_raw:
         reasons.append("codex_allowed_root_missing")
         allowed_root = cwd

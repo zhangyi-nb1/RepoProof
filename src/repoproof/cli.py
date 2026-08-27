@@ -414,8 +414,8 @@ def main(argv: list[str] | None = None) -> int:
             from repoproof.adoption.intake.tool_drafter import (
                 DraftError,
                 FakeDrafter,
-                LiteLLMDrafter,
                 draft_into_bundle,
+                online_drafter,
             )
             from repoproof.adoption.intake.tool_intake import run_tool_intake
 
@@ -430,7 +430,7 @@ def main(argv: list[str] | None = None) -> int:
             bundle = write_draft_bundle(add_rep, args.draft_out)
             add_payload["draft_bundle"] = str(bundle)
             try:
-                drafter = FakeDrafter() if args.fake_drafter else LiteLLMDrafter()
+                drafter = FakeDrafter() if args.fake_drafter else online_drafter()
                 add_payload["drafted"] = draft_into_bundle(add_rep, bundle, drafter)
             except DraftError as exc:
                 add_payload["draft_error"] = str(exc)
@@ -642,8 +642,8 @@ def main(argv: list[str] | None = None) -> int:
         from repoproof.adoption.intake.tool_drafter import (
             DraftError,
             FakeDrafter,
-            LiteLLMDrafter,
             draft_into_bundle,
+            online_drafter,
         )
         from repoproof.adoption.intake.tool_intake import run_tool_intake
 
@@ -652,7 +652,7 @@ def main(argv: list[str] | None = None) -> int:
             cache_root=PROJECT_ROOT / "upstream-cache",
             revision=args.revision, local_path=args.local_path)
         try:
-            drafter = FakeDrafter() if args.fake else LiteLLMDrafter()
+            drafter = FakeDrafter() if args.fake else online_drafter()
             out = draft_into_bundle(draft_rep, args.draft_dir, drafter)
         except DraftError as exc:
             print(json.dumps({"ok": False, "error": str(exc)},

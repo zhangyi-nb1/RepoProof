@@ -63,10 +63,13 @@ agent's own completion claim never produces a passing verdict.
 Prerequisites: Python 3.12 and Git. Real Product Mode builds default to the
 official Codex CLI authenticated with a ChatGPT subscription (`codex login`);
 this path does not require `OPENAI_API_KEY` and does not use the legacy private
-API gateway. `--agent-backend mini-swe` remains available for separately billed
-API/provider configurations. Docker is still used by the Benchmark Lab and
-selected replay paths; it is an isolation and reproducibility mechanism, not a
-boundary for running hostile code.
+API gateway. Studio repository summaries, online contract drafting and example
+input suggestions use the same subscription lane in read-only, no-tool,
+JSON-Schema-constrained mode. `--agent-backend mini-swe` and
+`REPOPROOF_DRAFTER_BACKEND=litellm` remain explicit compatibility choices for
+separately billed API/provider configurations. Docker is still used by the
+Benchmark Lab and selected replay paths; it is an isolation and reproducibility
+mechanism, not a boundary for running hostile code.
 
 ```bash
 python3 -m venv .venv
@@ -264,6 +267,12 @@ mini-swe-agent remains an explicit API/provider compatibility backend. The DSH
 integration remains part of the frozen Benchmark Lab research line and is not a
 Studio Product Mode choice. See
 [ADR: Codex CLI Product backend](docs/adr/ADR-CODEX-CLI-PRODUCT-BACKEND.md).
+
+Studio's three assistant-only actions—repository summary, Tool Contract draft,
+and candidate example inputs—also default to Codex subscription auth. They run
+with every tool denied and an enforced output schema. Their output remains
+untrusted draft material: candidate expected outputs still come from executing
+the pinned upstream, and a human must confirm every golden example.
 
 ## Repository layout
 

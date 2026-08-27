@@ -77,6 +77,9 @@ Completion Gate，也不把 Agent 的自述转成成功结论。
 保留为显式 API/provider 兼容选项。DSH 属冻结的 Benchmark Lab 研究线，
 不作为 Studio Product Mode 选项。Codex 内部 agent loop 不参与 RepoProof
 的模型能力评分，最终判定仍只来自 RepoProof 独立验证与 clean replay。
+仓库摘要、在线合同起草和样例候选同样缺省走 Codex 订阅，但使用独立的
+`read-only + deny-all-tools + output-schema` 文本通道；它们的输出只能进入
+展示/草稿层。样例 expected output 仍由 pinned upstream 真跑并经用户逐条确认。
 Agent 只有在用户确认合同与代表性样例后才尝试构建；只有独立验证、clean
 replay 与 fresh audit 均成立，当前 task version 才能成为 `ACTIVE`。
 

@@ -129,7 +129,7 @@ def test_tool_add_drafter_failure_is_nonzero_even_when_skeleton_exists(
     bundle = tmp_path / "draft"
     monkeypatch.setattr(tool_intake, "run_tool_intake", lambda *args, **kwargs: report)
     monkeypatch.setattr(tool_confirm, "write_draft_bundle", lambda *args, **kwargs: bundle)
-    monkeypatch.setattr(tool_drafter, "LiteLLMDrafter", lambda: object())
+    monkeypatch.setattr(tool_drafter, "online_drafter", lambda: object())
 
     def _fail(*_args: object, **_kwargs: object) -> None:
         raise tool_drafter.DraftError("drafter unavailable")

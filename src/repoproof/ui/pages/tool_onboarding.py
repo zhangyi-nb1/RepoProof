@@ -53,6 +53,21 @@ tab_discover, tab_review, tab_build = st.tabs(["1 · 描述能力", "2 · 审核
 
 with tab_discover:
     section_intro("告诉系统你想保留哪项能力", "只选择一个输入输出明确、能用样例验证的能力。")
+    _drafter_state = (
+        product_jobs.online_drafter_status()
+        if hasattr(product_jobs, "online_drafter_status")
+        else {"ready": False, "backend": "UNKNOWN", "label": "请重启 Studio 加载新起草通道"}
+    )
+    if _drafter_state.get("ready"):
+        st.success(
+            f"在线智能辅助已就绪：{_drafter_state.get('label')}。"
+            "摘要、在线起草和候选输入都使用这条通道；它们仍只是草稿，不参与判定。"
+        )
+    else:
+        st.warning(
+            f"在线智能辅助不可用：{_drafter_state.get('label')}。"
+            "离线模板和静态分析仍可使用。"
+        )
     # 仓库与版本放在表单**之外**:这样填完仓库就能先读一份简介,再回来
     # 写"你想要的能力" —— 不了解这个仓库的人,写不出准确的能力描述。
     repo = st.text_input(
@@ -106,16 +121,9 @@ with tab_discover:
             if _ov.get("risks"):
                 st.warning("需要注意：" + "；".join(_ov["risks"][:3]))
 
-            _has_provider = product_jobs.provider_configured()
-            if not _has_provider:
-                st.caption(
-                    "ℹ️ 当前 Studio 没有加载 API provider：模型摘要/在线起草不可用。"
-                    "零模型的部分（仓库简介、离线模板、离线彩排）照常。"
-                    "真实构建仍可选择已登录的 Codex CLI；这条提示不代表 Codex 登录状态。"
-                    "如要启用摘要/在线起草，再用 `scripts/run_studio_live.sh` 重启 Studio。")
             sc1, sc2 = st.columns([1, 2])
             _sum_offline = sc2.checkbox("用离线模板（零模型调用）",
-                                        value=not _has_provider,
+                                        value=not bool(_drafter_state.get("ready")),
                                         key="rp_sum_offline")
             if sc1.button("让模型总结/翻译一下"):
                 with st.spinner("生成摘要中……"):
@@ -138,7 +146,10 @@ with tab_discover:
         )
         draft_default = str(ui_state_root() / "drafts" / "my-tool-draft")
         draft_dir = st.text_input("草稿保存位置", value=draft_default)
-        offline = st.checkbox("先用离线模板起草（零模型调用）", value=False)
+        offline = st.checkbox(
+            "先用离线模板起草（零模型调用）",
+            value=not bool(_drafter_state.get("ready")),
+        )
         submitted = st.form_submit_button("分析仓库并生成草稿", type="primary")
     if submitted:
         result = product_jobs.start_tool_add(
@@ -249,7 +260,10 @@ with tab_review:
             gp1, gp2, gp3 = st.columns([1, 1, 2])
             _n = gp1.number_input("要几条候选", min_value=1, max_value=8, value=4,
                                   key="rp_cand_n")
-            _cand_offline = gp2.checkbox("离线模板", value=True, key="rp_cand_offline",
+            _cand_offline = gp2.checkbox(
+                "离线模板",
+                value=not bool(_drafter_state.get("ready")),
+                key="rp_cand_offline",
                                          help="零模型调用，先把流程走通")
             if (gp3.button("生成候选（含边界/畸形输入）", key="rp_cand_go")
                     and _require_service("propose_example_candidates")):

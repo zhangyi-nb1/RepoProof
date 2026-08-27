@@ -9,16 +9,18 @@
   - reference_impl 只在"仍是骨架"时覆盖 —— 人已写的内容一个字不动;
   - 每次起草落 draft_meta.json(模型/用量/起草字段),质量可追账。
 
-通道:REPOPROOF_DRAFTER_MODEL/_BASE/_KEY 显式配置,缺省回落官方三键
-(REPOPROOF_MODEL/REPOPROOF_API_BASE/REPOPROOF_API_KEY)—— 起草层是
-产品自身的智能,不是被测 agent;共用通道但台账身份分明(meta 记账)。
+通道:产品默认走官方 Codex CLI + 本机 ChatGPT OAuth,并用 output-schema
+强制结构化返回；`REPOPROOF_DRAFTER_BACKEND=litellm` 才显式回到旧 API
+provider。起草层是产品自身的智能,不是被测 agent;台账身份由 meta 分明记录。
 """
 
 from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -75,6 +77,17 @@ _SYSTEM = (
     "the human supplies actual files). No extra keys."
 )
 
+_CODEX_DRAFT_SYSTEM = (
+    _SYSTEM.replace(
+        "output_contract (object with media_type, root_type and required; root_type "
+        "is text/json/object/array/json_lines; required maps top-level JSON field "
+        "names to any|string|integer|number|boolean|object|array|null), ",
+        "output_contract (object with media_type, root_type and required_fields; root_type "
+        "is text/json/object/array/json_lines; required_fields is a list of objects with "
+        "name and type, where type is any|string|integer|number|boolean|object|array|null), ",
+    )
+)
+
 
 def _with_provider(model: str) -> str:
     """给自定义模型名补 `openai/` 前缀 —— 与产线(host_guided)同一口径。
@@ -87,6 +100,223 @@ def _with_provider(model: str) -> str:
 
 class DraftError(RuntimeError):
     pass
+
+
+_SUMMARY_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["summary"],
+    "properties": {
+        "summary": {"type": "string", "minLength": 1, "maxLength": 2000},
+    },
+}
+
+_OUTPUT_CONTRACT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["media_type", "root_type", "required"],
+    "properties": {
+        "media_type": {"type": "string", "minLength": 1, "maxLength": 120},
+        "root_type": {
+            "type": "string",
+            "enum": ["text", "json", "object", "array", "json_lines"],
+        },
+        "required": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string",
+                "enum": [
+                    "any", "string", "integer", "number", "boolean",
+                    "object", "array", "null",
+                ],
+            },
+        },
+    },
+}
+
+# OpenAI strict structured outputs require closed objects.  A JSON object whose
+# keys are user-selected field names is therefore transported as a strict list
+# and converted back to ToolOutputContract's canonical mapping locally.
+_CODEX_OUTPUT_CONTRACT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["media_type", "root_type", "required_fields"],
+    "properties": {
+        "media_type": {"type": "string", "minLength": 1, "maxLength": 120},
+        "root_type": {
+            "type": "string",
+            "enum": ["text", "json", "object", "array", "json_lines"],
+        },
+        "required_fields": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["name", "type"],
+                "properties": {
+                    "name": {"type": "string", "minLength": 1, "maxLength": 120},
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "any", "string", "integer", "number", "boolean",
+                            "object", "array", "null",
+                        ],
+                    },
+                },
+            },
+        },
+    },
+}
+
+_DRAFT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "summary",
+        "input_format",
+        "output_format",
+        "output_schema",
+        "output_contract",
+        "statement",
+        "reference_impl",
+        "example_suggestions",
+    ],
+    "properties": {
+        "summary": {"type": "string", "minLength": 1, "maxLength": 500},
+        "input_format": {"type": "string", "minLength": 1, "maxLength": 80},
+        "output_format": {"type": "string", "minLength": 1, "maxLength": 80},
+        "output_schema": {"type": "string", "minLength": 1, "maxLength": 120},
+        "output_contract": _OUTPUT_CONTRACT_SCHEMA,
+        "statement": {"type": "string", "minLength": 1, "maxLength": 5000},
+        "reference_impl": {"type": "string", "minLength": 1, "maxLength": 30000},
+        "example_suggestions": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["description", "assertion_kind"],
+                "properties": {
+                    "description": {"type": "string", "minLength": 1, "maxLength": 500},
+                    "assertion_kind": {"type": "string", "enum": ["contains", "exact_file"]},
+                },
+            },
+        },
+    },
+}
+
+_CODEX_DRAFT_SCHEMA: dict[str, Any] = {
+    **_DRAFT_SCHEMA,
+    "properties": {
+        **_DRAFT_SCHEMA["properties"],
+        "output_contract": _CODEX_OUTPUT_CONTRACT_SCHEMA,
+    },
+}
+
+_INPUTS_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["inputs"],
+    "properties": {
+        "inputs": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["input_name", "input_text", "why"],
+                "properties": {
+                    "input_name": {"type": "string", "minLength": 1, "maxLength": 120},
+                    "input_text": {"type": "string", "maxLength": 20000},
+                    "why": {"type": "string", "minLength": 1, "maxLength": 500},
+                },
+            },
+        },
+    },
+}
+
+
+class CodexDrafter:
+    """Subscription-backed, no-tool drafter for all Studio assistant actions."""
+
+    def __init__(self) -> None:
+        from repoproof.agents.codex_cli_backend import (
+            run_subscription_preflight,
+            subscription_config,
+        )
+
+        config = subscription_config()
+        preflight = run_subscription_preflight(config)
+        if config is None or not preflight.ready:
+            raise DraftError(f"Codex 起草通道不可用:{preflight.status}")
+        model_override = os.environ.get("REPOPROOF_CODEX_DRAFTER_MODEL", "").strip()
+        self.config = replace(config, model_name=model_override) if model_override else config
+        self.name = f"codex-cli:{self.config.model_name}"
+        self.last_usage: dict = {}
+
+    def _structured(
+        self,
+        *,
+        instructions: str,
+        context: dict,
+        schema: dict,
+        purpose: str,
+    ) -> dict:
+        from repoproof.agents.codex_text_client import CodexTextError, run_codex_structured
+
+        try:
+            result = run_codex_structured(
+                config=self.config,
+                instructions=instructions,
+                context=context,
+                schema=schema,
+                purpose=purpose,
+            )
+        except CodexTextError as exc:
+            raise DraftError(str(exc)) from exc
+        self.last_usage = dict(result.usage)
+        return result.document
+
+    def draft(self, context: dict) -> dict:
+        document = self._structured(
+            instructions=_CODEX_DRAFT_SYSTEM,
+            context=context,
+            schema=_CODEX_DRAFT_SCHEMA,
+            purpose="tool-draft",
+        )
+        raw_contract = document["output_contract"]
+        required: dict[str, str] = {}
+        for field in raw_contract.pop("required_fields"):
+            name = field["name"].strip()
+            if name in required:
+                raise DraftError(f"tool-draft:CODEX_DUPLICATE_REQUIRED_FIELD:{name}")
+            required[name] = field["type"]
+        raw_contract["required"] = required
+        try:
+            import jsonschema
+
+            jsonschema.validate(document, _DRAFT_SCHEMA)
+        except jsonschema.ValidationError as exc:
+            raise DraftError("tool-draft:CODEX_DRAFT_NORMALIZATION_INVALID") from exc
+        return document
+
+    def summarize_repo(self, context: dict) -> dict:
+        return self._structured(
+            instructions=_SUMMARY_SYSTEM + " Return an object with exactly the key summary.",
+            context=context,
+            schema=_SUMMARY_SCHEMA,
+            purpose="repo-summary",
+        )
+
+    def propose_example_inputs(self, context: dict) -> dict:
+        return self._structured(
+            instructions=_INPUTS_SYSTEM,
+            context=context,
+            schema=_INPUTS_SCHEMA,
+            purpose="example-candidates",
+        )
 
 
 class FakeDrafter:
@@ -263,6 +493,66 @@ class LiteLLMDrafter:
             self.last_usage = {"prompt_tokens": getattr(u, "prompt_tokens", None),
                                "completion_tokens": getattr(u, "completion_tokens", None)}
         return resp.choices[0].message.content or ""
+
+
+def configured_drafter_backend() -> str:
+    """Return the explicit Product drafting backend, defaulting to Codex."""
+
+    raw = os.environ.get("REPOPROOF_DRAFTER_BACKEND", "codex-cli").strip().lower()
+    aliases = {
+        "codex": "codex-cli",
+        "subscription": "codex-cli",
+        "api": "litellm",
+    }
+    backend = aliases.get(raw, raw)
+    if backend not in {"codex-cli", "litellm"}:
+        raise DraftError(
+            "未知起草 backend:需 codex-cli 或 litellm"
+        )
+    return backend
+
+
+def online_drafter():
+    """Build the configured online drafter without a silent fallback."""
+
+    return CodexDrafter() if configured_drafter_backend() == "codex-cli" else LiteLLMDrafter()
+
+
+def online_drafter_status() -> dict[str, str | bool]:
+    """Read-only readiness for UI labels; never performs a model request."""
+
+    try:
+        backend = configured_drafter_backend()
+    except DraftError as exc:
+        return {"ready": False, "backend": "INVALID", "label": str(exc)}
+    if backend == "litellm":
+        ready = bool(
+            (os.environ.get("REPOPROOF_DRAFTER_MODEL") or os.environ.get("REPOPROOF_MODEL"))
+            and (os.environ.get("REPOPROOF_DRAFTER_BASE") or os.environ.get("REPOPROOF_API_BASE"))
+            and (os.environ.get("REPOPROOF_DRAFTER_KEY") or os.environ.get("REPOPROOF_API_KEY"))
+        )
+        return {
+            "ready": ready,
+            "backend": "litellm",
+            "label": "API provider 已配置" if ready else "API provider 未配置",
+        }
+
+    from repoproof.agents.codex_cli_backend import (
+        run_subscription_preflight,
+        subscription_config,
+    )
+
+    config = subscription_config()
+    preflight = run_subscription_preflight(config)
+    return {
+        "ready": preflight.ready,
+        "backend": "codex-cli",
+        "label": (
+            f"Codex CLI 已登录 · {config.model_name}"
+            if preflight.ready and config is not None
+            else f"Codex CLI 不可用 · {preflight.status}"
+        ),
+    }
 
 
 def _drafter_context(report_like: dict) -> dict:

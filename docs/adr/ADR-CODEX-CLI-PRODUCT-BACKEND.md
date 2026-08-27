@@ -11,6 +11,12 @@ Product Mode 的默认真实 Agent backend 改为 `codex-cli`。它通过官方
 复制或记录 Codex 的认证材料，也不要求 `OPENAI_API_KEY`。`mini-swe` 保留为
 显式 API/provider 兼容后端；DSH 继续留在冻结的 Benchmark Lab 研究线。
 
+Studio 的仓库摘要、在线合同起草和样例候选也使用同一 ChatGPT OAuth 登录，
+但不复用可写 coding-agent 会话。它们进入一次性空目录，使用 read-only
+sandbox、deny-all-tools hook 与 `--output-schema`；prompt 只经 stdin 传入，
+返回值还要在 RepoProof 侧再次做 JSON Schema 校验。任一工具调用尝试都使该次
+辅助请求失败。
+
 这不是把 RepoProof 替换为 Codex。职责边界如下:
 
 ```text
@@ -90,6 +96,11 @@ Codex 只替换每轮的实现执行器，不替换 RepairLoop。每轮结束后
   记账；内部模型调用数写 `UNKNOWN`，不伪造为精确数字；
 - Codex backend 强制 `benchmark_eligible=false`，Product run 本来也通过
   `test_mode=PRODUCT` 与 Lab 分账。
+
+对摘要/起草/候选这三类文本辅助，边界更窄：Codex 看不到仓库目录，只收到
+RepoProof 截断后的静态上下文；所有工具被 hook 拒绝，结构不合 Schema 即失败，
+不自动降级到另一 provider。模型候选永远不提供 expected output，真值仍来自
+pinned upstream 的实际执行与用户逐条确认。
 
 该 hook 是对诚实 coding agent 的防误触和取证层，不宣称能静态分析任意
 恶意 shell/Python 混淆。因此 Codex Product run 可以形成产品验收证据，

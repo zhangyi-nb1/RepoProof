@@ -1,17 +1,15 @@
 #!/bin/bash
-# Product Studio,带上模型连接配置(从被 gitignore 的 .env 注入)。
+# Product Studio 的旧 API/provider 兼容启动器。
 #
-# 为什么需要这个脚本(2026-08-27 用户实测):Studio 直接
-# `streamlit run` 起来时,进程里没有 REPOPROOF_* —— 于是"让模型总结"、
-# 非离线起草、真发构建**全都会报"起草通道未配置"**,而 .env 明明就在
-# 仓库根。密钥按纪律只经 `set -a; source .env; set +a` 注入进程环境,
-# 不写进代码、不落进日志、不进 argv。
+# 当前缺省 `scripts/run_ui.sh` 已让摘要、在线起草、候选输入和真实构建全部
+# 复用 Codex/ChatGPT 登录,无需 API key。只有显式设置
+# `REPOPROOF_DRAFTER_BACKEND=litellm` 或选择 mini-swe 构建时才需要本脚本
+# 从 gitignored .env 注入旧 provider 配置。密钥不写代码、不落日志、不进 argv。
 #
 # Lab UI 早就有对应脚本(run_lab_ui_live.sh,端口 8502),Product Studio
 # 一直缺一个 —— 这就是那个缺口。
 #
-# 只想跑零模型的部分(读仓库简介、离线模板起草、离线彩排)时,不用这个
-# 脚本也可以:UI 会检测到没有连接配置,并在模型相关的入口旁给出提示。
+# 不使用旧 API/provider 时请直接运行 scripts/run_ui.sh。
 set -e
 cd "$(dirname "$0")/.."
 if [ -f .env ]; then

@@ -113,6 +113,7 @@ def test_face_assignment_is_semantic_not_directory_based():
     assert face_of("agents/context_projector.py") == "executor_semantics"
     assert face_of("agents/profiles.py") == "instrumentation"
     assert face_of("agents/provider_gate.py") == "model_profile"
+    assert face_of("agents/codex_text_client.py") == "model_profile"
     assert face_of("agents/fake_model.py") == "instrumentation"
 
 

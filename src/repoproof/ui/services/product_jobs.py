@@ -737,18 +737,23 @@ def start_tool_withdraw(name: str, reason: str, dest_root: Path) -> dict:
 # adoption/intake/example_proposer.py 的模块注释。
 
 def provider_configured() -> bool:
-    """进程里有没有模型连接配置(只看在不在,**不读值**)。"""
-    return bool(os.environ.get("REPOPROOF_API_KEY")
-                and os.environ.get("REPOPROOF_API_BASE"))
+    """当前在线起草通道是否就绪；检查不发模型请求。"""
+    return bool(online_drafter_status().get("ready"))
+
+
+def online_drafter_status() -> dict:
+    from repoproof.adoption.intake.tool_drafter import online_drafter_status as _status
+
+    return _status()
 
 
 def _provider_hint(raw: str) -> str:
-    """把"起草通道未配置"翻成人话 + 明确出路(2026-08-27 用户实测)。"""
+    """把起草通道失败翻成人话；不把失败静默降级成离线。"""
     if provider_configured():
         return f"模型调用失败:{raw}"
-    return ("Studio 启动时没有加载模型连接配置,所以模型相关功能不可用。"
-            "两条出路:①勾上「用离线模板(零模型调用)」先把流程走通;"
-            "②用 `scripts/run_studio_live.sh` 重启 Studio(它会从 .env 注入连接配置)。"
+    state = online_drafter_status()
+    return (f"在线起草通道不可用:{state.get('label')}。"
+            "可先勾选离线模板(零模型调用),或完成 Codex CLI 登录后重试。"
             f"(原始信息:{raw})")
 
 
@@ -778,11 +783,11 @@ def summarize_repo_overview(overview: dict, *, offline: bool) -> dict:
     from repoproof.adoption.intake.tool_drafter import (
         DraftError,
         FakeDrafter,
-        LiteLLMDrafter,
+        online_drafter,
     )
 
     try:
-        drafter = FakeDrafter() if offline else LiteLLMDrafter()
+        drafter = FakeDrafter() if offline else online_drafter()
         doc = drafter.summarize_repo({
             "repository": overview.get("repository", ""),
             "headline": overview.get("headline", ""),
@@ -836,7 +841,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
     from repoproof.adoption.intake.tool_drafter import (
         DraftError,
         FakeDrafter,
-        LiteLLMDrafter,
+        online_drafter,
     )
 
     checked_dir, path_error = _validated_draft_dir(Path(draft_dir), require_existing=True)
@@ -853,7 +858,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
         return {"ok": False, "error": up_err}
 
     try:
-        drafter = FakeDrafter() if offline else LiteLLMDrafter()
+        drafter = FakeDrafter() if offline else online_drafter()
         # 证据挖掘:把上游 README 里现成的示例值一并交给起草器(离线模板
         # 靠它才不至于域盲;真模型拿到也更容易给出有意义的输入)。
         batch = propose_inputs(

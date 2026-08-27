@@ -172,7 +172,12 @@ def run_subscription_preflight(
     )
 
 
-def _clean_environment(*, allowed_root: Path, policy_log: Path) -> dict[str, str]:
+def clean_codex_environment(
+    *,
+    allowed_root: Path,
+    policy_log: Path,
+    no_tools: bool = False,
+) -> dict[str, str]:
     env = dict(os.environ)
     for name in _REMOVED_PROVIDER_ENV:
         env.pop(name, None)
@@ -186,13 +191,18 @@ def _clean_environment(*, allowed_root: Path, policy_log: Path) -> dict[str, str
     env.pop("SSH_AUTH_SOCK", None)
     env["REPOPROOF_CODEX_ALLOWED_ROOT"] = str(allowed_root)
     env["REPOPROOF_CODEX_POLICY_LOG"] = str(policy_log)
+    if no_tools:
+        env["REPOPROOF_CODEX_NO_TOOLS"] = "1"
+    else:
+        env.pop("REPOPROOF_CODEX_NO_TOOLS", None)
     return env
 
 
-def _hook_override() -> str:
+def codex_hook_override(*, all_tools: bool = False) -> str:
     command = f"{shlex.quote(sys.executable)} {shlex.quote(str(Path(__file__).with_name('codex_hook_guard.py')))}"
+    matcher = ".*" if all_tools else "^(Bash|apply_patch)$"
     return (
-        "hooks.PreToolUse=[{matcher=\"^(Bash|apply_patch)$\",hooks=["
+        f"hooks.PreToolUse=[{{matcher={json.dumps(matcher)},hooks=["
         f"{{type=\"command\",command={json.dumps(command)},timeout=5}}]}}]"
     )
 
@@ -282,7 +292,7 @@ class CodexCLIBackend:
             "--ignore-rules",
             "--dangerously-bypass-hook-trust",
             "-c",
-            _hook_override(),
+            codex_hook_override(),
             "--cd",
             str(self._workspace),
         ]
@@ -293,7 +303,7 @@ class CodexCLIBackend:
         proc = subprocess.Popen(  # noqa: S603 - fixed executable and structured argv
             argv,
             cwd=self._workspace,
-            env=_clean_environment(
+            env=clean_codex_environment(
                 allowed_root=self._allowed_root,
                 policy_log=self._policy_log_path,
             ),
