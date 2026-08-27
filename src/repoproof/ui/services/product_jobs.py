@@ -385,6 +385,17 @@ def _start_product_job(
     label: str,
     expected_artifact: Path | None = None,
 ) -> dict:
+    # 判定器是 **fail-closed** 的:退出码 0 但没形成"预期产物"一律记 FAILED
+    # (`test_exit_zero_without_expected_artifact_is_failed` 钉着这条,是有意的
+    # ——证明不了产出就不许算成功)。因此**漏给 expected_artifact 是调用方的
+    # 缺陷**,而它的表现极具误导性:2026-08-28 用户的续跑真发跑出
+    # PASS_ADAPTED、工具都装进了 ~/tools,界面却写"失败:未形成预期产物"。
+    # 与其让人等几分钟再吃一个假失败,不如在这里当场拒绝。
+    if expected_artifact is None:
+        return {"ok": False,
+                "error": (f"内部缺陷:{label} 没有声明预期产物,"
+                          "而判定器按 fail-closed 处理(证明不了产出即判失败)。"
+                          "请给这个任务补上 expected_artifact。")}
     root = _product_root()
     state_root = ui_state_root()
     for legacy_path in (
@@ -475,13 +486,24 @@ def start_tool_build_real(task_id: str, dest_root: Path,
     if not clean or "/" in clean or clean.startswith("."):
         return {"ok": False, "error": "任务 id 非法"}
     root = _product_root()
+    # 预期产物 = 导出的工具清单(与 start_tool_build 真发分支同口径)。
+    # 工具名以**冻结的工具合同**为准,不从 task_id 猜。
+    expected = None
+    try:
+        frozen = yaml.safe_load(
+            (root / "contracts" / f"{clean}.yaml").read_text(encoding="utf-8")) or {}
+        tool_name = str(((frozen.get("tool") or {}).get("name")) or "").strip()
+        if tool_name:
+            expected = checked_root / tool_name / "tool.json"
+    except (OSError, yaml.YAMLError):
+        expected = None
     return _start_product_job(
         [_product_python(root), "-m", "repoproof.cli", "tool", "build-real",
          "--task-id", clean, "--dest-root", str(checked_root),
          "--agent-backend", agent_backend],
         kind="tool-build",
         label=f"真实构建 {clean}（已冻结任务续跑）",
-        expected_artifact=None,
+        expected_artifact=expected,
     )
 
 

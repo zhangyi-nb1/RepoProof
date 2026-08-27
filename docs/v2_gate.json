@@ -14,11 +14,11 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 157,
-    "assisted_repair_runs": 167,
+    "all_valid_run_outcomes": 158,
+    "assisted_repair_runs": 168,
     "development_baseline_runs": 68,
-    "exploratory": 35,
-    "exploratory_passes": 26,
+    "exploratory": 36,
+    "exploratory_passes": 27,
     "exploratory_run_ids": [
       "t3-offerclaw-browser-use-v5-20260812-024353",
       "t3-offerclaw-browser-use-v5-20260812-024503",
@@ -54,7 +54,8 @@
       "tool-pyspellchecker-tool-v1-20260823-224033",
       "tool-emoji-tool-v1-20260823-224532",
       "tool-jsonschema-report-v2-20260825-150510",
-      "tool-rrule-expand-v1-20260825-151425"
+      "tool-rrule-expand-v1-20260825-151425",
+      "tool-webcolors-tool-v5-20260828-061503"
     ],
     "heldout_model_evaluation_runs": 8,
     "heldout_passes": 2,
@@ -264,7 +265,7 @@
       "tool-webcolors-tool-v4-20260828-040742",
       "tool-webcolors-tool-v5-20260828-053136"
     ],
-    "total": 334,
+    "total": 335,
     "treatment_delivered_runs": 13,
     "treatment_not_delivered_runs": 4
   },
@@ -310,7 +311,7 @@
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "ae9d215c59be9de506df322d7074d0863390ae8bab5ccfca8928d572605acc20"
+    "runs_jsonl_sha256": "eb27c4febe5a028a69fdf1cb7bc50fae393e42c4955c8f6f8b5d371fe203521c"
   },
   "stages": {
     "T1": {
