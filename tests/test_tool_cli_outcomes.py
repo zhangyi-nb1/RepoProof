@@ -92,7 +92,7 @@ def test_tool_build_cli_exit_matches_completion_boundary(
     assert payload["ok"] is (expected_code == 0)
 
 
-def test_tool_build_cli_defaults_product_agent_to_codex(
+def test_tool_build_cli_defaults_product_agent_to_mini_swe(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -111,7 +111,7 @@ def test_tool_build_cli_defaults_product_agent_to_codex(
     ])
 
     assert code == 0
-    assert seen["agent_backend"] == "codex-cli"
+    assert seen["agent_backend"] == "mini-swe"
 
 
 def test_tool_add_drafter_failure_is_nonzero_even_when_skeleton_exists(

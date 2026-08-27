@@ -113,9 +113,9 @@ def main(argv: list[str] | None = None) -> int:
     pt_build.add_argument(
         "--agent-backend",
         choices=["codex-cli", "mini-swe"],
-        default="codex-cli",
-        help=("真实 AGENT_ADAPT 执行后端:codex-cli=ChatGPT 订阅登录的官方 "
-              "Codex harness(产品默认);mini-swe=API provider + 仓内循环"),
+        default="mini-swe",
+        help=("真实 AGENT_ADAPT 执行后端:mini-swe=API provider + 仓内循环"
+              "(产品默认);codex-cli=ChatGPT 订阅登录的官方 Codex harness"),
     )
     pt_build.add_argument("--batch", default="EXPLORATORY_UNPREREGISTERED")
     pt_plan = tsub.add_parser(

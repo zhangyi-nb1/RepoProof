@@ -174,8 +174,8 @@ DIRECT_WRAP 不调用 Coding Agent，但仍必须经过同一合同、上游采�
 #### AGENT_ADAPT
 
 适用于 callable 明确，但需要有限输入转换、输出规范化、异常映射或依赖处理的
-任务。产品默认复用官方 Codex CLI 的原生 agent loop，并继续使用 RepoProof 自己的
-有界 repair、合同和验证体系；mini-swe 保留为需要 API provider 时的兼容后端。
+任务。产品默认使用 mini-swe + API provider，并继续使用 RepoProof 自己的
+有界 repair、合同和验证体系；官方 Codex CLI 原生 agent loop 保留为网关故障回退后端。
 
 DSH 与旧宿主适配引擎一起冻结在 Benchmark Lab。除非出现当前两个产品后端都无法
 满足、且 DSH 能以可测方式消除的具体阻塞，不应把“资格化 DSH”设为产品 alpha
@@ -360,7 +360,7 @@ ledger 或 package identity 损坏、held-out 失败、receipt 可信面缺失�
 ### 7.2 路由与执行
 
 - DIRECT_WRAP 不能触发 Agent backend；
-- AGENT_ADAPT 默认使用 Codex CLI，mini-swe 是显式兼容后端；DSH 不进入 Product Mode；
+- AGENT_ADAPT 默认使用 mini-swe，Codex CLI 是显式回退后端；DSH 不进入 Product Mode；
 - 两条路径共享合同与最终 gate，不能各写一套“成功”；
 - route、backend、model invocation 和 Product/Lab 计分字段进入 run 元数据；
 - Product run 永不进入 Benchmark Lab 模型能力指标。

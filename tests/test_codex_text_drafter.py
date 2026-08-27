@@ -196,12 +196,21 @@ def test_codex_drafter_supports_summary_draft_and_candidates(
     assert drafter.last_usage["cost"] == "INCLUDED_USAGE_UNMETERED"
 
 
-def test_online_drafter_defaults_to_codex_without_api_key(
+def test_online_drafter_defaults_to_litellm_gateway(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sentinel = object()
     monkeypatch.delenv("REPOPROOF_DRAFTER_BACKEND", raising=False)
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(tool_drafter, "LiteLLMDrafter", lambda: sentinel)
+
+    assert tool_drafter.online_drafter() is sentinel
+
+
+def test_online_drafter_keeps_codex_as_explicit_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sentinel = object()
+    monkeypatch.setenv("REPOPROOF_DRAFTER_BACKEND", "codex-cli")
     monkeypatch.setattr(tool_drafter, "CodexDrafter", lambda: sentinel)
 
     assert tool_drafter.online_drafter() is sentinel

@@ -281,7 +281,7 @@ def tool_build_argv(
     draft_dir: Path,
     dest_root: Path,
     rehearsal_only: bool,
-    agent_backend: str = "codex-cli",
+    agent_backend: str = "mini-swe",
 ) -> list[str]:
     argv = [
         _product_python(root),
@@ -416,7 +416,7 @@ def start_tool_build(
     draft_dir: Path,
     dest_root: Path,
     rehearsal_only: bool,
-    agent_backend: str = "codex-cli",
+    agent_backend: str = "mini-swe",
 ) -> dict:
     if agent_backend not in {"codex-cli", "mini-swe"}:
         return {"ok": False, "error": "未知 Agent backend。"}

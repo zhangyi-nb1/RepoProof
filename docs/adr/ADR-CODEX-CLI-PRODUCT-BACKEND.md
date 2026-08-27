@@ -4,12 +4,16 @@
 > 范围:RepoProof Studio / `repoproof tool build` 的 `AGENT_ADAPT` 路线  
 > 不改变:Benchmark Lab、冻结合同、历史 run、旧 ledger、历史指标
 
+> 2026-08-28 运营默认值补充：私有网关恢复后，Product Mode 默认
+> 恢复为 `mini-swe` + LiteLLM/API 网关。本 ADR 实现的 Codex CLI
+> 后端、安全控制和记账语义全部保留，作为显式回退；历史决策不改写。
+
 ## 决策
 
-Product Mode 的默认真实 Agent backend 改为 `codex-cli`。它通过官方
+Product Mode 增加真实 Agent backend `codex-cli`。它通过官方
 `codex exec --ephemeral --json` 使用本机已有的 ChatGPT 订阅登录，不读取、
-复制或记录 Codex 的认证材料，也不要求 `OPENAI_API_KEY`。`mini-swe` 保留为
-显式 API/provider 兼容后端；DSH 继续留在冻结的 Benchmark Lab 研究线。
+复制或记录 Codex 的认证材料，也不要求 `OPENAI_API_KEY`。它现作为
+显式回退；默认仍是 `mini-swe` + API/provider。DSH 继续留在冻结的 Benchmark Lab 研究线。
 
 Studio 的仓库摘要、在线合同起草和样例候选也使用同一 ChatGPT OAuth 登录，
 但不复用可写 coding-agent 会话。它们进入一次性空目录，使用 read-only
@@ -56,7 +60,7 @@ RepoProof 需要一个可用的 OpenAI-compatible API 网关和独立 API 额度
 
 ## 与 mini-swe 路径的区别
 
-| 维度 | `codex-cli`（产品默认） | `mini-swe`（兼容后端） |
+| 维度 | `codex-cli`（显式回退） | `mini-swe`（产品默认） |
 |---|---|---|
 | 认证/计费 | ChatGPT 订阅登录；受订阅使用限制 | API key / 私有网关；API 独立计费 |
 | Agent loop | Codex 原生 harness | 仓内 `MiniSWEBackend` + DefaultAgent |

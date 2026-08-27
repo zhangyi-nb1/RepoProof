@@ -118,7 +118,7 @@ def tool_build(
     bench_root: Path,
     dest_root: Path,
     run_real: bool = True,
-    agent_backend: str = "codex-cli",
+    agent_backend: str = "mini-swe",
     conformance_keywords: list[str] | None = None,
     batch: str = "EXPLORATORY_UNPREREGISTERED",
     setup_commands: list[list[str]] | None = None,   # 测试注入(E2E shim)

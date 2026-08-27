@@ -482,8 +482,9 @@ with tab_review:
 with tab_build:
     section_intro("先彩排，再决定是否启动真实 Agent", "彩排门失败不会消耗真实模型预算；成功后仍需独立验证和干净重放。")
     st.caption(
-        "产品默认 Agent backend：Codex CLI（使用本机 ChatGPT 登录）；"
-        "mini-swe 保留为 API provider 兼容后端。DSH 属于冻结的 Benchmark Lab 研究线，"
+        "产品默认 Agent backend：mini-swe（使用 API 网关）；"
+        "Codex CLI（ChatGPT 订阅）保留为无需 API key 的回退后端。"
+        "DSH 属于冻结的 Benchmark Lab 研究线，"
         "不进入 Studio 产品构建。"
     )
     build_dir = Path(
@@ -497,15 +498,15 @@ with tab_build:
     rehearsal_only = st.toggle("只运行离线彩排", value=True)
     backend_label = st.selectbox(
         "真实构建 Agent",
-        options=["Codex CLI（ChatGPT 订阅）", "mini-swe（API 网关）"],
+        options=["mini-swe（API 网关）", "Codex CLI（ChatGPT 订阅）"],
         disabled=rehearsal_only,
-        help=("离线彩排不调用模型。Codex CLI 复用官方 agent loop；"
+        help=("离线彩排不调用模型。mini-swe 使用项目配置的 API 网关；"
+              "Codex CLI 复用官方 agent loop；"
               "RepoProof 仍负责合同、repair、独立验证与发布状态。"),
     )
     agent_backend = (
         "codex-cli"
-        if backend_label.startswith("Codex CLI")
-        else "mini-swe"
+        if backend_label.startswith("Codex CLI") else "mini-swe"
     )
     confirmed = st.checkbox("我已确认输入输出、样例真值、上游版本和许可证")
     lineage_ready = True

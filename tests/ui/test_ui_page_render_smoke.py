@@ -53,7 +53,9 @@ def test_activity_page_renders_every_state(
         f"{label} 分支渲染抛异常:{[str(e.value) for e in at.exception]}")
 
 
-def test_onboarding_page_renders_with_repo_overview(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_onboarding_page_renders_with_repo_overview(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """新建工具页 + 仓库简介面板真渲染一次。
 
     2026-08-27 新增「仓库简介」与「样例助手」两块都在这一页;它们含表格、
@@ -61,6 +63,60 @@ def test_onboarding_page_renders_with_repo_overview(monkeypatch: pytest.MonkeyPa
     `st.progress(None)` 的教训)。这里只钉「渲染得出来」,不钉文案。
     """
     from repoproof.ui.services import product_jobs
+
+    # The page must not depend on whichever draft the developer happens to
+    # have under ~/.repoproof.  In particular, a successful confirm moves that
+    # directory into tool_tasks/_drafts, which used to make this render test
+    # disappear with the user's draft.
+    state_root = tmp_path / "state"
+    draft_dir = state_root / "drafts" / "my-tool-draft"
+    draft_dir.mkdir(parents=True)
+    (draft_dir / "draft.yaml").write_text(
+        """tool:
+  name: demo-tool
+  summary: demo
+  interface:
+    input: {format: TXT}
+    output:
+      format: TEXT
+      contract: {media_type: text/plain, root_type: text, required: {}}
+capability: {statement: demo, output_schema: DemoText}
+""",
+        encoding="utf-8",
+    )
+    (draft_dir / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+    (draft_dir / "reference_impl.py").write_text("# demo\n", encoding="utf-8")
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state_root))
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    review = {
+        "ok": True,
+        "draft_dir": draft_dir,
+        "draft": {
+            "tool": {
+                "name": "demo-tool",
+                "summary": "demo",
+                "interface": {
+                    "input": {"format": "TXT"},
+                    "output": {
+                        "format": "TEXT",
+                        "contract": {
+                            "media_type": "text/plain",
+                            "root_type": "text",
+                            "required": {},
+                        },
+                    },
+                },
+            },
+            "capability": {"statement": "demo", "output_schema": "DemoText"},
+        },
+        "raw_draft": (draft_dir / "draft.yaml").read_text(encoding="utf-8"),
+        "examples": [],
+        "reference_impl": "# demo\n",
+        "gaps": "",
+    }
+    monkeypatch.setattr(
+        product_jobs, "read_managed_draft_review", lambda *_args, **_kwargs: review
+    )
 
     overview = {
         "repository": "https://example.invalid/demo",

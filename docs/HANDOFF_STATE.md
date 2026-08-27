@@ -37,7 +37,7 @@ FailureAssessmentV1 九码;REPAIR-VALIDATION-1(terra/luna)已按预注册
 | M6 可信整合 | Core-only registry 投影；historical/operational/package health 三栏；ProductJobStateV2；Studio/Lab 共享 Core 写锁；Product/Lab 原生分账 |
 | 当前质量基线 | 本机全量 `1493 passed + 60 skipped + 0 failed`(2026-08-28,docker 停时形态;共收集 1553 项);**CI 三 job 全绿**(.github/workflows/ci.yml:ruff 全仓 0 错 + mypy 0 错 + pytest 全量);**mypy 覆盖除 Lab 冻结区外的全部源码**(2026-08-26 摘在役 runner 七件 19 错;2026-08-27 摘 ui/agents/cli 63 错 —— 其中两枚真崩溃:`tool plan --repo` 漏传必填 cache_root、运行活动页 `st.progress(None)` 抛 StreamlitAPIException,均已补回归钉);渐进队列清空,豁免只剩冻结区逐文件列名(棘轮只减不增) |
 | 代码分区 | `docs/PROJECT_MAP.md`(单页地图):产品可信链 vs **Lab 冻结区(FROZEN 2026-08-25)**;host_guided 功能面冻结但仍是产品彩排/真发执行引擎,判定/安全缺陷照修 |
-| 后端资格 | Product Mode 缺省 Codex CLI(ChatGPT 订阅,仅产品不计分)；摘要/起草/候选走 no-tool+output-schema Codex 文本通道；mini-swe/LiteLLM 显式兼容；DSH 仅冻结 Lab |
+| 后端资格 | Product Mode 缺省 mini-swe + LiteLLM/API 网关；Codex CLI/ChatGPT 订阅路径完整保留为显式回退（仅产品不计分）；DSH 仅冻结 Lab |
 | M7 分支现状 | `codex/m7-managed-sidecar-tools @ 7ac1a09` 已推送；强 U1–U4 回执已落地(取证会话+攻击矩阵自证);仍缺 v3 全链 E2E、OS 级隔离、导出包 replay、授权真仓 —— EXPERIMENTAL,功能面冻结 |
 | 下一阶段基准 | `docs/VERIFIED_TOOL_ONBOARDING_NEXT_STAGE_GUIDE.md`(2026-08-25):Verified Tool Onboarding Harness;Gate 0 事实收口 → Gate 1 CapabilityPlanV1+确定性路由 → Gate 2 有界修复控制器产品化 → Gate 3 DIRECT_WRAP → Gate 4 Studio 收口 |
 | 当前阶段门 | **M6 Preview Validated 已关闭(2026-08-25:项目方预览+2 名目标用户三案例测试完成,P0=0;P1 计 7 条全部修复并经用户复验)。M7 强 receipt 已落地/OS 隔离未关闭**;发布、第三批真仓或任何新真实模型发次仍需授权 |

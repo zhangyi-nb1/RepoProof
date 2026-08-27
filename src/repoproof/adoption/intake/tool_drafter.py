@@ -9,9 +9,10 @@
   - reference_impl 只在"仍是骨架"时覆盖 —— 人已写的内容一个字不动;
   - 每次起草落 draft_meta.json(模型/用量/起草字段),质量可追账。
 
-通道:产品默认走官方 Codex CLI + 本机 ChatGPT OAuth,并用 output-schema
-强制结构化返回；`REPOPROOF_DRAFTER_BACKEND=litellm` 才显式回到旧 API
-provider。起草层是产品自身的智能,不是被测 agent;台账身份由 meta 分明记录。
+通道:产品默认走 LiteLLM + 私有 OpenAI-compatible API 网关；
+`REPOPROOF_DRAFTER_BACKEND=codex-cli` 可显式切到官方 Codex CLI +
+本机 ChatGPT OAuth 回退通道。起草层是产品自身的智能,不是被测
+agent;台账身份由 meta 分明记录。
 """
 
 from __future__ import annotations
@@ -504,9 +505,9 @@ class LiteLLMDrafter:
 
 
 def configured_drafter_backend() -> str:
-    """Return the explicit Product drafting backend, defaulting to Codex."""
+    """Return the Product drafting backend, defaulting to the API gateway."""
 
-    raw = os.environ.get("REPOPROOF_DRAFTER_BACKEND", "codex-cli").strip().lower()
+    raw = os.environ.get("REPOPROOF_DRAFTER_BACKEND", "litellm").strip().lower()
     aliases = {
         "codex": "codex-cli",
         "subscription": "codex-cli",

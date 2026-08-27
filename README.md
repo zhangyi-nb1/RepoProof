@@ -60,14 +60,13 @@ agent's own completion claim never produces a passing verdict.
 
 ## Quickstart
 
-Prerequisites: Python 3.12 and Git. Real Product Mode builds default to the
-official Codex CLI authenticated with a ChatGPT subscription (`codex login`);
-this path does not require `OPENAI_API_KEY` and does not use the legacy private
-API gateway. Studio repository summaries, online contract drafting and example
-input suggestions use the same subscription lane in read-only, no-tool,
-JSON-Schema-constrained mode. `--agent-backend mini-swe` and
-`REPOPROOF_DRAFTER_BACKEND=litellm` remain explicit compatibility choices for
-separately billed API/provider configurations. Docker is still used by the
+Prerequisites: Python 3.12 and Git. Real Product Mode builds default to
+mini-swe using the configured OpenAI-compatible API gateway. Studio repository
+summaries, online contract drafting and example input suggestions default to
+the same gateway through LiteLLM. The official Codex CLI authenticated with a
+ChatGPT subscription (`codex login`) remains an explicit fallback: select
+`--agent-backend codex-cli`, set `REPOPROOF_DRAFTER_BACKEND=codex-cli`, or use
+`scripts/run_ui_codex.sh`. Docker is still used by the
 Benchmark Lab and selected replay paths; it is an isolation and reproducibility
 mechanism, not a boundary for running hostile code.
 
@@ -88,9 +87,9 @@ python3 -m venv .venv
 #    REVIEW_REQUIRED until the next step.
 .venv/bin/repoproof tool build --draft-dir ./tool-draft
 
-# Optional legacy/provider route instead of the Product default:
+# Optional ChatGPT-subscription fallback instead of the Product default:
 # .venv/bin/repoproof tool build --draft-dir ./tool-draft \
-#   --agent-backend mini-swe
+#   --agent-backend codex-cli
 
 # 4. Audit with a fresh non-example input and independently prepared truth.
 .venv/bin/repoproof tool audit <tool-name> \
@@ -255,24 +254,24 @@ paths:
   mutation checks, model comparisons, and historical `PASS_ADAPTED` / honest
   failure evidence. Product runs do not inflate benchmark model scores.
 
-The default Product Mode backend is the official Codex CLI using the local
-ChatGPT subscription login. RepoProof deliberately reuses Codex's native agent
-loop while retaining its own contract, bounded repair controller, independent
-verification, clean replay, evidence, and release governance. Internal Codex
-model-call counts are not exposed, so RepoProof records logical `codex exec`
-invocations and reported token usage without fabricating a call count or dollar
-cost. This backend is Product-only and ineligible for Benchmark Lab scoring.
-
-mini-swe-agent remains an explicit API/provider compatibility backend. The DSH
+The default Product Mode backend is mini-swe using the configured API provider.
+The official Codex CLI remains a first-class fallback using the local ChatGPT
+subscription login. RepoProof can reuse Codex's native agent loop while retaining
+its own contract, bounded repair controller, independent verification, clean
+replay, evidence, and release governance. Internal Codex model-call counts are
+not exposed, so RepoProof records logical `codex exec` invocations and reported
+token usage without fabricating a call count or dollar cost. Codex Product runs
+are ineligible for Benchmark Lab scoring. The DSH
 integration remains part of the frozen Benchmark Lab research line and is not a
 Studio Product Mode choice. See
 [ADR: Codex CLI Product backend](docs/adr/ADR-CODEX-CLI-PRODUCT-BACKEND.md).
 
 Studio's three assistant-only actions—repository summary, Tool Contract draft,
-and candidate example inputs—also default to Codex subscription auth. They run
-with every tool denied and an enforced output schema. Their output remains
-untrusted draft material: candidate expected outputs still come from executing
-the pinned upstream, and a human must confirm every golden example.
+and candidate example inputs—default to the LiteLLM/API gateway. The Codex
+subscription fallback runs with every tool denied and an enforced output schema.
+Either route produces untrusted draft material: candidate expected outputs still
+come from executing the pinned upstream, and a human must confirm every golden
+example.
 
 ## Repository layout
 
