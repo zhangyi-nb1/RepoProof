@@ -3970,3 +3970,24 @@ Lab UI 早有 `run_lab_ui_live.sh`,Product Studio 一直缺 —— 补
 顺带取证:在加载了 .env 的 shell 里直连探测,四个已配置模型(默认通道/
 terra/luna/deepseek)**全部返回 503** —— 端点是本机网关 192.168.11.1:8080,
 即模型通道当前没在服务。代码路径本身是通的(能打到端点并拿到 HTTP 状态)。
+
+**同日续三:起草器与产线的 litellm 口径不一致(真 bug)+ 证据挖掘**。
+用户点模型摘要拿到 `BadRequestError: LLM Provider NOT provided ...
+model=gpt-5.6-terra`:产线早就走 `openai/{model}`(host_guided 构造
+LitellmModel 那处),而起草器一直传**裸名** —— 自建 OpenAI 兼容端点的
+自定义模型名不在 litellm 的模型表里,推断不出 provider 就抛。同一个通道
+两种写法、只有一种能用。已对齐(`_with_provider`,已带前缀的不重复加)。
+修后复验:BadRequest 消失,落到端点的真实状态(503,见上条)。
+
+**离线起草域盲 → 证据挖掘**。用户那份真草稿实测:离线模板给的 6 条候选
+(「典型输入」「非 ASCII」…)**全部让上游抛错**,一条可用的都没有 ——
+等于网关一挂就把人堵死。改为**从上游自己的证据里挖候选输入**:①README
+的 doctest(作者亲手写的示例,最高信号);②上游自己的测试(「这库到底
+吃什么输入」的最好证据,只取提到公开入口的行,避免把断言消息挖进来)。
+同一份草稿复测:`#daa520 → goldenrod`、`#ffffff → white` 两条可直接做
+golden,另 6 条如实归为题面证据(`chucknorris`、`#123456` 等)。
+纪律不变:挖出来的仍只是**候选输入**,期望输出照旧上游真跑 + 人逐条确认。
+
+顺带:把用户草稿里的占位 reference(`return str(webcolors)`)补成真调
+`hex_to_name` 的实现(严格忠实上游:不带 `#`、无对应名一律 UserInputError,
+"要不要宽松"留作产品决定),占位检测随即放行。全量 1475+60+0。

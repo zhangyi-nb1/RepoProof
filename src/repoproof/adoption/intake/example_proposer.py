@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -81,6 +82,71 @@ class ProposalBatch(BaseModel):
 
 # --------------------------------------------------------------- ① 候选输入
 
+_LITERAL = re.compile(r"""["']([^"'\n]{1,120})["']""")
+
+
+def mine_evidence_literals(upstream_dir: Path, *, cap: int = 12,
+                           import_module_names: list[str] | None = None) -> list[str]:
+    """从钉版上游的 README 里挖出**现成的示例输入**(确定性,零模型)。
+
+    为什么要有这一步(2026-08-27 实测):离线模板起草是域盲的 —— 它给
+    "典型输入""非 ASCII 输入"这种通用串,对 webcolors 这类任务一条可用的
+    都没有(6 条候选全部让上游抛错)。而 README 的 doctest 里就躺着
+    `hex_to_name("#daa520")` —— 作者亲手写的、保证有意义的输入。
+
+    与本模块的总纲一致:**从证据里提取,而不是凭空发明**。挖出来的仍然
+    只是"候选输入",期望输出照旧由上游真跑给出、由人确认。
+    """
+    text = ""
+    for name in ("README.md", "README.rst", "README.txt", "README"):
+        f = Path(upstream_dir) / name
+        if f.is_file():
+            try:
+                text = f.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                text = ""
+            break
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def harvest(body: str, *, only_calls: bool) -> None:
+        for line in body.splitlines():
+            s = line.strip()
+            looks_like_code = (s.startswith(">>>") or s.startswith("...")
+                               or ("(" in s and ("=" in s or "." in s)))
+            if not looks_like_code:
+                continue
+            if only_calls and "(" not in s:
+                continue
+            for lit in _LITERAL.findall(s):
+                key = lit.strip()
+                if not key or key in seen or len(key) > 120:
+                    continue
+                seen.add(key)
+                out.append(key)
+                if len(out) >= cap:
+                    return
+
+    harvest(text, only_calls=False)       # ① README:作者亲手写的示例,最高信号
+    if len(out) >= cap:
+        return out
+
+    # ② 上游自己的测试:"这个库到底吃什么输入"的最好证据。只取**提到某个
+    #    公开入口**的行,避免把测试里的无关字面量(路径、断言消息)一起挖进来。
+    names = {n for n in (import_module_names or []) if n}
+    for f in sorted(Path(upstream_dir).rglob("test*.py"))[:20]:
+        try:
+            body = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        wanted = "\n".join(ln for ln in body.splitlines()
+                            if not names or any(n in ln for n in names))
+        harvest(wanted, only_calls=True)
+        if len(out) >= cap:
+            break
+    return out
+
+
 def propose_inputs(*, goal: str, overview: dict, drafter, n: int = 4,
                    existing_inputs: list[str] | None = None) -> ProposalBatch:
     """问模型要 n 条候选**输入**(只要输入,不要答案)。
@@ -95,6 +161,8 @@ def propose_inputs(*, goal: str, overview: dict, drafter, n: int = 4,
         "repo_headline": overview.get("headline", ""),
         "repo_prose": (overview.get("prose") or "")[:800],
         "surfaces": [s.get("value") for s in (overview.get("surfaces") or [])][:12],
+        # README 里挖到的现成示例值(证据,不是模型发明的)
+        "evidence_literals": list(overview.get("evidence_literals") or [])[:12],
         "how_many": n,
         "already_have": list(existing_inputs or [])[:20],
     }

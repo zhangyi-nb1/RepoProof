@@ -76,6 +76,15 @@ _SYSTEM = (
 )
 
 
+def _with_provider(model: str) -> str:
+    """给自定义模型名补 `openai/` 前缀 —— 与产线(host_guided)同一口径。
+
+    已经带 `<provider>/` 的原样返回:重复加前缀会变成 `openai/openai/x`。
+    """
+    m = (model or "").strip()
+    return m if (not m or "/" in m) else f"openai/{m}"
+
+
 class DraftError(RuntimeError):
     pass
 
@@ -127,6 +136,12 @@ class FakeDrafter:
         """候选**输入**(确定性模板)。只出输入 —— 期望输出由上游真跑给出。"""
         n = int(context.get("how_many") or 3)
         goal = context.get("capability_goal", "")
+        # 证据候选优先:README 里作者亲手写的示例值,比任何通用模板都靠谱
+        # (离线模板是域盲的 —— webcolors 实测 6 条通用候选全部让上游抛错)。
+        mined = [str(x) for x in (context.get("evidence_literals") or [])]
+        evidence = [{"input_name": f"from_readme_{i + 1}.txt", "input_text": lit,
+                     "why": "README 示例里出现的输入(证据挖掘,非模型生成)"}
+                    for i, lit in enumerate(mined)]
         shapes = [("typical.txt", "典型输入", "覆盖最常见的一种用法"),
                   ("edge_empty.txt", "", "空输入:边界行为必须被题面写死"),
                   ("edge_unicode.txt", "非 ASCII 输入 · 测试", "非 ASCII:编码路径"),
@@ -135,10 +150,10 @@ class FakeDrafter:
                   ("edge_multiline.txt", "第一行\n第二行", "多行输入"),
                   ("edge_symbols.txt", "!@#$%^&*()", "符号输入:非法值路径"),
                   ("edge_numeric.txt", "1234567890", "纯数字输入")]
-        return {"inputs": [
-            {"input_name": nm, "input_text": txt or "",
-             "why": f"{why}(fake 起草;目标:{goal[:40]})"}
-            for nm, txt, why in shapes[:n]]}
+        generic = [{"input_name": nm, "input_text": txt or "",
+                    "why": f"{why}(fake 起草;目标:{goal[:40]})"}
+                   for nm, txt, why in shapes]
+        return {"inputs": (evidence + generic)[:n]}
 
 
 class LiteLLMDrafter:
@@ -155,6 +170,12 @@ class LiteLLMDrafter:
             raise DraftError(
                 "起草通道未配置:需 REPOPROOF_DRAFTER_*(或回落官方三键 "
                 "REPOPROOF_MODEL/REPOPROOF_API_BASE/REPOPROOF_API_KEY)")
+        # litellm 要能推断出 provider。裸名 `gpt-5.6-terra` 不在它的模型表里
+        # (自建 OpenAI 兼容端点的自定义名基本都不在),推断失败就抛
+        # "LLM Provider NOT provided"(2026-08-27 用户实测)。产线早就走
+        # `openai/{model}`(host_guided 构造 LitellmModel 那处),起草器一直
+        # 传裸名 —— 同一个通道两种写法,只有一种能用。这里对齐产线。
+        self.model = _with_provider(self.model)
         self.name = f"litellm:{self.model}"
         self.last_usage: dict = {}
 

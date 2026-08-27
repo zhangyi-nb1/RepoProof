@@ -207,3 +207,53 @@ def test_real_reference_is_not_mistaken_for_placeholder(world):
     assert reference_is_placeholder(
         "import minishout\n\n\ndef extract(p):\n"
         "    return str(minishout.shout(p.read_text()))\n") == ""
+
+
+# --------------------------------------------------------------- 证据挖掘
+
+def test_evidence_mining_prefers_readme_then_upstream_tests(tmp_path: Path):
+    """从**上游自己的证据**里挖候选输入,而不是凭空发明。
+
+    2026-08-27 实测:离线模板是域盲的 —— 它给"典型输入""非 ASCII 输入"
+    这种通用串,对 webcolors 那类任务 6 条候选全部让上游抛错,等于没帮上忙。
+    README 的 doctest 里却躺着 `hex_to_name("#daa520")`:作者亲手写的、
+    保证有意义的输入。次级来源是上游自己的测试(「这库到底吃什么输入」
+    的最好证据),只取提到公开入口的行,避免把断言消息一起挖进来。
+    """
+    from repoproof.adoption.intake.example_proposer import mine_evidence_literals
+
+    up = tmp_path / "up"
+    (up / "tests").mkdir(parents=True)
+    (up / "README.md").write_text(
+        "# demo\n\n```python\n>>> import demo\n>>> demo.shout('hello')\n'HELLO!'\n```\n",
+        encoding="utf-8")
+    (up / "tests" / "test_demo.py").write_text(
+        "import demo\n\n\n"
+        "def test_a():\n"
+        "    assert demo.shout('world') == 'WORLD!'\n"
+        "    assert True, 'unrelated assertion message'\n",
+        encoding="utf-8")
+
+    mined = mine_evidence_literals(up, import_module_names=["demo"])
+    assert "hello" in mined                    # README 优先
+    assert "world" in mined                    # 上游测试作次级来源
+    assert "unrelated assertion message" not in mined   # 不提入口的行不挖
+
+
+def test_evidence_mining_survives_missing_readme(tmp_path: Path):
+    """没有 README 也不许炸 —— 挖不到就返回空,由通用边界候选兜底。"""
+    from repoproof.adoption.intake.example_proposer import mine_evidence_literals
+
+    up = tmp_path / "bare"
+    up.mkdir()
+    assert mine_evidence_literals(up) == []
+
+
+def test_offline_drafter_puts_evidence_first():
+    """离线起草:证据候选排在通用模板前面(数量有限时先给能用的)。"""
+    from repoproof.adoption.intake.tool_drafter import FakeDrafter
+
+    got = FakeDrafter().propose_example_inputs(
+        {"how_many": 3, "capability_goal": "x", "evidence_literals": ["#daa520"]})
+    assert got["inputs"][0]["input_text"] == "#daa520"
+    assert "证据挖掘" in got["inputs"][0]["why"]

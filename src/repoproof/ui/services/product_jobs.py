@@ -822,6 +822,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
     """① 模型出候选输入 → ② 钉版上游真跑出实际输出。**不产出真值**。"""
     from repoproof.adoption.intake.example_proposer import (
         ExampleProposalError,
+        mine_evidence_literals,
         propose_inputs,
         run_reference_on_candidates,
     )
@@ -846,9 +847,17 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
 
     try:
         drafter = FakeDrafter() if offline else LiteLLMDrafter()
+        # 证据挖掘:把上游 README 里现成的示例值一并交给起草器(离线模板
+        # 靠它才不至于域盲;真模型拿到也更容易给出有意义的输入)。
         batch = propose_inputs(
             goal=goal,
-            overview={"repository": str((overview_doc.get("source_repo") or {}).get("url") or "")},
+            overview={
+                "repository": str((overview_doc.get("source_repo") or {}).get("url") or ""),
+                "evidence_literals": mine_evidence_literals(
+                    upstream,
+                    import_module_names=[str((overview_doc.get("source_repo") or {})
+                                             .get("import_module") or "")]),
+            },
             drafter=drafter, n=n,
             existing_inputs=existing_example_inputs(draft_dir))
         batch = run_reference_on_candidates(
