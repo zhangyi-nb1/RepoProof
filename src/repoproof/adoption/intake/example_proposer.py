@@ -71,7 +71,7 @@ class CandidateExample(BaseModel):
         这类候选仍然有用 —— 它是"这个输入会让上游炸"的**行为证据**,
         提醒你把该行为写进题面,而不是等真发时被 oracle 撞出来。
         """
-        return bool(self.upstream_output) and not self.upstream_error
+        return self.upstream_output is not None and not self.upstream_error
 
 
 class ProposalBatch(BaseModel):
@@ -148,7 +148,8 @@ def mine_evidence_literals(upstream_dir: Path, *, cap: int = 12,
 
 
 def propose_inputs(*, goal: str, overview: dict, drafter, n: int = 4,
-                   existing_inputs: list[str] | None = None) -> ProposalBatch:
+                   existing_inputs: list[str] | None = None,
+                   existing_names: list[str] | None = None) -> ProposalBatch:
     """问模型要 n 条候选**输入**(只要输入,不要答案)。
 
     `existing_inputs` 会被交给模型作为"已经有了这些,请给不一样的",并在
@@ -165,6 +166,7 @@ def propose_inputs(*, goal: str, overview: dict, drafter, n: int = 4,
         "evidence_literals": list(overview.get("evidence_literals") or [])[:12],
         "how_many": n,
         "already_have": list(existing_inputs or [])[:20],
+        "failed_attempts": list(overview.get("failed_attempts") or [])[:12],
     }
     raw = drafter.propose_example_inputs(context)
     items = raw.get("inputs") if isinstance(raw, dict) else raw
@@ -172,6 +174,7 @@ def propose_inputs(*, goal: str, overview: dict, drafter, n: int = 4,
         raise ExampleProposalError("起草器没有给出候选输入")
 
     seen = {_norm_input(x) for x in (existing_inputs or [])}
+    seen_names = {Path(x).name.casefold() for x in (existing_names or [])}
     out: list[CandidateExample] = []
     for i, item in enumerate(items[:n], start=1):
         if not isinstance(item, dict) or "input_text" not in item:
@@ -183,9 +186,16 @@ def propose_inputs(*, goal: str, overview: dict, drafter, n: int = 4,
         if _norm_input(text) in seen:          # 与既有样例或彼此重复 → 丢
             continue
         seen.add(_norm_input(text))
-        name = str(item.get("input_name") or "").strip() or f"case_{i}.txt"
+        raw_name = Path(str(item.get("input_name") or "").strip()).name
+        name = raw_name if raw_name not in {"", ".", ".."} else f"case_{i}.txt"
+        base, suffix = Path(name).stem or f"case_{i}", Path(name).suffix
+        serial = 2
+        while name.casefold() in seen_names:
+            name = f"{base}-{serial}{suffix}"
+            serial += 1
+        seen_names.add(name.casefold())
         out.append(CandidateExample(
-            input_name=Path(name).name, input_text=text,
+            input_name=name, input_text=text,
             why=str(item.get("why") or "")))
     if not out:
         raise ExampleProposalError("候选输入去重后为空(模型给的都与既有样例重复)")
@@ -361,13 +371,15 @@ def run_reference_on_candidates(
 
 def confirm_candidate(candidate: CandidateExample, *,
                       expected_text: str | None = None) -> CandidateExample:
-    """人闸:确认一条候选。`expected_text` 非空即表示"我改过了,以我的为准"。
+    """人闸:确认一条候选。给出 `expected_text` 即表示"以我的为准"。
+
+    空字符串也可能是上游真实、合法的 stdout，不能把它误判成“没有输出”。
 
     没有"全部确认"的批量口子 —— 与计划确认(`confirm_plan` 逐项)同律:
     一次点击只为一条负责,才叫确认。
     """
     text = expected_text if expected_text is not None else candidate.upstream_output
-    if text is None or not str(text).strip():
+    if text is None:
         raise ExampleProposalError(
             f"{candidate.input_name}:上游对这条输入抛错,做不成 golden 样例"
             "(样例只表达成功路径)。它的正当去处是**写进题面的错误行为**:"

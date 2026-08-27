@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from repoproof.adoption.intake import example_proposer, tool_drafter
 from repoproof.ui.services import product_jobs, product_mode
 
 REPO = Path(__file__).resolve().parents[2]
@@ -200,6 +201,170 @@ def test_review_editor_and_examples_only_write_inside_draft(
     review = product_jobs.read_managed_draft_review(draft)
     assert review["ok"] is True
     assert review["reference_impl"] == "import alpha\n"
+
+
+def test_candidate_generation_repairs_to_requested_count_without_resetting_goldens(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    draft = state_root / "drafts" / "draft"
+    (draft / "examples" / "inputs").mkdir(parents=True)
+    (draft / "examples" / "expected").mkdir()
+    (draft / "draft.yaml").write_text(
+        yaml.safe_dump({
+            "source_repo": {
+                "url": "https://github.com/acme/minishout",
+                "resolved_commit": "a" * 40,
+                "import_module": "minishout",
+            },
+            "tool": {"summary": "转换文本"},
+            "capability": {"statement": "只转换以 good 开头的文本"},
+        }),
+        encoding="utf-8",
+    )
+    (draft / "reference_impl.py").write_text(
+        "from pathlib import Path\nimport minishout\n\n"
+        "def extract(input_path: Path) -> str:\n"
+        "    return minishout.convert(input_path.read_text(encoding='utf-8'))\n",
+        encoding="utf-8",
+    )
+    original_examples = (
+        "examples:\n"
+        "- input_file: inputs/persisted.txt\n"
+        "  expected_file: expected/persisted.expected.txt\n"
+    )
+    (draft / "examples.yaml").write_text(original_examples, encoding="utf-8")
+    (draft / "examples" / "inputs" / "persisted.txt").write_text(
+        "good-existing", encoding="utf-8"
+    )
+    (draft / "examples" / "expected" / "persisted.expected.txt").write_text(
+        "GOOD-EXISTING", encoding="utf-8"
+    )
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    (upstream / "minishout.py").write_text(
+        "def convert(text):\n"
+        "    if not text.startswith('good'):\n"
+        "        raise ValueError('must start with good')\n"
+        "    return text.upper()\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(product_jobs, "_draft_upstream_dir", lambda _draft: (upstream, ""))
+
+    class RepairingDrafter:
+        name = "repairing-stub"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def propose_example_inputs(self, context: dict) -> dict:
+            self.calls += 1
+            requested = int(context["how_many"])
+            plans = {
+                1: ["good-one", "bad-one", "bad-two", "bad-three"],
+                2: ["good-two", "good-three", "bad-four"],
+                3: ["good-four"],
+            }
+            values = plans[self.calls]
+            assert len(values) == requested
+            return {
+                "inputs": [
+                    {"input_name": "case.txt", "input_text": value, "why": "repair"}
+                    for value in values
+                ]
+            }
+
+    drafter = RepairingDrafter()
+    monkeypatch.setattr(tool_drafter, "online_drafter", lambda: drafter)
+
+    result = product_jobs.propose_example_candidates(draft, n=4, offline=False)
+
+    assert result["ok"] is True
+    assert result["usable_count"] == 4
+    assert result["shortfall"] == 0
+    assert result["rejected_count"] == 4
+    assert result["rounds"] == 3
+    assert result["confirmed_count"] == 1
+    assert drafter.calls == 3
+    assert len({row["input_name"] for row in result["candidates"]}) == 8
+    assert (draft / "examples.yaml").read_text(encoding="utf-8") == original_examples
+    assert (draft / "examples" / "inputs" / "persisted.txt").read_text(
+        encoding="utf-8"
+    ) == "good-existing"
+
+
+def test_candidate_generation_uses_pinned_evidence_before_another_model_round(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    draft = state_root / "drafts" / "draft"
+    (draft / "examples").mkdir(parents=True)
+    (draft / "draft.yaml").write_text(
+        yaml.safe_dump({
+            "source_repo": {
+                "url": "https://github.com/acme/minishout",
+                "resolved_commit": "b" * 40,
+                "import_module": "minishout",
+            },
+            "capability": {"statement": "只转换 good 输入"},
+        }),
+        encoding="utf-8",
+    )
+    (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+    (draft / "reference_impl.py").write_text(
+        "from pathlib import Path\nimport minishout\n\n"
+        "def extract(input_path: Path) -> str:\n"
+        "    return minishout.convert(input_path.read_text(encoding='utf-8'))\n",
+        encoding="utf-8",
+    )
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    (upstream / "minishout.py").write_text(
+        "def convert(text):\n"
+        "    if not text.startswith('good'):\n"
+        "        raise ValueError('bad input')\n"
+        "    return text.upper()\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(product_jobs, "_draft_upstream_dir", lambda _draft: (upstream, ""))
+    monkeypatch.setattr(
+        example_proposer,
+        "mine_evidence_literals",
+        lambda *_args, **_kwargs: ["good-evidence-2", "good-evidence-3"],
+    )
+
+    class OneRoundDrafter:
+        name = "one-round-stub"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def propose_example_inputs(self, _context: dict) -> dict:
+            self.calls += 1
+            if self.calls > 1:
+                raise AssertionError("evidence should avoid another model round")
+            return {"inputs": [
+                {"input_name": "good.txt", "input_text": "good-model", "why": ""},
+                {"input_name": "bad-1.txt", "input_text": "bad-one", "why": ""},
+                {"input_name": "bad-2.txt", "input_text": "bad-two", "why": ""},
+            ]}
+
+    drafter = OneRoundDrafter()
+    monkeypatch.setattr(tool_drafter, "online_drafter", lambda: drafter)
+
+    result = product_jobs.propose_example_candidates(draft, n=3, offline=False)
+
+    assert result["ok"] is True
+    assert result["usable_count"] == 3
+    assert result["shortfall"] == 0
+    assert result["rounds"] == 1
+    assert result["evidence_probes"] == 2
+    assert drafter.calls == 1
+    assert (draft / "examples.yaml").read_text(encoding="utf-8") == "examples: []\n"
 
 
 def test_activity_log_reader_never_follows_untrusted_state_path(

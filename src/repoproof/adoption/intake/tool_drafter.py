@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -50,6 +51,9 @@ _INPUTS_SYSTEM = (
     "\"input_text\": \"...\", \"why\": \"...\"}]}. "
     "Cover a typical case AND edge cases (empty, whitespace, non-ASCII, "
     "malformed/invalid values) that would expose an under-specified contract. "
+    "Return exactly `how_many` distinct inputs. If `failed_attempts` is present, "
+    "do not repeat those inputs; use their upstream errors to propose alternatives "
+    "that are more likely to exercise the requested capability successfully. "
     "`why` is one short line in the SAME LANGUAGE as capability_goal. "
     "NEVER include an expected output, expected value, assertion or verdict of "
     "any kind: the expected output is obtained by actually running the pinned "
@@ -311,10 +315,14 @@ class CodexDrafter:
         )
 
     def propose_example_inputs(self, context: dict) -> dict:
+        requested = max(1, min(int(context.get("how_many") or 4), 8))
+        schema: dict[str, Any] = deepcopy(_INPUTS_SCHEMA)
+        schema["properties"]["inputs"]["minItems"] = requested
+        schema["properties"]["inputs"]["maxItems"] = requested
         return self._structured(
             instructions=_INPUTS_SYSTEM,
             context=context,
-            schema=_INPUTS_SCHEMA,
+            schema=schema,
             purpose="example-candidates",
         )
 

@@ -830,10 +830,27 @@ def existing_example_inputs(draft_dir: Path) -> list[str]:
     return out
 
 
+def _existing_example_names(draft_dir: Path) -> list[str]:
+    """Reserve persisted golden filenames so regenerated candidates never collide."""
+
+    return [
+        p.name
+        for p in sorted((Path(draft_dir) / "examples" / "inputs").glob("*"))
+        if p.is_file()
+    ]
+
+
 def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dict:
-    """① 模型出候选输入 → ② 钉版上游真跑出实际输出。**不产出真值**。"""
+    """Generate ``n`` usable candidates with at most two bounded repair rounds.
+
+    A candidate that makes pinned upstream fail remains visible as behavior
+    evidence, but does not consume one of the requested usable-output slots.
+    Persisted golden examples are read-only inputs to this operation.
+    """
     from repoproof.adoption.intake.example_proposer import (
+        CandidateExample,
         ExampleProposalError,
+        ProposalBatch,
         mine_evidence_literals,
         propose_inputs,
         run_reference_on_candidates,
@@ -857,30 +874,158 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
     if upstream is None:
         return {"ok": False, "error": up_err}
 
+    requested = max(1, min(int(n), 8))
+    persisted_inputs = existing_example_inputs(draft_dir)
+    persisted_names = _existing_example_names(draft_dir)
+    attempted_inputs: list[str] = []
+    attempted_names: list[str] = []
+    usable: list[CandidateExample] = []
+    rejected: list[CandidateExample] = []
+    failed_attempts: list[dict[str, str]] = []
+    repair_stopped = ""
+    rounds = 0
+    evidence_probes = 0
     try:
         drafter = FakeDrafter() if offline else online_drafter()
-        # 证据挖掘:把上游 README 里现成的示例值一并交给起草器(离线模板
-        # 靠它才不至于域盲;真模型拿到也更容易给出有意义的输入)。
-        batch = propose_inputs(
-            goal=goal,
-            overview={
-                "repository": str((overview_doc.get("source_repo") or {}).get("url") or ""),
-                "evidence_literals": mine_evidence_literals(
-                    upstream,
-                    import_module_names=[str((overview_doc.get("source_repo") or {})
-                                             .get("import_module") or "")]),
-            },
-            drafter=drafter, n=n,
-            existing_inputs=existing_example_inputs(draft_dir))
-        batch = run_reference_on_candidates(
-            batch, draft_dir=draft_dir, upstream_dir=upstream)
+        evidence_literals = mine_evidence_literals(
+            upstream,
+            import_module_names=[str((overview_doc.get("source_repo") or {})
+                                     .get("import_module") or "")],
+        )
+        # Initial generation + two bounded repair rounds. Each repair sees the
+        # exact inputs/errors that failed and must propose distinct replacements.
+        for _round_index in range(3):
+            remaining = requested - len(usable)
+            if remaining <= 0:
+                break
+            try:
+                batch = propose_inputs(
+                    goal=goal,
+                    overview={
+                        "repository": str(
+                            (overview_doc.get("source_repo") or {}).get("url") or ""
+                        ),
+                        "evidence_literals": evidence_literals,
+                        "failed_attempts": failed_attempts,
+                    },
+                    drafter=drafter,
+                    n=remaining,
+                    existing_inputs=[*persisted_inputs, *attempted_inputs],
+                    existing_names=[*persisted_names, *attempted_names],
+                )
+                batch = run_reference_on_candidates(
+                    batch,
+                    draft_dir=draft_dir,
+                    upstream_dir=upstream,
+                )
+            except (DraftError, ExampleProposalError) as exc:
+                if not usable and not rejected:
+                    raise
+                repair_stopped = str(exc)
+                break
+            rounds += 1
+            for candidate in batch.candidates:
+                attempted_inputs.append(candidate.input_text)
+                attempted_names.append(candidate.input_name)
+                if candidate.usable_as_golden:
+                    usable.append(candidate)
+                else:
+                    rejected.append(candidate)
+                    failed_attempts.append({
+                        "input_name": candidate.input_name,
+                        "input_text": candidate.input_text[:500],
+                        "upstream_error": str(candidate.upstream_error or "NO_OUTPUT")[:800],
+                    })
+            # Before spending another model round, probe author-supplied README
+            # or upstream-test literals. These remain candidates (not truth),
+            # and their outputs still come from the same pinned reference run.
+            if _round_index == 0 and len(usable) < requested and evidence_literals:
+                evidence_rows: list[CandidateExample] = []
+                evidence_seen = {str(value).strip() for value in [
+                    *persisted_inputs, *attempted_inputs,
+                ]}
+                reserved_names = {name.casefold() for name in [
+                    *persisted_names, *attempted_names,
+                ]}
+                for index, value in enumerate(evidence_literals, start=1):
+                    text = str(value)
+                    if text.strip() in evidence_seen:
+                        continue
+                    base = f"upstream-evidence-{index}"
+                    name = f"{base}.txt"
+                    serial = 2
+                    while name.casefold() in reserved_names:
+                        name = f"{base}-{serial}.txt"
+                        serial += 1
+                    evidence_seen.add(text.strip())
+                    reserved_names.add(name.casefold())
+                    evidence_rows.append(CandidateExample(
+                        input_name=name,
+                        input_text=text,
+                        why="来自钉版上游 README/测试的现成输入",
+                    ))
+                    if len(evidence_rows) >= 8:
+                        break
+                if evidence_rows:
+                    evidence_batch = run_reference_on_candidates(
+                        ProposalBatch(
+                            candidates=evidence_rows,
+                            drafter="pinned-upstream-evidence",
+                            note="",
+                        ),
+                        draft_dir=draft_dir,
+                        upstream_dir=upstream,
+                    )
+                    evidence_probes = len(evidence_rows)
+                    for candidate in evidence_batch.candidates:
+                        if len(usable) >= requested:
+                            break
+                        attempted_inputs.append(candidate.input_text)
+                        attempted_names.append(candidate.input_name)
+                        if candidate.usable_as_golden:
+                            usable.append(candidate)
+                        else:
+                            rejected.append(candidate)
+                            failed_attempts.append({
+                                "input_name": candidate.input_name,
+                                "input_text": candidate.input_text[:500],
+                                "upstream_error": str(
+                                    candidate.upstream_error or "NO_OUTPUT"
+                                )[:800],
+                            })
     except (DraftError, ExampleProposalError) as exc:
         return {"ok": False, "error": str(exc)}
     except Exception as exc:                                     # noqa: BLE001
         return {"ok": False, "error": f"候选生成失败:{exc}"}
 
-    return {"ok": True, "drafter": batch.drafter, "note": batch.note,
-            "candidates": [c.model_dump() for c in batch.candidates]}
+    final_usable = usable[:requested]
+    shortfall = requested - len(final_usable)
+    note = (
+        f"请求 {requested} 条；得到 {len(final_usable)} 条可确认输出，"
+        f"{len(rejected)} 条上游失败；共运行 {rounds} 个模型轮次"
+    )
+    if evidence_probes:
+        note += f"，并探测 {evidence_probes} 条钉版上游证据输入"
+    if shortfall:
+        note += f"。达到修复上限后仍缺 {shortfall} 条"
+    if repair_stopped:
+        note += f"；补候选提前停止:{repair_stopped}"
+    fresh_review = read_managed_draft_review(draft_dir)
+    return {
+        "ok": True,
+        "drafter": str(getattr(drafter, "name", "unknown")),
+        "note": note,
+        "requested": requested,
+        "usable_count": len(final_usable),
+        "rejected_count": len(rejected),
+        "shortfall": shortfall,
+        "rounds": rounds,
+        "evidence_probes": evidence_probes,
+        "confirmed_count": (
+            len(fresh_review.get("examples") or []) if fresh_review.get("ok") else None
+        ),
+        "candidates": [c.model_dump() for c in [*final_usable, *rejected]],
+    }
 
 
 def confirm_candidate_as_example(draft_dir: Path, candidate: dict, *,

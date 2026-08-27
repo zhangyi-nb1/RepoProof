@@ -94,6 +94,21 @@ def test_proposer_dedupes_against_existing_and_itself():
     assert [c.input_text for c in batch.candidates] == ["hi", "fresh"]
 
 
+def test_proposer_allocates_unique_names_across_existing_and_same_batch():
+    d = _StubDrafter([
+        {"input_name": "case.txt", "input_text": "one", "why": ""},
+        {"input_name": "case.txt", "input_text": "two", "why": ""},
+    ])
+    batch = propose_inputs(
+        goal="喊话",
+        overview={},
+        drafter=d,
+        n=2,
+        existing_names=["case.txt"],
+    )
+    assert [c.input_name for c in batch.candidates] == ["case-2.txt", "case-3.txt"]
+
+
 def test_proposer_never_marks_anything_confirmed():
     """**负控**:助手产出的候选一律 unconfirmed —— confirmed 只能由人翻。"""
     d = _StubDrafter([{"input_name": "a.txt", "input_text": "hi", "why": ""}])
@@ -156,6 +171,13 @@ def test_confirm_accepts_user_override():
     c = CandidateExample(input_name="a.txt", input_text="hi", upstream_output="HI!")
     done = confirm_candidate(c, expected_text="HI!!(我改的)")
     assert done.upstream_output == "HI!!(我改的)" and done.confirmed
+
+
+def test_empty_upstream_stdout_is_a_confirmable_exact_output():
+    c = CandidateExample(input_name="empty-output.txt", input_text="quiet", upstream_output="")
+    assert c.usable_as_golden
+    done = confirm_candidate(c)
+    assert done.confirmed and done.upstream_output == ""
 
 
 def test_confirm_refuses_error_candidate_and_says_where_it_belongs():

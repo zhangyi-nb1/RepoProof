@@ -80,6 +80,9 @@ Completion Gate，也不把 Agent 的自述转成成功结论。
 仓库摘要、在线合同起草和样例候选同样缺省走 Codex 订阅，但使用独立的
 `read-only + deny-all-tools + output-schema` 文本通道；它们的输出只能进入
 展示/草稿层。样例 expected output 仍由 pinned upstream 真跑并经用户逐条确认。
+候选数量是“可确认的上游输出”目标：模型首轮失败后先探测上游 README/
+测试中的现成输入，再最多做两轮定向补候选；达上限仍不足时显式报告缺口。
+重新生成候选不得改写 `examples.yaml` 或已确认样例文件。
 Agent 只有在用户确认合同与代表性样例后才尝试构建；只有独立验证、clean
 replay 与 fresh audit 均成立，当前 task version 才能成为 `ACTIVE`。
 

@@ -183,10 +183,16 @@ def test_codex_drafter_supports_summary_draft_and_candidates(
     assert "required_fields" not in drafted["output_contract"]
 
     candidates = {
-        "inputs": [{"input_name": "case.txt", "input_text": "abc", "why": "典型输入"}],
+        "inputs": [
+            {"input_name": f"case-{i}.txt", "input_text": f"abc-{i}", "why": "候选输入"}
+            for i in range(4)
+        ],
     }
     monkeypatch.setenv("REPOPROOF_TEST_RESPONSE", json.dumps(candidates, ensure_ascii=False))
     assert drafter.propose_example_inputs({"capability_goal": "转换"}) == candidates
+    seen = json.loads((tmp_path / "capture.json").read_text(encoding="utf-8"))
+    assert seen["schema"]["properties"]["inputs"]["minItems"] == 4
+    assert seen["schema"]["properties"]["inputs"]["maxItems"] == 4
     assert drafter.last_usage["cost"] == "INCLUDED_USAGE_UNMETERED"
 
 

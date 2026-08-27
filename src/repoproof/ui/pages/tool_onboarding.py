@@ -250,6 +250,11 @@ with tab_review:
                 )
 
         # ---------------- 样例助手:模型出输入、上游出输出、你逐条确认 ----------------
+        _example_flash = st.session_state.pop("rp_example_flash", None)
+        if _example_flash:
+            (st.success if _example_flash.get("ok") else st.error)(
+                _example_flash.get("message") or "样例状态已更新"
+            )
         with st.expander("🧪 不知道样例怎么写？让系统给你候选（真值仍由你确认）",
                          expanded=False):
             st.caption(
@@ -268,17 +273,45 @@ with tab_review:
             if (gp3.button("生成候选（含边界/畸形输入）", key="rp_cand_go")
                     and _require_service("propose_example_candidates")):
                 with st.spinner("模型出候选输入 → 钉版上游真跑……"):
-                    st.session_state["rp_cands"] = product_jobs.propose_example_candidates(
+                    _candidate_result = product_jobs.propose_example_candidates(
                         inspect_dir, n=int(_n), offline=_cand_offline)
+                    if _candidate_result.get("ok"):
+                        st.session_state["rp_cands_generation"] = (
+                            int(st.session_state.get("rp_cands_generation") or 0) + 1
+                        )
+                    _candidate_result["generation"] = int(
+                        st.session_state.get("rp_cands_generation") or 0
+                    )
+                    _candidate_result["draft_dir"] = str(inspect_dir.resolve(strict=False))
+                    st.session_state["rp_cands"] = _candidate_result
 
             _cr = st.session_state.get("rp_cands") or {}
+            if _cr.get("draft_dir") != str(inspect_dir.resolve(strict=False)):
+                _cr = {}
             if _cr and not _cr.get("ok"):
                 st.error(_cr.get("error"))
             elif _cr.get("ok"):
                 st.caption(f"候选来源：{_cr.get('drafter')} · {_cr.get('note')}")
+                if _cr.get("shortfall"):
+                    st.warning(
+                        f"你请求 {_cr.get('requested')} 条可确认输出，目前只有 "
+                        f"{_cr.get('usable_count')} 条。系统已完成最多两轮自动补候选；"
+                        "其余失败输入保留在下方，便于你收紧能力描述或手工修改。"
+                    )
+                else:
+                    st.success(
+                        f"已得到 {_cr.get('usable_count')} / {_cr.get('requested')} 条"
+                        "可确认的上游实际输出。"
+                    )
+                st.caption(
+                    f"生成候选前后，磁盘中仍有 {_cr.get('confirmed_count', '—')} 条"
+                    "已确认样例；重新生成候选不会清空它们。"
+                )
                 _usable = [c for c in _cr["candidates"]
-                           if c.get("upstream_output") and not c.get("upstream_error")]
+                           if c.get("upstream_output") is not None
+                           and not c.get("upstream_error")]
                 _errs = [c for c in _cr["candidates"] if c.get("upstream_error")]
+                _generation = int(_cr.get("generation") or 0)
 
                 for i, c in enumerate(_usable):
                     with st.container(border=True):
@@ -287,22 +320,34 @@ with tab_review:
                         e1, e2 = st.columns(2)
                         _in_text = e1.text_area(
                             "输入（可改）", value=c["input_text"], height=120,
-                            key=f"rp_cand_in_{i}")
+                            key=f"rp_cand_in_{_generation}_{i}")
                         _out_text = e2.text_area(
                             "上游实际输出（可改；改了以你的为准）",
                             value=c["upstream_output"], height=120,
-                            key=f"rp_cand_out_{i}")
+                            key=f"rp_cand_out_{_generation}_{i}")
                         st.caption(
                             "⚠️ 这是**上游此刻的实际输出，不是对错判定**——"
                             "它是不是你要的能力，仍然由你判断。")
-                        if st.button("✅ 我确认这一条，加入样例", key=f"rp_cand_ok_{i}"):
+                        if st.button(
+                            "✅ 我确认这一条，加入样例",
+                            key=f"rp_cand_ok_{_generation}_{i}",
+                        ):
                             r = product_jobs.confirm_candidate_as_example(
                                 inspect_dir, c, expected_text=_out_text,
                                 input_text=_in_text)
-                            (st.success if r.get("ok") else st.error)(
+                            message = (
                                 (r.get("note") or r.get("error") or "")
                                 + (f"（真值来源：{r.get('truth_provenance')}）"
-                                   if r.get("ok") else ""))
+                                   if r.get("ok") else "")
+                            )
+                            if r.get("ok"):
+                                st.session_state["rp_example_flash"] = {
+                                    "ok": True,
+                                    "message": message,
+                                }
+                                st.rerun()
+                            else:
+                                st.error(message)
 
                 if _errs:
                     st.markdown("**这些候选让上游抛了错——它们做不成样例，但很有用**")
@@ -419,6 +464,11 @@ with tab_review:
                 "由你在确认这一步把关(术语:用户确认 callable locator)。"
             )
 
+        # Any add-example button above mutates disk after the page's initial
+        # snapshot. Re-read here so the metric never shows a stale zero.
+        _fresh_review = product_jobs.read_managed_draft_review(inspect_dir)
+        if _fresh_review.get("ok"):
+            review_bundle = _fresh_review
         examples = review_bundle["examples"]
         st.metric("已确认样例", len(examples), help="冻结至少需要三组")
         if examples:
