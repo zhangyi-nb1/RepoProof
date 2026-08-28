@@ -1014,3 +1014,27 @@ def test_integrity_external_only_still_blocks_agent_run() -> None:
     assert out["verdict"] == "BLOCKED"
     assert out["state"] == "MAIN_DIR_INTEGRITY_EXTERNAL_ONLY"
     assert "外部" in reasons[0] and "external=2" in reasons[0]
+
+
+def test_integrity_block_names_the_files_and_says_what_to_do() -> None:
+    """完整性覆盖判定时,必须**点名文件**并说明人该做什么。
+
+    2026-08-28 实录:用户在构建期间编辑了邻仓的一个源文件(mtime 正落在
+    19.5 秒的会话窗内),一发四道门全过的彩排被覆盖成 BLOCKED,而消息只
+    说"无法排除本链" —— 用户无从判断是自己动了什么还是系统坏了,只能
+    问"你半天改了啥"。判定不变(证明不了就是证明不了),但**必须说清楚**。
+    """
+    out, reasons = apply_integrity_to_verdict(
+        {"verdict": "PASS_ADAPTED"}, [],
+        {"ok": False, "self_ok": False, "mismatches": [{
+            "dir": "/x/offerclaw", "field": "tree",
+            "attribution": {"verdict": "SELF", "n_self": 1, "n_external": 4,
+                            "self_changes": [{"path": "scripts/build_x.py"}],
+                            "external_changes": []}}]})
+
+    assert out["verdict"] == "BLOCKED"          # 判定不许因为"可读"而放松
+    said = reasons[0]
+    assert "scripts/build_x.py" in said, "没点名到具体文件"
+    assert "重跑" in said, "没告诉人下一步怎么办"
+    assert "真事故" in said, "没说明'我没动过'时意味着什么"
+

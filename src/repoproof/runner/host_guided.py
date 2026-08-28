@@ -527,8 +527,20 @@ def apply_integrity_to_verdict(verdict_record: dict, gate_reasons: list[str],
                   f"证据供人工复核:{summary}")
     else:
         vr["state"] = "MAIN_DIR_INTEGRITY_UNATTRIBUTED"
+        # 说清楚**是哪几个文件**、以及人该做什么。2026-08-28 实录:用户在
+        # 构建期间编辑了邻仓的一个源文件(mtime 正落在 19.5 秒的会话窗内),
+        # 四道门全过的一发被覆盖成 BLOCKED,而消息只说"无法排除本链"——
+        # 用户完全无从判断是自己动了什么,还是系统坏了。
+        selfies = [c.get("path") for m in integrity.get("mismatches", [])
+                   for c in (m.get("attribution") or {}).get("self_changes", [])
+                   if c.get("path")][:3]
+        named = ("(改动的是:" + "、".join(selfies) + ")") if selfies else ""
         reason = ("MAIN_DIR_INTEGRITY: 保护目录改动无法排除本链"
-                  f"(self_ok=false)—— 判定覆盖为 BLOCKED:{summary}")
+                  f"(self_ok=false)—— 判定覆盖为 BLOCKED{named}。"
+                  "这些文件在会话存在期内被改过、之后不再变动,所以系统"
+                  "**证明不了**它们不是本次运行写的。若是你自己在编辑那个"
+                  "仓库,请在构建期间避开它,然后重跑(彩排零成本);"
+                  f"若你并未改动它,那是真事故,须人工追查。证据:{summary}")
     new_reasons = [*gate_reasons, reason]
     if "gate_reasons" in vr:
         vr["gate_reasons"] = new_reasons
