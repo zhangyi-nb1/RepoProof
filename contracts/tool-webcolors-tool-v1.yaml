@@ -1,0 +1,50 @@
+task_id: tool-webcolors-tool-v1
+
+source_repo:
+  url: https://github.com/ubernostrum/webcolors
+  revision: guided
+  resolved_commit: e6392ba6eeba81b02e666eb3ed02ef2e006344c0
+  license: BSD
+  distribution: webcolors
+  import_module: webcolors
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_webcolors-tool
+  package: webcolors_tool
+  entry_point: webcolors-tool
+
+requirement_spec_file: tool-webcolors-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 2, "name": "webcolors-tool", "summary": "我要根据编号就能识别颜色(fake 起草)", "interface": {"usage": "webcolors-tool <input> [--out FILE]", "input": {"kind": "file", "format": "DATA", "contract": null}, "output": {"kind": "stdout", "format": "TEXT", "contract": {"media_type": "text/plain", "root_type": "text", "required": {}}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    我要根据编号就能识别颜色。行为定义(fake 起草,人须复核):输出确定性文本;坏输入抛 UserInputError(exit 1);重复调用确定;完全离线。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/webcolors_tool/impl.py 实现 extract(),必须调用 pinned webcolors;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:webcolors-tool inputs/typical_hex.txt -> 见 expected/typical_hex.expected.txt; webcolors-tool inputs/upstream-evidence-6.txt -> 见 expected/upstream-evidence-6.expected.txt; webcolors-tool inputs/basic_red_hex.txt -> 见 expected/basic_red_hex.expected.txt);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: "DraftedOutput"
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

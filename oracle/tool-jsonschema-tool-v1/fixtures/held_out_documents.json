@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/含非ASCII和格式校验的常规对象", "expected_file": "expected/含非ASCII和格式校验的常规对象.expected.txt"}]}

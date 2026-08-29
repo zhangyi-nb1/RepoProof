@@ -1,0 +1,50 @@
+task_id: tool-feedparser-tool-v4
+
+source_repo:
+  url: https://github.com/kurtmckee/feedparser
+  revision: guided
+  resolved_commit: 14425f6851790184fbf7bbd8076de237d5f444f9
+  license: BSD-2-Clause
+  distribution: feedparser
+  import_module: feedparser
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_feedparser-tool-v4
+  package: feedparser_tool
+  entry_point: feedparser-tool
+
+requirement_spec_file: tool-feedparser-tool-v4.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 2, "name": "feedparser-tool", "summary": "将 RSS 或 Atom 文件离线统一整理为稳定的文章 JSON 清单，尽量保留标题、链接、作者、时间和标签。", "interface": {"usage": "feedparser-tool <input> [--out FILE]", "input": {"kind": "file", "format": "RSS/Atom XML", "contract": null}, "output": {"kind": "stdout", "format": "JSON", "contract": {"media_type": "application/json", "root_type": "object", "required": {"format": "string", "feed": "object", "entries": "array", "warnings": "array"}}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    输入是一个本地 RSS 或 Atom 字节文件。使用固定版本 feedparser 6.0.14 直接解析文件字节，运行时不传 URL、不访问网络。输出固定包含 format、feed、entries、warnings：format 是 feedparser 识别的格式；feed 与每个 entry 均包含 title、link、id、authors、published、updated、tags，作者与标签保持上游顺序，entries 严格保持源文件顺序；文本做 Unicode NFC 与连续空白归一化，时间同时保留 raw 值和确定性的 UTC RFC3339 值。feedparser 标记 bozo 但仍能恢复 feed 或 entries 时继续输出并记录结构化 warning；空文件、不可读文件或完全不可识别输入抛出 UserInputError（CLI 退出码 1）。输出为 UTF-8 紧凑排序 JSON，相同输入字节一致。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/feedparser_tool/impl.py 实现 extract(),必须调用 pinned feedparser;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:feedparser-tool inputs/rss_unicode_complete.xml -> 见 expected/rss_unicode_complete.expected.txt; feedparser-tool inputs/atom_unicode_complete.xml -> 见 expected/atom_unicode_complete.expected.txt);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: "NormalizedFeedReport"
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

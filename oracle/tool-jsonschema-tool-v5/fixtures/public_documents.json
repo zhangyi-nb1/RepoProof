@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/valid_unicode_object", "expected_file": "expected/valid_unicode_object.expected.txt"}, {"input_file": "inputs/nested_anyof_escaped_pointer", "expected_file": "expected/nested_anyof_escaped_pointer.expected.txt"}]}

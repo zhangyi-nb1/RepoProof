@@ -1,0 +1,8 @@
+[project]
+name = "pypdf_tool"
+version = "1.0.0"
+description = '将本地 PDF 离线转换为保留逐页文本、空页、文档标题作者及层级书签的可检索 JSON 清单。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

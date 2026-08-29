@@ -1,0 +1,3 @@
+ 
+{"schema":{"type":"object","properties":{"用户":{"$ref":"#/$defs/user"}},"required":["用户"],"additionalProperties":false,"$defs":{"user":{"type":"object","properties":{"年龄":{"type":"integer","minimum":18},"邮箱":{"type":"string","format":"email"}},"required":["年龄","邮箱"],"additionalProperties":false}}},"instance":{"用户":{"年龄":"十七","邮箱":"无效地址","多余":true},"额外":null}}
+ 

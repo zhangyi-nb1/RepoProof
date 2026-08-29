@@ -1,0 +1,49 @@
+{
+ "manifest_version": 1,
+ "name": "feedparser-tool",
+ "version": "1.0.0",
+ "summary": "将本地 RSS 或 Atom XML 文件离线整理为顺序稳定、字段规范化的订阅文章清单，并报告可恢复的解析警告。",
+ "source": {
+  "url": "https://github.com/kurtmckee/feedparser",
+  "resolved_commit": "14425f6851790184fbf7bbd8076de237d5f444f9",
+  "license": "BSD-2-Clause",
+  "distribution": "feedparser"
+ },
+ "contract_schema_version": 2,
+ "interface": {
+  "usage": "feedparser-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "RSS/Atom XML",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON",
+   "contract": {
+    "media_type": "application/json",
+    "root_type": "object",
+    "required": {
+     "format": "string",
+     "feed": "object",
+     "entries": "array",
+     "warnings": "array"
+    }
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "FeedSubscriptionList"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

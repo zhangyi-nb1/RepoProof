@@ -57,7 +57,12 @@ from pydantic import BaseModel, Field, field_validator
 
 from repoproof.adoption.repair.failure_packet import FailurePacket, build_failure_packets
 from repoproof.adoption.repair.repair_budget import RepairBudget
-from repoproof.adoption.repair.repair_loop import RepairLoop, RoundResult
+from repoproof.adoption.repair.repair_loop import (
+    RepairLoop,
+    RoundResult,
+    classify_agent_exit_status,
+    compute_public_failure_fingerprint,
+)
 from repoproof.agents.provider_gate import PreflightResult, ProviderConfig
 from repoproof.domain.models import (
     AdaptationManifest,
@@ -1284,6 +1289,42 @@ def integrity_scope(project_root: Path) -> list[str]:
     return [d for d in protected_dirs() if d.lower() != self_norm]
 
 
+def product_integrity_scope(
+    project_root: Path,
+    *,
+    task_id: str,
+    task_dir: Path,
+    host_copy: Path,
+    upstream_src: Path | None,
+) -> list[str]:
+    """Exact immutable facts watched after a Product Mode run.
+
+    Command-time write protection still covers RepoProof and every sibling git
+    repository.  This narrower list changes only the post-run fingerprint:
+    unrelated sibling activity cannot redefine a Local Tool outcome.
+    """
+
+    candidates = [
+        Path(task_dir),
+        Path(host_copy),
+        Path(project_root) / "contracts" / f"{task_id}.yaml",
+        Path(project_root) / "contracts" / f"{task_id}.yaml.sha256",
+        Path(project_root) / "controls" / task_id,
+    ]
+    if upstream_src is not None:
+        candidates.append(Path(upstream_src))
+    seen: set[str] = set()
+    result: list[str] = []
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        resolved = str(candidate.resolve())
+        if resolved not in seen:
+            seen.add(resolved)
+            result.append(resolved)
+    return result
+
+
 def _read_substitutes(host_copy: Path) -> dict[str, str]:
     """替身内容取自副本内文件(引导手册保证其为合成;PII 扫描兜底)。
 
@@ -2467,7 +2508,18 @@ class HostGuidedRunner:
         # **之前**是保守方向:窗宽只会把更多改动判成 SELF(继续红)。
         # t0 是 monotonic,量时长的;归因要对上文件 mtime,必须 time.time()。
         self._self_wall_t0 = time.time()
-        integrity_before = snapshot_protected(integrity_scope(self.project_root))
+        self._postflight_integrity_scope = (
+            product_integrity_scope(
+                self.project_root,
+                task_id=contract.task_id,
+                task_dir=self.task_dir,
+                host_copy=self.host_copy,
+                upstream_src=self.upstream_src,
+            )
+            if contract.task_family == "LOCAL-TOOL"
+            else integrity_scope(self.project_root)
+        )
+        integrity_before = snapshot_protected(self._postflight_integrity_scope)
         # 会话根不得落在保护目录内(RepoProof 自身也是保护目录),
         # 放 RepoProofBench 工作区;产物/trace 仍在 runs/<id>/ 下。
         sessions_root = Path("~/RepoProofBench/_sessions").expanduser() / self.run_id
@@ -2961,6 +3013,35 @@ class HostGuidedRunner:
                         actual="the command/policy record counts do not reconcile",
                         suggestion="stop this run; restore the trusted hook before retrying",
                     ))
+                reason_codes: list[str] = []
+                exit_responsibility = classify_agent_exit_status(
+                    str(result.exit_status or "")
+                )
+                if exit_responsibility is not None:
+                    failure_owner, reason_code, recommended_action = exit_responsibility
+                    reason_codes.append(reason_code)
+                elif not collected_ok:
+                    failure_owner = "HARNESS"
+                    recommended_action = "RETRY_INFRASTRUCTURE"
+                    reason_codes.append("PUBLIC_TEST_COLLECTION_FAILED")
+                elif pol_count or fatal:
+                    failure_owner = "SAFETY_POLICY"
+                    recommended_action = "STOP"
+                    reason_codes.append("PROTECTED_SURFACE_OR_POLICY_VIOLATION")
+                else:
+                    failure_owner = "AGENT_ADAPTER"
+                    recommended_action = "REPAIR"
+                    if failed_nodes:
+                        reason_codes.append("PUBLIC_CONTRACT_FAILURE")
+                    if reg_failed:
+                        reason_codes.append("HOST_REGRESSION_FAILED")
+                    if probe_failed:
+                        reason_codes.append("DEPENDENCY_CHANGE_UNRESOLVABLE")
+                if scope_req:
+                    failure_owner = "USER_INPUT"
+                    recommended_action = "ASK_USER"
+                    reason_codes.append("SCOPE_CHANGE_REQUESTED")
+
                 rr = RoundResult(
                     adapter_snapshot=head,
                     passed=passed,
@@ -2978,7 +3059,13 @@ class HostGuidedRunner:
                     ("TokenBudgetExhausted", "LimitsExceeded"),
                     violation_packets=violation_packets,
                     fatal_violations=fatal,
+                    failure_owner=failure_owner,
+                    reason_codes=sorted(set(reason_codes)),
+                    recommended_action=recommended_action,
+                    adapter_diff_present=bool(diff["files"]),
+                    failure_class=str(result.exit_status or ""),
                 )
+                rr.public_failure_fingerprint = compute_public_failure_fingerprint(rr)
                 hard = hard_signals(collected_ok=collected_ok,
                                     policy_violations=rr.policy_violations,
                                     regression_failed=reg_failed, passed=passed)
@@ -3010,6 +3097,11 @@ class HostGuidedRunner:
                                      for p in (*packets_next, *violation_packets)],
                     scope_change_request=scope_req,
                     score=host_score(rr),
+                    failure_owner=rr.failure_owner,
+                    public_failure_fingerprint=rr.public_failure_fingerprint,
+                    reason_codes=list(rr.reason_codes),
+                    adapter_diff_present=rr.adapter_diff_present,
+                    recommended_action=rr.recommended_action,
                 )
                 records.append(record)
                 public_by_round.append(passed)
@@ -3047,6 +3139,10 @@ class HostGuidedRunner:
                     # 首要执法者是 fatal 违规包 + 最终政策闸。
                     max_diff_lines=b.max_patch_lines * b.max_rounds),
                 score_fn=host_score,
+                responsibility_gating=(
+                    self.contract.task_family == "LOCAL-TOOL"
+                    and self._fake_mode is None
+                ),
             )
             outcome = loop.run()
             cur = self._git(s, "rev-parse", "HEAD").stdout.decode().strip()
@@ -3065,6 +3161,10 @@ class HostGuidedRunner:
                 "stop_reason": outcome.stop_reason,
                 "rolled_back_rounds": outcome.rolled_back_rounds,
                 "pending_scope_change": outcome.pending_scope_change,
+                "failure_owner": outcome.failure_owner,
+                "reason_codes": outcome.reason_codes,
+                "recommended_action": outcome.recommended_action,
+                "public_failure_fingerprint": outcome.public_failure_fingerprint,
             }
             (repair_dir / "summary.json").write_text(
                 json.dumps(repair_summary, ensure_ascii=False, indent=2,
@@ -3603,6 +3703,7 @@ class HostGuidedRunner:
         wall_t0 = getattr(self, "_self_wall_t0", None)
         integrity = verify_protected_unchanged(
             integrity_before,
+            self._postflight_integrity_scope,
             self_window=(SelfWriteWindow(start=wall_t0, end=time.time())
                          if wall_t0 is not None else None))
         if not integrity["ok"]:

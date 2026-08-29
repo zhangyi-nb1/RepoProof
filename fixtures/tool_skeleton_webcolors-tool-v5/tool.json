@@ -1,0 +1,47 @@
+{
+ "manifest_version": 1,
+ "name": "webcolors-tool",
+ "version": "1.0.0",
+ "summary": "将标准 CSS3 颜色名称转换为确定性的 RGB 数值，供外部灰度/颜色传感器适配层按其端口协议使用。",
+ "source": {
+  "url": "https://github.com/ubernostrum/webcolors",
+  "resolved_commit": "e6392ba6eeba81b02e666eb3ed02ef2e006344c0",
+  "license": "BSD",
+  "distribution": "webcolors"
+ },
+ "contract_schema_version": 2,
+ "interface": {
+  "usage": "webcolors-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "TEXT",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON",
+   "contract": {
+    "media_type": "application/json",
+    "root_type": "object",
+    "required": {
+     "color_name": "string",
+     "rgb": "object"
+    }
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "ColorSensorColor"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

@@ -1,0 +1,44 @@
+{
+ "manifest_version": 1,
+ "name": "webcolors-tool",
+ "version": "1.0.0",
+ "summary": "我要根据编号就能识别颜色(fake 起草)",
+ "source": {
+  "url": "https://github.com/ubernostrum/webcolors",
+  "resolved_commit": "e6392ba6eeba81b02e666eb3ed02ef2e006344c0",
+  "license": "BSD",
+  "distribution": "webcolors"
+ },
+ "contract_schema_version": 2,
+ "interface": {
+  "usage": "webcolors-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "DATA",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "TEXT",
+   "contract": {
+    "media_type": "text/plain",
+    "root_type": "text",
+    "required": {}
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "DraftedOutput"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

@@ -739,12 +739,15 @@ def start_durable_job(
     expected_artifact_glob: str | None = None,
     env: Mapping[str, str] | None = None,
     metadata: Mapping[str, Any] | None = None,
+    job_id: str | None = None,
 ) -> dict[str, Any]:
     """Acquire the repo mutex and launch one detached durable worker."""
     root = Path(root)
     state_path = Path(state_path)
     log_path = Path(log_path)
-    job_id = uuid.uuid4().hex
+    job_id = job_id or uuid.uuid4().hex
+    if re.fullmatch(r"[0-9a-f]{32}", job_id) is None:
+        return {"ok": False, "error": "job_id 必须是 32 位小写十六进制标识。"}
     lease_id = secrets.token_hex(24)
     lock_path, conflict = _acquire_core_lock(
         root,

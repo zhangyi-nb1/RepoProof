@@ -1,0 +1,18 @@
+{
+  "schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$defs": {
+      "product": {
+        "type": "object",
+        "required": ["name", "price"],
+        "properties": {
+          "name": {"type": "string"},
+          "price": {"type": "number"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "$ref": "#/$defs/product"
+  },
+  "instance": {"name": "鸡蛋 Eggs", "price": 12.5}
+}

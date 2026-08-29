@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>  Café   新闻  </title>
+    <link>https://example.test/feed</link>
+    <description>示例订阅</description>
+    <item>
+      <title>  第一　篇   条目  </title>
+      <link>/article/1</link>
+      <guid> item-001 </guid>
+      <author>Alice Example &lt;alice@example.test&gt;</author>
+      <category domain="topic"> 技术 </category>
+      <pubDate>not a real date</pubDate>
+      <updated>Tue, 02 Jan 2024 03:04:05 GMT</updated>
+    </item>
+  </channel>
+</rss>

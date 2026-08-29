@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import re
 import subprocess
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -157,6 +158,9 @@ def readme_prose(readme_text: str, *, cap: int = _README_PROSE_CAP) -> str:
     return "\n\n".join(out)[:cap].strip()
 
 
+_ANALYSIS_GIT_TIMEOUT_SECONDS = 300
+
+
 def clone_for_analysis(url: str, revision: str | None, cache_root: Path) -> tuple[Path | None, str]:
     """匿名浅克隆(唯一副作用);返回 (目录, 错误串)。永不执行仓库代码。"""
     m = _GITHUB_URL.match(url.strip())
@@ -164,17 +168,40 @@ def clone_for_analysis(url: str, revision: str | None, cache_root: Path) -> tupl
         return None, f"不是公开 GitHub 仓库地址格式: {url!r}"
     slug = hashlib.sha256(f"{url}@{revision or 'HEAD'}".encode()).hexdigest()[:12]
     dest = cache_root / "analysis" / f"{m.group(2)}-{slug}"
-    if (dest / ".git").is_dir():
+    if (dest / ".git").is_dir() and _git_head(dest):
         return dest, ""
     dest.parent.mkdir(parents=True, exist_ok=True)
-    cmd = ["git", "clone", "--depth", "1", "--quiet"]
-    if revision:
-        cmd += ["--branch", revision]
-    cmd += [url, str(dest)]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120, check=False,
-                          env={"GIT_TERMINAL_PROMPT": "0", "PATH": "/usr/bin:/bin:/usr/local/bin"})
-    if proc.returncode != 0:
-        return None, proc.stderr.strip()[-300:] or "git clone failed"
+    if dest.exists():
+        return None, f"分析缓存存在但不是有效 git checkout:{dest}"
+
+    git_env = {"GIT_TERMINAL_PROMPT": "0", "PATH": "/usr/bin:/bin:/usr/local/bin"}
+    # `git clone --branch <revision>` 只接受分支/标签；完整 commit 会被误当
+    # 成远端分支并报 `Remote branch ... not found`。资格测试固定的是 40 位
+    # commit，所以 revision 路径统一使用 init + fetch + detached checkout。
+    # 临时目录保证失败时不会留下一个带 `.git` 的半成品缓存。
+    with tempfile.TemporaryDirectory(prefix=f".{m.group(2)}-analysis-", dir=dest.parent) as tmp:
+        tmp_path = Path(tmp)
+        commands = (
+            ["git", "init", "--quiet", str(tmp_path)],
+            ["git", "-C", str(tmp_path), "remote", "add", "origin", url],
+            [
+                "git", "-C", str(tmp_path), "fetch", "--depth", "1", "--quiet",
+                "origin", revision or "HEAD",
+            ],
+            ["git", "-C", str(tmp_path), "checkout", "--detach", "--quiet", "FETCH_HEAD"],
+        )
+        for cmd in commands:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=_ANALYSIS_GIT_TIMEOUT_SECONDS,
+                check=False,
+                env=git_env,
+            )
+            if proc.returncode != 0:
+                return None, proc.stderr.strip()[-300:] or "git checkout failed"
+        tmp_path.replace(dest)
     return dest, ""
 
 

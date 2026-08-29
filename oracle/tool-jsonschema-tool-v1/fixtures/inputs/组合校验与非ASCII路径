@@ -1,0 +1,1 @@
+{"schema":{"type":"object","required":["名~称/值","price"],"properties":{"名~称/值":{"$ref":"#/$defs/nonEmptyName"},"price":{"oneOf":[{"type":"number"},{"type":"string","pattern":"^[0-9]+$"}]}},"additionalProperties":false,"$defs":{"nonEmptyName":{"type":"string","minLength":3}}},"instance":{"名~称/值":2,"price":"免费","额外":true}}

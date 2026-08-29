@@ -1,0 +1,13 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input_file": "inputs/rss_unicode_whitespace_invalid_date.xml",
+   "expected_file": "expected/rss_unicode_whitespace_invalid_date.expected.txt"
+  },
+  {
+   "input_file": "inputs/atom_recoverable_unclosed.xml",
+   "expected_file": "expected/atom_recoverable_unclosed.expected.txt"
+  }
+ ]
+}

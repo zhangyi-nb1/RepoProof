@@ -1,0 +1,50 @@
+task_id: tool-markdown-it-py-tool-v4
+
+source_repo:
+  url: https://github.com/executablebooks/markdown-it-py
+  revision: guided
+  resolved_commit: 36c5f547144df2d01970a5792d68c71a3380b227
+  license: MIT
+  distribution: markdown-it-py
+  import_module: markdown_it
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_markdown-it-py-tool-v4
+  package: markdown_it_py_tool
+  entry_point: markdown-it-py-tool
+
+requirement_spec_file: tool-markdown-it-py-tool-v4.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 2, "name": "markdown-it-py-tool", "summary": "将 Markdown 文件按原文解析顺序提取标题层级、链接和围栏代码块，生成稳定且完全离线的 JSON。", "interface": {"usage": "markdown-it-py-tool <input> [--out FILE]", "input": {"kind": "file", "format": "Markdown", "contract": null}, "output": {"kind": "stdout", "format": "JSON", "contract": {"media_type": "application/json", "root_type": "object", "required": {"headings": "array", "links": "array", "code_blocks": "array"}}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    使用固定版本 markdown-it-py 4.2.0 的 MarkdownIt 解析一个 UTF-8 Markdown 文件，输出对象 {"headings": [...], "links": [...], "code_blocks": [...]}。headings 按文档标题出现顺序输出，每项包含 level 和 text；链接按行内出现顺序输出，每项包含 href 和 text，相对目标原样保留、重复标签不去重；code_blocks 仅收集 fence，每项包含 language 和 code，无语言时 language 为空字符串，code 保留解析器给出的内容和末尾换行。标题和链接的可见文本拼接 text 与 code_inline，softbreak/hardbreak 归一化为换行，忽略 Markdown 控制标记。空文件、仅空白、非 UTF-8 或无法读取的输入抛出 UserInputError（CLI 退出码 1）。JSON 为 UTF-8 紧凑格式，顶层固定为 headings、links、code_blocks；相同输入重复运行必须字节一致，运行时完全离线。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/markdown_it_py_tool/impl.py 实现 extract(),必须调用 pinned markdown-it-py;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:markdown-it-py-tool inputs/typical_features.md -> 见 expected/typical_features.expected.txt; markdown-it-py-tool inputs/unicode_and_malformed_markdown.md -> 见 expected/unicode_and_malformed_markdown.expected.txt);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: "MarkdownDocumentExtraction"
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

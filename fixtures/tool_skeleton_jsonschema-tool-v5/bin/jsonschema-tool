@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# CLI 壳(harness 锁定件):进本包 venv 执行,不污染调用方环境。
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+exec "$ROOT/.venv/bin/python" -m jsonschema_tool "$@"

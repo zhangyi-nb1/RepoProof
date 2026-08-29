@@ -1,0 +1,50 @@
+task_id: tool-junitparser-tool-v1
+
+source_repo:
+  url: https://github.com/weiwei/junitparser
+  revision: guided
+  resolved_commit: d98bdb70fbde4d08e191df17bd51576102c19d6a
+  license: Apache-2.0
+  distribution: junitparser
+  import_module: junitparser
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_junitparser-tool
+  package: junitparser_tool
+  entry_point: junitparser-tool
+
+requirement_spec_file: tool-junitparser-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 2, "name": "junitparser-tool", "summary": "合并 ZIP 中的多份测试报告，并可按通过、失败、错误或跳过状态筛选后输出确定性 JSON 汇总。", "interface": {"usage": "junitparser-tool <input> [--out FILE]", "input": {"kind": "file", "format": "ZIP", "contract": null}, "output": {"kind": "stdout", "format": "JSON", "contract": {"media_type": "application/json", "root_type": "object", "required": {"filter": "array", "suites": "array", "totals": "object"}}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取一个 ZIP 压缩包并合并其中的多份 JUnit XML 报告。ZIP 中至少有一个 .xml 普通文件，可额外包含一个根目录 filter.txt；该文件使用逗号分隔的 passed、failed、error、skipped 指定要统计的状态，缺省时统计全部状态。 每个 XML 必须以 testsuite 或 testsuites 为根，并使用固定版本的 junitparser.JUnitXml.fromfile 解析。输出对象包含 filter、suites 和 totals； suites 按 ZIP 成员名的 Unicode 词典序排列，并保留文件内 suite 顺序。 每个 suite 包含 source、name、tests、passed、failures、errors、skipped、 time，其中计数与 time 只包含筛选后保留的 testcase；即使某个 suite 没有 命中也保留零值，便于对照来源。totals 为所有 suite 的顺序累加结果。 JSON 使用 UTF-8、紧凑分隔符和排序对象键渲染。空 ZIP、目录成员、重复成员名、 多个 filter.txt、未知或空筛选值、其他非 XML 成员、无效根元素、损坏 XML、 非有限 time 或无法由上游解析的内容均抛出 UserInputError，CLI 以退出码 1 处理。相同输入重复运行必须产生完全相同的输出，且运行时完全离线。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/junitparser_tool/impl.py 实现 extract(),必须调用 pinned junitparser;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:junitparser-tool inputs/all-statuses-duplicate-suites.zip -> 见 expected/all-statuses-duplicate-suites.expected.json; junitparser-tool inputs/failed-and-skipped-filter.zip -> 见 expected/failed-and-skipped-filter.expected.json);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: "JUnitZipSuitesTotals"
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

@@ -3,7 +3,33 @@
 > Purpose: the single in-repo status anchor for AI/human handoff.
 > Update ONLY at gate boundaries; history below is append-only.
 
-## Current status (2026-08-25, M0–M6 closed; Verified Tool Onboarding harness Gate 0–4 closed)
+## Current status (2026-08-29, M6.1 Product Journey Reliability closed locally)
+
+**主产品线仍是 GitHub 单能力 → 经独立验证的本地工具。M6.1 没有扩展
+M7，也没有恢复旧宿主适配路线；本批只修复 Studio → Core 的产品旅程，
+使受支持任务稳定到达 ACTIVE，或以唯一责任、原因码和下一步停止。**
+
+| Anchor | Value |
+|---|---|
+| 本地分支 | `codex/product-journey-stabilization`，从 `29c3156` 开始；本节描述本地关闭状态，不代表已推送 GitHub |
+| 状态事实源 | UI 不再从日志猜结论：`ProductJobStateV2` 只描述进程事实，`ProductActionResultV1` 描述动作结果，运营状态每次从 Core registry + append-only release ledger 重算 |
+| Journey | `ProductJourneyRefV1` 原子保存导航关系；Studio 默认恢复未结束任务，普通用户不再手工复制草稿路径、task id 或结果 JSON |
+| 预检 | 合同/版本/commit、锁文件、wheelhouse、离线安装、upstream import、公开 reference 样例和输出合同在 Agent 前执行；Harness/Upstream/Contract/User Input 故障零模型停止 |
+| Repair | 首次实现 + 最多两轮 repair；仅 `AGENT_ADAPTER` 的公开失败可修复；无 diff、重复指纹无进展、范围漂移、环境故障和预算耗尽均有确定性 stop code |
+| Product/Lab 隔离 | Product 完整性只覆盖任务拥有的合同、oracle、固定 upstream、adapter 和产物；实际越界写仍阻止；Lab/legacy 保留全局宿主完整性规则 |
+| 原三仓资格 | `junitparser v1`、`markdown-it-py v4`、`python-docx v2` 均为历史 `VERIFIED_TOOL_READY`、clean replay PASS、当前 `ACTIVE`、package `OK` |
+| 扩展三仓资格 | `jsonschema v8`、`feedparser v7`、`pypdf v2` 均从 Studio 完成合同确认、三样例、零模型演练、真实 Agent 构建、独立验证、clean replay 与 fresh audit；最终同样为 `ACTIVE` + package `OK` |
+| Conformance 加固 | 上游 pytest 改为能力相关的模块级 node 选择，忽略 upstream pytest 插件配置；仅从上游自有 exact-pinned test/dev requirements 有界补依赖。pypdf 实录选 3 个节点，补 `pyyaml==6.0.2` 与 `pillow==12.2.0`，3/3 PASS 后才调用 Agent |
+| 指标边界 | 本批所有 `PRODUCT` / `HARNESS_SELFCHECK` 与 `PRODUCT_ONBOARDING` 行的四个 `counts_toward_*` 字段均为 false；共享台账记录案例，但绝不计 Benchmark Lab 模型能力 |
+| 资格事实源 | `docs/m6_1_qualification.yaml` 与 `docs/m6_1_extended_qualification.yaml`；每例钉住 task id、run id、历史结论、clean replay 和当前运营状态 |
+| 本地质量线 | 1664 tests collected；全量 pytest 退出 0（1604 passed + 60 skipped），显式 Product journey/Streamlit smoke 17/17；Ruff 全仓 0 错；mypy 170 个源码文件 0 错；`git diff --check` 通过 |
+| 对外 claim | 仅可说“六个记录过的、受支持范围内的 UI Product Journey 达到 ACTIVE”；不得外推为任意仓库成功率，也不得把 Product 发次写成模型能力成绩 |
+
+不变铁律：Agent 自述不算成功；冻结合同、历史 run、旧 ledger 与旧指标不
+改写；held-out 不向 Agent 泄漏；fresh audit 决定当前运营状态；本地提交与
+远端 GitHub 状态严格区分。
+
+## Previous status (2026-08-25, M0–M6 closed; Verified Tool Onboarding harness Gate 0–4 closed)
 
 **RepoProof 的主产品线已从任意 Repository Adaptation 收敛为
 GitHub Capability → Verified Local Tool。RFC-010 的章程、首个工具闭环、

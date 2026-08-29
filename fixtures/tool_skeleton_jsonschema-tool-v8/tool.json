@@ -1,0 +1,48 @@
+{
+ "manifest_version": 1,
+ "name": "jsonschema-tool",
+ "version": "1.0.0",
+ "summary": "离线校验本地 JSON Schema 与数据，稳定返回全部可定位的校验问题及组合关键字的子错误。",
+ "source": {
+  "url": "https://github.com/python-jsonschema/jsonschema",
+  "resolved_commit": "331c38425519b69118d22ebe467ad230fb83a010",
+  "license": "MIT",
+  "distribution": "jsonschema"
+ },
+ "contract_schema_version": 2,
+ "interface": {
+  "usage": "jsonschema-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "JSON",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON",
+   "contract": {
+    "media_type": "application/json",
+    "root_type": "object",
+    "required": {
+     "valid": "boolean",
+     "error_count": "integer",
+     "errors": "array"
+    }
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "JsonSchemaValidationReport"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

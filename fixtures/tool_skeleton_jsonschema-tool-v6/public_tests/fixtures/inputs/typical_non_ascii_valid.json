@@ -1,0 +1,1 @@
+{"schema":{"type":"object","properties":{"name":{"type":"string"},"price":{"type":"number"}},"required":["name","price"],"additionalProperties":false},"instance":{"name":"鸡蛋🥚","price":12.5}}

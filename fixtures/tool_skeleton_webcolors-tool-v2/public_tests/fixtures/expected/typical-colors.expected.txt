@@ -1,0 +1,1 @@
+{"colors":[{"grayscale":32,"hex":"#112233","rgb":[17,34,51]},{"grayscale":47,"hex":"#123456","rgb":[18,52,86]},{"grayscale":167,"hex":"#daa520","rgb":[218,165,32]},{"grayscale":255,"hex":"#ffffff","rgb":[255,255,255]}],"count":4}

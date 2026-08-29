@@ -1,0 +1,21 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input_file": "inputs/typical-colors.html",
+   "expected_file": "expected/typical-colors.expected.txt"
+  },
+  {
+   "input_file": "inputs/unicode-inline.html",
+   "expected_file": "expected/unicode-inline.expected.txt"
+  },
+  {
+   "input_file": "inputs/typical-mixed-colors.html",
+   "expected_file": "expected/typical-mixed-colors.expected.txt"
+  },
+  {
+   "input_file": "inputs/upstream-evidence-3.txt",
+   "expected_file": "expected/upstream-evidence-3.expected.txt"
+  }
+ ]
+}

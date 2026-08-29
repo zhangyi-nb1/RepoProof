@@ -21,6 +21,7 @@ from repoproof.runner.host_guided import (
     apply_integrity_to_verdict,
     build_host_prompt,
     integrity_scope,
+    product_integrity_scope,
 )
 
 T1_CONTRACT = (
@@ -190,6 +191,48 @@ def test_integrity_scope_excludes_repoproof_itself(tmp_path: Path, monkeypatch) 
     # DEFAULT_PROTECTED 允许含本机不存在的目录,故不对全表断 isdir)
     assert any(d.lower() == norm_b and os.path.isdir(d)
                for d in integrity_scope(a))
+
+
+def test_product_integrity_scope_ignores_unrelated_sibling_but_watches_task(
+    tmp_path: Path,
+) -> None:
+    from repoproof.harness.host_guard import (
+        snapshot_protected,
+        verify_protected_unchanged,
+    )
+
+    project = tmp_path / "RepoProof"
+    task_id = "tool-demo-v1"
+    task_dir = project / "tool_tasks" / task_id
+    host_copy = tmp_path / "bench" / task_id / "host"
+    upstream = project / "upstream-cache" / "upstream-aaaaaaaaaaaa"
+    controls = project / "controls" / task_id
+    contracts = project / "contracts"
+    sibling = tmp_path / "OfferClaw"
+    for directory in (task_dir, host_copy, upstream, controls, contracts, sibling):
+        directory.mkdir(parents=True, exist_ok=True)
+    contract = contracts / f"{task_id}.yaml"
+    contract.write_text("task_id: tool-demo-v1\n", encoding="utf-8")
+    (task_dir / "contract.yaml").write_text("frozen\n", encoding="utf-8")
+    (host_copy / "tool.json").write_text("{}\n", encoding="utf-8")
+    (upstream / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (controls / "impl.py").write_text("pass\n", encoding="utf-8")
+    (sibling / "live.log").write_text("before\n", encoding="utf-8")
+
+    scope = product_integrity_scope(
+        project,
+        task_id=task_id,
+        task_dir=task_dir,
+        host_copy=host_copy,
+        upstream_src=upstream,
+    )
+    assert str(sibling.resolve()) not in scope
+    before = snapshot_protected(scope)
+    (sibling / "live.log").write_text("unrelated writer changed this\n", encoding="utf-8")
+    assert verify_protected_unchanged(before, scope)["ok"] is True
+
+    contract.write_text("task_id: tampered\n", encoding="utf-8")
+    assert verify_protected_unchanged(before, scope)["ok"] is False
 
 
 # ---------------------------------------------------------------- 冒烟脚本
@@ -1037,4 +1080,3 @@ def test_integrity_block_names_the_files_and_says_what_to_do() -> None:
     assert "scripts/build_x.py" in said, "没点名到具体文件"
     assert "重跑" in said, "没告诉人下一步怎么办"
     assert "真事故" in said, "没说明'我没动过'时意味着什么"
-

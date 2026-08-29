@@ -29,7 +29,12 @@ from repoproof.adoption.intake.tool_confirm import (
     check_draft_complete,
     confirm_tool_draft,
 )
-from repoproof.adoption.intake.upstream_conformance import select_upstream_tests
+from repoproof.adoption.intake.upstream_conformance import (
+    precheck_upstream_conformance,
+)
+from repoproof.adoption.intake.upstream_conformance import (
+    select_upstream_test_nodes as select_upstream_tests,
+)
 from repoproof.adoption.intake.upstream_pin import (
     normalize_dist_name,
     upstream_version,
@@ -48,7 +53,37 @@ from repoproof.runner.tool_release import (
 
 
 class PipelineError(RuntimeError):
-    pass
+    """A Product pipeline stop with a stable, user-actionable projection."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason_code: str = "FROZEN_TASK_RESUME_FAILED",
+        recommended_action: str | None = None,
+        partial_result: dict | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.reason_code = reason_code
+        self.recommended_action = recommended_action
+        self.partial_result = dict(partial_result or {})
+
+
+def _install_error_projection(exc: BaseException) -> tuple[str, str]:
+    """Keep exact install blockers instead of collapsing them to wheelhouse errors."""
+
+    message = str(exc)
+    if "LEGACY_MCP_MUST_BE_DETACHED" in message:
+        return (
+            "LEGACY_MCP_MUST_BE_DETACHED",
+            "先在 AI 助手中解绑旧版 MCP server，再把旧 mcp_server.py 移到"
+            "可恢复备份目录；随后重试。不要删除旧工具包或改写 release ledger。",
+        )
+    return (
+        "TOOL_INSTALL_PREFLIGHT_FAILED",
+        "检查目标工具目录、registry、package identity 与 release ledger 后重试；"
+        "本次不得进入 Agent repair。",
+    )
 
 
 def tool_build_completed(result: dict, *, rehearsal_only: bool) -> bool:
@@ -148,6 +183,46 @@ def _build_preflight_venv(task_dir: Path, pins: list[str]) -> Path:
     return py
 
 
+_CONFORMANCE_STOPWORDS = {
+    "array", "boolean", "children", "cli", "file", "format", "input",
+    "integer", "json", "local", "none", "null", "object", "output",
+    "pagecount", "pagenumber", "path", "pdf", "pdfsearchablemanifest",
+    "positive", "string", "true", "unicode", "userinputerror",
+}
+_CONFORMANCE_ALIASES = {
+    "author": ("author", "metadata"),
+    "bookmark": ("bookmark", "outline", "destination"),
+    "bookmarks": ("bookmark", "outline", "destination"),
+    "encrypted": ("encrypted", "encryption", "decrypt"),
+    "pages": ("page", "pages"),
+    "text": ("text", "extracttext", "extraction"),
+    "title": ("title", "metadata"),
+}
+
+
+def _capability_conformance_keywords(draft: dict) -> list[str]:
+    """Derive small public test keywords from the frozen capability wording."""
+
+    statement = str(
+        ((draft.get("capability") or {}).get("statement"))
+        or ((draft.get("tool") or {}).get("statement"))
+        or ""
+    )
+    tokens = re.findall(r"[A-Za-z][A-Za-z0-9_]{2,}", statement.lower())
+    keywords: list[str] = []
+    for token in tokens:
+        compact = re.sub(r"[^a-z0-9]+", "", token)
+        if compact in _CONFORMANCE_STOPWORDS or len(compact) < 3:
+            continue
+        values = _CONFORMANCE_ALIASES.get(compact, (compact,))
+        for value in values:
+            if value not in keywords:
+                keywords.append(value)
+        if len(keywords) >= 24:
+            break
+    return keywords
+
+
 
 def tool_build_real_from_frozen(
     task_id: str,
@@ -156,8 +231,9 @@ def tool_build_real_from_frozen(
     dest_root: Path,
     agent_backend: str = "mini-swe",
     batch: str = "EXPLORATORY_UNPREREGISTERED",
+    rehearsal_only: bool = False,
 ) -> dict:
-    """对**已冻结**的任务跑真实构建 —— 彩排之后的续跑入口。
+    """Resume a frozen task at rehearsal or real build without re-freezing it.
 
     为什么必须有(2026-08-28 用户实测):`tool_build` 在**彩排之前**就把
     草稿 `shutil.move` 进了 `tool_tasks/_drafts`(冻结即消耗,这本身是对的
@@ -189,11 +265,102 @@ def tool_build_real_from_frozen(
         "task_id": task_id, "tool_contract": str(tool_contract),
         "host_contract": str(host_contract)}}
 
+    # Resuming reaches the same install boundary as the original build.  Run
+    # the read-only install preflight before spending real-model budget;
+    # otherwise a legacy MCP file or damaged registry is discovered only
+    # after an otherwise verified Agent run.
+    if not rehearsal_only:
+        try:
+            tool_doc = yaml.safe_load(
+                tool_contract.read_text(encoding="utf-8")
+            ) or {}
+            tool_name = str(
+                ((tool_doc.get("tool") or {}).get("name")) or ""
+            ).strip()
+            if not tool_name:
+                raise ToolExportError("冻结工具合同缺少 tool.name")
+            current = preflight_tool_install(Path(dest_root), tool_name, task_id)
+        except (
+            ToolExportError,
+            ReleaseLedgerError,
+            OSError,
+            TypeError,
+            ValueError,
+            yaml.YAMLError,
+        ) as exc:
+            reason_code, action = _install_error_projection(exc)
+            stages["install_preflight"] = {
+                "ok": False,
+                "error": str(exc),
+                "reason_code": reason_code,
+            }
+            raise PipelineError(
+                f"工具安装预检失败:{exc}",
+                reason_code=reason_code,
+                recommended_action=action,
+                partial_result={
+                    "task_id": task_id,
+                    "stages": stages,
+                    "verdict": "BLOCKED",
+                    "exported": None,
+                },
+            ) from exc
+        stages["install_preflight"] = {
+            "ok": True,
+            "mode": "upgrade" if current is not None else "first_install",
+            "previous_task_id": current.get("task_id") if current else None,
+        }
+
+    from repoproof.runner.product_preflight import run_product_preflight
+
+    try:
+        host_doc = yaml.safe_load(host_contract.read_text(encoding="utf-8")) or {}
+        wheelhouse = Path(str((host_doc.get("host") or {}).get("wheelhouse_path") or ""))
+    except (OSError, TypeError, yaml.YAMLError) as exc:
+        raise PipelineError(f"无法读取冻结宿主合同的 wheelhouse：{exc}") from exc
+    preflight = run_product_preflight(
+        project_root=project_root,
+        task_id=task_id,
+        tool_contract_path=tool_contract,
+        host_contract_path=host_contract,
+        wheelhouse=wheelhouse,
+    )
+    stages["preflight"] = preflight.model_dump(mode="json")
+    if not preflight.ok:
+        return {
+            "task_id": task_id,
+            "stages": stages,
+            "verdict": "BLOCKED",
+            "exported": None,
+        }
+
     from repoproof.adoption.repair.failure_assessment import (
         assess_report,
         derive_repair_metrics,
     )
     from repoproof.runner.host_guided import run_host_guided_cli
+
+    if rehearsal_only:
+        fake = run_host_guided_cli(
+            host_contract, project_root, fake="positive", batch=batch
+        )
+        rp = fake.get("report") or {}
+        stages["rehearsal"] = {
+            "verdict": rp.get("verdict"),
+            "run_id": rp.get("run_id"),
+            "gate_reasons": rp.get("gate_reasons"),
+        }
+        verdict = (
+            "REHEARSAL_PASS_ONLY"
+            if rp.get("verdict") == "PASS_ADAPTED"
+            else f"REHEARSAL_{rp.get('verdict')}"
+        )
+        return {
+            "task_id": task_id,
+            "stages": stages,
+            "verdict": verdict,
+            "exported": None,
+        }
 
     real = run_host_guided_cli(host_contract, project_root, fake=None,
                                batch=batch, backend=agent_backend)
@@ -226,7 +393,19 @@ def tool_build_real_from_frozen(
         )
     except (ToolExportError, ReleaseLedgerError, OSError, ValueError) as exc:
         stages["export"] = {"ok": False, "error": str(exc)}
-        raise PipelineError(f"工具安装结算失败:{exc}") from exc
+        reason_code, action = _install_error_projection(exc)
+        raise PipelineError(
+            f"工具安装结算失败:{exc}",
+            reason_code=reason_code,
+            recommended_action=action,
+            partial_result={
+                "task_id": task_id,
+                "stages": stages,
+                "verdict": historical_verdict,
+                "historical_verdict": historical_verdict,
+                "exported": None,
+            },
+        ) from exc
     release_status = operational_status(Path(dest_root), dest.name, task_id=task_id)
     stages["export"] = {"dest": str(dest),
                         "historical_verdict": historical_verdict,
@@ -321,7 +500,17 @@ def tool_build(
                 )
             except (ToolExportError, ReleaseLedgerError, OSError, ValueError) as exc:
                 stages["install_preflight"] = {"ok": False, "error": str(exc)}
-                raise PipelineError(f"工具安装预检失败:{exc}") from exc
+                reason_code, action = _install_error_projection(exc)
+                raise PipelineError(
+                    f"工具安装预检失败:{exc}",
+                    reason_code=reason_code,
+                    recommended_action=action,
+                    partial_result={
+                        "stages": stages,
+                        "verdict": "BLOCKED",
+                        "exported": None,
+                    },
+                ) from exc
             stages["install_preflight"] = {
                 "ok": True,
                 "mode": "upgrade" if current is not None else "first_install",
@@ -386,9 +575,7 @@ def tool_build(
 
     # 2) 钉版上游 + conformance 选取(确定性)
     up = ensure_pinned_upstream(sr["url"], sr["resolved_commit"], project_root)
-    kws = conformance_keywords or [sr["distribution"],
-                                   (draft["tool"]["interface"]["input"]
-                                    .get("format", "")).lower()]
+    kws = conformance_keywords or _capability_conformance_keywords(draft)
     selected = select_upstream_tests(up, [k for k in kws if k])
     stages["conformance_selected"] = selected
 
@@ -416,24 +603,66 @@ def tool_build(
         raise PipelineError(
             f"物化目标已存在:{task_id}(改题面请先重出 draft → 新版本号)")
     conf_py = None
+    conf_record = {"selected": selected, "status": "SKIPPED"}
     if selected and pins:
         tmp_task = Path(project_root) / "tool_tasks"
         tmp_task.mkdir(exist_ok=True)
         conf_py = _build_preflight_venv(tmp_task / f"_{task_id}_pf", pins)
+        try:
+            conf_record = precheck_upstream_conformance(
+                up,
+                selected,
+                conf_py,
+                bootstrap_missing=True,
+            )
+            stages["conformance_preflight"] = conf_record
+        except RuntimeError as exc:
+            stages["conformance_preflight"] = {
+                "ok": False,
+                "error": str(exc),
+                "selected": selected,
+                "agent_model_call_count": 0,
+            }
+            return {
+                "task_id": task_id,
+                "stages": stages,
+                "verdict": "BLOCKED",
+                "exported": None,
+                "failure_owner": "HARNESS",
+                "reason_codes": ["UPSTREAM_CONFORMANCE_ENVIRONMENT"],
+                "product_stop_code": "STOP_HARNESS_OR_EXTERNAL",
+                "recommended_action": (
+                    "检查钉版上游的测试依赖或所选公开测试节点；"
+                    "该环境故障不得进入 Agent repair。"
+                ),
+            }
+        finally:
+            shutil.rmtree(conf_py.parents[1], ignore_errors=True)
+            conf_py = None
     try:
         contract = materialize_tool_task(
             project_root, Path(project_root) / "contracts" / f"{task_id}.yaml",
             out_root=Path(project_root) / "tool_tasks",
             host_copy_root=Path(bench_root),
             setup_commands=setup_commands,
-            upstream_conformance=selected, conformance_python=conf_py)
+            upstream_conformance=selected,
+            upstream_conformance_record=conf_record,
+        )
     except ToolBridgeError as e:
         stages["materialize"] = {"ok": False, "error": str(e)}
-        return {"task_id": task_id, "stages": stages, "verdict": "BLOCKED",
-                "exported": None}
-    finally:
-        if conf_py is not None:
-            shutil.rmtree(conf_py.parents[1], ignore_errors=True)
+        return {
+            "task_id": task_id,
+            "stages": stages,
+            "verdict": "BLOCKED",
+            "exported": None,
+            "failure_owner": "HARNESS",
+            "reason_codes": ["TASK_MATERIALIZATION_FAILED"],
+            "product_stop_code": "STOP_HARNESS_OR_EXTERNAL",
+            "recommended_action": (
+                "检查冻结任务骨架、控制组和物化目标；"
+                "该故障不得进入 Agent repair。"
+            ),
+        }
     stages["materialize"] = {"ok": True, "contract": str(contract)}
 
     # 3b) draft 束归档进任务区(真值留痕;移出 H9-a 扫描面 —— 束里的
@@ -468,6 +697,34 @@ def tool_build(
             f"{sorted(downloaded)[:8]} —— 会话将 import 不到上游,拒绝继续。")
     stages["wheelhouse"] = {"wheels": len(list(wheelhouse.glob('*.whl'))),
                             "upstream_present": True}
+
+    # 4b) 预算前强制预检:仅使用冻结合同、wheelhouse 与第一个确认样例。
+    # 这里失败不会创建 Agent run,也不会进入 RepairLoop。
+    if wheelhouse_cmd is None:
+        from repoproof.runner.product_preflight import run_product_preflight
+
+        preflight = run_product_preflight(
+            project_root=project_root,
+            task_id=task_id,
+            tool_contract_path=project_root / "contracts" / f"{task_id}.yaml",
+            host_contract_path=Path(contract),
+            wheelhouse=wheelhouse,
+        )
+        stages["preflight"] = preflight.model_dump(mode="json")
+        if not preflight.ok:
+            return {
+                "task_id": task_id,
+                "stages": stages,
+                "verdict": "BLOCKED",
+                "exported": None,
+            }
+    else:
+        stages["preflight"] = {
+            "schema_version": 1,
+            "ok": True,
+            "test_injected": True,
+            "checks": [],
+        }
 
     # 5/6) 路由执行器(Gate 3):两条路线共享前段(confirm/pin/物化/备轮)
     # 与后段(投影/export/注册);中段按 Capability Plan 分道。
@@ -560,7 +817,19 @@ def tool_build(
         )
     except (ToolExportError, ReleaseLedgerError, OSError, ValueError) as exc:
         stages["export"] = {"ok": False, "error": str(exc)}
-        raise PipelineError(f"工具安装结算失败:{exc}") from exc
+        reason_code, action = _install_error_projection(exc)
+        raise PipelineError(
+            f"工具安装结算失败:{exc}",
+            reason_code=reason_code,
+            recommended_action=action,
+            partial_result={
+                "task_id": task_id,
+                "stages": stages,
+                "verdict": historical_verdict,
+                "historical_verdict": historical_verdict,
+                "exported": None,
+            },
+        ) from exc
     release_status = operational_status(
         Path(dest_root), dest.name, task_id=task_id
     )

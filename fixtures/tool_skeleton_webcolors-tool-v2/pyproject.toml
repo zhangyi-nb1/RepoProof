@@ -1,0 +1,8 @@
+[project]
+name = "webcolors_tool"
+version = "1.0.0"
+description = '从网页 HTML 中提取并规范化常见颜色，同时生成适合灰度模块使用的灰度信息。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

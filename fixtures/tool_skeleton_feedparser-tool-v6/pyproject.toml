@@ -1,0 +1,8 @@
+[project]
+name = "feedparser_tool"
+version = "1.0.0"
+description = '读取本地 RSS 或 Atom 字节文件，使用固定版本 feedparser 6.0.14 离线解析并输出规范化的确定性 JSON。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

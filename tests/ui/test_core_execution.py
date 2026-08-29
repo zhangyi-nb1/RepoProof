@@ -581,4 +581,45 @@ def test_rehearsal_expected_artifact_uses_assembler_version_preview(
     assert captured["expected_artifact"] == (
         contracts / "tool-alpha-tool-v2.yaml"
     )
+    assert captured["metadata"]["journey_stage"] == 3
 
+
+def test_frozen_task_can_resume_zero_model_rehearsal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, _state_root = _product_world(tmp_path, monkeypatch)
+    task_id = "tool-alpha-tool-v1"
+    contracts = root / "contracts"
+    contracts.mkdir()
+    (contracts / f"{task_id}.yaml").write_text(
+        "tool:\n  name: alpha-tool\n", encoding="utf-8"
+    )
+    captured: dict = {}
+
+    def _capture(argv: list[str], **kwargs: object) -> dict:
+        captured["argv"] = argv
+        captured.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(product_jobs, "_start_product_job", _capture)
+    result = product_jobs.start_tool_build_real(
+        task_id,
+        tmp_path / "tools",
+        rehearsal_only=True,
+    )
+
+    assert result["ok"]
+    assert "--rehearsal-only" in captured["argv"]
+    assert captured["expected_artifact"] == contracts / f"{task_id}.yaml"
+    assert captured["metadata"]["journey_stage"] == 3
+
+    captured.clear()
+    result = product_jobs.start_tool_build_real(
+        task_id,
+        tmp_path / "tools",
+        rehearsal_only=False,
+    )
+    assert result["ok"]
+    assert "--rehearsal-only" not in captured["argv"]
+    assert captured["metadata"]["journey_stage"] == 4

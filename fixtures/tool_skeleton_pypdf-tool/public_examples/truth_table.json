@@ -1,0 +1,13 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input_file": "inputs/two-pages-with-empty.pdf",
+   "expected_file": "expected/two-pages-with-empty.expected.json"
+  },
+  {
+   "input_file": "inputs/single-page.pdf",
+   "expected_file": "expected/single-page.expected.json"
+  }
+ ]
+}

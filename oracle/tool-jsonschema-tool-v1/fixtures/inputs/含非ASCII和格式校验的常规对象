@@ -1,0 +1,1 @@
+{"schema":{"type":"object","required":["姓名","email"],"properties":{"姓名":{"type":"string","minLength":2},"email":{"type":"string","format":"email"}},"additionalProperties":false},"instance":{"姓名":"李雷","email":"li.lei@example.com"}}

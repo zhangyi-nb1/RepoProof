@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/rss_typical_unicode_invalid_dates.xml", "expected_file": "expected/rss_typical_unicode_invalid_dates.expected.txt"}]}

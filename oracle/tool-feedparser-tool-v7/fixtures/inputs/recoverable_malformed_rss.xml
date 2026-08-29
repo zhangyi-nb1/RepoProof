@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>可恢复 RSS</title>
+    <link>/feed</link>
+    <description>含有损坏结构</description>
+    <item>
+      <title>损坏条目</title>
+      <link>item/1</link>
+      <guid>bad-1</guid>
+      <pubDate>not-a-date</pubDate>
+    </channel>
+</rss>

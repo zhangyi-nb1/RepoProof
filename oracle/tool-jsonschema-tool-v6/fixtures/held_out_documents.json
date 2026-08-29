@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/local_ref_unicode_invalid_values.json", "expected_file": "expected/local_ref_unicode_invalid_values.expected.txt"}]}

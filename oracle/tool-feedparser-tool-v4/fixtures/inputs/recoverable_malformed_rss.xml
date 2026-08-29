@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>损坏但可恢复的 RSS</title>
+    <link>https://example.test/broken</link>
+    <item>
+      <title>保留的条目</title>
+      <guid>broken-1</guid>
+      <pubDate>Fri, 32 Feb 2024 25:61:00 GMT</pubDate>
+      <category>测试</category>
+    </item>
+    <item>
+      <title>未闭合条目
+  </channel>
+</rss>

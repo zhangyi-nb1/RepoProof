@@ -1,0 +1,20 @@
+"""NC_hardcode:只硬编码公开样例 — held-out 必须杀它(控制组 impl.py 变体;绝不交付)。"""
+from pathlib import Path
+
+
+class UserInputError(ValueError):
+    pass
+
+
+_M = {'typical_css3_name.txt': '{"gray_level":5,"input":"goldenrod","luma":166,"msp432_pattern":"101","rgb":{"blue":32,"green":165,"red":218}}', 'upstream-evidence-1.txt': '{"gray_level":5,"input":"#daa520","luma":166,"msp432_pattern":"101","rgb":{"blue":32,"green":165,"red":218}}', 'upstream-evidence-3.txt': '{"gray_level":1,"input":"#123456","luma":46,"msp432_pattern":"001","rgb":{"blue":86,"green":52,"red":18}}'}
+
+
+def _lookup(input_path: Path) -> str:
+    key = input_path.name
+    if key not in _M:
+        raise UserInputError(f"unexpected input: {key}")
+    return _M[key]
+
+
+def extract(input_path: Path) -> str:
+    return _lookup(input_path)

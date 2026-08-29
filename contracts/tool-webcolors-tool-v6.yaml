@@ -1,0 +1,50 @@
+task_id: tool-webcolors-tool-v6
+
+source_repo:
+  url: https://github.com/ubernostrum/webcolors
+  revision: guided
+  resolved_commit: e6392ba6eeba81b02e666eb3ed02ef2e006344c0
+  license: BSD
+  distribution: webcolors
+  import_module: webcolors
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_webcolors-tool-v6
+  package: webcolors_tool
+  entry_point: webcolors-tool
+
+requirement_spec_file: tool-webcolors-tool-v6.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 2, "name": "webcolors-tool", "summary": "将网页中的命名颜色与十六进制颜色规范化为可供小车识别的确定性颜色调色板 JSON。", "interface": {"usage": "webcolors-tool <input> [--out FILE]", "input": {"kind": "file", "format": "HTML", "contract": null}, "output": {"kind": "stdout", "format": "JSON", "contract": {"media_type": "application/json", "root_type": "object", "required": {"colors": "array"}}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取 UTF-8 编码的受限 HTML 网页，并从元素的 color、bgcolor 属性及内联 style 中的 color、background-color、border-color 声明提取颜色。支持 CSS3 命名颜色以及 #RGB、#RRGGBB 十六进制颜色；所有颜色通过 webcolors 规范化为小写 #rrggbb 字符串。输出为 {"colors":[...]}，颜色按 HTML 遍历与声明出现顺序保留，重复颜色也保留，以便小车按顺序识别。style 中以分号分隔的非空声明必须包含冒号；仅处理上述三个颜色属性，其他属性忽略。外部样式表、<style> 块、CSS rgb()/hsl() 表达式、透明色、继承值及其他 CSS 语法不处理。HTML 必须具有严格匹配的非 void 开始和结束标签；输入必须至少包含一个可识别颜色。空白输入、无可识别颜色的输入、结构不匹配的 HTML、无效颜色值、非 UTF-8 内容或其他畸形输入均抛出 UserInputError（退出码 1）。重复运行对相同输入产生完全相同的输出，且处理完全离线。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/webcolors_tool/impl.py 实现 extract(),必须调用 pinned webcolors;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:webcolors-tool inputs/典型多来源颜色 -> 见 expected/典型多来源颜色.expected.txt; webcolors-tool inputs/含非ASCII文本的HTML -> 见 expected/含非ASCII文本的HTML.expected.txt; webcolors-tool inputs/多元素颜色来源与重复顺序.html -> 见 expected/多元素颜色来源与重复顺序.expected.txt);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: "VehicleColorPalette"
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

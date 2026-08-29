@@ -1,0 +1,8 @@
+[project]
+name = "markdown_it_py_tool"
+version = "1.0.0"
+description = '将 Markdown 文件按原文解析顺序提取标题层级、链接和围栏代码块，生成稳定且完全离线的 JSON。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

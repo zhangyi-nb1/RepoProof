@@ -1,0 +1,21 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input_file": "inputs/upstream-evidence-5.txt",
+   "expected_file": "expected/upstream-evidence-5.expected.txt"
+  },
+  {
+   "input_file": "inputs/upstream-evidence-7.txt",
+   "expected_file": "expected/upstream-evidence-7.expected.txt"
+  },
+  {
+   "input_file": "inputs/typical_css3_name.txt",
+   "expected_file": "expected/typical_css3_name.expected.txt"
+  },
+  {
+   "input_file": "inputs/typical_css3_name-2.txt",
+   "expected_file": "expected/typical_css3_name-2.expected.txt"
+  }
+ ]
+}

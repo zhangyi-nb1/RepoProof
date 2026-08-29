@@ -394,6 +394,11 @@ def test_k11_the_heldout_prose_is_derived_from_data_not_written_down():
     # 台账 append-only,弃置任务的行不消失)。
     # 2026-08-23 M4 批次二:11 个构建宿主入账(10 READY + num2words
     # 真发 FAIL);tldextract admission 放弃且没有 run,不占宿主。
+    # 2026-08-29 M6.1 UI 资格测试:markdown-it-py、python-docx、
+    # junitparser、jsonschema 与 pypdf 的
+    # PRODUCT/HARNESS_SELFCHECK 和 PRODUCT_ONBOARDING 发次入账。四项
+    # counts_toward_* 均为 false,不计 Benchmark Lab 模型能力,但共享台账的
+    # hosts_covered 仍按 append-only 事实增加这些本地工具宿主。
     assert d["hosts_covered"] == [
         "local-tool/chardet-tool",
         "local-tool/emoji-tool",
@@ -406,15 +411,20 @@ def test_k11_the_heldout_prose_is_derived_from_data_not_written_down():
         "local-tool/jieba-tool",
         "local-tool/json5-tool",
         "local-tool/jsonschema-report",
+        "local-tool/jsonschema-tool",
+        "local-tool/junitparser-tool",
+        "local-tool/markdown-it-py-tool",
         "local-tool/markdown-tool",
         "local-tool/num2words-tool",
         "local-tool/opencc-tool",
         "local-tool/pdf-table",
         "local-tool/phonenumbers-tool",
         "local-tool/pygments-tool",
+        "local-tool/pypdf-tool",
         "local-tool/pypinyin-tool",
         "local-tool/pyspellchecker-tool",
         "local-tool/python-dateutil-tool",
+        "local-tool/python-docx-tool",
         "local-tool/python-slugify",
         "local-tool/python-slugify-tool",
         "local-tool/pyyaml-tool",

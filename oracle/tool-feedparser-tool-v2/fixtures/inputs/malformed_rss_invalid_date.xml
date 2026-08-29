@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>损坏的 feed</title>
+    <link>https://example.test/</link>
+    <item>
+      <title>仍可读取的条目</title>
+      <guid>broken-1</guid>
+      <pubDate>not-a-real-date</pubDate>
+      <category>测试</category>
+    </item>
+    <item>
+      <title>未闭合条目</title>
+      <link>https://example.test/broken
+  </channel>
+</rss>

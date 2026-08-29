@@ -1,0 +1,8 @@
+[project]
+name = "python_docx_tool"
+version = "1.0.0"
+description = '读取 DOCX 文档并按正文顺序输出段落、标题层级和表格的确定性 JSON。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -39,9 +39,12 @@ _SUMMARY_SYSTEM = (
     "clearly another language) of what an open-source repository does, for a "
     "user who is about to decide which single capability to extract from it. "
     "Use ONLY the given README excerpt and entry-point list; if something is "
-    "not in them, say you cannot tell rather than guessing. 3-5 sentences. "
-    "Do NOT recommend which capability to pick and do NOT write the user's "
-    "goal for them: choosing the capability is the human's decision."
+    "not in them, say you cannot tell rather than guessing. 3-6 sentences. "
+    "If capability_goal is supplied, explain which supplied entry points appear "
+    "relevant to that goal, what is only an inference, and which input/output or "
+    "boundary details the user still needs to decide. You may suggest a clearer "
+    "wording, but must not present it as a verified fact or silently replace the "
+    "user's goal: the human still chooses and confirms the capability."
 )
 
 

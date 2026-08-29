@@ -1,0 +1,50 @@
+task_id: tool-webcolors-tool-v3
+
+source_repo:
+  url: https://github.com/ubernostrum/webcolors
+  revision: guided
+  resolved_commit: e6392ba6eeba81b02e666eb3ed02ef2e006344c0
+  license: BSD
+  distribution: webcolors
+  import_module: webcolors
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_webcolors-tool-v3
+  package: webcolors_tool
+  entry_point: webcolors-tool
+
+requirement_spec_file: tool-webcolors-tool-v3.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 2, "name": "webcolors-tool", "summary": "将 CSS3 颜色名称或十六进制颜色识别为 RGB，并确定性转换为适配 MSP432 灰度识别接口的 3 位灰度模式。", "interface": {"usage": "webcolors-tool <input> [--out FILE]", "input": {"kind": "file", "format": "TXT", "contract": null}, "output": {"kind": "stdout", "format": "JSON", "contract": {"media_type": "application/json", "root_type": "object", "required": {"input": "string", "rgb": "object", "luma": "integer", "gray_level": "integer", "msp432_pattern": "string"}}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    输入是 UTF-8 纯文本文件，内容必须恰好包含一个非空 CSS3 颜色标记：CSS3 颜色名称（如 red、navy，名称按 webcolors 的 CSS3 规则处理）或 webcolors 支持的十六进制颜色（如 #f00、#ff0000）。工具先通过 webcolors 将颜色识别为 8 位 RGB，再按 BT.601 整数亮度公式 luma = round((299*R + 587*G + 114*B)/1000) 计算 0 至 255 的灰度亮度。gray_level 为 0 至 7 的八级灰度编号，计算为 round(luma*7/255)：0 表示最暗，7 表示最亮。msp432_pattern 为 gray_level 的固定宽度 3 位二进制字符串（000 至 111），可直接作为面向 MSP432 灰度模块的抽象数字接口模式；本工具不假设特定模块的高低电平极性或 GPIO 引脚映射。输出中的 input 是去除首尾空白后的原始颜色标记，rgb 包含 red、green、blue 三个 0 至 255 的整数。输入为空、包含多个非空标记、颜色格式不合法、名称不受 CSS3 支持，或上游颜色解析失败时，均抛出 UserInputError；CLI 应将该错误报告为退出码 1。重复运行对相同输入产生完全相同的结果，且全过程完全离线。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/webcolors_tool/impl.py 实现 extract(),必须调用 pinned webcolors;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:webcolors-tool inputs/typical_css3_name.txt -> 见 expected/typical_css3_name.expected.txt; webcolors-tool inputs/upstream-evidence-1.txt -> 见 expected/upstream-evidence-1.expected.txt; webcolors-tool inputs/upstream-evidence-3.txt -> 见 expected/upstream-evidence-3.expected.txt);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: "Msp432GrayscaleColor"
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

@@ -92,7 +92,7 @@ def test_tool_build_cli_exit_matches_completion_boundary(
     assert payload["ok"] is (expected_code == 0)
 
 
-def test_tool_build_cli_defaults_product_agent_to_mini_swe(
+def test_tool_build_cli_defaults_product_agent_to_codex_cli(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -111,7 +111,52 @@ def test_tool_build_cli_defaults_product_agent_to_mini_swe(
     ])
 
     assert code == 0
-    assert seen["agent_backend"] == "mini-swe"
+    assert seen["agent_backend"] == "codex-cli"
+
+
+def test_tool_build_cli_writes_job_bound_structured_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        tool_pipeline,
+        "tool_build",
+        lambda *_args, **_kwargs: {
+            "task_id": "tool-demo-v1",
+            "verdict": "BLOCKED",
+            "exported": None,
+            "stages": {
+                "preflight": {
+                    "ok": False,
+                    "failure_owner": "HARNESS",
+                    "reason_codes": ["UPSTREAM_WHEEL_MISSING"],
+                    "product_stop_code": "STOP_HARNESS_OR_EXTERNAL",
+                    "recommended_action": "RETRY_INFRASTRUCTURE",
+                }
+            },
+        },
+    )
+    result_path = tmp_path / "result.json"
+    job_id = "a" * 32
+    code = cli.main([
+        "tool", "build",
+        "--draft-dir", str(tmp_path / "draft"),
+        "--dest-root", str(tmp_path / "tools"),
+        "--rehearsal-only",
+        "--job-id", job_id,
+        "--journey-id", "b" * 32,
+        "--result-json", str(result_path),
+    ])
+
+    assert code == 3
+    assert json.loads(capsys.readouterr().out)["ok"] is False
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["job_id"] == job_id
+    assert result["pipeline_verdict"] == "BLOCKED"
+    assert result["failure_owner"] == "HARNESS"
+    assert result["reason_codes"] == ["UPSTREAM_WHEEL_MISSING"]
+    assert result["agent_invoked"] is False
 
 
 def test_tool_add_drafter_failure_is_nonzero_even_when_skeleton_exists(

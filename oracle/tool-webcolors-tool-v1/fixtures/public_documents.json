@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/typical_hex.txt", "expected_file": "expected/typical_hex.expected.txt"}, {"input_file": "inputs/upstream-evidence-6.txt", "expected_file": "expected/upstream-evidence-6.expected.txt"}, {"input_file": "inputs/basic_red_hex.txt", "expected_file": "expected/basic_red_hex.expected.txt"}]}

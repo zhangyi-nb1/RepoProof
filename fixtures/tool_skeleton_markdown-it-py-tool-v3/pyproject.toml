@@ -1,0 +1,8 @@
+[project]
+name = "markdown_it_py_tool"
+version = "1.0.0"
+description = '读取 UTF-8 Markdown 文件并使用 markdown-it-py 4.2.0 提取标题、链接与围栏代码块，输出确定性 JSON 对象。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,8 @@
+[project]
+name = "python_docx_tool"
+version = "1.0.0"
+description = '将本地 DOCX 的正文段落、标题级别和表格按真实文档顺序提取为稳定 JSON，并保留合并与空单元格语义。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

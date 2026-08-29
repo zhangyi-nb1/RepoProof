@@ -1,0 +1,1 @@
+{"code_blocks":[{"content":"print('你好')\n","language":"python","order":3}],"headings":[{"level":1,"order":0,"text":"项目概览"},{"level":2,"order":4,"text":"安装"}],"links":[{"label":"文档","order":1,"target":"docs/guide.md"},{"label":"官网","order":2,"target":"https://example.com/"},{"label":"文档","order":5,"target":"docs/guide.md"}]}

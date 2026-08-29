@@ -1,0 +1,13 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input_file": "inputs/组合校验与非ASCII路径",
+   "expected_file": "expected/组合校验与非ASCII路径.expected.txt"
+  },
+  {
+   "input_file": "inputs/组合校验与中文路径",
+   "expected_file": "expected/组合校验与中文路径.expected.txt"
+  }
+ ]
+}

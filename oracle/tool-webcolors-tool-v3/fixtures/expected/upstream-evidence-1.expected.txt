@@ -1,0 +1,1 @@
+{"gray_level":5,"input":"#daa520","luma":166,"msp432_pattern":"101","rgb":{"blue":32,"green":165,"red":218}}

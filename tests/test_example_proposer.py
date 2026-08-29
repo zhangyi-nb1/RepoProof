@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,7 @@ from repoproof.adoption.intake.example_proposer import (
     ProposalBatch,
     assert_unseen_input,
     confirm_candidate,
+    prepared_reference_environment,
     propose_inputs,
     run_reference_on_candidates,
 )
@@ -145,7 +147,7 @@ def test_upstream_run_refuses_skeleton_reference(world):
 
 def test_upstream_run_env_is_sanitised(world, monkeypatch):
     """**负控**:被执行的第三方代码不得看见密钥与连接配置。"""
-    monkeypatch.setenv("REPOPROOF_API_KEY", "sk-should-never-be-visible")
+    monkeypatch.setenv("REPOPROOF_API_KEY", "test-secret-that-must-never-be-visible")
     monkeypatch.setenv("REPOPROOF_API_BASE", "https://secret.invalid")
     (world["draft"] / "reference_impl.py").write_text(
         "import os\nfrom pathlib import Path\n\n\n"
@@ -156,6 +158,94 @@ def test_upstream_run_env_is_sanitised(world, monkeypatch):
         ProposalBatch(candidates=[CandidateExample(input_name="a.txt", input_text="x")]),
         draft_dir=world["draft"], upstream_dir=world["upstream"])
     assert out.candidates[0].upstream_output == "", out.candidates[0].upstream_output
+
+
+def _write_test_wheel(
+    dest: Path,
+    *,
+    distribution: str,
+    package: str,
+    source: str,
+    requires: list[str] | None = None,
+) -> None:
+    """Build the smallest standards-compliant pure Python wheel, offline."""
+
+    version = "1.0.0"
+    wheel_name = f"{distribution}-{version}-py3-none-any.whl"
+    dist_info = f"{distribution}-{version}.dist-info"
+    metadata = [
+        "Metadata-Version: 2.1",
+        f"Name: {distribution}",
+        f"Version: {version}",
+    ]
+    metadata.extend(f"Requires-Dist: {requirement}" for requirement in (requires or []))
+    with zipfile.ZipFile(dest / wheel_name, "w") as archive:
+        archive.writestr(f"{package}/__init__.py", source)
+        archive.writestr(f"{dist_info}/METADATA", "\n".join(metadata) + "\n")
+        archive.writestr(
+            f"{dist_info}/WHEEL",
+            "Wheel-Version: 1.0\nGenerator: repoproof-test\n"
+            "Root-Is-Purelib: true\nTag: py3-none-any\n",
+        )
+        archive.writestr(f"{dist_info}/RECORD", "")
+
+
+def test_reference_environment_installs_transitive_wheels_but_runs_pinned_source(
+    tmp_path: Path,
+) -> None:
+    """The source checkout wins while its wheel-only dependency is available.
+
+    This is the exact feedparser failure shape: importing the pinned source
+    requires ``feedparser-sgmllib``, which is not present in the checkout.
+    Candidate generation must build that closure before asking an LLM for an
+    input, rather than misclassifying ModuleNotFoundError as a bad candidate.
+    """
+
+    draft = tmp_path / "draft"
+    draft.mkdir()
+    (draft / "reference.lock.txt").write_text("rootpkg==1.0.0\n", encoding="utf-8")
+    (draft / "reference_impl.py").write_text(
+        "from pathlib import Path\nimport rootpkg\n\n"
+        "def extract(input_path: Path) -> str:\n"
+        "    return rootpkg.convert(input_path.read_text(encoding='utf-8'))\n",
+        encoding="utf-8",
+    )
+    upstream = tmp_path / "upstream"
+    (upstream / "src" / "rootpkg").mkdir(parents=True)
+    (upstream / "src" / "rootpkg" / "__init__.py").write_text(
+        "import helperpkg\n\n"
+        "def convert(text):\n"
+        "    return 'SOURCE:' + helperpkg.decorate(text)\n",
+        encoding="utf-8",
+    )
+    wheels = tmp_path / "wheels"
+    wheels.mkdir()
+    _write_test_wheel(
+        wheels,
+        distribution="rootpkg",
+        package="rootpkg",
+        source="def convert(text):\n    return 'WHEEL:' + text\n",
+        requires=["helperpkg==1.0.0"],
+    )
+    _write_test_wheel(
+        wheels,
+        distribution="helperpkg",
+        package="helperpkg",
+        source="def decorate(text):\n    return text.strip().upper()\n",
+    )
+
+    batch = ProposalBatch(candidates=[
+        CandidateExample(input_name="case.txt", input_text="hello"),
+    ])
+    with prepared_reference_environment(draft, wheelhouse=wheels) as python_exe:
+        out = run_reference_on_candidates(
+            batch,
+            draft_dir=draft,
+            upstream_dir=upstream,
+            python_exe=python_exe,
+        )
+
+    assert out.candidates[0].upstream_output == "SOURCE:HELLO"
 
 
 # ----------------------------------------------------------------- ③ 人确认

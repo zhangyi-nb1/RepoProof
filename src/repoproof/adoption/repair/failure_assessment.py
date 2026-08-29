@@ -113,6 +113,16 @@ def product_stop_code(report: dict) -> str:
             or str(report.get("state") or "") == "SCOPE_CHANGE_PENDING_USER":
         return "STOP_NEEDS_HUMAN"
 
+    if stop == "non_repairable_failure":
+        round_owner = str(rep.get("failure_owner") or "")
+        if round_owner == "SAFETY_POLICY":
+            return "STOP_SCOPE_DRIFT"
+        if round_owner == "USER_INPUT":
+            return "STOP_NEEDS_HUMAN"
+        if round_owner in {"HARNESS", "UPSTREAM", "EXTERNAL"}:
+            return "STOP_HARNESS_OR_EXTERNAL"
+        return "STOP_NON_REPAIRABLE"
+
     if verdict == "BLOCKED" or str(report.get("state") or "").startswith("CRASHED"):
         return "STOP_HARNESS_OR_EXTERNAL"
     if _has(report, "RECEIPT_VERIFIER_ERROR", "UPSTREAM_EXECUTION_ERROR",
@@ -133,7 +143,7 @@ def product_stop_code(report: dict) -> str:
 
     if stop in ("max_rounds", "budget_exhausted") or report.get("budget_exhausted"):
         return "STOP_BUDGET_EXHAUSTED"
-    if stop == "stagnation":
+    if stop in ("stagnation", "no_adapter_diff", "repeated_public_failure"):
         return "STOP_NO_PROGRESS"
     return "STOP_NO_PROGRESS"
 
@@ -158,6 +168,9 @@ def _fingerprint(report: dict) -> str:
     """公开失败指纹:verdict + 规范化 gate_reasons + 公开轮次曲线。
     只吃公开面事实;规范化把具体值(路径/数字/引号内容)全部抹平,
     同根因 → 同指纹,不泄任何真值。"""
+    recorded = str(_repair(report).get("public_failure_fingerprint") or "")
+    if re.fullmatch(r"[0-9a-f]{16}", recorded):
+        return recorded
     basis = "|".join([
         str(report.get("verdict") or ""),
         ";".join(sorted(_sanitize(g) for g in _gate_reasons(report))),
@@ -169,9 +182,13 @@ def _fingerprint(report: dict) -> str:
 def assess_report(report: dict) -> FailureAssessmentV1:
     code = product_stop_code(report)
     owner, repairable, action = _OWNER_BY_CODE[code]
+    rep = _repair(report)
 
     reasons: list[str] = []
-    if _held_out_failed(report):
+    reasons.extend(
+        str(code) for code in (rep.get("reason_codes") or []) if str(code).strip()
+    )
+    if code == "STOP_HIDDEN_FAILURE" and _held_out_failed(report):
         reasons.append("HIDDEN_ACCEPTANCE_FAILED")
     if _receipt_failed(report):
         reasons.append("UPSTREAM_ADOPTION_FAILED")
@@ -187,9 +204,16 @@ def assess_report(report: dict) -> FailureAssessmentV1:
         owner = "EXTERNAL"
     if _has(report, "UPSTREAM_EXECUTION_ERROR"):
         owner = "UPSTREAM"
+    round_owner = str(rep.get("failure_owner") or "")
+    if round_owner == "SAFETY_POLICY":
+        owner, repairable, action = "AGENT", "NON_REPAIRABLE", "STOP"
+    elif round_owner == "USER_INPUT":
+        owner, repairable, action = "USER", "NEEDS_HUMAN", "ASK_USER"
+    elif round_owner in {"HARNESS", "UPSTREAM", "EXTERNAL"}:
+        owner = round_owner  # type: ignore[assignment]
+        repairable, action = "NON_REPAIRABLE", "RETRY_INFRASTRUCTURE"
 
     pbr = [int(x) for x in (report.get("public_passed_by_round") or [])]
-    rep = _repair(report)
     snapshot = {
         "public_passed_by_round": pbr,
         "rounds_run": int(rep.get("rounds_run") or 0),

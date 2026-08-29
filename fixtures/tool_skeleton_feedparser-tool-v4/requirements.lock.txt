@@ -1,0 +1,1 @@
+# agent 填:全量 pinned(必须含 feedparser=={pinned 版本});replay 从本文件重建 venv。

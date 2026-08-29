@@ -478,6 +478,8 @@ REASON_CODE_LABELS: dict[str, str] = {
     "BUILD_FAILED": "构建失败",
     "LEGACY_SERVER_MUST_BE_DETACHED":
         "旧版 AI 接入文件已失效:请先从你的 AI 助手里移除它,再重新生成",
+    "LEGACY_MCP_MUST_BE_DETACHED":
+        "旧版 MCP 文件不具备发布状态闸门：先从 AI 助手解绑并移入备份，再重试升级",
 }
 
 

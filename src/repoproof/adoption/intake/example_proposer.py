@@ -36,6 +36,8 @@ import re
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -47,6 +49,17 @@ _OUTPUT_CAP = 20_000
 
 class ExampleProposalError(RuntimeError):
     pass
+
+
+class ReferenceEnvironmentError(ExampleProposalError):
+    """The Harness could not prepare the pinned reference environment.
+
+    This is deliberately distinct from a candidate rejected by upstream: an
+    environment failure is owned by the Harness and must stop *before* an LLM
+    is called or an Agent repair round is consumed.
+    """
+
+    reason_code = "REFERENCE_ENVIRONMENT_SETUP_FAILED"
 
 
 class CandidateExample(BaseModel):
@@ -305,6 +318,123 @@ def _sanitised_env(home: Path, extra_paths: list[str]) -> dict:
     return keep
 
 
+def _reference_lock_path(draft_dir: Path) -> Path | None:
+    lock = Path(draft_dir) / "reference.lock.txt"
+    return lock if lock.is_file() and lock.read_text(encoding="utf-8").strip() else None
+
+
+def _python_in_venv(venv: Path) -> Path:
+    return venv / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+
+
+@contextmanager
+def prepared_reference_environment(
+    draft_dir: Path,
+    *,
+    wheelhouse: Path | None = None,
+    timeout_s: int = 600,
+) -> Iterator[str | None]:
+    """Yield one disposable interpreter containing the reference lock closure.
+
+    The pinned upstream source tree is still placed first on ``PYTHONPATH`` by
+    :func:`run_reference_on_candidates`; the venv supplies only the dependency
+    closure which a source checkout does not contain.  When no lock exists we
+    preserve the source-only behavior used by synthetic/stdlib references.
+
+    With no caller-provided wheelhouse, dependencies are first downloaded as
+    wheels and then installed with ``--no-index``.  Consequently third-party
+    code is never executed with network access during candidate evaluation,
+    and sdists/build hooks are not accepted on this Product intake path.
+    """
+    lock = _reference_lock_path(Path(draft_dir))
+    if lock is None:
+        yield None
+        return
+
+    with tempfile.TemporaryDirectory(prefix="rp-reference-env-") as temp:
+        root = Path(temp)
+        venv = root / "venv"
+        managed_wheels = root / "wheels"
+        env = _sanitised_env(root, [])
+        try:
+            created = subprocess.run(  # noqa: S603 - fixed interpreter and argv
+                [sys.executable, "-m", "venv", str(venv)],
+                capture_output=True,
+                text=True,
+                timeout=min(timeout_s, 120),
+                env=env,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise ReferenceEnvironmentError(
+                f"参考环境创建失败（HARNESS）：{exc}"
+            ) from exc
+        if created.returncode != 0:
+            raise ReferenceEnvironmentError(
+                "参考环境创建失败（HARNESS）："
+                f"{(created.stderr or created.stdout or '')[-800:]}"
+            )
+
+        python = _python_in_venv(venv)
+        install_wheels = Path(wheelhouse) if wheelhouse is not None else managed_wheels
+        if wheelhouse is None:
+            managed_wheels.mkdir()
+            downloaded = subprocess.run(  # noqa: S603 - fixed interpreter and argv
+                [
+                    str(python),
+                    "-m",
+                    "pip",
+                    "download",
+                    "--disable-pip-version-check",
+                    "--only-binary=:all:",
+                    "--dest",
+                    str(managed_wheels),
+                    "-r",
+                    str(lock),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=timeout_s,
+                env=env,
+                check=False,
+            )
+            if downloaded.returncode != 0:
+                raise ReferenceEnvironmentError(
+                    "参考依赖下载失败（HARNESS；尚未调用模型）："
+                    f"{(downloaded.stderr or downloaded.stdout or '')[-1200:]}"
+                )
+        elif not install_wheels.is_dir():
+            raise ReferenceEnvironmentError(
+                f"参考 wheelhouse 不存在或不是目录（HARNESS）：{install_wheels}"
+            )
+
+        installed = subprocess.run(  # noqa: S603 - fixed interpreter and argv
+            [
+                str(python),
+                "-m",
+                "pip",
+                "install",
+                "--disable-pip-version-check",
+                "--no-index",
+                "--find-links",
+                str(install_wheels),
+                "-r",
+                str(lock),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            env=env,
+            check=False,
+        )
+        if installed.returncode != 0:
+            raise ReferenceEnvironmentError(
+                "参考依赖离线安装失败（HARNESS；尚未调用模型）："
+                f"{(installed.stderr or installed.stdout or '')[-1200:]}"
+            )
+        yield str(python)
+
+
 def run_reference_on_candidates(
     batch: ProposalBatch, *, draft_dir: Path, upstream_dir: Path,
     python_exe: str | None = None, timeout_s: int = _RUN_TIMEOUT_S,
@@ -325,6 +455,19 @@ def run_reference_on_candidates(
     placeholder = reference_is_placeholder(ref_src)
     if placeholder:
         raise ExampleProposalError(placeholder)
+
+    # Safe default for callers outside Studio: a lock must never be ignored.
+    # Studio prepares one environment for the whole bounded proposal batch and
+    # passes ``python_exe`` explicitly, avoiding repeated downloads per round.
+    if python_exe is None and _reference_lock_path(Path(draft_dir)) is not None:
+        with prepared_reference_environment(draft_dir, timeout_s=max(timeout_s, 600)) as prepared:
+            return run_reference_on_candidates(
+                batch,
+                draft_dir=draft_dir,
+                upstream_dir=upstream_dir,
+                python_exe=prepared,
+                timeout_s=timeout_s,
+            )
 
     up = Path(upstream_dir)
     extra = [str(up / "src"), str(up)] if (up / "src").is_dir() else [str(up)]

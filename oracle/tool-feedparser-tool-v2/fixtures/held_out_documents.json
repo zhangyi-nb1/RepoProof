@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/malformed_rss_invalid_date.xml", "expected_file": "expected/malformed_rss_invalid_date.expected.txt"}]}

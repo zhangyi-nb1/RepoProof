@@ -1,0 +1,1 @@
+{"colors":["#daa520","#aabbcc","#ffffff","#123456","#0000ff"]}

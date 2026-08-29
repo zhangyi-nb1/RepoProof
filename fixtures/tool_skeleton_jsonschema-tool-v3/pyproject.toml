@@ -1,0 +1,8 @@
+[project]
+name = "jsonschema_tool"
+version = "1.0.0"
+description = '离线校验一份同时包含 JSON Schema 规则和待检数据的 JSON，一次稳定列出全部问题及其明确路径，并仅允许本地引用。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

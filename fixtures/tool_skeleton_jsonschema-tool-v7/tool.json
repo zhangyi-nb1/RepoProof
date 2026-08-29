@@ -1,0 +1,48 @@
+{
+ "manifest_version": 1,
+ "name": "jsonschema-tool",
+ "version": "1.0.0",
+ "summary": "将 UTF-8 JSON Schema Draft 2020-12 验证结果导出为确定性的紧凑 JSON 错误报告。",
+ "source": {
+  "url": "https://github.com/python-jsonschema/jsonschema",
+  "resolved_commit": "331c38425519b69118d22ebe467ad230fb83a010",
+  "license": "MIT",
+  "distribution": "jsonschema"
+ },
+ "contract_schema_version": 2,
+ "interface": {
+  "usage": "jsonschema-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "JSON",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON",
+   "contract": {
+    "media_type": "application/json",
+    "root_type": "object",
+    "required": {
+     "valid": "boolean",
+     "error_count": "integer",
+     "errors": "array"
+    }
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "JsonSchemaValidationReport"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

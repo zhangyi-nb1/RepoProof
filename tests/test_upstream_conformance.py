@@ -5,12 +5,14 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
 
 from repoproof.adoption.intake.upstream_conformance import (
     precheck_upstream_conformance,
+    select_upstream_test_nodes,
     select_upstream_tests,
 )
 
@@ -45,6 +47,60 @@ def test_selection_caps_and_empty_cases(tmp_path):
     assert select_upstream_tests(root, ["zzz"]) == []        # 零命中不硬凑
     assert select_upstream_tests(root, []) == []
     assert select_upstream_tests(tmp_path / "none", ["table"]) == []
+
+
+def test_node_selection_is_small_and_capability_shaped(tmp_path):
+    root = _up(tmp_path)
+    (root / "tests" / "test_reader.py").write_text(
+        "def test_read_metadata_title():\n    pass\n\n"
+        "def test_extract_text():\n    pass\n\n"
+        "def test_unrelated():\n    pass\n",
+        encoding="utf-8",
+    )
+    got = select_upstream_test_nodes(root, ["metadata", "title", "text"])
+    assert got == [
+        "tests/test_reader.py::test_read_metadata_title",
+        "tests/test_reader.py::test_extract_text",
+    ]
+
+
+def test_precheck_bootstraps_only_exact_upstream_test_pin(tmp_path, monkeypatch):
+    root = _up(tmp_path)
+    requirements = root / "requirements"
+    requirements.mkdir()
+    (requirements / "ci.txt").write_text(
+        "pyyaml==6.0.2\nnot-pinned\n",
+        encoding="utf-8",
+    )
+    calls: list[list[str]] = []
+    results = iter(
+        [
+            subprocess.CompletedProcess(
+                [], 4, "", "ModuleNotFoundError: No module named 'yaml'"
+            ),
+            subprocess.CompletedProcess([], 0, "", ""),
+            subprocess.CompletedProcess([], 0, "1 passed\n", ""),
+        ]
+    )
+
+    def fake_run(argv, **_kwargs):
+        calls.append([str(item) for item in argv])
+        return next(results)
+
+    monkeypatch.setattr(
+        "repoproof.adoption.intake.upstream_conformance.subprocess.run",
+        fake_run,
+    )
+    record = precheck_upstream_conformance(
+        root,
+        ["tests/test_table_extract.py::test_table_basic"],
+        Path("/tmp/fake-python"),
+        bootstrap_missing=True,
+    )
+    assert record["status"] == "PASS"
+    assert record["dependency_bootstrap"] == ["pyyaml==6.0.2"]
+    assert calls[1][-1] == "pyyaml==6.0.2"
+    assert "tests/test_table_extract.py::test_table_basic" in calls[0][-1]
 
 
 def test_precheck_green_and_failing(tmp_path):

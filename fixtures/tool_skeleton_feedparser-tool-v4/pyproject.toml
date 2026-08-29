@@ -1,0 +1,8 @@
+[project]
+name = "feedparser_tool"
+version = "1.0.0"
+description = '将 RSS 或 Atom 文件离线统一整理为稳定的文章 JSON 清单，尽量保留标题、链接、作者、时间和标签。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

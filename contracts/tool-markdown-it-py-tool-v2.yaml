@@ -1,0 +1,50 @@
+task_id: tool-markdown-it-py-tool-v2
+
+source_repo:
+  url: https://github.com/executablebooks/markdown-it-py
+  revision: guided
+  resolved_commit: 36c5f547144df2d01970a5792d68c71a3380b227
+  license: MIT
+  distribution: markdown-it-py
+  import_module: markdown_it
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_markdown-it-py-tool-v2
+  package: markdown_it_py_tool
+  entry_point: markdown-it-py-tool
+
+requirement_spec_file: tool-markdown-it-py-tool-v2.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 2, "name": "markdown-it-py-tool", "summary": "读取 UTF-8 Markdown 文件，使用 markdown-it-py 4.2.0 提取标题、链接和围栏代码块，并输出确定性 JSON 对象。", "interface": {"usage": "markdown-it-py-tool <input> [--out FILE]", "input": {"kind": "file", "format": "Markdown", "contract": null}, "output": {"kind": "stdout", "format": "JSON", "contract": {"media_type": "application/json", "root_type": "object", "required": {"headings": "array", "links": "array", "code_blocks": "array"}}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取单个 UTF-8 Markdown 文件并通过 markdown_it.MarkdownIt().parse 解析。输出 JSON 对象固定包含 headings、links、code_blocks 三个数组，键顺序固定为该顺序。headings 按文档中标题出现顺序输出对象 {"level": 整数, "text": 字符串}；level 来自 ATX 或 Setext 标题的解析级别。links 按行内链接出现顺序输出对象 {"href": 字符串, "text": 字符串}；href 为解析器识别的链接目标，text 为链接标签的可见文本。code_blocks 按围栏代码块出现顺序输出对象 {"language": 字符串, "code": 字符串}；language 为围栏信息字符串中第一个空白分隔字段，无语言时为空字符串，code 为 markdown-it-py 代码块 token 的 content。标题和链接文本仅拼接可见文本与行内代码文本；软换行和硬换行归一化为空格，随后将连续 Unicode 空白归一化为一个 ASCII 空格并去除首尾空白；HTML 标记不计入文本。普通段落及非围栏代码块忽略。JSON 使用 UTF-8 字符、紧凑分隔符和稳定字段顺序序列化，因此重复运行结果确定性一致。空文件、仅含空白的文件、非 UTF-8 输入、无法读取的输入或解析器报告的异常均抛出 UserInputError（CLI 应以退出码 1 处理）。工具完全离线运行，不访问网络。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/markdown_it_py_tool/impl.py 实现 extract(),必须调用 pinned markdown-it-py;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:markdown-it-py-tool inputs/typical_features.md -> 见 expected/typical_features.expected.txt; markdown-it-py-tool inputs/malformed_markdown.md -> 见 expected/malformed_markdown.expected.txt);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: "MarkdownExtraction"
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>  示例　RSS 频道  </title>
+    <link>https://example.test/feed</link>
+    <description>本地测试订阅</description>
+    <managingEditor>编辑甲 &lt;editor@example.test&gt;</managingEditor>
+    <category>新闻</category>
+    <category>  技术  </category>
+    <pubDate>Tue, 02 Jan 2024 03:04:05 +0800</pubDate>
+    <item>
+      <title>第一条　内容</title>
+      <link>https://example.test/posts/1</link>
+      <guid isPermaLink="false">post-一</guid>
+      <author>作者甲 &lt;a@example.test&gt;</author>
+      <author>作者乙 &lt;b@example.test&gt;</author>
+      <category>Python</category>
+      <category>数据　处理</category>
+      <pubDate>Tue, 02 Jan 2024 03:04:05 +0800</pubDate>
+      <description>含有
+        连续空白的摘要</description>
+    </item>
+    <item>
+      <title>第二条</title>
+      <link>https://example.test/posts/2</link>
+      <guid>https://example.test/posts/2</guid>
+      <pubDate>Wed, 03 Jan 2024 00:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

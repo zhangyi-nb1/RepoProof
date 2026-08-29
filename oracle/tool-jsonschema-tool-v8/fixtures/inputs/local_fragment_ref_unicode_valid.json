@@ -1,0 +1,1 @@
+{"schema":{"$defs":{"product":{"type":"object","properties":{"名称":{"type":"string"},"价格":{"type":"number"}},"required":["名称","价格"],"additionalProperties":false}},"$ref":"#/$defs/product"},"instance":{"名称":"抹茶","价格":18.5}}

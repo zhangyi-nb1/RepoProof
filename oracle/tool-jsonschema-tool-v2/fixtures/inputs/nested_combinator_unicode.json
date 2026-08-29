@@ -1,0 +1,1 @@
+{"schema":{"type":"object","required":["用户","choice"],"properties":{"用户":{"type":"object","properties":{"昵称":{"type":"string","minLength":3},"年龄":{"type":"integer","minimum":18}},"required":["昵称","年龄"]},"choice":{"oneOf":[{"type":"string","pattern":"^[A-Z]+$"},{"type":"number","minimum":10}]}}},"instance":{"用户":{"昵称":"é","年龄":16},"choice":false}}

@@ -137,6 +137,18 @@ def test_provider_from_env_openai_path_unchanged(monkeypatch):
     assert type(p) is ProviderConfig and p.provider == "openai-compatible"
 
 
+def test_provider_from_env_accepts_product_temperature_policy(monkeypatch):
+    from repoproof.runner.agent_run import provider_from_env
+
+    monkeypatch.delenv("REPOPROOF_PROVIDER", raising=False)
+    monkeypatch.setenv("REPOPROOF_API_BASE", "https://oa.example.com/v1")
+    monkeypatch.setenv("REPOPROOF_API_KEY", "sk-oa")
+    monkeypatch.setenv("REPOPROOF_MODEL", "gpt-5.5")
+    monkeypatch.setenv("REPOPROOF_TEMPERATURE_POLICY", "provider_default")
+
+    assert provider_from_env().temperature_policy == "provider_default"
+
+
 # ---------------------------------------------------------------- 构造期防线
 
 

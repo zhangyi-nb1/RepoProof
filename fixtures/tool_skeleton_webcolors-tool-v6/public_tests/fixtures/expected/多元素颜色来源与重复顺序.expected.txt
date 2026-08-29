@@ -1,0 +1,1 @@
+{"colors":["#556b2f","#ff00aa","#ffd700","#1a2b3c","#008080","#aabbcc","#ffffff","#daa520","#000080","#aabbcc"]}

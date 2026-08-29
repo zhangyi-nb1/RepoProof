@@ -24,6 +24,34 @@ except ImportError:  # pragma: no cover
 needs_streamlit = pytest.mark.skipif(not HAVE_ST, reason="streamlit (ui extra) not installed")
 
 
+def test_repo_summary_receives_the_user_capability_goal(monkeypatch: pytest.MonkeyPatch) -> None:
+    """主流程的 LLM 分析必须看到用户目标，而不是只做泛化 README 翻译。"""
+    seen: dict = {}
+
+    class _Drafter:
+        name = "gateway-test"
+
+        def summarize_repo(self, context: dict) -> dict:
+            seen.update(context)
+            return {"summary": "analysis"}
+
+    monkeypatch.setattr(tool_drafter, "online_drafter", lambda: _Drafter())
+    result = product_jobs.summarize_repo_overview(
+        {
+            "repository": "https://github.com/example/demo",
+            "headline": "demo",
+            "prose": "readme",
+            "surfaces": [{"value": "merge"}],
+        },
+        offline=False,
+        capability_goal="合并报告并输出 JSON",
+    )
+
+    assert result["ok"]
+    assert seen["capability_goal"] == "合并报告并输出 JSON"
+    assert seen["surfaces"] == ["merge"]
+
+
 def _tool_world(root: Path) -> Path:
     tools = root / "tools"
     package = tools / "alpha-tool"
@@ -187,8 +215,12 @@ def test_review_editor_and_examples_only_write_inside_draft(
         statement="读取 Alpha 输入并返回规范化文本", input_format="TXT",
         output_format="TXT", output_schema="AlphaText",
         reference_impl="import alpha\n", output_contract={},
+        reference_lock="alpha==1.2.3\nalpha-helper==4.5.6",
     )
     assert saved["ok"]
+    assert (draft / "reference.lock.txt").read_text(encoding="utf-8") == (
+        "alpha==1.2.3\nalpha-helper==4.5.6\n"
+    )
     added = product_jobs.add_golden_example(
         draft, input_name="a.txt", input_bytes=b"a",
         expected_name="a.expected.txt", expected_bytes=b"A",
@@ -201,6 +233,47 @@ def test_review_editor_and_examples_only_write_inside_draft(
     review = product_jobs.read_managed_draft_review(draft)
     assert review["ok"] is True
     assert review["reference_impl"] == "import alpha\n"
+    assert review["dependency_lock"]["source"] == "user"
+    assert review["dependency_lock"]["pins"] == ["alpha==1.2.3", "alpha-helper==4.5.6"]
+
+
+def test_review_editor_rejects_non_exact_or_executable_dependency_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    draft = state_root / "drafts" / "draft"
+    (draft / "examples").mkdir(parents=True)
+    (draft / "draft.yaml").write_text(
+        yaml.safe_dump({
+            "tool": {
+                "name": "alpha-tool",
+                "summary": "Alpha 转换",
+                "interface": {"input": {"format": "TXT"}, "output": {"format": "TXT"}},
+            },
+            "capability": {"statement": "convert alpha", "output_schema": "AlphaText"},
+        }),
+        encoding="utf-8",
+    )
+    (draft / "reference_impl.py").write_text("import alpha\n", encoding="utf-8")
+    (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+
+    rejected = product_jobs.save_draft_review(
+        draft,
+        tool_name="alpha-tool",
+        summary="Alpha 转换",
+        statement="convert alpha",
+        input_format="TXT",
+        output_format="TXT",
+        output_schema="AlphaText",
+        reference_impl="import alpha\n",
+        reference_lock="alpha>=1\n--extra-index-url https://evil.invalid",
+    )
+
+    assert rejected["ok"] is False
+    assert "精确版本" in rejected["error"]
+    assert not (draft / "reference.lock.txt").exists()
 
 
 def test_candidate_generation_repairs_to_requested_count_without_resetting_goldens(
@@ -365,6 +438,105 @@ def test_candidate_generation_uses_pinned_evidence_before_another_model_round(
     assert result["evidence_probes"] == 2
     assert drafter.calls == 1
     assert (draft / "examples.yaml").read_text(encoding="utf-8") == "examples: []\n"
+
+
+def test_candidate_reference_environment_failure_is_zero_model_and_owned_by_harness(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    draft = state_root / "drafts" / "draft"
+    (draft / "examples").mkdir(parents=True)
+    (draft / "draft.yaml").write_text(
+        yaml.safe_dump({
+            "source_repo": {
+                "url": "https://github.com/acme/feed",
+                "resolved_commit": "c" * 40,
+                "import_module": "feed",
+            },
+            "tool": {"interface": {"input": {"format": "RSS"}}},
+            "capability": {"statement": "parse a local feed"},
+        }),
+        encoding="utf-8",
+    )
+    (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+    (draft / "reference_impl.py").write_text(
+        "from pathlib import Path\n\ndef extract(path: Path) -> str:\n    return path.read_text()\n",
+        encoding="utf-8",
+    )
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    monkeypatch.setattr(product_jobs, "_draft_upstream_dir", lambda _draft: (upstream, ""))
+
+    class BrokenEnvironment:
+        def __enter__(self):
+            raise example_proposer.ReferenceEnvironmentError("missing transitive wheel")
+
+        def __exit__(self, *_args):
+            return False
+
+    monkeypatch.setattr(
+        example_proposer,
+        "prepared_reference_environment",
+        lambda _draft: BrokenEnvironment(),
+    )
+    monkeypatch.setattr(
+        tool_drafter,
+        "online_drafter",
+        lambda: pytest.fail("environment failure must stop before an LLM is selected"),
+    )
+
+    result = product_jobs.propose_example_candidates(draft, n=4, offline=False)
+
+    assert result["ok"] is False
+    assert result["failure_owner"] == "HARNESS"
+    assert result["reason_codes"] == ["REFERENCE_ENVIRONMENT_SETUP_FAILED"]
+    assert "没有调用模型" in result["recommended_action"]
+
+
+def test_binary_candidate_generation_routes_to_real_file_upload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    draft = state_root / "drafts" / "binary"
+    (draft / "examples").mkdir(parents=True)
+    (draft / "draft.yaml").write_text(
+        "tool:\n"
+        "  interface:\n"
+        "    input:\n"
+        "      kind: file\n"
+        "      format: DOCX\n"
+            "capability:\n"
+            "  statement: 提取文档内容\n",
+            encoding="utf-8",
+        )
+    (draft / "examples.yaml").write_text(
+        "# 起草层建议(仅建议;真值文件归人放置):\n"
+        "#   - 上传一个带标题和表格的文档。(exact_file)\n"
+        "examples: []\n",
+        encoding="utf-8",
+    )
+    (draft / "reference_impl.py").write_text(
+        "from pathlib import Path\n\ndef extract(input_path: Path) -> str:\n    return input_path.name\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        product_jobs,
+        "_draft_upstream_dir",
+        lambda _draft: pytest.fail("binary guidance must not prepare or run upstream"),
+    )
+
+    result = product_jobs.propose_example_candidates(draft, n=4, offline=False)
+
+    assert result["ok"] is True
+    assert result["manual_upload_required"] is True
+    assert result["rounds"] == 0
+    assert result["candidates"] == []
+    assert result["suggestions"] == ["上传一个带标题和表格的文档。"]
+    assert "不会把模型文本伪装成真实文件" in result["note"]
 
 
 def test_activity_log_reader_never_follows_untrusted_state_path(
@@ -565,6 +737,9 @@ def test_public_launchers_use_distinct_apps_and_ports() -> None:
     lab_live = (scripts / "run_lab_ui_live.sh").read_text(encoding="utf-8")
     assert "ui/app.py" in product and "--server.port 8501" in product
     assert "ui/app.py" in product_live and "--server.port 8501" in product_live
+    assert "REPOPROOF_TEMPERATURE_POLICY" in product
+    assert "provider_default" in product
+    assert "REPOPROOF_TEMPERATURE_POLICY" in product_live
     assert "ui/lab_app.py" in lab and "--server.port 8502" in lab
     assert "ui/lab_app.py" in lab_live and "--server.port 8502" in lab_live
     assert "lab_app.py" not in product and "ui/app.py" not in lab

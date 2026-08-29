@@ -17,6 +17,7 @@ else
   echo "零模型的部分(仓库简介/离线起草/离线彩排)仍可正常使用。" >&2
 fi
 export REPOPROOF_DRAFTER_BACKEND="${REPOPROOF_DRAFTER_BACKEND:-litellm}"
+export REPOPROOF_TEMPERATURE_POLICY="${REPOPROOF_TEMPERATURE_POLICY:-provider_default}"
 exec .venv/bin/streamlit run src/repoproof/ui/app.py \
   --server.address 127.0.0.1 \
   --server.port 8501 \

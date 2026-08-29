@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
 
 from repoproof.ui.product_theme import apply_product_theme, hero, section_intro
 from repoproof.ui.services import product_jobs
+from repoproof.ui.services.product_mode import list_tools, tool_root
 
 st.set_page_config(page_title="运行活动 · RepoProof Studio", page_icon="🕒", layout="wide")
 apply_product_theme()
@@ -23,17 +26,47 @@ if not job:
         st.switch_page("pages/tool_onboarding.py")
     st.stop()
 
-state = {
+worker_state = {
     "RUNNING": "正在运行",
     "SUCCEEDED": "已完成",
     "FAILED": "失败",
     "INTERRUPTED": "已中断",
 }.get(str(job.get("status")), "状态异常")
+semantic = product_jobs.product_job_action_result(job)
+result = semantic.get("result") if semantic.get("ok") else None
+
+current_operational = "尚未形成"
+current_health = "尚未导出"
+core_error = ""
+if result and result.get("tool_name"):
+    library = list_tools(Path(job.get("dest_root") or tool_root()))
+    if library.get("registry_error") or library.get("release_error"):
+        current_operational = "状态不可读取"
+        current_health = "状态不可读取"
+        core_error = str(
+            library.get("registry_error") or library.get("release_error")
+        )
+    else:
+        row = next(
+            (
+                item for item in library.get("tools", [])
+                if item.get("name") == result.get("tool_name")
+            ),
+            None,
+        )
+        if row:
+            current_operational = str(row.get("operational_status") or "REVIEW_REQUIRED")
+            current_health = str(row.get("health") or "UNKNOWN")
+
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("状态", state)
-c2.metric("阶段", str(job.get("action") or job.get("kind") or "—"))
-c3.metric("任务", str(job.get("label") or "—"))
-c4.metric("进程", str(job.get("pid") or "—"))
+c1.metric("Worker", worker_state)
+c2.metric("Pipeline", str((result or {}).get("pipeline_verdict") or "尚未形成"))
+c3.metric("Operational", current_operational)
+c4.metric("Package", current_health)
+st.caption(
+    f"动作：{job.get('action') or job.get('kind') or '—'} · "
+    f"任务：{job.get('label') or '—'}。Worker 只描述进程，不代表验证或发布结论。"
+)
 
 if job.get("alive"):
     # st.progress 只收 int[0,100]/float[0,1] —— 传 None 会当场抛
@@ -42,47 +75,50 @@ if job.get("alive"):
     # 时揪出)。构建没有可靠的百分比进度,给个不谎报进度的运行态提示。
     st.info("⏳ 后台执行中；刷新页面可获取最新状态。")
 elif job.get("ok"):
-    st.success(job.get("note") or "任务已完成。")
+    st.success(job.get("note") or "Worker 已完成；请以下方结构化结果为准。")
 else:
-    st.error(job.get("note") or "任务没有形成预期产物，请查看日志。")
+    st.error(job.get("note") or "Worker 未形成预期产物。")
     if job.get("error_code"):
         st.caption(f"错误码：`{job['error_code']}`")
 
-# Gate 4:构建结论人读卡(路线/终止码/归因)—— 从日志尾部结论 JSON
-# 确定性投影;解析不出就只显示原始日志,不猜。
 log_result = product_jobs.read_product_job_log(job)
-if str(job.get("kind") or "") == "tool-build" and log_result.get("ok"):
-    from repoproof.ui.services.product_mode import (
-        build_conclusion,
-        parse_build_summary,
-    )
-
-    summary = parse_build_summary(log_result.get("text") or "")
-    if summary:
-        c = build_conclusion(summary)
-        st.markdown("#### 构建结论")
-        r1, r2 = st.columns([1.2, 1])
-        with r1:
-            st.write(f"**执行路线：** {c['route_label']}")
-            st.write("**是否调用模型：** " + ("否(零模型)" if not c["agent_invoked"] else "是"))
-            st.write(f"**结论：** {c['verdict'] or '—'}")
-            if c["exported"]:
-                st.success(f"已导出:`{c['exported']}`")
-        with r2:
-            st.write(f"**终止码：** `{c['product_stop_code'] or '—'}`")
-            st.write(f"**含义：** {c['stop_label']}")
-            if c["failure_owner"]:
-                st.write(f"**失败归属：** {c['failure_owner']}")
-            if c["reason_codes"]:
-                st.write("**理由码：** " + ", ".join(f"`{x}`" for x in c["reason_codes"]))
-        if c["run_id"]:
-            st.caption(f"运行证据:`{c['run_id']}`(结论来自独立验证,不来自本页日志)")
-
-section_intro("过程日志", "它不是 PASS 的来源；模型的完成声明也不会在这里变成系统结论。")
-if log_result.get("ok"):
-    st.code(log_result.get("text") or "（任务刚启动，暂无输出）", language="text")
+st.markdown("#### 结构化动作结论")
+if result:
+    r1, r2 = st.columns([1.2, 1])
+    with r1:
+        st.write(f"**执行路线：** `{result.get('route') or '—'}`")
+        st.write("**是否调用模型：** " + ("是" if result.get("agent_invoked") else "否"))
+        st.write(f"**Pipeline：** `{result.get('pipeline_verdict') or '—'}`")
+        st.write(f"**历史结论：** `{result.get('historical_verdict') or '—'}`")
+        if result.get("exported_path"):
+            st.success("产物已导出；当前是否可用仍以上方 Operational 为准。")
+    with r2:
+        st.write(f"**终止码：** `{result.get('product_stop_code') or '—'}`")
+        st.write(f"**失败责任：** `{result.get('failure_owner') or '—'}`")
+        reason_codes = [str(code) for code in result.get("reason_codes") or []]
+        if reason_codes:
+            st.write("**理由码：** " + ", ".join(f"`{code}`" for code in reason_codes))
+        if result.get("recommended_action"):
+            st.info(str(result["recommended_action"]))
+    if result.get("run_id"):
+        st.caption(f"运行证据：`{result['run_id']}`。结论来自独立验证，不来自日志或 Agent 自述。")
 else:
-    st.caption(log_result.get("error") or "日志文件尚未创建。")
+    code = str(semantic.get("error_code") or "ACTION_RESULT_UNAVAILABLE")
+    message = str(semantic.get("error") or "结构化动作结果不可读取。")
+    if job.get("alive") and code == "ACTION_RESULT_PENDING":
+        st.info("动作仍在执行，Pipeline 结论尚未形成。")
+    else:
+        st.error(f"{code}：{message}")
+        st.caption("结果缺失或损坏时 fail closed；日志不会被用来推断 READY 或 ACTIVE。")
+if core_error:
+    st.error(f"CORE_STATUS_UNAVAILABLE：{core_error}")
+
+with st.expander("过程日志（仅供排查）"):
+    section_intro("过程日志", "它不是 PASS 的来源；模型的完成声明不会在这里变成系统结论。")
+    if log_result.get("ok"):
+        st.code(log_result.get("text") or "（任务刚启动，暂无输出）", language="text")
+    else:
+        st.caption(log_result.get("error") or "日志文件尚未创建。")
 
 with st.expander("技术信息（人读字段 + 原始 JSON）"):
     safe = {k: v for k, v in job.items() if k not in {"env"}}

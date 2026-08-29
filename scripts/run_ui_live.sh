@@ -9,6 +9,7 @@ else
   echo "缺少 .env(REPOPROOF_API_BASE/KEY/MODEL)。参考 README 或让助手生成。" >&2
 fi
 export REPOPROOF_DRAFTER_BACKEND="${REPOPROOF_DRAFTER_BACKEND:-litellm}"
+export REPOPROOF_TEMPERATURE_POLICY="${REPOPROOF_TEMPERATURE_POLICY:-provider_default}"
 exec .venv/bin/streamlit run src/repoproof/ui/app.py \
   --server.address 127.0.0.1 --server.port 8501 --server.headless true \
   --browser.gatherUsageStats false

@@ -394,7 +394,9 @@ def test_resume_passes_the_host_contract_not_the_tool_contract(tmp_path: Path, m
     from repoproof.runner import tool_pipeline
 
     (tmp_path / "contracts").mkdir()
-    (tmp_path / "contracts" / "tool-demo-v1.yaml").write_text("kind: tool\n", encoding="utf-8")
+    (tmp_path / "contracts" / "tool-demo-v1.yaml").write_text(
+        "kind: tool\ntool: {name: demo}\n", encoding="utf-8"
+    )
     host = tmp_path / "tool_tasks" / "tool-demo-v1"
     host.mkdir(parents=True)
     (host / "contract.yaml").write_text("kind: host_integrated\n", encoding="utf-8")
@@ -407,12 +409,108 @@ def test_resume_passes_the_host_contract_not_the_tool_contract(tmp_path: Path, m
 
     monkeypatch.setattr(tool_pipeline, "run_host_guided_cli", _spy, raising=False)
     monkeypatch.setattr("repoproof.runner.host_guided.run_host_guided_cli", _spy)
+    from repoproof.runner.product_preflight import ProductPreflightResult
+    monkeypatch.setattr(
+        "repoproof.runner.product_preflight.run_product_preflight",
+        lambda **_kwargs: ProductPreflightResult(ok=True),
+    )
 
     tool_pipeline.tool_build_real_from_frozen(
         "tool-demo-v1", tmp_path, dest_root=tmp_path / "tools")
 
     assert seen["contract"] == host / "contract.yaml", seen
     assert seen["contract"].name == "contract.yaml"          # 不是 contracts/*.yaml
+
+
+def test_frozen_resume_rejects_legacy_mcp_before_real_agent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An upgrade blocker is a zero-model preflight, not a post-Agent surprise."""
+
+    from repoproof.runner import tool_pipeline
+    from repoproof.runner.tool_export import ToolExportError
+
+    task_id = "tool-demo-v2"
+    (tmp_path / "contracts").mkdir()
+    (tmp_path / "contracts" / f"{task_id}.yaml").write_text(
+        "kind: tool\ntool: {name: demo}\n", encoding="utf-8"
+    )
+    host = tmp_path / "tool_tasks" / task_id
+    host.mkdir(parents=True)
+    (host / "contract.yaml").write_text(
+        "host: {wheelhouse_path: /unused}\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        tool_pipeline,
+        "preflight_tool_install",
+        lambda *_args: (_ for _ in ()).throw(
+            ToolExportError("LEGACY_MCP_MUST_BE_DETACHED")
+        ),
+    )
+    monkeypatch.setattr(
+        "repoproof.runner.host_guided.run_host_guided_cli",
+        lambda *_args, **_kwargs: pytest.fail("real Agent must not run"),
+    )
+
+    with pytest.raises(tool_pipeline.PipelineError) as caught:
+        tool_pipeline.tool_build_real_from_frozen(
+            task_id, tmp_path, dest_root=tmp_path / "tools"
+        )
+
+    assert caught.value.reason_code == "LEGACY_MCP_MUST_BE_DETACHED"
+    assert (
+        caught.value.partial_result["stages"]["install_preflight"]["ok"]
+        is False
+    )
+
+
+def test_frozen_resume_can_repeat_rehearsal_without_real_model(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from repoproof.runner import tool_pipeline
+    from repoproof.runner.product_preflight import ProductPreflightResult
+
+    task_id = "tool-demo-v1"
+    (tmp_path / "contracts").mkdir()
+    (tmp_path / "contracts" / f"{task_id}.yaml").write_text(
+        "kind: tool\n", encoding="utf-8"
+    )
+    host = tmp_path / "tool_tasks" / task_id
+    host.mkdir(parents=True)
+    (host / "contract.yaml").write_text(
+        "host: {wheelhouse_path: /unused}\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        "repoproof.runner.product_preflight.run_product_preflight",
+        lambda **_kwargs: ProductPreflightResult(ok=True),
+    )
+    calls: list[dict] = []
+
+    def _fake(_contract, _project_root, **kwargs):
+        calls.append(kwargs)
+        return {
+            "blocked": False,
+            "report": {
+                "verdict": "PASS_ADAPTED",
+                "run_id": "fake-rehearsal",
+                "gate_reasons": [],
+            },
+        }
+
+    monkeypatch.setattr(
+        "repoproof.runner.host_guided.run_host_guided_cli", _fake
+    )
+    result = tool_pipeline.tool_build_real_from_frozen(
+        task_id,
+        tmp_path,
+        dest_root=tmp_path / "tools",
+        rehearsal_only=True,
+    )
+
+    assert result["verdict"] == "REHEARSAL_PASS_ONLY"
+    assert calls == [{"fake": "positive", "batch": "EXPLORATORY_UNPREREGISTERED"}]
 
 
 def test_resume_refuses_when_task_was_never_materialised(tmp_path: Path):

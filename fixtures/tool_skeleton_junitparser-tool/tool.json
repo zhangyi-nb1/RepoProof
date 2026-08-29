@@ -1,0 +1,48 @@
+{
+ "manifest_version": 1,
+ "name": "junitparser-tool",
+ "version": "1.0.0",
+ "summary": "合并 ZIP 中的多份测试报告，并可按通过、失败、错误或跳过状态筛选后输出确定性 JSON 汇总。",
+ "source": {
+  "url": "https://github.com/weiwei/junitparser",
+  "resolved_commit": "d98bdb70fbde4d08e191df17bd51576102c19d6a",
+  "license": "Apache-2.0",
+  "distribution": "junitparser"
+ },
+ "contract_schema_version": 2,
+ "interface": {
+  "usage": "junitparser-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "ZIP",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON",
+   "contract": {
+    "media_type": "application/json",
+    "root_type": "object",
+    "required": {
+     "filter": "array",
+     "suites": "array",
+     "totals": "object"
+    }
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "JUnitZipSuitesTotals"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

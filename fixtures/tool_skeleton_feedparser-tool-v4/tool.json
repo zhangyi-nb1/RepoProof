@@ -1,0 +1,49 @@
+{
+ "manifest_version": 1,
+ "name": "feedparser-tool",
+ "version": "1.0.0",
+ "summary": "将 RSS 或 Atom 文件离线统一整理为稳定的文章 JSON 清单，尽量保留标题、链接、作者、时间和标签。",
+ "source": {
+  "url": "https://github.com/kurtmckee/feedparser",
+  "resolved_commit": "14425f6851790184fbf7bbd8076de237d5f444f9",
+  "license": "BSD-2-Clause",
+  "distribution": "feedparser"
+ },
+ "contract_schema_version": 2,
+ "interface": {
+  "usage": "feedparser-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "RSS/Atom XML",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON",
+   "contract": {
+    "media_type": "application/json",
+    "root_type": "object",
+    "required": {
+     "format": "string",
+     "feed": "object",
+     "entries": "array",
+     "warnings": "array"
+    }
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "NormalizedFeedReport"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

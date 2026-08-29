@@ -95,6 +95,11 @@ class RepairRoundRecord(BaseModel):
     scope_change_request: str | None = None
     score: list[float] = []
     selected_as_best: bool = False
+    failure_owner: str = "AGENT_ADAPTER"
+    public_failure_fingerprint: str = ""
+    reason_codes: list[str] = []
+    adapter_diff_present: bool = True
+    recommended_action: str = "REPAIR"
 
     def to_dict(self) -> dict:
         return self.model_dump()

@@ -1,0 +1,48 @@
+{
+ "manifest_version": 1,
+ "name": "markdown-it-py-tool",
+ "version": "1.0.0",
+ "summary": "读取 UTF-8 Markdown 文件，使用 markdown-it-py 4.2.0 提取标题、链接和围栏代码块，并输出确定性 JSON 对象。",
+ "source": {
+  "url": "https://github.com/executablebooks/markdown-it-py",
+  "resolved_commit": "36c5f547144df2d01970a5792d68c71a3380b227",
+  "license": "MIT",
+  "distribution": "markdown-it-py"
+ },
+ "contract_schema_version": 2,
+ "interface": {
+  "usage": "markdown-it-py-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "Markdown",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON",
+   "contract": {
+    "media_type": "application/json",
+    "root_type": "object",
+    "required": {
+     "headings": "array",
+     "links": "array",
+     "code_blocks": "array"
+    }
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "MarkdownExtraction"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

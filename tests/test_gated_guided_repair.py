@@ -9,11 +9,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from repoproof.adoption.repair.failure_packet import build_failure_packets
 from repoproof.adoption.repair.repair_budget import RepairBudget
 from repoproof.adoption.repair.repair_loop import (
     RepairLoop,
     RoundResult,
+    classify_agent_exit_status,
     full_score,
 )
 from repoproof.runner.guided_repair import (
@@ -27,6 +30,40 @@ from repoproof.runner.guided_repair import (
 from repoproof.verification.junit import parse_junit_xml
 
 REPO = Path(__file__).resolve().parent.parent
+
+
+@pytest.mark.parametrize(
+    ("exit_status", "expected"),
+    [
+        (
+            "Uncaught:ServiceUnavailableError",
+            ("EXTERNAL", "PROVIDER_UNAVAILABLE", "RETRY_INFRASTRUCTURE"),
+        ),
+        (
+            "AuthenticationError",
+            (
+                "HARNESS",
+                "PROVIDER_CONFIGURATION_INVALID",
+                "RETRY_INFRASTRUCTURE",
+            ),
+        ),
+        (
+            "litellm.UnsupportedParamsError: temperature is unsupported",
+            (
+                "HARNESS",
+                "PROVIDER_CONFIGURATION_INVALID",
+                "RETRY_INFRASTRUCTURE",
+            ),
+        ),
+        ("LimitsExceeded", None),
+        ("Submitted", None),
+    ],
+)
+def test_agent_runtime_exit_responsibility_is_conservative(
+    exit_status: str,
+    expected: tuple[str, str, str] | None,
+) -> None:
+    assert classify_agent_exit_status(exit_status) == expected
 
 
 # ---------- §11.3 Best State 排序(禁止只按通过数) ----------
@@ -178,6 +215,169 @@ def test_loop_pauses_on_scope_change() -> None:
     assert out.rounds_run == 1  # 绝不自行继续
 
 
+def test_product_loop_stops_when_agent_produced_no_adapter_diff() -> None:
+    def run_round(idx, packets, best_snapshot):
+        return _rr(
+            adapter_snapshot=f"r{idx}",
+            passed=0,
+            failed_nodes=["public_tests/test_contract.py::test_one"],
+            adapter_diff_present=False,
+            failure_owner="AGENT_ADAPTER",
+            reason_codes=["PUBLIC_CONTRACT_FAILURE"],
+        )
+
+    out = RepairLoop(
+        run_round,
+        budget=RepairBudget(max_rounds=3),
+        score_fn=full_score,
+        responsibility_gating=True,
+    ).run()
+    assert out.rounds_run == 1
+    assert out.stop_reason == "no_adapter_diff"
+    assert "NO_ADAPTER_DIFF" in out.reason_codes
+
+
+def test_product_loop_does_not_accept_green_claim_without_adapter_diff() -> None:
+    out = RepairLoop(
+        lambda *_args: _rr(
+            adapter_snapshot="unchanged",
+            passed=3,
+            failed_nodes=[],
+            adapter_diff_present=False,
+            failure_owner="AGENT_ADAPTER",
+        ),
+        budget=RepairBudget(max_rounds=3),
+        score_fn=full_score,
+        responsibility_gating=True,
+    ).run()
+    assert out.rounds_run == 1
+    assert out.stop_reason == "no_adapter_diff"
+    assert "NO_ADAPTER_DIFF" in out.reason_codes
+
+
+def test_product_loop_stops_on_second_identical_public_failure() -> None:
+    def run_round(idx, packets, best_snapshot):
+        return _rr(
+            adapter_snapshot=f"r{idx}",
+            passed=1,
+            failed_nodes=["public_tests/test_contract.py::test_one"],
+            adapter_diff_present=True,
+            failure_owner="AGENT_ADAPTER",
+            reason_codes=["PUBLIC_CONTRACT_FAILURE"],
+        )
+
+    out = RepairLoop(
+        run_round,
+        budget=RepairBudget(max_rounds=3),
+        score_fn=full_score,
+        responsibility_gating=True,
+    ).run()
+    assert out.rounds_run == 2
+    assert out.stop_reason == "repeated_public_failure"
+    assert "REPEATED_PUBLIC_FAILURE" in out.reason_codes
+
+
+def test_product_loop_does_not_spend_repair_on_harness_failure() -> None:
+    def run_round(idx, packets, best_snapshot):
+        return _rr(
+            adapter_snapshot=f"r{idx}",
+            passed=0,
+            failed_nodes=["public_tests::collection"],
+            failure_owner="HARNESS",
+            recommended_action="RETRY_INFRASTRUCTURE",
+            reason_codes=["PUBLIC_TEST_COLLECTION_FAILED"],
+        )
+
+    out = RepairLoop(
+        run_round,
+        budget=RepairBudget(max_rounds=3),
+        score_fn=full_score,
+        responsibility_gating=True,
+    ).run()
+    assert out.rounds_run == 1
+    assert out.stop_reason == "non_repairable_failure"
+    assert out.failure_owner == "HARNESS"
+
+
+@pytest.mark.parametrize("owner", ["CONTRACT", "SAFETY_POLICY", "USER_INPUT"])
+def test_product_loop_does_not_repair_non_agent_responsibility(owner: str) -> None:
+    out = RepairLoop(
+        lambda *_args: _rr(
+            adapter_snapshot="r1",
+            passed=0,
+            failed_nodes=["public_tests::blocked"],
+            failure_owner=owner,
+            reason_codes=["NON_AGENT_FAILURE"],
+        ),
+        budget=RepairBudget(max_rounds=3),
+        score_fn=full_score,
+        responsibility_gating=True,
+    ).run()
+    assert out.rounds_run == 1
+    assert out.stop_reason == "non_repairable_failure"
+
+
+def test_product_loop_allows_one_useful_repair_then_passes() -> None:
+    rounds = [
+        _rr(
+            adapter_snapshot="r1",
+            passed=1,
+            failed_nodes=["public_tests::one"],
+            adapter_diff_present=True,
+            failure_owner="AGENT_ADAPTER",
+            reason_codes=["PUBLIC_CONTRACT_FAILURE"],
+        ),
+        _rr(
+            adapter_snapshot="r2",
+            passed=2,
+            failed_nodes=[],
+            adapter_diff_present=True,
+            failure_owner="AGENT_ADAPTER",
+        ),
+    ]
+
+    out = RepairLoop(
+        lambda idx, packets, best: rounds[idx - 1],
+        budget=RepairBudget(max_rounds=3),
+        score_fn=full_score,
+        responsibility_gating=True,
+    ).run()
+    assert out.rounds_run == 2
+    assert out.stop_reason == "all_public_green_pending_verification"
+
+
+def test_product_loop_can_succeed_on_final_third_attempt() -> None:
+    rounds = [
+        _rr(
+            adapter_snapshot="r1",
+            passed=1,
+            failed_nodes=["public_tests::one"],
+            failure_class="AssertionError",
+        ),
+        _rr(
+            adapter_snapshot="r2",
+            passed=2,
+            failed_nodes=["public_tests::two"],
+            failure_class="ValueError",
+        ),
+        _rr(
+            adapter_snapshot="r3",
+            passed=3,
+            failed_nodes=[],
+            failure_class="",
+        ),
+    ]
+    out = RepairLoop(
+        lambda idx, *_args: rounds[idx - 1],
+        budget=RepairBudget(max_rounds=3),
+        score_fn=full_score,
+        responsibility_gating=True,
+    ).run()
+    assert out.rounds_run == 3
+    assert out.best_round == 3
+    assert out.stop_reason == "all_public_green_pending_verification"
+
+
 # ---------- 轮次账本(§11.2) ----------
 
 def test_repair_round_record_schema() -> None:
@@ -188,7 +388,9 @@ def test_repair_round_record_schema() -> None:
                 "regression_passed", "regression_failed", "policy_violations",
                 "model_calls", "commands", "tokens_in", "tokens_out",
                 "wall_time_s", "failure_packets", "scope_change_request",
-                "score", "selected_as_best"):
+                "score", "selected_as_best", "failure_owner",
+                "public_failure_fingerprint", "reason_codes",
+                "adapter_diff_present", "recommended_action"):
         assert key in d, key
     assert d["tokens_in"] == "UNKNOWN"  # 未知永不写 0
 

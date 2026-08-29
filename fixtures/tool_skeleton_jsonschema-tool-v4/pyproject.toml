@@ -1,0 +1,8 @@
+[project]
+name = "jsonschema_tool"
+version = "1.0.0"
+description = '离线校验单个 JSON 中的 JSON Schema 与数据，一次返回全部问题，并以稳定的 JSON Pointer 路径和顺序报告。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

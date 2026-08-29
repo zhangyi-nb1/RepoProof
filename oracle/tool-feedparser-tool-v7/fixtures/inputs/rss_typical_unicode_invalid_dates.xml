@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>  Résumé　日报  </title>
+    <link>/新闻</link>
+    <description>本地测试源</description>
+    <dc:creator> 王　五 </dc:creator>
+    <category domain="/主题"> 科技　动态 </category>
+    <lastBuildDate>2024-03-04T05:06:07+09:00</lastBuildDate>
+    <item>
+      <title>  第二　篇 é  </title>
+      <link>articles/2</link>
+      <guid isPermaLink="false">urn:test:2</guid>
+      <author>author@example.com (赵六)</author>
+      <category domain="分类"> 人工智能 </category>
+      <pubDate>Tue, 05 Mar 2024 01:02:03 GMT</pubDate>
+      <dc:date>not-a-valid-date</dc:date>
+    </item>
+  </channel>
+</rss>

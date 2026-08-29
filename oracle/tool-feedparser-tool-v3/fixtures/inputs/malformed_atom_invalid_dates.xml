@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title> Atom　恢复测试 </title>
+  <id>urn:example:atom</id>
+  <updated>not-a-date</updated>
+  <author><name>李雷</name></author>
+  <category term="甲"/><category term="乙"/>
+  <entry>
+    <title>未闭合条目</title>
+    <id>urn:example:entry:1</id>
+    <link href="https://example.test/atom/1"/>
+    <published>2024-13-40T25:61:00Z</published>
+    <updated>2024-01-02T03:04:05+08:00</updated>
+    <author><name>韩梅梅</name></author>
+    <category term="错误日期"/>
+  </entry>
+  <entry>
+    <title>后续条目</title>
+    <id>urn:example:entry:2</id>
+    <updated>2024-01-03T00:00:00Z</updated>
+  </entry>
+</feed BROKEN>

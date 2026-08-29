@@ -1,0 +1,1 @@
+{"schema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"名称":{"type":"string","minLength":2},"价格":{"type":"number","minimum":0}},"required":["名称","价格"],"additionalProperties":false},"instance":{"名称":"鸡蛋","价格":12.5}}

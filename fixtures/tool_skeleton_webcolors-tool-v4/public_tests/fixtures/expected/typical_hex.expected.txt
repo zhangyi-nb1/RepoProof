@@ -1,0 +1,1 @@
+{"blue":86,"digital_level":0,"grayscale":46,"green":52,"red":18,"sensor_state":"DARK","source_hex":"#123456"}

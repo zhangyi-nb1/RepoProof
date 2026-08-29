@@ -25,6 +25,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install "ruff>=0.6"
+      - run: git diff --check
       - run: ruff check src tests scripts
 
   type:
@@ -65,3 +66,8 @@ jobs:
           git config --global user.email ci@repoproof.local
           git config --global user.name repoproof-ci
       - run: python -m pytest -q
+      - name: Streamlit Product journey smoke
+        run: >-
+          python -m pytest -q
+          tests/ui/test_ui_page_render_smoke.py
+          tests/test_product_journey_canary.py
