@@ -7,10 +7,13 @@ MCP projection all consume the same ``ToolOutputContract`` data model.
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import math
 import re
 import shlex
+import xml.etree.ElementTree as ET
 from typing import Any
 
 from repoproof.domain.models import ToolOutputContract
@@ -41,6 +44,37 @@ def is_structured_output_format(format_name: str) -> bool:
     return normalize_output_format(format_name) != "text"
 
 
+def expected_text_media_type(format_name: str) -> str:
+    """Return the executable media type for a recognized text artifact.
+
+    ``root_type=text`` alone is not enough: without this binding an RIS/TSV/
+    Markdown/HTML label paired with ``text/plain`` would bypass the dedicated
+    parser while still looking correct in the human-facing contract.
+    """
+
+    normalized = re.sub(
+        r"[^a-z0-9]+", "_", format_name.strip().lower()
+    ).strip("_")
+    tokens = set(normalized.split("_"))
+    ris_labels = {
+        "research_info_system",
+        "research_info_systems",
+        "research_information_system",
+        "research_information_systems",
+    }
+    if "ris" in tokens or any(label in normalized for label in ris_labels):
+        return "application/x-research-info-systems"
+    if "tsv" in tokens or "tab_separated" in normalized:
+        return "text/tab-separated-values"
+    if "markdown" in tokens or normalized in {"md", "commonmark"}:
+        return "text/markdown"
+    if "xhtml" in tokens:
+        return "application/xhtml+xml"
+    if "html" in tokens:
+        return "text/html"
+    return "text/plain"
+
+
 def is_capability_output_invocation(input_arg: str | None) -> bool:
     """Exclude CLI metadata paths whose stdout is not capability output.
 
@@ -64,7 +98,11 @@ def output_contract_matches_format(
               else ToolOutputContract.model_validate(contract))
     family = normalize_output_format(format_name)
     if family == "text":
-        return parsed.root_type == "text"
+        declared_media = parsed.media_type.split(";", 1)[0].strip().lower()
+        return (
+            parsed.root_type == "text"
+            and declared_media == expected_text_media_type(format_name)
+        )
     if parsed.root_type == "text":
         return False
     if family == "json_lines":
@@ -135,13 +173,147 @@ def _validate_value(value: object, contract: ToolOutputContract, *, location: st
     return errors
 
 
+def _validate_text_media_type(text: str, media_type: str) -> list[str]:
+    """Validate deterministic, dependency-free structure for known text artifacts.
+
+    This is intentionally a format floor, not the task oracle. Exact comparison
+    with the frozen reference and held-out examples still decides semantics; the
+    media parser prevents a jointly wrong plain-text/JSON golden from satisfying
+    a contract that explicitly promises RIS, TSV, Markdown, or self-contained HTML.
+    """
+
+    media = str(media_type).split(";", 1)[0].strip().lower()
+    if "\x00" in text:
+        return ["text: contains_nul"]
+    if media == "application/x-research-info-systems":
+        lines = [line for line in text.splitlines() if line.strip()]
+        if not lines:
+            return ["ris: no_records"]
+        tag = re.compile(r"^[A-Z0-9]{2}  -(?: .*)?$")
+        continuation = re.compile(r"^\s{6}\S.*$")
+        # RISpy's default writer prefixes records with ``1.``, ``2.``, ... .
+        # Treat those deterministic record ordinals as an optional transport
+        # header, but only immediately before the matching TY line.
+        record_header = re.compile(r"^[1-9][0-9]*\.$")
+        in_record = False
+        pending_header = False
+        records = 0
+        errors: list[str] = []
+        for line_no, line in enumerate(lines, start=1):
+            if continuation.fullmatch(line) and in_record:
+                continue
+            if record_header.fullmatch(line):
+                expected = records + 1
+                if in_record or pending_header or int(line[:-1]) != expected:
+                    errors.append(f"ris: line={line_no} invalid_record_header")
+                else:
+                    pending_header = True
+                continue
+            if not tag.fullmatch(line):
+                errors.append(f"ris: line={line_no} invalid_tag")
+                continue
+            current = line[:2]
+            if current == "TY":
+                if in_record:
+                    errors.append(f"ris: line={line_no} nested_record")
+                in_record = True
+                pending_header = False
+            elif current == "ER":
+                if not in_record:
+                    errors.append(f"ris: line={line_no} orphan_end")
+                else:
+                    records += 1
+                    in_record = False
+            elif not in_record:
+                errors.append(f"ris: line={line_no} field_outside_record")
+        if pending_header:
+            errors.append("ris: record_header_without_record")
+        if in_record:
+            errors.append("ris: unterminated_record")
+        if records == 0:
+            errors.append("ris: no_complete_records")
+        return errors
+    if media == "text/tab-separated-values":
+        try:
+            rows = list(csv.reader(io.StringIO(text), dialect="excel-tab", strict=True))
+        except (csv.Error, UnicodeError):
+            return ["tsv: invalid_document"]
+        if not rows:
+            return ["tsv: no_rows"]
+        width = len(rows[0])
+        if width == 0 or any(not cell.strip() for cell in rows[0]):
+            return ["tsv: invalid_header"]
+        if len(set(rows[0])) != width:
+            return ["tsv: duplicate_header"]
+        if any(len(row) != width for row in rows[1:]):
+            return ["tsv: inconsistent_columns"]
+        return []
+    if media == "text/markdown":
+        if not text.strip():
+            return ["markdown: empty_document"]
+        try:
+            value = _strict_json_loads(text)
+        except (ValueError, UnicodeError):
+            value = None
+        if isinstance(value, (dict, list)):
+            return ["markdown: json_document"]
+        return []
+    if media in {"text/html", "application/xhtml+xml"}:
+        if re.search(r"<!\s*(?:doctype|entity)\b", text, re.IGNORECASE):
+            return ["html: doctype_or_entity_forbidden"]
+        processing_targets = re.findall(
+            r"<\?\s*([A-Za-z_:][A-Za-z0-9_.:-]*)",
+            text,
+        )
+        if any(target.lower() != "xml" for target in processing_targets):
+            return ["html: processing_instruction_forbidden"]
+        try:
+            root = ET.fromstring(text)
+        except (ET.ParseError, ValueError):
+            return ["html: invalid_xhtml"]
+        if root.tag.rsplit("}", 1)[-1].lower() != "html":
+            return ["html: root_not_html"]
+        errors = []
+        forbidden_elements = {
+            "applet", "base", "embed", "form", "frame", "frameset",
+            "iframe", "link", "math", "object", "script", "svg",
+        }
+        resource_attributes = {
+            "action", "archive", "background", "base", "cite", "codebase",
+            "data", "formaction", "icon", "longdesc", "manifest", "ping",
+            "poster", "profile", "src", "srcset", "usemap",
+        }
+        for element in root.iter():
+            local = element.tag.rsplit("}", 1)[-1].lower()
+            if local in forbidden_elements:
+                errors.append(f"html: element_forbidden={local}")
+            if (local == "meta"
+                    and str(element.attrib.get("http-equiv") or "").strip()):
+                errors.append("html: meta_http_equiv_forbidden")
+            if local == "style":
+                errors.append("html: style_element_forbidden")
+            for raw_name, raw_value in element.attrib.items():
+                name = raw_name.rsplit("}", 1)[-1].lower()
+                value = raw_value.strip().lower()
+                if name.startswith("on"):
+                    errors.append("html: event_handler_forbidden")
+                elif name in resource_attributes and value:
+                    errors.append(f"html: resource_attribute_forbidden={name}")
+                elif name == "href" and value and not value.startswith("#"):
+                    errors.append("html: external_href_forbidden")
+                elif name == "style" and value:
+                    errors.append("html: style_attribute_forbidden")
+        return sorted(set(errors))
+    return []
+
+
 def validate_output_text(
         text: str, contract: ToolOutputContract | dict[str, Any]) -> list[str]:
     """Return deterministic validation errors; never include stdout contents."""
     parsed = (contract if isinstance(contract, ToolOutputContract)
               else ToolOutputContract.model_validate(contract))
     if parsed.root_type == "text":
-        return []
+        return _validate_text_media_type(text, parsed.media_type)
     if parsed.root_type == "json_lines":
         lines = [(i, line) for i, line in enumerate(text.splitlines(), start=1)
                  if line.strip()]
@@ -252,11 +424,15 @@ def render_pytest_validator(contract: ToolOutputContract | dict[str, Any]) -> st
     parsed = (contract if isinstance(contract, ToolOutputContract)
               else ToolOutputContract.model_validate(contract))
     literal = repr(parsed.model_dump())
-    template = '''
+    template = r'''
 
 # RFC-011: independent validation of actual stdout (not expected/golden text).
 import json as _rp_json
 import math as _rp_math
+import csv as _rp_csv
+import io as _rp_io
+import re as _rp_re
+import xml.etree.ElementTree as _rp_etree
 
 _RP_OUTPUT_CONTRACT = __RP_CONTRACT__
 
@@ -319,9 +495,134 @@ def _rp_validate_value(value, location):
     return errors
 
 
+def _rp_validate_text_media(text):
+    media = str(_RP_OUTPUT_CONTRACT["media_type"]).split(";", 1)[0].strip().lower()
+    if "\x00" in text:
+        return ["text: contains_nul"]
+    if media == "application/x-research-info-systems":
+        lines = [line for line in text.splitlines() if line.strip()]
+        if not lines:
+            return ["ris: no_records"]
+        tag = _rp_re.compile(r"^[A-Z0-9]{2}  -(?: .*)?$")
+        continuation = _rp_re.compile(r"^\s{6}\S.*$")
+        record_header = _rp_re.compile(r"^[1-9][0-9]*\.$")
+        in_record = False
+        pending_header = False
+        records = 0
+        errors = []
+        for line_no, line in enumerate(lines, 1):
+            if continuation.fullmatch(line) and in_record:
+                continue
+            if record_header.fullmatch(line):
+                expected = records + 1
+                if in_record or pending_header or int(line[:-1]) != expected:
+                    errors.append(f"ris: line={line_no} invalid_record_header")
+                else:
+                    pending_header = True
+                continue
+            if not tag.fullmatch(line):
+                errors.append(f"ris: line={line_no} invalid_tag")
+                continue
+            current = line[:2]
+            if current == "TY":
+                if in_record:
+                    errors.append(f"ris: line={line_no} nested_record")
+                in_record = True
+                pending_header = False
+            elif current == "ER":
+                if not in_record:
+                    errors.append(f"ris: line={line_no} orphan_end")
+                else:
+                    records += 1
+                    in_record = False
+            elif not in_record:
+                errors.append(f"ris: line={line_no} field_outside_record")
+        if pending_header:
+            errors.append("ris: record_header_without_record")
+        if in_record:
+            errors.append("ris: unterminated_record")
+        if records == 0:
+            errors.append("ris: no_complete_records")
+        return errors
+    if media == "text/tab-separated-values":
+        try:
+            rows = list(_rp_csv.reader(_rp_io.StringIO(text), dialect="excel-tab", strict=True))
+        except (_rp_csv.Error, UnicodeError):
+            return ["tsv: invalid_document"]
+        if not rows:
+            return ["tsv: no_rows"]
+        width = len(rows[0])
+        if width == 0 or any(not cell.strip() for cell in rows[0]):
+            return ["tsv: invalid_header"]
+        if len(set(rows[0])) != width:
+            return ["tsv: duplicate_header"]
+        if any(len(row) != width for row in rows[1:]):
+            return ["tsv: inconsistent_columns"]
+        return []
+    if media == "text/markdown":
+        if not text.strip():
+            return ["markdown: empty_document"]
+        try:
+            value = _rp_json_loads(text)
+        except (ValueError, UnicodeError):
+            value = None
+        if isinstance(value, (dict, list)):
+            return ["markdown: json_document"]
+        return []
+    if media in {"text/html", "application/xhtml+xml"}:
+        if _rp_re.search(r"<!\s*(?:doctype|entity)\b", text, _rp_re.IGNORECASE):
+            return ["html: doctype_or_entity_forbidden"]
+        processing_targets = _rp_re.findall(
+            r"<\?\s*([A-Za-z_:][A-Za-z0-9_.:-]*)",
+            text,
+        )
+        if any(target.lower() != "xml" for target in processing_targets):
+            return ["html: processing_instruction_forbidden"]
+        try:
+            root = _rp_etree.fromstring(text)
+        except (_rp_etree.ParseError, ValueError):
+            return ["html: invalid_xhtml"]
+        if root.tag.rsplit("}", 1)[-1].lower() != "html":
+            return ["html: root_not_html"]
+        errors = []
+        forbidden_elements = {
+            "applet", "base", "embed", "form", "frame", "frameset",
+            "iframe", "link", "math", "object", "script", "svg",
+        }
+        resource_attributes = {
+            "action", "archive", "background", "base", "cite", "codebase",
+            "data", "formaction", "icon", "longdesc", "manifest", "ping",
+            "poster", "profile", "src", "srcset", "usemap",
+        }
+        for element in root.iter():
+            local = element.tag.rsplit("}", 1)[-1].lower()
+            if local in forbidden_elements:
+                errors.append(f"html: element_forbidden={local}")
+            if (local == "meta"
+                    and str(element.attrib.get("http-equiv") or "").strip()):
+                errors.append("html: meta_http_equiv_forbidden")
+            if local == "style":
+                errors.append("html: style_element_forbidden")
+            for raw_name, raw_value in element.attrib.items():
+                name = raw_name.rsplit("}", 1)[-1].lower()
+                value = raw_value.strip().lower()
+                if name.startswith("on"):
+                    errors.append("html: event_handler_forbidden")
+                elif name in resource_attributes and value:
+                    errors.append(f"html: resource_attribute_forbidden={name}")
+                elif name == "href" and value and not value.startswith("#"):
+                    errors.append("html: external_href_forbidden")
+                elif name == "style" and value:
+                    errors.append("html: style_attribute_forbidden")
+        return sorted(set(errors))
+    return []
+
+
 def _assert_output_contract(text):
     root = _RP_OUTPUT_CONTRACT["root_type"]
     if root == "text":
+        errors = _rp_validate_text_media(text)
+        assert not errors, __RP_PREFIX__ + " " + "; ".join(errors)
         return
     errors = []
     if root == "json_lines":

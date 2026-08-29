@@ -20,6 +20,7 @@ from pydantic import ValidationError
 
 from repoproof.adoption.assembly.example_compiler import CONTAINS, Example
 from repoproof.adoption.assembly.output_contract import (
+    expected_text_media_type,
     is_capability_output_invocation,
     is_structured_output_format,
     normalize_output_format,
@@ -182,7 +183,10 @@ def default_output_contract(format_name: str) -> dict[str, Any]:
 
     family = normalize_output_format(format_name)
     if family == "text":
-        contract = ToolOutputContract(media_type="text/plain", root_type="text")
+        contract = ToolOutputContract(
+            media_type=expected_text_media_type(format_name),
+            root_type="text",
+        )
     elif family == "json_lines":
         contract = ToolOutputContract(
             media_type="application/x-ndjson", root_type="json_lines"
@@ -476,6 +480,8 @@ REASON_CODE_LABELS: dict[str, str] = {
     "MIGRATED_AUDIT_FAIL":
         "历史抽查未通过(记录经完整性校验后一次性导入),已停用",
     "BUILD_FAILED": "构建失败",
+    "AUDIT_TASK_IDENTITY_MISMATCH":
+        "Fresh audit 候选属于旧任务版本；已拒绝运行，请刷新后重新生成候选",
     "LEGACY_SERVER_MUST_BE_DETACHED":
         "旧版 AI 接入文件已失效:请先从你的 AI 助手里移除它,再重新生成",
     "LEGACY_MCP_MUST_BE_DETACHED":

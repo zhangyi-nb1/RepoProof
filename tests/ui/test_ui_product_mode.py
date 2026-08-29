@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -50,6 +52,47 @@ def test_repo_summary_receives_the_user_capability_goal(monkeypatch: pytest.Monk
     assert result["ok"]
     assert seen["capability_goal"] == "合并报告并输出 JSON"
     assert seen["surfaces"] == ["merge"]
+    assert result["summary"] == "analysis"
+    assert result["requirement_briefs"] == []
+    assert result["recommended_brief_id"] == ""
+
+
+def test_repo_summary_projects_structured_requirement_briefs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Drafter:
+        name = "gateway-test"
+
+        def summarize_repo(self, _context: dict) -> dict:
+            return {
+                "summary": "可以整理文献记录。",
+                "requirement_briefs": [
+                    {
+                        "brief_id": "ris",
+                        "title": "整理文献",
+                        "text": "把 RIS 文献记录整理成仍可导入的软件文件，不联网补资料。",
+                        "reason": "仓库说明支持读取和写出 RIS。",
+                    },
+                    {
+                        "brief_id": "table",
+                        "title": "生成检查表",
+                        "text": "把文献记录整理成 CSV 表格，方便检查缺失内容。",
+                        "reason": "仓库说明可以读取文献字段。",
+                    },
+                ],
+                "recommended_brief_id": "ris",
+            }
+
+    monkeypatch.setattr(tool_drafter, "online_drafter", lambda: _Drafter())
+    result = product_jobs.summarize_repo_overview(
+        {"repository": "https://github.com/example/demo", "headline": "demo"},
+        offline=False,
+        capability_goal="帮我整理文献",
+    )
+
+    assert result["ok"]
+    assert result["recommended_brief_id"] == "ris"
+    assert [brief["brief_id"] for brief in result["requirement_briefs"]] == ["ris", "table"]
 
 
 def _tool_world(root: Path) -> Path:
@@ -192,7 +235,7 @@ def test_review_editor_and_examples_only_write_inside_draft(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    state_root = tmp_path / "state"
+    state_root = (tmp_path / "state").resolve()
     monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
     draft = state_root / "drafts" / "draft"
     (draft / "examples").mkdir(parents=True)
@@ -229,12 +272,68 @@ def test_review_editor_and_examples_only_write_inside_draft(
     assert (draft / "examples" / "inputs" / "a.txt").read_bytes() == b"a"
     examples = yaml.safe_load((draft / "examples.yaml").read_text())
     assert examples["examples"] == [
-        {"input_file": "inputs/a.txt", "expected_file": "expected/a.expected.txt"}]
+        {
+            "input_file": "inputs/a.txt",
+            "expected_file": "expected/a.expected.txt",
+            "truth_provenance": "USER_SUPPLIED",
+        }
+    ]
     review = product_jobs.read_managed_draft_review(draft)
     assert review["ok"] is True
     assert review["reference_impl"] == "import alpha\n"
     assert review["dependency_lock"]["source"] == "user"
     assert review["dependency_lock"]["pins"] == ["alpha==1.2.3", "alpha-helper==4.5.6"]
+
+
+def test_candidate_confirmation_preserves_upstream_input_output_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = (tmp_path / "state").resolve()
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    draft = state_root / "drafts" / "draft"
+    (draft / "examples").mkdir(parents=True)
+    (draft / "draft.yaml").write_text("tool: {}\n", encoding="utf-8")
+    (draft / "reference_impl.py").write_text("", encoding="utf-8")
+    (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+    candidate = {
+        "input_name": "bound.txt",
+        "input_text": "original input",
+        "upstream_output": "pinned output",
+        "upstream_error": None,
+    }
+
+    changed_input = product_jobs.confirm_candidate_as_example(
+        draft,
+        candidate,
+        expected_text="pinned output",
+        input_text="modified input",
+    )
+    changed_output = product_jobs.confirm_candidate_as_example(
+        draft,
+        candidate,
+        expected_text="modified output",
+        input_text="original input",
+    )
+    assert changed_input["reason_codes"] == ["CANDIDATE_TRUTH_BINDING_MISMATCH"]
+    assert changed_output["reason_codes"] == ["CANDIDATE_TRUTH_BINDING_MISMATCH"]
+    assert not (draft / "examples" / "inputs").exists()
+
+    confirmed = product_jobs.confirm_candidate_as_example(
+        draft,
+        candidate,
+        expected_text="pinned output",
+        input_text="original input",
+    )
+    assert confirmed["ok"]
+    assert confirmed["truth_provenance"] == "UPSTREAM_DERIVED_USER_CONFIRMED"
+    assert (draft / "examples" / "inputs" / "bound.txt").read_text() == "original input"
+    assert (draft / "examples" / "expected" / "bound.expected.txt").read_text() == (
+        "pinned output"
+    )
+    persisted = yaml.safe_load((draft / "examples.yaml").read_text())["examples"][0]
+    assert persisted["truth_provenance"] == "UPSTREAM_DERIVED_USER_CONFIRMED"
+    assert len(persisted["truth_binding_sha256"]) == 64
 
 
 def test_review_editor_rejects_non_exact_or_executable_dependency_lock(
@@ -280,6 +379,13 @@ def test_candidate_generation_repairs_to_requested_count_without_resetting_golde
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # This test exercises bounded proposal repair, not the platform sandbox.
+    # The latter has its own macOS conformance/unsupported-host fail-closed tests.
+    monkeypatch.setattr(
+        example_proposer,
+        "_sandboxed_reference_argv",
+        lambda argv, _root: argv,
+    )
     state_root = tmp_path / "state"
     monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
     draft = state_root / "drafts" / "draft"
@@ -320,7 +426,7 @@ def test_candidate_generation_repairs_to_requested_count_without_resetting_golde
     (upstream / "minishout.py").write_text(
         "def convert(text):\n"
         "    if not text.startswith('good'):\n"
-        "        raise ValueError('must start with good')\n"
+        "        raise ValueError('PRIVATE-REFERENCE-DETAIL /Users/alice/secret.txt')\n"
         "    return text.upper()\n",
         encoding="utf-8",
     )
@@ -331,9 +437,11 @@ def test_candidate_generation_repairs_to_requested_count_without_resetting_golde
 
         def __init__(self) -> None:
             self.calls = 0
+            self.contexts: list[dict] = []
 
         def propose_example_inputs(self, context: dict) -> dict:
             self.calls += 1
+            self.contexts.append(context)
             requested = int(context["how_many"])
             plans = {
                 1: ["good-one", "bad-one", "bad-two", "bad-three"],
@@ -361,6 +469,15 @@ def test_candidate_generation_repairs_to_requested_count_without_resetting_golde
     assert result["rounds"] == 3
     assert result["confirmed_count"] == 1
     assert drafter.calls == 3
+    assert "good-existing" not in str(drafter.contexts)
+    assert "PRIVATE-REFERENCE-DETAIL" not in str(drafter.contexts)
+    assert "/Users/alice/secret.txt" not in str(drafter.contexts)
+    assert "bad-one" not in str(drafter.contexts[1:])
+    assert all(
+        set(failure) == {"reason_code", "failure_fingerprint"}
+        for context in drafter.contexts[1:]
+        for failure in context["failed_attempts"]
+    )
     assert len({row["input_name"] for row in result["candidates"]}) == 8
     assert (draft / "examples.yaml").read_text(encoding="utf-8") == original_examples
     assert (draft / "examples" / "inputs" / "persisted.txt").read_text(
@@ -372,6 +489,11 @@ def test_candidate_generation_uses_pinned_evidence_before_another_model_round(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(
+        example_proposer,
+        "_sandboxed_reference_argv",
+        lambda argv, _root: argv,
+    )
     state_root = tmp_path / "state"
     monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
     draft = state_root / "drafts" / "draft"
@@ -704,6 +826,178 @@ def test_library_shows_historical_and_operational_state(
     assert "待审核" in text
 
 
+def _audit_library(root: Path, *identities: tuple[str, str]) -> dict:
+    tools = []
+    for index, (name, task_id) in enumerate(identities):
+        package = root / name
+        package.mkdir(parents=True, exist_ok=True)
+        tools.append({
+            "name": name,
+            "summary": f"{name} summary",
+            "operational_status": "REVIEW_REQUIRED",
+            "historical_verdict": "VERIFIED_TOOL_READY",
+            "health": "OK",
+            "reason_codes": [],
+            "source_distribution": name,
+            "source_url": f"https://github.com/example/{name}",
+            "resolved_commit": str(index + 1) * 40,
+            "path": str(package),
+            "task_id": task_id,
+            "run_id": f"run-{name}",
+            "contract_sha256": chr(ord("a") + index) * 64,
+        })
+    return {
+        "root": str(root),
+        "tools": tools,
+        "registry_error": None,
+        "release_error": None,
+    }
+
+
+@needs_streamlit
+def test_library_fresh_audit_session_state_isolated_by_full_tool_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Switching tools cannot reuse another task/root's candidates or text fields."""
+
+    from repoproof.ui.services import product_mode
+
+    root = tmp_path / "tools"
+    library = _audit_library(
+        root,
+        ("alpha-tool", "tool-alpha-tool-v1"),
+        ("beta-tool", "tool-beta-tool-v2"),
+    )
+    monkeypatch.setattr(product_mode, "list_tools", lambda *_a, **_k: library)
+    monkeypatch.setattr(product_jobs, "product_tool_commands", lambda: {"audit"})
+    calls: list[tuple[str, str, str]] = []
+
+    def _propose(
+        name: str,
+        *,
+        dest_root: Path,
+        expected_task_id: str,
+        n: int,
+        offline: bool,
+    ) -> dict:
+        assert n == 5
+        assert offline is False
+        calls.append((name, expected_task_id, str(dest_root.resolve())))
+        return {
+            "ok": True,
+            "tool_name": name,
+            "task_id": expected_task_id,
+            "dest_root": str(dest_root.resolve()),
+            "candidates": [{
+                "input_name": f"{name}.txt",
+                "input_text": f"fresh input for {name}",
+                "expected": f"expected output for {name}",
+            }],
+        }
+
+    monkeypatch.setattr(product_jobs, "propose_audit_candidates", _propose)
+    monkeypatch.setattr(
+        product_jobs,
+        "materialize_audit_pair",
+        lambda *_args, **_kwargs: {
+            "ok": True,
+            "input": str(tmp_path / "fresh.txt"),
+            "expected": str(tmp_path / "expected.txt"),
+        },
+    )
+    audit_starts: list[tuple[str, str, str]] = []
+
+    def _start_audit(
+        name: str,
+        _input_path: Path,
+        _expected_path: Path,
+        dest_root: Path,
+        *,
+        expected_task_id: str,
+        journey_id: str = "",
+    ) -> dict:
+        assert journey_id == ""
+        audit_starts.append((name, expected_task_id, str(dest_root.resolve())))
+        return {"ok": False, "error": "captured without launching worker"}
+
+    monkeypatch.setattr(product_jobs, "start_tool_audit", _start_audit)
+    at = AppTest.from_file(str(PAGES / "tool_library.py"), default_timeout=30).run()
+
+    next(button for button in at.button if button.label == "给我候选").click().run()
+    assert any("fresh input for alpha-tool" in str(code.value) for code in at.code)
+    next(button for button in at.button if button.label == "用这一条").click().run()
+    alpha_input = next(
+        field for field in at.text_area if field.label.startswith("输入内容")
+    )
+    assert alpha_input.value == "fresh input for alpha-tool"
+
+    next(box for box in at.selectbox if box.label == "查看工具详情").select("beta-tool").run()
+    assert not any("fresh input for alpha-tool" in str(code.value) for code in at.code)
+    beta_input = next(
+        field for field in at.text_area if field.label.startswith("输入内容")
+    )
+    assert beta_input.value == ""
+
+    next(button for button in at.button if button.label == "给我候选").click().run()
+    next(button for button in at.button if button.label == "用这一条").click().run()
+    beta_input = next(
+        field for field in at.text_area if field.label.startswith("输入内容")
+    )
+    assert beta_input.value == "fresh input for beta-tool"
+
+    next(box for box in at.selectbox if box.label == "查看工具详情").select("alpha-tool").run()
+    alpha_input = next(
+        field for field in at.text_area if field.label.startswith("输入内容")
+    )
+    assert alpha_input.value == "fresh input for alpha-tool"
+    assert calls == [
+        ("alpha-tool", "tool-alpha-tool-v1", str(root.resolve())),
+        ("beta-tool", "tool-beta-tool-v2", str(root.resolve())),
+    ]
+    next(button for button in at.button if button.label == "运行新输入抽查").click().run()
+    assert audit_starts == [
+        ("alpha-tool", "tool-alpha-tool-v1", str(root.resolve()))
+    ]
+
+
+@needs_streamlit
+def test_library_rejects_fresh_audit_candidates_with_mismatched_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A successful-looking service response cannot cross task identity boundaries."""
+
+    from repoproof.ui.services import product_mode
+
+    root = tmp_path / "tools"
+    library = _audit_library(root, ("alpha-tool", "tool-alpha-tool-v1"))
+    monkeypatch.setattr(product_mode, "list_tools", lambda *_a, **_k: library)
+    monkeypatch.setattr(product_jobs, "product_tool_commands", lambda: {"audit"})
+    monkeypatch.setattr(
+        product_jobs,
+        "propose_audit_candidates",
+        lambda name, **_kwargs: {
+            "ok": True,
+            "tool_name": name,
+            "task_id": "tool-alpha-tool-v999",
+            "dest_root": str(root.resolve()),
+            "candidates": [{
+                "input_name": "wrong.txt",
+                "input_text": "must not render",
+                "expected": "must not become truth",
+            }],
+        },
+    )
+    at = AppTest.from_file(str(PAGES / "tool_library.py"), default_timeout=30).run()
+
+    next(button for button in at.button if button.label == "给我候选").click().run()
+
+    assert any("候选属于另一个工具、任务版本或工具根目录" in str(e.value) for e in at.error)
+    assert not any(button.label == "用这一条" for button in at.button)
+    assert not any("must not render" in str(code.value) for code in at.code)
+
+
 def test_navigation_keeps_product_and_benchmark_apps_separate() -> None:
     ui = REPO / "src" / "repoproof" / "ui"
     product_source = (ui / "app.py").read_text(encoding="utf-8")
@@ -817,16 +1111,233 @@ def test_audit_expectation_never_comes_from_the_tool_under_test(monkeypatch, tmp
         assert forbidden not in src, f"抽查期望值不得来自被测工具({forbidden})"
 
 
-def test_audit_proposal_refuses_without_a_frozen_reference(monkeypatch):
+def test_audit_proposal_refuses_without_a_frozen_reference(monkeypatch, tmp_path):
     """**负控**:没有冻结参考实现 = 没有独立真值源 → 如实拒绝,不拿工具凑数。"""
+    from repoproof.ui.services import product_jobs
+
+    tool_dir = tmp_path / "tools" / "ghost-tool"
+    tool_dir.mkdir(parents=True)
+    monkeypatch.setattr(
+        "repoproof.ui.services.product_mode.list_tools",
+        lambda *a, **k: {"tools": [{"name": "ghost-tool", "task_id": "tool-ghost-v1",
+                                    "summary": "x", "resolved_commit": "0" * 40,
+                                    "path": str(tool_dir), "health": "OK"}],
+                         "root": str(tmp_path / "tools"),
+                         "registry_error": None, "release_error": None},
+    )
+    got = product_jobs.propose_audit_candidates(
+        "ghost-tool",
+        dest_root=tmp_path / "tools",
+        expected_task_id="tool-ghost-v1",
+        n=2,
+        offline=True,
+    )
+    assert not got["ok"]
+    assert got["reason_codes"] == ["REFERENCE_IDENTITY_MISMATCH"]
+    assert "reference" in got["error"]
+
+
+def _reference_bound_audit_world(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> tuple[Path, Path, Path, dict[str, str]]:
+    """Create only the package/control identity seam needed before any model call."""
+
+    tools = tmp_path / "tools"
+    tool_dir = tools / "demo-tool"
+    evidence = tool_dir / "evidence"
+    evidence.mkdir(parents=True)
+    reference = tmp_path / "controls" / "tool-demo-tool-v1" / "reference"
+    reference.mkdir(parents=True)
+    impl = reference / "impl.py"
+    lock = reference / "requirements.lock.txt"
+    impl.write_text("def extract(path):\n    return path.read_text()\n", encoding="utf-8")
+    lock.write_text("demo==1.0\n", encoding="utf-8")
+    identity = {
+        "impl_sha256": hashlib.sha256(impl.read_bytes()).hexdigest(),
+        "lock_sha256": hashlib.sha256(lock.read_bytes()).hexdigest(),
+    }
+    (evidence / "provenance.json").write_text(
+        json.dumps(
+            {
+                "tool": "demo-tool",
+                "task_id": "tool-demo-tool-v1",
+                "reference_identity": identity,
+            }
+        ),
+        encoding="utf-8",
+    )
+    entry = {
+        "name": "demo-tool",
+        "task_id": "tool-demo-tool-v1",
+        "path": str(tool_dir),
+        "health": "OK",
+        "resolved_commit": "a" * 40,
+        "reference_identity": identity,
+    }
+    monkeypatch.setattr(
+        "repoproof.ui.services.product_mode.list_tools",
+        lambda *a, **k: {
+            "tools": [entry],
+            "root": str(tools),
+            "registry_error": None,
+            "release_error": None,
+        },
+    )
+    monkeypatch.setattr(
+        "repoproof.ui.services.product_mode.project_root", lambda: tmp_path
+    )
+    monkeypatch.setattr(
+        "repoproof.adoption.intake.tool_drafter.online_drafter",
+        lambda: pytest.fail("reference mismatch must stop before model selection"),
+    )
+    return tools, impl, lock, identity
+
+
+def test_audit_proposal_rejects_reference_content_mismatch_before_model(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from repoproof.ui.services import product_jobs
+
+    tools, impl, _lock, _identity = _reference_bound_audit_world(
+        monkeypatch, tmp_path
+    )
+    impl.write_text("def extract(path):\n    return 'changed'\n", encoding="utf-8")
+
+    got = product_jobs.propose_audit_candidates(
+        "demo-tool",
+        dest_root=tools,
+        expected_task_id="tool-demo-tool-v1",
+        offline=False,
+    )
+    assert not got["ok"]
+    assert got["reason_codes"] == ["REFERENCE_IDENTITY_MISMATCH"]
+
+
+def test_audit_proposal_rejects_symlinked_reference_before_model(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from repoproof.ui.services import product_jobs
+
+    tools, impl, _lock, _identity = _reference_bound_audit_world(
+        monkeypatch, tmp_path
+    )
+    outside = tmp_path / "outside-reference.py"
+    outside.write_text("def extract(path):\n    return 'outside'\n", encoding="utf-8")
+    impl.unlink()
+    impl.symlink_to(outside)
+
+    got = product_jobs.propose_audit_candidates(
+        "demo-tool",
+        dest_root=tools,
+        expected_task_id="tool-demo-tool-v1",
+        offline=False,
+    )
+    assert not got["ok"]
+    assert got["reason_codes"] == ["REFERENCE_IDENTITY_MISMATCH"]
+
+
+def test_audit_proposal_refuses_a_different_current_task(monkeypatch, tmp_path):
+    """A Journey cannot borrow truth from another version of the same tool."""
     from repoproof.ui.services import product_jobs
 
     monkeypatch.setattr(
         "repoproof.ui.services.product_mode.list_tools",
-        lambda *a, **k: {"tools": [{"name": "ghost-tool", "task_id": "tool-ghost-v1",
-                                    "summary": "x", "resolved_commit": "0" * 40}],
-                         "root": "/tmp", "registry_error": None, "release_error": None},
+        lambda *a, **k: {
+            "tools": [{"name": "demo-tool", "task_id": "tool-demo-tool-v2",
+                       "health": "OK"}],
+            "root": str(tmp_path / "tools"),
+            "registry_error": None,
+            "release_error": None,
+        },
     )
-    got = product_jobs.propose_audit_candidates("ghost-tool", n=2, offline=True)
+    got = product_jobs.propose_audit_candidates(
+        "demo-tool",
+        dest_root=tmp_path / "tools",
+        expected_task_id="tool-demo-tool-v1",
+        offline=True,
+    )
     assert not got["ok"]
-    assert "参考实现" in got["error"]
+    assert got["reason_codes"] == ["TASK_IDENTITY_MISMATCH"]
+    assert "另一个版本" in got["error"]
+
+
+def test_public_example_inputs_are_exactly_the_agent_visible_inputs(tmp_path):
+    """Fresh generation sees public inputs, never expected or escaping files."""
+    from repoproof.ui.services import product_jobs
+
+    tool_dir = tmp_path / "demo-tool"
+    fixtures = tool_dir / "public_examples" / "inputs"
+    fixtures.mkdir(parents=True)
+    (fixtures / "one.txt").write_text("already seen", encoding="utf-8")
+    (fixtures / "one.expected.txt").write_text("secret expected", encoding="utf-8")
+    truth = tool_dir / "public_examples" / "truth_table.json"
+    truth.parent.mkdir(exist_ok=True)
+    truth.write_text(
+        json.dumps({
+            "examples": [{
+                "input_file": "one.txt",
+                "expected_file": "one.expected.txt",
+            }]
+        }),
+        encoding="utf-8",
+    )
+
+    texts, names = product_jobs._public_example_inputs(tool_dir)
+    assert texts == ["already seen"]
+    assert names == ["one.txt"]
+
+
+def test_public_example_inputs_fail_closed_for_legacy_export(tmp_path):
+    """Old packages must be re-exported; skeleton fallback would split freshness truth."""
+    from repoproof.ui.services import product_jobs
+
+    tool_dir = tmp_path / "demo-tool"
+    truth = tool_dir / "public_examples" / "truth_table.json"
+    truth.parent.mkdir(parents=True)
+    truth.write_text(
+        json.dumps({"examples": [{"input_file": "one.txt"}]}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="旧导出格式"):
+        product_jobs._public_example_inputs(tool_dir)
+
+
+def test_verify_pinned_upstream_tree_rejects_head_or_tracked_drift(tmp_path):
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    subprocess.run(["git", "init", "-q", str(upstream)], check=True)
+    subprocess.run(
+        ["git", "-C", str(upstream), "config", "user.email", "test@example.test"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(upstream), "config", "user.name", "RepoProof Test"],
+        check=True,
+    )
+    tracked = upstream / "tracked.txt"
+    tracked.write_text("frozen\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(upstream), "add", "tracked.txt"], check=True)
+    subprocess.run(["git", "-C", str(upstream), "commit", "-qm", "fixture"], check=True)
+    head = subprocess.run(
+        ["git", "-C", str(upstream), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    product_jobs._verify_pinned_upstream_tree(upstream, head)
+    with pytest.raises(ValueError, match="HEAD"):
+        product_jobs._verify_pinned_upstream_tree(upstream, "0" * 40)
+    tracked.write_text("changed\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="漂移"):
+        product_jobs._verify_pinned_upstream_tree(upstream, head)
+    subprocess.run(
+        ["git", "-C", str(upstream), "checkout", "--", "tracked.txt"],
+        check=True,
+    )
+    (upstream / "unexpected.py").write_text("raise RuntimeError\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="未跟踪内容漂移"):
+        product_jobs._verify_pinned_upstream_tree(upstream, head)

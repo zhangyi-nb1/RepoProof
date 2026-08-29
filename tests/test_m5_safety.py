@@ -214,6 +214,14 @@ def _prepare_upgrade_world(
     )
     tool_contract = tmp_path / "tool-alpha-v2.yaml"
     tool_contract.write_text("synthetic: true\n", encoding="utf-8")
+    reference = tmp_path / "controls" / "tool-alpha-v2" / "reference"
+    reference.mkdir(parents=True)
+    (reference / "impl.py").write_text(
+        "def extract(path):\n    return path.read_text()\n", encoding="utf-8"
+    )
+    (reference / "requirements.lock.txt").write_text(
+        "alpha-dist==2.0.0\n", encoding="utf-8"
+    )
     contract = SimpleNamespace(
         task_family="LOCAL-TOOL",
         task_id="tool-alpha-v2",
@@ -724,6 +732,39 @@ def test_audit_and_upgrade_serialize_on_shared_install_lock(
     assert upgrade_errors == []
     assert audit_results[0]["operational_status"] == ACTIVE
     assert (dest_root / "alpha" / "version.txt").read_text(encoding="utf-8") == "v2\n"
+
+
+def test_stale_fresh_audit_truth_cannot_activate_upgraded_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A candidate made for v1 fails closed if v2 wins the install race."""
+
+    dest_root, _current, context = _prepare_upgrade_world(tmp_path, monkeypatch)
+    fresh = tmp_path / "fresh-v1.txt"
+    expected = tmp_path / "expected-v1.txt"
+    fresh.write_text("truth generated for v1\n", encoding="utf-8")
+    expected.write_text("truth generated for v1\n", encoding="utf-8")
+
+    # Candidate generation happened while v1 was current. The competing
+    # upgrade settles v2 before the delayed audit acquires the install lock.
+    _install_upgrade(dest_root, context)
+    ledger_before = (dest_root / RELEASE_LEDGER_NAME).read_bytes()
+
+    with pytest.raises(ToolAuditError) as caught:
+        audit_tool(
+            dest_root,
+            "alpha",
+            input_path=fresh,
+            expected_file=expected,
+            expected_task_id="tool-alpha-v1",
+            run_build=True,
+        )
+
+    assert caught.value.reason_code == "AUDIT_TASK_IDENTITY_MISMATCH"
+    assert "registry 当前为 tool-alpha-v2" in str(caught.value)
+    assert (dest_root / RELEASE_LEDGER_NAME).read_bytes() == ledger_before
+    assert list_tools(dest_root)[0]["task_id"] == "tool-alpha-v2"
+    assert list_tools(dest_root)[0]["operational_status"] == REVIEW_REQUIRED
 
 
 def test_mcp_generation_and_upgrade_serialize_on_shared_install_lock(

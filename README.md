@@ -19,9 +19,13 @@ verdict outside the coding agent.
 ## Product workflow
 
 ```text
-GitHub repository + capability goal
+GitHub repository + an initially vague work need
               ↓
-static analysis and four-state admission
+static evidence + 2–3 LLM requirement suggestions
+              ↓
+human adopts or lightly edits one plain-language description
+              ↓
+four-state admission
               ↓
 CapabilityPlanV1 (RFC-013): surface evidence, support status, and a
 deterministic route — DIRECT_WRAP or AGENT_ADAPT. The analyzer detects
@@ -48,6 +52,14 @@ REVIEW_REQUIRED → fresh non-example audit
               ↓
 ACTIVE RepoProof-managed MCP / upgrade release (or append-only REVOKED)
 ```
+
+The LLM suggestion step is a writing aid, not an acceptance authority. Adopting
+a suggestion only refills the editable requirement field; it does not create a
+journey, freeze a contract, generate expected output, or mark a tool verified.
+User-facing artifacts are not limited to JSON: the current UTF-8 text delivery
+contract can represent ordinary text plus structured text formats such as RIS,
+TSV, Markdown, and self-contained XHTML/HTML. Binary artifacts such as PDF are
+outside the current delivery contract.
 
 The coding agent receives only the public contract, public examples, and
 runnable public tests. Held-out examples and the acceptance oracle are never
@@ -296,6 +308,7 @@ Key documents:
 - [Tool Contract schema](docs/TOOL_CONTRACT_SCHEMA.md)
 - [Tool package layout](docs/TOOL_PACKAGE_LAYOUT.md)
 - [`VERIFIED_TOOL_READY` decision mapping](docs/TOOL_READY_GATE.md)
+- [Natural-requirement, multi-format qualification runbook](docs/M6_1_NATURAL_REQUIREMENTS_MULTIFORMAT_RUNBOOK.md)
 - [Authoritative handoff state](docs/HANDOFF_STATE.md)
 - [Security boundaries](SECURITY.md)
 

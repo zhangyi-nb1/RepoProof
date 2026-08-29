@@ -191,13 +191,17 @@ def test_studio_fresh_audit_rebuilds_export_before_invocation(
         input_path,
         expected_path,
         tmp_path / "tools",
+        expected_task_id="tool-markdown-it-py-tool-v1",
         journey_id="journey-1",
     )
 
     assert result["ok"] is True
     assert "--build" in captured["argv"]
+    expected_task_index = captured["argv"].index("--expected-task-id")
+    assert captured["argv"][expected_task_index + 1] == "tool-markdown-it-py-tool-v1"
     assert captured["argv"].index("--build") > captured["argv"].index("--dest-root")
     assert captured["kwargs"]["kind"] == "tool-audit"
+    assert captured["kwargs"]["metadata"]["task_id"] == "tool-markdown-it-py-tool-v1"
 
 
 def test_action_result_rejects_unknown_schema(tmp_path: Path) -> None:

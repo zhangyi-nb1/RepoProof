@@ -8,6 +8,19 @@ resource limits (`--cpus`, `--memory`, `--pids-limit`,
 phase, read-only mounts for the upstream snapshot and the oracle, and
 full container disposal after each run.
 
+Studio's pre-freeze and Fresh-audit reference probes are a narrower local
+path. On the currently supported macOS Product host they run in a disposable
+directory under an OS-enforced profile that denies all network access and all
+writes outside that directory; provider/API environment variables are removed.
+If that reviewed isolation backend is unavailable, Studio stops before the LLM
+is called. This probe profile is not claimed to prevent an admitted upstream
+from reading every host path, so reference output is kept local and is never
+sent back to the model. Existing sample bodies and raw reference exception text
+also never enter model prompts: duplicate filtering is local, while bounded
+candidate repair receives only coarse reason codes and a classification
+fingerprint derived from the allow-listed reason alone (never from the message,
+input contents or a caller-provided opaque digest).
+
 **This is an isolation, disposal and clean-replay mechanism — it is NOT
 a hardened sandbox for adversarial or malicious code.** Containers
 share the host kernel (here: a Colima VM); container escape and

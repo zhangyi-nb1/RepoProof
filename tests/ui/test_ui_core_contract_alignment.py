@@ -286,6 +286,45 @@ def test_output_contract_rejects_human_and_machine_format_split() -> None:
     assert errors[0].startswith("OUTPUT_CONTRACT_FORMAT_MISMATCH")
 
 
+@pytest.mark.parametrize(
+    ("format_name", "media_type"),
+    [
+        ("RIS", "application/x-research-info-systems"),
+        ("Research Info System", "application/x-research-info-systems"),
+        ("Research Info Systems", "application/x-research-info-systems"),
+        ("Research Information System", "application/x-research-info-systems"),
+        ("Research Information Systems", "application/x-research-info-systems"),
+        ("TSV table", "text/tab-separated-values"),
+        ("Markdown", "text/markdown"),
+        ("HTML report", "text/html"),
+        ("XHTML report", "application/xhtml+xml"),
+    ],
+)
+def test_known_text_artifacts_bind_to_their_dedicated_media_contract(
+    format_name: str,
+    media_type: str,
+) -> None:
+    default = product_mode.default_output_contract(format_name)
+    assert default == {
+        "media_type": media_type,
+        "root_type": "text",
+        "required": {},
+    }
+    parsed, errors = product_mode.parse_output_contract(
+        default,
+        output_format=format_name,
+    )
+    assert errors == []
+    assert parsed is not None and parsed.media_type == media_type
+
+    bypassed, bypass_errors = product_mode.parse_output_contract(
+        {"media_type": "text/plain", "root_type": "text", "required": {}},
+        output_format=format_name,
+    )
+    assert bypassed is None
+    assert bypass_errors[0].startswith("OUTPUT_CONTRACT_FORMAT_MISMATCH")
+
+
 def test_structured_golden_uses_core_validator_before_build(tmp_path: Path) -> None:
     valid = tmp_path / "valid"
     _write_structured_draft(valid, golden='{"normalized":"ALPHA"}\n')

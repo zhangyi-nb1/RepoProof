@@ -206,6 +206,11 @@ def main(argv: list[str] | None = None) -> int:
     pt_audit.add_argument("name")
     pt_audit.add_argument("--input", required=True, type=Path)
     pt_audit.add_argument("--expected-file", required=True, type=Path)
+    pt_audit.add_argument(
+        "--expected-task-id",
+        default=None,
+        help="将 fresh truth 绑定到冻结 task；Studio 发起的审核必须提供",
+    )
     pt_audit.add_argument("--build", action="store_true",
                           help="审核前先运行工具包 build.sh")
     pt_audit.add_argument("--dest-root", type=Path,
@@ -766,22 +771,53 @@ def main(argv: list[str] | None = None) -> int:
                     args.name,
                     input_path=args.input,
                     expected_file=args.expected_file,
+                    expected_task_id=args.expected_task_id,
                     run_build=args.build,
                 )
-            except (ReleaseLedgerError, ToolAuditError, OSError, ValueError) as exc:
+            except ToolAuditError as exc:
+                payload = {"ok": False, "error": str(exc)}
+                if exc.reason_code:
+                    payload.update(
+                        {
+                            "reason_codes": [exc.reason_code],
+                            "failure_owner": "HARNESS",
+                            "product_stop_code": "STOP_HARNESS_OR_EXTERNAL",
+                            "recommended_action": (
+                                "丢弃旧候选并刷新当前工具版本；重新生成 Fresh audit "
+                                "候选后再审核。"
+                            ),
+                        }
+                    )
+                return _emit_tool_action(
+                    args,
+                    action="tool-audit",
+                    payload=payload,
+                    exit_code=3,
+                    context={
+                        "tool_name": args.name,
+                        "task_id": args.expected_task_id,
+                    },
+                )
+            except (ReleaseLedgerError, OSError, ValueError) as exc:
                 return _emit_tool_action(
                     args,
                     action="tool-audit",
                     payload={"ok": False, "error": str(exc)},
                     exit_code=3,
-                    context={"tool_name": args.name},
+                    context={
+                        "tool_name": args.name,
+                        "task_id": args.expected_task_id,
+                    },
                 )
             return _emit_tool_action(
                 args,
                 action="tool-audit",
                 payload=result,
                 exit_code=0 if result["ok"] else 3,
-                context={"tool_name": args.name},
+                context={
+                    "tool_name": args.name,
+                    "task_id": args.expected_task_id or result.get("task_id"),
+                },
             )
         if args.tool_cmd == "withdraw":
             from repoproof.runner.tool_release import (

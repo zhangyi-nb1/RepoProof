@@ -21,12 +21,20 @@ from repoproof.adoption.intake.tool_confirm import (
     write_draft_bundle,
 )
 from repoproof.adoption.intake.tool_drafter import (
+    _SYSTEM,
     DraftError,
     FakeDrafter,
     LiteLLMDrafter,
     draft_into_bundle,
+    validate_repo_summary_document,
 )
 from repoproof.adoption.intake.tool_intake import run_tool_intake
+
+
+def test_draft_prompt_distinguishes_html_and_xhtml_media_types() -> None:
+    assert "HTML uses text/html" in _SYSTEM
+    assert "XHTML uses application/xhtml+xml" in _SYSTEM
+    assert "XHTML/HTML uses text/html" not in _SYSTEM
 
 
 def _mini_repo(tmp: Path) -> Path:
@@ -139,6 +147,25 @@ _GOOD = json.dumps({"summary": "s", "input_format": "TXT",
                     "statement": "题面", "reference_impl": "import acme_lib\n",
                     "example_suggestions": []})
 
+_GOOD_REPO_ADVICE = {
+    "summary": "这个仓库可以整理科研文本，具体边界仍需用户确认。",
+    "requirement_briefs": [
+        {
+            "brief_id": "clean-ris",
+            "title": "整理文献记录",
+            "text": "把一份 RIS 文献记录整理成仍可导入文献软件的文件，不联网补资料。",
+            "reason": "仓库说明提到可以读取和写出 RIS 文献记录。",
+        },
+        {
+            "brief_id": "review-table",
+            "title": "生成检查表",
+            "text": "把文献记录整理成 CSV 表格，方便查看缺失内容。",
+            "reason": "仓库说明展示了读取记录并查看字段的用法。",
+        },
+    ],
+    "recommended_brief_id": "clean-ris",
+}
+
 
 def test_litellm_retry_then_parse(monkeypatch, world):
     _, rep, dest = world
@@ -160,6 +187,88 @@ def test_litellm_double_garbage_raises(monkeypatch, world):
     _stub_litellm(monkeypatch, ["garbage", "still garbage"])
     with pytest.raises(DraftError):
         draft_into_bundle(rep, dest, LiteLLMDrafter())
+
+
+def test_litellm_repo_advice_is_strict_json_and_repairs_once(monkeypatch):
+    for key, value in (("REPOPROOF_DRAFTER_MODEL", "m"),
+                       ("REPOPROOF_DRAFTER_BASE", "http://x"),
+                       ("REPOPROOF_DRAFTER_KEY", "k")):
+        monkeypatch.setenv(key, value)
+    calls = _stub_litellm(
+        monkeypatch,
+        ["not json", json.dumps(_GOOD_REPO_ADVICE, ensure_ascii=False)],
+    )
+
+    assert LiteLLMDrafter().summarize_repo({"headline": "RIS tools"}) == _GOOD_REPO_ADVICE
+    assert calls["n"] == 2
+
+
+def test_repo_advice_requires_unique_ids_and_a_valid_recommendation() -> None:
+    duplicate = json.loads(json.dumps(_GOOD_REPO_ADVICE))
+    duplicate["requirement_briefs"][1]["brief_id"] = "clean-ris"
+    with pytest.raises(DraftError, match="DUPLICATE_BRIEF_ID"):
+        validate_repo_summary_document(duplicate)
+
+    unknown = json.loads(json.dumps(_GOOD_REPO_ADVICE))
+    unknown["recommended_brief_id"] = "not-returned"
+    with pytest.raises(DraftError, match="UNKNOWN_RECOMMENDED_BRIEF"):
+        validate_repo_summary_document(unknown)
+
+
+@pytest.mark.parametrize(
+    "unsafe_text",
+    [
+        "调用 parse_file(...) 后生成报告。",
+        "请 import rispy 并读取文件。",
+        "从 src/rispy/parser.py 读取内容。",
+        "运行 --output report.tsv。",
+        "通过命令行参数选择保存位置。",
+        "按 JSON schema 输出结果。",
+        "同分时使用 tie-break rule。",
+        "并列时按照名称决定顺序。",
+        "调用函数名完成处理。",
+        "从源码路径读取内容。",
+        "使用 SeqIO.parse 读取 FASTQ 后生成报告。",
+        "调用 networkx.read_graphml 处理关系数据。",
+        "输出 sample_id/value/error_code 字段结构。",
+        "把结果写成字段 schema。",
+        "使用 `read_graphml` 读取输入。",
+    ],
+)
+def test_repo_advice_rejects_engineering_language_but_allows_user_formats(
+    unsafe_text: str,
+) -> None:
+    unsafe = json.loads(json.dumps(_GOOD_REPO_ADVICE))
+    unsafe["requirement_briefs"][0]["text"] = unsafe_text
+    with pytest.raises(DraftError, match="ENGINEERING_LANGUAGE"):
+        validate_repo_summary_document(unsafe)
+
+    safe = json.loads(json.dumps(_GOOD_REPO_ADVICE))
+    safe["requirement_briefs"][0]["text"] = (
+        "把 FASTQ 整理成 Markdown 报告，也保留一份 JSON 和 CSV 表格。"
+    )
+    assert validate_repo_summary_document(safe)["recommended_brief_id"] == "clean-ris"
+
+
+def test_repo_advice_may_quote_public_api_evidence_outside_adopted_text() -> None:
+    """Only adoptable text is a requirement boundary; evidence may name an API."""
+    advice = json.loads(json.dumps(_GOOD_REPO_ADVICE))
+    advice["requirement_briefs"][0]["title"] = "Excel (or CSV) report"
+    advice["requirement_briefs"][0]["reason"] = (
+        "README shows load() and src/rispy/parser.py as public evidence."
+    )
+    validated = validate_repo_summary_document(advice)
+    assert validated["requirement_briefs"][0]["text"] == _GOOD_REPO_ADVICE[
+        "requirement_briefs"
+    ][0]["text"]
+
+
+def test_fake_drafter_returns_structured_compatible_advice() -> None:
+    advice = FakeDrafter().summarize_repo(
+        {"headline": "demo", "surfaces": ["read", "write"], "capability_goal": "--json"}
+    )
+    assert len(advice["requirement_briefs"]) == 2
+    assert advice["recommended_brief_id"] == "keep-goal"
 
 
 def test_unconfigured_channel_raises_not_silently_degrades(monkeypatch):

@@ -78,6 +78,15 @@ def _candidate_world(
         )
         contract_path = root / f"{task_id}.yaml"
         contract_path.write_text("synthetic: true\n", encoding="utf-8")
+        reference = root / "controls" / task_id / "reference"
+        reference.mkdir(parents=True)
+        (reference / "impl.py").write_text(
+            f"def extract(path):\n    return 'reference-v{version}'\n",
+            encoding="utf-8",
+        )
+        (reference / "requirements.lock.txt").write_text(
+            f"alpha-dist=={version}.0.0\n", encoding="utf-8"
+        )
         run = root / f"run-v{version}"
         run.mkdir()
         (run / "report.json").write_text(
@@ -162,6 +171,14 @@ def test_revoked_v1_upgrades_to_archived_v1_and_review_required_v2(
     provenance = json.loads(
         (upgraded / "evidence" / "provenance.json").read_text(encoding="utf-8")
     )
+    reference = tmp_path / "controls" / "tool-alpha-v2" / "reference"
+    expected_reference_identity = {
+        "impl_sha256": hashlib.sha256((reference / "impl.py").read_bytes()).hexdigest(),
+        "lock_sha256": hashlib.sha256(
+            (reference / "requirements.lock.txt").read_bytes()
+        ).hexdigest(),
+    }
+    assert provenance["reference_identity"] == expected_reference_identity
     archive = dest_root / provenance["replaces"]["archive_path"]
     assert archive.is_dir()
     assert _tree_digest(archive) == old_digest
@@ -181,6 +198,7 @@ def test_revoked_v1_upgrades_to_archived_v1_and_review_required_v2(
         (dest_root / ".repoproof-registry.json").read_text(encoding="utf-8")
     )["tools"]["alpha"]
     assert registry["task_id"] == "tool-alpha-v2"
+    assert registry["reference_identity"] == expected_reference_identity
     assert registry["previous_versions"] == [
         {
             "archive_path": provenance["replaces"]["archive_path"],

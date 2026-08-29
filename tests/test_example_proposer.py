@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import sys
 import zipfile
 from pathlib import Path
 
@@ -19,10 +20,13 @@ from repoproof.adoption.intake.example_proposer import (
     CandidateExample,
     ExampleProposalError,
     ProposalBatch,
+    ReferenceIsolationError,
+    _sandboxed_reference_argv,
     assert_unseen_input,
     confirm_candidate,
     prepared_reference_environment,
     propose_inputs,
+    public_reference_failure,
     run_reference_on_candidates,
 )
 
@@ -96,6 +100,57 @@ def test_proposer_dedupes_against_existing_and_itself():
     assert [c.input_text for c in batch.candidates] == ["hi", "fresh"]
 
 
+def test_proposer_keeps_private_examples_and_raw_failures_out_of_drafter_context():
+    private_sample = "PRIVATE-SAMPLE-BODY-4b20"
+    raw_reference_error = "UserInputError: /Users/alice/secret says hunter2"
+    d = _StubDrafter([
+        {"input_name": "fresh.txt", "input_text": "fresh", "why": "new"},
+    ])
+    batch = propose_inputs(
+        goal="喊话",
+        overview={
+            "failed_attempts": [{
+                "input_name": "private.txt",
+                "input_text": private_sample,
+                "upstream_error": raw_reference_error,
+                "reason_code": "REFERENCE_USER_INPUT_ERROR",
+                "failure_fingerprint": "a" * 64,
+            }],
+        },
+        drafter=d,
+        n=1,
+        existing_inputs=[private_sample],
+        existing_names=["private.txt"],
+    )
+
+    encoded = str(d.seen_context)
+    assert private_sample not in encoded
+    assert raw_reference_error not in encoded
+    assert "private.txt" not in encoded
+    assert "already_have" not in d.seen_context
+    assert d.seen_context["existing_input_count"] == 1
+    assert d.seen_context["failed_attempts"][0]["reason_code"] == (
+        "REFERENCE_USER_INPUT_ERROR"
+    )
+    assert d.seen_context["failed_attempts"][0]["failure_fingerprint"] != "a" * 64
+    assert len(d.seen_context["failed_attempts"][0]["failure_fingerprint"]) == 64
+    assert [candidate.input_text for candidate in batch.candidates] == ["fresh"]
+
+
+def test_public_reference_failure_fingerprint_never_depends_on_error_message():
+    first = public_reference_failure(
+        upstream_error="UserInputError: TOP-SECRET-CONTENT",
+    )
+    second = public_reference_failure(
+        upstream_error="UserInputError: /Users/alice/private/data.txt",
+    )
+
+    assert first == second
+    assert first["reason_code"] == "REFERENCE_USER_INPUT_ERROR"
+    assert "SECRET" not in str(first)
+    assert "/Users" not in str(first)
+
+
 def test_proposer_allocates_unique_names_across_existing_and_same_batch():
     d = _StubDrafter([
         {"input_name": "case.txt", "input_text": "one", "why": ""},
@@ -135,6 +190,26 @@ def test_upstream_run_produces_real_outputs_and_records_errors(world):
     assert not bad.usable_as_golden
 
 
+def test_upstream_run_never_turns_a_truncated_output_into_truth(world):
+    """Large reference output must stop visibly, never become a partial golden."""
+    (world["draft"] / "reference_impl.py").write_text(
+        "from pathlib import Path\n\n"
+        "def extract(input_path: Path) -> str:\n"
+        "    return 'x' * 20001\n",
+        encoding="utf-8",
+    )
+    out = run_reference_on_candidates(
+        ProposalBatch(candidates=[CandidateExample(input_name="large.txt", input_text="x")]),
+        draft_dir=world["draft"],
+        upstream_dir=world["upstream"],
+    )
+    candidate = out.candidates[0]
+    assert candidate.upstream_output is None
+    assert candidate.upstream_output_truncated is True
+    assert "ReferenceOutputTooLarge" in (candidate.upstream_error or "")
+    assert not candidate.usable_as_golden
+
+
 def test_upstream_run_refuses_skeleton_reference(world):
     """reference 还是骨架时,候选输出没有来源 —— 如实拒绝,不猜。"""
     (world["draft"] / "reference_impl.py").write_text(
@@ -158,6 +233,53 @@ def test_upstream_run_env_is_sanitised(world, monkeypatch):
         ProposalBatch(candidates=[CandidateExample(input_name="a.txt", input_text="x")]),
         draft_dir=world["draft"], upstream_dir=world["upstream"])
     assert out.candidates[0].upstream_output == "", out.candidates[0].upstream_output
+
+
+@pytest.mark.skipif(
+    sys.platform != "darwin" or not Path("/usr/bin/sandbox-exec").is_file(),
+    reason="macOS reference sandbox conformance",
+)
+def test_studio_reference_runtime_denies_network_and_writes_outside_probe(
+    world: dict[str, Path],
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "must-not-be-written.txt"
+    (world["draft"] / "reference_impl.py").write_text(
+        "import errno\n"
+        "import socket\n"
+        "from pathlib import Path\n\n\n"
+        "def extract(input_path: Path) -> str:\n"
+        "    sock = socket.socket()\n"
+        "    network_errno = sock.connect_ex(('127.0.0.1', 9))\n"
+        "    sock.close()\n"
+        "    try:\n"
+        f"        Path({str(outside)!r}).write_text('escape')\n"
+        "    except OSError as exc:\n"
+        "        write_errno = exc.errno\n"
+        "    else:\n"
+        "        write_errno = 0\n"
+        "    return f'{network_errno}:{write_errno}'\n",
+        encoding="utf-8",
+    )
+    out = run_reference_on_candidates(
+        ProposalBatch(
+            candidates=[CandidateExample(input_name="case.txt", input_text="x")]
+        ),
+        draft_dir=world["draft"],
+        upstream_dir=world["upstream"],
+        isolation_required=True,
+    )
+    assert out.candidates[0].upstream_output == "1:1"
+    assert not outside.exists()
+
+
+def test_required_reference_isolation_fails_closed_without_reviewed_backend(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sys, "platform", "linux")
+    with pytest.raises(ReferenceIsolationError, match="没有受支持"):
+        _sandboxed_reference_argv(["python", "runner.py"], tmp_path)
 
 
 def _write_test_wheel(
@@ -261,6 +383,7 @@ def test_confirm_accepts_user_override():
     c = CandidateExample(input_name="a.txt", input_text="hi", upstream_output="HI!")
     done = confirm_candidate(c, expected_text="HI!!(我改的)")
     assert done.upstream_output == "HI!!(我改的)" and done.confirmed
+    assert done.truth_provenance() == "USER_OVERRIDDEN"
 
 
 def test_empty_upstream_stdout_is_a_confirmable_exact_output():

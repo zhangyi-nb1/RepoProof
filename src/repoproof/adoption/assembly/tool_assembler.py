@@ -30,10 +30,12 @@ import shutil
 from pathlib import Path
 
 from repoproof.adoption.assembly.example_compiler import (
+    UPSTREAM_CONFIRMED,
     CompileError,
     Example,
     compile_pytest,
     split_examples,
+    truth_binding_sha256,
 )
 from repoproof.adoption.assembly.output_contract import (
     is_capability_output_invocation,
@@ -377,6 +379,23 @@ def assemble_tool_task(
     文件样例的 held-out 隐藏 = 文件本体只进 oracle(SCHEMA §四第一层)。
     """
     exs = [Example(**e) for e in examples]
+    for idx, example in enumerate(exs, start=1):
+        if example.truth_provenance != UPSTREAM_CONFIRMED:
+            continue
+        if example.input_file is None or example.expected_file is None:
+            raise CompileError(
+                f"样例 {idx}:上游派生真值必须使用精确 input_file/expected_file 绑定"
+            )
+        try:
+            input_bytes = (example_src_dir / example.input_file).read_bytes()
+            expected_bytes = (example_src_dir / example.expected_file).read_bytes()
+        except OSError as exc:
+            raise CompileError(f"样例 {idx}:上游派生真值文件无法读取") from exc
+        actual_binding = truth_binding_sha256(input_bytes, expected_bytes)
+        if actual_binding != example.truth_binding_sha256:
+            raise CompileError(
+                f"样例 {idx}:上游派生输入/输出绑定已漂移，拒绝冒充确认时真值"
+            )
     if not any(e.input_file for e in exs):
         raise CompileError("LOCAL-TOOL 任务至少需要一个文件输入样例(确定性锚)")
     public, held = split_examples(exs)
@@ -609,6 +628,13 @@ requirements:
         public, header="公开合同测试 — agent 可运行自测", mode="cli",
         output_contract=output.contract)
     for e in public:
+        # Fresh audit needs to exclude inputs that the Agent already saw.  The
+        # exported package deliberately omits ``public_tests/``; keep a second,
+        # input-only copy below ``public_examples/`` so the Product Journey can
+        # deduplicate without exporting expected files or any held-out fixture.
+        if e.input_file:
+            copies.append((example_src_dir / e.input_file,
+                           f"{skel_rel}/public_examples/inputs/{e.input_file}"))
         for rel in (e.input_file, e.expected_file):
             if rel:
                 copies.append((example_src_dir / rel,

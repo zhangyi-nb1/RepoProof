@@ -33,6 +33,10 @@ from repoproof.runner.tool_release import (
 
 _ZERO_HASH = "0" * 64
 _WHEN = "2026-08-23T00:00:00Z"
+_REFERENCE_IDENTITY = {
+    "impl_sha256": "1" * 64,
+    "lock_sha256": "2" * 64,
+}
 
 
 def _fake_tool(dest: Path, name: str, *, verified: bool = True, contract: dict | None = None) -> Path:
@@ -76,6 +80,13 @@ def _fake_tool(dest: Path, name: str, *, verified: bool = True, contract: dict |
         encoding="utf-8",
     )
     return tool_dir
+
+
+def _set_reference_identity(tool_dir: Path, value: object) -> None:
+    provenance_path = tool_dir / "evidence" / "provenance.json"
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    provenance["reference_identity"] = value
+    provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
 
 
 def _append(dest: Path, name: str, decision: str, *, reason_code: str = "TEST") -> dict:
@@ -149,6 +160,67 @@ def test_register_adds_review_once_and_never_overrides_active(tmp_path: Path) ->
     row = list_tools(tmp_path)[0]
     assert row["historical_verdict"] == "VERIFIED_TOOL_READY"
     assert row["operational_status"] == ACTIVE
+
+
+def test_register_freezes_exact_reference_identity_for_same_task(tmp_path: Path) -> None:
+    tool_dir = _fake_tool(tmp_path, "alpha")
+    _set_reference_identity(tool_dir, _REFERENCE_IDENTITY)
+
+    entry = register_tool(
+        tmp_path, tool_dir, run_id="run-alpha", exported_at=_WHEN
+    )
+    assert entry["reference_identity"] == _REFERENCE_IDENTITY
+    registry_before = (tmp_path / ".repoproof-registry.json").read_bytes()
+
+    changed = {**_REFERENCE_IDENTITY, "impl_sha256": "3" * 64}
+    _set_reference_identity(tool_dir, changed)
+    with pytest.raises(ValueError, match="reference_identity"):
+        register_tool(tmp_path, tool_dir, run_id="run-alpha", exported_at=_WHEN)
+    assert (tmp_path / ".repoproof-registry.json").read_bytes() == registry_before
+
+
+@pytest.mark.parametrize(
+    "identity",
+    [
+        {"impl_sha256": "1" * 64},
+        {"impl_sha256": "A" * 64, "lock_sha256": "2" * 64},
+        {**_REFERENCE_IDENTITY, "extra": "3" * 64},
+        None,
+    ],
+)
+def test_register_rejects_malformed_claimed_reference_identity(
+    tmp_path: Path, identity: object
+) -> None:
+    tool_dir = _fake_tool(tmp_path, "alpha")
+    _set_reference_identity(tool_dir, identity)
+
+    with pytest.raises(ValueError, match="reference_identity"):
+        register_tool(tmp_path, tool_dir, run_id="run-alpha", exported_at=_WHEN)
+    assert not (tmp_path / ".repoproof-registry.json").exists()
+    assert not (tmp_path / RELEASE_LEDGER_NAME).exists()
+
+
+def test_scan_records_new_reference_identity_but_never_attests_legacy_entry(
+    tmp_path: Path,
+) -> None:
+    tool_dir = _fake_tool(tmp_path, "alpha")
+    _set_reference_identity(tool_dir, _REFERENCE_IDENTITY)
+    registry_path = tmp_path / ".repoproof-registry.json"
+
+    listed = list_tools(tmp_path, scan=True)[0]
+    assert listed["reference_identity"] == _REFERENCE_IDENTITY
+    assert listed["status"] == "OK"
+
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    del registry["tools"]["alpha"]["reference_identity"]
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+    listed = list_tools(tmp_path, scan=True)[0]
+    persisted = json.loads(registry_path.read_text(encoding="utf-8"))["tools"]["alpha"]
+    assert "reference_identity" not in persisted
+    assert listed["status"] == "INVALID_IDENTITY"
+
+    with pytest.raises(ValueError, match="reference_identity"):
+        register_tool(tmp_path, tool_dir, run_id="run-alpha", exported_at=_WHEN)
 
 
 def test_register_rejects_nonready_manifest_before_writing_state(tmp_path: Path) -> None:
@@ -729,6 +801,35 @@ def test_audit_independently_rejects_false_success_output_contract(tmp_path: Pat
         audit_tool(tmp_path, "spell", input_path=fresh, expected_file=expected)
 
 
+@pytest.mark.parametrize(
+    ("media_type", "body"),
+    [
+        ("application/x-research-info-systems", '{"not":"RIS"}\n'),
+        ("text/tab-separated-values", "sample\tvalue\nA\t1\textra\n"),
+        ("text/markdown", '{"not":"Markdown"}\n'),
+        ("text/html", '<html><body><script>bad()</script></body></html>\n'),
+    ],
+)
+def test_audit_rejects_matching_but_wrong_multiformat_artifacts(
+    tmp_path: Path,
+    media_type: str,
+    body: str,
+) -> None:
+    """A bad golden cannot relabel JSON/unsafe text as a scientific artifact."""
+    contract = {"media_type": media_type, "root_type": "text", "required": {}}
+    tool_dir = _fake_tool(tmp_path, "artifact", contract=contract)
+    register_tool(tmp_path, tool_dir, run_id="run-artifact", exported_at=_WHEN)
+    fresh = tmp_path / "fresh.txt"
+    expected = tmp_path / "expected.txt"
+    fresh.write_text(body, encoding="utf-8")
+    expected.write_text(body, encoding="utf-8")
+
+    result = audit_tool(tmp_path, "artifact", input_path=fresh, expected_file=expected)
+    assert result["ok"] is False
+    assert result["reason_code"] == "OUTPUT_CONTRACT_MISMATCH"
+    assert operational_status(tmp_path, "artifact") == REVOKED
+
+
 def test_audit_accepts_valid_declared_json_object(tmp_path: Path) -> None:
     contract = {
         "media_type": "application/json",
@@ -966,3 +1067,31 @@ def test_cli_audit_list_withdraw_and_mcp_enforce_release_state(
 
     assert main(["tool", "mcp", "echoer", "--dest-root", str(tmp_path)]) == 3
     assert "REVOKED" in json.loads(capsys.readouterr().out)["error"]
+
+
+def test_cli_audit_identity_mismatch_emits_stable_structured_reason(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tool_dir = _fake_tool(tmp_path, "echoer")
+    register_tool(tmp_path, tool_dir, run_id="run-echoer", exported_at=_WHEN)
+    fresh = tmp_path / "fresh.txt"
+    expected = tmp_path / "expected.txt"
+    action_result = tmp_path / "audit-result.json"
+    fresh.write_text("new input\n", encoding="utf-8")
+    expected.write_text("new input\n", encoding="utf-8")
+
+    assert main([
+        "tool", "audit", "echoer", "--dest-root", str(tmp_path),
+        "--input", str(fresh), "--expected-file", str(expected),
+        "--expected-task-id", "tool-echoer-v2",
+        "--job-id", "audit-identity-test", "--result-json", str(action_result),
+    ]) == 3
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    assert payload["reason_codes"] == ["AUDIT_TASK_IDENTITY_MISMATCH"]
+    assert payload["failure_owner"] == "HARNESS"
+    structured = json.loads(action_result.read_text(encoding="utf-8"))
+    assert structured["task_id"] == "tool-echoer-v2"
+    assert structured["reason_codes"] == ["AUDIT_TASK_IDENTITY_MISMATCH"]
+    assert structured["product_stop_code"] == "STOP_HARNESS_OR_EXTERNAL"
+    assert operational_status(tmp_path, "echoer") == REVIEW_REQUIRED

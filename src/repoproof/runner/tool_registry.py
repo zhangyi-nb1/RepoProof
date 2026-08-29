@@ -15,6 +15,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -39,6 +40,38 @@ from repoproof.runner.tool_release import (
 REGISTRY_NAME = ".repoproof-registry.json"
 REGISTRY_LOCK_NAME = INSTALL_LOCK_NAME
 registry_install_lock = tool_install_lock
+
+_REFERENCE_IDENTITY_KEYS = {"impl_sha256", "lock_sha256"}
+_LOWER_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
+
+def validate_reference_identity(
+    value: object,
+    *,
+    required: bool = False,
+) -> dict[str, str] | None:
+    """Validate the immutable identity of a task's frozen reference pair.
+
+    Legacy exported packages do not carry this optional field.  Once present,
+    however, it is deliberately exact: accepting additional keys or permissive
+    hash spellings would create two identity dialects at the trust boundary.
+    """
+
+    if value is None:
+        if required:
+            raise ValueError("reference_identity 缺失")
+        return None
+    if not isinstance(value, dict) or set(value) != _REFERENCE_IDENTITY_KEYS:
+        raise ValueError(
+            "reference_identity 必须且只能包含 impl_sha256/lock_sha256"
+        )
+    identity: dict[str, str] = {}
+    for key in sorted(_REFERENCE_IDENTITY_KEYS):
+        digest = value.get(key)
+        if not isinstance(digest, str) or _LOWER_SHA256.fullmatch(digest) is None:
+            raise ValueError(f"reference_identity.{key} 必须是 64 位小写 SHA-256")
+        identity[key] = digest
+    return identity
 
 
 def _load(dest_root: Path) -> dict:
@@ -138,6 +171,12 @@ def _load_package_provenance(
         != verification.get("contract_sha256")
     ):
         raise ValueError(f"{name}: manifest/provenance identity 不一致")
+    if "reference_identity" in provenance:
+        # Keep legacy packages readable when the field is absent, but a package
+        # that claims the new identity must use the one exact representation.
+        provenance["reference_identity"] = validate_reference_identity(
+            provenance.get("reference_identity"), required=True
+        )
     return task_id, provenance
 
 
@@ -240,6 +279,12 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
         "summary": manifest.get("summary", ""),
         "exported_at": exported_at,
     }
+    reference_identity = validate_reference_identity(
+        provenance.get("reference_identity"),
+        required="reference_identity" in provenance,
+    )
+    if reference_identity is not None:
+        entry["reference_identity"] = reference_identity
     # Validate both existing indexes before any write.  Initial export appends
     # REVIEW_REQUIRED only once; a repeated registration never masks a revoke.
     doc = _load(dest_root)
@@ -255,6 +300,15 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
             ):
                 raise ValueError(
                     f"{manifest_name}: 同一 task_id={task_id!r} 的 run/contract "
+                    "与 registry 不一致，拒绝覆盖"
+                )
+            previous_reference_identity = validate_reference_identity(
+                previous.get("reference_identity"),
+                required="reference_identity" in previous,
+            )
+            if previous_reference_identity != reference_identity:
+                raise ValueError(
+                    f"{manifest_name}: 同一 task_id={task_id!r} 的 reference_identity "
                     "与 registry 不一致，拒绝覆盖"
                 )
             entry["previous_versions"] = list(previous.get("previous_versions", []))
@@ -342,7 +396,7 @@ def list_tools(
                 continue
             historical_verdict = (m.get("verification") or {}).get("verdict")
             try:
-                task_id, _provenance = _load_package_provenance(
+                task_id, package_provenance = _load_package_provenance(
                     d,
                     m,
                     require_verification_binding=is_historical_tool_ready(
@@ -360,6 +414,12 @@ def list_tools(
                     "contract_sha256"
                 ),
             }
+            package_reference_identity = validate_reference_identity(
+                package_provenance.get("reference_identity"),
+                required="reference_identity" in package_provenance,
+            )
+            if package_reference_identity is not None:
+                observed["reference_identity"] = package_reference_identity
             if name not in doc["tools"]:
                 doc["tools"][name] = {
                     "path": str(d),
@@ -379,6 +439,12 @@ def list_tools(
                 # evidence. Conflicting non-empty values remain visible and
                 # make upgrade preflight fail instead of being overwritten.
                 for field, value in observed.items():
+                    # A legacy same-task row cannot acquire a trust identity
+                    # after export.  That would let a caller edit provenance and
+                    # use scan as a self-attestation mechanism.  Only an entirely
+                    # new scanned entry may record reference_identity.
+                    if field == "reference_identity":
+                        continue
                     if entry.get(field) in (None, "") and value not in (None, ""):
                         entry[field] = value
         _save(dest_root, doc)
@@ -426,7 +492,7 @@ def list_tools(
                 row["status"] = (
                     "OK" if is_historical_tool_ready(historical_verdict) else "UNVERIFIED"
                 )
-                provenance_task_id, _provenance = _load_package_provenance(
+                provenance_task_id, package_provenance = _load_package_provenance(
                     tool_dir,
                     m,
                     require_verification_binding=is_historical_tool_ready(
@@ -434,6 +500,19 @@ def list_tools(
                     ),
                 )
                 row["task_id"] = provenance_task_id
+                package_reference_identity = validate_reference_identity(
+                    package_provenance.get("reference_identity"),
+                    required="reference_identity" in package_provenance,
+                )
+                registry_reference_identity = validate_reference_identity(
+                    entry.get("reference_identity"),
+                    required="reference_identity" in entry,
+                )
+                if (
+                    package_reference_identity is not None
+                    or registry_reference_identity is not None
+                ) and package_reference_identity != registry_reference_identity:
+                    raise ValueError("registry/package reference_identity 不一致")
             except (OSError, UnicodeError, ValueError):
                 row["status"] = "MISSING"
         row["historical_verdict"] = historical_verdict

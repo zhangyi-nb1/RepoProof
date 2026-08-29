@@ -121,6 +121,13 @@ def world(tmp_path_factory):
         distribution="minilib", import_module="minilib", license_id="MIT",
         tool=_SPEC, examples=_EXAMPLES, example_src_dir=src,
         reference_impl=_REFERENCE, input_ext=".txt")
+    # Exported reference identity always binds both files.  This source-only
+    # synthetic reference has no dependency closure, represented by an empty
+    # but ordinary (non-symlink) lock file.
+    (
+        project / "controls" / info["task_id"] / "reference"
+        / "requirements.lock.txt"
+    ).touch()
 
     # setup = 内联 shim:.venv/bin/python → 仓 venv + PYTHONPATH(零网零 pip)
     snippet = (

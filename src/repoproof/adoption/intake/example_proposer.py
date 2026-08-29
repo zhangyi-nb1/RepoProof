@@ -24,12 +24,14 @@ import 上游,所以"跑它"就等于"问上游此刻怎么答",而且与 oracle
 - 候选输出旁边必须挂着"这是上游实际输出,不是对错判定"的语义 —— 判定
   它是不是你要的能力,仍然是人的活(`semver._deprecated` 那种废弃 API
   会给出漂亮输出,只有人能说"我不要这个");
-- 跑 reference **是在执行第三方代码**:统一走 `_run_isolated`(净化环境、
-  临时 HOME/cwd、超时),绝不在 Studio 进程里 import 上游。
+- 跑 reference **是在执行第三方代码**:Studio 路径要求 OS 级网络/写入沙箱，
+  同时净化环境、使用临时 HOME/cwd 并设置超时，绝不在 Studio 进程里
+  import 上游。这个边界面向人工准入的公开仓库，不冒充敌对代码读取隔离。
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -62,6 +64,12 @@ class ReferenceEnvironmentError(ExampleProposalError):
     reason_code = "REFERENCE_ENVIRONMENT_SETUP_FAILED"
 
 
+class ReferenceIsolationError(ReferenceEnvironmentError):
+    """The host cannot enforce the Product reference runtime boundary."""
+
+    reason_code = "REFERENCE_RUNTIME_ISOLATION_UNAVAILABLE"
+
+
 class CandidateExample(BaseModel):
     """一条候选样例。`upstream_output` 是**上游实际输出**,不是判定。"""
 
@@ -70,10 +78,16 @@ class CandidateExample(BaseModel):
     why: str = ""                       # 模型为什么提这条(展示用)
     upstream_output: str | None = None
     upstream_error: str | None = None
+    upstream_output_truncated: bool = False
     confirmed: bool = False             # 只能经 confirm_candidate 翻
+    expected_overridden: bool = False   # 人工改真值时不得冒充上游派生
 
     def truth_provenance(self) -> str:
-        return "UPSTREAM_DERIVED_USER_CONFIRMED" if self.confirmed else "UNCONFIRMED"
+        if not self.confirmed:
+            return "UNCONFIRMED"
+        if self.expected_overridden:
+            return "USER_OVERRIDDEN"
+        return "UPSTREAM_DERIVED_USER_CONFIRMED"
 
     @property
     def usable_as_golden(self) -> bool:
@@ -165,10 +179,12 @@ def propose_inputs(*, goal: str, overview: dict, drafter, n: int = 4,
                    existing_names: list[str] | None = None) -> ProposalBatch:
     """问模型要 n 条候选**输入**(只要输入,不要答案)。
 
-    `existing_inputs` 会被交给模型作为"已经有了这些,请给不一样的",并在
-    返回后做一次去重 —— 模型重复给同一条不算错,但不能悄悄混进去。
+    `existing_inputs` 只在本地做去重。既有样例可能来自用户私有文件，正文
+    绝不进入模型上下文；模型只知道已有多少条。repair 反馈也只接收稳定的
+    公开 reason code/fingerprint，不接收 reference 原始异常或失败输入正文。
     """
     n = max(1, min(int(n), MAX_CANDIDATES))
+    existing = list(existing_inputs or [])
     context = {
         "capability_goal": goal,
         "repository": overview.get("repository", ""),
@@ -178,15 +194,17 @@ def propose_inputs(*, goal: str, overview: dict, drafter, n: int = 4,
         # README 里挖到的现成示例值(证据,不是模型发明的)
         "evidence_literals": list(overview.get("evidence_literals") or [])[:12],
         "how_many": n,
-        "already_have": list(existing_inputs or [])[:20],
-        "failed_attempts": list(overview.get("failed_attempts") or [])[:12],
+        "existing_input_count": len(existing),
+        "failed_attempts": _sanitise_public_failed_attempts(
+            overview.get("failed_attempts") or []
+        )[:12],
     }
     raw = drafter.propose_example_inputs(context)
     items = raw.get("inputs") if isinstance(raw, dict) else raw
     if not isinstance(items, list) or not items:
         raise ExampleProposalError("起草器没有给出候选输入")
 
-    seen = {_norm_input(x) for x in (existing_inputs or [])}
+    seen = {_norm_input(x) for x in existing}
     seen_names = {Path(x).name.casefold() for x in (existing_names or [])}
     out: list[CandidateExample] = []
     for i, item in enumerate(items[:n], start=1):
@@ -223,6 +241,70 @@ def _norm_input(text: str) -> str:
     return "\n".join(ln.rstrip() for ln in str(text).replace("\r\n", "\n").split("\n")).strip()
 
 
+_PUBLIC_REASON_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+_EXCEPTION_TYPE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]{0,119}$")
+_PUBLIC_REASON_CODES = frozenset({
+    "REFERENCE_EXECUTION_ERROR",
+    "REFERENCE_NO_OUTPUT",
+    "REFERENCE_OUTPUT_TOO_LARGE",
+    "REFERENCE_REJECTED",
+    "REFERENCE_USER_INPUT_ERROR",
+})
+
+
+def public_reference_failure(*, upstream_error: str | None,
+                             output_truncated: bool = False) -> dict[str, str]:
+    """Turn a local reference failure into model-safe repair feedback.
+
+    A reference exception can contain arbitrary file contents or absolute host
+    paths.  Its message is therefore never hashed or copied into the prompt.
+    The exception *type* is used only to select a coarse allow-listed reason;
+    the fingerprint is then derived from that reason alone, so it is stable
+    without becoming a content oracle for private data.
+    """
+    raw_error = str(upstream_error or "")
+    exception_type = raw_error.partition(":")[0].strip()
+    if not _EXCEPTION_TYPE_RE.fullmatch(exception_type):
+        exception_type = "UNKNOWN"
+    short_type = exception_type.rsplit(".", 1)[-1]
+    if output_truncated or short_type == "ReferenceOutputTooLarge":
+        reason_code = "REFERENCE_OUTPUT_TOO_LARGE"
+    elif not raw_error:
+        reason_code = "REFERENCE_NO_OUTPUT"
+    elif short_type == "UserInputError":
+        reason_code = "REFERENCE_USER_INPUT_ERROR"
+    else:
+        reason_code = "REFERENCE_EXECUTION_ERROR"
+    fingerprint = hashlib.sha256(reason_code.encode("ascii")).hexdigest()
+    return {"reason_code": reason_code, "failure_fingerprint": fingerprint}
+
+
+def _sanitise_public_failed_attempts(rows: object) -> list[dict[str, str]]:
+    """Allow-list repair feedback immediately before it reaches a drafter."""
+    if not isinstance(rows, list):
+        return []
+    safe: list[dict[str, str]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        reason_code = str(row.get("reason_code") or "")
+        if (
+            not _PUBLIC_REASON_RE.fullmatch(reason_code)
+            or reason_code not in _PUBLIC_REASON_CODES
+        ):
+            reason_code = "REFERENCE_REJECTED"
+        # Never trust even an opaque caller-provided digest: a 64-character
+        # hexadecimal credential is still a credential.  Derive this value
+        # again from the allow-listed public category immediately before the
+        # model call.
+        fingerprint = hashlib.sha256(reason_code.encode("ascii")).hexdigest()
+        safe.append({
+            "reason_code": reason_code,
+            "failure_fingerprint": fingerprint,
+        })
+    return safe
+
+
 # ------------------------------------------------- ② 候选输出(上游真跑)
 
 _RUNNER = r'''
@@ -232,6 +314,7 @@ from pathlib import Path
 ref_dir, payload_path = sys.argv[1], sys.argv[2]
 sys.path.insert(0, ref_dir)
 out = []
+output_cap = __OUTPUT_CAP__
 try:
     import reference_impl as ref
 except BaseException:
@@ -241,13 +324,20 @@ except BaseException:
 for item in json.loads(Path(payload_path).read_text(encoding="utf-8")):
     p = Path(item["path"])
     try:
-        value = ref.extract(p)
-        out.append({"name": item["name"], "output": str(value)})
+        value = str(ref.extract(p))
+        if len(value) > output_cap:
+            out.append({
+                "name": item["name"],
+                "error": f"ReferenceOutputTooLarge: output exceeds {output_cap} characters",
+                "output_truncated": True,
+            })
+        else:
+            out.append({"name": item["name"], "output": value})
     except BaseException as exc:
         out.append({"name": item["name"],
                     "error": f"{type(exc).__name__}: {exc}"[:800]})
 print(json.dumps({"results": out}))
-'''
+'''.replace("__OUTPUT_CAP__", str(_OUTPUT_CAP))
 
 
 def reference_is_placeholder(source: str) -> str:
@@ -325,6 +415,41 @@ def _reference_lock_path(draft_dir: Path) -> Path | None:
 
 def _python_in_venv(venv: Path) -> Path:
     return venv / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+
+
+def _sandboxed_reference_argv(argv: list[str], writable_root: Path) -> list[str]:
+    """Wrap a reference command in an OS-enforced offline/write sandbox.
+
+    Product Studio currently supports this boundary on macOS through the
+    system ``sandbox-exec`` facility.  Network access is denied outright and
+    writes are limited to the disposable candidate directory (plus
+    ``/dev/null``).  We deliberately fail closed on hosts where no reviewed
+    backend exists instead of silently treating an environment scrub as
+    isolation.
+
+    Read access is not claimed as a hostile-code boundary: RepoProof's stated
+    scope remains human-admitted public repositories.  Environment secrets are
+    removed separately by :func:`_sanitised_env`, and no reference output is
+    sent back to the model.
+    """
+
+    sandbox = Path("/usr/bin/sandbox-exec")
+    if sys.platform != "darwin" or not sandbox.is_file():
+        raise ReferenceIsolationError(
+            "当前主机没有受支持的 reference runtime 隔离后端；"
+            "为避免让第三方 reference 联网，Studio 已在模型调用前停止。"
+        )
+    real_root = writable_root.resolve()
+    escaped_root = str(real_root).replace("\\", "\\\\").replace('"', '\\"')
+    profile = (
+        "(version 1)"
+        "(allow default)"
+        "(deny network*)"
+        "(deny file-write*)"
+        f'(allow file-write* (subpath "{escaped_root}") '
+        '(literal "/dev/null"))'
+    )
+    return [str(sandbox), "-p", profile, *argv]
 
 
 @contextmanager
@@ -438,6 +563,7 @@ def prepared_reference_environment(
 def run_reference_on_candidates(
     batch: ProposalBatch, *, draft_dir: Path, upstream_dir: Path,
     python_exe: str | None = None, timeout_s: int = _RUN_TIMEOUT_S,
+    isolation_required: bool = False,
 ) -> ProposalBatch:
     """在隔离子进程里跑 draft 束的 `reference_impl`,给每条候选拿到上游实际输出。
 
@@ -467,6 +593,7 @@ def run_reference_on_candidates(
                 upstream_dir=upstream_dir,
                 python_exe=prepared,
                 timeout_s=timeout_s,
+                isolation_required=isolation_required,
             )
 
     up = Path(upstream_dir)
@@ -484,9 +611,16 @@ def run_reference_on_candidates(
         runner = tmpd / "_runner.py"
         runner.write_text(_RUNNER, encoding="utf-8")
 
+        argv = [
+            python_exe or sys.executable,
+            str(runner),
+            str(Path(draft_dir)),
+            str(payload_path),
+        ]
+        if isolation_required:
+            argv = _sandboxed_reference_argv(argv, tmpd)
         proc = subprocess.run(                       # noqa: S603 固定 argv
-            [python_exe or sys.executable, str(runner), str(Path(draft_dir)),
-             str(payload_path)],
+            argv,
             capture_output=True, text=True, timeout=timeout_s,
             cwd=str(tmpd), env=_sanitised_env(tmpd, extra), check=False)
 
@@ -504,8 +638,9 @@ def run_reference_on_candidates(
     for c in batch.candidates:
         r = by_name.get(c.input_name, {})
         updated.append(c.model_copy(update={
-            "upstream_output": (str(r["output"])[:_OUTPUT_CAP] if "output" in r else None),
+            "upstream_output": (str(r["output"]) if "output" in r else None),
             "upstream_error": (str(r["error"]) if "error" in r else None),
+            "upstream_output_truncated": bool(r.get("output_truncated")),
         }))
     return batch.model_copy(update={"candidates": updated})
 
@@ -514,7 +649,7 @@ def run_reference_on_candidates(
 
 def confirm_candidate(candidate: CandidateExample, *,
                       expected_text: str | None = None) -> CandidateExample:
-    """人闸:确认一条候选。给出 `expected_text` 即表示"以我的为准"。
+    """人闸:确认一条候选；人工改写真值必须留下不同 provenance。
 
     空字符串也可能是上游真实、合法的 stdout，不能把它误判成“没有输出”。
 
@@ -528,7 +663,15 @@ def confirm_candidate(candidate: CandidateExample, *,
             "(样例只表达成功路径)。它的正当去处是**写进题面的错误行为**:"
             "把「这类输入应当报错并 exit 1」说清楚。上游错误:"
             f"{candidate.upstream_error}")
-    return candidate.model_copy(update={"upstream_output": str(text), "confirmed": True})
+    overridden = (
+        candidate.expected_overridden
+        or (expected_text is not None and expected_text != candidate.upstream_output)
+    )
+    return candidate.model_copy(update={
+        "upstream_output": str(text),
+        "confirmed": True,
+        "expected_overridden": overridden,
+    })
 
 
 def assert_unseen_input(new_input: str, existing_inputs: list[str]) -> None:

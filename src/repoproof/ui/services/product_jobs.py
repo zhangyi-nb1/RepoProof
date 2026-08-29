@@ -7,6 +7,7 @@ evidence, and every CLI launch uses an argv list rather than a shell.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -21,6 +22,11 @@ from urllib.parse import urlsplit
 
 import yaml
 
+from repoproof.adoption.assembly.example_compiler import (
+    UPSTREAM_CONFIRMED,
+    TruthProvenance,
+    truth_binding_sha256,
+)
 from repoproof.adoption.assembly.tool_assembler import next_tool_task_id
 from repoproof.execution.core_execution import (
     LEGACY_LAB_STATE,
@@ -30,7 +36,13 @@ from repoproof.execution.core_execution import (
     start_durable_job,
 )
 from repoproof.execution.product_action import read_product_action_result
-from repoproof.runner.tool_paths import ToolPathError, validate_tool_name
+from repoproof.runner.tool_paths import (
+    ToolPathError,
+    canonical_tool_path,
+    ensure_safe_package_tree,
+    validate_tool_name,
+    validate_tool_task_id,
+)
 from repoproof.ui.services.product_mode import ui_state_root
 
 PRODUCT_LOCK = "product-job.json"
@@ -812,6 +824,7 @@ def add_golden_example(
     input_bytes: bytes,
     expected_name: str,
     expected_bytes: bytes,
+    truth_provenance: TruthProvenance = "USER_SUPPLIED",
 ) -> dict:
     checked_dir, path_error = _validated_draft_dir(Path(draft_dir), require_existing=True)
     if checked_dir is None:
@@ -848,7 +861,17 @@ def add_golden_example(
         doc = yaml.safe_load(_read_file_at(draft_fd, "examples.yaml").decode("utf-8")) or {"examples": []}
         if not isinstance(doc, dict):
             raise TypeError("examples.yaml 根节点必须是对象")
-        doc.setdefault("examples", []).append({"input_file": str(input_rel), "expected_file": str(expected_rel)})
+        entry: dict[str, str] = {
+            "input_file": str(input_rel),
+            "expected_file": str(expected_rel),
+            "truth_provenance": truth_provenance,
+        }
+        if truth_provenance == UPSTREAM_CONFIRMED:
+            entry["truth_binding_sha256"] = truth_binding_sha256(
+                input_bytes,
+                expected_bytes,
+            )
+        doc.setdefault("examples", []).append(entry)
         _replace_file_at(
             draft_fd,
             "examples.yaml",
@@ -927,7 +950,186 @@ def start_tool_mcp(name: str, dest_root: Path, *, journey_id: str = "") -> dict:
     )
 
 
-def propose_audit_candidates(tool_name: str, *, n: int = 4, offline: bool = False) -> dict:
+def _public_example_inputs(tool_dir: Path) -> tuple[list[str], list[str]]:
+    """Load only agent-visible input fixtures for Fresh-audit deduplication.
+
+    The exported truth table identifies which fixture is an input, so expected
+    files are never fed back as candidate context. Held-out fixtures are absent
+    from the package by construction and are therefore never exposed here.
+    """
+
+    truth_table = tool_dir / "public_examples" / "truth_table.json"
+    if not truth_table.is_file():
+        return [], []
+    document = json.loads(truth_table.read_text(encoding="utf-8"))
+    examples = document.get("examples") if isinstance(document, dict) else None
+    if not isinstance(examples, list):
+        raise ValueError("公开样例索引不是有效的 examples 列表")
+    package_fixture_root = tool_dir / "public_examples" / "inputs"
+    if package_fixture_root.is_symlink() or not package_fixture_root.is_dir():
+        raise ValueError(
+            "工具包没有受管的 public_examples/inputs；这是旧导出格式，"
+            "请创建新 task version 并重新构建，不能用骨架旁路 Fresh audit。"
+        )
+    fixture_root = package_fixture_root.resolve()
+    texts: list[str] = []
+    names: list[str] = []
+    for row in examples[:20]:
+        if not isinstance(row, dict):
+            raise ValueError("公开样例索引包含非对象条目")
+        relative = row.get("input_file")
+        if not isinstance(relative, str) or not relative:
+            continue
+        candidate = fixture_root / relative
+        resolved = candidate.resolve()
+        try:
+            resolved.relative_to(fixture_root)
+        except ValueError as exc:
+            raise ValueError("公开输入 fixture 越出受管目录") from exc
+        if candidate.is_symlink():
+            raise ValueError("公开输入 fixture 不得是符号链接")
+        if not resolved.is_file():
+            raise ValueError("公开输入 fixture 缺失或不是普通文件")
+        payload = resolved.read_bytes()
+        if len(payload) > 1_000_000:
+            raise ValueError("公开输入 fixture 超过 Fresh-audit 候选上下文上限")
+        try:
+            text = payload.decode("utf-8")
+        except UnicodeDecodeError:
+            # Current candidate-generation contract is UTF-8 text only. Binary
+            # public fixtures cannot safely become LLM context and are skipped.
+            continue
+        texts.append(text)
+        names.append(Path(relative).name)
+    return texts, names
+
+
+def _verify_pinned_upstream_tree(upstream: Path, expected_commit: str) -> None:
+    """Fail closed when a cached upstream no longer represents the frozen commit."""
+
+    if upstream.is_symlink() or not upstream.is_dir():
+        raise ValueError("钉版上游树缺失或是符号链接")
+    head = subprocess.run(
+        ["git", "-C", str(upstream), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if head.returncode != 0 or head.stdout.strip() != expected_commit:
+        raise ValueError("钉版上游树 HEAD 与冻结合同不一致")
+    for argv in (
+        ["git", "-C", str(upstream), "diff", "--quiet", "--no-ext-diff", "--"],
+        ["git", "-C", str(upstream), "diff", "--cached", "--quiet", "--no-ext-diff", "--"],
+    ):
+        result = subprocess.run(argv, capture_output=True, text=True, timeout=10)
+        if result.returncode != 0:
+            raise ValueError("钉版上游树含已跟踪内容漂移")
+    status = subprocess.run(
+        ["git", "-C", str(upstream), "status", "--porcelain", "--untracked-files=all"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if status.returncode != 0:
+        raise ValueError("无法核验钉版上游工作树")
+    for line in status.stdout.splitlines():
+        if not line.startswith("?? "):
+            continue  # tracked changes were rejected by git diff above
+        relative = line[3:].strip().strip('"')
+        parts = Path(relative).parts
+        cache_only = (
+            "__pycache__" in parts
+            or ".pytest_cache" in parts
+            or relative.endswith((".pyc", ".pyo"))
+        )
+        if not cache_only:
+            raise ValueError("钉版上游树含未跟踪内容漂移")
+
+
+def _verify_frozen_reference_identity(
+    *,
+    tool_dir: Path,
+    registry_entry: dict,
+    task_id: str,
+    tool_name: str,
+    ref_impl: Path,
+    ref_lock: Path,
+) -> dict[str, str]:
+    """Bind Fresh-audit truth to the exact reference pair frozen at export.
+
+    Four independently read values must agree before a drafter is selected:
+    package provenance, registry index, current reference implementation, and
+    current reference dependency lock.  Legacy packages without this identity
+    must be rebuilt as a new task version; silently blessing today's mutable
+    controls as yesterday's truth would defeat the purpose of the binding.
+    """
+
+    from repoproof.runner.tool_registry import validate_reference_identity
+
+    provenance_path = tool_dir / "evidence" / "provenance.json"
+    if provenance_path.is_symlink() or not provenance_path.is_file():
+        raise ValueError("受管包 provenance 缺失或不是普通文件")
+    try:
+        provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise ValueError("受管包 provenance 无法安全读取") from exc
+    if not isinstance(provenance, dict):
+        raise ValueError("受管包 provenance 必须是 JSON object")
+    if provenance.get("tool") != tool_name or provenance.get("task_id") != task_id:
+        raise ValueError("受管包 provenance 与当前工具/task 不一致")
+
+    package_identity = validate_reference_identity(
+        provenance.get("reference_identity"), required=True
+    )
+    registry_identity = validate_reference_identity(
+        registry_entry.get("reference_identity"), required=True
+    )
+
+    reference_dir = ref_impl.parent
+    if (
+        reference_dir.is_symlink()
+        or not reference_dir.is_dir()
+        or reference_dir.resolve() != reference_dir.absolute()
+    ):
+        raise ValueError("冻结 reference 目录缺失或包含符号链接")
+
+    def regular_digest(path: Path) -> str:
+        if path.parent != reference_dir or path.is_symlink() or not path.is_file():
+            raise ValueError(f"冻结 reference 文件缺失或不是普通文件:{path.name}")
+        try:
+            return hashlib.sha256(path.read_bytes()).hexdigest()
+        except OSError as exc:
+            raise ValueError(f"冻结 reference 文件无法读取:{path.name}") from exc
+
+    current_identity = {
+        "impl_sha256": regular_digest(ref_impl),
+        "lock_sha256": regular_digest(ref_lock),
+    }
+    if package_identity != registry_identity or package_identity != current_identity:
+        raise ValueError("package/registry/controls reference_identity 不一致")
+    return current_identity
+
+
+def _reference_identity_error(exc: Exception) -> dict:
+    return {
+        "ok": False,
+        "error": f"冻结 reference 身份核验失败：{exc}",
+        "failure_owner": "HARNESS",
+        "reason_codes": ["REFERENCE_IDENTITY_MISMATCH"],
+        "recommended_action": (
+            "不要改写旧 reference；创建新的 task version 并重新构建、导出后再做 Fresh audit。"
+        ),
+    }
+
+
+def propose_audit_candidates(
+    tool_name: str,
+    *,
+    dest_root: Path,
+    expected_task_id: str,
+    n: int = 4,
+    offline: bool = False,
+) -> dict:
     """给「新输入抽查」出候选:输入由模型出,**期望值由冻结的 reference 真跑**。
 
     用户原话:"我可能给出颜色的名字,但是希望得到的预期输出不一定知道"——
@@ -953,30 +1155,109 @@ def propose_audit_candidates(tool_name: str, *, n: int = 4, offline: bool = Fals
         propose_inputs,
         run_reference_on_candidates,
     )
-    from repoproof.adoption.intake.tool_drafter import FakeDrafter, online_drafter
-    from repoproof.runner.tool_paths import ToolPathError, validate_tool_name
+    from repoproof.adoption.intake.tool_drafter import DraftError, FakeDrafter, online_drafter
     from repoproof.ui.services.product_mode import list_tools, project_root
 
     try:
         name = validate_tool_name(tool_name)
     except ToolPathError as exc:
         return {"ok": False, "error": str(exc)}
+    checked_root, path_error = _validated_dest_root(Path(dest_root))
+    if checked_root is None:
+        return {"ok": False, "error": path_error}
+    expected_task_id = str(expected_task_id or "").strip()
+    if not expected_task_id:
+        return {"ok": False, "error": "Journey 没有绑定 task_id，不能生成 Fresh audit 真值。"}
     root = project_root()
-    entry = next((r for r in list_tools()["tools"] if r["name"] == name), None)
+    library = list_tools(checked_root)
+    if library.get("registry_error") or library.get("release_error"):
+        return {
+            "ok": False,
+            "error": library.get("registry_error") or library.get("release_error"),
+            "failure_owner": "HARNESS",
+            "reason_codes": ["TOOL_REGISTRY_UNREADABLE"],
+            "recommended_action": "修复工具 registry 或 release ledger 后重试；本次没有调用模型。",
+        }
+    entry = next((r for r in library["tools"] if r["name"] == name), None)
     task_id = str((entry or {}).get("task_id") or "")
     if not task_id:
         return {"ok": False, "error": f"找不到 {name} 的冻结任务,无法出候选。"}
+    if task_id != expected_task_id:
+        return {
+            "ok": False,
+            "error": (
+                f"Journey 绑定 {expected_task_id}，但当前 registry 指向 {task_id}；"
+                "拒绝用另一个版本的 reference 生成真值。"
+            ),
+            "failure_owner": "HARNESS",
+            "reason_codes": ["TASK_IDENTITY_MISMATCH"],
+            "recommended_action": "返回最近任务并刷新状态；如已升级，请创建或选择对应的新 Journey。",
+        }
+    try:
+        package_path = (entry or {}).get("path")
+        if not isinstance(package_path, str) or not package_path:
+            raise ToolPathError("Core registry 没有给出受管工具目录")
+        tool_dir = Path(package_path)
+        if tool_dir.resolve() != canonical_tool_path(checked_root, name).resolve():
+            raise ToolPathError("Core registry 的工具目录与受管身份不一致")
+        if tool_dir.is_symlink() or not tool_dir.is_dir():
+            raise ToolPathError("受管工具目录缺失或是符号链接")
+        ensure_safe_package_tree(tool_dir)
+    except (OSError, ToolPathError, ValueError) as exc:
+        return {
+            "ok": False,
+            "error": str(exc),
+            "failure_owner": "HARNESS",
+            "reason_codes": ["PACKAGE_IDENTITY_UNHEALTHY"],
+            "recommended_action": "先修复或重新导出受管工具包，再生成 Fresh audit 候选。",
+        }
     ref_impl = root / "controls" / task_id / "reference" / "impl.py"
     ref_lock = root / "controls" / task_id / "reference" / "requirements.lock.txt"
     upstream_commit = str((entry or {}).get("resolved_commit") or "")
     upstream = root / "upstream-cache" / f"upstream-{upstream_commit[:12]}"
-    if not ref_impl.is_file():
-        return {"ok": False, "error": f"找不到冻结的参考实现:{ref_impl} —— 没有独立真值源,不能替你出期望值。"}
+    try:
+        _verify_frozen_reference_identity(
+            tool_dir=tool_dir,
+            registry_entry=entry or {},
+            task_id=task_id,
+            tool_name=name,
+            ref_impl=ref_impl,
+            ref_lock=ref_lock,
+        )
+    except (OSError, UnicodeError, ValueError) as exc:
+        return _reference_identity_error(exc)
+    if entry is not None and str(entry.get("health") or "") != "OK":
+        return {
+            "ok": False,
+            "error": (
+                f"工具包健康状态为 {entry.get('health') or 'UNKNOWN'}，"
+                "拒绝生成 Fresh audit 真值。"
+            ),
+            "failure_owner": "HARNESS",
+            "reason_codes": ["PACKAGE_IDENTITY_UNHEALTHY"],
+            "recommended_action": "先修复或重新导出受管工具包，再生成 Fresh audit 候选。",
+        }
     if not upstream.is_dir():
         return {"ok": False, "error": f"钉版上游树不在:{upstream}"}
+    contract_path = root / "contracts" / f"{task_id}.yaml"
 
     tmp = Path(tempfile.mkdtemp(prefix="rp-audit-propose-"))
     try:
+        from repoproof.domain.models import TaskContract
+
+        contract, _contract_sha256 = TaskContract.load_frozen(
+            contract_path,
+            require_sidecar=True,
+        )
+        if contract.task_id != task_id:
+            raise ValueError("冻结合同 task_id 与 Journey 不一致")
+        if contract.source_repo.resolved_commit != upstream_commit:
+            raise ValueError("冻结合同 upstream commit 与 registry 不一致")
+        _verify_pinned_upstream_tree(upstream, upstream_commit)
+        capability_goal = str(contract.capability.statement or "").strip()
+        if not capability_goal:
+            raise ValueError("冻结合同没有 capability statement")
+        existing_inputs, existing_names = _public_example_inputs(tool_dir)
         # 组一个**临时 draft 束形态**给既有的执行器用:只读地拷一份冻结
         # reference,不碰任何冻结件(controls/ 是不可改写的证据面)。
         (tmp / "examples" / "inputs").mkdir(parents=True)
@@ -992,23 +1273,26 @@ def propose_audit_candidates(tool_name: str, *, n: int = 4, offline: bool = Fals
             draft_dir=tmp,
             upstream_dir=upstream,
             python_exe=reference_python,
+            isolation_required=True,
         )
         drafter = FakeDrafter() if offline else online_drafter()
         batch = propose_inputs(
-            goal=str((entry or {}).get("summary") or name),
+            goal=capability_goal[:6000],
             overview={
                 "repository": str((entry or {}).get("source_url") or ""),
                 "evidence_literals": mine_evidence_literals(upstream),
             },
             drafter=drafter,
             n=n,
-            existing_inputs=[],
+            existing_inputs=existing_inputs,
+            existing_names=existing_names,
         )
         cands = run_reference_on_candidates(
             batch,
             draft_dir=tmp,
             upstream_dir=upstream,
             python_exe=reference_python,
+            isolation_required=True,
         )
         stack.close()
     except ReferenceEnvironmentError as exc:
@@ -1019,8 +1303,30 @@ def propose_audit_candidates(tool_name: str, *, n: int = 4, offline: bool = Fals
             "reason_codes": [exc.reason_code],
             "recommended_action": "检查依赖锁与网络后重试；本次没有调用模型。",
         }
-    except (ExampleProposalError, OSError, ValueError) as exc:
-        return {"ok": False, "error": _provider_hint(str(exc))}
+    except DraftError as exc:
+        return {
+            "ok": False,
+            "error": _provider_hint(str(exc)),
+            "failure_owner": "EXTERNAL",
+            "reason_codes": ["DRAFTER_FAILED"],
+            "recommended_action": "检查默认 API 网关后重新生成；这不会消耗 Agent repair 轮次。",
+        }
+    except (ExampleProposalError, OSError, UnicodeError, ValueError) as exc:
+        return {
+            "ok": False,
+            "error": _provider_hint(str(exc)),
+            "failure_owner": "HARNESS",
+            "reason_codes": ["AUDIT_CANDIDATE_GENERATION_FAILED"],
+            "recommended_action": "检查冻结 reference、公开样例和钉版上游后重试。",
+        }
+    except Exception as exc:  # noqa: BLE001 - UI service must fail closed, not crash Streamlit
+        return {
+            "ok": False,
+            "error": f"Fresh audit 候选生成失败:{type(exc).__name__}",
+            "failure_owner": "HARNESS",
+            "reason_codes": ["AUDIT_CANDIDATE_UNEXPECTED_FAILURE"],
+            "recommended_action": "查看 Studio 活动日志并修复 Harness 后再试。",
+        }
     finally:
         if "stack" in locals():
             stack.close()
@@ -1035,6 +1341,9 @@ def propose_audit_candidates(tool_name: str, *, n: int = 4, offline: bool = Fals
     ]
     return {
         "ok": True,
+        "tool_name": name,
+        "task_id": task_id,
+        "dest_root": str(checked_root),
         "drafter": getattr(drafter, "name", "?"),
         "candidates": usable,
         "note": (
@@ -1107,6 +1416,8 @@ def start_tool_audit(
     input_path: Path,
     expected_path: Path,
     dest_root: Path,
+    *,
+    expected_task_id: str,
     journey_id: str = "",
 ) -> dict:
     if not input_path.is_file() or not expected_path.is_file():
@@ -1117,6 +1428,8 @@ def start_tool_audit(
     dest_root = checked_root  # 判空后再回赋,同上
     try:
         name = validate_tool_name(name)
+        expected_task_id = str(expected_task_id or "").strip()
+        validate_tool_task_id(name, expected_task_id)
     except ToolPathError as exc:
         return {"ok": False, "error": str(exc)}
     root = _product_root()
@@ -1132,21 +1445,26 @@ def start_tool_audit(
             str(input_path),
             "--expected-file",
             str(expected_path),
+            "--expected-task-id",
+            expected_task_id,
             "--dest-root",
             str(dest_root),
             # Exported Local Tools intentionally do not ship their opaque
-            # .venv.  A Product fresh audit is the first local invocation, so
-            # it must reconstruct the package from build.sh + wheelhouse
-            # before executing bin/<tool>.  The CLI keeps --build explicit for
-            # backwards compatibility; Studio's managed journey always asks
-            # for the reproducible build.
+            # .venv. Studio asks for the reproducible build before its managed
+            # audit. Core checks expected_task_id under the install lock before
+            # build.sh can run, so stale truth cannot touch an upgraded package.
             "--build",
         ],
         kind="tool-audit",
         label=f"审核 {name}",
         expected_artifact=Path(dest_root) / ".repoproof-release-decisions.jsonl",
         journey_id=journey_id,
-        metadata={"tool_name": name, "dest_root": str(dest_root), "journey_stage": 5},
+        metadata={
+            "tool_name": name,
+            "task_id": expected_task_id,
+            "dest_root": str(dest_root),
+            "journey_stage": 5,
+        },
     )
 
 
@@ -1248,6 +1566,7 @@ def summarize_repo_overview(
         DraftError,
         FakeDrafter,
         online_drafter,
+        validate_repo_summary_document,
     )
 
     try:
@@ -1261,11 +1580,20 @@ def summarize_repo_overview(
                 "capability_goal": capability_goal.strip()[:2000],
             }
         )
+        # Summary-only stubs and persisted fixtures predate structured advice.
+        # Keep their display path alive, but never synthesize an adoptable brief.
+        doc = validate_repo_summary_document(doc, allow_legacy=True)
     except DraftError as exc:
         return {"ok": False, "error": _provider_hint(str(exc))}
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "error": f"模型摘要失败:{exc}"}
-    return {"ok": True, "summary": str(doc.get("summary") or ""), "drafter": getattr(drafter, "name", "unknown")}
+    return {
+        "ok": True,
+        "summary": str(doc.get("summary") or ""),
+        "requirement_briefs": list(doc.get("requirement_briefs") or []),
+        "recommended_brief_id": str(doc.get("recommended_brief_id") or ""),
+        "drafter": getattr(drafter, "name", "unknown"),
+    }
 
 
 def _draft_upstream_dir(draft_dir: Path) -> tuple[Path | None, str]:
@@ -1394,6 +1722,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
         mine_evidence_literals,
         prepared_reference_environment,
         propose_inputs,
+        public_reference_failure,
         run_reference_on_candidates,
     )
     from repoproof.adoption.intake.tool_drafter import (
@@ -1459,14 +1788,16 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
             draft_dir=draft_dir,
             upstream_dir=upstream,
             python_exe=reference_python,
+            isolation_required=True,
         )
         drafter = FakeDrafter() if offline else online_drafter()
         evidence_literals = mine_evidence_literals(
             upstream,
             import_module_names=[str((overview_doc.get("source_repo") or {}).get("import_module") or "")],
         )
-        # Initial generation + two bounded repair rounds. Each repair sees the
-        # exact inputs/errors that failed and must propose distinct replacements.
+        # Initial generation + two bounded repair rounds. Each repair sees only
+        # model-safe failure categories/fingerprints; failed input bodies and
+        # raw reference exceptions remain local to the Harness.
         for _round_index in range(3):
             remaining = requested - len(usable)
             if remaining <= 0:
@@ -1489,6 +1820,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                     draft_dir=draft_dir,
                     upstream_dir=upstream,
                     python_exe=reference_python,
+                    isolation_required=True,
                 )
             except (DraftError, ExampleProposalError) as exc:
                 if not usable and not rejected:
@@ -1504,11 +1836,10 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                 else:
                     rejected.append(candidate)
                     failed_attempts.append(
-                        {
-                            "input_name": candidate.input_name,
-                            "input_text": candidate.input_text[:500],
-                            "upstream_error": str(candidate.upstream_error or "NO_OUTPUT")[:800],
-                        }
+                        public_reference_failure(
+                            upstream_error=candidate.upstream_error,
+                            output_truncated=candidate.upstream_output_truncated,
+                        )
                     )
             # Before spending another model round, probe author-supplied README
             # or upstream-test literals. These remain candidates (not truth),
@@ -1560,6 +1891,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                         draft_dir=draft_dir,
                         upstream_dir=upstream,
                         python_exe=reference_python,
+                        isolation_required=True,
                     )
                     evidence_probes = len(evidence_rows)
                     for candidate in evidence_batch.candidates:
@@ -1572,11 +1904,10 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                         else:
                             rejected.append(candidate)
                             failed_attempts.append(
-                                {
-                                    "input_name": candidate.input_name,
-                                    "input_text": candidate.input_text[:500],
-                                    "upstream_error": str(candidate.upstream_error or "NO_OUTPUT")[:800],
-                                }
+                                public_reference_failure(
+                                    upstream_error=candidate.upstream_error,
+                                    output_truncated=candidate.upstream_output_truncated,
+                                )
                             )
     except ReferenceEnvironmentError as exc:
         return {
@@ -1633,8 +1964,19 @@ def confirm_candidate_as_example(draft_dir: Path, candidate: dict, *, expected_t
     )
 
     try:
-        c = CandidateExample.model_validate({**candidate, "input_text": input_text})
-        done = confirm_candidate(c, expected_text=expected_text)
+        c = CandidateExample.model_validate(candidate)
+        if input_text != c.input_text or expected_text != c.upstream_output:
+            return {
+                "ok": False,
+                "error": (
+                    "候选输入或钉版上游输出已变化，拒绝把修改后的内容标成上游派生真值。"
+                    "如需自定义样例，请使用手工样例入口并按用户提供的真值处理。"
+                ),
+                "failure_owner": "USER_INPUT",
+                "reason_codes": ["CANDIDATE_TRUTH_BINDING_MISMATCH"],
+                "recommended_action": "恢复候选原值后确认，或改用手工样例入口。",
+            }
+        done = confirm_candidate(c)
     except ExampleProposalError as exc:
         return {"ok": False, "error": str(exc)}
     except Exception as exc:  # noqa: BLE001
@@ -1647,6 +1989,7 @@ def confirm_candidate_as_example(draft_dir: Path, candidate: dict, *, expected_t
         input_bytes=done.input_text.encode("utf-8"),
         expected_name=f"{stem}.expected.txt",
         expected_bytes=(done.upstream_output or "").encode("utf-8"),
+        truth_provenance="UPSTREAM_DERIVED_USER_CONFIRMED",
     )
     if result.get("ok"):
         result["truth_provenance"] = done.truth_provenance()

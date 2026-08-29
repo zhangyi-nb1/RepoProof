@@ -11,6 +11,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import re
+from typing import Literal
+
 from pydantic import BaseModel, model_validator
 
 from repoproof.adoption.assembly.output_contract import (
@@ -21,6 +25,24 @@ from repoproof.domain.models import ToolOutputContract
 from repoproof.verification.output_match import canonical_source
 
 CONTAINS = "contains:"
+UPSTREAM_CONFIRMED = "UPSTREAM_DERIVED_USER_CONFIRMED"
+TruthProvenance = Literal[
+    "UPSTREAM_DERIVED_USER_CONFIRMED",
+    "USER_SUPPLIED",
+    "USER_OVERRIDDEN",
+]
+
+
+def truth_binding_sha256(input_bytes: bytes, expected_bytes: bytes) -> str:
+    """Bind one exact input/output byte pair without ambiguous concatenation."""
+
+    digest = hashlib.sha256()
+    digest.update(b"repoproof-example-truth-binding-v1\0")
+    for label, payload in ((b"input", input_bytes), (b"expected", expected_bytes)):
+        digest.update(label + b"\0")
+        digest.update(len(payload).to_bytes(8, "big"))
+        digest.update(payload)
+    return digest.hexdigest()
 
 
 class Example(BaseModel):
@@ -36,6 +58,10 @@ class Example(BaseModel):
     input_file: str | None = None
     expected: str | None = None
     expected_file: str | None = None
+    # Optional for historical examples. New Studio writes always distinguish
+    # upstream-derived candidate truth from manually supplied truth.
+    truth_provenance: TruthProvenance | None = None
+    truth_binding_sha256: str | None = None
 
     @model_validator(mode="after")
     def _exactly_one_each(self) -> Example:
@@ -43,6 +69,12 @@ class Example(BaseModel):
             raise ValueError("input 与 input_file 必须恰好给一个")
         if (self.expected is None) == (self.expected_file is None):
             raise ValueError("expected 与 expected_file 必须恰好给一个")
+        if self.truth_provenance == UPSTREAM_CONFIRMED:
+            if (
+                self.truth_binding_sha256 is None
+                or re.fullmatch(r"[0-9a-f]{64}", self.truth_binding_sha256) is None
+            ):
+                raise ValueError("上游派生样例必须携带小写 SHA-256 输入/输出绑定")
         return self
 
 

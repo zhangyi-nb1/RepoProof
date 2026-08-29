@@ -74,6 +74,8 @@ _SERVICE_EXPECTATIONS = (
     ("read_repo_overview", ()),
     ("summarize_repo_overview", ("capability_goal",)),
     ("propose_example_candidates", ()),
+    ("propose_audit_candidates", ("dest_root", "expected_task_id", "n", "offline")),
+    ("start_tool_audit", ("expected_task_id",)),
     ("save_draft_review", ("distribution", "import_module", "license_id", "reference_lock")),
 )
 _STALE_GAPS = [g for g in (_service_gap(n, *ps) for n, ps in _SERVICE_EXPECTATIONS) if g]
@@ -120,6 +122,32 @@ def _journey_stage(snapshot: dict) -> int:
     }.get(phase, 1)
 
 
+def _adoptable_requirement_briefs(summary_result: dict) -> list[dict[str, str]]:
+    """Return a complete, plain-language 2–3 brief set or fail closed.
+
+    Model prose is useful for helping a non-expert articulate an intent, but it
+    must not smuggle implementation details into the one-click adoption path.
+    A malformed or technical set is therefore still visible through the normal
+    summary, while *none* of its briefs becomes adoptable.
+    """
+
+    from repoproof.adoption.intake.tool_drafter import (
+        DraftError,
+        validate_repo_summary_document,
+    )
+
+    document = {
+        "summary": summary_result.get("summary"),
+        "requirement_briefs": summary_result.get("requirement_briefs"),
+        "recommended_brief_id": summary_result.get("recommended_brief_id"),
+    }
+    try:
+        validated = validate_repo_summary_document(document)
+    except DraftError:
+        return []
+    return list(validated["requirement_briefs"])
+
+
 def _start_new_journey() -> None:
     section_intro(
         "创建一项受管任务",
@@ -143,14 +171,35 @@ def _start_new_journey() -> None:
         placeholder="v1.2.3 或完整 commit",
         key="rp_journey_revision",
     )
+    analysis_signature = hashlib.sha256(f"{repo.strip()}\n{revision.strip()}".encode()).hexdigest()
+    pending_adoption = st.session_state.pop("rp_pending_capability_adoption", None)
+    if isinstance(pending_adoption, dict):
+        pending_text = str(pending_adoption.get("text") or "").strip()
+        if pending_adoption.get("signature") == analysis_signature and pending_text:
+            # The capability widget has not been instantiated in this run yet,
+            # so this is the one safe place to update its keyed value.
+            st.session_state["rp_journey_capability"] = pending_text
+            st.session_state["rp_capability_adoption_flash"] = {
+                "ok": True,
+                "message": "已把模型建议放入需求框；你仍可继续用自己的话修改，再决定是否创建任务。",
+            }
+        else:
+            st.session_state["rp_capability_adoption_flash"] = {
+                "ok": False,
+                "message": "仓库或版本已经变化，旧建议没有被采用。请重新分析当前仓库。",
+            }
     capability = st.text_area(
         "希望落地的单一能力",
         placeholder="先写你的目标；模型会结合仓库入口帮你发现缺失的输入、输出和边界。",
         height=120,
         key="rp_journey_capability",
     )
+    adoption_flash = st.session_state.pop("rp_capability_adoption_flash", None)
+    if isinstance(adoption_flash, dict):
+        (st.success if adoption_flash.get("ok") else st.warning)(
+            str(adoption_flash.get("message") or "需求描述已更新。")
+        )
 
-    analysis_signature = hashlib.sha256(f"{repo.strip()}\n{revision.strip()}".encode()).hexdigest()
     analyze_col, static_col = st.columns(2)
     analyze_clicked = analyze_col.button(
         "让 LLM 分析仓库和这项能力",
@@ -201,7 +250,37 @@ def _start_new_journey() -> None:
                 summary_result = analysis.get("summary") or {}
                 if summary_result.get("ok"):
                     st.info(f"**LLM 分析（{summary_result.get('drafter')}）**\n\n{summary_result.get('summary')}")
-                    st.caption("模型只能依据下方仓库证据提出分析与措辞建议；它不会自动改写能力目标，也不参与最终判定。")
+                    briefs = _adoptable_requirement_briefs(summary_result)
+                    if briefs:
+                        recommended = str(summary_result.get("recommended_brief_id") or "")
+                        st.markdown("**适合这个仓库的需求表达**")
+                        st.caption(
+                            "以下是模型建议，尚未验证。采用只会回填上方需求框，不会创建任务、生成草稿或冻结合同。"
+                        )
+                        for index, brief in enumerate(briefs):
+                            with st.container(border=True):
+                                is_recommended = brief["brief_id"] == recommended
+                                title = brief["title"] + (" · 推荐" if is_recommended else "")
+                                st.write(title)
+                                st.write(brief["text"])
+                                st.caption(brief["reason"])
+                                brief_key = hashlib.sha256(
+                                    f"{brief['brief_id']}:{index}".encode()
+                                ).hexdigest()[:12]
+                                label = "采用推荐描述" if is_recommended else "采用这个描述"
+                                if st.button(label, key=f"rp_adopt_brief_{brief_key}"):
+                                    st.session_state["rp_pending_capability_adoption"] = {
+                                        "signature": analysis_signature,
+                                        "brief_id": brief["brief_id"],
+                                        "text": brief["text"],
+                                    }
+                                    st.rerun()
+                        if st.button("保留原想法", key="rp_keep_original_capability"):
+                            st.info("已保留你原来的需求描述；你仍可参考模型建议自行修改。")
+                    elif summary_result.get("requirement_briefs"):
+                        st.caption("模型建议包含不完整或过于技术化的内容，因此只展示摘要，不提供一键采用。")
+                    else:
+                        st.caption("模型只能依据下方仓库证据提出分析与措辞建议；它不会自动改写能力目标，也不参与最终判定。")
                 elif summary_result:
                     st.error(summary_result.get("error") or "模型分析失败。")
                 surfaces = list(overview.get("surfaces") or [])[:12]
@@ -567,18 +646,23 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
                 )
                 candidate_input, candidate_output = st.columns(2)
                 input_text = candidate_input.text_area(
-                    "输入（可修改）",
+                    "模型候选输入（只读）",
                     value=str(candidate.get("input_text") or ""),
                     height=120,
                     key=f"{prefix}_candidate_input_{generation}_{index}",
+                    disabled=True,
                 )
                 output_text = candidate_output.text_area(
-                    "固定上游实际输出（修改后以你的确认为准）",
+                    "钉版上游实际输出（只读）",
                     value=str(candidate.get("upstream_output") or ""),
                     height=120,
                     key=f"{prefix}_candidate_output_{generation}_{index}",
+                    disabled=True,
                 )
-                st.caption("这不是模型猜测的答案，但它是否表达了你要的能力仍必须由你判断。")
+                st.caption(
+                    "输入与输出保持成对绑定；你只判断它是否表达了所需能力。"
+                    "需要自定义内容时，请使用下方手工样例入口。"
+                )
                 if st.button(
                     "确认这一条并加入样例",
                     key=f"{prefix}_candidate_confirm_{generation}_{index}",
@@ -866,39 +950,166 @@ def _render_journey_card(snapshot: dict) -> None:
 
     if phase == "EXPORTED":
         st.info("历史验证产物已导出。还需一组未参与构建的新鲜输入完成 Fresh audit，才能进入 ACTIVE。")
-        a, b = st.columns(2)
-        fresh_input = a.file_uploader("新鲜输入", key=f"rp_audit_in_{journey['journey_id']}")
-        fresh_expected = b.file_uploader("独立确认的期望输出", key=f"rp_audit_out_{journey['journey_id']}")
-        if (
-            st.button(
-                "运行 Fresh audit",
-                type="primary",
-                disabled=not (fresh_input and fresh_expected),
-                key=f"rp_audit_{journey['journey_id']}",
-            )
-            and fresh_input is not None
-            and fresh_expected is not None
+        audit_prefix = f"rp_main_audit_{journey['journey_id']}"
+        drafter_state = product_jobs.online_drafter_status()
+        st.markdown("#### 让系统给一组新鲜输入")
+        st.caption(
+            "模型只提议一批构建阶段没有见过的输入；期望输出由冻结的参考实现真实调用钉版上游产生。"
+            "它不是被测工具的自述，也不是模型猜出的答案。"
+        )
+        audit_controls = st.columns([1, 1, 2])
+        audit_count = audit_controls[0].number_input(
+            "候选数量",
+            min_value=1,
+            max_value=8,
+            value=4,
+            key=f"{audit_prefix}_count",
+        )
+        audit_offline = audit_controls[1].checkbox(
+            "使用离线模板",
+            value=not bool(drafter_state.get("ready")),
+            key=f"{audit_prefix}_offline",
+            help="默认关闭并使用 LLM；只在网关不可用时用零模型模板检查流程。",
+        )
+        propose_audit = audit_controls[2].button(
+            "让 LLM 生成 Fresh audit 候选",
+            type="primary",
+            disabled=not (audit_offline or bool(drafter_state.get("ready"))),
+            key=f"{audit_prefix}_propose",
+        )
+        candidate_state_key = f"{audit_prefix}_candidates"
+        generation_key = f"{audit_prefix}_generation"
+        if propose_audit and _require_service(
+            "propose_audit_candidates", "dest_root", "expected_task_id", "n", "offline"
         ):
-            files = product_jobs.materialize_audit_files(
-                tool_name,
-                input_name=fresh_input.name,
-                input_bytes=fresh_input.getvalue(),
-                expected_name=fresh_expected.name,
-                expected_bytes=fresh_expected.getvalue(),
-            )
-            if not files.get("ok"):
-                st.error(files.get("error") or "无法保存 Fresh audit 材料。")
-            else:
-                started = product_jobs.start_tool_audit(
+            with st.spinner("LLM 提议新鲜输入 → 冻结参考实现真实运行并生成独立期望输出……"):
+                audit_candidates = product_jobs.propose_audit_candidates(
                     tool_name,
-                    Path(files["input"]),
-                    Path(files["expected"]),
-                    Path(journey["dest_root"]),
-                    journey_id=str(journey["journey_id"]),
+                    dest_root=Path(journey["dest_root"]),
+                    expected_task_id=task_id,
+                    n=int(audit_count),
+                    offline=audit_offline,
                 )
-                (st.success if started.get("ok") else st.error)(started.get("note") or started.get("error"))
-                if started.get("ok"):
-                    st.rerun()
+            if audit_candidates.get("ok"):
+                st.session_state[generation_key] = int(st.session_state.get(generation_key) or 0) + 1
+            audit_candidates["generation"] = int(st.session_state.get(generation_key) or 0)
+            audit_candidates.setdefault("tool_name", tool_name)
+            audit_candidates.setdefault("task_id", task_id)
+            audit_candidates.setdefault("dest_root", str(journey["dest_root"]))
+            st.session_state[candidate_state_key] = audit_candidates
+
+        audit_candidates = st.session_state.get(candidate_state_key) or {}
+        if audit_candidates and (
+            audit_candidates.get("tool_name") != tool_name
+            or audit_candidates.get("task_id") != task_id
+            or audit_candidates.get("dest_root") != str(journey["dest_root"])
+        ):
+            audit_candidates = {}
+        if audit_candidates and not audit_candidates.get("ok"):
+            st.error(audit_candidates.get("error") or "Fresh audit 候选生成失败。")
+            if audit_candidates.get("recommended_action"):
+                st.info(str(audit_candidates["recommended_action"]))
+        elif audit_candidates.get("ok"):
+            candidates = list(audit_candidates.get("candidates") or [])
+            st.caption(f"候选来源：{audit_candidates.get('drafter')} · {audit_candidates.get('note')}")
+            if not candidates:
+                st.warning("这一批输入没有一条能被冻结参考实现接住，请重新生成或改用下方文件回退。")
+            generation = int(audit_candidates.get("generation") or 0)
+            for index, candidate in enumerate(candidates):
+                input_text = str(candidate.get("input_text") or "")
+                expected_text = str(candidate.get("expected") or "")
+                if not input_text or not expected_text:
+                    continue
+                with st.container(border=True):
+                    st.markdown(
+                        f"**新鲜候选 {index + 1} · `{Path(str(candidate.get('input_name') or 'fresh.txt')).name}`**"
+                    )
+                    if candidate.get("why"):
+                        st.caption(str(candidate["why"]))
+                    audit_input_col, audit_expected_col = st.columns(2)
+                    audit_input_col.text_area(
+                        "模型提议的输入",
+                        value=input_text,
+                        height=140,
+                        disabled=True,
+                        key=f"{audit_prefix}_input_{generation}_{index}",
+                    )
+                    audit_expected_col.text_area(
+                        "冻结参考实现的实际输出",
+                        value=expected_text,
+                        height=140,
+                        disabled=True,
+                        key=f"{audit_prefix}_expected_{generation}_{index}",
+                    )
+                    if st.button(
+                        "确认这组输入与参考真值并运行 Fresh audit",
+                        key=f"{audit_prefix}_run_{generation}_{index}",
+                    ):
+                        input_name = Path(str(candidate.get("input_name") or "fresh.txt")).name
+                        files = product_jobs.materialize_audit_files(
+                            tool_name,
+                            input_name=input_name,
+                            input_bytes=input_text.encode("utf-8"),
+                            expected_name=f"{Path(input_name).stem}.expected.txt",
+                            expected_bytes=expected_text.encode("utf-8"),
+                        )
+                        if not files.get("ok"):
+                            st.error(files.get("error") or "无法保存 Fresh audit 材料。")
+                        elif _require_service("start_tool_audit", "expected_task_id"):
+                            started = product_jobs.start_tool_audit(
+                                tool_name,
+                                Path(files["input"]),
+                                Path(files["expected"]),
+                                Path(journey["dest_root"]),
+                                expected_task_id=task_id,
+                                journey_id=str(journey["journey_id"]),
+                            )
+                            (st.success if started.get("ok") else st.error)(
+                                started.get("note") or started.get("error")
+                            )
+                            if started.get("ok"):
+                                st.rerun()
+
+        with st.expander("改用你已经核实的输入与期望文件", expanded=False):
+            st.caption("这是网关不可用或你已有独立真值时的回退；上传不会绕过同一 Fresh audit。")
+            a, b = st.columns(2)
+            fresh_input = a.file_uploader("新鲜输入", key=f"rp_audit_in_{journey['journey_id']}")
+            fresh_expected = b.file_uploader(
+                "独立确认的期望输出",
+                key=f"rp_audit_out_{journey['journey_id']}",
+            )
+            if (
+                st.button(
+                    "用上传文件运行 Fresh audit",
+                    disabled=not (fresh_input and fresh_expected),
+                    key=f"rp_audit_upload_{journey['journey_id']}",
+                )
+                and fresh_input is not None
+                and fresh_expected is not None
+            ):
+                files = product_jobs.materialize_audit_files(
+                    tool_name,
+                    input_name=fresh_input.name,
+                    input_bytes=fresh_input.getvalue(),
+                    expected_name=fresh_expected.name,
+                    expected_bytes=fresh_expected.getvalue(),
+                )
+                if not files.get("ok"):
+                    st.error(files.get("error") or "无法保存 Fresh audit 材料。")
+                elif _require_service("start_tool_audit", "expected_task_id"):
+                    started = product_jobs.start_tool_audit(
+                        tool_name,
+                        Path(files["input"]),
+                        Path(files["expected"]),
+                        Path(journey["dest_root"]),
+                        expected_task_id=task_id,
+                        journey_id=str(journey["journey_id"]),
+                    )
+                    (st.success if started.get("ok") else st.error)(
+                        started.get("note") or started.get("error")
+                    )
+                    if started.get("ok"):
+                        st.rerun()
         return
 
     if phase == "ACTIVE":
@@ -924,12 +1135,12 @@ def _render_primary_journey() -> None:
         selected = top_left.selectbox("最近任务", list(labels), key="rp_journey_picker")
         active = labels[selected]
         st.session_state["rp_active_journey_id"] = active.journey_id
-        if top_right.button("新任务", use_container_width=True):
+        if top_right.button("新任务", width="stretch"):
             st.session_state["rp_new_journey"] = True
             st.rerun()
     else:
         top_left.markdown("### 新的 Product Journey")
-        if journeys and top_right.button("返回最近任务", use_container_width=True):
+        if journeys and top_right.button("返回最近任务", width="stretch"):
             st.session_state["rp_new_journey"] = False
             st.rerun()
 
@@ -942,7 +1153,7 @@ def _render_primary_journey() -> None:
         st.caption("原始路径、ID、JSON、完整日志以及已有 frozen/rehearsed 任务只在这里展示。")
         cards = product_journeys.synthesized_read_only_cards()
         if cards:
-            st.dataframe(cards, hide_index=True, use_container_width=True)
+            st.dataframe(cards, hide_index=True, width="stretch")
         else:
             st.write("没有需要合成展示的旧任务。")
 
@@ -1266,15 +1477,20 @@ with tab_review:
                         )
                         e1, e2 = st.columns(2)
                         _in_text = e1.text_area(
-                            "输入（可改）", value=c["input_text"], height=120, key=f"rp_cand_in_{_generation}_{i}"
+                            "模型候选输入（只读）", value=c["input_text"], height=120,
+                            key=f"rp_cand_in_{_generation}_{i}", disabled=True,
                         )
                         _out_text = e2.text_area(
-                            "上游实际输出（可改；改了以你的为准）",
+                            "钉版上游实际输出（只读）",
                             value=c["upstream_output"],
                             height=120,
                             key=f"rp_cand_out_{_generation}_{i}",
+                            disabled=True,
                         )
-                        st.caption("⚠️ 这是**上游此刻的实际输出，不是对错判定**——它是不是你要的能力，仍然由你判断。")
+                        st.caption(
+                            "输入与上游输出保持成对绑定；它是不是你要的能力，仍由你判断。"
+                            "自定义内容请走手工样例入口。"
+                        )
                         if st.button(
                             "✅ 我确认这一条，加入样例",
                             key=f"rp_cand_ok_{_generation}_{i}",
@@ -1422,7 +1638,7 @@ with tab_review:
                         for s in surfaces
                     ],
                     hide_index=True,
-                    use_container_width=True,
+                    width="stretch",
                 )
             st.caption("路由由确定性规则给出;LLM 建议不能改变支持状态或路线,未确认的计划不会触发任何真实模型。")
             # P1(外部审计 2026-08-25,easter 实例):analyzer 是**表面
@@ -1443,7 +1659,7 @@ with tab_review:
         examples = review_bundle["examples"]
         st.metric("已确认样例", len(examples), help="冻结至少需要三组")
         if examples:
-            st.dataframe(examples, hide_index=True, use_container_width=True)
+            st.dataframe(examples, hide_index=True, width="stretch")
 
         with st.expander("查看原始草稿与缺口清单"):
             st.code(review_bundle["raw_draft"], language="yaml")

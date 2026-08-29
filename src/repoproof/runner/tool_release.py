@@ -52,6 +52,10 @@ class ReleaseLedgerError(RuntimeError):
 class ToolAuditError(RuntimeError):
     """An audit could not safely start (as distinct from an audit failure)."""
 
+    def __init__(self, message: str, *, reason_code: str | None = None) -> None:
+        super().__init__(message)
+        self.reason_code = reason_code
+
 
 @contextmanager
 def release_decision_lock(dest_root: Path):
@@ -539,6 +543,7 @@ def _audit_tool_locked(
     *,
     input_path: Path,
     expected_file: Path,
+    expected_task_id: str | None = None,
     run_build: bool = False,
     timeout: int = 300,
 ) -> dict[str, Any]:
@@ -550,7 +555,46 @@ def _audit_tool_locked(
 
     dest_root = Path(dest_root)
     all_decisions = load_release_decisions(dest_root)  # validate before executing anything
+
+    # A Studio candidate is truth for one frozen task, not for the stable tool
+    # name.  The install lock held by ``audit_tool`` makes this registry check
+    # atomic with package execution: if an upgrade won the lock after candidate
+    # generation, the old candidate cannot activate (or revoke) the new task.
+    # task_id is sufficient here because registration forbids changing a
+    # same-task run/contract identity in place.
+    if expected_task_id is not None:
+        expected_task_id = str(expected_task_id).strip()
+        try:
+            validate_tool_task_id(name, expected_task_id)
+            # Import lazily: tool_registry owns the registry parser and imports
+            # release-state helpers from this module at module initialization.
+            from repoproof.runner.tool_registry import load_registry
+
+            registry = load_registry(dest_root)
+            current_entry = registry["tools"].get(name)
+            current_task_id = (
+                current_entry.get("task_id")
+                if isinstance(current_entry, dict)
+                else None
+            )
+        except (KeyError, OSError, ToolPathError, TypeError, ValueError) as exc:
+            raise ToolAuditError(
+                f"{name}: 无法确认 registry 当前 task，拒绝执行 Fresh audit",
+                reason_code="AUDIT_TASK_IDENTITY_MISMATCH",
+            ) from exc
+        if current_task_id != expected_task_id:
+            raise ToolAuditError(
+                f"{name}: Fresh audit 绑定 {expected_task_id}，但 registry 当前为 "
+                f"{current_task_id or '未登记'}；候选已失效",
+                reason_code="AUDIT_TASK_IDENTITY_MISMATCH",
+            )
+
     tool_dir, manifest, task_id, run_id = _tool_context(dest_root, name)
+    if expected_task_id is not None and task_id != expected_task_id:
+        raise ToolAuditError(
+            f"{name}: registry 与当前 package task identity 不一致，拒绝执行 Fresh audit",
+            reason_code="AUDIT_TASK_IDENTITY_MISMATCH",
+        )
     package_identity = _package_control_identity(tool_dir)
     historical_verdict = (manifest.get("verification") or {}).get("verdict")
     if not is_historical_tool_ready(historical_verdict):
@@ -809,10 +853,16 @@ def audit_tool(
     *,
     input_path: Path,
     expected_file: Path,
+    expected_task_id: str | None = None,
     run_build: bool = False,
     timeout: int = 300,
 ) -> dict[str, Any]:
-    """Serialize the whole audit so a concurrent withdrawal always wins last."""
+    """Serialize audit against withdrawal and package upgrades.
+
+    ``expected_task_id`` binds pre-generated fresh truth to its frozen task.
+    Legacy/manual callers may omit it and explicitly audit whichever task is
+    current, while managed Studio journeys always provide it.
+    """
 
     with tool_install_lock(dest_root):
         with release_decision_lock(dest_root):
@@ -821,6 +871,7 @@ def audit_tool(
                 name,
                 input_path=input_path,
                 expected_file=expected_file,
+                expected_task_id=expected_task_id,
                 run_build=run_build,
                 timeout=timeout,
             )

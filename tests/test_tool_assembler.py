@@ -20,7 +20,10 @@ from pathlib import Path
 
 import pytest
 
-from repoproof.adoption.assembly.example_compiler import CompileError
+from repoproof.adoption.assembly.example_compiler import (
+    CompileError,
+    truth_binding_sha256,
+)
 from repoproof.adoption.assembly.tool_assembler import assemble_tool_task
 from repoproof.domain.models import TaskContract, ToolInterface, ToolInterfaceIO, ToolSpec
 from repoproof.verification.provenance import check_upstream_provenance
@@ -106,6 +109,12 @@ def test_held_out_example_files_only_in_oracle(assembled):
     pub_fix = root / "fixtures" / "tool_skeleton_pdf-table" / "public_tests" / "fixtures"
     assert (pub_fix / "inputs" / "a.pdf").is_file()
     assert not (pub_fix / "inputs" / "c.pdf").exists(), "held-out 样例文件泄进公开区"
+    exported_inputs = (
+        root / "fixtures" / "tool_skeleton_pdf-table" / "public_examples" / "inputs"
+    )
+    assert (exported_inputs / "inputs" / "a.pdf").is_file()
+    assert not (exported_inputs / "inputs" / "c.pdf").exists()
+    assert not (exported_inputs / "expected" / "b.md").exists()
     ora_fix = root / "oracle" / info["task_id"] / "fixtures"
     assert (ora_fix / "inputs" / "c.pdf").is_file()
     pub_reg = root / "fixtures" / "tool_skeleton_pdf-table" / "public_tests"
@@ -173,6 +182,68 @@ def test_refuses_when_no_file_example_or_no_held_out(tmp_path):
             distribution="d", import_module="d", license_id="MIT", tool=_SPEC,
             examples=[{"input": "--help", "expected": "contains:u"}] * 3,
             example_src_dir=src, reference_impl=_REFERENCE_IMPL)
+
+
+def test_upstream_confirmed_example_provenance_is_persisted_and_bound(
+    tmp_path: Path,
+) -> None:
+    src = _make_src(tmp_path)
+    bound = truth_binding_sha256(
+        (src / "inputs" / "b.pdf").read_bytes(),
+        (src / "expected" / "b.md").read_bytes(),
+    )
+    examples = [dict(row) for row in _EXAMPLES]
+    examples[2].update({
+        "truth_provenance": "UPSTREAM_DERIVED_USER_CONFIRMED",
+        "truth_binding_sha256": bound,
+    })
+    good_root = tmp_path / "good"
+    info = assemble_tool_task(
+        good_root,
+        goal="g",
+        repo_url="u",
+        resolved_commit="c",
+        distribution="d",
+        import_module="d",
+        license_id="MIT",
+        tool=_SPEC,
+        examples=examples,
+        example_src_dir=src,
+        reference_impl=_REFERENCE_IMPL,
+    )
+    public_truth = json.loads(
+        (
+            good_root
+            / "fixtures"
+            / "tool_skeleton_pdf-table"
+            / "public_examples"
+            / "truth_table.json"
+        ).read_text(encoding="utf-8")
+    )
+    persisted = next(
+        row
+        for row in public_truth["examples"]
+        if row.get("input_file") == "inputs/b.pdf"
+    )
+    assert persisted["truth_provenance"] == "UPSTREAM_DERIVED_USER_CONFIRMED"
+    assert persisted["truth_binding_sha256"] == bound
+    assert info["task_id"].startswith("tool-pdf-table-v")
+
+    (src / "expected" / "b.md").write_text("tampered", encoding="utf-8")
+    with pytest.raises(CompileError, match="输入/输出绑定已漂移"):
+        assemble_tool_task(
+            tmp_path / "bad",
+            goal="g",
+            repo_url="u",
+            resolved_commit="c",
+            distribution="d",
+            import_module="d",
+            license_id="MIT",
+            tool=_SPEC,
+            examples=examples,
+            example_src_dir=src,
+            reference_impl=_REFERENCE_IMPL,
+        )
 
 
 # ------------------------------------------------- 真跑:五变体红绿落点

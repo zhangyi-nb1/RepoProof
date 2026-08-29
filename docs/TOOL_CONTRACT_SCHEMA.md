@@ -145,6 +145,10 @@ Schema:
   模型分别归一为 `object` / `array` / `json_lines`;
 - `media_type` 必须非空且与根类型同族;JSON 根必须声明 JSON/NDJSON
   media type,`text` 不得声明 JSON media type;
+- 已识别的文本产物标签还必须绑定专用 media type：RIS →
+  `application/x-research-info-systems`、TSV → `text/tab-separated-values`、
+  Markdown → `text/markdown`、HTML → `text/html`、XHTML →
+  `application/xhtml+xml`；不能用 `text/plain` 绕过对应格式解析器;
 - `required` 只校验顶层字段与上述基本类型;`text` / `array`
   根不得声明 `required`;
 - `extra="forbid"` 使未定义的合同键直接失败,避免拼错字段被静默
@@ -183,6 +187,8 @@ D 闸要求 `schema_version == 2`,且 v2 必须有 `output.contract`。
 examples:
   - input_file: fixtures/inputs/simple_table.pdf     # 文件输入(新增,二选一)
     expected_file: fixtures/expected/simple_table.md # 期望全文精确比对(规范化行尾)
+    truth_provenance: UPSTREAM_DERIVED_USER_CONFIRMED
+    truth_binding_sha256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
   - input_file: fixtures/inputs/two_tables.pdf
     expected: "contains:| 姓名 | 金额 |"              # contains: 断言沿用
   - input: "--help"                                  # 字符串输入沿用(直接作 argv)
@@ -190,6 +196,10 @@ examples:
 ```
 
 - `input | input_file` 二选一;`expected | expected_file` 二选一;
+- `truth_provenance` 对历史样例可缺省；Studio 新增样例必须区分
+  `UPSTREAM_DERIVED_USER_CONFIRMED` 与 `USER_SUPPLIED`。上游派生样例还必须
+  保存 `truth_binding_sha256`，装配时按 input/expected 原始字节重算；文件
+  被修改后不得继续冒充上游真值。资格批次的“至少三条”只统计前者;
 - held-out 切分沿用 `split_examples` 现行逻辑,**held-out 样例的
   input/expected 文件一并进 oracle fixtures,绝不进公开区**;
 - 编译目标从"import 包调 `run(value)`"换成 **subprocess 跑 CLI**:
