@@ -116,7 +116,7 @@ def test_human_written_fields_are_never_overwritten(world):
 
 
 def _stub_litellm(monkeypatch, replies: list[str]):
-    calls = {"n": 0}
+    calls = {"n": 0, "kwargs": []}
 
     class _Msg:
         def __init__(self, c): self.content = c
@@ -134,6 +134,7 @@ def _stub_litellm(monkeypatch, replies: list[str]):
     def fake_completion(**kw):
         i = min(calls["n"], len(replies) - 1)
         calls["n"] += 1
+        calls["kwargs"].append(kw)
         return _Resp(replies[i])
 
     monkeypatch.setattr(litellm, "completion", fake_completion)
@@ -176,6 +177,74 @@ def test_litellm_retry_then_parse(monkeypatch, world):
     calls = _stub_litellm(monkeypatch, ["not json at all", _GOOD])
     out = draft_into_bundle(rep, dest, LiteLLMDrafter())
     assert calls["n"] == 2 and "capability.statement" in out["fields_drafted"]
+
+
+def test_litellm_gateway_calls_have_bounded_timeout_and_no_implicit_retries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in (
+        ("REPOPROOF_DRAFTER_MODEL", "m"),
+        ("REPOPROOF_DRAFTER_BASE", "http://gateway.invalid"),
+        ("REPOPROOF_DRAFTER_KEY", "k"),
+        ("REPOPROOF_DRAFTER_TIMEOUT_SECONDS", "17"),
+    ):
+        monkeypatch.setenv(key, value)
+    calls = _stub_litellm(
+        monkeypatch,
+        [json.dumps(_GOOD_REPO_ADVICE, ensure_ascii=False)],
+    )
+
+    LiteLLMDrafter().summarize_repo({"headline": "RIS"})
+
+    assert calls["kwargs"][0]["timeout"] == 17.0
+    assert calls["kwargs"][0]["max_retries"] == 0
+
+
+def test_litellm_timeout_is_classified_without_echoing_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in (
+        ("REPOPROOF_DRAFTER_MODEL", "m"),
+        ("REPOPROOF_DRAFTER_BASE", "http://gateway.invalid"),
+        ("REPOPROOF_DRAFTER_KEY", "k"),
+    ):
+        monkeypatch.setenv(key, value)
+    import litellm
+
+    def timeout(**_kwargs):
+        raise TimeoutError("private gateway /Users/alice/secret timed out")
+
+    monkeypatch.setattr(litellm, "completion", timeout)
+    with pytest.raises(DraftError, match="^DRAFTER_TIMEOUT$") as raised:
+        LiteLLMDrafter().summarize_repo({"headline": "RIS"})
+    assert "/Users" not in str(raised.value)
+
+
+@pytest.mark.parametrize("value", ["abc", "0", "4.9", "181"])
+def test_litellm_rejects_invalid_timeout_before_network(
+    monkeypatch: pytest.MonkeyPatch,
+    value: str,
+) -> None:
+    for key, configured in (
+        ("REPOPROOF_DRAFTER_MODEL", "m"),
+        ("REPOPROOF_DRAFTER_BASE", "http://gateway.invalid"),
+        ("REPOPROOF_DRAFTER_KEY", "k"),
+        ("REPOPROOF_DRAFTER_TIMEOUT_SECONDS", value),
+    ):
+        monkeypatch.setenv(key, configured)
+    import litellm
+
+    called = False
+
+    def should_not_call(**_kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("network should not run")
+
+    monkeypatch.setattr(litellm, "completion", should_not_call)
+    with pytest.raises(DraftError, match="^DRAFTER_TIMEOUT_CONFIG_INVALID$"):
+        LiteLLMDrafter().summarize_repo({"headline": "RIS"})
+    assert called is False
 
 
 def test_litellm_double_garbage_raises(monkeypatch, world):

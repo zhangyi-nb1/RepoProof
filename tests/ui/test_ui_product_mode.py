@@ -57,6 +57,28 @@ def test_repo_summary_receives_the_user_capability_goal(monkeypatch: pytest.Monk
     assert result["recommended_brief_id"] == ""
 
 
+def test_repo_summary_timeout_is_structured_and_does_not_create_agent_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _TimeoutDrafter:
+        name = "gateway-test"
+
+        def summarize_repo(self, _context: dict) -> dict:
+            raise tool_drafter.DraftError("DRAFTER_TIMEOUT")
+
+    monkeypatch.setattr(tool_drafter, "online_drafter", lambda: _TimeoutDrafter())
+    result = product_jobs.summarize_repo_overview(
+        {"repository": "https://github.com/example/demo"},
+        offline=False,
+        capability_goal="整理资料",
+    )
+
+    assert result["ok"] is False
+    assert result["failure_owner"] == "EXTERNAL"
+    assert result["reason_codes"] == ["DRAFTER_TIMEOUT"]
+    assert "没有创建 Journey" in result["recommended_action"]
+
+
 def test_repo_summary_projects_structured_requirement_briefs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

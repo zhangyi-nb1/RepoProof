@@ -1584,6 +1584,22 @@ def summarize_repo_overview(
         # Keep their display path alive, but never synthesize an adoptable brief.
         doc = validate_repo_summary_document(doc, allow_legacy=True)
     except DraftError as exc:
+        code = str(exc).split(":", 1)[0]
+        if code in {
+            "DRAFTER_TIMEOUT",
+            "DRAFTER_CONNECTIVITY_ERROR",
+            "DRAFTER_TIMEOUT_CONFIG_INVALID",
+        }:
+            return {
+                "ok": False,
+                "error": _provider_hint(code),
+                "failure_owner": "EXTERNAL" if code != "DRAFTER_TIMEOUT_CONFIG_INVALID" else "HARNESS",
+                "reason_codes": [code],
+                "recommended_action": (
+                    "检查默认 API 网关连通性后重试；本次没有创建 Journey，"
+                    "也不消耗 Agent repair 轮次。"
+                ),
+            }
         return {"ok": False, "error": _provider_hint(str(exc))}
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "error": f"模型摘要失败:{exc}"}

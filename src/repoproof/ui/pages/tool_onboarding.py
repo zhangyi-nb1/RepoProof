@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import inspect
 import json
+import os
 import uuid
 from pathlib import Path
 from typing import Literal
@@ -283,6 +284,8 @@ def _start_new_journey() -> None:
                         st.caption("模型只能依据下方仓库证据提出分析与措辞建议；它不会自动改写能力目标，也不参与最终判定。")
                 elif summary_result:
                     st.error(summary_result.get("error") or "模型分析失败。")
+                    if summary_result.get("recommended_action"):
+                        st.caption(summary_result["recommended_action"])
                 surfaces = list(overview.get("surfaces") or [])[:12]
                 if surfaces:
                     st.markdown("**静态扫描到的公开入口**")
@@ -305,12 +308,25 @@ def _start_new_journey() -> None:
                 if analyzed_goal and analyzed_goal != capability.strip():
                     st.caption("能力描述已在分析后修改；需要时请重新点击 LLM 分析。")
 
+    preferred_backend = os.environ.get(
+        "REPOPROOF_DEFAULT_AGENT_BACKEND", "mini-swe"
+    ).strip().lower()
+    codex_is_default = preferred_backend in {"codex", "codex-cli", "subscription"}
+    backend_options = [
+        "mini-swe（API 网关）",
+        "Codex CLI（ChatGPT 订阅）",
+    ]
     backend_label = st.radio(
         "真实构建 Agent",
-        ["mini-swe（API 网关，默认）", "Codex CLI（订阅回退）"],
+        backend_options,
+        index=1 if codex_is_default else 0,
         horizontal=True,
         key="rp_journey_agent_backend",
-        help="这只影响真实构建；网关是默认通道，Codex CLI 仅用于显式故障回退。",
+        help=(
+            "这只影响真实构建。当前启动配置默认使用 "
+            f"{'Codex CLI' if codex_is_default else 'mini-swe'}；"
+            "RepoProof 的合同、repair、独立验证和发布门保持不变。"
+        ),
     )
     submitted = st.button("创建任务并生成草稿", type="primary")
     if not submitted:
@@ -1668,9 +1684,13 @@ with tab_review:
 
 with tab_build:
     section_intro("先彩排，再决定是否启动真实 Agent", "彩排门失败不会消耗真实模型预算；成功后仍需独立验证和干净重放。")
+    _preferred_backend = os.environ.get(
+        "REPOPROOF_DEFAULT_AGENT_BACKEND", "mini-swe"
+    ).strip().lower()
+    _codex_is_default = _preferred_backend in {"codex", "codex-cli", "subscription"}
     st.caption(
-        "产品默认 Agent backend：mini-swe（API 网关）；"
-        "Codex CLI（ChatGPT 订阅）保留为显式故障回退。"
+        "当前启动配置默认 Agent backend："
+        f"{'Codex CLI（ChatGPT 订阅）' if _codex_is_default else 'mini-swe（API 网关）'}。"
         "DSH 属于冻结的 Benchmark Lab 研究线，"
         "不进入 Studio 产品构建。"
     )
@@ -1685,7 +1705,8 @@ with tab_build:
     rehearsal_only = st.toggle("只运行离线彩排", value=True)
     backend_label = st.selectbox(
         "真实构建 Agent",
-        options=["mini-swe（API 网关，默认）", "Codex CLI（ChatGPT 订阅回退）"],
+        options=["mini-swe（API 网关）", "Codex CLI（ChatGPT 订阅）"],
+        index=1 if _codex_is_default else 0,
         disabled=rehearsal_only,
         help=(
             "离线彩排不调用模型。mini-swe 使用项目配置的 API 网关；"

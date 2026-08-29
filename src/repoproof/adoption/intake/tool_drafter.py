@@ -114,6 +114,10 @@ _CODEX_DRAFT_SYSTEM = (
     )
 )
 
+_DEFAULT_DRAFTER_TIMEOUT_SECONDS = 60.0
+_MIN_DRAFTER_TIMEOUT_SECONDS = 5.0
+_MAX_DRAFTER_TIMEOUT_SECONDS = 180.0
+
 
 def _with_provider(model: str) -> str:
     """给自定义模型名补 `openai/` 前缀 —— 与产线(host_guided)同一口径。
@@ -122,6 +126,35 @@ def _with_provider(model: str) -> str:
     """
     m = (model or "").strip()
     return m if (not m or "/" in m) else f"openai/{m}"
+
+
+def _drafter_timeout_seconds() -> float:
+    """Bound every gateway request; invalid configuration fails before I/O."""
+
+    raw = os.environ.get("REPOPROOF_DRAFTER_TIMEOUT_SECONDS", "").strip()
+    if not raw:
+        return _DEFAULT_DRAFTER_TIMEOUT_SECONDS
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise DraftError("DRAFTER_TIMEOUT_CONFIG_INVALID") from exc
+    if not _MIN_DRAFTER_TIMEOUT_SECONDS <= value <= _MAX_DRAFTER_TIMEOUT_SECONDS:
+        raise DraftError("DRAFTER_TIMEOUT_CONFIG_INVALID")
+    return value
+
+
+def _raise_public_transport_error(exc: Exception) -> None:
+    """Classify gateway transport failures without echoing private diagnostics."""
+
+    kind = type(exc).__name__.lower()
+    message = str(exc).lower()
+    if "timeout" in kind or "timed out" in message or "timeout" in message:
+        raise DraftError("DRAFTER_TIMEOUT") from exc
+    if any(token in kind or token in message for token in (
+        "connection", "connecterror", "network", "unreachable",
+    )):
+        raise DraftError("DRAFTER_CONNECTIVITY_ERROR") from exc
+    raise exc
 
 
 def _completion_with_temperature_fallback(litellm, **kwargs):
@@ -138,12 +171,20 @@ def _completion_with_temperature_fallback(litellm, **kwargs):
     的参数静默丢掉,以后哪个参数被吃掉都查不出来)。这里只针对
     temperature 这一个参数、只在明确报不支持时降级,并把降级事实记下来。
     """
+    kwargs.setdefault("timeout", _drafter_timeout_seconds())
+    # Network retry is a Harness decision, not a provider-library side effect.
+    # JSON-shape repair remains the explicit one-retry loop in each drafter method.
+    kwargs.setdefault("max_retries", 0)
     try:
         return litellm.completion(temperature=0, **kwargs), False
-    except Exception as exc:                      # noqa: BLE001 — 只挑这一种
+    except Exception as exc:                      # noqa: BLE001 — 分类后再决定
         if "temperature" not in str(exc).lower():
-            raise
-        return litellm.completion(**kwargs), True
+            _raise_public_transport_error(exc)
+        try:
+            return litellm.completion(**kwargs), True
+        except Exception as retry_exc:            # noqa: BLE001
+            _raise_public_transport_error(retry_exc)
+    raise DraftError("DRAFTER_UNREACHABLE")
 
 
 class DraftError(RuntimeError):

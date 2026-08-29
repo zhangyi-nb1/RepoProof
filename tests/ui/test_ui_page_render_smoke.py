@@ -270,7 +270,38 @@ def test_primary_journey_has_no_raw_draft_path_dead_end(
     assert any("LLM 分析仓库和这项能力" in button.label for button in at.button)
     assert any(button.label == "创建任务并生成草稿" for button in at.button)
     backend = next(radio for radio in at.radio if radio.label == "真实构建 Agent")
-    assert backend.value.startswith("mini-swe（API 网关")
+    assert backend.value == "mini-swe（API 网关）"
+
+
+def test_primary_journey_uses_codex_as_the_configured_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_jobs, product_journeys
+
+    state = tmp_path / "state"
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+    monkeypatch.setenv("REPOPROOF_DEFAULT_AGENT_BACKEND", "codex-cli")
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_journeys, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(
+        product_jobs,
+        "online_drafter_status",
+        lambda: {
+            "ready": True,
+            "backend": "codex-cli",
+            "label": "Codex CLI 已登录 · test-model",
+        },
+    )
+
+    at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=60).run()
+
+    assert not [str(e.value) for e in at.exception]
+    backend = next(radio for radio in at.radio if radio.label == "真实构建 Agent")
+    assert backend.value == "Codex CLI（ChatGPT 订阅）"
 
 
 def test_primary_journey_renders_llm_repo_analysis(

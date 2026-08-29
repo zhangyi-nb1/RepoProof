@@ -5,6 +5,7 @@
 set -e
 cd "$(dirname "$0")/.."
 export REPOPROOF_DRAFTER_BACKEND=codex-cli
+export REPOPROOF_DEFAULT_AGENT_BACKEND=codex-cli
 exec .venv/bin/streamlit run src/repoproof/ui/app.py \
   --server.address 127.0.0.1 \
   --server.port 8501 \
