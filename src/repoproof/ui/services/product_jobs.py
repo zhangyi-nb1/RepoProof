@@ -1562,6 +1562,7 @@ def summarize_repo_overview(
     capability_goal: str = "",
 ) -> dict:
     """可选的模型摘要/能力分析。产物**只进展示层**,与事实分开标注。"""
+    from repoproof.adoption.delivery.product_profile import CLI_V2_PROFILE_ID
     from repoproof.adoption.intake.tool_drafter import (
         DraftError,
         FakeDrafter,
@@ -1582,7 +1583,9 @@ def summarize_repo_overview(
         )
         # Summary-only stubs and persisted fixtures predate structured advice.
         # Keep their display path alive, but never synthesize an adoptable brief.
-        doc = validate_repo_summary_document(doc, allow_legacy=True)
+        doc = validate_repo_summary_document(
+            doc, allow_legacy=True, allow_projected=True
+        )
     except DraftError as exc:
         code = str(exc).split(":", 1)[0]
         if code in {
@@ -1608,6 +1611,7 @@ def summarize_repo_overview(
         "summary": str(doc.get("summary") or ""),
         "requirement_briefs": list(doc.get("requirement_briefs") or []),
         "recommended_brief_id": str(doc.get("recommended_brief_id") or ""),
+        "delivery_profile": CLI_V2_PROFILE_ID,
         "drafter": getattr(drafter, "name", "unknown"),
     }
 

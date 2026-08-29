@@ -21,6 +21,7 @@ from repoproof.adoption.intake.tool_confirm import (
     write_draft_bundle,
 )
 from repoproof.adoption.intake.tool_drafter import (
+    _REQUIREMENT_BRIEF_SCHEMA,
     _SYSTEM,
     DraftError,
     FakeDrafter,
@@ -32,9 +33,10 @@ from repoproof.adoption.intake.tool_intake import run_tool_intake
 
 
 def test_draft_prompt_distinguishes_html_and_xhtml_media_types() -> None:
-    assert "HTML uses text/html" in _SYSTEM
-    assert "XHTML uses application/xhtml+xml" in _SYSTEM
-    assert "XHTML/HTML uses text/html" not in _SYSTEM
+    assert "delivery_requirements" in _SYSTEM
+    assert "product_support_profile" in _SYSTEM
+    assert "media type" in _SYSTEM
+    assert "HTML uses text/html" not in _SYSTEM
 
 
 def _mini_repo(tmp: Path) -> Path:
@@ -141,10 +143,25 @@ def _stub_litellm(monkeypatch, replies: list[str]):
     return calls
 
 
-_GOOD = json.dumps({"summary": "s", "input_format": "TXT",
-                    "output_format": "TXT", "output_schema": "Out",
-                    "output_contract": {"media_type": "text/plain",
-                                        "root_type": "text", "required": {}},
+def _delivery(input_format: str, output_format_id: str) -> dict:
+    return {
+        "inputs": [{
+            "kind": "file", "location": "local",
+            "format_label": input_format, "role": "待处理内容",
+        }],
+        "outputs": [{
+            "kind": "text_artifact", "format_id": output_format_id,
+            "format_label": output_format_id, "role": "用户产物",
+        }],
+        "network": "offline",
+        "credentials": "none",
+        "lifecycle": "per_invocation",
+        "runtime": "local_cpu",
+    }
+
+
+_GOOD = json.dumps({"summary": "s", "delivery_requirements": _delivery("TXT", "plain_text"),
+                    "output_required_fields": [], "output_schema": "Out",
                     "statement": "题面", "reference_impl": "import acme_lib\n",
                     "example_suggestions": []})
 
@@ -154,13 +171,17 @@ _GOOD_REPO_ADVICE = {
         {
             "brief_id": "clean-ris",
             "title": "整理文献记录",
-            "text": "把一份 RIS 文献记录整理成仍可导入文献软件的文件，不联网补资料。",
+            "scenario": "把不同来源的文献记录整理后继续使用。",
+            "delivery_requirements": _delivery("RIS", "ris"),
+            "boundary": "不补充外部书目信息",
             "reason": "仓库说明提到可以读取和写出 RIS 文献记录。",
         },
         {
             "brief_id": "review-table",
             "title": "生成检查表",
-            "text": "把文献记录整理成 CSV 表格，方便查看缺失内容。",
+            "scenario": "把文献记录整理后查看缺失内容。",
+            "delivery_requirements": _delivery("RIS", "csv"),
+            "boundary": "无法判断的字段保持原样",
             "reason": "仓库说明展示了读取记录并查看字段的用法。",
         },
     ],
@@ -268,7 +289,8 @@ def test_litellm_repo_advice_is_strict_json_and_repairs_once(monkeypatch):
         ["not json", json.dumps(_GOOD_REPO_ADVICE, ensure_ascii=False)],
     )
 
-    assert LiteLLMDrafter().summarize_repo({"headline": "RIS tools"}) == _GOOD_REPO_ADVICE
+    result = LiteLLMDrafter().summarize_repo({"headline": "RIS tools"})
+    assert result == validate_repo_summary_document(_GOOD_REPO_ADVICE)
     assert calls["n"] == 2
 
 
@@ -308,35 +330,56 @@ def test_repo_advice_rejects_engineering_language_but_allows_user_formats(
     unsafe_text: str,
 ) -> None:
     unsafe = json.loads(json.dumps(_GOOD_REPO_ADVICE))
-    unsafe["requirement_briefs"][0]["text"] = unsafe_text
+    unsafe["requirement_briefs"][0]["boundary"] = unsafe_text
     with pytest.raises(DraftError, match="ENGINEERING_LANGUAGE"):
         validate_repo_summary_document(unsafe)
 
     safe = json.loads(json.dumps(_GOOD_REPO_ADVICE))
-    safe["requirement_briefs"][0]["text"] = (
-        "把 FASTQ 文件整理成一个本地能直接打开的 HTML 报告，不联网补资料。"
-    )
+    safe["requirement_briefs"][0]["delivery_requirements"] = _delivery("FASTQ", "html")
+    safe["requirement_briefs"][0]["boundary"] = "只使用文件里已有的数据"
     assert validate_repo_summary_document(safe)["recommended_brief_id"] == "clean-ris"
 
 
-@pytest.mark.parametrize(
-    "unsupported_text",
-    [
-        "生成一份可导回 Zotero 的 RIS 文件，同时附带重复项处理报告。",
-        "把记录整理成 RIS 文件，另外生成一份核对清单。",
-        "把关系数据做成 Markdown 摘要，并且还输出一个 CSV 表格。",
-        "把实验记录导出成 PDF 报告。",
-        "联网查询 DOI 并生成 RIS 文件。",
-    ],
-)
-def test_repo_advice_rejects_product_shapes_the_current_runtime_cannot_deliver(
-    unsupported_text: str,
-) -> None:
-    advice = json.loads(json.dumps(_GOOD_REPO_ADVICE))
-    advice["requirement_briefs"][0]["text"] = unsupported_text
+def test_repo_advice_shape_is_compiled_from_profile_not_model_prose() -> None:
+    assert "text" not in _REQUIREMENT_BRIEF_SCHEMA["properties"]
+    delivery_schema = _REQUIREMENT_BRIEF_SCHEMA["properties"]["delivery_requirements"]
+    assert delivery_schema["properties"]["outputs"]["type"] == "array"
 
-    with pytest.raises(DraftError, match="UNSUPPORTED_PRODUCT_SHAPE"):
+    advice = json.loads(json.dumps(_GOOD_REPO_ADVICE))
+    projected = validate_repo_summary_document(advice)
+    brief = projected["requirement_briefs"][0]
+
+    assert brief["delivery_shape"] == {
+        "profile_id": "cli_v2",
+        "input_kind": "file",
+        "input_cardinality": 1,
+        "output_kind": "stdout",
+        "output_cardinality": 1,
+        "output_format_id": "ris",
+        "output_extension": ".ris",
+        "output_media_type": "application/x-research-info-systems",
+        "network": "offline",
+        "lifecycle": "per_invocation",
+    }
+    assert "输出一份RIS 文献文件（.ris）" in brief["text"]
+
+
+def test_repo_advice_cannot_invent_an_output_outside_the_profile() -> None:
+    advice = json.loads(json.dumps(_GOOD_REPO_ADVICE))
+    advice["requirement_briefs"][0]["delivery_requirements"]["outputs"][0][
+        "format_id"
+    ] = "pdf"
+
+    with pytest.raises(DraftError, match="OUTPUT_FORMAT_NOT_IN_PROFILE"):
         validate_repo_summary_document(advice)
+
+
+def test_projected_repo_advice_cannot_override_machine_owned_shape() -> None:
+    projected = validate_repo_summary_document(_GOOD_REPO_ADVICE)
+    projected["requirement_briefs"][0]["delivery_shape"]["output_cardinality"] = 2
+
+    with pytest.raises(DraftError, match="PROJECTED_FIELDS_MISMATCH"):
+        validate_repo_summary_document(projected, allow_projected=True)
 
 
 def test_repo_advice_may_quote_public_api_evidence_outside_adopted_text() -> None:
@@ -347,7 +390,8 @@ def test_repo_advice_may_quote_public_api_evidence_outside_adopted_text() -> Non
         "README shows load() and src/rispy/parser.py as public evidence."
     )
     validated = validate_repo_summary_document(advice)
-    assert validated["requirement_briefs"][0]["text"] == _GOOD_REPO_ADVICE[
+    expected = validate_repo_summary_document(_GOOD_REPO_ADVICE)
+    assert validated["requirement_briefs"][0]["text"] == expected[
         "requirement_briefs"
     ][0]["text"]
 

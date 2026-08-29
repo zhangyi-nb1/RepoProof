@@ -177,6 +177,10 @@ def test_intake_draft_fills_deterministic_fields(tmp_path):
     assert d["tool"]["name"] == "acme-lib-tool"   # 避撞:acme_lib==import 名
     assert d["tool"]["schema_version"] == 2
     assert d["tool"]["interface"]["output"]["contract"] == {}
+    assert d["_delivery_profile"] == {
+        "schema_version": 1,
+        "profile_id": "cli_v2",
+    }
     assert d["tool"]["interface"]["exit_codes"] == {
         "0": "success", "1": "user_error", "2": "internal_error"}
     assert d["_draft"]["status"] == "DRAFT"

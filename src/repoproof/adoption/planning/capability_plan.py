@@ -24,9 +24,10 @@ from pydantic import BaseModel, Field
 
 from repoproof.adoption.admission.support_policy import PolicyResult
 from repoproof.adoption.analysis.repository_analyzer import RepositoryReport
+from repoproof.adoption.delivery.product_profile import CLI_V2_PROFILE_ID
 
 SCHEMA_VERSION = 1
-DELIVERY_PROFILE = "cli_v2"
+DELIVERY_PROFILE = CLI_V2_PROFILE_ID
 
 Confidence = Literal["HIGH", "MEDIUM", "LOW"]
 SupportStatus = Literal["SUPPORTED", "REVIEW_REQUIRED", "UNSUPPORTED", "EXPERIMENTAL"]

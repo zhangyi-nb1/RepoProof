@@ -59,7 +59,7 @@ def _complete(dest: Path) -> None:
     draft = yaml.safe_load((dest / "draft.yaml").read_text(encoding="utf-8"))
     draft["tool"]["summary"] = "文本大写工具"
     draft["tool"]["interface"]["input"]["format"] = "TXT"
-    draft["tool"]["interface"]["output"]["format"] = "TXT"
+    draft["tool"]["interface"]["output"]["format"] = "plain text"
     draft["tool"]["interface"]["output"]["contract"] = {
         "media_type": "text/plain", "root_type": "text", "required": {}}
     draft["capability"]["statement"] = (
@@ -138,6 +138,33 @@ def test_new_draft_cannot_downgrade_to_v1_to_bypass_output_gate(draft_bundle):
     draft["tool"].pop("schema_version")
     problems = check_draft_complete(draft, dest)
     assert any("schema_version" in p for p in problems), problems
+
+
+def test_new_draft_requires_a_known_delivery_profile(draft_bundle):
+    _, _rep, dest = draft_bundle
+    _complete(dest)
+    draft = yaml.safe_load((dest / "draft.yaml").read_text(encoding="utf-8"))
+    draft["_delivery_profile"]["profile_id"] = "unknown-profile"
+
+    problems = check_draft_complete(draft, dest)
+
+    assert any("_delivery_profile 非法" in p for p in problems), problems
+
+
+def test_final_editable_interface_is_rechecked_against_delivery_profile(draft_bundle):
+    _, _rep, dest = draft_bundle
+    _complete(dest)
+    draft = yaml.safe_load((dest / "draft.yaml").read_text(encoding="utf-8"))
+    draft["tool"]["interface"]["output"]["format"] = "custom binary"
+    draft["tool"]["interface"]["output"]["contract"] = {
+        "media_type": "application/octet-stream",
+        "root_type": "text",
+        "required": {},
+    }
+
+    problems = check_draft_complete(draft, dest)
+
+    assert any("交付接口超出声明支持面" in p for p in problems), problems
 
 
 def test_reference_accepts_from_upstream_import(draft_bundle):

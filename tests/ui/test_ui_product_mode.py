@@ -82,6 +82,20 @@ def test_repo_summary_timeout_is_structured_and_does_not_create_agent_work(
 def test_repo_summary_projects_structured_requirement_briefs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    def delivery(output_format_id: str) -> dict:
+        return {
+            "inputs": [{
+                "kind": "file", "location": "local",
+                "format_label": "RIS", "role": "待整理文献",
+            }],
+            "outputs": [{
+                "kind": "text_artifact", "format_id": output_format_id,
+                "format_label": output_format_id, "role": "整理结果",
+            }],
+            "network": "offline", "credentials": "none",
+            "lifecycle": "per_invocation", "runtime": "local_cpu",
+        }
+
     class _Drafter:
         name = "gateway-test"
 
@@ -92,13 +106,17 @@ def test_repo_summary_projects_structured_requirement_briefs(
                     {
                         "brief_id": "ris",
                         "title": "整理文献",
-                        "text": "把 RIS 文献记录整理成仍可导入的软件文件，不联网补资料。",
+                        "scenario": "把文献记录整理后继续使用。",
+                        "delivery_requirements": delivery("ris"),
+                        "boundary": "不补充外部书目信息",
                         "reason": "仓库说明支持读取和写出 RIS。",
                     },
                     {
                         "brief_id": "table",
                         "title": "生成检查表",
-                        "text": "把文献记录整理成 CSV 表格，方便检查缺失内容。",
+                        "scenario": "检查文献记录里的缺失内容。",
+                        "delivery_requirements": delivery("csv"),
+                        "boundary": "无法判断的字段保持原样",
                         "reason": "仓库说明可以读取文献字段。",
                     },
                 ],
@@ -115,6 +133,7 @@ def test_repo_summary_projects_structured_requirement_briefs(
     assert result["ok"]
     assert result["recommended_brief_id"] == "ris"
     assert [brief["brief_id"] for brief in result["requirement_briefs"]] == ["ris", "table"]
+    assert result["requirement_briefs"][0]["delivery_shape"]["output_cardinality"] == 1
 
 
 def _tool_world(root: Path) -> Path:

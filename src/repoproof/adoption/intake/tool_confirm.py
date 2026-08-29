@@ -24,6 +24,10 @@ from pydantic import ValidationError
 from repoproof.adoption.assembly.example_compiler import CompileError
 from repoproof.adoption.assembly.output_contract import output_contract_matches_format
 from repoproof.adoption.assembly.tool_assembler import assemble_tool_task
+from repoproof.adoption.delivery.product_profile import (
+    ProductProfileError,
+    product_delivery_profile,
+)
 from repoproof.adoption.intake.upstream_pin import derive_reference_lock
 from repoproof.domain.models import TaskContract, ToolOutputContract, ToolSpec
 from repoproof.harness.contract_adequacy import evaluate_adequacy
@@ -120,6 +124,15 @@ def check_draft_complete(draft: dict, draft_dir: Path) -> list[str]:
         if empty:
             problems.append(f"D:{path} 为空 —— 见 GAPS.md 对应缺口")
 
+    delivery = draft.get("_delivery_profile") or {}
+    profile = None
+    if delivery.get("schema_version") != 1:
+        problems.append("D:_delivery_profile.schema_version 必须为 1")
+    try:
+        profile = product_delivery_profile(str(delivery.get("profile_id") or ""))
+    except ProductProfileError as exc:
+        problems.append(f"D:_delivery_profile 非法:{exc}")
+
     sr = draft.get("source_repo") or {}
     for k in ("distribution", "import_module", "resolved_commit", "license", "url"):
         need(f"source_repo.{k}", sr.get(k))
@@ -146,6 +159,11 @@ def check_draft_complete(draft: dict, draft_dir: Path) -> list[str]:
                         output["format"], parsed_contract):
                     problems.append(
                         "D:tool.interface.output.contract 与 output.format 分叉")
+                if profile is not None and (iface.get("input") or {}).get("format"):
+                    try:
+                        profile.assert_interface(iface)
+                    except ProductProfileError as exc:
+                        problems.append(f"D:交付接口超出声明支持面:{exc}")
     cap = draft.get("capability") or {}
     need("capability.statement", cap.get("statement"))
     need("capability.output_schema", cap.get("output_schema"))

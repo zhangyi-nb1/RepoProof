@@ -165,7 +165,7 @@ def _world(tmp_path, monkeypatch, *, locator: str):
     doc["source_repo"]["resolved_commit"] = head
     doc["tool"]["summary"] = "MINI→MD"
     doc["tool"]["interface"]["input"]["format"] = "TXT"
-    doc["tool"]["interface"]["output"]["format"] = "markdown-table"
+    doc["tool"]["interface"]["output"]["format"] = "Markdown"
     doc["tool"]["interface"]["output"]["contract"] = {
         "media_type": "text/markdown", "root_type": "text", "required": {}}
     doc["capability"]["statement"] = "MINI 文本转 Markdown 行表;坏输入 UserInputError。"

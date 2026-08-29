@@ -28,6 +28,7 @@ from repoproof.adoption.analysis.repository_analyzer import (
     analyze_repository_dir,
     clone_for_analysis,
 )
+from repoproof.adoption.delivery.product_profile import CLI_V2_PROFILE_ID
 
 _OWNERS = ("USER", "LLM", "AUTO")
 
@@ -182,6 +183,10 @@ def build_draft(repo: RepositoryReport, repo_dir: Path,
             "provenance": {"distribution": dist_ev, "import_module": imp_ev},
         },
         "task_id": f"tool-{name}-v1",
+        "_delivery_profile": {
+            "schema_version": 1,
+            "profile_id": CLI_V2_PROFILE_ID,
+        },
         "source_repo": {
             "url": repo.repository,
             "revision": "guided",

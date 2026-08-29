@@ -364,6 +364,7 @@ def test_primary_journey_adopts_safe_llm_brief_without_creating_a_task(
     """One-click adoption only edits the intent widget; every trust gate stays ahead."""
     from streamlit.testing.v1 import AppTest
 
+    from repoproof.adoption.intake.tool_drafter import validate_repo_summary_document
     from repoproof.ui.services import product_jobs, product_journeys
 
     state = tmp_path / "state"
@@ -392,30 +393,51 @@ def test_primary_journey_adopts_safe_llm_brief_without_creating_a_task(
         },
     )
 
-    recommended_text = "把几份实验记录整理成方便同事查看的表格，遇到看不懂的内容要明确提醒。"
+    def delivery(output_format_id: str) -> dict:
+        return {
+            "inputs": [{
+                "kind": "file", "location": "local",
+                "format_label": "CSV", "role": "实验记录",
+            }],
+            "outputs": [{
+                "kind": "text_artifact", "format_id": output_format_id,
+                "format_label": output_format_id, "role": "整理结果",
+            }],
+            "network": "offline", "credentials": "none",
+            "lifecycle": "per_invocation", "runtime": "local_cpu",
+        }
+
+    advice = validate_repo_summary_document({
+        "summary": "这个仓库适合整理表格型实验记录。",
+        "recommended_brief_id": "table",
+        "requirement_briefs": [
+            {
+                "brief_id": "table",
+                "title": "整理成共享表格",
+                "scenario": "把实验记录整理后交给同事查看",
+                "delivery_requirements": delivery("csv"),
+                "boundary": "看不懂的内容要明确保留",
+                "reason": "便于继续在常见表格工具中查看。",
+            },
+            {
+                "brief_id": "note",
+                "title": "整理成阅读摘要",
+                "scenario": "把实验记录整理后放进项目笔记",
+                "delivery_requirements": delivery("markdown"),
+                "boundary": "无法判断的内容保持原样",
+                "reason": "适合快速阅读和讨论。",
+            },
+        ],
+    })
+    recommended_text = advice["requirement_briefs"][0]["text"]
 
     def _summarize(_overview, *, offline: bool, capability_goal: str = "") -> dict:
         assert offline is False
         assert capability_goal == "我想整理实验记录，但还不知道具体怎么做。"
         return {
             "ok": True,
-            "summary": "这个仓库适合整理表格型实验记录。",
             "drafter": "gateway",
-            "recommended_brief_id": "table",
-            "requirement_briefs": [
-                {
-                    "brief_id": "table",
-                    "title": "整理成共享表格",
-                    "text": recommended_text,
-                    "reason": "便于继续在常见表格工具中查看。",
-                },
-                {
-                    "brief_id": "note",
-                    "title": "整理成阅读摘要",
-                    "text": "把实验记录整理成一份便于放进项目笔记的摘要，并保留无法判断的内容。",
-                    "reason": "适合快速阅读和讨论。",
-                },
-            ],
+            **advice,
         }
 
     monkeypatch.setattr(product_jobs, "summarize_repo_overview", _summarize)
@@ -503,13 +525,39 @@ def test_primary_journey_rejects_stale_or_technical_brief_adoption(
                 {
                     "brief_id": "bad",
                     "title": "直接调用实现",
-                    "text": "请 import demo 并调用 src/demo.py 里的函数来生成结果。",
+                    "scenario": "整理一份资料",
+                    "delivery_requirements": {
+                        "inputs": [{
+                            "kind": "file", "location": "local",
+                            "format_label": "文本", "role": "待整理资料",
+                        }],
+                        "outputs": [{
+                            "kind": "text_artifact", "format_id": "markdown",
+                            "format_label": "Markdown", "role": "整理结果",
+                        }],
+                        "network": "offline", "credentials": "none",
+                        "lifecycle": "per_invocation", "runtime": "local_cpu",
+                    },
+                    "boundary": "请 import demo 并调用 src/demo.py 里的函数",
                     "reason": "模型给出了过多实现细节。",
                 },
                 {
                     "brief_id": "other",
                     "title": "另一种做法",
-                    "text": "把输入整理成一份方便阅读的报告，并把无法处理的内容单独提醒。",
+                    "scenario": "把输入整理成方便阅读的内容",
+                    "delivery_requirements": {
+                        "inputs": [{
+                            "kind": "file", "location": "local",
+                            "format_label": "文本", "role": "待整理资料",
+                        }],
+                        "outputs": [{
+                            "kind": "text_artifact", "format_id": "markdown",
+                            "format_label": "Markdown", "role": "整理结果",
+                        }],
+                        "network": "offline", "credentials": "none",
+                        "lifecycle": "per_invocation", "runtime": "local_cpu",
+                    },
+                    "boundary": "无法处理的内容要明确保留",
                     "reason": "便于普通用户阅读。",
                 },
             ],

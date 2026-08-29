@@ -123,7 +123,7 @@ def _journey_stage(snapshot: dict) -> int:
     }.get(phase, 1)
 
 
-def _adoptable_requirement_briefs(summary_result: dict) -> list[dict[str, str]]:
+def _adoptable_requirement_briefs(summary_result: dict) -> list[dict]:
     """Return a complete, plain-language 2–3 brief set or fail closed.
 
     Model prose is useful for helping a non-expert articulate an intent, but it
@@ -143,7 +143,7 @@ def _adoptable_requirement_briefs(summary_result: dict) -> list[dict[str, str]]:
         "recommended_brief_id": summary_result.get("recommended_brief_id"),
     }
     try:
-        validated = validate_repo_summary_document(document)
+        validated = validate_repo_summary_document(document, allow_projected=True)
     except DraftError:
         return []
     return list(validated["requirement_briefs"])
@@ -263,7 +263,18 @@ def _start_new_journey() -> None:
                                 is_recommended = brief["brief_id"] == recommended
                                 title = brief["title"] + (" · 推荐" if is_recommended else "")
                                 st.write(title)
+                                if brief.get("scenario"):
+                                    st.caption(brief["scenario"])
                                 st.write(brief["text"])
+                                shape = brief.get("delivery_shape") or {}
+                                if shape:
+                                    st.caption(
+                                        f"支持面 {shape.get('profile_id')} · "
+                                        f"{shape.get('input_cardinality')} 个本地文件 → "
+                                        f"{shape.get('output_cardinality')} 个 "
+                                        f"{shape.get('output_extension')} 文本产物 · "
+                                        f"{shape.get('network')}"
+                                    )
                                 st.caption(brief["reason"])
                                 brief_key = hashlib.sha256(
                                     f"{brief['brief_id']}:{index}".encode()
