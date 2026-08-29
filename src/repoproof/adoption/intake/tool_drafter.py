@@ -48,7 +48,15 @@ _SUMMARY_SYSTEM = (
     "2-3 distinct suggestions. Each suggestion has brief_id, title, text, reason. "
     "text is 1-2 user-facing sentences covering the work situation, likely input, "
     "useful output artifact, and ONE main boundary. Keep text understandable even "
-    "if the user has never read the repository. Do not put callable names, imports, "
+    "if the user has never read the repository. The current product accepts ONE "
+    "local input file and returns exactly ONE deterministic UTF-8 text artifact on "
+    "stdout (for example RIS, TSV, CSV, Markdown, HTML, JSON, or plain text). Every "
+    "suggestion MUST stay inside that product surface. If the user's source material "
+    "came from several places, describe one already-combined input file or one file "
+    "per invocation. NEVER propose a side report, a second output file, an output "
+    "bundle/directory, PDF or other binary output, URL input, network enrichment, or "
+    "a long-running service. A Markdown or HTML report is itself the single artifact. "
+    "Do not put callable names, imports, "
     "source paths, CLI flags, schemas, tie-break rules, function syntax, or other "
     "implementation details in a suggestion. User terms such as RIS, FASTQ, CSV, "
     "JSON, Markdown, report, table, and text file are allowed. reason briefly "
@@ -262,6 +270,42 @@ _BRIEF_ENGINEERING_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 
+_BRIEF_UNSUPPORTED_PRODUCT_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "multiple output artifacts",
+        re.compile(
+            r"(?:同时|另外|另行|并且还|还要|也要|还需|也需|还会|也会|以及还)\s*"
+            r"(?:附带|提供|生成|输出|保存|另存)?[^。；\n]{0,80}"
+            r"(?:报告|表格|清单|文件|摘要|图表|数据集|档案)|"
+            r"\b(?:and also|along with|plus)\b[^.;\n]{0,80}"
+            r"\b(?:report|table|file|summary|chart|dataset|archive)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "binary output",
+        re.compile(r"(?:输出|生成|导出|交付|保存为|另存为)[^。；\n]{0,60}\bPDF\b", re.IGNORECASE),
+    ),
+)
+
+_BRIEF_NETWORK_ACTION = re.compile(
+    r"(?:联网|在线)(?:查询|补全|补充|抓取|下载|调用|访问)"
+)
+_BRIEF_NETWORK_NEGATION = re.compile(
+    r"(?:不|别|禁止|不得|不能|不可|无须|无需)\s*$"
+)
+
+
+def _requires_network(text: str) -> bool:
+    """Distinguish a requested network action from an offline boundary."""
+
+    for match in _BRIEF_NETWORK_ACTION.finditer(text):
+        prefix = text[max(0, match.start() - 6):match.start()]
+        if not _BRIEF_NETWORK_NEGATION.search(prefix):
+            return True
+    return False
+
+
 def validate_repo_summary_document(document: dict, *, allow_legacy: bool = False) -> dict:
     """Validate model advice before it becomes an adoptable user requirement.
 
@@ -304,6 +348,17 @@ def validate_repo_summary_document(document: dict, *, allow_legacy: bool = False
                 raise DraftError(
                     f"repo-summary:ENGINEERING_LANGUAGE:{brief['brief_id']}:text:{label}"
                 )
+        for label, pattern in _BRIEF_UNSUPPORTED_PRODUCT_PATTERNS:
+            if pattern.search(brief["text"]):
+                raise DraftError(
+                    f"repo-summary:UNSUPPORTED_PRODUCT_SHAPE:"
+                    f"{brief['brief_id']}:text:{label}"
+                )
+        if _requires_network(brief["text"]):
+            raise DraftError(
+                f"repo-summary:UNSUPPORTED_PRODUCT_SHAPE:"
+                f"{brief['brief_id']}:text:network-dependent workflow"
+            )
         ids.append(brief["brief_id"])
         briefs.append(brief)
     if len(ids) != len(set(ids)):
@@ -511,13 +566,27 @@ class CodexDrafter:
         return document
 
     def summarize_repo(self, context: dict) -> dict:
-        document = self._structured(
-            instructions=_SUMMARY_SYSTEM,
-            context=context,
-            schema=_SUMMARY_SCHEMA,
-            purpose="repo-summary",
-        )
-        return validate_repo_summary_document(document)
+        instructions = _SUMMARY_SYSTEM
+        for attempt in (1, 2):
+            document = self._structured(
+                instructions=instructions,
+                context=context,
+                schema=_SUMMARY_SCHEMA,
+                purpose="repo-summary" if attempt == 1 else "repo-summary-repair",
+            )
+            try:
+                return validate_repo_summary_document(document)
+            except DraftError as exc:
+                if attempt == 2:
+                    raise DraftError("repo-summary:INVALID_MODEL_OUTPUT") from exc
+                instructions = (
+                    _SUMMARY_SYSTEM
+                    + "\nYour previous response violated a semantic product constraint. "
+                    "Regenerate all suggestions. Each must accept one local file and "
+                    "produce exactly one UTF-8 text artifact; do not add a side report "
+                    "or second file. Keep the text plain-language and non-technical."
+                )
+        raise DraftError("unreachable")
 
     def propose_example_inputs(self, context: dict) -> dict:
         requested = max(1, min(int(context.get("how_many") or 4), 8))
@@ -698,7 +767,9 @@ class LiteLLMDrafter:
                     user_msg
                     + "\n\nYour previous response was rejected. Return ONLY one JSON object "
                     "matching the requested shape, with 2-3 plain-language suggestions "
-                    "and no engineering terms.",
+                    "and no engineering terms. Each suggestion must accept one local "
+                    "file and produce exactly one UTF-8 text artifact; do not add a side "
+                    "report or second file.",
                 )
         raise DraftError("unreachable")
 

@@ -314,9 +314,29 @@ def test_repo_advice_rejects_engineering_language_but_allows_user_formats(
 
     safe = json.loads(json.dumps(_GOOD_REPO_ADVICE))
     safe["requirement_briefs"][0]["text"] = (
-        "把 FASTQ 整理成 Markdown 报告，也保留一份 JSON 和 CSV 表格。"
+        "把 FASTQ 文件整理成一个本地能直接打开的 HTML 报告，不联网补资料。"
     )
     assert validate_repo_summary_document(safe)["recommended_brief_id"] == "clean-ris"
+
+
+@pytest.mark.parametrize(
+    "unsupported_text",
+    [
+        "生成一份可导回 Zotero 的 RIS 文件，同时附带重复项处理报告。",
+        "把记录整理成 RIS 文件，另外生成一份核对清单。",
+        "把关系数据做成 Markdown 摘要，并且还输出一个 CSV 表格。",
+        "把实验记录导出成 PDF 报告。",
+        "联网查询 DOI 并生成 RIS 文件。",
+    ],
+)
+def test_repo_advice_rejects_product_shapes_the_current_runtime_cannot_deliver(
+    unsupported_text: str,
+) -> None:
+    advice = json.loads(json.dumps(_GOOD_REPO_ADVICE))
+    advice["requirement_briefs"][0]["text"] = unsupported_text
+
+    with pytest.raises(DraftError, match="UNSUPPORTED_PRODUCT_SHAPE"):
+        validate_repo_summary_document(advice)
 
 
 def test_repo_advice_may_quote_public_api_evidence_outside_adopted_text() -> None:
