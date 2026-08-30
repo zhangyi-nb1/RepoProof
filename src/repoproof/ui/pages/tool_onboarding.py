@@ -72,6 +72,7 @@ _STALE_WARNING = (
 # 本页会用到的服务接口及其参数 —— 在页面顶部一次性体检,而不是等你点了
 # 按钮才炸。新增接口/参数时把它登记进来,这张表就是"页面对服务的期望"。
 _SERVICE_EXPECTATIONS = (
+    ("product_runtime_source_freshness", ()),
     ("read_repo_overview", ()),
     ("summarize_repo_overview", ("capability_goal",)),
     ("propose_example_candidates", ()),
@@ -95,6 +96,12 @@ _SERVICE_EXPECTATIONS = (
     ("confirm_draft_intent", ()),
 )
 _STALE_GAPS = [g for g in (_service_gap(n, *ps) for n, ps in _SERVICE_EXPECTATIONS) if g]
+if not _STALE_GAPS:
+    source_freshness = product_jobs.product_runtime_source_freshness()
+    if not source_freshness.get("fresh"):
+        _STALE_GAPS.append(
+            str(source_freshness.get("reason_code") or "PRODUCT_RUNTIME_SOURCE_STALE")
+        )
 if _STALE_GAPS:
     st.error(f"{_STALE_WARNING}\n\n检测到:{'；'.join(_STALE_GAPS)}")
 

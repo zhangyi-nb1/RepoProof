@@ -69,6 +69,54 @@ PRODUCT_LOCK = "product-job.json"
 _EXACT_PIN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*==[A-Za-z0-9][A-Za-z0-9._+!-]*")
 
 
+def _product_source_tree_sha256(root: Path | None = None) -> str:
+    """Bind a Studio process to the Python source tree it actually loaded.
+
+    Streamlit reloads page files without evicting imported Core/service modules.
+    A page can therefore look current while executing older admission or trust
+    semantics.  Hashing the package source is deliberately broader than an API
+    signature check: semantic-only edits must also force a process restart.
+    """
+
+    package_root = Path(root or Path(__file__).resolve().parents[2]).resolve()
+    digest = hashlib.sha256()
+    for path in sorted(package_root.rglob("*.py")):
+        if not path.is_file() or path.is_symlink():
+            continue
+        relative = path.relative_to(package_root).as_posix().encode("utf-8")
+        payload = path.read_bytes()
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        digest.update(len(payload).to_bytes(8, "big"))
+        digest.update(payload)
+    return digest.hexdigest()
+
+
+_LOADED_PRODUCT_SOURCE_SHA256 = _product_source_tree_sha256()
+
+
+def product_runtime_source_freshness() -> dict[str, str | bool]:
+    """Report only source identity, never paths or source contents."""
+
+    try:
+        current = _product_source_tree_sha256()
+    except OSError:
+        return {
+            "fresh": False,
+            "reason_code": "PRODUCT_RUNTIME_SOURCE_FINGERPRINT_UNAVAILABLE",
+        }
+    return {
+        "fresh": current == _LOADED_PRODUCT_SOURCE_SHA256,
+        "reason_code": (
+            "PRODUCT_RUNTIME_SOURCE_CURRENT"
+            if current == _LOADED_PRODUCT_SOURCE_SHA256
+            else "PRODUCT_RUNTIME_SOURCE_STALE"
+        ),
+        "loaded_sha256": _LOADED_PRODUCT_SOURCE_SHA256,
+        "current_sha256": current,
+    }
+
+
 def _open_absolute_directory(path: Path) -> int:
     """Open an absolute directory one component at a time without symlinks."""
 

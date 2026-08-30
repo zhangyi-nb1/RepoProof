@@ -44,6 +44,45 @@ def _stub_jobs(
     )
 
 
+def test_onboarding_fails_closed_when_loaded_services_are_semantically_stale(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_jobs, product_journeys
+
+    state = tmp_path / "state"
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_journeys, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(product_journeys, "list_journeys", lambda: [])
+    monkeypatch.setattr(product_journeys, "synthesized_read_only_cards", lambda: [])
+    monkeypatch.setattr(
+        product_jobs,
+        "product_runtime_source_freshness",
+        lambda: {
+            "fresh": False,
+            "reason_code": "PRODUCT_RUNTIME_SOURCE_STALE",
+        },
+    )
+    monkeypatch.setattr(
+        product_jobs,
+        "online_drafter_status",
+        lambda: {"ready": True, "backend": "litellm", "label": "ready"},
+    )
+
+    at = AppTest.from_file(
+        str(PAGES / "tool_onboarding.py"), default_timeout=60
+    ).run()
+
+    assert not [str(item.value) for item in at.exception]
+    rendered = " ".join(str(item.value) for item in at.error)
+    assert "旧版服务模块" in rendered
+    assert "PRODUCT_RUNTIME_SOURCE_STALE" in rendered
+
+
 @pytest.mark.parametrize(
     ("label", "job"),
     [

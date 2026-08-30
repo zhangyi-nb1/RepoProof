@@ -37,6 +37,23 @@ except ImportError:  # pragma: no cover
 needs_streamlit = pytest.mark.skipif(not HAVE_ST, reason="streamlit (ui extra) not installed")
 
 
+def test_product_runtime_source_freshness_detects_semantic_staleness(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current = product_jobs.product_runtime_source_freshness()
+    assert current["fresh"] is True
+    assert len(str(current["current_sha256"])) == 64
+
+    monkeypatch.setattr(product_jobs, "_LOADED_PRODUCT_SOURCE_SHA256", "0" * 64)
+    stale = product_jobs.product_runtime_source_freshness()
+    assert stale == {
+        "fresh": False,
+        "reason_code": "PRODUCT_RUNTIME_SOURCE_STALE",
+        "loaded_sha256": "0" * 64,
+        "current_sha256": current["current_sha256"],
+    }
+
+
 def _current_editable_draft(
     *,
     tool_name: str = "alpha-tool",
