@@ -985,7 +985,6 @@ _INPUTS_SCHEMA = {
                         "type": "array",
                         "minItems": 1,
                         "maxItems": 16,
-                        "uniqueItems": True,
                         "items": {
                             "type": "string",
                             "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",

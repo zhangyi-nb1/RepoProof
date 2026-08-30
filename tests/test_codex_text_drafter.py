@@ -326,6 +326,11 @@ def test_codex_drafter_supports_summary_draft_and_candidates(
     assert item_schema["properties"]["covered_commitment_ids"]["items"][
         "enum"
     ] == ["convert-input"]
+    # OpenAI strict structured outputs rejects the otherwise valid JSON Schema
+    # keyword ``uniqueItems``. Core performs the duplicate check after receipt.
+    assert "uniqueItems" not in item_schema["properties"][
+        "covered_commitment_ids"
+    ]
     assert "expected output" in seen["prompt"]
     assert "never invent an ID" in seen["prompt"]
     assert drafter.last_usage["cost"] == "INCLUDED_USAGE_UNMETERED"
