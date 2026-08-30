@@ -219,6 +219,116 @@ def _has_value_return(function: ast.FunctionDef) -> bool:
     )
 
 
+def _dict_protocol_value(node: ast.AST | None, key_name: str) -> ast.AST | None:
+    if not isinstance(node, ast.Dict):
+        return None
+    for key, value in zip(node.keys, node.values, strict=True):
+        if (
+            isinstance(key, ast.Constant)
+            and key.value == key_name
+        ):
+            return value
+    return None
+
+
+def _helper_ok_parameter(
+    tree: ast.Module,
+    helper_name: str,
+) -> str | None:
+    """Resolve a tiny result helper such as ``_result(ok, reasons, ids)``.
+
+    This intentionally recognises only a provable protocol projection. Unknown
+    source styles remain runtime-pending; the gate must not reject a dynamic
+    verifier merely because static analysis cannot understand it.
+    """
+
+    helper = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == helper_name
+        ),
+        None,
+    )
+    if helper is None:
+        return None
+    positional = [*helper.args.posonlyargs, *helper.args.args]
+    parameters = {argument.arg for argument in positional}
+    projected: set[str] = set()
+    returns = [
+        node
+        for node in _scoped_function_nodes(helper)
+        if isinstance(node, ast.Return) and node.value is not None
+    ]
+    if not returns:
+        return None
+    for returned in returns:
+        ok_value = _dict_protocol_value(returned.value, "ok")
+        if not isinstance(ok_value, ast.Name) or ok_value.id not in parameters:
+            return None
+        projected.add(ok_value.id)
+    return next(iter(projected)) if len(projected) == 1 else None
+
+
+def _call_argument_for_parameter(
+    call: ast.Call,
+    function: ast.FunctionDef,
+    parameter_name: str,
+) -> ast.AST | None:
+    positional = [*function.args.posonlyargs, *function.args.args]
+    for index, parameter in enumerate(positional):
+        if parameter.arg == parameter_name and index < len(call.args):
+            return call.args[index]
+    for keyword in call.keywords:
+        if keyword.arg == parameter_name:
+            return keyword.value
+    return None
+
+
+def _returned_protocol_ok(
+    tree: ast.Module,
+    returned: ast.AST,
+) -> ast.AST | None:
+    direct = _dict_protocol_value(returned, "ok")
+    if direct is not None:
+        return direct
+    if not isinstance(returned, ast.Call) or not isinstance(returned.func, ast.Name):
+        return None
+    helper_name = returned.func.id
+    ok_parameter = _helper_ok_parameter(tree, helper_name)
+    if ok_parameter is None:
+        return None
+    helper = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == helper_name
+    )
+    return _call_argument_for_parameter(returned, helper, ok_parameter)
+
+
+def _verifier_is_provably_reject_only(
+    tree: ast.Module,
+    function: ast.FunctionDef,
+) -> bool:
+    """Reject only when every observable result hard-codes protocol ``ok=False``."""
+
+    returns = [
+        node.value
+        for node in _scoped_function_nodes(function)
+        if isinstance(node, ast.Return) and node.value is not None
+    ]
+    if not returns:
+        return False
+    for returned in returns:
+        ok_value = _returned_protocol_ok(tree, returned)
+        if not (
+            isinstance(ok_value, ast.Constant)
+            and ok_value.value is False
+        ):
+            return False
+    return True
+
+
 def _declared_commitment_ids(
     function: ast.FunctionDef,
     required_ids: tuple[str, ...],
@@ -788,6 +898,16 @@ def _evaluate(
                     ),
                 )
             else:
+                if _verifier_is_provably_reject_only(verifier_tree, verify):
+                    verifier_ready = False
+                    _append(
+                        issues,
+                        "SEMANTIC_VERIFIER_REJECT_ONLY",
+                        (
+                            "D:semantic_verifier 的所有可见返回路径都固定为 "
+                            "ok=False —— 当前公开合同没有可验证的成功产物"
+                        ),
+                    )
                 declared_commitment_ids = _declared_commitment_ids(
                     verify,
                     required_commitment_ids,

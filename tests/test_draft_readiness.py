@@ -249,6 +249,32 @@ def test_verifier_must_be_sync_while_coverage_style_is_not_a_static_gate(
     assert "SEMANTIC_VERIFIER_PROTOCOL_INVALID" in nested_only.reason_codes
 
 
+def test_reject_only_semantic_verifier_blocks_readiness(
+    tmp_path: Path,
+) -> None:
+    draft, bundle = _bundle(tmp_path / "draft")
+    (bundle / "semantic_verifier.py").write_text(
+        "import upstream_module\n\n"
+        "def _result(ok, reasons, checked):\n"
+        "    return {'ok': ok, 'reason_codes': reasons, "
+        "'checked_commitment_ids': checked}\n\n"
+        "def verify(input_path, artifact_path):\n"
+        "    upstream_module.transform(input_path.read_text())\n"
+        "    if artifact_path.stat().st_size == 0:\n"
+        "        return _result(False, ['EMPTY'], [])\n"
+        "    return _result(False, ['CONTRACT_INSUFFICIENT'], [])\n",
+        encoding="utf-8",
+    )
+
+    readiness = evaluate_draft_readiness(draft, bundle)
+
+    assert readiness.ready is False
+    assert readiness.ready_to_confirm is False
+    assert "SEMANTIC_VERIFIER_REJECT_ONLY" in readiness.reason_codes
+    assert readiness.public_summary.semantic_verifier_ready is False
+    assert readiness.public_summary.commitment_coverage == "INCOMPLETE"
+
+
 def test_source_words_do_not_select_readiness_policy(tmp_path: Path) -> None:
     draft, bundle = _bundle(tmp_path / "draft")
     reference = bundle / "reference_impl.py"
