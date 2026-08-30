@@ -1170,7 +1170,7 @@ capability: {statement: demo, output_schema: DemoText}
 
 
 def test_stale_service_process_gets_a_readable_warning(monkeypatch: pytest.MonkeyPatch) -> None:
-    """**负控**:运行中的 Studio 进程缺少新接口时,给人话提示而不是 AttributeError。
+    """**负控**:旧服务立即阻断并给人话提示,而不是留下可点击动作。
 
     LESSONS #50(第二次咬人):Streamlit 只重新 exec 页面文件,不重载它
     import 的 services 模块 —— 刚加的函数"磁盘上有、进程里没有",用户点
@@ -1187,11 +1187,12 @@ def test_stale_service_process_gets_a_readable_warning(monkeypatch: pytest.Monke
     at.session_state["rp_repo_url"] = "https://github.com/example/demo"
     at.session_state["rp_advanced_editor"] = True
     at.run()
-    btn = [b for b in at.button if "仓库简介" in b.label][0]
-    btn.click().run()
 
     assert not [str(e.value) for e in at.exception], [str(e.value) for e in at.exception]
-    assert any("重启" in w.value for w in at.warning), [w.value for w in at.warning]
+    assert not at.button
+    assert any("重启" in item.value for item in at.error), [
+        item.value for item in at.error
+    ]
 
 
 def test_stale_service_signature_is_caught_before_the_call(
