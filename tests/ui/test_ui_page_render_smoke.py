@@ -81,6 +81,7 @@ def test_onboarding_fails_closed_when_loaded_services_are_semantically_stale(
     rendered = " ".join(str(item.value) for item in at.error)
     assert "旧版服务模块" in rendered
     assert "PRODUCT_RUNTIME_SOURCE_STALE" in rendered
+    assert not at.button
 
 
 @pytest.mark.parametrize(

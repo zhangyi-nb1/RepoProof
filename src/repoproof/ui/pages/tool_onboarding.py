@@ -104,6 +104,10 @@ if not _STALE_GAPS:
         )
 if _STALE_GAPS:
     st.error(f"{_STALE_WARNING}\n\n检测到:{'；'.join(_STALE_GAPS)}")
+    # Do not merely warn: every action below this point may execute against the
+    # stale module graph we just detected.  Stopping the render is the only
+    # reliable way to keep semantic-only Core changes fail closed.
+    st.stop()
 
 
 def _require_service(name: str, *params: str) -> bool:
