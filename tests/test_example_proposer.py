@@ -26,6 +26,7 @@ from repoproof.adoption.intake.example_proposer import (
     ReferenceWheelhouseIntegrityError,
     _sandboxed_reference_argv,
     assert_unseen_input,
+    classify_actual_reference_behavior,
     confirm_candidate,
     ensure_reference_wheelhouse,
     prepared_reference_environment,
@@ -34,6 +35,7 @@ from repoproof.adoption.intake.example_proposer import (
     reference_wheelhouse_runtime_identity,
     run_reference_on_candidates,
     upstream_runtime_identity,
+    validate_candidate_truth_evidence,
 )
 
 _UPSTREAM = '''
@@ -178,6 +180,75 @@ def test_proposer_never_marks_anything_confirmed():
     batch = propose_inputs(goal="喊话", overview={}, drafter=d)
     assert all(not c.confirmed for c in batch.candidates)
     assert all(c.truth_provenance() == "UNCONFIRMED" for c in batch.candidates)
+
+
+def test_current_proposer_binds_behavior_to_public_commitment_ids():
+    d = _StubDrafter([{
+        "input_name": "typical.txt",
+        "input_text": "hello",
+        "why": "覆盖主路径",
+        "expected_behavior": "success",
+        "covered_commitment_ids": ["transform-input"],
+    }])
+    batch = propose_inputs(
+        goal="转换输入",
+        overview={
+            "public_commitments": [{
+                "commitment_id": "transform-input",
+                "public_text": "使用固定上游转换输入。",
+                "private_field": "must-not-reach-model",
+            }],
+        },
+        drafter=d,
+        n=1,
+    )
+
+    candidate = batch.candidates[0]
+    assert candidate.expected_behavior == "success"
+    assert candidate.covered_commitment_ids == ("transform-input",)
+    assert d.seen_context["public_commitments"] == [{
+        "commitment_id": "transform-input",
+        "public_text": "使用固定上游转换输入。",
+    }]
+    assert "private_field" not in str(d.seen_context)
+
+
+@pytest.mark.parametrize(
+    "item, reason",
+    [
+        (
+            {
+                "input_name": "missing.txt",
+                "input_text": "x",
+                "why": "缺绑定",
+            },
+            "CANDIDATE_EXPECTED_BEHAVIOR_INVALID",
+        ),
+        (
+            {
+                "input_name": "invented.txt",
+                "input_text": "x",
+                "why": "伪造 ID",
+                "expected_behavior": "success",
+                "covered_commitment_ids": ["invented-rule"],
+            },
+            "CANDIDATE_COMMITMENT_BINDING_INVALID",
+        ),
+    ],
+)
+def test_current_proposer_rejects_missing_or_invented_binding(item, reason):
+    with pytest.raises(ExampleProposalError, match=reason):
+        propose_inputs(
+            goal="转换输入",
+            overview={
+                "public_commitments": [{
+                    "commitment_id": "transform-input",
+                    "public_text": "使用固定上游转换输入。",
+                }],
+            },
+            drafter=_StubDrafter([item]),
+            n=1,
+        )
 
 
 # --------------------------------------------------- ② 上游真跑(候选输出)
@@ -573,7 +644,12 @@ def test_core_resolved_lock_can_prepare_reference_without_mutating_draft(
 
 def _candidate_with_truth(world, text: str = "hi") -> CandidateExample:
     return run_reference_on_candidates(
-        ProposalBatch(candidates=[CandidateExample(input_name="a.txt", input_text=text)]),
+        ProposalBatch(candidates=[CandidateExample(
+            input_name="a.txt",
+            input_text=text,
+            expected_behavior="success",
+            covered_commitment_ids=("transform-input",),
+        )]),
         draft_dir=world["draft"],
         upstream_dir=world["upstream"],
         import_module="minishout",
@@ -606,6 +682,8 @@ def test_empty_upstream_stdout_is_a_confirmable_exact_output(world):
         ProposalBatch(candidates=[CandidateExample(
             input_name="empty-output.txt",
             input_text="quiet",
+            expected_behavior="success",
+            covered_commitment_ids=("transform-input",),
         )]),
         draft_dir=world["draft"],
         upstream_dir=world["upstream"],
@@ -618,9 +696,14 @@ def test_empty_upstream_stdout_is_a_confirmable_exact_output(world):
 
 def test_confirm_refuses_error_candidate_and_says_where_it_belongs():
     """**负控**:上游抛错的候选不能被确认成 golden;提示要指出正当去处。"""
-    c = CandidateExample(input_name="bad.txt", input_text="",
-                         upstream_error="UserInputError: empty input")
-    with pytest.raises(ExampleProposalError, match="题面"):
+    c = CandidateExample(
+        input_name="bad.txt",
+        input_text="",
+        expected_behavior="user_error",
+        covered_commitment_ids=("transform-input",),
+        upstream_error="UserInputError: empty input",
+    )
+    with pytest.raises(ExampleProposalError, match="EXPECTED_USER_ERROR_NOT_GOLDEN"):
         confirm_candidate(c)
 
 
@@ -632,8 +715,132 @@ def test_historical_candidate_without_scoped_evidence_cannot_mint_new_truth():
     )
     # Historical data remains readable, but a new confirmation fails closed.
     assert legacy.input_name == "legacy.txt"
-    with pytest.raises(ExampleProposalError, match="CANDIDATE_TRUTH_EVIDENCE_MISSING"):
+    with pytest.raises(ExampleProposalError, match="CANDIDATE_BEHAVIOR_BINDING_MISSING"):
         confirm_candidate(legacy)
+
+
+def test_v1_candidate_evidence_remains_readable_but_cannot_be_confirmed(world):
+    legacy = run_reference_on_candidates(
+        ProposalBatch(candidates=[CandidateExample(
+            input_name="legacy.txt",
+            input_text="old",
+        )]),
+        draft_dir=world["draft"],
+        upstream_dir=world["upstream"],
+        import_module="minishout",
+    ).candidates[0]
+
+    assert legacy.truth_evidence is not None
+    assert legacy.truth_evidence.schema_version == 1
+    round_tripped = CandidateExample.model_validate(legacy.model_dump(mode="json"))
+    assert round_tripped.truth_evidence is not None
+    assert round_tripped.truth_evidence.schema_version == 1
+    # Historical evidence remains cryptographically readable/validatable.  The
+    # Product confirmation gate below is where legacy binding is refused.
+    validate_candidate_truth_evidence(round_tripped)
+    with pytest.raises(ExampleProposalError, match="CANDIDATE_BEHAVIOR_BINDING_MISSING"):
+        confirm_candidate(legacy)
+
+
+@pytest.mark.parametrize(
+    "expected_behavior, input_text, actual_behavior, rejected_reason",
+    [
+        ("success", "hello", "success", None),
+        ("user_error", "   ", "user_error", None),
+        (
+            "success",
+            "   ",
+            "user_error",
+            "EXPECTED_SUCCESS_REFERENCE_USER_ERROR",
+        ),
+        (
+            "user_error",
+            "hello",
+            "success",
+            "EXPECTED_USER_ERROR_REFERENCE_SUCCESS",
+        ),
+    ],
+)
+def test_expected_behavior_is_checked_against_reference(
+    world,
+    expected_behavior,
+    input_text,
+    actual_behavior,
+    rejected_reason,
+):
+    candidate = run_reference_on_candidates(
+        ProposalBatch(candidates=[CandidateExample(
+            input_name="case.txt",
+            input_text=input_text,
+            expected_behavior=expected_behavior,
+            covered_commitment_ids=("transform-input",),
+        )]),
+        draft_dir=world["draft"],
+        upstream_dir=world["upstream"],
+        import_module="minishout",
+    ).candidates[0]
+
+    assert classify_actual_reference_behavior(
+        upstream_output=candidate.upstream_output,
+        upstream_error=candidate.upstream_error,
+        output_truncated=candidate.upstream_output_truncated,
+    ) == actual_behavior
+    assert candidate.truth_evidence is not None
+    assert candidate.truth_evidence.schema_version == 2
+    assert candidate.truth_evidence.expected_behavior == expected_behavior
+    assert candidate.truth_evidence.covered_commitment_ids == ("transform-input",)
+    if rejected_reason is None:
+        assert candidate.admission_status != "REJECTED"
+    else:
+        assert candidate.admission_status == "REJECTED"
+        assert candidate.admission_reason_codes == (rejected_reason,)
+
+
+def test_internal_reference_error_never_satisfies_user_error(world):
+    (world["draft"] / "reference_impl.py").write_text(
+        "import minishout\n\ndef extract(_input_path):\n"
+        "    raise RuntimeError('internal details')\n",
+        encoding="utf-8",
+    )
+    candidate = run_reference_on_candidates(
+        ProposalBatch(candidates=[CandidateExample(
+            input_name="case.txt",
+            input_text="x",
+            expected_behavior="user_error",
+            covered_commitment_ids=("transform-input",),
+        )]),
+        draft_dir=world["draft"],
+        upstream_dir=world["upstream"],
+        import_module="minishout",
+    ).candidates[0]
+
+    assert classify_actual_reference_behavior(
+        upstream_output=candidate.upstream_output,
+        upstream_error=candidate.upstream_error,
+    ) == "internal_error"
+    assert candidate.admission_status == "REJECTED"
+    assert candidate.admission_reason_codes == (
+        "EXPECTED_USER_ERROR_REFERENCE_INTERNAL_ERROR",
+    )
+
+
+def test_v2_truth_binding_detects_behavior_and_commitment_tampering(world):
+    candidate = _candidate_with_truth(world)
+    assert candidate.truth_evidence is not None
+    assert candidate.truth_evidence.schema_version == 2
+    validate_candidate_truth_evidence(candidate)
+
+    changed_behavior = candidate.model_copy(update={
+        "expected_behavior": "user_error",
+    })
+    with pytest.raises(ExampleProposalError, match="CONTENT_MISMATCH"):
+        validate_candidate_truth_evidence(changed_behavior)
+
+    changed_coverage = candidate.model_copy(update={
+        "covered_commitment_ids": ("another-public-rule",),
+    })
+    with pytest.raises(ExampleProposalError, match="CONTENT_MISMATCH"):
+        validate_candidate_truth_evidence(changed_coverage)
 
 
 # --------------------------------------------------------- fresh 抽查去重闸

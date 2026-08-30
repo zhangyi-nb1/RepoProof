@@ -67,6 +67,12 @@ _REFERENCE_EXACT_PIN_RE = re.compile(
     r"[A-Za-z0-9][A-Za-z0-9._-]*==[A-Za-z0-9][A-Za-z0-9._+!-]*"
 )
 _REFERENCE_WHEELHOUSE_MANIFEST = "manifest.json"
+_PUBLIC_REASON_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+_EXCEPTION_TYPE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]{0,119}$")
+_COMMITMENT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+
+ExpectedBehavior = Literal["success", "user_error"]
+ActualReferenceBehavior = Literal["success", "user_error", "internal_error"]
 
 
 class ExampleProposalError(RuntimeError):
@@ -118,7 +124,7 @@ class CandidateTruthEvidence(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: int = 1
+    schema_version: Literal[1, 2] = 1
     evidence_id: str
     correlation_id: str
     import_module: str
@@ -131,11 +137,25 @@ class CandidateTruthEvidence(BaseModel):
     imports: int
     calls: int
     truth_binding_sha256: str
+    expected_behavior: ExpectedBehavior | None = None
+    covered_commitment_ids: tuple[str, ...] = ()
 
     @model_validator(mode="after")
     def _well_formed(self) -> CandidateTruthEvidence:
-        if self.schema_version != 1:
-            raise ValueError("candidate truth evidence schema_version 必须为 1")
+        if self.schema_version == 1:
+            if self.expected_behavior is not None or self.covered_commitment_ids:
+                raise ValueError("v1 candidate evidence 不能携带 v2 行为绑定")
+        elif self.expected_behavior is None or not self.covered_commitment_ids:
+            raise ValueError("v2 candidate evidence 必须绑定行为与公开承诺")
+        if (
+            len(self.covered_commitment_ids)
+            != len(set(self.covered_commitment_ids))
+            or any(
+                _COMMITMENT_ID_RE.fullmatch(item) is None
+                for item in self.covered_commitment_ids
+            )
+        ):
+            raise ValueError("candidate evidence commitment ids 无效")
         for name in (
             "evidence_id",
             "correlation_id",
@@ -165,6 +185,11 @@ class CandidateExample(BaseModel):
     input_name: str
     input_text: str
     why: str = ""                       # 模型为什么提这条(展示用)
+    # Optional only so historical browser/session records remain readable.
+    # Current candidate generation supplies both fields, and confirmation
+    # refuses legacy candidates rather than silently inventing either value.
+    expected_behavior: ExpectedBehavior | None = None
+    covered_commitment_ids: tuple[str, ...] = ()
     upstream_output: str | None = None
     upstream_error: str | None = None
     upstream_output_truncated: bool = False
@@ -193,6 +218,21 @@ class CandidateExample(BaseModel):
 
     @model_validator(mode="after")
     def _admission_is_consistent(self) -> CandidateExample:
+        has_behavior = self.expected_behavior is not None
+        has_coverage = bool(self.covered_commitment_ids)
+        if has_behavior != has_coverage:
+            raise ValueError(
+                "candidate expected_behavior 与 covered_commitment_ids 必须同时存在"
+            )
+        if (
+            len(self.covered_commitment_ids)
+            != len(set(self.covered_commitment_ids))
+            or any(
+                _COMMITMENT_ID_RE.fullmatch(item) is None
+                for item in self.covered_commitment_ids
+            )
+        ):
+            raise ValueError("candidate covered_commitment_ids 无效")
         if any(_PUBLIC_REASON_RE.fullmatch(item) is None for item in self.admission_reason_codes):
             raise ValueError("candidate admission reason codes are invalid")
         if len(self.admission_reason_codes) != len(set(self.admission_reason_codes)):
@@ -221,6 +261,7 @@ class CandidateExample(BaseModel):
         return (
             self.upstream_output is not None
             and not self.upstream_error
+            and self.expected_behavior != "user_error"
             and self.admission_status != "REJECTED"
         )
 
@@ -335,18 +376,48 @@ def _candidate_truth_binding(
     reference_sha256: str,
     upstream_identity_sha256: str,
     runtime_receipt_sha256: str,
+    expected_behavior: ExpectedBehavior | None = None,
+    covered_commitment_ids: tuple[str, ...] = (),
 ) -> str:
+    document: dict[str, object] = {
+        "input_name": input_name,
+        "input_sha256": hashlib.sha256(input_text.encode("utf-8")).hexdigest(),
+        "result_kind": result_kind,
+        "result_sha256": hashlib.sha256(result_text.encode("utf-8")).hexdigest(),
+        "import_module": import_module,
+        "reference_sha256": reference_sha256,
+        "upstream_identity_sha256": upstream_identity_sha256,
+        "runtime_receipt_sha256": runtime_receipt_sha256,
+    }
+    domain = b"repoproof-candidate-truth-binding-v1"
+    if expected_behavior is not None:
+        document.update({
+            "expected_behavior": expected_behavior,
+            "covered_commitment_ids": list(covered_commitment_ids),
+        })
+        domain = b"repoproof-candidate-truth-binding-v2"
     return _domain_sha256(
-        b"repoproof-candidate-truth-binding-v1",
+        domain,
+        document,
+    )
+
+
+def _candidate_evidence_id(
+    *,
+    schema_version: int,
+    correlation_id: str,
+    truth_binding_sha256: str,
+) -> str:
+    domain = (
+        b"repoproof-candidate-evidence-id-v2"
+        if schema_version == 2
+        else b"repoproof-candidate-evidence-id-v1"
+    )
+    return _domain_sha256(
+        domain,
         {
-            "input_name": input_name,
-            "input_sha256": hashlib.sha256(input_text.encode("utf-8")).hexdigest(),
-            "result_kind": result_kind,
-            "result_sha256": hashlib.sha256(result_text.encode("utf-8")).hexdigest(),
-            "import_module": import_module,
-            "reference_sha256": reference_sha256,
-            "upstream_identity_sha256": upstream_identity_sha256,
-            "runtime_receipt_sha256": runtime_receipt_sha256,
+            "correlation_id": correlation_id,
+            "truth_binding_sha256": truth_binding_sha256,
         },
     )
 
@@ -357,6 +428,12 @@ def validate_candidate_truth_evidence(candidate: CandidateExample) -> None:
     evidence = candidate.truth_evidence
     if evidence is None:
         raise ExampleProposalError("CANDIDATE_TRUTH_EVIDENCE_MISSING")
+    if evidence.schema_version == 2:
+        if candidate.expected_behavior is None or not candidate.covered_commitment_ids:
+            raise ExampleProposalError("CANDIDATE_BEHAVIOR_BINDING_MISSING")
+    elif candidate.expected_behavior is not None or candidate.covered_commitment_ids:
+        # A current candidate must never be downgraded to the historical binding.
+        raise ExampleProposalError("CANDIDATE_BEHAVIOR_BINDING_MISSING")
     if candidate.upstream_output is None or candidate.upstream_error is not None:
         raise ExampleProposalError("CANDIDATE_TRUTH_EVIDENCE_NOT_CONFIRMABLE")
     input_sha256 = hashlib.sha256(candidate.input_text.encode("utf-8")).hexdigest()
@@ -365,6 +442,13 @@ def validate_candidate_truth_evidence(candidate: CandidateExample) -> None:
         evidence.result_kind != "output"
         or evidence.input_sha256 != input_sha256
         or evidence.result_sha256 != result_sha256
+        or (
+            evidence.schema_version == 2
+            and (
+                evidence.expected_behavior != candidate.expected_behavior
+                or evidence.covered_commitment_ids != candidate.covered_commitment_ids
+            )
+        )
     ):
         raise ExampleProposalError("CANDIDATE_TRUTH_EVIDENCE_CONTENT_MISMATCH")
     binding = _candidate_truth_binding(
@@ -376,15 +460,19 @@ def validate_candidate_truth_evidence(candidate: CandidateExample) -> None:
         reference_sha256=evidence.reference_sha256,
         upstream_identity_sha256=evidence.upstream_identity_sha256,
         runtime_receipt_sha256=evidence.runtime_receipt_sha256,
+        expected_behavior=(
+            candidate.expected_behavior if evidence.schema_version == 2 else None
+        ),
+        covered_commitment_ids=(
+            candidate.covered_commitment_ids if evidence.schema_version == 2 else ()
+        ),
     )
     if binding != evidence.truth_binding_sha256:
         raise ExampleProposalError("CANDIDATE_TRUTH_EVIDENCE_BINDING_MISMATCH")
-    want_id = _domain_sha256(
-        b"repoproof-candidate-evidence-id-v1",
-        {
-            "correlation_id": evidence.correlation_id,
-            "truth_binding_sha256": binding,
-        },
+    want_id = _candidate_evidence_id(
+        schema_version=evidence.schema_version,
+        correlation_id=evidence.correlation_id,
+        truth_binding_sha256=binding,
     )
     if want_id != evidence.evidence_id:
         raise ExampleProposalError("CANDIDATE_TRUTH_EVIDENCE_ID_MISMATCH")
@@ -455,6 +543,34 @@ def mine_evidence_literals(upstream_dir: Path, *, cap: int = 12,
     return out
 
 
+def _public_commitment_catalog(raw: object) -> tuple[dict[str, str], ...]:
+    """Return the model-safe public commitment projection or fail closed."""
+
+    if not isinstance(raw, (list, tuple)):
+        raise ExampleProposalError("CANDIDATE_COMMITMENT_CATALOG_INVALID")
+    catalog: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for value in raw:
+        if not isinstance(value, dict):
+            raise ExampleProposalError("CANDIDATE_COMMITMENT_CATALOG_INVALID")
+        commitment_id = str(value.get("commitment_id") or "").strip()
+        public_text = " ".join(str(value.get("public_text") or "").split())
+        if (
+            _COMMITMENT_ID_RE.fullmatch(commitment_id) is None
+            or not public_text
+            or commitment_id in seen
+        ):
+            raise ExampleProposalError("CANDIDATE_COMMITMENT_CATALOG_INVALID")
+        seen.add(commitment_id)
+        catalog.append({
+            "commitment_id": commitment_id,
+            "public_text": public_text[:800],
+        })
+    if not catalog:
+        raise ExampleProposalError("CANDIDATE_COMMITMENT_CATALOG_MISSING")
+    return tuple(catalog)
+
+
 def propose_inputs(*, goal: str, overview: dict, drafter, n: int = 4,
                    existing_inputs: list[str] | None = None,
                    existing_names: list[str] | None = None) -> ProposalBatch:
@@ -466,6 +582,12 @@ def propose_inputs(*, goal: str, overview: dict, drafter, n: int = 4,
     """
     n = max(1, min(int(n), MAX_CANDIDATES))
     existing = list(existing_inputs or [])
+    catalog_supplied = "public_commitments" in overview
+    public_commitments = (
+        _public_commitment_catalog(overview.get("public_commitments"))
+        if catalog_supplied
+        else ()
+    )
     context = {
         "capability_goal": goal,
         "repository": overview.get("repository", ""),
@@ -480,6 +602,8 @@ def propose_inputs(*, goal: str, overview: dict, drafter, n: int = 4,
             overview.get("failed_attempts") or []
         )[:12],
     }
+    if catalog_supplied:
+        context["public_commitments"] = list(public_commitments)
     raw = drafter.propose_example_inputs(context)
     items = raw.get("inputs") if isinstance(raw, dict) else raw
     if not isinstance(items, list) or not items:
@@ -488,6 +612,7 @@ def propose_inputs(*, goal: str, overview: dict, drafter, n: int = 4,
     seen = {_norm_input(x) for x in existing}
     seen_names = {Path(x).name.casefold() for x in (existing_names or [])}
     out: list[CandidateExample] = []
+    public_ids = {item["commitment_id"] for item in public_commitments}
     for i, item in enumerate(items[:n], start=1):
         if not isinstance(item, dict) or "input_text" not in item:
             continue
@@ -506,9 +631,32 @@ def propose_inputs(*, goal: str, overview: dict, drafter, n: int = 4,
             name = f"{base}-{serial}{suffix}"
             serial += 1
         seen_names.add(name.casefold())
+        expected_behavior = item.get("expected_behavior")
+        raw_coverage = item.get("covered_commitment_ids")
+        has_v2_claim = expected_behavior is not None or raw_coverage is not None
+        if catalog_supplied:
+            if expected_behavior not in {"success", "user_error"}:
+                raise ExampleProposalError("CANDIDATE_EXPECTED_BEHAVIOR_INVALID")
+            if not isinstance(raw_coverage, list) or not raw_coverage:
+                raise ExampleProposalError("CANDIDATE_COMMITMENT_BINDING_MISSING")
+            covered_commitment_ids = tuple(str(value) for value in raw_coverage)
+            if (
+                len(covered_commitment_ids) != len(set(covered_commitment_ids))
+                or not set(covered_commitment_ids).issubset(public_ids)
+            ):
+                raise ExampleProposalError("CANDIDATE_COMMITMENT_BINDING_INVALID")
+        elif has_v2_claim:
+            # A model-declared ID without the public catalogue cannot be checked.
+            raise ExampleProposalError("CANDIDATE_COMMITMENT_CATALOG_MISSING")
+        else:
+            expected_behavior = None
+            covered_commitment_ids = ()
         out.append(CandidateExample(
             input_name=name, input_text=text,
-            why=str(item.get("why") or "")))
+            why=str(item.get("why") or ""),
+            expected_behavior=expected_behavior,
+            covered_commitment_ids=covered_commitment_ids,
+        ))
     if not out:
         raise ExampleProposalError("候选输入去重后为空(模型给的都与既有样例重复)")
     return ProposalBatch(candidates=out,
@@ -522,10 +670,12 @@ def _norm_input(text: str) -> str:
     return "\n".join(ln.rstrip() for ln in str(text).replace("\r\n", "\n").split("\n")).strip()
 
 
-_PUBLIC_REASON_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
-_EXCEPTION_TYPE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]{0,119}$")
 _PUBLIC_REASON_CODES = frozenset({
     "CANDIDATE_NOT_IN_ADMITTED_SUCCESS_DOMAIN",
+    "EXPECTED_SUCCESS_REFERENCE_INTERNAL_ERROR",
+    "EXPECTED_SUCCESS_REFERENCE_USER_ERROR",
+    "EXPECTED_USER_ERROR_REFERENCE_INTERNAL_ERROR",
+    "EXPECTED_USER_ERROR_REFERENCE_SUCCESS",
     "REFERENCE_EXECUTION_ERROR",
     "REFERENCE_NO_OUTPUT",
     "REFERENCE_OUTPUT_TOO_LARGE",
@@ -534,11 +684,65 @@ _PUBLIC_REASON_CODES = frozenset({
 })
 
 
+def classify_actual_reference_behavior(
+    *,
+    upstream_output: str | None,
+    upstream_error: str | None,
+    output_truncated: bool = False,
+) -> ActualReferenceBehavior:
+    """Classify one reference result without treating internal faults as input errors."""
+
+    if (
+        upstream_output is not None
+        and upstream_error is None
+        and not output_truncated
+    ):
+        return "success"
+    error_type = str(upstream_error or "").partition(":")[0].strip().rsplit(".", 1)[-1]
+    if not output_truncated and error_type == "UserInputError":
+        return "user_error"
+    return "internal_error"
+
+
+def bind_actual_reference_behavior(candidate: CandidateExample) -> CandidateExample:
+    """Compare a model's public behavior claim with the pinned reference result.
+
+    Historical candidates have no declaration and remain readable.  Current
+    candidates fail closed on every disagreement.  An internal exception is
+    deliberately its own class and can never satisfy a `user_error` claim.
+    """
+
+    if candidate.expected_behavior is None:
+        return candidate
+    actual = classify_actual_reference_behavior(
+        upstream_output=candidate.upstream_output,
+        upstream_error=candidate.upstream_error,
+        output_truncated=candidate.upstream_output_truncated,
+    )
+    if actual == candidate.expected_behavior:
+        return candidate
+    reason_code = {
+        ("success", "user_error"): "EXPECTED_SUCCESS_REFERENCE_USER_ERROR",
+        ("success", "internal_error"): "EXPECTED_SUCCESS_REFERENCE_INTERNAL_ERROR",
+        ("user_error", "success"): "EXPECTED_USER_ERROR_REFERENCE_SUCCESS",
+        ("user_error", "internal_error"): "EXPECTED_USER_ERROR_REFERENCE_INTERNAL_ERROR",
+    }[(candidate.expected_behavior, actual)]
+    return candidate.model_copy(update={
+        "admission_status": "REJECTED",
+        "admission_reason_codes": (reason_code,),
+    })
+
+
 def public_candidate_failure(candidate: CandidateExample) -> dict[str, str]:
     """Return model-safe feedback without leaking task verifier diagnostics."""
 
     if candidate.admission_status == "REJECTED":
-        reason_code = "CANDIDATE_NOT_IN_ADMITTED_SUCCESS_DOMAIN"
+        declared_reason = next(iter(candidate.admission_reason_codes), "")
+        reason_code = (
+            declared_reason
+            if declared_reason in _PUBLIC_REASON_CODES
+            else "CANDIDATE_NOT_IN_ADMITTED_SUCCESS_DOMAIN"
+        )
         return {
             "reason_code": reason_code,
             "failure_fingerprint": hashlib.sha256(
@@ -1238,6 +1442,9 @@ def run_reference_on_candidates(
             ):
                 raise ExampleProposalError("REFERENCE_RUNTIME_RECEIPT_INVALID")
             receipt_sha256 = hashlib.sha256(ledger_text.encode("utf-8")).hexdigest()
+            evidence_schema_version: Literal[1, 2] = (
+                2 if candidate.expected_behavior is not None else 1
+            )
             truth_binding = _candidate_truth_binding(
                 input_name=candidate.input_name,
                 input_text=candidate.input_text,
@@ -1247,15 +1454,16 @@ def run_reference_on_candidates(
                 reference_sha256=reference_sha256,
                 upstream_identity_sha256=upstream_identity_sha256,
                 runtime_receipt_sha256=receipt_sha256,
+                expected_behavior=candidate.expected_behavior,
+                covered_commitment_ids=candidate.covered_commitment_ids,
             )
-            evidence_id = _domain_sha256(
-                b"repoproof-candidate-evidence-id-v1",
-                {
-                    "correlation_id": correlation_id,
-                    "truth_binding_sha256": truth_binding,
-                },
+            evidence_id = _candidate_evidence_id(
+                schema_version=evidence_schema_version,
+                correlation_id=correlation_id,
+                truth_binding_sha256=truth_binding,
             )
             evidence = CandidateTruthEvidence(
+                schema_version=evidence_schema_version,
                 evidence_id=evidence_id,
                 correlation_id=correlation_id,
                 import_module=module,
@@ -1270,9 +1478,11 @@ def run_reference_on_candidates(
                 imports=receipt_imports,
                 calls=receipt_calls,
                 truth_binding_sha256=truth_binding,
+                expected_behavior=candidate.expected_behavior,
+                covered_commitment_ids=candidate.covered_commitment_ids,
             )
             managed = {"secret": hook_secret, "ledger": ledger_text}
-        return candidate.model_copy(update={
+        evaluated = candidate.model_copy(update={
             "upstream_output": output,
             "upstream_error": error,
             "upstream_output_truncated": bool(
@@ -1281,6 +1491,7 @@ def run_reference_on_candidates(
             "truth_evidence": evidence,
             "managed_runtime_evidence": managed,
         })
+        return bind_actual_reference_behavior(evaluated)
 
     with tempfile.TemporaryDirectory(prefix="rp-example-probe-") as tmp:
         tmpd = Path(tmp)
@@ -1330,6 +1541,24 @@ def confirm_candidate(candidate: CandidateExample, *,
         raise ExampleProposalError(
             f"{candidate.input_name}:候选未通过当前输出合同与独立语义预筛，"
             "不能加入成功路径 golden 样例。"
+        )
+    if candidate.expected_behavior is None or not candidate.covered_commitment_ids:
+        raise ExampleProposalError(
+            "CANDIDATE_BEHAVIOR_BINDING_MISSING:旧候选仍可查看，但不能再确认；"
+            "请基于当前公开合同重新生成候选。"
+        )
+    if candidate.expected_behavior != "success":
+        raise ExampleProposalError(
+            "CANDIDATE_EXPECTED_USER_ERROR_NOT_GOLDEN:声明为 user_error 的候选"
+            "只能作为错误行为证据，不能成为成功路径 golden。"
+        )
+    if classify_actual_reference_behavior(
+        upstream_output=candidate.upstream_output,
+        upstream_error=candidate.upstream_error,
+        output_truncated=candidate.upstream_output_truncated,
+    ) != "success":
+        raise ExampleProposalError(
+            "CANDIDATE_REFERENCE_BEHAVIOR_NOT_SUCCESS:reference 未产生可确认的成功结果。"
         )
     text = expected_text if expected_text is not None else candidate.upstream_output
     if text is None:

@@ -849,6 +849,21 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
         candidate_result = {}
     if candidate_result and not candidate_result.get("ok"):
         st.error(candidate_result.get("error") or "样例候选生成失败。")
+        owner = str(candidate_result.get("failure_owner") or "").strip()
+        candidate_reason_codes = [
+            str(code)
+            for code in (candidate_result.get("reason_codes") or [])
+            if str(code).strip()
+        ]
+        if owner or candidate_reason_codes:
+            details = []
+            if owner:
+                details.append(f"责任方：{owner}")
+            if candidate_reason_codes:
+                details.append(f"原因码：{', '.join(candidate_reason_codes)}")
+            st.caption(" · ".join(details))
+        if candidate_result.get("recommended_action"):
+            st.info(str(candidate_result["recommended_action"]))
     elif candidate_result.get("manual_upload_required"):
         st.info(candidate_result.get("note") or "请上传真实二进制输入文件。")
         suggestions = list(candidate_result.get("suggestions") or [])
@@ -866,15 +881,14 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
                 candidate.get("upstream_output") is not None
                 and not candidate.get("upstream_error")
                 and candidate.get("admission_status") != "REJECTED"
+                and candidate.get("expected_behavior") == "success"
+                and bool(candidate.get("covered_commitment_ids"))
             )
         ]
         failed_candidates = [
             candidate
             for candidate in candidate_result.get("candidates") or []
-            if (
-                candidate.get("upstream_error")
-                or candidate.get("admission_status") == "REJECTED"
-            )
+            if candidate not in usable_candidates
         ]
         st.caption(f"候选来源：{candidate_result.get('drafter')} · {candidate_result.get('note')}")
         if candidate_result.get("shortfall"):
@@ -893,6 +907,10 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
                 st.markdown(
                     f"**候选 {index + 1} · `{candidate['input_name']}`**"
                     + (f" — {candidate['why']}" if candidate.get("why") else "")
+                )
+                st.caption(
+                    "模型预期：成功 · 声明覆盖："
+                    + "、".join(candidate.get("covered_commitment_ids") or [])
                 )
                 candidate_input, candidate_output = st.columns(2)
                 input_text = candidate_input.text_area(
@@ -931,14 +949,35 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
                         st.rerun()
                     st.error(confirmed.get("error") or "样例确认失败。")
         if failed_candidates:
-            st.warning("部分候选未通过上游执行、输出合同或独立语义预筛，不能成为成功样例。")
+            st.warning(
+                "以下候选只作为错误/不一致行为证据，不能成为成功样例。"
+                "模型的描述不替代固定 reference 的实际结果。"
+            )
             st.dataframe(
                 [
                     {
                         "输入": str(candidate.get("input_text") or "")[:60] or "（空）",
+                        "模型预期": (
+                            "成功"
+                            if candidate.get("expected_behavior") == "success"
+                            else "用户输入错误"
+                            if candidate.get("expected_behavior") == "user_error"
+                            else "缺少行为绑定"
+                        ),
+                        "声明覆盖": ", ".join(
+                            candidate.get("covered_commitment_ids") or []
+                        ) or "（无）",
                         "未准入原因": (
                             ", ".join(candidate.get("admission_reason_codes") or [])
-                            or candidate.get("upstream_error")
+                            or (
+                                "REFERENCE_USER_INPUT_ERROR"
+                                if str(candidate.get("upstream_error") or "").split(
+                                    ":", 1
+                                )[0].endswith("UserInputError")
+                                else "REFERENCE_EXECUTION_ERROR"
+                                if candidate.get("upstream_error")
+                                else "CANDIDATE_BEHAVIOR_BINDING_MISSING"
+                            )
                         ),
                     }
                     for candidate in failed_candidates
@@ -1310,6 +1349,10 @@ def _render_journey_card(snapshot: dict) -> None:
                     )
                     if candidate.get("why"):
                         st.caption(str(candidate["why"]))
+                    st.caption(
+                        "模型预期：成功 · 声明覆盖："
+                        + "、".join(candidate.get("covered_commitment_ids") or [])
+                    )
                     audit_input_col, audit_expected_col = st.columns(2)
                     audit_input_col.text_area(
                         "模型提议的输入",

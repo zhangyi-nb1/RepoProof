@@ -1541,6 +1541,28 @@ def propose_audit_candidates(
         capability_goal = str(contract.capability.statement or "").strip()
         if not capability_goal:
             raise ValueError("冻结合同没有 capability statement")
+        frozen_intent = contract.capability.intent_contract
+        if frozen_intent is None or not frozen_intent.commitments:
+            return {
+                "ok": False,
+                "error": "冻结合同缺少候选所需的公开承诺目录。",
+                "failure_owner": "CONTRACT",
+                "reason_codes": ["AUDIT_CANDIDATE_COMMITMENTS_MISSING"],
+                "recommended_action": (
+                    "创建新的 task version；不要为历史合同静默补写行为绑定。"
+                ),
+            }
+        public_commitments = (
+            [
+                {
+                    "commitment_id": item.commitment_id,
+                    "public_text": item.public_text,
+                }
+                for item in frozen_intent.commitments
+            ]
+            if frozen_intent is not None
+            else []
+        )
         reference_import_module = str(contract.source_repo.import_module or "").strip()
         if not reference_import_module:
             raise ValueError("冻结合同没有 reference import_module")
@@ -1579,6 +1601,7 @@ def propose_audit_candidates(
             overview={
                 "repository": str((entry or {}).get("source_url") or ""),
                 "evidence_literals": mine_evidence_literals(upstream),
+                "public_commitments": public_commitments,
             },
             drafter=drafter,
             n=n,
@@ -1637,7 +1660,7 @@ def propose_audit_candidates(
     usable_objects = [
         candidate
         for candidate in cands.candidates
-        if candidate.upstream_output is not None and not candidate.upstream_error
+        if candidate.usable_as_golden
     ]
     context = _audit_candidate_context(
         tool_name=name,
@@ -2059,6 +2082,71 @@ def _public_reference_environment_error(reason_code: str) -> str:
         str(reason_code),
         "参考环境在模型调用前失败；本次没有调用模型。",
     )
+
+
+def _candidate_generation_error_result(exc: Exception) -> dict[str, object]:
+    """Project candidate-authoring failures with one stable owner and action.
+
+    Provider/schema diagnostics are not a public contract and may contain
+    transport details.  The UI therefore receives only an allow-listed reason
+    code plus an owner-specific recovery action.  In particular, a broken
+    public commitment catalogue is a CONTRACT defect, while a model response
+    that ignores the supplied catalogue is an EXTERNAL drafter defect; neither
+    is an Agent-adapter repair.
+    """
+
+    from repoproof.adoption.intake.tool_drafter import DraftError
+
+    raw = str(exc).strip()
+    token = raw.partition(":")[0].strip()
+    contract_codes = {
+        "CANDIDATE_COMMITMENT_CATALOG_MISSING",
+        "CANDIDATE_COMMITMENT_CATALOG_INVALID",
+    }
+    drafter_codes = {
+        "CANDIDATE_EXPECTED_BEHAVIOR_INVALID",
+        "CANDIDATE_COMMITMENT_BINDING_MISSING",
+        "CANDIDATE_COMMITMENT_BINDING_INVALID",
+    }
+    if token in contract_codes:
+        return {
+            "ok": False,
+            "error": "草稿的公开承诺目录缺失或无效，不能为候选绑定可审阅语义。",
+            "failure_owner": "CONTRACT",
+            "reason_codes": [token],
+            "recommended_action": (
+                "先修正当前未冻结草稿的公开承诺；若合同已冻结，请创建新的 task "
+                "version。本次失败不消耗 Coding Agent repair 轮次。"
+            ),
+        }
+    if token in drafter_codes or isinstance(exc, DraftError):
+        reason_code = (
+            token
+            if token in drafter_codes
+            else "CANDIDATE_DRAFTER_SCHEMA_INVALID"
+            if "INVALID_DOCUMENT" in raw
+            else "CANDIDATE_DRAFTER_FAILED"
+        )
+        return {
+            "ok": False,
+            "error": "模型返回的候选没有通过行为与公开承诺绑定校验。",
+            "failure_owner": "EXTERNAL",
+            "reason_codes": [reason_code],
+            "recommended_action": (
+                "重新生成候选；若同一错误持续出现，请检查网关的结构化输出支持。"
+                "不要修改合同、reference 或 golden 来迁就这次模型响应。"
+            ),
+        }
+    return {
+        "ok": False,
+        "error": "候选生成未通过 Core 的确定性校验。",
+        "failure_owner": "HARNESS",
+        "reason_codes": ["CANDIDATE_GENERATION_FAILED"],
+        "recommended_action": (
+            "查看 Studio 活动日志并修复候选生成链路后重试；"
+            "不要把本次失败计入 Coding Agent repair。"
+        ),
+    }
 
 
 def read_repo_overview(repo: str, revision: str | None = None) -> dict:
@@ -2916,6 +3004,12 @@ def _admit_candidate_pair(
         screen_semantic_candidate,
     )
 
+    # The pinned-reference behavior gate runs before output/semantic admission.
+    # Never let a later successful parser/verifier overwrite its fail-closed
+    # rejection (for example, a candidate declared ``user_error`` whose
+    # reference unexpectedly produced a perfectly parseable artifact).
+    if candidate.admission_status == "REJECTED":
+        return candidate
     if candidate.upstream_output is None or candidate.upstream_error is not None:
         return candidate
     contract_errors = validate_output_text(candidate.upstream_output, output_contract)
@@ -3084,6 +3178,16 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
         for item in (raw_intent.get("commitments") or [])
         if isinstance(item, dict)
     )
+    public_commitments = [
+        {
+            "commitment_id": str(item.get("commitment_id") or ""),
+            "public_text": str(item.get("public_text") or ""),
+        }
+        for item in (raw_intent.get("commitments") or [])
+        if isinstance(item, dict)
+        and str(item.get("commitment_id") or "").strip()
+        and str(item.get("public_text") or "").strip()
+    ]
     verifier_path = draft_dir / "semantic_verifier.py"
     semantic_verifier = (
         verifier_path
@@ -3206,6 +3310,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                         "repository": str((overview_doc.get("source_repo") or {}).get("url") or ""),
                         "evidence_literals": evidence_literals,
                         "failed_attempts": failed_attempts,
+                        "public_commitments": public_commitments,
                     },
                     drafter=drafter,
                     n=remaining,
@@ -3310,6 +3415,10 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                                         input_name=item.input_name,
                                         input_text=item.input_text,
                                         why=item.why,
+                                        expected_behavior=item.expected_behavior,
+                                        covered_commitment_ids=(
+                                            item.covered_commitment_ids
+                                        ),
                                     )
                                     for item in batch.candidates
                                 ],
@@ -3366,7 +3475,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
             "recommended_action": "检查依赖锁与网络后重试；本次没有调用模型。",
         }
     except (DraftError, ExampleProposalError) as exc:
-        return {"ok": False, "error": str(exc)}
+        return _candidate_generation_error_result(exc)
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "error": f"候选生成失败:{exc}"}
     finally:

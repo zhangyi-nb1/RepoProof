@@ -589,6 +589,8 @@ def test_candidate_confirmation_preserves_upstream_input_output_binding(
             example_proposer.CandidateExample(
                 input_name="bound.txt",
                 input_text="original input",
+                expected_behavior="success",
+                covered_commitment_ids=("transform-input",),
             )
         ]),
         draft_dir=draft,
@@ -690,6 +692,8 @@ def test_fresh_audit_materialization_uses_managed_candidate_evidence(
             example_proposer.CandidateExample(
                 input_name="fresh.txt",
                 input_text="fresh input",
+                expected_behavior="success",
+                covered_commitment_ids=("transform-input",),
             )
         ]),
         draft_dir=draft,
@@ -907,9 +911,16 @@ def test_candidate_generation_repairs_to_requested_count_without_resetting_golde
             }
             values = plans[self.calls]
             assert len(values) == requested
+            commitment_id = context["public_commitments"][0]["commitment_id"]
             return {
                 "inputs": [
-                    {"input_name": "case.txt", "input_text": value, "why": "repair"}
+                    {
+                        "input_name": "case.txt",
+                        "input_text": value,
+                        "why": "repair",
+                        "expected_behavior": "success",
+                        "covered_commitment_ids": [commitment_id],
+                    }
                     for value in values
                 ]
             }
@@ -1026,11 +1037,14 @@ def test_reference_contract_failure_repairs_draft_controls_not_candidate_inputs(
         def propose_example_inputs(self, context: dict) -> dict:
             self.propose_calls += 1
             assert int(context["how_many"]) == 1
+            commitment_id = context["public_commitments"][0]["commitment_id"]
             return {
                 "inputs": [{
                     "input_name": "case.txt",
                     "input_text": "good-one",
                     "why": "覆盖普通工作输入。",
+                    "expected_behavior": "success",
+                    "covered_commitment_ids": [commitment_id],
                 }]
             }
 
@@ -1097,6 +1111,47 @@ def test_output_contract_repair_diagnostics_expose_shape_not_values() -> None:
     assert "invalid_line_shape[1]=0." in diagnostics
     assert "SECRET" not in " ".join(diagnostics)
     assert "CANDIDATE" not in " ".join(diagnostics)
+
+
+def test_behavior_mismatch_rejection_cannot_be_overwritten_by_semantic_admission(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    candidate = example_proposer.CandidateExample(
+        input_name="malformed.txt",
+        input_text="broken",
+        why="公开负例",
+        expected_behavior="user_error",
+        covered_commitment_ids=("transform-input",),
+        upstream_output="apparently valid output",
+        admission_status="REJECTED",
+        admission_reason_codes=("EXPECTED_USER_ERROR_REFERENCE_SUCCESS",),
+    )
+    monkeypatch.setattr(
+        "repoproof.adoption.assembly.output_contract.validate_output_text",
+        lambda *_args, **_kwargs: pytest.fail(
+            "behavior mismatch must stop before output admission"
+        ),
+    )
+
+    result = product_jobs._admit_candidate_pair(
+        candidate,
+        output_contract={
+            "media_type": "text/plain",
+            "root_type": "text",
+            "required": {},
+        },
+        semantic_verifier=tmp_path / "unused.py",
+        required_commitment_ids=("transform-input",),
+        reference_python=sys.executable,
+        upstream=tmp_path,
+        import_module="upstream",
+    )
+
+    assert result.admission_status == "REJECTED"
+    assert result.admission_reason_codes == (
+        "EXPECTED_USER_ERROR_REFERENCE_SUCCESS",
+    )
 
 
 def test_uniform_internal_reference_failure_is_not_candidate_repair() -> None:
@@ -1245,8 +1300,15 @@ def test_untyped_pinned_literals_are_hints_never_direct_candidate_payloads(
             else:
                 values = ["good-modeled-two", "good-modeled-three"]
             assert len(values) == int(context["how_many"])
+            commitment_id = context["public_commitments"][0]["commitment_id"]
             return {"inputs": [
-                {"input_name": f"case-{index}.txt", "input_text": value, "why": ""}
+                {
+                    "input_name": f"case-{index}.txt",
+                    "input_text": value,
+                    "why": "",
+                    "expected_behavior": "success",
+                    "covered_commitment_ids": [commitment_id],
+                }
                 for index, value in enumerate(values, start=1)
             ]}
 
@@ -1384,6 +1446,38 @@ def test_candidate_missing_dependency_lock_stops_before_model(
     assert result["failure_owner"] == "HARNESS"
     assert result["reason_codes"] == ["DEPENDENCY_LOCK_MISSING"]
     assert "没有调用模型" in result["recommended_action"]
+
+
+def test_candidate_schema_and_commitment_errors_have_one_owner_and_action() -> None:
+    schema = product_jobs._candidate_generation_error_result(
+        tool_drafter.DraftError("candidate-inputs:INVALID_DOCUMENT")
+    )
+    assert schema["failure_owner"] == "EXTERNAL"
+    assert schema["reason_codes"] == ["CANDIDATE_DRAFTER_SCHEMA_INVALID"]
+    assert schema["recommended_action"]
+    assert "INVALID_DOCUMENT" not in str(schema["error"])
+
+    missing_catalog = product_jobs._candidate_generation_error_result(
+        example_proposer.ExampleProposalError(
+            "CANDIDATE_COMMITMENT_CATALOG_MISSING"
+        )
+    )
+    assert missing_catalog["failure_owner"] == "CONTRACT"
+    assert missing_catalog["reason_codes"] == [
+        "CANDIDATE_COMMITMENT_CATALOG_MISSING"
+    ]
+    assert "task version" in str(missing_catalog["recommended_action"])
+
+    invalid_binding = product_jobs._candidate_generation_error_result(
+        example_proposer.ExampleProposalError(
+            "CANDIDATE_COMMITMENT_BINDING_INVALID"
+        )
+    )
+    assert invalid_binding["failure_owner"] == "EXTERNAL"
+    assert invalid_binding["reason_codes"] == [
+        "CANDIDATE_COMMITMENT_BINDING_INVALID"
+    ]
+    assert invalid_binding["recommended_action"]
 
 
 def test_binary_candidate_generation_routes_to_real_file_upload(
@@ -1961,6 +2055,204 @@ def test_audit_proposal_refuses_without_a_frozen_reference(monkeypatch, tmp_path
     assert not got["ok"]
     assert got["reason_codes"] == ["REFERENCE_IDENTITY_MISMATCH"]
     assert "reference" in got["error"]
+
+
+def _fresh_audit_proposal_world(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    with_commitments: bool,
+) -> tuple[Path, dict[str, object]]:
+    """Build the complete frozen-reference seam used by proposal tests."""
+
+    state = tmp_path / "state"
+    tools = tmp_path / "tools"
+    tool_dir = tools / "demo-tool"
+    tool_dir.mkdir(parents=True)
+    task_id = "tool-demo-tool-v1"
+    reference = tmp_path / "controls" / task_id / "reference"
+    reference.mkdir(parents=True)
+    (reference / "impl.py").write_text(
+        "from pathlib import Path\nimport audit_upstream\n\n"
+        "def extract(path: Path) -> str:\n"
+        "    return audit_upstream.convert(path.read_text(encoding='utf-8'))\n",
+        encoding="utf-8",
+    )
+    (reference / "requirements.lock.txt").write_text(
+        "audit-upstream==1.0\n",
+        encoding="utf-8",
+    )
+    upstream = tmp_path / "upstream-cache" / f"upstream-{'a' * 12}"
+    upstream.mkdir(parents=True)
+    (upstream / "audit_upstream.py").write_text(
+        "def convert(text):\n    return text.upper()\n",
+        encoding="utf-8",
+    )
+    entry = {
+        "name": "demo-tool",
+        "task_id": task_id,
+        "path": str(tool_dir),
+        "health": "OK",
+        "resolved_commit": "a" * 40,
+        "source_url": "https://github.com/example/audit-upstream",
+    }
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setattr(
+        "repoproof.ui.services.product_mode.project_root",
+        lambda: tmp_path,
+    )
+    monkeypatch.setattr(
+        "repoproof.ui.services.product_mode.list_tools",
+        lambda _root: {
+            "tools": [entry],
+            "registry_error": None,
+            "release_error": None,
+        },
+    )
+    monkeypatch.setattr(
+        product_jobs,
+        "_verify_frozen_reference_identity",
+        lambda **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        product_jobs,
+        "_verify_pinned_upstream_tree",
+        lambda *_args: None,
+    )
+    commitments = (
+        [
+            SimpleNamespace(
+                commitment_id="transform-input",
+                public_text="Transform the input through the pinned upstream.",
+            )
+        ]
+        if with_commitments
+        else []
+    )
+    from repoproof.domain.models import TaskContract
+
+    monkeypatch.setattr(
+        TaskContract,
+        "load_frozen",
+        staticmethod(
+            lambda *_args, **_kwargs: (
+                SimpleNamespace(
+                    task_id=task_id,
+                    source_repo=SimpleNamespace(
+                        resolved_commit="a" * 40,
+                        import_module="audit_upstream",
+                    ),
+                    capability=SimpleNamespace(
+                        statement="Turn one local input into uppercase text.",
+                        intent_contract=(
+                            SimpleNamespace(commitments=commitments)
+                            if with_commitments
+                            else None
+                        ),
+                    ),
+                ),
+                "contract-sha",
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        example_proposer,
+        "prepared_reference_environment",
+        lambda *_args, **_kwargs: nullcontext(sys.executable),
+    )
+    monkeypatch.setattr(
+        example_proposer,
+        "reference_wheelhouse_runtime_identity",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        example_proposer,
+        "_sandboxed_reference_argv",
+        lambda argv, _root: argv,
+    )
+    return tools, {"task_id": task_id}
+
+
+def test_audit_proposal_missing_commitments_fails_before_model(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tools, world = _fresh_audit_proposal_world(
+        monkeypatch,
+        tmp_path,
+        with_commitments=False,
+    )
+    monkeypatch.setattr(
+        tool_drafter,
+        "online_drafter",
+        lambda: pytest.fail("missing public commitments must stop before model"),
+    )
+
+    got = product_jobs.propose_audit_candidates(
+        "demo-tool",
+        dest_root=tools,
+        expected_task_id=str(world["task_id"]),
+        n=1,
+        offline=False,
+    )
+
+    assert got["ok"] is False
+    assert got["failure_owner"] == "CONTRACT"
+    assert got["reason_codes"] == ["AUDIT_CANDIDATE_COMMITMENTS_MISSING"]
+    assert "task version" in got["recommended_action"]
+
+
+def test_audit_proposal_success_binds_public_commitments_and_reference_truth(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    tools, world = _fresh_audit_proposal_world(
+        monkeypatch,
+        tmp_path,
+        with_commitments=True,
+    )
+    seen: dict[str, object] = {}
+
+    class BoundDrafter:
+        name = "bound-audit-stub"
+
+        def propose_example_inputs(self, context: dict) -> dict:
+            seen.update(context)
+            return {
+                "inputs": [
+                    {
+                        "input_name": "fresh.txt",
+                        "input_text": "fresh input",
+                        "why": "fresh public success path",
+                        "expected_behavior": "success",
+                        "covered_commitment_ids": ["transform-input"],
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(tool_drafter, "online_drafter", lambda: BoundDrafter())
+
+    got = product_jobs.propose_audit_candidates(
+        "demo-tool",
+        dest_root=tools,
+        expected_task_id=str(world["task_id"]),
+        n=1,
+        offline=False,
+    )
+
+    assert got["ok"] is True
+    assert seen["public_commitments"] == [
+        {
+            "commitment_id": "transform-input",
+            "public_text": "Transform the input through the pinned upstream.",
+        }
+    ]
+    assert len(got["candidates"]) == 1
+    candidate = got["candidates"][0]
+    assert candidate["expected_behavior"] == "success"
+    assert candidate["covered_commitment_ids"] == ["transform-input"]
+    assert candidate["upstream_output"] == "FRESH INPUT"
+    assert candidate["truth_evidence"]["schema_version"] == 2
 
 
 def _reference_bound_audit_world(

@@ -101,7 +101,9 @@ _INPUTS_SYSTEM = (
     "You propose CANDIDATE INPUT FILES for testing a local CLI tool that wraps "
     "one capability of a pinned Python library. Output STRICT JSON only "
     "(no markdown fences): {\"inputs\": [{\"input_name\": \"...\", "
-    "\"input_text\": \"...\", \"why\": \"...\"}]}. "
+    "\"input_text\": \"...\", \"why\": \"...\", "
+    "\"expected_behavior\": \"success|user_error\", "
+    "\"covered_commitment_ids\": [\"public-id\"]}]}. "
     "Cover a typical case AND edge cases (empty, whitespace, non-ASCII, "
     "malformed/invalid values) that would expose an under-specified contract. "
     "Return exactly `how_many` distinct inputs. If `failed_attempts` is present, "
@@ -110,9 +112,14 @@ _INPUTS_SYSTEM = (
     "raw reference errors are deliberately not disclosed; `existing_input_count` "
     "is only a count, and duplicate filtering happens locally. "
     "`why` is one short line in the SAME LANGUAGE as capability_goal. "
-    "NEVER include an expected output, expected value, assertion or verdict of "
-    "any kind: the expected output is obtained by actually running the pinned "
-    "upstream and is confirmed by the human. Inputs must be plain UTF-8 text."
+    "For every input, classify only whether the PUBLIC contract says it should "
+    "succeed or produce a user input error. `expected_behavior` must be exactly "
+    "`success` or `user_error`. `covered_commitment_ids` must be a non-empty, "
+    "duplicate-free subset of the IDs supplied in `public_commitments`; never "
+    "invent an ID. This classification is model advice, not truth. NEVER include "
+    "an expected output, expected value, or assertion: the actual behavior and "
+    "output are obtained by running the pinned upstream and are confirmed by the "
+    "human. Inputs must be plain UTF-8 text."
 )
 
 
@@ -959,16 +966,60 @@ _INPUTS_SCHEMA = {
             "items": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["input_name", "input_text", "why"],
+                "required": [
+                    "input_name",
+                    "input_text",
+                    "why",
+                    "expected_behavior",
+                    "covered_commitment_ids",
+                ],
                 "properties": {
                     "input_name": {"type": "string", "minLength": 1, "maxLength": 120},
                     "input_text": {"type": "string", "maxLength": 20000},
                     "why": {"type": "string", "minLength": 1, "maxLength": 500},
+                    "expected_behavior": {
+                        "type": "string",
+                        "enum": ["success", "user_error"],
+                    },
+                    "covered_commitment_ids": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 16,
+                        "uniqueItems": True,
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+                        },
+                    },
                 },
             },
         },
     },
 }
+
+
+def _example_inputs_schema(context: dict, requested: int) -> dict[str, Any]:
+    """Bind model-declared coverage to the public commitment catalogue.
+
+    The schema enum is only an early provider-side guard.  Core revalidates the
+    subset after the model call, because provider structured-output support is
+    not itself a trust boundary.
+    """
+
+    schema: dict[str, Any] = deepcopy(_INPUTS_SCHEMA)
+    inputs = schema["properties"]["inputs"]
+    inputs["minItems"] = requested
+    inputs["maxItems"] = requested
+    public_ids = [
+        str(item.get("commitment_id") or "").strip()
+        for item in (context.get("public_commitments") or [])
+        if isinstance(item, dict) and str(item.get("commitment_id") or "").strip()
+    ]
+    if public_ids:
+        covered = inputs["items"]["properties"]["covered_commitment_ids"]
+        covered["maxItems"] = min(16, len(public_ids))
+        covered["items"]["enum"] = list(dict.fromkeys(public_ids))
+    return schema
 
 
 class CodexDrafter:
@@ -1099,9 +1150,7 @@ class CodexDrafter:
 
     def propose_example_inputs(self, context: dict) -> dict:
         requested = max(1, min(int(context.get("how_many") or 4), 8))
-        schema: dict[str, Any] = deepcopy(_INPUTS_SCHEMA)
-        schema["properties"]["inputs"]["minItems"] = requested
-        schema["properties"]["inputs"]["maxItems"] = requested
+        schema = _example_inputs_schema(context, requested)
         return self._structured(
             instructions=_INPUTS_SYSTEM,
             context=context,
@@ -1259,12 +1308,39 @@ class FakeDrafter:
         """候选**输入**(确定性模板)。只出输入 —— 期望输出由上游真跑给出。"""
         n = int(context.get("how_many") or 3)
         goal = context.get("capability_goal", "")
+        commitment_ids = [
+            str(item.get("commitment_id") or "").strip()
+            for item in (context.get("public_commitments") or [])
+            if isinstance(item, dict) and str(item.get("commitment_id") or "").strip()
+        ]
+
+        def bind(item: dict[str, str], *, expected_behavior: str) -> dict[str, object]:
+            if not commitment_ids:
+                # Historical/offline callers remain readable and executable.
+                # Current Product callers provide the public catalogue and get
+                # the v2 binding below.
+                legacy: dict[str, object] = dict(item)
+                return legacy
+            return {
+                **item,
+                "expected_behavior": expected_behavior,
+                "covered_commitment_ids": list(dict.fromkeys(commitment_ids)),
+            }
+
         # 证据候选优先:README 里作者亲手写的示例值,比任何通用模板都靠谱
         # 离线模板是域盲的，不能把泛化占位输入冒充成上游有效域证据。
         mined = [str(x) for x in (context.get("evidence_literals") or [])]
-        evidence = [{"input_name": f"from_readme_{i + 1}.txt", "input_text": lit,
-                     "why": "README 示例里出现的输入(证据挖掘,非模型生成)"}
-                    for i, lit in enumerate(mined)]
+        evidence = [
+            bind(
+                {
+                    "input_name": f"from_readme_{i + 1}.txt",
+                    "input_text": lit,
+                    "why": "README 示例里出现的输入(证据挖掘,非模型生成)",
+                },
+                expected_behavior="success",
+            )
+            for i, lit in enumerate(mined)
+        ]
         shapes = [("typical.txt", "典型输入", "覆盖最常见的一种用法"),
                   ("edge_empty.txt", "", "空输入:边界行为必须被题面写死"),
                   ("edge_unicode.txt", "非 ASCII 输入 · 测试", "非 ASCII:编码路径"),
@@ -1273,9 +1349,20 @@ class FakeDrafter:
                   ("edge_multiline.txt", "第一行\n第二行", "多行输入"),
                   ("edge_symbols.txt", "!@#$%^&*()", "符号输入:非法值路径"),
                   ("edge_numeric.txt", "1234567890", "纯数字输入")]
-        generic = [{"input_name": nm, "input_text": txt or "",
-                    "why": f"{why}(fake 起草;目标:{goal[:40]})"}
-                   for nm, txt, why in shapes]
+        generic = [
+            bind(
+                {
+                    "input_name": nm,
+                    "input_text": txt or "",
+                    "why": f"{why}(fake 起草;目标:{goal[:40]})",
+                },
+                expected_behavior=(
+                    "user_error" if nm in {"edge_empty.txt", "edge_symbols.txt"}
+                    else "success"
+                ),
+            )
+            for nm, txt, why in shapes
+        ]
         return {"inputs": (evidence + generic)[:n]}
 
 
@@ -1486,9 +1573,7 @@ class LiteLLMDrafter:
         """
         user_msg = json.dumps(context, ensure_ascii=False, indent=1)
         requested = max(1, min(int(context.get("how_many") or 4), 8))
-        schema: dict[str, Any] = deepcopy(_INPUTS_SCHEMA)
-        schema["properties"]["inputs"]["minItems"] = requested
-        schema["properties"]["inputs"]["maxItems"] = requested
+        schema = _example_inputs_schema(context, requested)
         text = self._once_with_system(
             _INPUTS_SYSTEM,
             user_msg,

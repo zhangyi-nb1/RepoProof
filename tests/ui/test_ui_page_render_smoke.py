@@ -1041,6 +1041,8 @@ source_repo:
                     "upstream_output": f"output {index}",
                     "upstream_error": None,
                     "why": "boundary",
+                    "expected_behavior": "success",
+                    "covered_commitment_ids": ["transform-input"],
                 }
                 for index in range(n)
             ],

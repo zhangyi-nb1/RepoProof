@@ -18,6 +18,7 @@ import yaml
 
 from repoproof.adoption.intake.intent_contract import new_intent_contract
 from repoproof.adoption.intake.tool_confirm import (
+    ConfirmError,
     confirm_tool_draft,
     confirm_tool_intent_file,
     write_draft_bundle,
@@ -130,8 +131,12 @@ def test_fake_draft_fills_llm_gaps_then_human_only_examples_remain(world):
     confirm_tool_intent_file(dest)
     project = tmp / "proj"
     project.mkdir()
-    info = confirm_tool_draft(dest, project)
-    assert info["task_id"].startswith("tool-acme-lib")
+    # The offline fake verifier deliberately refuses to claim independent
+    # semantic success.  Human examples alone must not turn that placeholder
+    # into a confirmable task.
+    with pytest.raises(ConfirmError) as raised:
+        confirm_tool_draft(dest, project)
+    assert "所有可见返回路径都固定为 ok=False" in str(raised.value)
 
 
 def test_verifier_is_drafted_from_an_exact_public_context_only(world) -> None:
