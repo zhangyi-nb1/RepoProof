@@ -13,3 +13,15 @@ oracle/tool-webcolors-tool-v5/fixtures/inputs/*.txt -whitespace
 # Generated public-contract tests are frozen task material; the generator leaves
 # one terminal blank line that is semantically inert but must remain byte-stable.
 fixtures/**/public_tests/test_public_contract.py -whitespace
+
+# Frozen product-journey vectors preserve exact artifact bytes.  Trailing tabs,
+# RIS terminators, and whitespace-only empty documents are intentional test data.
+fixtures/**/public_examples/inputs/inputs/* -whitespace
+fixtures/**/public_tests/fixtures/inputs/* -whitespace
+fixtures/**/public_tests/fixtures/expected/* -whitespace
+oracle/**/fixtures/inputs/* -whitespace
+oracle/**/fixtures/expected/* -whitespace
+
+# Generated requirement sidecars are frozen alongside their task contracts.  The
+# generator's terminal blank line is inert but must remain byte-stable.
+contracts/*.requirements.yaml -whitespace

@@ -13,6 +13,12 @@ from pathlib import Path
 import pytest
 import yaml
 
+from repoproof.adoption.intake.intent_contract import (
+    confirm_intent_contract,
+    install_artifact_protocol,
+    install_delivery_intent_from_interface,
+    install_semantic_commitments,
+)
 from repoproof.adoption.intake.tool_confirm import (
     ConfirmError,
     check_draft_complete,
@@ -21,6 +27,8 @@ from repoproof.adoption.intake.tool_confirm import (
 )
 from repoproof.adoption.intake.tool_intake import run_tool_intake
 from repoproof.domain.models import TaskContract
+from repoproof.harness.contract_adequacy import evaluate_adequacy
+from repoproof.harness.requirement_spec import load_requirement_spec
 
 
 def _mini_repo(tmp: Path) -> Path:
@@ -61,11 +69,32 @@ def _complete(dest: Path) -> None:
     draft["tool"]["interface"]["input"]["format"] = "TXT"
     draft["tool"]["interface"]["output"]["format"] = "plain text"
     draft["tool"]["interface"]["output"]["contract"] = {
-        "media_type": "text/plain", "root_type": "text", "required": {}}
-    draft["capability"]["statement"] = (
-        "把 acme_lib.shout 包装为本地 CLI:输入文本文件,输出其大写;"
-        "空文件属用户错误(抛 UserInputError → exit 1)。")
+        "media_type": "text/plain",
+        "root_type": "text",
+        "required": {},
+        "validation_profile": "plain_text_v1",
+    }
     draft["capability"]["output_schema"] = "UppercasedText"
+    install_delivery_intent_from_interface(draft, profile_id="cli_v2")
+    install_semantic_commitments(draft, [{
+        "commitment_id": "uppercase-text",
+        "public_text": "使用固定版本上游将文本转为大写，并保留原有顺序。",
+        "rationale": "这是用户要确认的主能力和边界。",
+    }])
+    install_artifact_protocol(draft, {
+        "schema_version": 1,
+        "protocol_id": "uppercase-text-v1",
+        "observations": [{
+            "observation_id": "uppercase-output",
+            "commitment_ids": ["uppercase-text"],
+            "locator": "entire UTF-8 text artifact",
+            "value_encoding": "plain text",
+        }],
+    })
+    confirm_intent_contract(
+        draft,
+        confirmed_at="2026-08-30T00:00:00Z",
+    )
     (dest / "draft.yaml").write_text(
         yaml.safe_dump(draft, allow_unicode=True, sort_keys=False), encoding="utf-8")
     for n, text in (("a", "hello"), ("b", "world"), ("c", "gamma")):
@@ -86,11 +115,34 @@ def _complete(dest: Path) -> None:
         "    if not text.strip():\n"
         "        raise UserInputError(\"empty input\")\n"
         "    return acme_lib.shout(text)\n", encoding="utf-8")
+    (dest / "semantic_verifier.py").write_text(
+        '"""Independent task semantic oracle."""\n'
+        "from pathlib import Path\n\n"
+        "import acme_lib\n\n\n"
+        "def verify(input_path: Path, artifact_path: Path) -> dict:\n"
+        "    expected = acme_lib.shout(input_path.read_text(encoding='utf-8'))\n"
+        "    actual = artifact_path.read_text(encoding='utf-8').rstrip('\\n')\n"
+        "    ok = actual == expected\n"
+        "    return {'ok': ok, "
+        "'reason_codes': [] if ok else ['VALUE_MISMATCH'], "
+        "'checked_commitment_ids': ['uppercase-text']}\n",
+        encoding="utf-8",
+    )
+    (dest / "reference.lock.txt").write_text(
+        "acme-lib==0.1.0\n",
+        encoding="utf-8",
+    )
 
 
 def test_bundle_layout_and_refuse_overwrite(draft_bundle):
     tmp, rep, dest = draft_bundle
-    for rel in ("draft.yaml", "GAPS.md", "examples.yaml", "reference_impl.py"):
+    for rel in (
+        "draft.yaml",
+        "GAPS.md",
+        "examples.yaml",
+        "reference_impl.py",
+        "semantic_verifier.py",
+    ):
         assert (dest / rel).is_file(), f"draft 束缺 {rel}"
     assert (dest / "examples").is_dir()
     assert "owner=USER" in (dest / "GAPS.md").read_text(encoding="utf-8")
@@ -121,7 +173,7 @@ def test_reference_without_upstream_import_is_caught(draft_bundle):
     assert any("未 import acme_lib" in p for p in problems), problems
 
 
-def test_v2_json_draft_without_executable_contract_is_caught(draft_bundle):
+def test_v3_json_draft_without_executable_contract_is_caught(draft_bundle):
     _, _rep, dest = draft_bundle
     _complete(dest)
     draft = yaml.safe_load((dest / "draft.yaml").read_text(encoding="utf-8"))
@@ -191,9 +243,36 @@ def test_confirm_happy_path_freezes_contract(draft_bundle):
     c, _ = TaskContract.load_frozen(
         project / "contracts" / f"{info['task_id']}.yaml", require_sidecar=True)
     assert c.task_family == "LOCAL-TOOL" and c.tool.name == "acme-lib-tool"
-    assert c.tool.schema_version == 2
+    assert c.tool.schema_version == 3
+    assert c.acceptance.semantic_verifier is not None
+    assert c.acceptance.semantic_verifier.protocol == (
+        "repoproof-semantic-verifier-v1"
+    )
+    semantic_source = project / c.acceptance.semantic_verifier.source_file
+    assert semantic_source.is_file()
     assert c.capability.output_schema == "UppercasedText"
+    assert c.capability.intent_contract is not None
+    assert c.capability.intent_contract.confirmation.confirmed_by == "USER"
     assert c.tool.interface.output.contract.root_type == "text"
+    requirements, _ = load_requirement_spec(
+        project / "contracts" / f"{info['task_id']}.requirements.yaml"
+    )
+    traced = requirements.by_id()["intent-uppercase-text"]
+    assert traced.oracle_nodes == []
+    assert traced.verified_by == "semantic-verifier:acme-lib-tool-semantic-v1"
+    broken = c.model_copy(deep=True)
+    broken.capability.statement += "\n冻结后偷加的规则"
+    result = evaluate_adequacy(
+        spec=requirements,
+        capability_nodes=[],
+        regression_nodes=[],
+        rendered_prompt="",
+        contract=broken,
+        tool_example_docs_dir=(
+            project / "oracle" / info["task_id"] / "fixtures"
+        ),
+    )
+    assert result.checked["tool_intent_confirmation_matches_frozen_contract"] is False
     # held-out 文件本体只进 oracle(确认流传导装配器纪律)
     assert (project / "oracle" / info["task_id"] / "fixtures" / "c.txt").is_file()
     skel_pub = project / "fixtures" / "tool_skeleton_acme-lib-tool" / "public_tests"

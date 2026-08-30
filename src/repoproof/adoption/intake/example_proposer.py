@@ -34,19 +34,39 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
 import re
+import secrets
 import subprocess
 import sys
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from repoproof.execution.import_hook import (
+    ENV_LEDGER,
+    ENV_MODULE,
+    ENV_SECRET,
+    verify_import_receipts,
+    write_hook_dir,
+)
+from repoproof.execution.offline_sandbox import (
+    OfflineSandboxUnavailable,
+    offline_sandbox_argv,
+    sanitised_subprocess_env,
+)
 
 MAX_CANDIDATES = 8
 _RUN_TIMEOUT_S = 60
 _OUTPUT_CAP = 20_000
+_REFERENCE_EXACT_PIN_RE = re.compile(
+    r"[A-Za-z0-9][A-Za-z0-9._-]*==[A-Za-z0-9][A-Za-z0-9._+!-]*"
+)
+_REFERENCE_WHEELHOUSE_MANIFEST = "manifest.json"
 
 
 class ExampleProposalError(RuntimeError):
@@ -70,6 +90,75 @@ class ReferenceIsolationError(ReferenceEnvironmentError):
     reason_code = "REFERENCE_RUNTIME_ISOLATION_UNAVAILABLE"
 
 
+class ReferenceWheelhouseMaterializationError(ReferenceEnvironmentError):
+    """The exact-pinned reference wheel cache could not be prepared."""
+
+    reason_code = "REFERENCE_WHEELHOUSE_MATERIALIZATION_FAILED"
+
+
+class ReferenceWheelhouseIntegrityError(ReferenceEnvironmentError):
+    """A previously prepared reference wheel cache no longer matches."""
+
+    reason_code = "REFERENCE_WHEELHOUSE_INTEGRITY_FAILED"
+
+
+class ReferenceOfflineInstallError(ReferenceEnvironmentError):
+    """The disposable interpreter cannot install the cached wheel closure."""
+
+    reason_code = "REFERENCE_OFFLINE_INSTALL_FAILED"
+
+
+class CandidateTruthEvidence(BaseModel):
+    """Public, candidate-scoped identity for one reference execution.
+
+    The signed receipt itself and its one-time verification secret stay in the
+    server-managed evidence store.  This public projection is safe to render in
+    a browser, but it is not sufficient on its own to confirm a golden sample.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: int = 1
+    evidence_id: str
+    correlation_id: str
+    import_module: str
+    reference_sha256: str
+    upstream_identity_sha256: str
+    input_sha256: str
+    result_kind: str
+    result_sha256: str
+    runtime_receipt_sha256: str
+    imports: int
+    calls: int
+    truth_binding_sha256: str
+
+    @model_validator(mode="after")
+    def _well_formed(self) -> CandidateTruthEvidence:
+        if self.schema_version != 1:
+            raise ValueError("candidate truth evidence schema_version 必须为 1")
+        for name in (
+            "evidence_id",
+            "correlation_id",
+            "reference_sha256",
+            "upstream_identity_sha256",
+            "input_sha256",
+            "result_sha256",
+            "runtime_receipt_sha256",
+            "truth_binding_sha256",
+        ):
+            if re.fullmatch(r"[0-9a-f]{64}", str(getattr(self, name))) is None:
+                raise ValueError(f"{name} 必须是小写 SHA-256")
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*", self.import_module) is None:
+            raise ValueError("candidate truth evidence import_module 无效")
+        if self.result_kind not in {"output", "error"}:
+            raise ValueError("candidate truth evidence result_kind 无效")
+        if self.imports < 1 or self.calls < 0:
+            raise ValueError("candidate truth evidence runtime counts 无效")
+        if self.result_kind == "output" and self.calls < 1:
+            raise ValueError("成功候选必须有自己那次执行的上游调用证据")
+        return self
+
+
 class CandidateExample(BaseModel):
     """一条候选样例。`upstream_output` 是**上游实际输出**,不是判定。"""
 
@@ -81,6 +170,19 @@ class CandidateExample(BaseModel):
     upstream_output_truncated: bool = False
     confirmed: bool = False             # 只能经 confirm_candidate 翻
     expected_overridden: bool = False   # 人工改真值时不得冒充上游派生
+    admission_status: Literal[
+        "NOT_EVALUATED", "ADMITTED", "REJECTED"
+    ] = "NOT_EVALUATED"
+    admission_reason_codes: tuple[str, ...] = ()
+    truth_evidence: CandidateTruthEvidence | None = None
+    # Never serialised to the browser.  Product Studio persists this signed
+    # ledger + one-time secret in its server-managed evidence store before it
+    # returns the public candidate projection.
+    managed_runtime_evidence: dict[str, str] | None = Field(
+        default=None,
+        exclude=True,
+        repr=False,
+    )
 
     def truth_provenance(self) -> str:
         if not self.confirmed:
@@ -88,6 +190,24 @@ class CandidateExample(BaseModel):
         if self.expected_overridden:
             return "USER_OVERRIDDEN"
         return "UPSTREAM_DERIVED_USER_CONFIRMED"
+
+    @model_validator(mode="after")
+    def _admission_is_consistent(self) -> CandidateExample:
+        if any(_PUBLIC_REASON_RE.fullmatch(item) is None for item in self.admission_reason_codes):
+            raise ValueError("candidate admission reason codes are invalid")
+        if len(self.admission_reason_codes) != len(set(self.admission_reason_codes)):
+            raise ValueError("candidate admission reason codes must be unique")
+        if self.admission_status == "ADMITTED" and (
+            self.upstream_output is None
+            or self.upstream_error is not None
+            or self.admission_reason_codes
+        ):
+            raise ValueError("admitted candidate must have one clean reference output")
+        if self.admission_status == "REJECTED" and not self.admission_reason_codes:
+            raise ValueError("rejected candidate must explain its admission failure")
+        if self.admission_status == "NOT_EVALUATED" and self.admission_reason_codes:
+            raise ValueError("unevaluated candidate cannot carry admission failures")
+        return self
 
     @property
     def usable_as_golden(self) -> bool:
@@ -98,13 +218,176 @@ class CandidateExample(BaseModel):
         这类候选仍然有用 —— 它是"这个输入会让上游炸"的**行为证据**,
         提醒你把该行为写进题面,而不是等真发时被 oracle 撞出来。
         """
-        return self.upstream_output is not None and not self.upstream_error
+        return (
+            self.upstream_output is not None
+            and not self.upstream_error
+            and self.admission_status != "REJECTED"
+        )
 
 
 class ProposalBatch(BaseModel):
     candidates: list[CandidateExample] = Field(default_factory=list)
     drafter: str = ""
     note: str = ""
+    reference_evidence: dict[str, object] | None = None
+
+
+def _domain_sha256(domain: bytes, document: dict[str, object]) -> str:
+    payload = json.dumps(
+        document,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    digest = hashlib.sha256()
+    digest.update(domain + b"\0")
+    digest.update(len(payload).to_bytes(8, "big"))
+    digest.update(payload)
+    return digest.hexdigest()
+
+
+def upstream_runtime_identity(
+    upstream_dir: Path,
+    *,
+    import_module: str,
+    runtime_artifact_sha256: str | None = None,
+) -> str:
+    """Bind candidate truth to its source provenance and executable runtime.
+
+    Git repositories use commit/tree identities plus a digest of any working
+    tree status.  Synthetic/non-Git fixtures fall back to a deterministic tree
+    digest.  Product Studio may additionally bind the identity of the admitted
+    wheel closure actually imported by the reference process.  This keeps a
+    source checkout as provenance without pretending an unbuilt checkout is an
+    executable distribution.  No repository names, formats or capability
+    vocabulary participate in this mechanism.
+    """
+
+    root = Path(upstream_dir)
+    if root.is_symlink() or not root.is_dir():
+        raise ExampleProposalError("REFERENCE_UPSTREAM_IDENTITY_UNAVAILABLE")
+    module = str(import_module).strip()
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*", module) is None:
+        raise ExampleProposalError("REFERENCE_IMPORT_MODULE_INVALID")
+
+    def git(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(  # noqa: S603 - fixed git argv
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+
+    head = git("rev-parse", "HEAD")
+    tree = git("rev-parse", "HEAD^{tree}")
+    status = git("status", "--porcelain=v1", "--untracked-files=all")
+    if (
+        head.returncode == tree.returncode == status.returncode == 0
+        and not status.stdout.strip()
+    ):
+        identity: dict[str, object] = {
+            "kind": "git-worktree-v1",
+            "head": head.stdout.strip(),
+            "tree": tree.stdout.strip(),
+            "worktree": "clean",
+        }
+    else:
+        digest = hashlib.sha256(b"repoproof-upstream-tree-v1\0")
+        found = False
+        for path in sorted(root.rglob("*"), key=lambda item: item.as_posix()):
+            relative = path.relative_to(root)
+            if ".git" in relative.parts or "__pycache__" in relative.parts:
+                continue
+            if path.is_symlink():
+                raise ExampleProposalError("REFERENCE_UPSTREAM_TREE_HAS_SYMLINK")
+            if not path.is_file() or path.suffix == ".pyc":
+                continue
+            found = True
+            body = path.read_bytes()
+            encoded = relative.as_posix().encode("utf-8")
+            digest.update(len(encoded).to_bytes(8, "big"))
+            digest.update(encoded)
+            digest.update(len(body).to_bytes(8, "big"))
+            digest.update(body)
+        if not found:
+            raise ExampleProposalError("REFERENCE_UPSTREAM_IDENTITY_UNAVAILABLE")
+        identity = {"kind": "content-tree-v1", "tree_sha256": digest.hexdigest()}
+    identity["import_module"] = module
+    if runtime_artifact_sha256 is not None:
+        runtime_digest = str(runtime_artifact_sha256).strip().lower()
+        if re.fullmatch(r"[0-9a-f]{64}", runtime_digest) is None:
+            raise ExampleProposalError("REFERENCE_RUNTIME_ARTIFACT_IDENTITY_INVALID")
+        identity["runtime_artifact"] = {
+            "kind": "admitted-wheel-closure-v1",
+            "sha256": runtime_digest,
+        }
+    return _domain_sha256(b"repoproof-upstream-runtime-identity-v1", identity)
+
+
+def _candidate_truth_binding(
+    *,
+    input_name: str,
+    input_text: str,
+    result_kind: str,
+    result_text: str,
+    import_module: str,
+    reference_sha256: str,
+    upstream_identity_sha256: str,
+    runtime_receipt_sha256: str,
+) -> str:
+    return _domain_sha256(
+        b"repoproof-candidate-truth-binding-v1",
+        {
+            "input_name": input_name,
+            "input_sha256": hashlib.sha256(input_text.encode("utf-8")).hexdigest(),
+            "result_kind": result_kind,
+            "result_sha256": hashlib.sha256(result_text.encode("utf-8")).hexdigest(),
+            "import_module": import_module,
+            "reference_sha256": reference_sha256,
+            "upstream_identity_sha256": upstream_identity_sha256,
+            "runtime_receipt_sha256": runtime_receipt_sha256,
+        },
+    )
+
+
+def validate_candidate_truth_evidence(candidate: CandidateExample) -> None:
+    """Recompute the public candidate binding; absence always fails closed."""
+
+    evidence = candidate.truth_evidence
+    if evidence is None:
+        raise ExampleProposalError("CANDIDATE_TRUTH_EVIDENCE_MISSING")
+    if candidate.upstream_output is None or candidate.upstream_error is not None:
+        raise ExampleProposalError("CANDIDATE_TRUTH_EVIDENCE_NOT_CONFIRMABLE")
+    input_sha256 = hashlib.sha256(candidate.input_text.encode("utf-8")).hexdigest()
+    result_sha256 = hashlib.sha256(candidate.upstream_output.encode("utf-8")).hexdigest()
+    if (
+        evidence.result_kind != "output"
+        or evidence.input_sha256 != input_sha256
+        or evidence.result_sha256 != result_sha256
+    ):
+        raise ExampleProposalError("CANDIDATE_TRUTH_EVIDENCE_CONTENT_MISMATCH")
+    binding = _candidate_truth_binding(
+        input_name=candidate.input_name,
+        input_text=candidate.input_text,
+        result_kind="output",
+        result_text=candidate.upstream_output,
+        import_module=evidence.import_module,
+        reference_sha256=evidence.reference_sha256,
+        upstream_identity_sha256=evidence.upstream_identity_sha256,
+        runtime_receipt_sha256=evidence.runtime_receipt_sha256,
+    )
+    if binding != evidence.truth_binding_sha256:
+        raise ExampleProposalError("CANDIDATE_TRUTH_EVIDENCE_BINDING_MISMATCH")
+    want_id = _domain_sha256(
+        b"repoproof-candidate-evidence-id-v1",
+        {
+            "correlation_id": evidence.correlation_id,
+            "truth_binding_sha256": binding,
+        },
+    )
+    if want_id != evidence.evidence_id:
+        raise ExampleProposalError("CANDIDATE_TRUTH_EVIDENCE_ID_MISMATCH")
 
 
 # --------------------------------------------------------------- ① 候选输入
@@ -116,10 +399,8 @@ def mine_evidence_literals(upstream_dir: Path, *, cap: int = 12,
                            import_module_names: list[str] | None = None) -> list[str]:
     """从钉版上游的 README 里挖出**现成的示例输入**(确定性,零模型)。
 
-    为什么要有这一步(2026-08-27 实测):离线模板起草是域盲的 —— 它给
-    "典型输入""非 ASCII 输入"这种通用串,对 webcolors 这类任务一条可用的
-    都没有(6 条候选全部让上游抛错)。而 README 的 doctest 里就躺着
-    `hex_to_name("#daa520")` —— 作者亲手写的、保证有意义的输入。
+    离线模板是域盲的，泛化占位输入可能全部落在上游有效域之外；README
+    与上游测试中的作者示例则是可追溯的高信号候选来源。
 
     与本模块的总纲一致:**从证据里提取,而不是凭空发明**。挖出来的仍然
     只是"候选输入",期望输出照旧由上游真跑给出、由人确认。
@@ -244,12 +525,30 @@ def _norm_input(text: str) -> str:
 _PUBLIC_REASON_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 _EXCEPTION_TYPE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]{0,119}$")
 _PUBLIC_REASON_CODES = frozenset({
+    "CANDIDATE_NOT_IN_ADMITTED_SUCCESS_DOMAIN",
     "REFERENCE_EXECUTION_ERROR",
     "REFERENCE_NO_OUTPUT",
     "REFERENCE_OUTPUT_TOO_LARGE",
     "REFERENCE_REJECTED",
     "REFERENCE_USER_INPUT_ERROR",
 })
+
+
+def public_candidate_failure(candidate: CandidateExample) -> dict[str, str]:
+    """Return model-safe feedback without leaking task verifier diagnostics."""
+
+    if candidate.admission_status == "REJECTED":
+        reason_code = "CANDIDATE_NOT_IN_ADMITTED_SUCCESS_DOMAIN"
+        return {
+            "reason_code": reason_code,
+            "failure_fingerprint": hashlib.sha256(
+                reason_code.encode("ascii")
+            ).hexdigest(),
+        }
+    return public_reference_failure(
+        upstream_error=candidate.upstream_error,
+        output_truncated=candidate.upstream_output_truncated,
+    )
 
 
 def public_reference_failure(*, upstream_error: str | None,
@@ -340,72 +639,13 @@ print(json.dumps({"results": out}))
 '''.replace("__OUTPUT_CAP__", str(_OUTPUT_CAP))
 
 
-def reference_is_placeholder(source: str) -> str:
-    """reference 还是"起草占位"吗?→ 返回原因(空串表示看起来是真实现)。
-
-    背景(2026-08-27 用户实测):离线模板起草出来的 reference 长这样 ——
-
-        import webcolors
-        def extract(input_path):
-            ...
-            return str(webcolors)
-
-    它**确实 import 了上游、确实有确定性输出**,所以骨架检查(抛
-    NotImplementedError)放它过去。但它没有实现任何能力:拿它跑候选,
-    每条"上游实际输出"都是 `<module 'webcolors' from ...>`,用户一确认
-    就把模块字符串冻进了验收真值 —— 一个看起来全绿、实则空心的合同。
-
-    用 AST 判,不用正则:只认"extract 的返回值是 `str(<顶层 import 的模块>)`"
-    这一个精确形状,避免误伤真实现。
-    """
-    import ast
-
-    try:
-        tree = ast.parse(source)
-    except SyntaxError as exc:
-        return f"reference_impl 语法错误:{exc}"
-
-    modules: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for a in node.names:
-                modules.add((a.asname or a.name).split(".")[0])
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            modules.add(node.module.split(".")[0])
-
-    for fn in ast.walk(tree):
-        if not (isinstance(fn, ast.FunctionDef) and fn.name == "extract"):
-            continue
-        for node in ast.walk(fn):
-            if not isinstance(node, ast.Return) or node.value is None:
-                continue
-            v = node.value
-            if (isinstance(v, ast.Call) and isinstance(v.func, ast.Name)
-                    and v.func.id == "str" and len(v.args) == 1
-                    and isinstance(v.args[0], ast.Name)
-                    and v.args[0].id in modules):
-                return (f"reference_impl 还是起草占位:它只是把上游模块本身"
-                        f"转成字符串(`return str({v.args[0].id})`),并没有实现能力。"
-                        "拿它跑出来的「上游实际输出」会是模块地址,不是你要的结果 —— "
-                        "请先在上面把参考实现补成真调上游能力的版本。")
-    return ""
-
-
 def _sanitised_env(home: Path, extra_paths: list[str]) -> dict:
     """净化环境:只留跑得起来的最小集合。
 
     密钥、REPOPROOF_* 连接配置一律不进 —— 这里执行的是**第三方代码**,
     给它看见 API key 没有任何正当理由(与会话装配的净化口径同向)。
     """
-    keep = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-            "LANG": os.environ.get("LANG", "C.UTF-8"),
-            "LC_ALL": os.environ.get("LC_ALL", "C.UTF-8")}
-    keep["HOME"] = str(home)
-    keep["TMPDIR"] = str(home)
-    if extra_paths:
-        keep["PYTHONPATH"] = os.pathsep.join(extra_paths)
-    keep["PYTHONDONTWRITEBYTECODE"] = "1"
-    return keep
+    return sanitised_subprocess_env(home, extra_paths)
 
 
 def _reference_lock_path(draft_dir: Path) -> Path | None:
@@ -415,6 +655,252 @@ def _reference_lock_path(draft_dir: Path) -> Path | None:
 
 def _python_in_venv(venv: Path) -> Path:
     return venv / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+
+
+def _normalised_reference_lock_text(raw: str) -> str:
+    pins = [
+        line.strip()
+        for line in str(raw).splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    if not pins or any(_REFERENCE_EXACT_PIN_RE.fullmatch(pin) is None for pin in pins):
+        raise ReferenceWheelhouseMaterializationError(
+            "参考依赖锁不是完整的精确版本列表（HARNESS；尚未调用模型）。"
+        )
+    return "\n".join(pins) + "\n"
+
+
+def _normalised_reference_lock(lock: Path) -> str:
+    try:
+        if lock.is_symlink() or not lock.is_file():
+            raise OSError("lock is not a regular file")
+        raw = lock.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise ReferenceWheelhouseMaterializationError(
+            "参考依赖锁不可安全读取（HARNESS；尚未调用模型）。"
+        ) from exc
+    return _normalised_reference_lock_text(raw)
+
+
+def _reference_wheelhouse_identity(lock: Path) -> tuple[str, str]:
+    normalised = _normalised_reference_lock(lock)
+    lock_sha256 = hashlib.sha256(normalised.encode("utf-8")).hexdigest()
+    identity = {
+        "schema_version": 1,
+        "lock_sha256": lock_sha256,
+        "python_cache_tag": str(getattr(sys.implementation, "cache_tag", "")),
+        "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
+        "platform": sys.platform,
+        "machine": platform.machine(),
+    }
+    cache_key = hashlib.sha256(
+        b"repoproof-reference-wheelhouse-v1\0"
+        + json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return cache_key, lock_sha256
+
+
+def _path_has_symlink(path: Path) -> bool:
+    absolute = Path(path).absolute()
+    current = Path(absolute.anchor)
+    for part in absolute.parts[1:]:
+        current /= part
+        if current.is_symlink():
+            return True
+        if not current.exists():
+            break
+    return False
+
+
+def _wheel_manifest(wheelhouse: Path) -> dict[str, object]:
+    wheels: dict[str, dict[str, object]] = {}
+    for wheel in sorted(wheelhouse.glob("*.whl")):
+        if wheel.is_symlink() or not wheel.is_file():
+            raise ReferenceWheelhouseIntegrityError(
+                "参考 wheelhouse 包含不安全文件（HARNESS；尚未调用模型）。"
+            )
+        digest = hashlib.sha256()
+        with wheel.open("rb") as stream:
+            while chunk := stream.read(1024 * 1024):
+                digest.update(chunk)
+        wheels[wheel.name] = {
+            "sha256": digest.hexdigest(),
+            "size": wheel.stat().st_size,
+        }
+    if not wheels:
+        raise ReferenceWheelhouseIntegrityError(
+            "参考 wheelhouse 没有可安装 wheel（HARNESS；尚未调用模型）。"
+        )
+    return {"wheels": wheels}
+
+
+def _validate_reference_wheelhouse(
+    wheelhouse: Path,
+    *,
+    cache_key: str,
+    lock_sha256: str,
+) -> None:
+    if wheelhouse.is_symlink() or not wheelhouse.is_dir():
+        raise ReferenceWheelhouseIntegrityError(
+            "参考 wheelhouse 缓存身份无效（HARNESS；尚未调用模型）。"
+        )
+    manifest_path = wheelhouse / _REFERENCE_WHEELHOUSE_MANIFEST
+    try:
+        if manifest_path.is_symlink() or not manifest_path.is_file():
+            raise OSError("manifest is not a regular file")
+        if manifest_path.stat().st_size > 1024 * 1024:
+            raise ValueError("manifest too large")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+        raise ReferenceWheelhouseIntegrityError(
+            "参考 wheelhouse 清单不可验证（HARNESS；尚未调用模型）。"
+        ) from exc
+    if not isinstance(manifest, dict):
+        raise ReferenceWheelhouseIntegrityError(
+            "参考 wheelhouse 清单根节点无效（HARNESS；尚未调用模型）。"
+        )
+    actual = _wheel_manifest(wheelhouse)
+    expected_wheels = manifest.get("wheels")
+    if (
+        manifest.get("schema_version") != 1
+        or manifest.get("cache_key") != cache_key
+        or manifest.get("lock_sha256") != lock_sha256
+        or expected_wheels != actual["wheels"]
+    ):
+        raise ReferenceWheelhouseIntegrityError(
+            "参考 wheelhouse 与依赖锁身份不一致（HARNESS；尚未调用模型）。"
+        )
+
+
+def reference_wheelhouse_runtime_identity(
+    lock: Path,
+    *,
+    cache_root: Path,
+) -> str:
+    """Return the identity of an already admitted executable wheel closure.
+
+    The helper is deliberately cache-only: candidate confirmation and audit
+    materialisation must never acquire new bytes merely to make an old truth
+    record look current.  Generation first materialises the content-addressed
+    cache through :func:`prepared_reference_environment`, then calls this
+    function to bind the revalidated manifest and wheel bytes into evidence.
+    """
+
+    cache_key, lock_sha256 = _reference_wheelhouse_identity(Path(lock))
+    wheelhouse = Path(cache_root).expanduser() / cache_key
+    _validate_reference_wheelhouse(
+        wheelhouse,
+        cache_key=cache_key,
+        lock_sha256=lock_sha256,
+    )
+    manifest = json.loads(
+        (wheelhouse / _REFERENCE_WHEELHOUSE_MANIFEST).read_text(encoding="utf-8")
+    )
+    return _domain_sha256(
+        b"repoproof-reference-runtime-artifact-v1",
+        {
+            "cache_key": cache_key,
+            "lock_sha256": lock_sha256,
+            "wheels": manifest["wheels"],
+        },
+    )
+
+
+def ensure_reference_wheelhouse(
+    lock: Path,
+    *,
+    cache_root: Path,
+    timeout_s: int = 600,
+) -> Path:
+    """Return an immutable-by-identity, persistent wheel closure for ``lock``.
+
+    Network access is permitted only while materialising a cache miss.  Every
+    candidate/reference execution later installs solely from this admitted
+    directory with ``--no-index``.  Cached bytes are rehashed before reuse, so
+    a stale or modified cache fails closed rather than silently redownloading.
+    """
+
+    cache_key, lock_sha256 = _reference_wheelhouse_identity(Path(lock))
+    root = Path(cache_root).expanduser()
+    try:
+        if _path_has_symlink(root) or root.is_symlink():
+            raise OSError("cache root is a symlink")
+        root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if not root.is_dir() or root.is_symlink():
+            raise OSError("cache root is not a regular directory")
+    except OSError as exc:
+        raise ReferenceWheelhouseMaterializationError(
+            "参考 wheelhouse 缓存目录不可用（HARNESS；尚未调用模型）。"
+        ) from exc
+    target = root / cache_key
+    if target.exists():
+        _validate_reference_wheelhouse(
+            target,
+            cache_key=cache_key,
+            lock_sha256=lock_sha256,
+        )
+        return target
+
+    with tempfile.TemporaryDirectory(prefix=f".{cache_key[:12]}-", dir=root) as temp:
+        stage = Path(temp)
+        wheels = stage / "wheels"
+        wheels.mkdir(mode=0o700)
+        environment = _sanitised_env(stage, [])
+        try:
+            downloaded = subprocess.run(  # noqa: S603 - fixed interpreter/argv
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "download",
+                    "--disable-pip-version-check",
+                    "--only-binary=:all:",
+                    "--dest",
+                    str(wheels),
+                    "-r",
+                    str(lock),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=timeout_s,
+                env=environment,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise ReferenceWheelhouseMaterializationError(
+                "参考依赖 wheelhouse 建立失败（HARNESS；尚未调用模型）。"
+            ) from exc
+        if downloaded.returncode != 0:
+            raise ReferenceWheelhouseMaterializationError(
+                "参考依赖 wheelhouse 建立失败（HARNESS；尚未调用模型）。"
+            )
+        actual = _wheel_manifest(wheels)
+        manifest = {
+            "schema_version": 1,
+            "cache_key": cache_key,
+            "lock_sha256": lock_sha256,
+            "wheels": actual["wheels"],
+        }
+        manifest_path = wheels / _REFERENCE_WHEELHOUSE_MANIFEST
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        try:
+            os.replace(wheels, target)
+        except OSError as exc:
+            # A concurrent producer may have won the same content-addressed
+            # cache key.  Admit that directory only after full re-verification.
+            if not target.is_dir():
+                raise ReferenceWheelhouseMaterializationError(
+                    "参考 wheelhouse 无法原子保存（HARNESS；尚未调用模型）。"
+                ) from exc
+        _validate_reference_wheelhouse(
+            target,
+            cache_key=cache_key,
+            lock_sha256=lock_sha256,
+        )
+        return target
 
 
 def _sandboxed_reference_argv(argv: list[str], writable_root: Path) -> list[str]:
@@ -433,23 +919,13 @@ def _sandboxed_reference_argv(argv: list[str], writable_root: Path) -> list[str]
     sent back to the model.
     """
 
-    sandbox = Path("/usr/bin/sandbox-exec")
-    if sys.platform != "darwin" or not sandbox.is_file():
+    try:
+        return offline_sandbox_argv(argv, writable_root)
+    except OfflineSandboxUnavailable as exc:
         raise ReferenceIsolationError(
             "当前主机没有受支持的 reference runtime 隔离后端；"
             "为避免让第三方 reference 联网，Studio 已在模型调用前停止。"
-        )
-    real_root = writable_root.resolve()
-    escaped_root = str(real_root).replace("\\", "\\\\").replace('"', '\\"')
-    profile = (
-        "(version 1)"
-        "(allow default)"
-        "(deny network*)"
-        "(deny file-write*)"
-        f'(allow file-write* (subpath "{escaped_root}") '
-        '(literal "/dev/null"))'
-    )
-    return [str(sandbox), "-p", profile, *argv]
+        ) from exc
 
 
 @contextmanager
@@ -457,22 +933,37 @@ def prepared_reference_environment(
     draft_dir: Path,
     *,
     wheelhouse: Path | None = None,
+    wheelhouse_cache_root: Path | None = None,
+    resolved_lock_text: str | None = None,
     timeout_s: int = 600,
 ) -> Iterator[str | None]:
     """Yield one disposable interpreter containing the reference lock closure.
 
-    The pinned upstream source tree is still placed first on ``PYTHONPATH`` by
-    :func:`run_reference_on_candidates`; the venv supplies only the dependency
-    closure which a source checkout does not contain.  When no lock exists we
+    The venv contains the exact executable wheel closure. Product callers bind
+    that closure into candidate evidence and import it directly; the pinned
+    source checkout remains the provenance identity. When no lock exists we
     preserve the source-only behavior used by synthetic/stdlib references.
 
-    With no caller-provided wheelhouse, dependencies are first downloaded as
-    wheels and then installed with ``--no-index``.  Consequently third-party
-    code is never executed with network access during candidate evaluation,
-    and sdists/build hooks are not accepted on this Product intake path.
+    Studio supplies ``wheelhouse_cache_root`` so a lock/interpreter identity is
+    materialised once and re-verified on every reuse.  Other callers may still
+    provide an already admitted wheelhouse directly.  Installation is always
+    ``--no-index``; third-party code therefore never executes with network
+    access during candidate evaluation, and sdists/build hooks are rejected.
     """
-    lock = _reference_lock_path(Path(draft_dir))
-    if lock is None:
+    disk_lock = _reference_lock_path(Path(draft_dir))
+    selected_lock_text: str | None = None
+    if resolved_lock_text is not None:
+        selected_lock_text = _normalised_reference_lock_text(resolved_lock_text)
+        if (
+            disk_lock is not None
+            and _normalised_reference_lock(disk_lock) != selected_lock_text
+        ):
+            raise ReferenceWheelhouseIntegrityError(
+                "草稿依赖锁与 Core 解析结果不一致（HARNESS；尚未调用模型）。"
+            )
+    elif disk_lock is not None:
+        selected_lock_text = _normalised_reference_lock(disk_lock)
+    if selected_lock_text is None:
         yield None
         return
 
@@ -480,6 +971,9 @@ def prepared_reference_environment(
         root = Path(temp)
         venv = root / "venv"
         managed_wheels = root / "wheels"
+        lock = disk_lock or (root / "resolved-reference.lock.txt")
+        if disk_lock is None:
+            lock.write_text(selected_lock_text, encoding="utf-8")
         env = _sanitised_env(root, [])
         try:
             created = subprocess.run(  # noqa: S603 - fixed interpreter and argv
@@ -492,28 +986,70 @@ def prepared_reference_environment(
             )
         except (OSError, subprocess.SubprocessError) as exc:
             raise ReferenceEnvironmentError(
-                f"参考环境创建失败（HARNESS）：{exc}"
+                "参考环境创建失败（HARNESS；尚未调用模型）。"
             ) from exc
         if created.returncode != 0:
             raise ReferenceEnvironmentError(
-                "参考环境创建失败（HARNESS）："
-                f"{(created.stderr or created.stdout or '')[-800:]}"
+                "参考环境创建失败（HARNESS；尚未调用模型）。"
             )
 
         python = _python_in_venv(venv)
-        install_wheels = Path(wheelhouse) if wheelhouse is not None else managed_wheels
-        if wheelhouse is None:
+        if wheelhouse is not None:
+            install_wheels = Path(wheelhouse)
+        elif wheelhouse_cache_root is not None:
+            install_wheels = ensure_reference_wheelhouse(
+                lock,
+                cache_root=wheelhouse_cache_root,
+                timeout_s=timeout_s,
+            )
+        else:
+            install_wheels = managed_wheels
+        if wheelhouse is None and wheelhouse_cache_root is None:
             managed_wheels.mkdir()
-            downloaded = subprocess.run(  # noqa: S603 - fixed interpreter and argv
+            try:
+                downloaded = subprocess.run(  # noqa: S603 - fixed interpreter/argv
+                    [
+                        str(python),
+                        "-m",
+                        "pip",
+                        "download",
+                        "--disable-pip-version-check",
+                        "--only-binary=:all:",
+                        "--dest",
+                        str(managed_wheels),
+                        "-r",
+                        str(lock),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_s,
+                    env=env,
+                    check=False,
+                )
+            except (OSError, subprocess.SubprocessError) as exc:
+                raise ReferenceWheelhouseMaterializationError(
+                    "参考依赖 wheelhouse 建立失败（HARNESS；尚未调用模型）。"
+                ) from exc
+            if downloaded.returncode != 0:
+                raise ReferenceWheelhouseMaterializationError(
+                    "参考依赖 wheelhouse 建立失败（HARNESS；尚未调用模型）。"
+                )
+        elif not install_wheels.is_dir():
+            raise ReferenceWheelhouseIntegrityError(
+                "参考 wheelhouse 不存在或身份无效（HARNESS；尚未调用模型）。"
+            )
+
+        try:
+            installed = subprocess.run(  # noqa: S603 - fixed interpreter and argv
                 [
                     str(python),
                     "-m",
                     "pip",
-                    "download",
+                    "install",
                     "--disable-pip-version-check",
-                    "--only-binary=:all:",
-                    "--dest",
-                    str(managed_wheels),
+                    "--no-index",
+                    "--find-links",
+                    str(install_wheels),
                     "-r",
                     str(lock),
                 ],
@@ -523,39 +1059,13 @@ def prepared_reference_environment(
                 env=env,
                 check=False,
             )
-            if downloaded.returncode != 0:
-                raise ReferenceEnvironmentError(
-                    "参考依赖下载失败（HARNESS；尚未调用模型）："
-                    f"{(downloaded.stderr or downloaded.stdout or '')[-1200:]}"
-                )
-        elif not install_wheels.is_dir():
-            raise ReferenceEnvironmentError(
-                f"参考 wheelhouse 不存在或不是目录（HARNESS）：{install_wheels}"
-            )
-
-        installed = subprocess.run(  # noqa: S603 - fixed interpreter and argv
-            [
-                str(python),
-                "-m",
-                "pip",
-                "install",
-                "--disable-pip-version-check",
-                "--no-index",
-                "--find-links",
-                str(install_wheels),
-                "-r",
-                str(lock),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            env=env,
-            check=False,
-        )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise ReferenceOfflineInstallError(
+                "参考依赖无法从受管 wheelhouse 离线安装（HARNESS；尚未调用模型）。"
+            ) from exc
         if installed.returncode != 0:
-            raise ReferenceEnvironmentError(
-                "参考依赖离线安装失败（HARNESS；尚未调用模型）："
-                f"{(installed.stderr or installed.stdout or '')[-1200:]}"
+            raise ReferenceOfflineInstallError(
+                "参考依赖无法从受管 wheelhouse 离线安装（HARNESS；尚未调用模型）。"
             )
         yield str(python)
 
@@ -564,6 +1074,8 @@ def run_reference_on_candidates(
     batch: ProposalBatch, *, draft_dir: Path, upstream_dir: Path,
     python_exe: str | None = None, timeout_s: int = _RUN_TIMEOUT_S,
     isolation_required: bool = False,
+    import_module: str | None = None,
+    runtime_artifact_sha256: str | None = None,
 ) -> ProposalBatch:
     """在隔离子进程里跑 draft 束的 `reference_impl`,给每条候选拿到上游实际输出。
 
@@ -578,10 +1090,6 @@ def run_reference_on_candidates(
         raise ExampleProposalError(
             "reference_impl 还是骨架(仍抛 NotImplementedError)—— 它必须先被"
             "补成真调上游的实现,候选输出才有来源")
-    placeholder = reference_is_placeholder(ref_src)
-    if placeholder:
-        raise ExampleProposalError(placeholder)
-
     # Safe default for callers outside Studio: a lock must never be ignored.
     # Studio prepares one environment for the whole bounded proposal batch and
     # passes ``python_exe`` explicitly, avoiding repeated downloads per round.
@@ -594,23 +1102,65 @@ def run_reference_on_candidates(
                 python_exe=prepared,
                 timeout_s=timeout_s,
                 isolation_required=isolation_required,
+                import_module=import_module,
+                runtime_artifact_sha256=runtime_artifact_sha256,
             )
 
     up = Path(upstream_dir)
-    extra = [str(up / "src"), str(up)] if (up / "src").is_dir() else [str(up)]
+    # An admitted wheel closure is the executable upstream.  Do not prepend the
+    # raw checkout: extension-backed projects may contain Python modules but no
+    # compiled artifacts, and would otherwise shadow their valid locked wheel.
+    # Source-only synthetic and legacy callers retain the historical behavior.
+    extra = (
+        []
+        if runtime_artifact_sha256 is not None
+        else ([str(up / "src"), str(up)] if (up / "src").is_dir() else [str(up)])
+    )
+    module = str(import_module or "").strip()
+    if import_module is not None and re.fullmatch(
+        r"[A-Za-z_][A-Za-z0-9_.]*",
+        module,
+    ) is None:
+        raise ExampleProposalError("REFERENCE_IMPORT_MODULE_INVALID")
+    reference_sha256 = hashlib.sha256(ref_src.encode("utf-8")).hexdigest()
+    upstream_identity_sha256 = (
+        upstream_runtime_identity(
+            up,
+            import_module=module,
+            runtime_artifact_sha256=runtime_artifact_sha256,
+        )
+        if module
+        else ""
+    )
 
-    with tempfile.TemporaryDirectory(prefix="rp-example-probe-") as tmp:
-        tmpd = Path(tmp)
-        payload = []
-        for i, c in enumerate(batch.candidates):
-            f = tmpd / f"in_{i}_{Path(c.input_name).name}"
-            f.write_text(c.input_text, encoding="utf-8")
-            payload.append({"name": c.input_name, "path": str(f)})
-        payload_path = tmpd / "_payload.json"
+    def run_one(
+        root: Path,
+        candidate: CandidateExample | None,
+        *,
+        serial: int,
+    ) -> CandidateExample | None:
+        """One candidate owns one process, secret and signed receipt ledger."""
+
+        invocation = root / f"candidate-{serial}"
+        invocation.mkdir()
+        hook_dir: Path | None = None
+        hook_ledger: Path | None = None
+        hook_secret = ""
+        correlation_id = secrets.token_hex(32)
+        if module:
+            hook_dir = write_hook_dir(invocation / "_reference_hook")
+            hook_ledger = invocation / "_reference_upstream_receipts.jsonl"
+            hook_secret = secrets.token_hex(32)
+
+        payload: list[dict[str, str]] = []
+        if candidate is not None:
+            source = invocation / f"input-{Path(candidate.input_name).name}"
+            source.write_text(candidate.input_text, encoding="utf-8")
+            payload.append({"name": candidate.input_name, "path": str(source)})
+        payload_path = invocation / "payload.json"
         payload_path.write_text(json.dumps(payload), encoding="utf-8")
-        runner = tmpd / "_runner.py"
+        runner = invocation / "runner.py"
         runner.write_text(_RUNNER, encoding="utf-8")
-
         argv = [
             python_exe or sys.executable,
             str(runner),
@@ -618,31 +1168,151 @@ def run_reference_on_candidates(
             str(payload_path),
         ]
         if isolation_required:
-            argv = _sandboxed_reference_argv(argv, tmpd)
-        proc = subprocess.run(                       # noqa: S603 固定 argv
+            argv = _sandboxed_reference_argv(argv, root)
+        run_env = _sanitised_env(
+            invocation,
+            [*((str(hook_dir),) if hook_dir is not None else ()), *extra],
+        )
+        if module and hook_ledger is not None:
+            run_env.update({
+                ENV_MODULE: module,
+                ENV_LEDGER: str(hook_ledger),
+                ENV_SECRET: hook_secret,
+            })
+        proc = subprocess.run(  # noqa: S603 - fixed interpreter/runner argv
             argv,
-            capture_output=True, text=True, timeout=timeout_s,
-            cwd=str(tmpd), env=_sanitised_env(tmpd, extra), check=False)
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            cwd=str(invocation),
+            env=run_env,
+            check=False,
+        )
+        try:
+            doc = json.loads((proc.stdout or "").strip().splitlines()[-1])
+        except (ValueError, IndexError) as exc:
+            raise ExampleProposalError(
+                "上游探测没有给出可解析结果:"
+                f"{(proc.stderr or proc.stdout or '')[-500:]}"
+            ) from exc
+        if doc.get("fatal"):
+            raise ExampleProposalError(str(doc["fatal"]))
 
-    try:
-        doc = json.loads((proc.stdout or "").strip().splitlines()[-1])
-    except (ValueError, IndexError) as exc:
-        raise ExampleProposalError(
-            "上游探测没有给出可解析结果:"
-            f"{(proc.stderr or proc.stdout or '')[-500:]}") from exc
-    if doc.get("fatal"):
-        raise ExampleProposalError(str(doc["fatal"]))
+        rows = list(doc.get("results") or [])
+        row = rows[0] if candidate is not None and len(rows) == 1 else None
+        if candidate is not None and not isinstance(row, dict):
+            raise ExampleProposalError("REFERENCE_CANDIDATE_RESULT_MISSING")
 
-    by_name = {r["name"]: r for r in doc.get("results", [])}
-    updated: list[CandidateExample] = []
-    for c in batch.candidates:
-        r = by_name.get(c.input_name, {})
-        updated.append(c.model_copy(update={
-            "upstream_output": (str(r["output"]) if "output" in r else None),
-            "upstream_error": (str(r["error"]) if "error" in r else None),
-            "upstream_output_truncated": bool(r.get("output_truncated")),
-        }))
-    return batch.model_copy(update={"candidates": updated})
+        receipt: dict[str, object] | None = None
+        ledger_text = ""
+        if module and hook_ledger is not None:
+            successful = bool(row is not None and "output" in row)
+            receipt = verify_import_receipts(
+                hook_ledger,
+                hook_secret,
+                module=module,
+                min_calls=(1 if successful else 0),
+            )
+            if not receipt["ok"]:
+                raise ExampleProposalError(
+                    "REFERENCE_UPSTREAM_CALL_NOT_OBSERVED:该候选自己的参考"
+                    "执行没有产生可验证的上游调用；不能借用同批"
+                    "其他候选的调用为它铸造真值。"
+                )
+            ledger_text = hook_ledger.read_text(encoding="utf-8")
+        if candidate is None:
+            return None
+
+        output = str(row["output"]) if row is not None and "output" in row else None
+        error = str(row["error"]) if row is not None and "error" in row else None
+        result_kind = "output" if output is not None else "error"
+        result_text = output if output is not None else str(error or "")
+        evidence: CandidateTruthEvidence | None = None
+        managed: dict[str, str] | None = None
+        if module and receipt is not None:
+            receipt_imports = receipt.get("imports")
+            receipt_calls = receipt.get("calls")
+            if not isinstance(receipt_imports, int) or not isinstance(
+                receipt_calls,
+                int,
+            ):
+                raise ExampleProposalError("REFERENCE_RUNTIME_RECEIPT_INVALID")
+            receipt_sha256 = hashlib.sha256(ledger_text.encode("utf-8")).hexdigest()
+            truth_binding = _candidate_truth_binding(
+                input_name=candidate.input_name,
+                input_text=candidate.input_text,
+                result_kind=result_kind,
+                result_text=result_text,
+                import_module=module,
+                reference_sha256=reference_sha256,
+                upstream_identity_sha256=upstream_identity_sha256,
+                runtime_receipt_sha256=receipt_sha256,
+            )
+            evidence_id = _domain_sha256(
+                b"repoproof-candidate-evidence-id-v1",
+                {
+                    "correlation_id": correlation_id,
+                    "truth_binding_sha256": truth_binding,
+                },
+            )
+            evidence = CandidateTruthEvidence(
+                evidence_id=evidence_id,
+                correlation_id=correlation_id,
+                import_module=module,
+                reference_sha256=reference_sha256,
+                upstream_identity_sha256=upstream_identity_sha256,
+                input_sha256=hashlib.sha256(
+                    candidate.input_text.encode("utf-8")
+                ).hexdigest(),
+                result_kind=result_kind,
+                result_sha256=hashlib.sha256(result_text.encode("utf-8")).hexdigest(),
+                runtime_receipt_sha256=receipt_sha256,
+                imports=receipt_imports,
+                calls=receipt_calls,
+                truth_binding_sha256=truth_binding,
+            )
+            managed = {"secret": hook_secret, "ledger": ledger_text}
+        return candidate.model_copy(update={
+            "upstream_output": output,
+            "upstream_error": error,
+            "upstream_output_truncated": bool(
+                row.get("output_truncated") if row is not None else False
+            ),
+            "truth_evidence": evidence,
+            "managed_runtime_evidence": managed,
+        })
+
+    with tempfile.TemporaryDirectory(prefix="rp-example-probe-") as tmp:
+        tmpd = Path(tmp)
+        if not batch.candidates:
+            run_one(tmpd, None, serial=0)
+            updated: list[CandidateExample] = []
+        else:
+            updated = []
+            for serial, candidate in enumerate(batch.candidates, start=1):
+                result = run_one(tmpd, candidate, serial=serial)
+                if result is None:  # pragma: no cover - candidate always returns one
+                    raise ExampleProposalError("REFERENCE_CANDIDATE_RESULT_MISSING")
+                updated.append(result)
+
+    public_ids = [
+        candidate.truth_evidence.evidence_id
+        for candidate in updated
+        if candidate.truth_evidence is not None
+    ]
+    return batch.model_copy(update={
+        "candidates": updated,
+        # Compatibility field remains readable, but it is explicitly only a
+        # summary.  Confirmation consumes each candidate's own managed record.
+        "reference_evidence": ({
+            "schema_version": 2,
+            "kind": "CANDIDATE_SCOPED_RUNTIME_UPSTREAM_CALL_SUMMARY",
+            "import_module": module,
+            "reference_sha256": reference_sha256,
+            "upstream_identity_sha256": upstream_identity_sha256,
+            "candidate_evidence_ids": public_ids,
+        } if module else None),
+    })
 
 
 # ----------------------------------------------------------------- ③ 人确认
@@ -656,6 +1326,11 @@ def confirm_candidate(candidate: CandidateExample, *,
     没有"全部确认"的批量口子 —— 与计划确认(`confirm_plan` 逐项)同律:
     一次点击只为一条负责,才叫确认。
     """
+    if candidate.admission_status == "REJECTED":
+        raise ExampleProposalError(
+            f"{candidate.input_name}:候选未通过当前输出合同与独立语义预筛，"
+            "不能加入成功路径 golden 样例。"
+        )
     text = expected_text if expected_text is not None else candidate.upstream_output
     if text is None:
         raise ExampleProposalError(
@@ -663,6 +1338,9 @@ def confirm_candidate(candidate: CandidateExample, *,
             "(样例只表达成功路径)。它的正当去处是**写进题面的错误行为**:"
             "把「这类输入应当报错并 exit 1」说清楚。上游错误:"
             f"{candidate.upstream_error}")
+    # Historical candidate documents remain parseable, but they cannot mint a
+    # *new* upstream-derived golden after this evidence protocol is active.
+    validate_candidate_truth_evidence(candidate)
     overridden = (
         candidate.expected_overridden
         or (expected_text is not None and expected_text != candidate.upstream_output)

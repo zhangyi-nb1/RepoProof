@@ -1,0 +1,4 @@
+样本名	原数值	目标单位	换算结果	状态	说明
+样本,α	0.000123456789 kilogram	gram	0.123457 gram	已换算	
+长度-β	2 meter	second		未换算	无法换算：DimensionalityError
+未知单位	7 blarg	watt		未换算	无法换算：UndefinedUnitError

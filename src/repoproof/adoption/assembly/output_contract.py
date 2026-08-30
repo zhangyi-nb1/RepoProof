@@ -14,6 +14,7 @@ import math
 import re
 import shlex
 import xml.etree.ElementTree as ET
+from copy import deepcopy
 from typing import Any
 
 from repoproof.domain.models import ToolOutputContract
@@ -23,6 +24,90 @@ ERROR_PREFIX = "[tool-output-contract]"
 
 class OutputContractViolation(ValueError):
     """Stable, non-sensitive runtime failure for an invalid tool stdout."""
+
+
+_PUBLIC_TEXT_PROFILE_SPECS: dict[str, dict[str, Any]] = {
+    "plain_text_v1": {
+        "representation_rules": [
+            "The artifact is deterministic UTF-8 text and contains no NUL byte."
+        ],
+        "semantic_verifier_guidance": (
+            "Evaluate the task commitments from the input and artifact; the profile "
+            "adds no task-specific structure."
+        ),
+    },
+    "ris_interchange_v1": {
+        "representation_rules": [
+            "Every nonblank field line is an RIS tag: two uppercase alphanumeric "
+            "characters, two spaces, a hyphen, and an optional value; six-space "
+            "continuation lines are allowed only inside a record.",
+            "Each record begins with TY and ends with ER; nested, orphaned, or "
+            "unterminated records are invalid and at least one complete record is required.",
+            "Presentation-only ordinal/header lines outside TY..ER records are forbidden.",
+        ],
+        "semantic_verifier_guidance": (
+            "Use the pinned upstream to parse both the input and delivered artifact, "
+            "then compare the task-required record semantics. Do not require artifact "
+            "bytes to equal raw upstream serialization when that serialization adds "
+            "presentation framing forbidden by this profile."
+        ),
+    },
+    "csv_table_v1": {
+        "representation_rules": [
+            "Parse with the standard strict CSV dialect; require at least one row.",
+            "The header is nonempty, every header cell is nonblank and unique, and "
+            "every data row has the same number of columns.",
+        ],
+        "semantic_verifier_guidance": (
+            "Parse the delivered table into rows and cells before checking task "
+            "semantics; do not compare producer-specific serialized bytes."
+        ),
+    },
+    "tsv_table_v1": {
+        "representation_rules": [
+            "Parse with the standard strict Excel-tab dialect; require at least one row.",
+            "The header is nonempty, every header cell is nonblank and unique, and "
+            "every data row has the same number of columns.",
+        ],
+        "semantic_verifier_guidance": (
+            "Parse the delivered table into rows and cells before checking task "
+            "semantics; do not compare producer-specific serialized bytes."
+        ),
+    },
+    "markdown_document_v1": {
+        "representation_rules": [
+            "The artifact is nonempty UTF-8 text and must not be a JSON object or array document."
+        ],
+        "semantic_verifier_guidance": (
+            "Parse the task-required Markdown sections or tables and check their "
+            "semantic values; formatting bytes alone are not task semantics."
+        ),
+    },
+    "safe_self_contained_xhtml_v1": {
+        "representation_rules": [
+            "The artifact is XML-parseable with an html root and contains no DOCTYPE or entity.",
+            "Scripts, embedded frames/objects, SVG/MathML, forms, external resources, "
+            "event handlers, style elements/attributes, and non-fragment links are forbidden.",
+        ],
+        "semantic_verifier_guidance": (
+            "Parse the delivered DOM and check task values in elements/attributes; "
+            "do not compare producer-specific HTML byte formatting."
+        ),
+    },
+}
+
+
+def public_validation_profile_spec(
+    validation_profile: str | None,
+) -> dict[str, Any]:
+    """Return the Core-owned public rules for an output validation profile."""
+
+    profile_id = validation_profile or "plain_text_v1"
+    try:
+        spec = deepcopy(_PUBLIC_TEXT_PROFILE_SPECS[profile_id])
+    except KeyError as exc:
+        raise ValueError(f"unknown validation profile: {profile_id}") from exc
+    return {"profile_id": profile_id, **spec}
 
 
 def normalize_output_format(format_name: str) -> str:
@@ -173,41 +258,32 @@ def _validate_value(value: object, contract: ToolOutputContract, *, location: st
     return errors
 
 
-def _validate_text_media_type(text: str, media_type: str) -> list[str]:
-    """Validate deterministic, dependency-free structure for known text artifacts.
+def _validate_text_profile(
+    text: str,
+    validation_profile: str | None,
+) -> list[str]:
+    """Execute only the text rules explicitly named by the frozen contract.
 
-    This is intentionally a format floor, not the task oracle. Exact comparison
-    with the frozen reference and held-out examples still decides semantics; the
-    media parser prevents a jointly wrong plain-text/JSON golden from satisfying
-    a contract that explicitly promises RIS, TSV, Markdown, or self-contained HTML.
+    MIME identifies a representation; it is not permission for Core to infer
+    extra policy.  The versioned validation profile comes from the Product
+    delivery registry and is visible in the contract the user confirms.
     """
 
-    media = str(media_type).split(";", 1)[0].strip().lower()
     if "\x00" in text:
         return ["text: contains_nul"]
-    if media == "application/x-research-info-systems":
+    if validation_profile in {None, "plain_text_v1"}:
+        return []
+    if validation_profile == "ris_interchange_v1":
         lines = [line for line in text.splitlines() if line.strip()]
         if not lines:
             return ["ris: no_records"]
         tag = re.compile(r"^[A-Z0-9]{2}  -(?: .*)?$")
         continuation = re.compile(r"^\s{6}\S.*$")
-        # RISpy's default writer prefixes records with ``1.``, ``2.``, ... .
-        # Treat those deterministic record ordinals as an optional transport
-        # header, but only immediately before the matching TY line.
-        record_header = re.compile(r"^[1-9][0-9]*\.$")
         in_record = False
-        pending_header = False
         records = 0
         errors: list[str] = []
         for line_no, line in enumerate(lines, start=1):
             if continuation.fullmatch(line) and in_record:
-                continue
-            if record_header.fullmatch(line):
-                expected = records + 1
-                if in_record or pending_header or int(line[:-1]) != expected:
-                    errors.append(f"ris: line={line_no} invalid_record_header")
-                else:
-                    pending_header = True
                 continue
             if not tag.fullmatch(line):
                 errors.append(f"ris: line={line_no} invalid_tag")
@@ -217,7 +293,6 @@ def _validate_text_media_type(text: str, media_type: str) -> list[str]:
                 if in_record:
                     errors.append(f"ris: line={line_no} nested_record")
                 in_record = True
-                pending_header = False
             elif current == "ER":
                 if not in_record:
                     errors.append(f"ris: line={line_no} orphan_end")
@@ -226,29 +301,29 @@ def _validate_text_media_type(text: str, media_type: str) -> list[str]:
                     in_record = False
             elif not in_record:
                 errors.append(f"ris: line={line_no} field_outside_record")
-        if pending_header:
-            errors.append("ris: record_header_without_record")
         if in_record:
             errors.append("ris: unterminated_record")
         if records == 0:
             errors.append("ris: no_complete_records")
         return errors
-    if media == "text/tab-separated-values":
+    if validation_profile in {"csv_table_v1", "tsv_table_v1"}:
+        table_kind = "tsv" if validation_profile == "tsv_table_v1" else "csv"
         try:
-            rows = list(csv.reader(io.StringIO(text), dialect="excel-tab", strict=True))
+            dialect = "excel-tab" if validation_profile == "tsv_table_v1" else "excel"
+            rows = list(csv.reader(io.StringIO(text), dialect=dialect, strict=True))
         except (csv.Error, UnicodeError):
-            return ["tsv: invalid_document"]
+            return [f"{table_kind}: invalid_document"]
         if not rows:
-            return ["tsv: no_rows"]
+            return [f"{table_kind}: no_rows"]
         width = len(rows[0])
         if width == 0 or any(not cell.strip() for cell in rows[0]):
-            return ["tsv: invalid_header"]
+            return [f"{table_kind}: invalid_header"]
         if len(set(rows[0])) != width:
-            return ["tsv: duplicate_header"]
+            return [f"{table_kind}: duplicate_header"]
         if any(len(row) != width for row in rows[1:]):
-            return ["tsv: inconsistent_columns"]
+            return [f"{table_kind}: inconsistent_columns"]
         return []
-    if media == "text/markdown":
+    if validation_profile == "markdown_document_v1":
         if not text.strip():
             return ["markdown: empty_document"]
         try:
@@ -258,7 +333,7 @@ def _validate_text_media_type(text: str, media_type: str) -> list[str]:
         if isinstance(value, (dict, list)):
             return ["markdown: json_document"]
         return []
-    if media in {"text/html", "application/xhtml+xml"}:
+    if validation_profile == "safe_self_contained_xhtml_v1":
         if re.search(r"<!\s*(?:doctype|entity)\b", text, re.IGNORECASE):
             return ["html: doctype_or_entity_forbidden"]
         processing_targets = re.findall(
@@ -304,7 +379,7 @@ def _validate_text_media_type(text: str, media_type: str) -> list[str]:
                 elif name == "style" and value:
                     errors.append("html: style_attribute_forbidden")
         return sorted(set(errors))
-    return []
+    return ["text: unknown_validation_profile"]
 
 
 def validate_output_text(
@@ -313,7 +388,7 @@ def validate_output_text(
     parsed = (contract if isinstance(contract, ToolOutputContract)
               else ToolOutputContract.model_validate(contract))
     if parsed.root_type == "text":
-        return _validate_text_media_type(text, parsed.media_type)
+        return _validate_text_profile(text, parsed.validation_profile)
     if parsed.root_type == "json_lines":
         lines = [(i, line) for i, line in enumerate(text.splitlines(), start=1)
                  if line.strip()]
@@ -496,29 +571,22 @@ def _rp_validate_value(value, location):
 
 
 def _rp_validate_text_media(text):
-    media = str(_RP_OUTPUT_CONTRACT["media_type"]).split(";", 1)[0].strip().lower()
+    profile = _RP_OUTPUT_CONTRACT.get("validation_profile")
     if "\x00" in text:
         return ["text: contains_nul"]
-    if media == "application/x-research-info-systems":
+    if profile is None or profile == "plain_text_v1":
+        return []
+    if profile == "ris_interchange_v1":
         lines = [line for line in text.splitlines() if line.strip()]
         if not lines:
             return ["ris: no_records"]
         tag = _rp_re.compile(r"^[A-Z0-9]{2}  -(?: .*)?$")
         continuation = _rp_re.compile(r"^\s{6}\S.*$")
-        record_header = _rp_re.compile(r"^[1-9][0-9]*\.$")
         in_record = False
-        pending_header = False
         records = 0
         errors = []
         for line_no, line in enumerate(lines, 1):
             if continuation.fullmatch(line) and in_record:
-                continue
-            if record_header.fullmatch(line):
-                expected = records + 1
-                if in_record or pending_header or int(line[:-1]) != expected:
-                    errors.append(f"ris: line={line_no} invalid_record_header")
-                else:
-                    pending_header = True
                 continue
             if not tag.fullmatch(line):
                 errors.append(f"ris: line={line_no} invalid_tag")
@@ -528,7 +596,6 @@ def _rp_validate_text_media(text):
                 if in_record:
                     errors.append(f"ris: line={line_no} nested_record")
                 in_record = True
-                pending_header = False
             elif current == "ER":
                 if not in_record:
                     errors.append(f"ris: line={line_no} orphan_end")
@@ -537,29 +604,29 @@ def _rp_validate_text_media(text):
                     in_record = False
             elif not in_record:
                 errors.append(f"ris: line={line_no} field_outside_record")
-        if pending_header:
-            errors.append("ris: record_header_without_record")
         if in_record:
             errors.append("ris: unterminated_record")
         if records == 0:
             errors.append("ris: no_complete_records")
         return errors
-    if media == "text/tab-separated-values":
+    if profile in {"csv_table_v1", "tsv_table_v1"}:
+        table_kind = "tsv" if profile == "tsv_table_v1" else "csv"
         try:
-            rows = list(_rp_csv.reader(_rp_io.StringIO(text), dialect="excel-tab", strict=True))
+            dialect = "excel-tab" if profile == "tsv_table_v1" else "excel"
+            rows = list(_rp_csv.reader(_rp_io.StringIO(text), dialect=dialect, strict=True))
         except (_rp_csv.Error, UnicodeError):
-            return ["tsv: invalid_document"]
+            return [f"{table_kind}: invalid_document"]
         if not rows:
-            return ["tsv: no_rows"]
+            return [f"{table_kind}: no_rows"]
         width = len(rows[0])
         if width == 0 or any(not cell.strip() for cell in rows[0]):
-            return ["tsv: invalid_header"]
+            return [f"{table_kind}: invalid_header"]
         if len(set(rows[0])) != width:
-            return ["tsv: duplicate_header"]
+            return [f"{table_kind}: duplicate_header"]
         if any(len(row) != width for row in rows[1:]):
-            return ["tsv: inconsistent_columns"]
+            return [f"{table_kind}: inconsistent_columns"]
         return []
-    if media == "text/markdown":
+    if profile == "markdown_document_v1":
         if not text.strip():
             return ["markdown: empty_document"]
         try:
@@ -569,7 +636,7 @@ def _rp_validate_text_media(text):
         if isinstance(value, (dict, list)):
             return ["markdown: json_document"]
         return []
-    if media in {"text/html", "application/xhtml+xml"}:
+    if profile == "safe_self_contained_xhtml_v1":
         if _rp_re.search(r"<!\s*(?:doctype|entity)\b", text, _rp_re.IGNORECASE):
             return ["html: doctype_or_entity_forbidden"]
         processing_targets = _rp_re.findall(
@@ -615,7 +682,7 @@ def _rp_validate_text_media(text):
                 elif name == "style" and value:
                     errors.append("html: style_attribute_forbidden")
         return sorted(set(errors))
-    return []
+    return ["text: unknown_validation_profile"]
 
 
 def _assert_output_contract(text):

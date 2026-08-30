@@ -1,0 +1,8 @@
+[project]
+name = "networkx_tool"
+version = "1.0.0"
+description = '将 UTF-8 GraphML 网络整理为可放进项目笔记的 Markdown 摘要，说明规模、分组、关键节点和落单节点。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

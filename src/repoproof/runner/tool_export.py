@@ -39,7 +39,11 @@ from repoproof.runner.tool_paths import (
     tool_install_lock,
     validate_tool_task_id,
 )
-from repoproof.runner.tool_registry import load_registry, register_tool
+from repoproof.runner.tool_registry import (
+    load_registry,
+    register_tool,
+    release_audit_trust_identity_from_contract,
+)
 from repoproof.runner.tool_release import (
     ensure_initial_review_decision,
     is_historical_tool_ready,
@@ -238,6 +242,7 @@ def _materialize_verified_tool(
         ver_dir = Path(run_dir) / "verification"
         if ver_dir.is_dir():
             shutil.copytree(ver_dir, ev / "verification")
+        release_audit_identity = release_audit_trust_identity_from_contract(contract)
         (ev / "provenance.json").write_text(
             json.dumps(
                 {
@@ -252,6 +257,16 @@ def _materialize_verified_tool(
                     },
                     "tool_contract_sha256": contract_digest,
                     "reference_identity": reference_identity,
+                    "semantic_verifier_identity": (
+                        contract.acceptance.semantic_verifier.model_dump(mode="json")
+                        if contract.acceptance.semantic_verifier is not None
+                        else None
+                    ),
+                    "release_audit_trust_identity": (
+                        release_audit_identity.model_dump(mode="json")
+                        if release_audit_identity is not None
+                        else None
+                    ),
                     "final_trace_sha256": report.get("final_trace_sha256"),
                 },
                 ensure_ascii=False,

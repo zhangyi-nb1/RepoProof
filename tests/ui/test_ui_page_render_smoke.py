@@ -247,6 +247,68 @@ def test_onboarding_keeps_historical_pipeline_visible_after_active_audit(
     assert metrics["Operational"] == "ACTIVE"
 
 
+def test_failed_tool_add_stays_at_repository_step(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A drafting failure must not visually claim contract/rehearsal completion."""
+
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_jobs, product_journeys
+
+    journey = product_journeys.ProductJourneyRefV1(
+        journey_id="c" * 32,
+        tool_name="",
+        source_repo_url="https://github.com/example/research-tool",
+        draft_dir=str(tmp_path / "draft"),
+        dest_root=str(tmp_path / "tools"),
+        last_job_id="d" * 32,
+        updated_at="2026-08-30T00:00:00Z",
+    )
+    snapshot = {
+        "journey": journey.model_dump(mode="json"),
+        "phase": "FAILED",
+        "worker": {"status": "FAILED", "action": "tool-add"},
+        "action_result": {
+            "action": "tool-add",
+            "ok": False,
+            "product_stop_code": "STOP_HARNESS_OR_EXTERNAL",
+            "failure_owner": "EXTERNAL",
+            "reason_codes": ["DRAFTER_TIMEOUT"],
+            "recommended_action": "恢复网关后重试。",
+        },
+        "task_id": None,
+        "tool_name": "",
+        "historical_verdict": None,
+        "operational_status": "UNVERIFIED",
+        "package_health": "NOT_EXPORTED",
+    }
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(product_journeys, "list_journeys", lambda: [journey])
+    monkeypatch.setattr(
+        product_journeys,
+        "journey_snapshot",
+        lambda *_a, **_k: snapshot,
+    )
+    monkeypatch.setattr(
+        product_journeys,
+        "synthesized_read_only_cards",
+        lambda: [],
+    )
+
+    at = AppTest.from_file(
+        str(PAGES / "tool_onboarding.py"), default_timeout=60
+    ).run()
+
+    assert not [str(e.value) for e in at.exception]
+    rendered = " ".join(str(item.value) for item in at.markdown)
+    assert "1 · 当前" in rendered
+    assert "2 · 待进行" in rendered
+    assert "2 · 已完成" not in rendered
+    assert any("DRAFTER_TIMEOUT" in str(item.value) for item in at.markdown)
+
+
 def test_primary_journey_has_no_raw_draft_path_dead_end(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -398,6 +460,7 @@ def test_primary_journey_adopts_safe_llm_brief_without_creating_a_task(
             "inputs": [{
                 "kind": "file", "location": "local",
                 "format_label": "CSV", "role": "实验记录",
+                "representation": "utf8_text",
             }],
             "outputs": [{
                 "kind": "text_artifact", "format_id": output_format_id,
@@ -480,6 +543,76 @@ def test_primary_journey_adopts_safe_llm_brief_without_creating_a_task(
     assert "rp_pending_capability_adoption" not in at.session_state
 
 
+def test_primary_journey_launches_only_the_explicitly_confirmed_final_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Adopt/edit/create cannot race a stale capability across the UI→Core seam."""
+    from types import SimpleNamespace
+
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_jobs, product_journeys
+
+    state = tmp_path / "state"
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_journeys, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(product_journeys, "list_journeys", lambda: [])
+    monkeypatch.setattr(product_journeys, "synthesized_read_only_cards", lambda: [])
+    monkeypatch.setattr(
+        product_jobs,
+        "online_drafter_status",
+        lambda: {"ready": True, "backend": "litellm", "label": "ready"},
+    )
+    monkeypatch.setattr(
+        product_journeys,
+        "create_journey",
+        lambda **_kwargs: SimpleNamespace(journey_id="a" * 32),
+    )
+    seen: dict[str, str] = {}
+
+    def _start_tool_add(**kwargs):
+        seen["capability"] = kwargs["capability"]
+        return {"ok": False, "error": "test stop"}
+
+    monkeypatch.setattr(product_jobs, "start_tool_add", _start_tool_add)
+
+    at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=60)
+    at.session_state["rp_journey_repo"] = "https://github.com/example/demo"
+    at.session_state["rp_journey_revision"] = "v1"
+    at.session_state["rp_journey_capability"] = "先按模型建议整理资料。"
+    at.run()
+
+    next(
+        button for button in at.button if button.label == "确认当前需求描述"
+    ).click().run()
+    create = next(
+        button for button in at.button if button.label == "创建任务并生成草稿"
+    )
+    assert create.disabled is False
+
+    capability = next(
+        field for field in at.text_area if field.label == "希望落地的单一能力"
+    )
+    capability.set_value("把资料整理好，明确重复去掉，中文别乱码。 ").run()
+    create = next(
+        button for button in at.button if button.label == "创建任务并生成草稿"
+    )
+    assert create.disabled is True
+    assert seen == {}
+
+    next(
+        button for button in at.button if button.label == "确认当前需求描述"
+    ).click().run()
+    next(
+        button for button in at.button if button.label == "创建任务并生成草稿"
+    ).click().run()
+
+    assert seen["capability"] == "把资料整理好，明确重复去掉，中文别乱码。"
+
+
 def test_primary_journey_rejects_stale_or_technical_brief_adoption(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -526,11 +659,12 @@ def test_primary_journey_rejects_stale_or_technical_brief_adoption(
                     "brief_id": "bad",
                     "title": "直接调用实现",
                     "scenario": "整理一份资料",
-                    "delivery_requirements": {
-                        "inputs": [{
-                            "kind": "file", "location": "local",
-                            "format_label": "文本", "role": "待整理资料",
-                        }],
+                        "delivery_requirements": {
+                            "inputs": [{
+                                "kind": "file", "location": "local",
+                                "representation": "utf8_text",
+                                "format_label": "文本", "role": "待整理资料",
+                            }],
                         "outputs": [{
                             "kind": "text_artifact", "format_id": "markdown",
                             "format_label": "Markdown", "role": "整理结果",
@@ -545,11 +679,12 @@ def test_primary_journey_rejects_stale_or_technical_brief_adoption(
                     "brief_id": "other",
                     "title": "另一种做法",
                     "scenario": "把输入整理成方便阅读的内容",
-                    "delivery_requirements": {
-                        "inputs": [{
-                            "kind": "file", "location": "local",
-                            "format_label": "文本", "role": "待整理资料",
-                        }],
+                        "delivery_requirements": {
+                            "inputs": [{
+                                "kind": "file", "location": "local",
+                                "representation": "utf8_text",
+                                "format_label": "文本", "role": "待整理资料",
+                            }],
                         "outputs": [{
                             "kind": "text_artifact", "format_id": "markdown",
                             "format_label": "Markdown", "role": "整理结果",
@@ -580,14 +715,18 @@ def test_primary_journey_rejects_stale_or_technical_brief_adoption(
     assert "仓库或版本已经变化" in rendered
 
     next(button for button in at.button if button.label == "让 LLM 分析仓库和这项能力").click().run()
-    assert not any(button.label.startswith("采用") for button in at.button)
-    rendered = " ".join(
-        str(item.value)
-        for group in (at.info, at.caption)
-        for item in group
-    )
-    assert "仓库摘要仍然可以阅读" in rendered
-    assert "只展示摘要，不提供一键采用" in rendered
+    adoption_buttons = [
+        button for button in at.button if button.label.startswith("采用")
+    ]
+    # The technical recommendation remains visible and its delivery shape is
+    # still SUPPORTED, but it cannot enter the user's wording in one click.  A
+    # separate plain-language suggestion stays usable instead of making the
+    # whole model response disappear.
+    assert [button.label for button in adoption_buttons] == ["采用这个描述"]
+    rendered_info = " ".join(str(item.value) for item in at.info)
+    rendered_warning = " ".join(str(item.value) for item in at.warning)
+    assert "仓库摘要仍然可以阅读" in rendered_info
+    assert "实现层表达" in rendered_warning
 
 
 def test_exported_journey_runs_fresh_audit_from_llm_input_and_frozen_reference(
@@ -648,10 +787,10 @@ def test_exported_journey_runs_fresh_audit_from_llm_input_and_frozen_reference(
             "note": "期望值来自冻结参考实现。",
             "candidates": [
                 {
-                    "input_name": "fresh.graphml",
-                    "input_text": "<graphml><graph/></graphml>",
-                    "why": "新的边界输入",
-                    "expected": "# Network report\n\nNo nodes.\n",
+                        "input_name": "fresh.graphml",
+                        "input_text": "<graphml><graph/></graphml>",
+                        "why": "新的边界输入",
+                        "upstream_output": "# Network report\n\nNo nodes.\n",
                 }
             ],
         }
@@ -659,11 +798,22 @@ def test_exported_journey_runs_fresh_audit_from_llm_input_and_frozen_reference(
     monkeypatch.setattr(product_jobs, "propose_audit_candidates", _propose)
     materialized: dict[str, object] = {}
 
-    def _materialize(tool_name: str, **kwargs) -> dict:
-        materialized.update({"tool_name": tool_name, **kwargs})
+    def _materialize(
+        tool_name: str,
+        *,
+        candidate: object,
+        dest_root: Path,
+        expected_task_id: str,
+    ) -> dict:
+        materialized.update({
+            "tool_name": tool_name,
+            "candidate": candidate,
+            "dest_root": dest_root,
+            "expected_task_id": expected_task_id,
+        })
         return {"ok": True, "input": str(tmp_path / "fresh.graphml"), "expected": str(tmp_path / "expected.md")}
 
-    monkeypatch.setattr(product_jobs, "materialize_audit_files", _materialize)
+    monkeypatch.setattr(product_jobs, "materialize_audit_candidate", _materialize)
     started: dict[str, object] = {}
 
     def _start(
@@ -712,19 +862,24 @@ def test_exported_journey_runs_fresh_audit_from_llm_input_and_frozen_reference(
         for button in at.button
         if button.label == "确认这组输入与参考真值并运行 Fresh audit"
     ).click().run()
-    assert materialized["input_name"] == "fresh.graphml"
-    assert materialized["input_bytes"] == b"<graphml><graph/></graphml>"
-    assert materialized["expected_bytes"] == b"# Network report\n\nNo nodes.\n"
+    assert materialized["candidate"] == {
+        "input_name": "fresh.graphml",
+        "input_text": "<graphml><graph/></graphml>",
+        "why": "新的边界输入",
+        "upstream_output": "# Network report\n\nNo nodes.\n",
+    }
+    assert materialized["dest_root"] == Path(journey.dest_root)
+    assert materialized["expected_task_id"] == "tool-research-report-v1"
     assert started["name"] == "research-report"
     assert started["expected_task_id"] == "tool-research-report-v1"
     assert started["journey_id"] == journey.journey_id
 
 
-def test_draft_journey_exposes_contract_llm_and_sample_inputs_without_advanced(
+def test_draft_journey_exposes_readiness_contract_and_samples_with_source_advanced(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Stage 2 is a product workbench, so its required inputs cannot hide in advanced UI."""
+    """Stage 2 shows Core readiness while keeping oracle source in advanced UI."""
     from streamlit.testing.v1 import AppTest
 
     from repoproof.ui.services import product_jobs, product_journeys
@@ -774,8 +929,30 @@ source_repo:
         "raw_draft": draft_text,
         "examples": [],
         "reference_impl": "import demo\n",
+        "semantic_verifier": "import demo\n",
         "gaps": "",
         "dependency_lock": {"source": "derived", "pins": ["demo==1.0"], "note": "locked"},
+        "draft_readiness": {
+            "schema_version": 1,
+            "status": "INCOMPLETE",
+            "compatible": True,
+            "current": True,
+            "ready": False,
+            "ready_to_confirm": False,
+            "reason_codes": ["EXAMPLES_INSUFFICIENT"],
+            "public_summary": {
+                "tool_schema_version": 3,
+                "semantic_verifier_ready": True,
+                "semantic_commitment_count": 1,
+                "verifier_declared_commitment_count": 1,
+                "commitment_coverage": "COMPLETE",
+                "dependency_lock_ready": True,
+                "dependency_lock_source": "derived",
+                "example_count": 0,
+                "minimum_examples": 3,
+            },
+            "recommended_action": "补齐样例后由 Core 复核。",
+        },
     }
     journey = product_journeys.ProductJourneyRefV1(
         journey_id="a" * 32,
@@ -846,6 +1023,12 @@ source_repo:
     assert "固定依赖锁（每行一个 包名==精确版本）" in text_areas
     assert "可执行输出合同" in text_areas
     assert "上游参考实现（必须真实 import 固定版本）" in text_areas
+    assert any(
+        expander.label == "高级：reference 与独立 verifier 源码"
+        for expander in at.expander
+    )
+    assert any(metric.label == "独立语义验证器" for metric in at.metric)
+    assert any(metric.label == "公开承诺覆盖" for metric in at.metric)
     assert "让 LLM 生成样例候选" in buttons
     assert "样例输入内容" in text_areas
     assert "你核实过的期望输出" in text_areas

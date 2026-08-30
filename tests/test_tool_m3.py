@@ -28,6 +28,46 @@ _REPO_PY = sys.executable
 _REPO_SITE = sysconfig.get_paths()["purelib"]
 
 
+def test_analysis_checkout_promotion_preserves_tracked_symlink(tmp_path: Path) -> None:
+    from repoproof.runner.tool_pipeline import ensure_pinned_upstream
+
+    analysis = tmp_path / "upstream-cache" / "analysis" / "source"
+    analysis.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(analysis)], check=True)
+    subprocess.run(
+        ["git", "-C", str(analysis), "config", "user.email", "test@example.invalid"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(analysis), "config", "user.name", "RepoProof Test"],
+        check=True,
+    )
+    (analysis / "LICENSE.txt").write_text("license\n", encoding="utf-8")
+    (analysis / "LICENSE").symlink_to("LICENSE.txt")
+    subprocess.run(["git", "-C", str(analysis), "add", "."], check=True)
+    subprocess.run(
+        ["git", "-C", str(analysis), "commit", "-qm", "fixture"],
+        check=True,
+    )
+    commit = subprocess.run(
+        ["git", "-C", str(analysis), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    promoted = ensure_pinned_upstream("https://example.invalid/repo", commit, tmp_path)
+
+    assert (promoted / "LICENSE").is_symlink()
+    assert (promoted / "LICENSE").readlink() == Path("LICENSE.txt")
+    assert not subprocess.run(
+        ["git", "-C", str(promoted), "status", "--porcelain"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+
 def _fake_tool(dest: Path, name: str, *, verified: bool = True) -> Path:
     d = dest / name
     (d / "bin").mkdir(parents=True)
@@ -170,9 +210,32 @@ _REFERENCE = ('"""reference:真调 minilib。"""\nfrom pathlib import Path\n\n'
               '    except minilib.FormatError as e:\n'
               '        raise UserInputError(str(e)) from e\n')
 
+_SEMANTIC_VERIFIER = (
+    '"""Independent semantic verifier for the synthetic minilib task."""\n'
+    'from pathlib import Path\n\n'
+    'import minilib\n\n\n'
+    'def verify(input_path: Path, artifact_path: Path) -> dict:\n'
+    '    expected = minilib.rows_to_markdown(input_path.read_text(encoding="utf-8"))\n'
+    '    actual = artifact_path.read_text(encoding="utf-8")\n'
+    '    return {\n'
+    '        "ok": actual == expected,\n'
+    '        "reason_codes": [] if actual == expected else ["SEMANTIC_MISMATCH"],\n'
+    '        "checked_commitment_ids": [\n'
+    '            "render-rows",\n'
+    '            "reject-invalid-header",\n'
+    '        ],\n'
+    '    }\n'
+)
+
 
 @pytest.mark.slow
 def test_pipeline_runs_to_rehearsal_gate_offline(tmp_path, monkeypatch):
+    from repoproof.adoption.intake.intent_contract import (
+        confirm_intent_contract,
+        install_artifact_protocol,
+        install_delivery_intent_from_interface,
+        install_semantic_commitments,
+    )
     from repoproof.adoption.intake.tool_confirm import (
         ConfirmError,
         confirm_tool_draft,
@@ -220,9 +283,44 @@ def test_pipeline_runs_to_rehearsal_gate_offline(tmp_path, monkeypatch):
     doc["tool"]["interface"]["input"]["format"] = "TXT"
     doc["tool"]["interface"]["output"]["format"] = "Markdown"
     doc["tool"]["interface"]["output"]["contract"] = {
-        "media_type": "text/markdown", "root_type": "text", "required": {}}
-    doc["capability"]["statement"] = "MINI 文本转 Markdown 行表;坏输入 UserInputError。"
+        "media_type": "text/markdown",
+        "root_type": "text",
+        "required": {},
+        "validation_profile": "markdown_document_v1",
+    }
     doc["capability"]["output_schema"] = "MdRows"
+    install_delivery_intent_from_interface(doc, profile_id="cli_v2")
+    install_semantic_commitments(doc, [
+        {
+            "commitment_id": "render-rows",
+            "public_text": "使用固定版本上游把 MINI 文本的非空行按原顺序转为 Markdown 行表。",
+            "rationale": "用户需要的主能力。",
+        },
+        {
+            "commitment_id": "reject-invalid-header",
+            "public_text": "缺少 MINI 头的输入不属于有效域，应返回用户输入错误。",
+            "rationale": "固定上游对无效格式有明确边界。",
+        },
+    ])
+    install_artifact_protocol(doc, {
+        "schema_version": 1,
+        "protocol_id": "mini-markdown-v1",
+        "observations": [
+            {
+                "observation_id": "rendered-rows",
+                "commitment_ids": ["render-rows"],
+                "locator": "Markdown table body rows in document order",
+                "value_encoding": "UTF-8 Markdown table rows",
+            },
+            {
+                "observation_id": "invalid-header-result",
+                "commitment_ids": ["reject-invalid-header"],
+                "locator": "process exit status and stderr category",
+                "value_encoding": "user-input error",
+            },
+        ],
+    })
+    confirm_intent_contract(doc, confirmed_at="2026-08-30T00:00:00Z")
     (dest / "draft.yaml").write_text(
         yaml.safe_dump(doc, allow_unicode=True, sort_keys=False), encoding="utf-8")
     for n, txt in (("a", "MINI\nalpha"), ("b", "MINI\nbeta"), ("c", "MINI\ngamma")):
@@ -234,6 +332,9 @@ def test_pipeline_runs_to_rehearsal_gate_offline(tmp_path, monkeypatch):
         {"input_file": "c.txt", "expected": "contains:| gamma |"},
     ]}, allow_unicode=True), encoding="utf-8")
     (dest / "reference_impl.py").write_text(_REFERENCE, encoding="utf-8")
+    (dest / "semantic_verifier.py").write_text(
+        _SEMANTIC_VERIFIER, encoding="utf-8"
+    )
 
     shim = (
         "import os, pathlib\n"
@@ -525,3 +626,42 @@ def test_resume_refuses_when_task_was_never_materialised(tmp_path: Path):
     with pytest.raises(PipelineError, match="物化的宿主合同"):
         tool_build_real_from_frozen("tool-demo-v1", tmp_path,
                                     dest_root=tmp_path / "tools")
+
+
+def test_frozen_pre_materialization_stop_resumes_same_task_without_refreeze(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from repoproof.runner import tool_pipeline
+
+    task_id = "tool-demo-v1"
+    contracts = tmp_path / "contracts"
+    contracts.mkdir()
+    (contracts / f"{task_id}.yaml").write_text("task_id: tool-demo-v1\n")
+    draft = tmp_path / "draft"
+    draft.mkdir()
+    (draft / "draft.yaml").write_text("tool: {name: demo}\n")
+    captured: dict = {}
+
+    def fake_build(draft_dir, project_root, **kwargs):
+        captured.update({
+            "draft_dir": draft_dir,
+            "project_root": project_root,
+            **kwargs,
+        })
+        return {"task_id": task_id, "verdict": "REHEARSAL_PASS_ONLY"}
+
+    monkeypatch.setattr(tool_pipeline, "tool_build", fake_build)
+    result = tool_pipeline.tool_build_real_from_frozen(
+        task_id,
+        tmp_path,
+        dest_root=tmp_path / "tools",
+        rehearsal_only=True,
+        draft_dir=draft,
+        bench_root=tmp_path / "bench",
+    )
+
+    assert result["task_id"] == task_id
+    assert captured["resume_task_id"] == task_id
+    assert captured["run_real"] is False
+    assert captured["draft_dir"] == draft

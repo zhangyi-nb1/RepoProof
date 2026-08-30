@@ -1,0 +1,8 @@
+[project]
+name = "rispy_tool"
+version = "1.0.0"
+description = '将本地 UTF-8 RIS 文献文件按完整解析记录去除明确重复，保留首条与中文文本，并导出可重新导入的 RIS 文件。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

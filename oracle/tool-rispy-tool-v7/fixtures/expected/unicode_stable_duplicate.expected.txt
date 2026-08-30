@@ -1,0 +1,11 @@
+TY  - JOUR
+TI  - 中文标题：稳定去重与Café
+AU  - 王, 小明
+PY  - 2024
+JO  - 测试期刊
+ER  - 
+TY  - JOUR
+TI  - Different record Ω
+AU  - García, Ana
+PY  - 2023
+ER  - 

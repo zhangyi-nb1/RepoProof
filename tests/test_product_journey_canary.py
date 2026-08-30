@@ -7,6 +7,12 @@ from pathlib import Path
 
 import yaml
 
+from repoproof.adoption.intake.intent_contract import (
+    install_artifact_protocol,
+    install_delivery_intent_from_interface,
+    install_semantic_commitments,
+    new_intent_contract,
+)
 from repoproof.execution.product_action import (
     ProductActionResultV1,
     write_product_action_result,
@@ -33,25 +39,47 @@ def _configure_roots(tmp_path: Path, monkeypatch) -> tuple[Path, Path, Path]:
 def _write_draft(draft: Path) -> None:
     (draft / "examples" / "inputs").mkdir(parents=True)
     (draft / "examples" / "expected").mkdir()
-    (draft / "draft.yaml").write_text(
-        yaml.safe_dump({
+    document = {
+            "_delivery_profile": {"schema_version": 1, "profile_id": "cli_v2"},
+            "_intent_contract": new_intent_contract("把 Alpha 输入整理成文本结果"),
             "tool": {
+                "schema_version": 3,
                 "name": "alpha-tool",
                 "summary": "Alpha",
                 "interface": {
-                    "input": {"format": "TXT"},
+                    "input": {"kind": "file", "format": "TXT"},
                     "output": {
-                        "format": "TEXT",
+                        "kind": "stdout",
+                        "format": "plain text",
                         "contract": {
                             "media_type": "text/plain",
                             "root_type": "text",
                             "required": {},
+                            "validation_profile": "plain_text_v1",
                         },
                     },
                 },
             },
-            "capability": {"statement": "Alpha", "output_schema": "AlphaText"},
-        }),
+            "capability": {"statement": "", "output_schema": "AlphaText"},
+        }
+    install_delivery_intent_from_interface(document, profile_id="cli_v2")
+    install_semantic_commitments(document, [{
+        "commitment_id": "produce-result",
+        "public_text": "使用固定版本上游把输入整理成确定性文本结果。",
+        "rationale": "零模型 Journey 状态机夹具的公开语义。",
+    }])
+    install_artifact_protocol(document, {
+        "schema_version": 1,
+        "protocol_id": "alpha-result-v1",
+        "observations": [{
+            "observation_id": "alpha-body",
+            "commitment_ids": ["produce-result"],
+            "locator": "完整 UTF-8 文本正文",
+            "value_encoding": "固定版本上游产生的 UTF-8 文本",
+        }],
+    })
+    (draft / "draft.yaml").write_text(
+        yaml.safe_dump(document),
         encoding="utf-8",
     )
     (draft / "reference_impl.py").write_text("# reference\n", encoding="utf-8")

@@ -9,8 +9,38 @@ from types import SimpleNamespace
 import pytest
 
 from repoproof import cli
-from repoproof.adoption.intake import tool_confirm, tool_drafter, tool_intake
+from repoproof.adoption.intake import (
+    draft_readiness,
+    tool_confirm,
+    tool_drafter,
+    tool_intake,
+)
 from repoproof.runner import tool_pipeline
+
+
+def _allow_ready(monkeypatch: pytest.MonkeyPatch) -> None:
+    ready = draft_readiness.DraftReadinessV1(
+        status="READY_TO_FREEZE",
+        compatible=True,
+        current=True,
+        ready=True,
+        ready_to_confirm=True,
+        public_summary=draft_readiness.DraftReadinessPublicSummaryV1(
+            semantic_verifier_ready=True,
+            semantic_commitment_count=1,
+            verifier_declared_commitment_count=1,
+            commitment_coverage="COMPLETE",
+            dependency_lock_ready=True,
+            dependency_lock_source="draft",
+            example_count=3,
+        ),
+        recommended_action="ready",
+    )
+    monkeypatch.setattr(
+        draft_readiness,
+        "read_draft_readiness",
+        lambda *_args, **_kwargs: ready,
+    )
 
 
 @pytest.mark.parametrize(
@@ -75,6 +105,7 @@ def test_tool_build_cli_exit_matches_completion_boundary(
     rehearsal_only: bool,
     expected_code: int,
 ) -> None:
+    _allow_ready(monkeypatch)
     monkeypatch.setattr(tool_pipeline, "tool_build", lambda *args, **kwargs: result)
     argv = [
         "tool",
@@ -92,10 +123,11 @@ def test_tool_build_cli_exit_matches_completion_boundary(
     assert payload["ok"] is (expected_code == 0)
 
 
-def test_tool_build_cli_defaults_product_agent_to_codex_cli(
+def test_tool_build_cli_defaults_product_agent_to_gateway_mini_swe(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _allow_ready(monkeypatch)
     seen: dict[str, object] = {}
 
     def _build(*_args: object, **kwargs: object) -> dict:
@@ -111,7 +143,7 @@ def test_tool_build_cli_defaults_product_agent_to_codex_cli(
     ])
 
     assert code == 0
-    assert seen["agent_backend"] == "codex-cli"
+    assert seen["agent_backend"] == "mini-swe"
 
 
 def test_tool_build_cli_writes_job_bound_structured_result(
@@ -119,6 +151,7 @@ def test_tool_build_cli_writes_job_bound_structured_result(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    _allow_ready(monkeypatch)
     monkeypatch.setattr(
         tool_pipeline,
         "tool_build",
@@ -157,6 +190,56 @@ def test_tool_build_cli_writes_job_bound_structured_result(
     assert result["failure_owner"] == "HARNESS"
     assert result["reason_codes"] == ["UPSTREAM_WHEEL_MISSING"]
     assert result["agent_invoked"] is False
+
+
+def test_tool_readiness_is_structured_read_only_cli(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    draft = tmp_path / "draft"
+    draft.mkdir()
+    (draft / "draft.yaml").write_text("tool:\n  schema_version: 2\n", encoding="utf-8")
+    before = (draft / "draft.yaml").read_bytes()
+
+    code = cli.main(["tool", "readiness", "--draft-dir", str(draft)])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 3
+    assert payload["schema_version"] == 1
+    assert payload["compatible"] is False
+    assert payload["current"] is False
+    assert "TOOL_SPEC_VERSION_NOT_CURRENT" in payload["reason_codes"]
+    assert (draft / "draft.yaml").read_bytes() == before
+
+
+def test_tool_build_does_not_dispatch_when_core_readiness_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    called = False
+
+    def _unexpected(*_args: object, **_kwargs: object) -> dict:
+        nonlocal called
+        called = True
+        return {}
+
+    monkeypatch.setattr(tool_pipeline, "tool_build", _unexpected)
+
+    code = cli.main([
+        "tool",
+        "build",
+        "--draft-dir",
+        str(tmp_path / "missing"),
+        "--dest-root",
+        str(tmp_path / "tools"),
+    ])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 3
+    assert called is False
+    assert payload["failure_owner"] == "CONTRACT"
+    assert payload["reason_codes"] == ["DRAFT_DOCUMENT_MISSING"]
 
 
 def test_tool_add_drafter_failure_is_nonzero_even_when_skeleton_exists(

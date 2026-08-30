@@ -6,6 +6,7 @@ import json
 import subprocess
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import yaml
 
@@ -148,6 +149,17 @@ def _run(world: dict[str, Path | str]):
     )
 
 
+def _mark_tool_contract_v3(world: dict[str, Path | str]) -> dict:
+    contract_path = Path(world["tool_contract"])
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    contract["tool"]["schema_version"] = 3
+    contract_path.write_text(
+        yaml.safe_dump(contract, sort_keys=False),
+        encoding="utf-8",
+    )
+    return contract
+
+
 def test_product_preflight_proves_offline_reference_path(tmp_path: Path) -> None:
     result = _run(_world(tmp_path))
     assert result.ok is True
@@ -162,6 +174,55 @@ def test_product_preflight_proves_offline_reference_path(tmp_path: Path) -> None
         "reference_execution",
         "reference_output_contract",
     ]
+
+
+def test_v3_preflight_stops_before_agent_when_task_package_is_missing(
+    tmp_path: Path,
+) -> None:
+    world = _world(tmp_path)
+    _mark_tool_contract_v3(world)
+
+    result = _run(world)
+
+    assert result.ok is False
+    assert result.failure_owner == "HARNESS"
+    assert result.reason_codes == ["FROZEN_TASK_PACKAGE_INVALID"]
+    assert all(check.name != "offline_install" for check in result.checks)
+
+
+def test_v3_preflight_binds_complete_wheelhouse_before_agent(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from repoproof.harness.wheelhouse import compute_manifest
+
+    world = _world(tmp_path)
+    contract = _mark_tool_contract_v3(world)
+    wheelhouse = Path(world["wheelhouse"])
+    wheel_manifest = compute_manifest(wheelhouse)
+    frozen = SimpleNamespace(
+        source_commit=contract["source_repo"]["resolved_commit"],
+        source_git_tree_hash="a" * 40,
+        wheelhouse_root=wheel_manifest["root"],
+        wheelhouse_wheels=wheel_manifest["wheels"],
+    )
+    monkeypatch.setattr(
+        "repoproof.harness.task_package.load_and_verify",
+        lambda *_args, **_kwargs: frozen,
+    )
+
+    result = _run(world)
+
+    assert result.ok is True
+    assert "frozen_task_package" in [check.name for check in result.checks]
+    assert "frozen_wheelhouse" in [check.name for check in result.checks]
+
+    wheel = next(wheelhouse.glob("*.whl"))
+    wheel.write_bytes(wheel.read_bytes() + b"tamper")
+    rejected = _run(world)
+    assert rejected.ok is False
+    assert rejected.reason_codes == ["FROZEN_WHEELHOUSE_IDENTITY_MISMATCH"]
+    assert all(check.name != "offline_install" for check in rejected.checks)
 
 
 def test_missing_upstream_wheel_stops_as_harness_fault(tmp_path: Path) -> None:

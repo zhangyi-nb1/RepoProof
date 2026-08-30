@@ -400,6 +400,9 @@ def test_k11_the_heldout_prose_is_derived_from_data_not_written_down():
     # counts_toward_* 均为 false,不计 Benchmark Lab 模型能力,但共享台账的
     # hosts_covered 仍按 append-only 事实增加这些本地工具宿主。
     assert d["hosts_covered"] == [
+        # 2026-08-30 M6.1 多格式 Product Journey 四例入账；均为
+        # PRODUCT_ONBOARDING，不计 Benchmark Lab 模型能力。
+        "local-tool/biopython-tool",
         "local-tool/chardet-tool",
         "local-tool/emoji-tool",
         "local-tool/feedparser-tool",
@@ -415,10 +418,12 @@ def test_k11_the_heldout_prose_is_derived_from_data_not_written_down():
         "local-tool/junitparser-tool",
         "local-tool/markdown-it-py-tool",
         "local-tool/markdown-tool",
+        "local-tool/networkx-tool",
         "local-tool/num2words-tool",
         "local-tool/opencc-tool",
         "local-tool/pdf-table",
         "local-tool/phonenumbers-tool",
+        "local-tool/pint-tool",
         "local-tool/pygments-tool",
         "local-tool/pypdf-tool",
         "local-tool/pypinyin-tool",
@@ -428,6 +433,7 @@ def test_k11_the_heldout_prose_is_derived_from_data_not_written_down():
         "local-tool/python-slugify",
         "local-tool/python-slugify-tool",
         "local-tool/pyyaml-tool",
+        "local-tool/rispy-tool",
         "local-tool/rrule-expand",
         "local-tool/tabulate-tool",
         "local-tool/tomli-tool",

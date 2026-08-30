@@ -76,8 +76,23 @@ _SERVICE_EXPECTATIONS = (
     ("summarize_repo_overview", ("capability_goal",)),
     ("propose_example_candidates", ()),
     ("propose_audit_candidates", ("dest_root", "expected_task_id", "n", "offline")),
+    (
+        "materialize_audit_candidate",
+        ("candidate", "dest_root", "expected_task_id"),
+    ),
     ("start_tool_audit", ("expected_task_id",)),
-    ("save_draft_review", ("distribution", "import_module", "license_id", "reference_lock")),
+    (
+        "save_draft_review",
+        (
+            "distribution",
+            "import_module",
+            "license_id",
+            "reference_lock",
+            "semantic_commitments",
+            "input_representation",
+        ),
+    ),
+    ("confirm_draft_intent", ()),
 )
 _STALE_GAPS = [g for g in (_service_gap(n, *ps) for n, ps in _SERVICE_EXPECTATIONS) if g]
 if _STALE_GAPS:
@@ -94,12 +109,16 @@ def _require_service(name: str, *params: str) -> bool:
 
 def _journey_stage(snapshot: dict) -> int:
     phase = str(snapshot.get("phase") or "NEW")
-    if phase == "RUNNING":
-        worker = snapshot.get("worker") or {}
-        explicit_stage = worker.get("journey_stage")
+    if phase in {"RUNNING", "FAILED", "SEMANTIC_UNKNOWN"}:
+        state = (
+            snapshot.get("worker") or {}
+            if phase == "RUNNING"
+            else snapshot.get("action_result") or snapshot.get("worker") or {}
+        )
+        explicit_stage = state.get("journey_stage")
         if isinstance(explicit_stage, int) and 1 <= explicit_stage <= 5:
             return explicit_stage
-        action = str(worker.get("action") or "")
+        action = str(state.get("action") or "")
         return {
             "add": 1,
             "tool-add": 1,
@@ -114,17 +133,16 @@ def _journey_stage(snapshot: dict) -> int:
     return {
         "NEW": 1,
         "DRAFT": 2,
+        "DRAFT_INCOMPATIBLE": 2,
         "FROZEN": 3,
         "REHEARSED": 4,
         "EXPORTED": 5,
         "ACTIVE": 5,
-        "FAILED": 4,
-        "SEMANTIC_UNKNOWN": 4,
     }.get(phase, 1)
 
 
-def _adoptable_requirement_briefs(summary_result: dict) -> list[dict]:
-    """Return a complete, plain-language 2–3 brief set or fail closed.
+def _reviewed_requirement_briefs(summary_result: dict) -> list[dict]:
+    """Recompute Core admission for every model proposal or fail closed.
 
     Model prose is useful for helping a non-expert articulate an intent, but it
     must not smuggle implementation details into the one-click adoption path.
@@ -147,6 +165,17 @@ def _adoptable_requirement_briefs(summary_result: dict) -> list[dict]:
     except DraftError:
         return []
     return list(validated["requirement_briefs"])
+
+
+def _adoptable_requirement_briefs(summary_result: dict) -> list[dict]:
+    """Return proposals that are both deliverable and plain-language safe."""
+
+    return [
+        brief
+        for brief in _reviewed_requirement_briefs(summary_result)
+        if brief.get("support_status") == "SUPPORTED"
+        and brief.get("adoption_status") == "ADOPTABLE"
+    ]
 
 
 def _start_new_journey() -> None:
@@ -180,6 +209,10 @@ def _start_new_journey() -> None:
             # The capability widget has not been instantiated in this run yet,
             # so this is the one safe place to update its keyed value.
             st.session_state["rp_journey_capability"] = pending_text
+            # A model suggestion is only an editable starting point.  Any
+            # previously confirmed launch payload must be invalidated so the
+            # user explicitly confirms the text that will reach Core.
+            st.session_state.pop("rp_confirmed_capability", None)
             st.session_state["rp_capability_adoption_flash"] = {
                 "ok": True,
                 "message": "已把模型建议放入需求框；你仍可继续用自己的话修改，再决定是否创建任务。",
@@ -251,7 +284,7 @@ def _start_new_journey() -> None:
                 summary_result = analysis.get("summary") or {}
                 if summary_result.get("ok"):
                     st.info(f"**LLM 分析（{summary_result.get('drafter')}）**\n\n{summary_result.get('summary')}")
-                    briefs = _adoptable_requirement_briefs(summary_result)
+                    briefs = _reviewed_requirement_briefs(summary_result)
                     if briefs:
                         recommended = str(summary_result.get("recommended_brief_id") or "")
                         st.markdown("**适合这个仓库的需求表达**")
@@ -261,11 +294,42 @@ def _start_new_journey() -> None:
                         for index, brief in enumerate(briefs):
                             with st.container(border=True):
                                 is_recommended = brief["brief_id"] == recommended
-                                title = brief["title"] + (" · 推荐" if is_recommended else "")
+                                supported = brief.get("support_status") == "SUPPORTED"
+                                adoptable = (
+                                    supported
+                                    and brief.get("adoption_status") == "ADOPTABLE"
+                                )
+                                if is_recommended and adoptable:
+                                    suffix = " · 模型推荐 · 当前可交付"
+                                elif is_recommended and supported:
+                                    suffix = " · 模型推荐 · 需改成用户语言"
+                                elif is_recommended:
+                                    suffix = " · 模型推荐 · 当前不可交付"
+                                elif adoptable:
+                                    suffix = " · 当前可交付"
+                                elif supported:
+                                    suffix = " · 当前可交付 · 需改成用户语言"
+                                else:
+                                    suffix = " · 当前不可交付"
+                                title = brief["title"] + suffix
                                 st.write(title)
                                 if brief.get("scenario"):
                                     st.caption(brief["scenario"])
-                                st.write(brief["text"])
+                                if supported:
+                                    st.write(brief["text"])
+                                    if not adoptable:
+                                        st.warning(
+                                            "交付形状受支持，但模型措辞包含实现层表达；"
+                                            "为保持需求口语化，本条不提供一键采用。"
+                                        )
+                                else:
+                                    st.warning(
+                                        "该建议被保留为真实需求，但超出当前交付 profile；"
+                                        "系统不会要求模型删改需求，也不会提供一键采用。"
+                                    )
+                                    reasons = brief.get("support_reason_codes") or []
+                                    if reasons:
+                                        st.caption("Core 原因：" + "、".join(map(str, reasons)))
                                 shape = brief.get("delivery_shape") or {}
                                 if shape:
                                     st.caption(
@@ -280,7 +344,7 @@ def _start_new_journey() -> None:
                                     f"{brief['brief_id']}:{index}".encode()
                                 ).hexdigest()[:12]
                                 label = "采用推荐描述" if is_recommended else "采用这个描述"
-                                if st.button(label, key=f"rp_adopt_brief_{brief_key}"):
+                                if adoptable and st.button(label, key=f"rp_adopt_brief_{brief_key}"):
                                     st.session_state["rp_pending_capability_adoption"] = {
                                         "signature": analysis_signature,
                                         "brief_id": brief["brief_id"],
@@ -339,11 +403,45 @@ def _start_new_journey() -> None:
             "RepoProof 的合同、repair、独立验证和发布门保持不变。"
         ),
     )
-    submitted = st.button("创建任务并生成草稿", type="primary")
+    confirmed_payload = st.session_state.get("rp_confirmed_capability")
+    confirmed_current = bool(
+        isinstance(confirmed_payload, dict)
+        and confirmed_payload.get("signature") == analysis_signature
+        and confirmed_payload.get("text") == capability.strip()
+    )
+    if st.button(
+        "确认当前需求描述",
+        help=(
+            "把当前输入框中的完整文本固定为下一次起草的参数。"
+            "确认后再修改仓库、版本或需求会自动失效，避免后台收到陈旧建议。"
+        ),
+        key="rp_confirm_capability_for_launch",
+    ):
+        final_text = capability.strip()
+        if len(final_text) < 8:
+            st.error("请先用完整句子描述能力。")
+        else:
+            st.session_state["rp_confirmed_capability"] = {
+                "signature": analysis_signature,
+                "text": final_text,
+            }
+            st.rerun()
+    if confirmed_current:
+        st.success("已确认当前需求文本；后台起草只会接收这段已显示并确认的内容。")
+    else:
+        st.caption("采用建议或修改需求后，请先确认当前文本，再创建任务。")
+    submitted = st.button(
+        "创建任务并生成草稿",
+        type="primary",
+        disabled=not confirmed_current,
+    )
     if not submitted:
         return
     clean_repo = repo.strip()
-    clean_capability = capability.strip()
+    # Use the explicit confirmation snapshot rather than a live widget value.
+    # This turns the UI→Core seam into a two-step commit and prevents a rapid
+    # edit/click sequence from launching with the previously adopted advice.
+    clean_capability = str((confirmed_payload or {}).get("text") or "").strip()
     if not clean_repo.startswith("https://github.com/") or len(clean_capability) < 8:
         st.error("请填写公开 GitHub 仓库地址，并用完整句子描述能力。")
         return
@@ -398,6 +496,38 @@ def _primary_golden_errors(expected_bytes: bytes, contract_doc: dict, output_for
     return [f"GOLDEN_OUTPUT_INVALID: {detail}" for detail in validate_output_text(expected_text, contract)]
 
 
+def _render_draft_readiness_summary(readiness: dict) -> None:
+    """Show public Core facts without exposing verifier/reference source."""
+
+    summary = readiness.get("public_summary") or {}
+    verifier_ready = bool(summary.get("semantic_verifier_ready"))
+    commitment_count = int(summary.get("semantic_commitment_count") or 0)
+    covered_count = int(summary.get("verifier_declared_commitment_count") or 0)
+    coverage = str(summary.get("commitment_coverage") or "UNAVAILABLE")
+    lock_ready = bool(summary.get("dependency_lock_ready"))
+    columns = st.columns(3)
+    columns[0].metric("独立语义验证器", "已就绪" if verifier_ready else "待补全")
+    coverage_value = f"{covered_count}/{commitment_count}"
+    coverage_delta = coverage
+    if coverage == "RUNTIME_PENDING":
+        coverage_value = f"{commitment_count} 项待运行复核"
+        coverage_delta = "冻结/演练时动态检查"
+    columns[1].metric(
+        "公开承诺覆盖",
+        coverage_value,
+        coverage_delta,
+    )
+    columns[2].metric("固定依赖锁", "已就绪" if lock_ready else "待补全")
+    if readiness.get("status") == "READY_TO_CONFIRM":
+        st.success("Core 检查已通过；显式确认当前语义后即可进入冻结与演练。")
+    elif readiness.get("ready"):
+        st.success("Core 冻结 readiness 已通过。")
+    else:
+        reasons = [str(code) for code in readiness.get("reason_codes") or []]
+        if reasons:
+            st.caption("Core readiness：" + "、".join(reasons))
+
+
 def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) -> dict:
     """Render the complete stage-2 workbench in the primary Product Journey.
 
@@ -420,8 +550,18 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
     tool = draft.get("tool") or {}
     interface = tool.get("interface") or {}
     capability = draft.get("capability") or {}
+    intent_contract = draft.get("_intent_contract") or {}
+    semantic_commitment_rows = list(intent_contract.get("commitments") or [])
+    delivery_inputs = list(
+        ((intent_contract.get("delivery") or {}).get("requirements") or {}).get("inputs") or []
+    )
+    saved_input_representation = str(
+        (delivery_inputs[0] if delivery_inputs else {}).get("representation")
+        or "utf8_text"
+    )
     source_repo = draft.get("source_repo") or {}
     dependency_lock = review.get("dependency_lock") or {}
+    draft_readiness = review.get("draft_readiness") or {}
     saved_output_format = str((interface.get("output") or {}).get("format") or "")
     existing_contract = (interface.get("output") or {}).get("contract") or default_output_contract(
         saved_output_format
@@ -433,6 +573,7 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
 
     st.markdown("#### 1. 审核成功合同")
     st.caption("模型可以起草，但你确认的合同才是后续 Agent、独立验证和 clean replay 共同遵守的成功标准。")
+    _render_draft_readiness_summary(draft_readiness)
     with st.form(f"{prefix}_contract_{raw_signature}"):
         tool_name = st.text_input(
             "工具名",
@@ -445,10 +586,25 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
             key=f"{prefix}_summary_{raw_signature}",
         )
         statement = st.text_area(
-            "能力、输入输出规则和明确边界",
+            "Core 编译的公开能力题面",
             value=str(capability.get("statement") or ""),
             height=140,
             key=f"{prefix}_statement_{raw_signature}",
+            disabled=True,
+            help="它由用户目标和下方公开行为承诺编译，不能绕过追踪链直接改写。",
+        )
+        semantic_commitments_text = st.text_area(
+            "公开行为承诺（每行一条）",
+            value="\n".join(
+                str(item.get("public_text") or "")
+                for item in semantic_commitment_rows
+            ),
+            height=150,
+            key=f"{prefix}_semantic_commitments_{raw_signature}",
+            help=(
+                "模型提出的算法、规范化、错误和边界规则必须全部在这里公开。"
+                "held-out 只能隐藏输入，不能隐藏规则。"
+            ),
         )
         format_input, format_output = st.columns(2)
         input_format = format_input.text_input(
@@ -460,6 +616,21 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
             "输出格式",
             value=saved_output_format,
             key=f"{prefix}_output_format_{raw_signature}",
+        )
+        input_representation = st.selectbox(
+            "样例输入表示",
+            options=["utf8_text", "binary"],
+            index=1 if saved_input_representation == "binary" else 0,
+            format_func=lambda value: (
+                "UTF-8 文本（可由 LLM 起草候选）"
+                if value == "utf8_text"
+                else "二进制文件（需要上传真实文件）"
+            ),
+            key=f"{prefix}_input_representation_{raw_signature}",
+            help=(
+                "这是交付合同的一部分，不由 .pdf/.docx 等名称猜测。"
+                "选择变化后需要重新确认合同。"
+            ),
         )
         output_schema = st.text_input(
             "输出结构名称",
@@ -487,7 +658,10 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
             "固定依赖锁（每行一个 包名==精确版本）",
             value="\n".join(str(pin) for pin in dependency_lock.get("pins") or []),
             key=f"{prefix}_reference_lock_{raw_signature}",
-            help="动态版本无法自动派生时请填写，例如 junitparser==5.0.1；允许写完整的精确版本闭包。",
+            help=(
+                "动态版本无法自动派生时请填写，例如 "
+                "example-package==1.2.3；允许写完整的精确版本闭包。"
+            ),
         )
         output_contract_text = st.text_area(
             "可执行输出合同",
@@ -496,12 +670,23 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
             key=f"{prefix}_output_contract_{raw_signature}",
             help="所有输出（包括上游参考输出与最终工具 stdout）都会由同一 ToolOutputContract 校验。",
         )
-        reference = st.text_area(
-            "上游参考实现（必须真实 import 固定版本）",
-            value=str(review.get("reference_impl") or ""),
-            height=220,
-            key=f"{prefix}_reference_{raw_signature}",
-        )
+        with st.expander("高级：reference 与独立 verifier 源码", expanded=False):
+            reference = st.text_area(
+                "上游参考实现（必须真实 import 固定版本）",
+                value=str(review.get("reference_impl") or ""),
+                height=220,
+                key=f"{prefix}_reference_{raw_signature}",
+            )
+            semantic_verifier = st.text_area(
+                "独立语义验证器（冻结 oracle；不得复用参考实现）",
+                value=str(review.get("semantic_verifier") or ""),
+                height=220,
+                key=f"{prefix}_semantic_verifier_{raw_signature}",
+                help=(
+                    "按公开行为承诺重算实际产物；Harness 只执行统一协议、"
+                    "核验固定上游调用并绑定回执，不在 Core 中写领域特判。"
+                ),
+            )
         save_contract = st.form_submit_button("保存合同修改", type="primary")
 
     if save_contract:
@@ -517,6 +702,7 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
             "import_module",
             "license_id",
             "reference_lock",
+            "input_representation",
         ):
             save_result = {"ok": False, "error": "请重启 Studio 后再保存合同。"}
         elif parsed_contract is not None:
@@ -525,10 +711,17 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
                 tool_name=tool_name,
                 summary=summary,
                 statement=statement,
+                semantic_commitments=[
+                    line.strip()
+                    for line in semantic_commitments_text.splitlines()
+                    if line.strip()
+                ],
                 input_format=input_format,
+                input_representation=input_representation,
                 output_format=output_format,
                 output_schema=output_schema,
                 reference_impl=reference,
+                semantic_verifier=semantic_verifier,
                 output_contract=parsed_contract.model_dump(mode="json"),
                 distribution=distribution,
                 import_module=import_module,
@@ -569,7 +762,14 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
     st.markdown("#### 2. 生成并确认代表性样例")
     input_mode = product_jobs.example_input_mode(draft_dir)
     binary_upload = bool(input_mode.get("ok") and input_mode.get("requires_upload"))
-    if binary_upload:
+    if not input_mode.get("ok"):
+        reason_codes = "、".join(str(code) for code in input_mode.get("reason_codes") or [])
+        st.error(
+            f"样例输入方式无法由合同确定：{input_mode.get('error') or '未知错误'}"
+            + (f"（{reason_codes}）" if reason_codes else "")
+        )
+        st.caption(str(input_mode.get("recommended_action") or "请先修复合同。"))
+    elif binary_upload:
         st.caption(
             f"当前输入是 {input_mode.get('format')} 二进制文件。LLM 只帮助列出应覆盖的场景，"
             "不会把一段文本伪装成文件；请在下方上传真实输入，固定版本上游再给出实际输出。"
@@ -603,7 +803,10 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
         "查看 LLM 文件样例建议" if binary_upload else "让 LLM 生成样例候选",
         type="primary",
         key=f"{prefix}_candidate_generate",
-        disabled=not (binary_upload or offline_candidates or bool(drafter_state.get("ready"))),
+        disabled=(
+            not bool(input_mode.get("ok"))
+            or not (binary_upload or offline_candidates or bool(drafter_state.get("ready")))
+        ),
         help=(
             "二进制文件只展示 LLM 起草时给出的场景建议；实际输入仍由文件上传提供。"
             if binary_upload
@@ -648,10 +851,19 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
         usable_candidates = [
             candidate
             for candidate in candidate_result.get("candidates") or []
-            if candidate.get("upstream_output") is not None and not candidate.get("upstream_error")
+            if (
+                candidate.get("upstream_output") is not None
+                and not candidate.get("upstream_error")
+                and candidate.get("admission_status") != "REJECTED"
+            )
         ]
         failed_candidates = [
-            candidate for candidate in candidate_result.get("candidates") or [] if candidate.get("upstream_error")
+            candidate
+            for candidate in candidate_result.get("candidates") or []
+            if (
+                candidate.get("upstream_error")
+                or candidate.get("admission_status") == "REJECTED"
+            )
         ]
         st.caption(f"候选来源：{candidate_result.get('drafter')} · {candidate_result.get('note')}")
         if candidate_result.get("shortfall"):
@@ -708,12 +920,15 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
                         st.rerun()
                     st.error(confirmed.get("error") or "样例确认失败。")
         if failed_candidates:
-            st.warning("部分候选让上游报错，不能成为成功样例；请据此补充能力边界。")
+            st.warning("部分候选未通过上游执行、输出合同或独立语义预筛，不能成为成功样例。")
             st.dataframe(
                 [
                     {
                         "输入": str(candidate.get("input_text") or "")[:60] or "（空）",
-                        "上游错误": candidate.get("upstream_error"),
+                        "未准入原因": (
+                            ", ".join(candidate.get("admission_reason_codes") or [])
+                            or candidate.get("upstream_error")
+                        ),
                     }
                     for candidate in failed_candidates
                 ],
@@ -875,6 +1090,26 @@ def _render_journey_card(snapshot: dict) -> None:
         st.code(str(snapshot.get("semantic_error") or "CORE_STATUS_UNAVAILABLE"))
         return
 
+    if phase == "DRAFT_INCOMPATIBLE":
+        readiness = ((snapshot.get("draft_review") or {}).get("draft_readiness") or {})
+        reasons = [str(code) for code in readiness.get("reason_codes") or []]
+        st.error(
+            "这份尚未冻结的草稿不具备当前可编辑结构所要求的"
+            "用户目标—交付意图—公开承诺绑定，因此只能只读查看，"
+            "不能继续补样例或进入构建。"
+        )
+        if reasons:
+            st.write("Core 原因：" + "、".join(f"`{code}`" for code in reasons))
+        st.info(str(readiness.get("recommended_action") or "请创建一项新任务。"))
+        if st.button(
+            "按当前流程创建新任务",
+            type="primary",
+            key=f"rp_restart_incompatible_{journey['journey_id']}",
+        ):
+            st.session_state["rp_new_journey"] = True
+            st.rerun()
+        return
+
     if phase == "FAILED":
         owner = str(result.get("failure_owner") or "UNKNOWN")
         action = str(result.get("action") or "")
@@ -894,9 +1129,10 @@ def _render_journey_card(snapshot: dict) -> None:
                 started = product_jobs.start_tool_build_real(
                     task_id_value,
                     Path(journey["dest_root"]),
-                    agent_backend=str(journey.get("agent_backend") or "codex-cli"),
+                    agent_backend=str(journey.get("agent_backend") or "mini-swe"),
                     journey_id=str(journey["journey_id"]),
                     rehearsal_only=retry_rehearsal,
+                    draft_dir=Path(journey["draft_dir"]),
                 )
                 (st.success if started.get("ok") else st.error)(started.get("note") or started.get("error"))
                 if started.get("ok"):
@@ -919,40 +1155,47 @@ def _render_journey_card(snapshot: dict) -> None:
 
     if phase in {"NEW", "DRAFT"}:
         review = snapshot.get("draft_review") or {}
-        examples = list(review.get("examples") or []) if review.get("ok") else []
-        output_check = (
-            validate_draft_output_examples(Path(journey["draft_dir"]))
-            if review.get("ok")
-            else {"ok": False, "errors": ["草稿尚未完成"]}
-        )
+        readiness = (review.get("draft_readiness") or {}) if review.get("ok") else {}
+        readiness_summary = readiness.get("public_summary") or {}
         r1, r2 = st.columns(2)
-        r1.metric("已确认代表性样例", len(examples), "至少 3 组")
-        r2.metric("输出合同", "可执行" if output_check.get("ok") else "待补全")
+        r1.metric(
+            "已确认代表性样例",
+            int(readiness_summary.get("example_count") or 0),
+            "至少 3 组",
+        )
+        r2.metric("Core readiness", str(readiness.get("status") or "等待草稿"))
         if not review.get("ok"):
             st.info("草稿尚未生成完成。若后台任务已停止，请到活动页查看唯一失败原因。")
         else:
             st.info("请在下方主流程核对合同，并用 LLM 候选或手工入口确认至少三组代表性样例。")
             review = _render_primary_contract_and_examples(journey, review)
-            examples = list(review.get("examples") or []) if review.get("ok") else []
-            output_check = validate_draft_output_examples(Path(journey["draft_dir"]))
+        readiness = (review.get("draft_readiness") or {}) if review.get("ok") else {}
         confirmed = st.checkbox(
-            "我已核对合同、上游版本、许可证和代表性样例",
+            "我已核对用户目标、每条公开行为承诺、上游版本、许可证和代表性样例",
             key=f"rp_confirm_{journey['journey_id']}",
         )
-        ready = bool(review.get("ok") and len(examples) >= 3 and output_check.get("ok"))
+        ready = bool(readiness.get("ready_to_confirm"))
+        if review.get("ok") and not ready:
+            st.info(str(readiness.get("recommended_action") or "请先补全 Core readiness。"))
         if st.button(
             "确认合同并运行零模型演练",
             type="primary",
             disabled=not (ready and confirmed),
             key=f"rp_rehearse_{journey['journey_id']}",
         ):
-            started = product_jobs.start_tool_build(
-                draft_dir=Path(journey["draft_dir"]),
-                dest_root=Path(journey["dest_root"]),
-                rehearsal_only=True,
-                agent_backend=str(journey.get("agent_backend") or "codex-cli"),
-                journey_id=str(journey["journey_id"]),
+            intent_confirmation = product_jobs.confirm_draft_intent(
+                Path(journey["draft_dir"])
             )
+            if intent_confirmation.get("ok"):
+                started = product_jobs.start_tool_build(
+                    draft_dir=Path(journey["draft_dir"]),
+                    dest_root=Path(journey["dest_root"]),
+                    rehearsal_only=True,
+                    agent_backend=str(journey.get("agent_backend") or "mini-swe"),
+                    journey_id=str(journey["journey_id"]),
+                )
+            else:
+                started = intent_confirmation
             (st.success if started.get("ok") else st.error)(started.get("note") or started.get("error"))
             if started.get("ok"):
                 st.rerun()
@@ -967,7 +1210,7 @@ def _render_journey_card(snapshot: dict) -> None:
             started = product_jobs.start_tool_build_real(
                 str(snapshot["task_id"]),
                 Path(journey["dest_root"]),
-                agent_backend=str(journey.get("agent_backend") or "codex-cli"),
+                agent_backend=str(journey.get("agent_backend") or "mini-swe"),
                 journey_id=str(journey["journey_id"]),
             )
             (st.success if started.get("ok") else st.error)(started.get("note") or started.get("error"))
@@ -1044,8 +1287,11 @@ def _render_journey_card(snapshot: dict) -> None:
             generation = int(audit_candidates.get("generation") or 0)
             for index, candidate in enumerate(candidates):
                 input_text = str(candidate.get("input_text") or "")
-                expected_text = str(candidate.get("expected") or "")
-                if not input_text or not expected_text:
+                expected_text = str(candidate.get("upstream_output") or "")
+                if (
+                    candidate.get("input_text") is None
+                    or candidate.get("upstream_output") is None
+                ):
                     continue
                 with st.container(border=True):
                     st.markdown(
@@ -1072,13 +1318,18 @@ def _render_journey_card(snapshot: dict) -> None:
                         "确认这组输入与参考真值并运行 Fresh audit",
                         key=f"{audit_prefix}_run_{generation}_{index}",
                     ):
-                        input_name = Path(str(candidate.get("input_name") or "fresh.txt")).name
-                        files = product_jobs.materialize_audit_files(
+                        if not _require_service(
+                            "materialize_audit_candidate",
+                            "candidate",
+                            "dest_root",
+                            "expected_task_id",
+                        ):
+                            continue
+                        files = product_jobs.materialize_audit_candidate(
                             tool_name,
-                            input_name=input_name,
-                            input_bytes=input_text.encode("utf-8"),
-                            expected_name=f"{Path(input_name).stem}.expected.txt",
-                            expected_bytes=expected_text.encode("utf-8"),
+                            candidate=candidate,
+                            dest_root=Path(journey["dest_root"]),
+                            expected_task_id=task_id,
                         )
                         if not files.get("ok"):
                             st.error(files.get("error") or "无法保存 Fresh audit 材料。")
@@ -1145,6 +1396,27 @@ def _render_journey_card(snapshot: dict) -> None:
             st.switch_page("pages/tool_library.py")
 
 
+@st.fragment(run_every="2s")
+def _render_running_journey(journey_id: str) -> None:
+    """Poll only while a durable worker is actually RUNNING.
+
+    The ordinary page remains event-driven.  Once the authoritative worker
+    reaches a terminal state, one full rerun removes this timed fragment and
+    renders the CLI/Core result.  This avoids both a permanently stale spinner
+    and an always-on page refresh after completion.
+    """
+
+    try:
+        journey = product_journeys.read_journey(journey_id)
+        snapshot = product_journeys.journey_snapshot(journey)
+    except (OSError, ValueError) as exc:
+        st.error(f"Journey 状态不可读取：{exc}")
+        return
+    if snapshot.get("phase") != "RUNNING":
+        st.rerun(scope="app")
+    _render_journey_card(snapshot)
+
+
 def _render_primary_journey() -> None:
     try:
         journeys = product_journeys.list_journeys()
@@ -1174,7 +1446,11 @@ def _render_primary_journey() -> None:
     if active is None:
         _start_new_journey()
     else:
-        _render_journey_card(product_journeys.journey_snapshot(active))
+        snapshot = product_journeys.journey_snapshot(active)
+        if snapshot.get("phase") == "RUNNING":
+            _render_running_journey(active.journey_id)
+        else:
+            _render_journey_card(snapshot)
 
     with st.expander("高级信息与旧任务"):
         st.caption("原始路径、ID、JSON、完整日志以及已有 frozen/rehearsed 任务只在这里展示。")
@@ -1345,10 +1621,22 @@ with tab_review:
         st.info(f"生成受管草稿后回到这里审核；当前路径不可读取。 {review_bundle.get('error') or ''}")
     else:
         inspect_dir = Path(review_bundle["draft_dir"])
+        _render_draft_readiness_summary(
+            review_bundle.get("draft_readiness") or {}
+        )
         draft = review_bundle["draft"]
         tool = draft.get("tool") or {}
         iface = tool.get("interface") or {}
         cap = draft.get("capability") or {}
+        intent_contract = draft.get("_intent_contract") or {}
+        semantic_commitment_rows = list(intent_contract.get("commitments") or [])
+        delivery_inputs = list(
+            ((intent_contract.get("delivery") or {}).get("requirements") or {}).get("inputs") or []
+        )
+        saved_input_representation = str(
+            (delivery_inputs[0] if delivery_inputs else {}).get("representation")
+            or "utf8_text"
+        )
         saved_output_format = str((iface.get("output") or {}).get("format") or "")
         existing_contract = (iface.get("output") or {}).get("contract")
         if not existing_contract:
@@ -1363,13 +1651,38 @@ with tab_review:
             tool_name = st.text_input("工具名", value=str(tool.get("name") or ""), key=f"rv_name_{_sig}")
             summary = st.text_input("一句话摘要", value=str(tool.get("summary") or ""), key=f"rv_summary_{_sig}")
             statement = st.text_area(
-                "能力和边界", value=str(cap.get("statement") or ""), height=130, key=f"rv_stmt_{_sig}"
+                "Core 编译的公开能力题面",
+                value=str(cap.get("statement") or ""),
+                height=130,
+                key=f"rv_stmt_{_sig}",
+                disabled=True,
+            )
+            semantic_commitments_text = st.text_area(
+                "公开行为承诺（每行一条）",
+                value="\n".join(
+                    str(item.get("public_text") or "")
+                    for item in semantic_commitment_rows
+                ),
+                height=140,
+                key=f"rv_semantics_{_sig}",
             )
             a, b = st.columns(2)
             input_format = a.text_input(
                 "输入格式", value=str((iface.get("input") or {}).get("format") or ""), key=f"rv_in_{_sig}"
             )
             output_format = b.text_input("输出格式", value=saved_output_format, key=f"rv_out_{_sig}")
+            input_representation = st.selectbox(
+                "样例输入表示",
+                options=["utf8_text", "binary"],
+                index=1 if saved_input_representation == "binary" else 0,
+                format_func=lambda value: (
+                    "UTF-8 文本（可由 LLM 起草候选）"
+                    if value == "utf8_text"
+                    else "二进制文件（需要上传真实文件）"
+                ),
+                key=f"rv_input_representation_{_sig}",
+                help="类型化合同字段；不根据文件名或格式标签推断。",
+            )
             output_schema = st.text_input(
                 "输出结构名称", value=str(cap.get("output_schema") or ""), key=f"rv_schema_{_sig}"
             )
@@ -1382,7 +1695,7 @@ with tab_review:
                 "PyPI 包名",
                 value=str(_sr.get("distribution") or ""),
                 key=f"rv_dist_{_sig}",
-                help="装进会话的分发名，例如 webcolors",
+                help="装进会话的 Python 分发名（应与固定上游身份一致）",
             )
             import_module = sd2.text_input(
                 "import 名",
@@ -1392,16 +1705,29 @@ with tab_review:
             )
             license_id = sd3.text_input("许可证", value=str(_sr.get("license") or ""), key=f"rv_lic_{_sig}")
             output_contract_text = st.text_area(
-                "可执行输出合同（所有 v2 工具必填）",
+                "可执行输出合同（所有当前 Product 工具必填）",
                 value=json.dumps(existing_contract, ensure_ascii=False, indent=2),
                 help=("由 Core ToolOutputContract 验证；普通文本也必须明确声明 text/plain + text。"),
                 height=130,
             )
-            reference = st.text_area(
-                "参考实现（必须真实 import 固定上游）",
-                value=review_bundle["reference_impl"],
-                height=260,
-            )
+            with st.expander(
+                "高级：reference 与独立 verifier 源码",
+                expanded=False,
+            ):
+                reference = st.text_area(
+                    "参考实现（必须真实 import 固定上游）",
+                    value=review_bundle["reference_impl"],
+                    height=260,
+                )
+                semantic_verifier = st.text_area(
+                    "独立语义验证器（冻结 oracle；不得复用参考实现）",
+                    value=str(review_bundle.get("semantic_verifier") or ""),
+                    height=260,
+                    help=(
+                        "这段代码属于任务 oracle，不交给 Agent。它必须通过固定上游"
+                        "独立复核输入与最终产物。"
+                    ),
+                )
             save = st.form_submit_button("保存审核修改", type="primary")
         if save:
             parsed_contract, contract_errors = parse_output_contract(
@@ -1410,7 +1736,13 @@ with tab_review:
             )
             if contract_errors:
                 result = {"ok": False, "error": "；".join(contract_errors)}
-            elif not _require_service("save_draft_review", "distribution", "import_module", "license_id"):
+            elif not _require_service(
+                "save_draft_review",
+                "distribution",
+                "import_module",
+                "license_id",
+                "input_representation",
+            ):
                 result = {"ok": False, "error": "请先重启 Studio 再保存（服务模块过期）"}
             elif parsed_contract is not None:
                 result = product_jobs.save_draft_review(
@@ -1418,10 +1750,17 @@ with tab_review:
                     tool_name=tool_name,
                     summary=summary,
                     statement=statement,
+                    semantic_commitments=[
+                        line.strip()
+                        for line in semantic_commitments_text.splitlines()
+                        if line.strip()
+                    ],
                     input_format=input_format,
+                    input_representation=input_representation,
                     output_format=output_format,
                     output_schema=output_schema,
                     reference_impl=reference,
+                    semantic_verifier=semantic_verifier,
                     output_contract=parsed_contract.model_dump(mode="json"),
                     distribution=distribution,
                     import_module=import_module,
@@ -1492,9 +1831,20 @@ with tab_review:
                     "已确认样例；重新生成候选不会清空它们。"
                 )
                 _usable = [
-                    c for c in _cr["candidates"] if c.get("upstream_output") is not None and not c.get("upstream_error")
+                    c for c in _cr["candidates"]
+                    if (
+                        c.get("upstream_output") is not None
+                        and not c.get("upstream_error")
+                        and c.get("admission_status") != "REJECTED"
+                    )
                 ]
-                _errs = [c for c in _cr["candidates"] if c.get("upstream_error")]
+                _errs = [
+                    c for c in _cr["candidates"]
+                    if (
+                        c.get("upstream_error")
+                        or c.get("admission_status") == "REJECTED"
+                    )
+                ]
                 _generation = int(_cr.get("generation") or 0)
 
                 for i, c in enumerate(_usable):
@@ -1538,13 +1888,19 @@ with tab_review:
                                 st.error(message)
 
                 if _errs:
-                    st.markdown("**这些候选让上游抛了错——它们做不成样例，但很有用**")
+                    st.markdown("**这些候选没有进入合同成功域——它们做不成样例，但很有用**")
                     st.caption(
                         "Golden 样例只表达成功路径。这些是「这类输入会炸」的行为证据："
                         "把它们写进上面的**能力和边界**，别等真发时被隐藏验收撞出来。"
                     )
                     st.dataframe(
-                        [{"输入": (c["input_text"][:40] or "（空）"), "上游错误": c["upstream_error"]} for c in _errs],
+                        [{
+                            "输入": (c["input_text"][:40] or "（空）"),
+                            "未准入原因": (
+                                ", ".join(c.get("admission_reason_codes") or [])
+                                or c.get("upstream_error")
+                            ),
+                        } for c in _errs],
                         hide_index=True,
                         width="stretch",
                     )
@@ -1726,11 +2082,17 @@ with tab_build:
         ),
     )
     agent_backend = "codex-cli" if backend_label.startswith("Codex CLI") else "mini-swe"
-    confirmed = st.checkbox("我已确认输入输出、样例真值、上游版本和许可证")
+    confirmed = st.checkbox(
+        "我已确认用户目标、公开行为承诺、输入输出、样例真值、上游版本和许可证"
+    )
     lineage_ready = True
+    core_ready = False
     build_bundle = product_jobs.read_managed_draft_review(build_dir)
     if build_bundle.get("ok"):
         build_dir = Path(build_bundle["draft_dir"])
+        build_readiness = build_bundle.get("draft_readiness") or {}
+        core_ready = bool(build_readiness.get("ready_to_confirm"))
+        _render_draft_readiness_summary(build_readiness)
         # Gate 4:构建前的路线预告 —— 用户在点按钮前就知道会不会调模型。
         bp = build_dir / "plan.yaml"
         if bp.is_file():
@@ -1765,14 +2127,18 @@ with tab_build:
     if st.button(
         "开始彩排" if rehearsal_only else "开始完整构建",
         type="primary",
-        disabled=(not confirmed or not output_preflight["ok"] or not lineage_ready),
+        disabled=(not confirmed or not core_ready or not lineage_ready),
     ):
-        result = product_jobs.start_tool_build(
-            draft_dir=build_dir,
-            dest_root=dest_root,
-            rehearsal_only=rehearsal_only,
-            agent_backend=agent_backend,
-        )
+        intent_confirmation = product_jobs.confirm_draft_intent(build_dir)
+        if intent_confirmation.get("ok"):
+            result = product_jobs.start_tool_build(
+                draft_dir=build_dir,
+                dest_root=dest_root,
+                rehearsal_only=rehearsal_only,
+                agent_backend=agent_backend,
+            )
+        else:
+            result = intent_confirmation
         (st.success if result.get("ok") else st.error)(result.get("note") or result.get("error"))
 
     # 彩排通过之后的**下半程**入口(2026-08-28 实录):tool_build 在彩排前

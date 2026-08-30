@@ -1,0 +1,102 @@
+task_id: tool-pint-tool-v1
+
+controls:
+  positive: controls/tool-pint-tool-v1/positive
+  negatives:
+    - path: controls/tool-pint-tool-v1/negative_empty
+      label: NC_empty
+      must_fail_nodes: ["test_example"]
+    - path: controls/tool-pint-tool-v1/negative_hardcode
+      label: NC_hardcode
+      must_fail_nodes: ["test_held_example"]
+    - path: controls/tool-pint-tool-v1/negative_badexit
+      label: NC_badexit
+      must_fail_nodes: ["test_malformed_input_is_user_error"]
+  # NC_reimpl(零 import 上游)不在此表:它在 oracle 上全绿,判死属
+  # provenance 层(runner 验证阶段执法;harness 测试喂它自证查得出)。
+  # 见 TOOL_READY_GATE §五。目录:controls/tool-pint-tool-v1/negative_reimpl
+
+requirements:
+  - id: satisfy-user-examples
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      调用 pinned Pint 实现能力,使全部用户样例断言通过
+      (行为以公开样例为准,例:pint-tool inputs/mixed_valid_rows.tsv -> 见 expected/mixed_valid_rows.expected.txt; pint-tool inputs/typical_unicode.csv -> 见 expected/typical_unicode.expected.txt)。
+    examples:
+      - "pint-tool inputs/mixed_valid_rows.tsv -> 见 expected/mixed_valid_rows.expected.txt; pint-tool inputs/typical_unicode.csv -> 见 expected/typical_unicode.expected.txt"
+    oracle_nodes:
+      - "test_capability::test_example_1"
+      - "test_capability::test_example_2"
+      - "test_capability::test_held_example_1"
+  - id: interface-contract
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      坏输入内容抛 UserInputError(骨架转 exit 1);不得让异常裸奔到
+      兜底层(exit 2);重复调用同一输入输出逐字节一致;成功路径不向
+      stderr 泄漏 traceback。
+    examples:
+      - "exit: 0=成功 1=用户错误 2=内部错误"
+    oracle_nodes:
+      - "test_capability::test_malformed_input_is_user_error"
+      - "test_capability::test_deterministic_output"
+      - "test_capability::test_stdout_purity_on_success"
+  - id: skeleton-anchors-untouched
+    owner: HOST_INPUT_GUARD
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      骨架锚定件(main.py / bin/ / build.sh / tool.json / pyproject.toml)
+      与其 argparse/输入存在检查/exit 语义由 harness 预置,不可修改,
+      不计 agent 能力。
+    examples:
+      - "pint-tool --help -> usage"
+    oracle_nodes:
+      - "test_interface_contract::test_help_reachable"
+      - "test_interface_contract::test_missing_input_is_user_error"
+  - id: intent-input-table-layout
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "输入是 UTF-8 编码的 CSV 或 TSV 表格，表头必须依次为“样本名”“原数值”“目标单位”，且每个数据行这三项均为非空文本。"
+    examples: []
+    verified_by: semantic-verifier:pint-tool-semantic-v1
+  - id: intent-row-preservation-and-order
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "结果 TSV 的表头固定为“样本名、原数值、目标单位、换算结果、状态、说明”；输入每个数据行恰好产生一个结果行，顺序不变，并逐字保留前三列的文本。"
+    examples: []
+    verified_by: semantic-verifier:pint-tool-semantic-v1
+  - id: intent-pint-conversion
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "对每行，工具使用 Pint 0.25.3 将“原数值”作为 Quantity 解析，并调用该 Quantity 到“目标单位”的转换；转换成功时“状态”为“已换算”。"
+    examples: []
+    verified_by: semantic-verifier:pint-tool-semantic-v1
+  - id: intent-successful-result-rendering
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "成功行的“换算结果”为转换后的数值、一个空格和原“目标单位”文本；数值按最多 6 位有效数字显示，以避免过长小数。“说明”为空。"
+    examples: []
+    verified_by: semantic-verifier:pint-tool-semantic-v1
+  - id: intent-unconvertible-row-reporting
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "当 Pint 在解析或转换某行时产生 UndefinedUnitError、DimensionalityError、OffsetUnitCalculusError、LogarithmicUnitCalculusError 或 ValueError，该行仍保留在结果中，“换算结果”为空，“状态”为“未换算”，“说明”精确为“无法换算：”后接该异常的类名。"
+    examples: []
+    verified_by: semantic-verifier:pint-tool-semantic-v1
+  - id: intent-excel-tab-output
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "交付物是标准 Excel-tab 方言的 TSV 表格，所有单元格通过 TSV CSV 写入规则转义，因此其中的制表符、引号或换行不会改变表格列结构。"
+    examples: []
+    verified_by: semantic-verifier:pint-tool-semantic-v1
+

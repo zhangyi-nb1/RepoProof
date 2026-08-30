@@ -121,7 +121,7 @@ def _rst_code_block(text: str) -> str:
 
 _README_PROSE_CAP = 1200          # 展示用摘录上限,避免把报告撑大
 # 徽章/图片/HTML 壳/标题下划线(Markdown),以及 RST 的指令、注释与字段行
-# —— `.. image::` / `:alt:` 这类在纯 RST 的 README 里占满开头(webcolors 实测)。
+# —— `.. image::` / `:alt:` 这类在纯 RST 的 README 里可能占满开头。
 _BADGE_LINE = re.compile(
     r"^\s*(\[!\[|!\[|<img|<a\s|<p\s|<div\s|=+\s*$|-+\s*$|~+\s*$"
     r"|\.\.\s|:[A-Za-z][\w-]*:\s)")
@@ -312,8 +312,7 @@ def analyze_repository_dir(
             quickstart = Finding.fact(m.group(1).strip()[:500], f"{readme.name} 首个代码块")
         elif (rst := _rst_code_block(readme_text)):
             # RST 的 README 不用 ``` 围栏,只认它等于对纯 RST 仓库永远抓不到
-            # 上手片段(webcolors 实测:README 里有现成的 doctest 例子,却被
-            # 报成"无代码块")。
+            # 上手片段；否则带现成 doctest 的 README 会被误报为"无代码块"。
             quickstart = Finding.fact(rst[:500], f"{readme.name} doctest/代码块(RST)")
         else:
             quickstart = Finding.inference("README 存在但无代码块", readme.name)

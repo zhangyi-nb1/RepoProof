@@ -62,6 +62,7 @@ def _delivery(input_format: str, output_format_id: str) -> dict:
     return {
         "inputs": [{
             "kind": "file", "location": "local",
+            "representation": "utf8_text",
             "format_label": input_format, "role": "待处理内容",
         }],
         "outputs": [{
@@ -218,7 +219,21 @@ def test_codex_drafter_supports_summary_draft_and_candidates(
         "delivery_requirements": _delivery("TXT", "plain_text"),
         "output_required_fields": [],
         "output_schema": "ConvertedText",
-        "statement": "离线确定性转换；坏输入抛 UserInputError。",
+        "semantic_commitments": [{
+            "commitment_id": "convert-input",
+            "public_text": "使用固定版本上游转换输入内容。",
+            "rationale": "这是用户请求的主要能力。",
+        }],
+        "artifact_protocol": {
+            "schema_version": 1,
+            "protocol_id": "converted-text-v1",
+            "observations": [{
+                "observation_id": "converted-body",
+                "commitment_ids": ["convert-input"],
+                "locator": "完整 UTF-8 文本正文",
+                "value_encoding": "固定版本上游返回的 UTF-8 文本",
+            }],
+        },
         "reference_impl": "from pathlib import Path\ndef extract(p: Path) -> str:\n    return p.read_text()\n",
         "example_suggestions": [{"description": "典型输入", "assertion_kind": "exact_file"}],
     }
@@ -231,6 +246,54 @@ def test_codex_drafter_supports_summary_draft_and_candidates(
     draft_capture = json.loads((tmp_path / "capture.json").read_text(encoding="utf-8"))
     assert "product_support_profile" in draft_capture["prompt"]
     assert "Do not default to JSON" in draft_capture["prompt"]
+    assert "semantic_verifier" not in draft_capture["schema"]["properties"]
+    serialized_schema = json.dumps(draft_capture["schema"], sort_keys=True)
+    assert '"const"' not in serialized_schema
+    assert '"uniqueItems"' not in serialized_schema
+
+    verifier = {
+        "semantic_verifier": (
+            "from pathlib import Path\n"
+            "import acme_lib\n"
+            "def verify(input_path: Path, artifact_path: Path) -> dict:\n"
+            "    acme_lib.shout(input_path.read_text())\n"
+            "    return {'ok': artifact_path.is_file(), 'reason_codes': []}\n"
+        ),
+    }
+    monkeypatch.setenv(
+        "REPOPROOF_TEST_RESPONSE",
+        json.dumps(verifier, ensure_ascii=False),
+    )
+    assert drafter.draft_verifier({
+        "capability_goal": "转换",
+        "semantic_commitments": draft["semantic_commitments"],
+        "artifact_protocol": draft["artifact_protocol"],
+        "delivery_requirements": draft["delivery_requirements"],
+        "delivery_profile": "cli_v2",
+        "input_format": "TXT",
+        "output_format_id": "plain_text",
+        "output_format": "plain text",
+        "output_contract": drafted["output_contract"],
+        "upstream_public_info": {
+            "source_repo_url": "https://github.com/example/acme",
+            "requested_revision": "v1",
+            "resolved_commit": "a" * 40,
+            "distribution": "acme-lib",
+            "import_module": "acme_lib",
+            "public_api": ["shout"],
+            "cli_entry_points": [],
+            "capability_candidates": ["shout"],
+            "tool_name": "acme-tool",
+        },
+    }) == verifier
+    verifier_capture = json.loads(
+        (tmp_path / "capture.json").read_text(encoding="utf-8")
+    )
+    assert verifier_capture["schema"]["required"] == ["semantic_verifier"]
+    assert "independent semantic verifier" in verifier_capture["prompt"]
+    assert "return p.read_text()" not in verifier_capture["prompt"]
+    assert "golden examples" in verifier_capture["prompt"]
+    assert "expected outputs" in verifier_capture["prompt"]
 
     candidates = {
         "inputs": [
@@ -246,7 +309,7 @@ def test_codex_drafter_supports_summary_draft_and_candidates(
     assert drafter.last_usage["cost"] == "INCLUDED_USAGE_UNMETERED"
 
 
-def test_codex_repo_advice_repairs_a_profile_cardinality_violation(
+def test_codex_repo_advice_preserves_a_profile_cardinality_violation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     drafter = object.__new__(CodexDrafter)
@@ -280,9 +343,7 @@ def test_codex_repo_advice_repairs_a_profile_cardinality_violation(
         "format_label": "Markdown",
         "role": "辅助说明",
     })
-    good = json.loads(json.dumps(bad))
-    good["requirement_briefs"][0]["delivery_requirements"]["outputs"].pop()
-    responses = iter([bad, good])
+    responses = iter([bad])
     purposes: list[str] = []
 
     def fake_structured(**kwargs):
@@ -292,8 +353,11 @@ def test_codex_repo_advice_repairs_a_profile_cardinality_violation(
     monkeypatch.setattr(drafter, "_structured", fake_structured)
 
     result = drafter.summarize_repo({"headline": "RIS"})
-    assert result["requirement_briefs"][0]["delivery_shape"]["output_cardinality"] == 1
-    assert purposes == ["repo-summary", "repo-summary-repair"]
+    first = result["requirement_briefs"][0]
+    assert first["support_status"] == "UNSUPPORTED"
+    assert first["support_reason_codes"] == ["OUTPUT_CARDINALITY_MISMATCH"]
+    assert first["delivery_shape"] is None
+    assert purposes == ["repo-summary"]
 
 
 def test_online_drafter_defaults_to_litellm_gateway(

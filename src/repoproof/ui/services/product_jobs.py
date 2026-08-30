@@ -7,6 +7,7 @@ evidence, and every CLI launch uses an argv list rather than a shell.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -15,8 +16,10 @@ import secrets
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -28,6 +31,23 @@ from repoproof.adoption.assembly.example_compiler import (
     truth_binding_sha256,
 )
 from repoproof.adoption.assembly.tool_assembler import next_tool_task_id
+from repoproof.adoption.intake.draft_readiness import (
+    DraftReadinessV1,
+    evaluate_draft_readiness,
+    resolved_dependency_lock,
+)
+from repoproof.adoption.intake.intent_contract import (
+    IntentContractDraftV1,
+    IntentContractError,
+    install_delivery_intent_from_interface,
+    invalidate_intent_confirmation,
+    replace_delivery_input_representation,
+    replace_semantic_commitments,
+)
+from repoproof.adoption.intake.tool_confirm import (
+    ConfirmError,
+    confirm_tool_intent_file,
+)
 from repoproof.execution.core_execution import (
     LEGACY_LAB_STATE,
     RUNNING,
@@ -35,7 +55,7 @@ from repoproof.execution.core_execution import (
     read_durable_job_state,
     start_durable_job,
 )
-from repoproof.execution.product_action import read_product_action_result
+from repoproof.execution.product_action import read_product_action_result_with_sha256
 from repoproof.runner.tool_paths import (
     ToolPathError,
     canonical_tool_path,
@@ -195,6 +215,8 @@ def _dependency_lock_state(draft_dir: Path, draft: dict) -> dict:
         project_root(),
         distribution=str(sr.get("distribution") or ""),
         resolved_commit=str(sr.get("resolved_commit") or ""),
+        import_module=str(sr.get("import_module") or ""),
+        requested_revision=str(sr.get("revision") or ""),
     )
     if derived:
         pins = [ln.strip() for ln in derived.splitlines() if ln.strip() and not ln.startswith("#")]
@@ -210,6 +232,30 @@ def _dependency_lock_state(draft_dir: Path, draft: dict) -> dict:
     }
 
 
+def _core_draft_readiness(draft: dict, draft_dir: Path) -> DraftReadinessV1:
+    """Evaluate one managed draft through the Core-owned read-only boundary."""
+
+    from repoproof.ui.services.product_mode import project_root
+
+    return evaluate_draft_readiness(
+        draft,
+        draft_dir,
+        project_root=project_root(),
+    )
+
+
+def _readiness_rejection(readiness: DraftReadinessV1, *, action: str) -> dict:
+    code = "DRAFT_INCOMPATIBLE" if not readiness.compatible else "DRAFT_NOT_READY"
+    return {
+        "ok": False,
+        "error_code": code,
+        "reason_codes": readiness.reason_codes,
+        "error": f"{action}被 Core readiness 拒绝。",
+        "recommended_action": readiness.recommended_action,
+        "draft_readiness": readiness.model_dump(mode="json"),
+    }
+
+
 def read_managed_draft_review(value: Path) -> dict:
     """Read the bounded review surface without following optional symlinks."""
 
@@ -222,6 +268,13 @@ def read_managed_draft_review(value: Path) -> dict:
         raw_draft = _read_file_at(draft_fd, "draft.yaml").decode("utf-8")
         raw_examples = _read_file_at(draft_fd, "examples.yaml").decode("utf-8")
         reference = _read_file_at(draft_fd, "reference_impl.py").decode("utf-8")
+        try:
+            semantic_verifier = _read_file_at(
+                draft_fd,
+                "semantic_verifier.py",
+            ).decode("utf-8")
+        except FileNotFoundError:
+            semantic_verifier = ""
         draft = yaml.safe_load(raw_draft) or {}
         examples_doc = yaml.safe_load(raw_examples) or {}
         if not isinstance(draft, dict) or not isinstance(examples_doc, dict):
@@ -230,6 +283,8 @@ def read_managed_draft_review(value: Path) -> dict:
             gaps = _read_file_at(draft_fd, "GAPS.md").decode("utf-8")
         except FileNotFoundError:
             gaps = ""
+        readiness = _core_draft_readiness(draft, draft_dir)
+        readiness_document = readiness.model_dump(mode="json")
         return {
             "ok": True,
             "draft_dir": draft_dir,
@@ -237,7 +292,16 @@ def read_managed_draft_review(value: Path) -> dict:
             "raw_draft": raw_draft,
             "examples": examples_doc.get("examples") or [],
             "reference_impl": reference,
+            "semantic_verifier": semantic_verifier,
             "gaps": gaps,
+            "draft_readiness": readiness_document,
+            # Transitional projection for callers released before the Core
+            # readiness protocol.  It contains no independent verdict logic.
+            "semantic_readiness": {
+                "ok": readiness.ready_to_confirm,
+                "reason_codes": readiness.reason_codes,
+                "recommended_action": readiness.recommended_action,
+            },
             # 依赖锁的**可见状态**(2026-08-28 用户实测):GAPS.md 一直写着
             # `reference_lock(owner=AUTO):由 pip 冻结闭包生成`,但从没有
             # 组件真的生成它 —— 承诺了没兑现,而审核页也从不显示它,于是
@@ -339,7 +403,7 @@ def tool_build_argv(
     draft_dir: Path,
     dest_root: Path,
     rehearsal_only: bool,
-    agent_backend: str = "codex-cli",
+    agent_backend: str = "mini-swe",
 ) -> list[str]:
     argv = [
         _product_python(root),
@@ -405,6 +469,7 @@ def _start_product_job(
     kind: str,
     label: str,
     expected_artifact: Path | None = None,
+    expected_action_result: bool = False,
     journey_id: str = "",
     metadata: dict | None = None,
 ) -> dict:
@@ -414,7 +479,7 @@ def _start_product_job(
     # 缺陷**,而它的表现极具误导性:2026-08-28 用户的续跑真发跑出
     # PASS_ADAPTED、工具都装进了 ~/tools,界面却写"失败:未形成预期产物"。
     # 与其让人等几分钟再吃一个假失败,不如在这里当场拒绝。
-    if expected_artifact is None:
+    if expected_artifact is None and not expected_action_result:
         return {
             "ok": False,
             "error": (
@@ -443,6 +508,12 @@ def _start_product_job(
     result_dir = state_root / "job-results"
     result_dir.mkdir(parents=True, exist_ok=True)
     result_json = result_dir / f"{job_id}.json"
+    # A resumed checkpoint may intentionally leave every frozen artifact
+    # byte-for-byte unchanged. Its fresh, job-bound ProductActionResultV1 is the
+    # correct Worker artifact: Pipeline independently projects the verdict inside
+    # that result. The per-job path did not exist before launch, so the durable
+    # runner still requires a concrete new artifact before reporting success.
+    worker_artifact = result_json if expected_action_result else expected_artifact
     action_argv = [
         *argv,
         "--job-id",
@@ -466,7 +537,7 @@ def _start_product_job(
         log_path=log,
         kind=kind,
         label=label,
-        expected_artifact=expected_artifact,
+        expected_artifact=worker_artifact,
         metadata=state_metadata,
         job_id=job_id,
     )
@@ -512,7 +583,7 @@ def product_job_action_result(job: dict | None = None) -> dict:
             "error": "动作结果路径不在受管目录内。",
         }
     try:
-        result = read_product_action_result(resolved)
+        result, actual_sha256 = read_product_action_result_with_sha256(resolved)
     except FileNotFoundError:
         return {
             "ok": False,
@@ -525,6 +596,14 @@ def product_job_action_result(job: dict | None = None) -> dict:
             "error_code": "ACTION_RESULT_INVALID",
             "error": f"动作结果损坏：{exc}",
         }
+    expected_sha256 = job.get("result_json_sha256")
+    if isinstance(expected_sha256, str) and expected_sha256:
+        if not secrets.compare_digest(actual_sha256, expected_sha256):
+            return {
+                "ok": False,
+                "error_code": "ACTION_RESULT_HASH_MISMATCH",
+                "error": "动作结果与后台任务记录的终态哈希不一致。",
+            }
     if result.job_id != job.get("job_id"):
         return {
             "ok": False,
@@ -581,7 +660,12 @@ def list_rehearsed_tasks() -> list[dict]:
 
 
 def start_tool_build_real(
-    task_id: str, dest_root: Path, agent_backend: str = "codex-cli", journey_id: str = "", rehearsal_only: bool = False
+    task_id: str,
+    dest_root: Path,
+    agent_backend: str = "mini-swe",
+    journey_id: str = "",
+    rehearsal_only: bool = False,
+    draft_dir: Path | None = None,
 ) -> dict:
     """对已冻结任务跑真实构建 —— 彩排通过之后的下半程。
 
@@ -600,7 +684,7 @@ def start_tool_build_real(
     # 预期产物 = 导出的工具清单(与 start_tool_build 真发分支同口径)。
     # 工具名以**冻结的工具合同**为准,不从 task_id 猜。
     frozen_contract = root / "contracts" / f"{clean}.yaml"
-    expected = frozen_contract if rehearsal_only else None
+    expected = None
     if not rehearsal_only:
         try:
             frozen = yaml.safe_load(frozen_contract.read_text(encoding="utf-8")) or {}
@@ -624,14 +708,24 @@ def start_tool_build_real(
     ]
     if rehearsal_only:
         argv.append("--rehearsal-only")
+    if draft_dir is not None:
+        checked_draft, draft_error = _validated_draft_dir(
+            Path(draft_dir),
+            require_existing=True,
+        )
+        if checked_draft is None:
+            return {"ok": False, "error": draft_error}
+        argv += ["--draft-dir", str(checked_draft)]
     return _start_product_job(
         argv,
         kind="tool-build",
         label=("重新运行零模型演练" if rehearsal_only else "真实构建") + f" {clean}（已冻结任务续跑）",
         expected_artifact=expected,
+        expected_action_result=rehearsal_only,
         journey_id=journey_id,
         metadata={
             "task_id": clean,
+            **({"draft_dir": str(checked_draft)} if draft_dir is not None else {}),
             "dest_root": str(checked_root),
             "journey_stage": 3 if rehearsal_only else 4,
         },
@@ -643,7 +737,7 @@ def start_tool_build(
     draft_dir: Path,
     dest_root: Path,
     rehearsal_only: bool,
-    agent_backend: str = "codex-cli",
+    agent_backend: str = "mini-swe",
     journey_id: str = "",
 ) -> dict:
     if agent_backend not in {"codex-cli", "mini-swe"}:
@@ -661,6 +755,11 @@ def start_tool_build(
         return {"ok": False, "error": f"未找到草稿：{draft_path}"}
     try:
         draft = yaml.safe_load(draft_path.read_text(encoding="utf-8")) or {}
+        if not isinstance(draft, dict):
+            raise TypeError("draft.yaml 根节点必须是对象")
+        readiness = _core_draft_readiness(draft, draft_dir)
+        if not readiness.ready:
+            return _readiness_rejection(readiness, action="启动构建")
         name = validate_tool_name(draft["tool"]["name"])
     except (OSError, KeyError, TypeError, ToolPathError, yaml.YAMLError) as exc:
         return {"ok": False, "error": f"草稿无法读取：{exc}"}
@@ -704,10 +803,13 @@ def save_draft_review(
     tool_name: str,
     summary: str,
     statement: str,
+    semantic_commitments: list[str] | None = None,
     input_format: str,
+    input_representation: str | None = None,
     output_format: str,
     output_schema: str,
     reference_impl: str,
+    semantic_verifier: str | None = None,
     output_contract: dict | None = None,
     # intake 把这三个标为 owner=USER(提取不到时要人来定),但审核页一直
     # 没有入口、本函数也不收 —— 声明了责任却没有履行路径,Studio 用户
@@ -728,6 +830,18 @@ def save_draft_review(
     try:
         draft_fd = _open_absolute_directory(draft_dir)
         draft = yaml.safe_load(_read_file_at(draft_fd, "draft.yaml").decode("utf-8")) or {}
+        if not isinstance(draft, dict):
+            raise TypeError("draft.yaml 根节点必须是对象")
+        current_readiness = _core_draft_readiness(draft, draft_dir)
+        if not current_readiness.compatible or not current_readiness.current:
+            return _readiness_rejection(current_readiness, action="保存草稿")
+        try:
+            current_semantic_verifier = _read_file_at(
+                draft_fd,
+                "semantic_verifier.py",
+            ).decode("utf-8")
+        except FileNotFoundError:
+            current_semantic_verifier = ""
         # 保命闸(2026-08-28 实录):控件值一旦因任何原因是空的,保存就会把
         # 起草器辛苦填出来的内容抹掉,而用户看不见自己抹了什么。语义很清楚:
         # **清空不是一种编辑意图** —— 想改就写新的,想删没有正当场景。
@@ -747,8 +861,15 @@ def save_draft_review(
                     ((draft.get("tool") or {}).get("interface") or {}).get("output", {}).get("format"),
                 ),
                 ("输出结构名称", output_schema, (draft.get("capability") or {}).get("output_schema")),
+                (
+                    "独立语义验证器",
+                    semantic_verifier,
+                    current_semantic_verifier,
+                ),
             )
-            if not str(new_value or "").strip() and str(old_value or "").strip()
+            if new_value is not None
+            and not str(new_value or "").strip()
+            and str(old_value or "").strip()
         ]
         if blanked:
             return {
@@ -765,7 +886,39 @@ def save_draft_review(
         draft["tool"]["interface"]["output"]["format"] = output_format.strip()
         if output_contract is not None:
             draft["tool"]["interface"]["output"]["contract"] = output_contract
-        draft["capability"]["statement"] = statement.strip()
+        if input_representation is not None:
+            if input_representation not in {"utf8_text", "binary"}:
+                return {
+                    "ok": False,
+                    "error": "INPUT_REPRESENTATION_INVALID: 请选择文本或二进制输入。",
+                    "failure_owner": "USER_INPUT",
+                    "reason_codes": ["INPUT_REPRESENTATION_INVALID"],
+                }
+            replace_delivery_input_representation(
+                draft,
+                input_representation,
+            )
+        install_delivery_intent_from_interface(
+            draft,
+            profile_id=str(
+                (draft.get("_delivery_profile") or {}).get("profile_id")
+                or "cli_v2"
+            ),
+        )
+        if semantic_commitments is None:
+            current_statement = str(
+                (draft.get("capability") or {}).get("statement") or ""
+            )
+            if statement.strip() != current_statement:
+                return {
+                    "ok": False,
+                    "error": (
+                        "能力语义必须通过公开行为承诺编辑；"
+                        "不能绕过追踪链直接改写最终 statement。"
+                    ),
+                }
+        else:
+            replace_semantic_commitments(draft, semantic_commitments)
         sr = draft.setdefault("source_repo", {})
         for key, value in (("distribution", distribution), ("import_module", import_module), ("license", license_id)):
             if value is not None and value.strip():
@@ -797,11 +950,18 @@ def save_draft_review(
         target["entry_point"] = clean_name
         draft["target_project"] = target
         draft["tool"]["interface"]["usage"] = f"{clean_name} <input> [--out FILE]"
+        invalidate_intent_confirmation(draft)
         _replace_file_at(
             draft_fd,
             "reference_impl.py",
             reference_impl.encode("utf-8"),
         )
+        if semantic_verifier is not None:
+            _replace_file_at(
+                draft_fd,
+                "semantic_verifier.py",
+                semantic_verifier.encode("utf-8"),
+            )
         _replace_file_at(
             draft_fd,
             "draft.yaml",
@@ -810,11 +970,45 @@ def save_draft_review(
         if normalized_lock is not None:
             _replace_file_at(draft_fd, "reference.lock.txt", normalized_lock.encode("utf-8"))
         return {"ok": True, "note": "审核修改已保存；冻结前仍会经过确定性检查。"}
-    except (OSError, UnicodeError, KeyError, TypeError, yaml.YAMLError) as exc:
+    except (
+        IntentContractError,
+        OSError,
+        UnicodeError,
+        KeyError,
+        TypeError,
+        yaml.YAMLError,
+    ) as exc:
         return {"ok": False, "error": f"保存失败：{exc}"}
     finally:
         if draft_fd is not None:
             os.close(draft_fd)
+
+
+def confirm_draft_intent(draft_dir: Path) -> dict:
+    """Persist an explicit human confirmation bound to current semantics."""
+
+    checked_dir, path_error = _validated_draft_dir(
+        Path(draft_dir),
+        require_existing=True,
+    )
+    if checked_dir is None:
+        return {"ok": False, "error": path_error}
+    try:
+        draft = yaml.safe_load(
+            (checked_dir / "draft.yaml").read_text(encoding="utf-8")
+        ) or {}
+        if not isinstance(draft, dict):
+            raise TypeError("draft.yaml 根节点必须是对象")
+        readiness = _core_draft_readiness(draft, checked_dir)
+        if not readiness.ready_to_confirm:
+            return _readiness_rejection(readiness, action="确认语义")
+        confirm_tool_intent_file(checked_dir)
+        return {
+            "ok": True,
+            "note": "已绑定当前用户目标、公开行为承诺和交付接口；后续修改会使本次确认失效。",
+        }
+    except (ConfirmError, OSError, TypeError, yaml.YAMLError) as exc:
+        return {"ok": False, "error": f"语义确认失败：{exc}"}
 
 
 def add_golden_example(
@@ -825,6 +1019,8 @@ def add_golden_example(
     expected_name: str,
     expected_bytes: bytes,
     truth_provenance: TruthProvenance = "USER_SUPPLIED",
+    candidate_evidence_id: str | None = None,
+    candidate_truth_binding_sha256: str | None = None,
 ) -> dict:
     checked_dir, path_error = _validated_draft_dir(Path(draft_dir), require_existing=True)
     if checked_dir is None:
@@ -851,6 +1047,14 @@ def add_golden_example(
         # Directory descriptors + O_NOFOLLOW keep every mutation inside the
         # already validated draft even if a local path is swapped concurrently.
         draft_fd = _open_absolute_directory(draft_dir)
+        draft = yaml.safe_load(
+            _read_file_at(draft_fd, "draft.yaml").decode("utf-8")
+        ) or {}
+        if not isinstance(draft, dict):
+            raise TypeError("draft.yaml 根节点必须是对象")
+        readiness = _core_draft_readiness(draft, draft_dir)
+        if not readiness.compatible or not readiness.current:
+            return _readiness_rejection(readiness, action="保存样例")
         examples_fd = _open_child_directory(draft_fd, "examples", create=True)
         inputs_fd = _open_child_directory(examples_fd, "inputs", create=True)
         expected_fd = _open_child_directory(examples_fd, "expected", create=True)
@@ -871,6 +1075,20 @@ def add_golden_example(
                 input_bytes,
                 expected_bytes,
             )
+            if candidate_evidence_id is not None:
+                if (
+                    re.fullmatch(r"[0-9a-f]{64}", candidate_evidence_id) is None
+                    or re.fullmatch(
+                        r"[0-9a-f]{64}",
+                        str(candidate_truth_binding_sha256 or ""),
+                    )
+                    is None
+                ):
+                    raise ValueError("候选逐条证据身份无效")
+                entry["candidate_evidence_id"] = candidate_evidence_id
+                entry["candidate_truth_binding_sha256"] = str(
+                    candidate_truth_binding_sha256
+                )
         doc.setdefault("examples", []).append(entry)
         _replace_file_at(
             draft_fd,
@@ -1122,6 +1340,23 @@ def _reference_identity_error(exc: Exception) -> dict:
     }
 
 
+def _audit_candidate_context(
+    *,
+    tool_name: str,
+    task_id: str,
+    dest_root: Path,
+) -> str:
+    return "audit-v1:" + json.dumps(
+        {
+            "tool_name": tool_name,
+            "task_id": task_id,
+            "dest_root": str(Path(dest_root).resolve()),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
 def propose_audit_candidates(
     tool_name: str,
     *,
@@ -1153,6 +1388,7 @@ def propose_audit_candidates(
         mine_evidence_literals,
         prepared_reference_environment,
         propose_inputs,
+        reference_wheelhouse_runtime_identity,
         run_reference_on_candidates,
     )
     from repoproof.adoption.intake.tool_drafter import DraftError, FakeDrafter, online_drafter
@@ -1257,6 +1493,9 @@ def propose_audit_candidates(
         capability_goal = str(contract.capability.statement or "").strip()
         if not capability_goal:
             raise ValueError("冻结合同没有 capability statement")
+        reference_import_module = str(contract.source_repo.import_module or "").strip()
+        if not reference_import_module:
+            raise ValueError("冻结合同没有 reference import_module")
         existing_inputs, existing_names = _public_example_inputs(tool_dir)
         # 组一个**临时 draft 束形态**给既有的执行器用:只读地拷一份冻结
         # reference,不碰任何冻结件(controls/ 是不可改写的证据面)。
@@ -1265,7 +1504,16 @@ def propose_audit_candidates(
         if ref_lock.is_file():
             shutil.copy2(ref_lock, tmp / "reference.lock.txt")
         stack = ExitStack()
-        reference_python = stack.enter_context(prepared_reference_environment(tmp))
+        reference_python = stack.enter_context(
+            prepared_reference_environment(
+                tmp,
+                wheelhouse_cache_root=ui_state_root() / "reference-wheelhouses",
+            )
+        )
+        runtime_artifact_sha256 = reference_wheelhouse_runtime_identity(
+            tmp / "reference.lock.txt",
+            cache_root=ui_state_root() / "reference-wheelhouses",
+        )
         # 在任何模型调用前验证依赖闭包与 reference 导入。环境/合同故障
         # 不应消耗一次候选生成调用，更不能伪装成 Agent repair。
         run_reference_on_candidates(
@@ -1274,6 +1522,8 @@ def propose_audit_candidates(
             upstream_dir=upstream,
             python_exe=reference_python,
             isolation_required=True,
+            import_module=reference_import_module,
+            runtime_artifact_sha256=runtime_artifact_sha256,
         )
         drafter = FakeDrafter() if offline else online_drafter()
         batch = propose_inputs(
@@ -1293,12 +1543,14 @@ def propose_audit_candidates(
             upstream_dir=upstream,
             python_exe=reference_python,
             isolation_required=True,
+            import_module=reference_import_module,
+            runtime_artifact_sha256=runtime_artifact_sha256,
         )
         stack.close()
     except ReferenceEnvironmentError as exc:
         return {
             "ok": False,
-            "error": _provider_hint(str(exc)),
+            "error": _public_reference_environment_error(exc.reason_code),
             "failure_owner": "HARNESS",
             "reason_codes": [exc.reason_code],
             "recommended_action": "检查依赖锁与网络后重试；本次没有调用模型。",
@@ -1334,11 +1586,38 @@ def propose_audit_candidates(
 
     # 候选是 pydantic 对象(CandidateExample),不是 dict —— 按 dict 取值会
     # 全部读空,于是"有候选"被悄悄变成"没候选"(2026-08-28 自查发现)。
-    usable = [
-        {"input_name": c.input_name, "input_text": c.input_text, "why": c.why, "expected": c.upstream_output}
-        for c in cands.candidates
-        if c.upstream_output and not c.upstream_error
+    usable_objects = [
+        candidate
+        for candidate in cands.candidates
+        if candidate.upstream_output is not None and not candidate.upstream_error
     ]
+    context = _audit_candidate_context(
+        tool_name=name,
+        task_id=task_id,
+        dest_root=checked_root,
+    )
+    try:
+        store = _managed_candidate_evidence_store(
+            namespace="audit",
+            context_identity=context,
+            create=True,
+        )
+        _persist_managed_candidate_evidence_records(
+            store=store,
+            context_identity=context,
+            candidates=list(usable_objects),
+        )
+    except (OSError, UnicodeError, TypeError, ValueError) as exc:
+        return {
+            "ok": False,
+            "error": f"Fresh audit 候选逐条证据无法安全持久化：{exc}",
+            "failure_owner": "HARNESS",
+            "reason_codes": ["AUDIT_CANDIDATE_EVIDENCE_PERSIST_FAILED"],
+            "recommended_action": "检查受管状态目录后重新生成；不要使用浏览器中的旧候选。",
+        }
+    usable: list[dict[str, object]] = []
+    for candidate in usable_objects:
+        usable.append(candidate.model_dump(mode="json"))
     return {
         "ok": True,
         "tool_name": name,
@@ -1350,6 +1629,171 @@ def propose_audit_candidates(
             "期望值来自**冻结的参考实现**(真调钉版上游),不是被测工具自己 —— 所以这次比较仍然有判别力。请逐条确认。"
         ),
     }
+
+
+def materialize_audit_candidate(
+    tool_name: str,
+    *,
+    candidate: object,
+    dest_root: Path,
+    expected_task_id: str,
+) -> dict:
+    """Confirm one generated audit pair through its server-owned signed evidence."""
+
+    from repoproof.adoption.intake.example_proposer import (
+        reference_wheelhouse_runtime_identity,
+        upstream_runtime_identity,
+    )
+    from repoproof.domain.models import TaskContract
+    from repoproof.ui.services.product_mode import list_tools, project_root
+
+    try:
+        name = validate_tool_name(tool_name)
+        task_id = validate_tool_task_id(name, expected_task_id)
+    except ToolPathError as exc:
+        return {"ok": False, "error": str(exc)}
+    checked_root, path_error = _validated_dest_root(Path(dest_root))
+    if checked_root is None:
+        return {"ok": False, "error": path_error}
+    library = list_tools(checked_root)
+    if library.get("registry_error") or library.get("release_error"):
+        return {
+            "ok": False,
+            "error": library.get("registry_error") or library.get("release_error"),
+            "failure_owner": "HARNESS",
+            "reason_codes": ["TOOL_REGISTRY_UNREADABLE"],
+        }
+    entry = next((row for row in library.get("tools") or [] if row.get("name") == name), None)
+    if entry is None or str(entry.get("task_id") or "") != task_id:
+        return {
+            "ok": False,
+            "error": "当前 registry 工具版本与 Journey 不一致。",
+            "failure_owner": "HARNESS",
+            "reason_codes": ["TASK_IDENTITY_MISMATCH"],
+        }
+    try:
+        package_path = entry.get("path")
+        if not isinstance(package_path, str) or not package_path:
+            raise ToolPathError("Core registry 没有给出受管工具目录")
+        tool_dir = Path(package_path)
+        if tool_dir.resolve() != canonical_tool_path(checked_root, name).resolve():
+            raise ToolPathError("Core registry 的工具目录与受管身份不一致")
+        ensure_safe_package_tree(tool_dir)
+        if str(entry.get("health") or "") != "OK":
+            raise ToolPathError("工具包当前健康状态不是 OK")
+
+        root = project_root()
+        ref_impl = root / "controls" / task_id / "reference" / "impl.py"
+        ref_lock = root / "controls" / task_id / "reference" / "requirements.lock.txt"
+        _verify_frozen_reference_identity(
+            tool_dir=tool_dir,
+            registry_entry=entry,
+            task_id=task_id,
+            tool_name=name,
+            ref_impl=ref_impl,
+            ref_lock=ref_lock,
+        )
+        contract, _contract_sha = TaskContract.load_frozen(
+            root / "contracts" / f"{task_id}.yaml",
+            require_sidecar=True,
+        )
+        if contract.task_id != task_id:
+            raise ValueError("冻结合同 task_id 与 Journey 不一致")
+        commit = str(entry.get("resolved_commit") or "")
+        if contract.source_repo.resolved_commit != commit:
+            raise ValueError("冻结合同 upstream commit 与 registry 不一致")
+        import_module = str(contract.source_repo.import_module or "").strip()
+        if not import_module:
+            raise ValueError("冻结合同没有 reference import_module")
+        upstream = root / "upstream-cache" / f"upstream-{commit[:12]}"
+        _verify_pinned_upstream_tree(upstream, commit)
+
+        context = _audit_candidate_context(
+            tool_name=name,
+            task_id=task_id,
+            dest_root=checked_root,
+        )
+        store = _managed_candidate_evidence_store(
+            namespace="audit",
+            context_identity=context,
+            create=False,
+        )
+        stored = _load_managed_candidate_evidence_record(
+            store=store,
+            context_identity=context,
+            browser_candidate=candidate,
+        )
+        evidence = stored.truth_evidence
+        if evidence is None:  # pragma: no cover - generic loader rejects it
+            raise ValueError("CANDIDATE_TRUTH_EVIDENCE_MISSING")
+        if hashlib.sha256(ref_impl.read_bytes()).hexdigest() != evidence.reference_sha256:
+            raise ValueError("CANDIDATE_REFERENCE_IDENTITY_CHANGED")
+        if import_module != evidence.import_module:
+            raise ValueError("CANDIDATE_UPSTREAM_IDENTITY_CHANGED")
+        source_only_identity = upstream_runtime_identity(
+            upstream,
+            import_module=import_module,
+        )
+        if source_only_identity != evidence.upstream_identity_sha256:
+            runtime_artifact_sha256 = reference_wheelhouse_runtime_identity(
+                ref_lock,
+                cache_root=ui_state_root() / "reference-wheelhouses",
+            )
+            if upstream_runtime_identity(
+                upstream,
+                import_module=import_module,
+                runtime_artifact_sha256=runtime_artifact_sha256,
+            ) != evidence.upstream_identity_sha256:
+                raise ValueError("CANDIDATE_UPSTREAM_IDENTITY_CHANGED")
+
+        safe_input = Path(stored.input_name).name
+        if safe_input in {"", ".", ".."} or safe_input != stored.input_name:
+            raise ValueError("Fresh audit 候选文件名无效")
+        if stored.upstream_output is None:
+            raise ValueError("Fresh audit 候选没有可确认的上游输出")
+        stamp = f"{time.strftime('%Y%m%d-%H%M%S')}-{time.time_ns()}"
+        audit_root = ui_state_root() / "audits"
+        if _path_has_symlink(audit_root):
+            raise ValueError("Fresh audit 受管目录不能包含 symlink")
+        audit_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        out = audit_root / f"{name}-{stamp}"
+        out.mkdir(parents=True, exist_ok=False)
+        input_path = out / safe_input
+        expected_path = out / f"{Path(safe_input).stem}.expected.txt"
+        input_path.write_text(stored.input_text, encoding="utf-8")
+        expected_path.write_text(stored.upstream_output, encoding="utf-8")
+        (out / "candidate-evidence.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "candidate_evidence_id": evidence.evidence_id,
+                    "candidate_truth_binding_sha256": evidence.truth_binding_sha256,
+                    "reference_sha256": evidence.reference_sha256,
+                    "upstream_identity_sha256": evidence.upstream_identity_sha256,
+                    "input_sha256": evidence.input_sha256,
+                    "output_sha256": evidence.result_sha256,
+                },
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            ) + "\n",
+            encoding="utf-8",
+        )
+        return {
+            "ok": True,
+            "input": str(input_path),
+            "expected": str(expected_path),
+            "candidate_evidence_id": evidence.evidence_id,
+            "candidate_truth_binding_sha256": evidence.truth_binding_sha256,
+        }
+    except (OSError, UnicodeError, TypeError, ValueError, ToolPathError) as exc:
+        return {
+            "ok": False,
+            "error": f"Fresh audit 候选受管证据核验失败：{exc}",
+            "failure_owner": "HARNESS",
+            "reason_codes": ["AUDIT_CANDIDATE_MANAGED_EVIDENCE_INVALID"],
+            "recommended_action": "丢弃浏览器中的旧候选并重新生成；不要手工复制系统真值。",
+        }
 
 
 def materialize_audit_pair(tool_name: str, input_text: str, expected_text: str) -> dict:
@@ -1449,6 +1893,8 @@ def start_tool_audit(
             expected_task_id,
             "--dest-root",
             str(dest_root),
+            "--project-root",
+            str(root),
             # Exported Local Tools intentionally do not ship their opaque
             # .venv. Studio asks for the reproducible build before its managed
             # audit. Core checks expected_task_id under the install lock before
@@ -1538,6 +1984,35 @@ def _provider_hint(raw: str) -> str:
     )
 
 
+def _public_reference_environment_error(reason_code: str) -> str:
+    """Project a stable error without subprocess output or private paths."""
+
+    messages = {
+        "REFERENCE_RUNTIME_ISOLATION_UNAVAILABLE": (
+            "当前主机没有受支持的离线 reference 隔离后端；本次没有调用模型。"
+        ),
+        "REFERENCE_WHEELHOUSE_MATERIALIZATION_FAILED": (
+            "参考依赖 wheelhouse 暂时无法建立；请检查包索引网络后重试。"
+            "本次没有调用模型。"
+        ),
+        "REFERENCE_WHEELHOUSE_INTEGRITY_FAILED": (
+            "参考依赖 wheelhouse 身份校验失败；请人工检查受管缓存。"
+            "本次没有调用模型。"
+        ),
+        "REFERENCE_OFFLINE_INSTALL_FAILED": (
+            "参考依赖无法从已验证 wheelhouse 离线安装；"
+            "请检查依赖锁的完整性。本次没有调用模型。"
+        ),
+        "REFERENCE_ENVIRONMENT_SETUP_FAILED": (
+            "参考环境无法安全建立；本次没有调用模型。"
+        ),
+    }
+    return messages.get(
+        str(reason_code),
+        "参考环境在模型调用前失败；本次没有调用模型。",
+    )
+
+
 def read_repo_overview(repo: str, revision: str | None = None) -> dict:
     """匿名浅克隆 + 静态分析 → 仓库概览(零模型;永不执行仓库代码)。"""
     from repoproof.adoption.analysis.repo_overview import build_repo_overview
@@ -1592,14 +2067,23 @@ def summarize_repo_overview(
             "DRAFTER_TIMEOUT",
             "DRAFTER_CONNECTIVITY_ERROR",
             "DRAFTER_TIMEOUT_CONFIG_INVALID",
+            "DRAFTER_STRUCTURED_OUTPUT_UNSUPPORTED",
         }:
             return {
                 "ok": False,
                 "error": _provider_hint(code),
-                "failure_owner": "EXTERNAL" if code != "DRAFTER_TIMEOUT_CONFIG_INVALID" else "HARNESS",
+                "failure_owner": (
+                    "HARNESS"
+                    if code == "DRAFTER_TIMEOUT_CONFIG_INVALID"
+                    else "EXTERNAL"
+                ),
                 "reason_codes": [code],
                 "recommended_action": (
-                    "检查默认 API 网关连通性后重试；本次没有创建 Journey，"
+                    "为默认网关启用 JSON Schema structured output，或显式切换"
+                    "到支持同一 schema 的起草通道；本次没有创建 Journey，"
+                    "也不消耗 Agent repair 轮次。"
+                    if code == "DRAFTER_STRUCTURED_OUTPUT_UNSUPPORTED"
+                    else "检查默认 API 网关连通性后重试；本次没有创建 Journey，"
                     "也不消耗 Agent repair 轮次。"
                 ),
             }
@@ -1650,58 +2134,334 @@ def _existing_example_names(draft_dir: Path) -> list[str]:
     return [p.name for p in sorted((Path(draft_dir) / "examples" / "inputs").glob("*")) if p.is_file()]
 
 
-_BINARY_EXAMPLE_FORMATS = frozenset({
-    "7Z",
-    "AVI",
-    "BMP",
-    "DB",
-    "DOC",
-    "DOCX",
-    "GIF",
-    "GZ",
-    "JPEG",
-    "JPG",
-    "MKV",
-    "MOV",
-    "MP3",
-    "MP4",
-    "ODS",
-    "ODT",
-    "PDF",
-    "PNG",
-    "PPT",
-    "PPTX",
-    "RAR",
-    "SQLITE",
-    "TAR",
-    "TIFF",
-    "WAV",
-    "WEBP",
-    "XLS",
-    "XLSX",
-    "ZIP",
-})
+def _managed_candidate_evidence_store(
+    *,
+    namespace: str,
+    context_identity: str,
+    create: bool,
+) -> Path:
+    """Return one server-owned candidate store for an opaque Core context."""
+
+    if re.fullmatch(r"[a-z][a-z0-9-]{0,31}", namespace) is None:
+        raise ValueError("候选证据 namespace 无效")
+    state_root = ui_state_root().expanduser()
+    if _path_has_symlink(state_root):
+        raise ValueError("候选证据受管根目录不能包含 symlink")
+    if create:
+        state_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if not state_root.is_dir() or state_root.is_symlink():
+        raise ValueError("候选证据受管根目录不可用")
+    key = hashlib.sha256(context_identity.encode("utf-8")).hexdigest()
+    store = state_root / "candidate-evidence" / namespace / key
+    if create:
+        store.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if not store.is_dir() or store.is_symlink() or _path_has_symlink(store):
+        raise ValueError("候选证据目录不可用或包含 symlink")
+    return store
+
+
+def _verify_candidate_receipt_bytes(
+    payload: bytes,
+    secret: str,
+    module: str,
+    min_calls: int,
+) -> dict:
+    import tempfile
+
+    from repoproof.execution.import_hook import verify_import_receipts
+
+    with tempfile.TemporaryDirectory(prefix="rp-candidate-receipt-") as temp:
+        receipt_path = Path(temp) / "receipt.jsonl"
+        receipt_path.write_bytes(payload)
+        return verify_import_receipts(
+            receipt_path,
+            secret,
+            module=module,
+            min_calls=min_calls,
+        )
+
+
+def _persist_managed_candidate_evidence_records(
+    *,
+    store: Path,
+    context_identity: str,
+    candidates: Sequence[object],
+) -> None:
+    """Persist signed receipts before a public projection reaches the UI."""
+
+    from repoproof.adoption.intake.example_proposer import (
+        CandidateExample,
+        validate_candidate_truth_evidence,
+    )
+
+    store_fd = _open_absolute_directory(store)
+    try:
+        for value in candidates:
+            candidate = CandidateExample.model_validate(value)
+            evidence = candidate.truth_evidence
+            managed = candidate.managed_runtime_evidence
+            if evidence is None or managed is None:
+                raise ValueError("CANDIDATE_TRUTH_EVIDENCE_MISSING")
+            ledger = str(managed.get("ledger") or "")
+            secret = str(managed.get("secret") or "")
+            if (
+                hashlib.sha256(ledger.encode("utf-8")).hexdigest()
+                != evidence.runtime_receipt_sha256
+            ):
+                raise ValueError("CANDIDATE_RUNTIME_RECEIPT_HASH_MISMATCH")
+            if candidate.usable_as_golden:
+                validate_candidate_truth_evidence(candidate)
+
+            verified = _verify_candidate_receipt_bytes(
+                ledger.encode("utf-8"),
+                secret,
+                evidence.import_module,
+                1 if evidence.result_kind == "output" else 0,
+            )
+            if (
+                not verified["ok"]
+                or int(verified["imports"]) != evidence.imports
+                or int(verified["calls"]) != evidence.calls
+            ):
+                raise ValueError("CANDIDATE_RUNTIME_RECEIPT_INVALID")
+
+            receipt_name = f"{evidence.evidence_id}.receipt.jsonl"
+            record_name = f"{evidence.evidence_id}.json"
+            # Verify once more at the durable-store boundary.  The receipt and
+            # secret never enter ``candidate.model_dump()`` and therefore never
+            # cross the browser trust boundary.
+            _write_new_file_at(store_fd, receipt_name, ledger.encode("utf-8"))
+            try:
+                record = {
+                    "schema_version": 1,
+                    "context_identity_sha256": hashlib.sha256(
+                        context_identity.encode("utf-8")
+                    ).hexdigest(),
+                    "candidate": candidate.model_dump(mode="json"),
+                    "receipt_secret": secret,
+                }
+                _write_new_file_at(
+                    store_fd,
+                    record_name,
+                    json.dumps(
+                        record,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ).encode("utf-8"),
+                )
+            except BaseException:
+                try:
+                    os.unlink(receipt_name, dir_fd=store_fd)
+                except FileNotFoundError:
+                    pass
+                raise
+    finally:
+        os.close(store_fd)
+
+
+def _load_managed_candidate_evidence_record(
+    *,
+    store: Path,
+    context_identity: str,
+    browser_candidate: object,
+):
+    """Resolve a browser evidence id to an immutable signed server record."""
+
+    from repoproof.adoption.intake.example_proposer import (
+        CandidateExample,
+        validate_candidate_truth_evidence,
+    )
+
+    projected = CandidateExample.model_validate(browser_candidate)
+    projected_evidence = projected.truth_evidence
+    if projected_evidence is None:
+        raise ValueError("CANDIDATE_TRUTH_EVIDENCE_MISSING")
+    evidence_id = projected_evidence.evidence_id
+    store_fd = _open_absolute_directory(store)
+    try:
+        raw_record = _read_file_at(store_fd, f"{evidence_id}.json")
+        raw_receipt = _read_file_at(store_fd, f"{evidence_id}.receipt.jsonl")
+    finally:
+        os.close(store_fd)
+    record = json.loads(raw_record.decode("utf-8"))
+    if not isinstance(record, dict) or record.get("schema_version") != 1:
+        raise ValueError("CANDIDATE_TRUTH_EVIDENCE_RECORD_INVALID")
+    if record.get("context_identity_sha256") != hashlib.sha256(
+        context_identity.encode("utf-8")
+    ).hexdigest():
+        raise ValueError("CANDIDATE_TRUTH_EVIDENCE_CONTEXT_MISMATCH")
+    stored = CandidateExample.model_validate(record.get("candidate"))
+    evidence = stored.truth_evidence
+    if evidence is None or evidence.evidence_id != evidence_id:
+        raise ValueError("CANDIDATE_TRUTH_EVIDENCE_ID_MISMATCH")
+    # Browser data is display state, never the source of truth.  Require it to
+    # match the server projection, then continue exclusively with ``stored``.
+    if projected.model_dump(mode="json") != stored.model_dump(mode="json"):
+        raise ValueError("CANDIDATE_BROWSER_PROJECTION_MISMATCH")
+    if hashlib.sha256(raw_receipt).hexdigest() != evidence.runtime_receipt_sha256:
+        raise ValueError("CANDIDATE_RUNTIME_RECEIPT_HASH_MISMATCH")
+    verified = _verify_candidate_receipt_bytes(
+        raw_receipt,
+        str(record.get("receipt_secret") or ""),
+        evidence.import_module,
+        1,
+    )
+    if (
+        not verified["ok"]
+        or int(verified["imports"]) != evidence.imports
+        or int(verified["calls"]) != evidence.calls
+    ):
+        raise ValueError("CANDIDATE_RUNTIME_RECEIPT_INVALID")
+    validate_candidate_truth_evidence(stored)
+    return stored
+
+
+def _draft_candidate_context(draft_dir: Path) -> str:
+    return "draft-v1:" + str(Path(draft_dir).resolve())
+
+
+def _persist_candidate_evidence_records(
+    draft_dir: Path,
+    candidates: Sequence[object],
+) -> None:
+    """Persist signed candidate receipts below the draft's server context."""
+
+    checked_dir, path_error = _validated_draft_dir(
+        Path(draft_dir),
+        require_existing=True,
+    )
+    if checked_dir is None:
+        raise ValueError(path_error or "草稿目录不可用")
+    context = _draft_candidate_context(checked_dir)
+    store = _managed_candidate_evidence_store(
+        namespace="draft",
+        context_identity=context,
+        create=True,
+    )
+    _persist_managed_candidate_evidence_records(
+        store=store,
+        context_identity=context,
+        candidates=candidates,
+    )
+
+
+def _load_managed_candidate_for_confirmation(
+    draft_dir: Path,
+    browser_candidate: object,
+):
+    """Resolve a draft candidate and recheck current reference/upstream identity."""
+
+    from repoproof.adoption.intake.example_proposer import (
+        reference_wheelhouse_runtime_identity,
+        upstream_runtime_identity,
+    )
+
+    checked_dir, path_error = _validated_draft_dir(
+        Path(draft_dir),
+        require_existing=True,
+    )
+    if checked_dir is None:
+        raise ValueError(path_error or "草稿目录不可用")
+    context = _draft_candidate_context(checked_dir)
+    store = _managed_candidate_evidence_store(
+        namespace="draft",
+        context_identity=context,
+        create=False,
+    )
+    stored = _load_managed_candidate_evidence_record(
+        store=store,
+        context_identity=context,
+        browser_candidate=browser_candidate,
+    )
+    evidence = stored.truth_evidence
+    if evidence is None:  # pragma: no cover - generic loader already rejects it
+        raise ValueError("CANDIDATE_TRUTH_EVIDENCE_MISSING")
+    current_reference = hashlib.sha256(
+        (checked_dir / "reference_impl.py").read_bytes()
+    ).hexdigest()
+    if current_reference != evidence.reference_sha256:
+        raise ValueError("CANDIDATE_REFERENCE_IDENTITY_CHANGED")
+    draft = yaml.safe_load((checked_dir / "draft.yaml").read_text(encoding="utf-8")) or {}
+    import_module = str((draft.get("source_repo") or {}).get("import_module") or "").strip()
+    if import_module != evidence.import_module:
+        raise ValueError("CANDIDATE_UPSTREAM_IDENTITY_CHANGED")
+    upstream, upstream_error = _draft_upstream_dir(checked_dir)
+    if upstream is None:
+        raise ValueError(upstream_error)
+    source_only_identity = upstream_runtime_identity(
+        upstream,
+        import_module=import_module,
+    )
+    if source_only_identity != evidence.upstream_identity_sha256:
+        runtime_artifact_sha256 = reference_wheelhouse_runtime_identity(
+            checked_dir / "reference.lock.txt",
+            cache_root=ui_state_root() / "reference-wheelhouses",
+        )
+        if upstream_runtime_identity(
+            upstream,
+            import_module=import_module,
+            runtime_artifact_sha256=runtime_artifact_sha256,
+        ) != evidence.upstream_identity_sha256:
+            raise ValueError("CANDIDATE_UPSTREAM_IDENTITY_CHANGED")
+    return stored
 
 
 def example_input_mode(draft_dir: Path) -> dict:
-    """Describe whether candidate inputs can safely be represented as UTF-8 text.
+    """Project the typed input representation into the sample-authoring flow.
 
-    The LLM candidate protocol deliberately emits text only. Feeding that text
-    to a DOCX/ZIP/PDF reference implementation creates a misleading upstream or
-    dependency failure, so binary formats must go through the real file-upload
-    path. The saved LLM draft suggestions remain useful as scenario guidance.
+    Whether a sample can be model-authored is a property of the admitted
+    delivery contract.  Human labels such as ``DOCX`` or ``report`` are never
+    interpreted here: doing so would make a growing keyword table an accidental
+    second contract.  Drafts without the current typed intent fail closed and
+    remain review-only instead of being guessed into a mode.
     """
+
+    def incompatible(code: str, message: str) -> dict:
+        return {
+            "ok": False,
+            "error": message,
+            "failure_owner": "CONTRACT",
+            "reason_codes": [code],
+            "recommended_action": (
+                "重新从当前 Studio 创建任务，让交付合同明确声明输入表示；"
+                "不要根据文件名或格式文字猜测。"
+            ),
+        }
 
     try:
         raw = (Path(draft_dir) / "draft.yaml").read_text(encoding="utf-8")
         doc = yaml.safe_load(raw) or {}
     except (OSError, yaml.YAMLError) as exc:
-        return {"ok": False, "error": f"草稿输入格式不可读:{exc}"}
-    interface_input = (((doc.get("tool") or {}).get("interface") or {}).get("input") or {})
-    input_format = str(interface_input.get("format") or "").strip()
-    normalized = input_format.upper().replace(".", " ").replace("/", " ").replace("-", " ")
-    tokens = {token for token in normalized.split() if token}
-    requires_upload = bool(tokens & _BINARY_EXAMPLE_FORMATS)
+        return incompatible("DRAFT_DOCUMENT_UNREADABLE", f"草稿输入合同不可读:{exc}")
+    raw_schema_version = (doc.get("tool") or {}).get("schema_version")
+    try:
+        tool_schema_version = (
+            int(raw_schema_version)
+            if isinstance(raw_schema_version, (str, int))
+            else 0
+        )
+    except ValueError:
+        tool_schema_version = 0
+    if tool_schema_version != 3:
+        return incompatible(
+            "TYPED_INPUT_REPRESENTATION_UNAVAILABLE",
+            "该旧草稿没有当前版本的类型化输入表示，不能安全生成新样例。",
+        )
+    try:
+        intent = IntentContractDraftV1.model_validate(doc.get("_intent_contract"))
+    except ValueError:
+        return incompatible(
+            "INTENT_CONTRACT_INVALID",
+            "草稿的意图合同缺失或损坏，不能决定样例输入方式。",
+        )
+    if intent.delivery is None or len(intent.delivery.requirements.inputs) != 1:
+        return incompatible(
+            "DELIVERY_INPUT_REPRESENTATION_MISSING",
+            "交付合同尚未声明唯一输入及其表示，不能决定样例输入方式。",
+        )
+    input_requirement = intent.delivery.requirements.inputs[0]
+    input_format = input_requirement.format_label.strip()
+    requires_upload = input_requirement.representation == "binary"
     suggestion_source = raw
     examples_path = Path(draft_dir) / "examples.yaml"
     if examples_path.is_file() and not examples_path.is_symlink():
@@ -1720,9 +2480,468 @@ def example_input_mode(draft_dir: Path) -> dict:
     return {
         "ok": True,
         "format": input_format or "UNKNOWN",
+        "representation": input_requirement.representation,
         "requires_upload": requires_upload,
         "suggestions": suggestions[:8],
     }
+
+
+class _CandidateAdmissionError(RuntimeError):
+    """A generic candidate-screen mechanism could not make a safe decision."""
+
+    def __init__(
+        self,
+        *,
+        owner: str,
+        reason_codes: list[str],
+        message: str,
+        diagnostics: tuple[str, ...] = (),
+    ):
+        self.owner = owner
+        self.reason_codes = reason_codes
+        self.diagnostics = diagnostics
+        super().__init__(message)
+
+
+def _redacted_line_shape(value: str) -> str:
+    """Describe syntax without transmitting candidate/upstream text values."""
+
+    shaped: list[str] = []
+    previous = ""
+    for character in value[:160]:
+        if "A" <= character <= "Z":
+            token = "A"
+        elif "a" <= character <= "z":
+            token = "a"
+        elif character.isdigit():
+            token = "0"
+        elif character.isalpha():
+            token = "U"
+        elif character in {" ", "\t"}:
+            token = character
+        elif character.isprintable():
+            token = character
+        else:
+            token = "?"
+        # Collapse value-bearing character runs while keeping delimiters and
+        # whitespace exact enough to diagnose producer framing.
+        if token in {"A", "a", "0", "U"} and token == previous:
+            continue
+        shaped.append(token)
+        previous = token
+    return "".join(shaped)[:160]
+
+
+def _public_output_contract_diagnostics(
+    errors: Sequence[str],
+    *,
+    output_text: str = "",
+) -> tuple[str, ...]:
+    """Keep model-facing diagnostics structural and free of content values."""
+
+    projected: list[str] = []
+    for error in errors:
+        clean = re.sub(r"[^A-Za-z0-9_:=., -]", "?", str(error))[:200].strip()
+        if clean and clean not in projected:
+            projected.append(clean)
+        match = re.search(r"\bline=(\d+)\b", clean)
+        if match and output_text:
+            line_number = int(match.group(1))
+            lines = output_text.splitlines()
+            if 1 <= line_number <= len(lines):
+                shape = _redacted_line_shape(lines[line_number - 1])
+                diagnostic = f"invalid_line_shape[{line_number}]={shape}"
+                if shape and diagnostic not in projected:
+                    projected.append(diagnostic)
+    return tuple(projected[:8])
+
+
+def _source_defines_sync_function(source: str, name: str) -> bool:
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return False
+    return any(
+        isinstance(node, ast.FunctionDef) and node.name == name
+        for node in tree.body
+    )
+
+
+def _reference_batch_control_failure(batch) -> _CandidateAdmissionError | None:
+    """Promote a uniform internal reference crash out of candidate repair."""
+
+    candidates = list(getattr(batch, "candidates", []) or [])
+    if not candidates or any(candidate.upstream_output is not None for candidate in candidates):
+        return None
+    errors = [str(candidate.upstream_error or "") for candidate in candidates]
+    if any(not error for error in errors):
+        return None
+    exception_types = {
+        error.partition(":")[0].strip().rsplit(".", 1)[-1]
+        for error in errors
+    }
+    if len(exception_types) != 1 or exception_types == {"UserInputError"}:
+        return None
+    exception_type = next(iter(exception_types))
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", exception_type) is None:
+        exception_type = "UNKNOWN"
+    return _CandidateAdmissionError(
+        owner="CONTRACT",
+        reason_codes=["REFERENCE_IMPLEMENTATION_EXECUTION_FAILED"],
+        message=(
+            "所有公开候选均触发同一种 reference 内部异常；"
+            "这是草稿生产者故障，不应消耗候选输入 repair。"
+        ),
+        diagnostics=(f"all_candidates_exception_type={exception_type}",),
+    )
+
+
+def _repair_draft_controls_after_contract_mismatch(
+    *,
+    draft_dir: Path,
+    overview_doc: dict,
+    drafter,
+    failure_reason_code: str,
+    diagnostics: tuple[str, ...],
+) -> dict[str, str]:
+    """Repair unfrozen reference/verifier controls without changing semantics.
+
+    The two sources are repaired through separate model calls and contexts.
+    The verifier never receives the reference source, candidate bodies or
+    reference output, preserving the independent-judgement boundary.
+    """
+
+    reference_path = draft_dir / "reference_impl.py"
+    verifier_path = draft_dir / "semantic_verifier.py"
+    for path in (reference_path, verifier_path):
+        if path.is_symlink() or not path.is_file():
+            raise _CandidateAdmissionError(
+                owner="CONTRACT",
+                reason_codes=["DRAFT_CONTROL_REPAIR_INPUT_MISSING"],
+                message="草稿控制面缺失，无法安全执行修复。",
+            )
+    lock_text = resolved_dependency_lock(
+        overview_doc,
+        draft_dir,
+        project_root=_product_root(),
+    )
+    if not lock_text:
+        raise _CandidateAdmissionError(
+            owner="CONTRACT",
+            reason_codes=["DEPENDENCY_LOCK_MISSING"],
+            message="草稿依赖锁无法从用户文件或钉版上游事实中解析。",
+        )
+    current_reference = reference_path.read_text(encoding="utf-8")
+    current_verifier = verifier_path.read_text(encoding="utf-8")
+    output = (((overview_doc.get("tool") or {}).get("interface") or {}).get("output") or {})
+    intent = IntentContractDraftV1.model_validate(overview_doc.get("_intent_contract"))
+    if intent.delivery is None:
+        raise _CandidateAdmissionError(
+            owner="CONTRACT",
+            reason_codes=["DELIVERY_INTENT_MISSING"],
+            message="草稿没有可修复的交付意图。",
+        )
+    if failure_reason_code not in {
+        "REFERENCE_ERROR_MASKING_INVALID",
+        "REFERENCE_IMPLEMENTATION_EXECUTION_FAILED",
+        "REFERENCE_OUTPUT_CONTRACT_MISMATCH",
+        "REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+    }:
+        raise _CandidateAdmissionError(
+            owner="HARNESS",
+            reason_codes=["DRAFT_CONTROL_REPAIR_REASON_UNSUPPORTED"],
+            message="草稿控制面收到不支持的修复责任类型。",
+        )
+    public_contract = {
+        "user_goal": intent.user_goal,
+        "semantic_commitments": [
+            item.model_dump(mode="json") for item in intent.commitments
+        ],
+        "artifact_protocol": (
+            intent.artifact_protocol.model_dump(mode="json")
+            if intent.artifact_protocol is not None
+            else None
+        ),
+        "delivery_requirements": intent.delivery.requirements.model_dump(mode="json"),
+        "output_contract": output.get("contract") or {},
+        "upstream_public_info": {
+            key: str((overview_doc.get("source_repo") or {}).get(key) or "")
+            for key in (
+                "url",
+                "resolved_commit",
+                "distribution",
+                "import_module",
+                "license",
+            )
+        },
+        "authoring_failure": {
+            "reason_code": failure_reason_code,
+            "validator_diagnostics": list(diagnostics),
+        },
+    }
+    from repoproof.adoption.assembly.output_contract import (
+        public_validation_profile_spec,
+    )
+
+    public_contract["output_validation_profile_spec"] = (
+        public_validation_profile_spec(
+            (output.get("contract") or {}).get("validation_profile")
+        )
+    )
+    from repoproof.adoption.intake.tool_drafter import DraftError
+
+    before_reference = hashlib.sha256(current_reference.encode("utf-8")).hexdigest()
+    before_verifier = hashlib.sha256(current_verifier.encode("utf-8")).hexdigest()
+    repaired_reference = current_reference
+    repaired_verifier = current_verifier
+    reference_attempts = 0
+    verifier_attempts = 0
+    try:
+        if failure_reason_code != "REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT":
+            # The authoritative Core output validator identified the producer.
+            # Do not mutate the independent judge at this stage.
+            for reference_attempts in (1, 2):
+                reference_context = {
+                    **public_contract,
+                    "current_reference_impl": current_reference,
+                    "repair_attempt": reference_attempts,
+                }
+                if reference_attempts == 2:
+                    reference_context["previous_public_failure"] = {
+                        "reason_code": "DRAFT_REFERENCE_REPAIR_NO_PROGRESS",
+                        "detail": (
+                            "The previous repair returned byte-identical reference "
+                            "source. Produce a real adapter change for the fixed "
+                            "public contract; do not change semantics."
+                        ),
+                    }
+                reference_result = drafter.repair_reference(reference_context)
+                repaired_reference = str(
+                    reference_result.get("reference_impl") or ""
+                )
+                if not _source_defines_sync_function(repaired_reference, "extract"):
+                    raise _CandidateAdmissionError(
+                        owner="CONTRACT",
+                        reason_codes=["DRAFT_REFERENCE_REPAIR_INVALID"],
+                        message="修复后的 reference 没有有效的同步 extract。",
+                    )
+                after_reference = hashlib.sha256(
+                    repaired_reference.encode("utf-8")
+                ).hexdigest()
+                if after_reference != before_reference:
+                    break
+            else:
+                raise _CandidateAdmissionError(
+                    owner="CONTRACT",
+                    reason_codes=["DRAFT_REFERENCE_REPAIR_NO_PROGRESS"],
+                    message=(
+                        "责任生产者 reference 连续两次没有产生代码变化，"
+                        "已停止且未改写独立 verifier。"
+                    ),
+                )
+        else:
+            # Core already admitted the producer's output contract. The judge
+            # is the only responsible control in this phase. If it believes the
+            # producer is semantically wrong, it may stay unchanged and the
+            # no-progress stop will ask for human review rather than weakening
+            # either side or oscillating them together.
+            for verifier_attempts in (1, 2):
+                verifier_context = {
+                    **public_contract,
+                    "current_semantic_verifier": current_verifier,
+                    "repair_attempt": verifier_attempts,
+                }
+                if verifier_attempts == 2:
+                    verifier_context["previous_public_failure"] = {
+                        "reason_code": "DRAFT_VERIFIER_REPAIR_NO_PROGRESS",
+                        "detail": (
+                            "The previous repair returned byte-identical verifier "
+                            "source. Correct the fixed-public-contract judgement "
+                            "without seeing or inferring reference artifacts."
+                        ),
+                    }
+                verifier_result = drafter.repair_verifier(verifier_context)
+                repaired_verifier = str(
+                    verifier_result.get("semantic_verifier") or ""
+                )
+                if not _source_defines_sync_function(repaired_verifier, "verify"):
+                    raise _CandidateAdmissionError(
+                        owner="CONTRACT",
+                        reason_codes=["DRAFT_VERIFIER_REPAIR_INVALID"],
+                        message="修复后的 verifier 没有有效的同步 verify。",
+                    )
+                after_verifier = hashlib.sha256(
+                    repaired_verifier.encode("utf-8")
+                ).hexdigest()
+                if after_verifier != before_verifier:
+                    break
+            else:
+                raise _CandidateAdmissionError(
+                    owner="CONTRACT",
+                    reason_codes=["DRAFT_VERIFIER_REPAIR_NO_PROGRESS"],
+                    message=(
+                        "责任判卷器 verifier 连续两次没有产生代码变化，"
+                        "已停止且未改写 reference。"
+                    ),
+                )
+    except _CandidateAdmissionError:
+        raise
+    except DraftError as exc:
+        raise _CandidateAdmissionError(
+            owner="EXTERNAL",
+            reason_codes=["DRAFT_CONTROL_REPAIR_DRAFTER_FAILED"],
+            message="在线起草器未能生成合规的草稿控制面修复。",
+        ) from exc
+    except (AttributeError, TypeError) as exc:
+        raise _CandidateAdmissionError(
+            owner="HARNESS",
+            reason_codes=["DRAFT_CONTROL_REPAIR_INTERFACE_MISSING"],
+            message="当前起草后端不支持隔离的草稿控制面修复。",
+        ) from exc
+    if not _source_defines_sync_function(repaired_reference, "extract"):
+        raise _CandidateAdmissionError(
+            owner="CONTRACT",
+            reason_codes=["DRAFT_REFERENCE_REPAIR_INVALID"],
+            message="修复后的 reference 没有有效的同步 extract。",
+        )
+    if not _source_defines_sync_function(repaired_verifier, "verify"):
+        raise _CandidateAdmissionError(
+            owner="CONTRACT",
+            reason_codes=["DRAFT_VERIFIER_REPAIR_INVALID"],
+            message="修复后的 verifier 没有有效的同步 verify。",
+        )
+    after_reference = hashlib.sha256(repaired_reference.encode("utf-8")).hexdigest()
+    after_verifier = hashlib.sha256(repaired_verifier.encode("utf-8")).hexdigest()
+    interface = ((overview_doc.get("tool") or {}).get("interface") or {})
+    source_repo = overview_doc.get("source_repo") or {}
+    save_result = save_draft_review(
+        draft_dir,
+        tool_name=str((overview_doc.get("tool") or {}).get("name") or ""),
+        summary=str((overview_doc.get("tool") or {}).get("summary") or ""),
+        statement=str((overview_doc.get("capability") or {}).get("statement") or ""),
+        semantic_commitments=[item.public_text for item in intent.commitments],
+        input_format=str((interface.get("input") or {}).get("format") or ""),
+        input_representation=intent.delivery.requirements.inputs[0].representation,
+        output_format=str(output.get("format") or ""),
+        output_schema=str((overview_doc.get("capability") or {}).get("output_schema") or ""),
+        reference_impl=repaired_reference,
+        semantic_verifier=repaired_verifier,
+        output_contract=dict(output.get("contract") or {}),
+        distribution=str(source_repo.get("distribution") or ""),
+        import_module=str(source_repo.get("import_module") or ""),
+        license_id=str(source_repo.get("license") or ""),
+        reference_lock=lock_text,
+    )
+    if not save_result.get("ok"):
+        raise _CandidateAdmissionError(
+            owner="CONTRACT",
+            reason_codes=["DRAFT_CONTROL_REPAIR_SAVE_FAILED"],
+            message="修复后的草稿控制面未能通过安全保存。",
+        )
+    return {
+        "reason_code": failure_reason_code,
+        "reference_before_sha256": before_reference,
+        "reference_after_sha256": after_reference,
+        "reference_attempts": str(reference_attempts),
+        "verifier_before_sha256": before_verifier,
+        "verifier_after_sha256": after_verifier,
+        "verifier_attempts": str(verifier_attempts),
+    }
+
+
+def _admit_candidate_pair(
+    candidate,
+    *,
+    output_contract: dict,
+    semantic_verifier: Path | None,
+    required_commitment_ids: tuple[str, ...],
+    reference_python: str | None,
+    upstream: Path,
+    import_module: str,
+    execute_installed_upstream: bool = False,
+):
+    """Apply repository-agnostic output and semantic gates to one proposal."""
+
+    from repoproof.adoption.assembly.output_contract import validate_output_text
+    from repoproof.verification.semantic_artifact import (
+        SemanticVerifierError,
+        screen_semantic_candidate,
+    )
+
+    if candidate.upstream_output is None or candidate.upstream_error is not None:
+        return candidate
+    contract_errors = validate_output_text(candidate.upstream_output, output_contract)
+    if contract_errors:
+        raise _CandidateAdmissionError(
+            owner="CONTRACT",
+            reason_codes=["REFERENCE_OUTPUT_CONTRACT_MISMATCH"],
+            message=(
+                "固定上游 reference 返回成功，但产物违反机器输出合同；"
+                "这是草稿控制面故障，不是候选输入失败。"
+            ),
+            diagnostics=_public_output_contract_diagnostics(
+                contract_errors,
+                output_text=candidate.upstream_output,
+            ),
+        )
+    # Historical/non-current drafts remain reviewable.  Current v3 readiness
+    # separately requires a verifier before confirmation/freeze.
+    if semantic_verifier is None:
+        return candidate.model_copy(update={"admission_status": "ADMITTED"})
+    if not required_commitment_ids:
+        raise _CandidateAdmissionError(
+            owner="CONTRACT",
+            reason_codes=["SEMANTIC_COMMITMENTS_MISSING"],
+            message="独立语义预筛缺少公开 commitment 身份。",
+        )
+    with tempfile.TemporaryDirectory(prefix="rp-candidate-admission-") as temp:
+        root = Path(temp)
+        input_path = root / "input"
+        artifact_path = root / "artifact"
+        input_path.write_text(candidate.input_text, encoding="utf-8")
+        artifact_path.write_text(candidate.upstream_output, encoding="utf-8")
+        try:
+            screen = screen_semantic_candidate(
+                verifier_source=semantic_verifier,
+                input_path=input_path,
+                artifact_path=artifact_path,
+                python_exe=reference_python or sys.executable,
+                upstream_dir=upstream,
+                import_module=import_module,
+                required_commitment_ids=required_commitment_ids,
+                execute_installed_upstream=execute_installed_upstream,
+                isolation_required=True,
+            )
+        except SemanticVerifierError as exc:
+            raise _CandidateAdmissionError(
+                owner="HARNESS",
+                reason_codes=["SEMANTIC_CANDIDATE_SCREEN_EXECUTION_FAILED"],
+                message="独立语义预筛无法在受控环境中执行。",
+            ) from exc
+    if not screen.mechanism_ok:
+        raise _CandidateAdmissionError(
+            owner="CONTRACT",
+            reason_codes=list(screen.reason_codes) or [
+                "SEMANTIC_VERIFIER_MECHANISM_INVALID"
+            ],
+            message="独立语义验证器无法完整证明自己声明的检查。",
+        )
+    if not screen.passed:
+        public_reasons = tuple(
+            str(code)
+            for code in screen.reason_codes
+            if re.fullmatch(r"[A-Z][A-Z0-9_]{0,79}", str(code)) is not None
+        )
+        raise _CandidateAdmissionError(
+            owner="CONTRACT",
+            reason_codes=["REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT"],
+            message=(
+                "固定上游 reference 已成功且通过输出合同，但独立 verifier "
+                "拒绝同一产物；这是草稿控制面分歧，不是候选输入失败。"
+            ),
+            diagnostics=public_reasons[:8] or ("SEMANTIC_DISAGREEMENT",),
+        )
+    return candidate.model_copy(update={"admission_status": "ADMITTED"})
 
 
 def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dict:
@@ -1742,7 +2961,8 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
         mine_evidence_literals,
         prepared_reference_environment,
         propose_inputs,
-        public_reference_failure,
+        public_candidate_failure,
+        reference_wheelhouse_runtime_identity,
         run_reference_on_candidates,
     )
     from repoproof.adoption.intake.tool_drafter import (
@@ -1784,9 +3004,44 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
             "suggestions": list(mode.get("suggestions") or []),
             "candidates": [],
         }
+    reference_import_module = str(
+        (overview_doc.get("source_repo") or {}).get("import_module") or ""
+    ).strip()
+    if not reference_import_module:
+        return {
+            "ok": False,
+            "error": "草稿没有声明 reference import_module。",
+            "failure_owner": "CONTRACT",
+            "reason_codes": ["REFERENCE_IMPORT_MODULE_MISSING"],
+            "recommended_action": "先修正仓库身份与参考实现，再重新生成候选；本次没有调用模型。",
+        }
     upstream, up_err = _draft_upstream_dir(draft_dir)
     if upstream is None:
         return {"ok": False, "error": up_err}
+
+    output_contract = (
+        (((overview_doc.get("tool") or {}).get("interface") or {}).get("output") or {})
+        .get("contract")
+    )
+    if not isinstance(output_contract, dict):
+        return {
+            "ok": False,
+            "error": "草稿没有机器可执行输出合同。",
+            "failure_owner": "CONTRACT",
+            "reason_codes": ["OUTPUT_CONTRACT_MISSING"],
+        }
+    raw_intent = overview_doc.get("_intent_contract") or {}
+    required_commitment_ids = tuple(
+        str(item.get("commitment_id") or "")
+        for item in (raw_intent.get("commitments") or [])
+        if isinstance(item, dict)
+    )
+    verifier_path = draft_dir / "semantic_verifier.py"
+    semantic_verifier = (
+        verifier_path
+        if verifier_path.is_file() and not verifier_path.is_symlink()
+        else None
+    )
 
     persisted_inputs = existing_example_inputs(draft_dir)
     persisted_names = _existing_example_names(draft_dir)
@@ -1797,10 +3052,43 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
     failed_attempts: list[dict[str, str]] = []
     repair_stopped = ""
     rounds = 0
+    control_repair_events: list[dict[str, str]] = []
+    last_control_failure_fingerprint = ""
+    # Retained in the result schema for historical UI compatibility.  Untyped
+    # README/test literals are prompt hints only and are never executed as if
+    # they were complete input files.
     evidence_probes = 0
     stack = ExitStack()
     try:
-        reference_python = stack.enter_context(prepared_reference_environment(draft_dir))
+        lock_text = resolved_dependency_lock(
+            overview_doc,
+            draft_dir,
+            project_root=_product_root(),
+        )
+        if not lock_text:
+            raise _CandidateAdmissionError(
+                owner="HARNESS",
+                reason_codes=["DEPENDENCY_LOCK_MISSING"],
+                message=(
+                    "固定上游依赖锁尚未成立；候选生成已在模型调用前停止。"
+                ),
+            )
+        reference_python = stack.enter_context(
+            prepared_reference_environment(
+                draft_dir,
+                wheelhouse_cache_root=ui_state_root() / "reference-wheelhouses",
+                resolved_lock_text=lock_text,
+            )
+        )
+        reference_lock = draft_dir / "reference.lock.txt"
+        runtime_artifact_sha256 = (
+            reference_wheelhouse_runtime_identity(
+                reference_lock,
+                cache_root=ui_state_root() / "reference-wheelhouses",
+            )
+            if reference_lock.is_file()
+            else None
+        )
         # 强制零模型预检：依赖闭包、钉版源码优先级和 reference 导入必须
         # 先成立。失败就归 HARNESS/CONTRACT，不让 LLM 猜环境问题。
         run_reference_on_candidates(
@@ -1809,8 +3097,49 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
             upstream_dir=upstream,
             python_exe=reference_python,
             isolation_required=True,
+            import_module=reference_import_module,
+            runtime_artifact_sha256=runtime_artifact_sha256,
         )
         drafter = FakeDrafter() if offline else online_drafter()
+        from repoproof.adoption.intake.tool_drafter import (
+            reference_source_policy_errors,
+        )
+
+        reference_source = (draft_dir / "reference_impl.py").read_text(
+            encoding="utf-8"
+        )
+        source_policy_errors = reference_source_policy_errors(reference_source)
+        if source_policy_errors:
+            if offline:
+                raise _CandidateAdmissionError(
+                    owner="CONTRACT",
+                    reason_codes=["REFERENCE_ERROR_MASKING_INVALID"],
+                    message=(
+                        "reference 使用了会掩盖内部故障的异常处理；"
+                        "离线模板不能自动修复。"
+                    ),
+                    diagnostics=tuple(source_policy_errors),
+                )
+            fingerprint = hashlib.sha256(
+                json.dumps(
+                    {
+                        "reason_codes": ["REFERENCE_ERROR_MASKING_INVALID"],
+                        "diagnostics": source_policy_errors,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            event = _repair_draft_controls_after_contract_mismatch(
+                draft_dir=draft_dir,
+                overview_doc=overview_doc,
+                drafter=drafter,
+                failure_reason_code="REFERENCE_ERROR_MASKING_INVALID",
+                diagnostics=tuple(source_policy_errors),
+            )
+            event["failure_fingerprint"] = fingerprint
+            control_repair_events.append(event)
+            last_control_failure_fingerprint = fingerprint
         evidence_literals = mine_evidence_literals(
             upstream,
             import_module_names=[str((overview_doc.get("source_repo") or {}).get("import_module") or "")],
@@ -1841,7 +3170,111 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                     upstream_dir=upstream,
                     python_exe=reference_python,
                     isolation_required=True,
+                    import_module=reference_import_module,
+                    runtime_artifact_sha256=runtime_artifact_sha256,
                 )
+                while True:
+                    try:
+                        reference_failure = _reference_batch_control_failure(batch)
+                        if reference_failure is not None:
+                            raise reference_failure
+                        batch = batch.model_copy(update={
+                            "candidates": [
+                                _admit_candidate_pair(
+                                    candidate,
+                                    output_contract=output_contract,
+                                    semantic_verifier=semantic_verifier,
+                                    required_commitment_ids=required_commitment_ids,
+                                    reference_python=reference_python,
+                                    upstream=upstream,
+                                    import_module=reference_import_module,
+                                    execute_installed_upstream=(
+                                        runtime_artifact_sha256 is not None
+                                    ),
+                                )
+                                for candidate in batch.candidates
+                            ]
+                        })
+                        break
+                    except _CandidateAdmissionError as exc:
+                        repairable = (
+                            exc.owner == "CONTRACT"
+                            and exc.reason_codes
+                            in (
+                                ["REFERENCE_OUTPUT_CONTRACT_MISMATCH"],
+                                ["REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT"],
+                                ["REFERENCE_IMPLEMENTATION_EXECUTION_FAILED"],
+                            )
+                            and not offline
+                        )
+                        if not repairable:
+                            raise
+                        fingerprint = hashlib.sha256(
+                            json.dumps(
+                                {
+                                    "reason_codes": exc.reason_codes,
+                                    "diagnostics": exc.diagnostics,
+                                },
+                                sort_keys=True,
+                                separators=(",", ":"),
+                            ).encode("utf-8")
+                        ).hexdigest()
+                        if fingerprint == last_control_failure_fingerprint:
+                            raise _CandidateAdmissionError(
+                                owner="CONTRACT",
+                                reason_codes=[
+                                    "DRAFT_CONTROL_REPAIR_REPEATED_FAILURE"
+                                ],
+                                message=(
+                                    "草稿控制面修复后再次出现相同公开失败，"
+                                    "已按无进展规则停止。"
+                                ),
+                            ) from exc
+                        # Control authoring is separate from Coding-Agent repair.
+                        # One task may legitimately expose, in order: error
+                        # masking, an invalid upstream call, output framing, and
+                        # finally an independent-verifier disagreement.  Give
+                        # each owner one bounded event; repeated fingerprints
+                        # still stop immediately above.
+                        if len(control_repair_events) >= 4:
+                            raise _CandidateAdmissionError(
+                                owner="CONTRACT",
+                                reason_codes=["DRAFT_CONTROL_REPAIR_LIMIT_REACHED"],
+                                message="草稿控制面达到有界修复上限。",
+                            ) from exc
+                        event = _repair_draft_controls_after_contract_mismatch(
+                            draft_dir=draft_dir,
+                            overview_doc=overview_doc,
+                            drafter=drafter,
+                            failure_reason_code=exc.reason_codes[0],
+                            diagnostics=exc.diagnostics,
+                        )
+                        event["failure_fingerprint"] = fingerprint
+                        control_repair_events.append(event)
+                        last_control_failure_fingerprint = fingerprint
+                        # Re-run the SAME public candidates through the repaired
+                        # controls. Do not spend another candidate-generation call
+                        # or let the candidate model guess a contract-authoring bug.
+                        batch = run_reference_on_candidates(
+                            ProposalBatch(
+                                candidates=[
+                                    CandidateExample(
+                                        input_name=item.input_name,
+                                        input_text=item.input_text,
+                                        why=item.why,
+                                    )
+                                    for item in batch.candidates
+                                ],
+                                drafter=batch.drafter,
+                                note=batch.note,
+                            ),
+                            draft_dir=draft_dir,
+                            upstream_dir=upstream,
+                            python_exe=reference_python,
+                            isolation_required=True,
+                            import_module=reference_import_module,
+                            runtime_artifact_sha256=runtime_artifact_sha256,
+                        )
             except (DraftError, ExampleProposalError) as exc:
                 if not usable and not rejected:
                     raise
@@ -1856,83 +3289,30 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                 else:
                     rejected.append(candidate)
                     failed_attempts.append(
-                        public_reference_failure(
-                            upstream_error=candidate.upstream_error,
-                            output_truncated=candidate.upstream_output_truncated,
-                        )
+                        public_candidate_failure(candidate)
                     )
-            # Before spending another model round, probe author-supplied README
-            # or upstream-test literals. These remain candidates (not truth),
-            # and their outputs still come from the same pinned reference run.
-            if _round_index == 0 and len(usable) < requested and evidence_literals:
-                evidence_rows: list[CandidateExample] = []
-                evidence_seen = {
-                    str(value).strip()
-                    for value in [
-                        *persisted_inputs,
-                        *attempted_inputs,
-                    ]
-                }
-                reserved_names = {
-                    name.casefold()
-                    for name in [
-                        *persisted_names,
-                        *attempted_names,
-                    ]
-                }
-                for index, value in enumerate(evidence_literals, start=1):
-                    text = str(value)
-                    if text.strip() in evidence_seen:
-                        continue
-                    base = f"upstream-evidence-{index}"
-                    name = f"{base}.txt"
-                    serial = 2
-                    while name.casefold() in reserved_names:
-                        name = f"{base}-{serial}.txt"
-                        serial += 1
-                    evidence_seen.add(text.strip())
-                    reserved_names.add(name.casefold())
-                    evidence_rows.append(
-                        CandidateExample(
-                            input_name=name,
-                            input_text=text,
-                            why="来自钉版上游 README/测试的现成输入",
-                        )
-                    )
-                    if len(evidence_rows) >= 8:
-                        break
-                if evidence_rows:
-                    evidence_batch = run_reference_on_candidates(
-                        ProposalBatch(
-                            candidates=evidence_rows,
-                            drafter="pinned-upstream-evidence",
-                            note="",
-                        ),
-                        draft_dir=draft_dir,
-                        upstream_dir=upstream,
-                        python_exe=reference_python,
-                        isolation_required=True,
-                    )
-                    evidence_probes = len(evidence_rows)
-                    for candidate in evidence_batch.candidates:
-                        if len(usable) >= requested:
-                            break
-                        attempted_inputs.append(candidate.input_text)
-                        attempted_names.append(candidate.input_name)
-                        if candidate.usable_as_golden:
-                            usable.append(candidate)
-                        else:
-                            rejected.append(candidate)
-                            failed_attempts.append(
-                                public_reference_failure(
-                                    upstream_error=candidate.upstream_error,
-                                    output_truncated=candidate.upstream_output_truncated,
-                                )
-                            )
-    except ReferenceEnvironmentError as exc:
+    except _CandidateAdmissionError as exc:
+        if "DEPENDENCY_LOCK_MISSING" in exc.reason_codes:
+            recommended_action = (
+                "固定公开发布版本并重新加载草稿；Core 必须先从钉版源码或"
+                "与 commit 一致的发布 tag 派生精确依赖锁。本次没有调用模型。"
+            )
+        else:
+            recommended_action = (
+                "修正通用输出合同或独立 verifier 后创建新任务版本；"
+                "不要确认当前浏览器中的候选。"
+            )
         return {
             "ok": False,
             "error": str(exc),
+            "failure_owner": exc.owner,
+            "reason_codes": exc.reason_codes,
+            "recommended_action": recommended_action,
+        }
+    except ReferenceEnvironmentError as exc:
+        return {
+            "ok": False,
+            "error": _public_reference_environment_error(exc.reason_code),
             "failure_owner": "HARNESS",
             "reason_codes": [exc.reason_code],
             "recommended_action": "检查依赖锁与网络后重试；本次没有调用模型。",
@@ -1948,15 +3328,28 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
     shortfall = requested - len(final_usable)
     note = (
         f"请求 {requested} 条；得到 {len(final_usable)} 条可确认输出，"
-        f"{len(rejected)} 条上游失败；共运行 {rounds} 个模型轮次"
+        f"{len(rejected)} 条未通过候选准入；共运行 {rounds} 个模型轮次"
     )
     if evidence_probes:
         note += f"，并探测 {evidence_probes} 条钉版上游证据输入"
+    if control_repair_events:
+        note += f"；草稿控制面自修复 {len(control_repair_events)} 轮"
     if shortfall:
         note += f"。达到修复上限后仍缺 {shortfall} 条"
     if repair_stopped:
         note += f"；补候选提前停止:{repair_stopped}"
     fresh_review = read_managed_draft_review(draft_dir)
+    returned_candidates = [*final_usable, *rejected]
+    try:
+        _persist_candidate_evidence_records(draft_dir, returned_candidates)
+    except (OSError, UnicodeError, TypeError, ValueError) as exc:
+        return {
+            "ok": False,
+            "error": f"候选逐条证据无法安全持久化：{exc}",
+            "failure_owner": "HARNESS",
+            "reason_codes": ["CANDIDATE_EVIDENCE_PERSIST_FAILED"],
+            "recommended_action": "检查受管状态目录后重新生成；不要确认浏览器里这批候选。",
+        }
     return {
         "ok": True,
         "drafter": str(getattr(drafter, "name", "unknown")),
@@ -1966,9 +3359,10 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
         "rejected_count": len(rejected),
         "shortfall": shortfall,
         "rounds": rounds,
+        "control_repairs": control_repair_events,
         "evidence_probes": evidence_probes,
         "confirmed_count": (len(fresh_review.get("examples") or []) if fresh_review.get("ok") else None),
-        "candidates": [c.model_dump() for c in [*final_usable, *rejected]],
+        "candidates": [c.model_dump(mode="json") for c in returned_candidates],
     }
 
 
@@ -1978,13 +3372,15 @@ def confirm_candidate_as_example(draft_dir: Path, candidate: dict, *, expected_t
     一次一条,没有批量口子(与计划确认逐项同律)。
     """
     from repoproof.adoption.intake.example_proposer import (
-        CandidateExample,
         ExampleProposalError,
         confirm_candidate,
     )
 
     try:
-        c = CandidateExample.model_validate(candidate)
+        # Resolve the evidence id through the server store first.  The browser
+        # projection and text-area values are comparison inputs only; neither
+        # is allowed to self-attest a new golden truth.
+        c = _load_managed_candidate_for_confirmation(draft_dir, candidate)
         if input_text != c.input_text or expected_text != c.upstream_output:
             return {
                 "ok": False,
@@ -1999,6 +3395,14 @@ def confirm_candidate_as_example(draft_dir: Path, candidate: dict, *, expected_t
         done = confirm_candidate(c)
     except ExampleProposalError as exc:
         return {"ok": False, "error": str(exc)}
+    except (OSError, UnicodeError, ValueError) as exc:
+        return {
+            "ok": False,
+            "error": f"候选受管证据核验失败：{exc}",
+            "failure_owner": "HARNESS",
+            "reason_codes": ["CANDIDATE_MANAGED_EVIDENCE_INVALID"],
+            "recommended_action": "丢弃浏览器中的旧候选并重新生成；不要手工复制候选真值。",
+        }
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "error": f"确认失败:{exc}"}
 
@@ -2010,6 +3414,14 @@ def confirm_candidate_as_example(draft_dir: Path, candidate: dict, *, expected_t
         expected_name=f"{stem}.expected.txt",
         expected_bytes=(done.upstream_output or "").encode("utf-8"),
         truth_provenance="UPSTREAM_DERIVED_USER_CONFIRMED",
+        candidate_evidence_id=(
+            done.truth_evidence.evidence_id if done.truth_evidence is not None else None
+        ),
+        candidate_truth_binding_sha256=(
+            done.truth_evidence.truth_binding_sha256
+            if done.truth_evidence is not None
+            else None
+        ),
     )
     if result.get("ok"):
         result["truth_provenance"] = done.truth_provenance()

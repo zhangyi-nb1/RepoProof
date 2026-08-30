@@ -1,0 +1,14 @@
+TY  - JOUR
+AU  - Smith, Jane
+TI  - A reproducible study
+JO  - Journal of Examples
+PY  - 2023
+DO  - 10.1000/example.1
+ER  - 
+TY  - JOUR
+AU  - Smith, Jane
+AU  - Doe, John
+TI  - A related study
+JO  - Journal of Examples
+PY  - 2024
+ER  - 

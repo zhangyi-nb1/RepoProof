@@ -2,7 +2,7 @@
   "_denominators": {
     "all_valid_run_outcomes": "全部有效发次里的 PASS 数(含机制消融)",
     "development_baseline_runs": "开发套件上的常规发次(**全台账口径**,不限阶段;新前缀的发次也会进这个数)",
-    "heldout_model_evaluation_runs": "未见任务能力评测(已扣除冒烟/探索/无效/机制四类);台账里的宿主:['local-tool/chardet-tool', 'local-tool/emoji-tool', 'local-tool/feedparser-tool', 'local-tool/filetype-tool', 'local-tool/ftfy-tool', 'local-tool/html2md', 'local-tool/humanize-tool', 'local-tool/inflect-tool', 'local-tool/jieba-tool', 'local-tool/json5-tool', 'local-tool/jsonschema-report', 'local-tool/jsonschema-tool', 'local-tool/junitparser-tool', 'local-tool/markdown-it-py-tool', 'local-tool/markdown-tool', 'local-tool/num2words-tool', 'local-tool/opencc-tool', 'local-tool/pdf-table', 'local-tool/phonenumbers-tool', 'local-tool/pygments-tool', 'local-tool/pypdf-tool', 'local-tool/pypinyin-tool', 'local-tool/pyspellchecker-tool', 'local-tool/python-dateutil-tool', 'local-tool/python-docx-tool', 'local-tool/python-slugify', 'local-tool/python-slugify-tool', 'local-tool/pyyaml-tool', 'local-tool/rrule-expand', 'local-tool/tabulate-tool', 'local-tool/tomli-tool', 'local-tool/unidecode-tool', 'local-tool/webcolors-tool', 'local-tool/xmltodict-tool', 'pallets/click', 'tobymao/sqlglot', 'zhangyi-nb1/offerclaw']",
+    "heldout_model_evaluation_runs": "未见任务能力评测(已扣除冒烟/探索/无效/机制四类);台账里的宿主:['local-tool/biopython-tool', 'local-tool/chardet-tool', 'local-tool/emoji-tool', 'local-tool/feedparser-tool', 'local-tool/filetype-tool', 'local-tool/ftfy-tool', 'local-tool/html2md', 'local-tool/humanize-tool', 'local-tool/inflect-tool', 'local-tool/jieba-tool', 'local-tool/json5-tool', 'local-tool/jsonschema-report', 'local-tool/jsonschema-tool', 'local-tool/junitparser-tool', 'local-tool/markdown-it-py-tool', 'local-tool/markdown-tool', 'local-tool/networkx-tool', 'local-tool/num2words-tool', 'local-tool/opencc-tool', 'local-tool/pdf-table', 'local-tool/phonenumbers-tool', 'local-tool/pint-tool', 'local-tool/pygments-tool', 'local-tool/pypdf-tool', 'local-tool/pypinyin-tool', 'local-tool/pyspellchecker-tool', 'local-tool/python-dateutil-tool', 'local-tool/python-docx-tool', 'local-tool/python-slugify', 'local-tool/python-slugify-tool', 'local-tool/pyyaml-tool', 'local-tool/rispy-tool', 'local-tool/rrule-expand', 'local-tool/tabulate-tool', 'local-tool/tomli-tool', 'local-tool/unidecode-tool', 'local-tool/webcolors-tool', 'local-tool/xmltodict-tool', 'pallets/click', 'tobymao/sqlglot', 'zhangyi-nb1/offerclaw']",
     "heldout_passes": "held-out 里的通过数 —— 其余三类都有分子,只给分母会让人自己配一个",
     "mechanism_ablation_runs": "E1/AR 机制与判据实验 —— 不计能力",
     "observation_policy_qualification_runs": "WV:观测策略(投影旋钮)在线资格审 —— **不充闸门、不计模型能力**",
@@ -14,11 +14,11 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 197,
-    "assisted_repair_runs": 211,
+    "all_valid_run_outcomes": 221,
+    "assisted_repair_runs": 236,
     "development_baseline_runs": 68,
-    "exploratory": 56,
-    "exploratory_passes": 44,
+    "exploratory": 68,
+    "exploratory_passes": 55,
     "exploratory_run_ids": [
       "t3-offerclaw-browser-use-v5-20260812-024353",
       "t3-offerclaw-browser-use-v5-20260812-024503",
@@ -75,7 +75,19 @@
       "tool-feedparser-tool-v6-20260829-193134",
       "tool-jsonschema-tool-v8-20260829-201140",
       "tool-feedparser-tool-v7-20260829-202219",
-      "tool-pypdf-tool-v2-20260829-203643"
+      "tool-pypdf-tool-v2-20260829-203643",
+      "tool-rispy-tool-v1-20260830-173650",
+      "tool-rispy-tool-v2-20260830-181547",
+      "tool-rispy-tool-v3-20260830-185232",
+      "tool-rispy-tool-v4-20260830-192413",
+      "tool-pint-tool-v1-20260830-200206",
+      "tool-rispy-tool-v5-20260830-201957",
+      "tool-rispy-tool-v6-20260830-204942",
+      "tool-pint-tool-v2-20260830-210146",
+      "tool-rispy-tool-v7-20260830-212214",
+      "tool-pint-tool-v3-20260830-213712",
+      "tool-networkx-tool-v1-20260830-222601",
+      "tool-biopython-tool-v1-20260830-230345"
     ],
     "heldout_model_evaluation_runs": 8,
     "heldout_passes": 2,
@@ -133,8 +145,8 @@
       }
     ],
     "provisional_evidence_runs": 4,
-    "smoke": 171,
-    "smoke_passes": 93,
+    "smoke": 184,
+    "smoke_passes": 106,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -306,9 +318,22 @@
       "tool-feedparser-tool-v6-20260829-193002",
       "tool-jsonschema-tool-v8-20260829-201042",
       "tool-feedparser-tool-v7-20260829-202133",
-      "tool-pypdf-tool-v2-20260829-203108"
+      "tool-pypdf-tool-v2-20260829-203108",
+      "tool-rispy-tool-v1-20260830-173551",
+      "tool-rispy-tool-v2-20260830-181453",
+      "tool-rispy-tool-v3-20260830-185145",
+      "tool-rispy-tool-v4-20260830-192331",
+      "tool-pint-tool-v1-20260830-195851",
+      "tool-rispy-tool-v5-20260830-201921",
+      "tool-rispy-tool-v6-20260830-204909",
+      "tool-pint-tool-v2-20260830-210054",
+      "tool-rispy-tool-v7-20260830-212142",
+      "tool-pint-tool-v3-20260830-213609",
+      "tool-networkx-tool-v1-20260830-222506",
+      "tool-biopython-tool-v1-20260830-225958",
+      "tool-biopython-tool-v1-20260830-230244"
     ],
-    "total": 378,
+    "total": 403,
     "treatment_delivered_runs": 13,
     "treatment_not_delivered_runs": 4
   },
@@ -319,6 +344,7 @@
     "T4": false
   },
   "hosts_covered": [
+    "local-tool/biopython-tool",
     "local-tool/chardet-tool",
     "local-tool/emoji-tool",
     "local-tool/feedparser-tool",
@@ -334,10 +360,12 @@
     "local-tool/junitparser-tool",
     "local-tool/markdown-it-py-tool",
     "local-tool/markdown-tool",
+    "local-tool/networkx-tool",
     "local-tool/num2words-tool",
     "local-tool/opencc-tool",
     "local-tool/pdf-table",
     "local-tool/phonenumbers-tool",
+    "local-tool/pint-tool",
     "local-tool/pygments-tool",
     "local-tool/pypdf-tool",
     "local-tool/pypinyin-tool",
@@ -347,6 +375,7 @@
     "local-tool/python-slugify",
     "local-tool/python-slugify-tool",
     "local-tool/pyyaml-tool",
+    "local-tool/rispy-tool",
     "local-tool/rrule-expand",
     "local-tool/tabulate-tool",
     "local-tool/tomli-tool",
@@ -359,7 +388,7 @@
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "0368ec6abcca39bb5b997a4408a94659a078d778522be34aa744f55f4772e6ff"
+    "runs_jsonl_sha256": "dd3cac019fb371b4d9289056dd5ccb9bce2ed7eddf2c4ee3b66fe6710bab0bbe"
   },
   "stages": {
     "T1": {

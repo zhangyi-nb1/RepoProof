@@ -160,21 +160,40 @@ def main(argv: list[str] | None = None) -> int:
     pt_build.add_argument(
         "--agent-backend",
         choices=["codex-cli", "mini-swe"],
-        default="codex-cli",
+        default="mini-swe",
         help=("真实 AGENT_ADAPT 执行后端:codex-cli=ChatGPT 订阅登录的官方"
-              " Codex harness(产品默认);mini-swe=API provider + 仓内循环"),
+              " Codex harness(显式回退);mini-swe=API provider + 仓内循环(产品默认)"),
     )
     pt_build.add_argument("--batch", default="EXPLORATORY_UNPREREGISTERED")
     _add_product_result_args(pt_build)
+    pt_confirm_intent = tsub.add_parser(
+        "confirm-intent",
+        help=(
+            "显式确认当前用户目标、公开行为承诺与交付接口；"
+            "任何后续语义编辑都会使确认失效"
+        ),
+    )
+    pt_confirm_intent.add_argument("--draft-dir", type=Path, required=True)
+    pt_readiness = tsub.add_parser(
+        "readiness",
+        help="只读计算当前草稿的 Core 冻结 readiness；不修改、不冻结、不调用模型",
+    )
+    pt_readiness.add_argument("--draft-dir", type=Path, required=True)
     pt_real = tsub.add_parser(
         "build-real",
         help="对**已冻结**任务跑真实构建(彩排通过后的下半程;题面不重冻)")
     pt_real.add_argument("--task-id", required=True)
     pt_real.add_argument("--dest-root", type=Path,
                          default=Path("~/tools").expanduser())
-    pt_real.add_argument("--agent-backend", default="codex-cli")
+    pt_real.add_argument("--agent-backend", default="mini-swe")
     pt_real.add_argument("--batch", default="EXPLORATORY_UNPREREGISTERED")
     pt_real.add_argument("--rehearsal-only", action="store_true")
+    pt_real.add_argument("--draft-dir", type=Path, default=None)
+    pt_real.add_argument(
+        "--bench-root",
+        type=Path,
+        default=Path("~/RepoProofBench").expanduser(),
+    )
     _add_product_result_args(pt_real)
     pt_plan = tsub.add_parser(
         "plan", help="RFC-013 Gate1:证据化能力表面 + 确定性路由(零模型)")
@@ -215,6 +234,15 @@ def main(argv: list[str] | None = None) -> int:
                           help="审核前先运行工具包 build.sh")
     pt_audit.add_argument("--dest-root", type=Path,
                           default=Path("~/tools").expanduser())
+    pt_audit.add_argument(
+        "--project-root",
+        type=Path,
+        default=None,
+        help=(
+            "v3 semantic audit 的冻结证据根；旧 v1/v2 工具可省略，"
+            "Studio 会为当前 Product Journey 自动传入"
+        ),
+    )
     _add_product_result_args(pt_audit)
     pt_withdraw = tsub.add_parser(
         "withdraw", help="只追加 REVOKED 决策；不删除工具包或历史证据")
@@ -475,6 +503,42 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "tool":
+        if args.tool_cmd == "readiness":
+            from repoproof.adoption.intake.draft_readiness import (
+                read_draft_readiness,
+            )
+
+            readiness = read_draft_readiness(
+                args.draft_dir,
+                project_root=PROJECT_ROOT,
+            )
+            print(json.dumps(
+                {"ok": readiness.ready, **readiness.model_dump(mode="json")},
+                ensure_ascii=False,
+                indent=2,
+            ))
+            return 0 if readiness.ready else 3
+        if args.tool_cmd == "confirm-intent":
+            from repoproof.adoption.intake.tool_confirm import (
+                ConfirmError,
+                confirm_tool_intent_file,
+            )
+
+            try:
+                confirmation = confirm_tool_intent_file(args.draft_dir)
+            except ConfirmError as exc:
+                print(json.dumps(
+                    {"ok": False, "problems": exc.problems},
+                    ensure_ascii=False,
+                    indent=2,
+                ))
+                return 3
+            print(json.dumps(
+                {"ok": True, "confirmation": confirmation["confirmation"]},
+                ensure_ascii=False,
+                indent=2,
+            ))
+            return 0
         if args.tool_cmd == "add":
             from repoproof.adoption.intake.tool_confirm import write_draft_bundle
             from repoproof.adoption.intake.tool_drafter import (
@@ -510,14 +574,15 @@ def main(argv: list[str] | None = None) -> int:
                     exit_code=3,
                 )
             add_payload["your_todo"] = [
-                f"1. 审阅并修改 {bundle}/draft.yaml(statement/summary/格式;"
-                "工具名 tool.name 由你定)",
+                f"1. 审阅并修改 {bundle}/draft.yaml(公开行为承诺/summary/格式;"
+                "工具名 tool.name 由你定;最终 statement 由 Core 编译)",
                 f"2. 审阅 {bundle}/reference_impl.py(必须真调上游;起草仅供参考)",
                 f"3. 放样例真值:{bundle}/examples/ 放输入文件,"
                 f"{bundle}/examples.yaml 写 >=3 组断言(含文件样例;尾部自动 held-out)",
                 f"4. (可选){bundle}/reference.lock.txt 写全量 pinned",
-                f"5. 跑:repoproof tool build --draft-dir {bundle}",
-                "6. build 成功后另备 fresh non-example 输入/真值，跑 tool audit 才会 ACTIVE",
+                f"5. 显式确认:repoproof tool confirm-intent --draft-dir {bundle}",
+                f"6. 跑:repoproof tool build --draft-dir {bundle}",
+                "7. build 成功后另备 fresh non-example 输入/真值，跑 tool audit 才会 ACTIVE",
             ]
             return _emit_tool_action(
                 args,
@@ -536,7 +601,9 @@ def main(argv: list[str] | None = None) -> int:
                 out = tool_build_real_from_frozen(
                     args.task_id, PROJECT_ROOT, dest_root=args.dest_root,
                     agent_backend=args.agent_backend, batch=args.batch,
-                    rehearsal_only=args.rehearsal_only)
+                    rehearsal_only=args.rehearsal_only,
+                    draft_dir=args.draft_dir,
+                    bench_root=args.bench_root)
             except PipelineError as exc:
                 partial = dict(getattr(exc, "partial_result", {}) or {})
                 return _emit_tool_action(
@@ -584,6 +651,9 @@ def main(argv: list[str] | None = None) -> int:
                 context={"task_id": args.task_id},
             )
         if args.tool_cmd == "build":
+            from repoproof.adoption.intake.draft_readiness import (
+                read_draft_readiness,
+            )
             from repoproof.adoption.intake.tool_confirm import ConfirmError
             from repoproof.runner.tool_pipeline import (
                 PipelineError,
@@ -591,6 +661,25 @@ def main(argv: list[str] | None = None) -> int:
                 tool_build_completed,
             )
 
+            readiness = read_draft_readiness(
+                args.draft_dir,
+                project_root=PROJECT_ROOT,
+            )
+            if not readiness.ready:
+                return _emit_tool_action(
+                    args,
+                    action="tool-build",
+                    payload={
+                        "ok": False,
+                        "error": "Core draft readiness 未通过，构建未发车。",
+                        "failure_owner": "CONTRACT",
+                        "reason_codes": readiness.reason_codes,
+                        "product_stop_code": "STOP_NEEDS_HUMAN",
+                        "recommended_action": readiness.recommended_action,
+                        "draft_readiness": readiness.model_dump(mode="json"),
+                    },
+                    exit_code=3,
+                )
             try:
                 out = tool_build(args.draft_dir, PROJECT_ROOT,
                                  bench_root=args.bench_root,
@@ -772,22 +861,17 @@ def main(argv: list[str] | None = None) -> int:
                     input_path=args.input,
                     expected_file=args.expected_file,
                     expected_task_id=args.expected_task_id,
+                    project_root=args.project_root,
                     run_build=args.build,
                 )
             except ToolAuditError as exc:
-                payload = {"ok": False, "error": str(exc)}
+                payload = {
+                    "ok": False,
+                    "error": str(exc),
+                    **exc.failure.as_payload(),
+                }
                 if exc.reason_code:
-                    payload.update(
-                        {
-                            "reason_codes": [exc.reason_code],
-                            "failure_owner": "HARNESS",
-                            "product_stop_code": "STOP_HARNESS_OR_EXTERNAL",
-                            "recommended_action": (
-                                "丢弃旧候选并刷新当前工具版本；重新生成 Fresh audit "
-                                "候选后再审核。"
-                            ),
-                        }
-                    )
+                    payload["reason_codes"] = [exc.reason_code]
                 return _emit_tool_action(
                     args,
                     action="tool-audit",
@@ -798,7 +882,22 @@ def main(argv: list[str] | None = None) -> int:
                         "task_id": args.expected_task_id,
                     },
                 )
-            except (ReleaseLedgerError, OSError, ValueError) as exc:
+            except ReleaseLedgerError as exc:
+                return _emit_tool_action(
+                    args,
+                    action="tool-audit",
+                    payload={
+                        "ok": False,
+                        "error": str(exc),
+                        **exc.failure.as_payload(),
+                    },
+                    exit_code=3,
+                    context={
+                        "tool_name": args.name,
+                        "task_id": args.expected_task_id,
+                    },
+                )
+            except (OSError, ValueError) as exc:
                 return _emit_tool_action(
                     args,
                     action="tool-audit",

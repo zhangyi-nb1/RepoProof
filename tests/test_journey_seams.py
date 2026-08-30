@@ -53,7 +53,7 @@ def test_seam_confirm_hands_build_an_upstream_pin(tmp_path: Path):
     要等三轮修复耗尽才以 DEPENDENCY_ERROR 的形式浮出来(#52 实录)。
     草稿束没写时必须由**钉版树声明版本**派生,不能静默留空。
     """
-    from repoproof.adoption.intake.upstream_pin import derive_reference_lock
+    from repoproof.adoption.intake.draft_readiness import resolved_dependency_lock
 
     commit = "e6392ba6eeba81b02e666eb3ed02ef2e006344c0"
     up = tmp_path / "upstream-cache" / f"upstream-{commit[:12]}"
@@ -61,15 +61,28 @@ def test_seam_confirm_hands_build_an_upstream_pin(tmp_path: Path):
     (up / "pyproject.toml").write_text(
         '[project]\nname = "webcolors"\nversion = "25.10.0"\n', encoding="utf-8")
 
-    lock = derive_reference_lock(tmp_path, distribution="webcolors",
-                                 resolved_commit=commit)
+    draft_dir = tmp_path / "draft"
+    draft_dir.mkdir()
+    draft = {
+        "source_repo": {
+            "distribution": "webcolors",
+            "resolved_commit": commit,
+        },
+        "tool": {},
+    }
+    lock = resolved_dependency_lock(
+        draft,
+        draft_dir,
+        project_root=tmp_path,
+    )
     assert "webcolors==25.10.0" in lock
 
-    # confirm 必须真的把它传下去(草稿束没写时),否则派生了也白派生
+    # confirm 必须把 Core 已解析并校验的同一份锁交给装配器；不能再有
+    # 第二套派生规则，否则 UI readiness 与冻结结果会产生双重事实源。
     from repoproof.adoption.intake import tool_confirm
 
-    src = inspect.getsource(tool_confirm)
-    assert "derive_reference_lock" in src, "confirm 没有把派生的锁交给装配器"
+    src = inspect.getsource(tool_confirm.confirm_tool_draft)
+    assert "reference_lock=resolved_dependency_lock(" in src
 
 
 # ----------------------------------------------------------- build → session

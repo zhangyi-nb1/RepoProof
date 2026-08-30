@@ -5,13 +5,24 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+import sys
+from contextlib import nullcontext
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
 
 from repoproof.adoption.intake import example_proposer, tool_drafter
+from repoproof.adoption.intake.intent_contract import (
+    install_artifact_protocol,
+    install_delivery_intent_from_interface,
+    install_semantic_commitments,
+    new_intent_contract,
+    validate_intent_contract,
+)
 from repoproof.ui.services import product_jobs, product_mode
+from repoproof.verification import semantic_artifact
 
 REPO = Path(__file__).resolve().parents[2]
 PAGES = REPO / "src" / "repoproof" / "ui" / "pages"
@@ -24,6 +35,68 @@ except ImportError:  # pragma: no cover
     HAVE_ST = False
 
 needs_streamlit = pytest.mark.skipif(not HAVE_ST, reason="streamlit (ui extra) not installed")
+
+
+def _current_editable_draft(
+    *,
+    tool_name: str = "alpha-tool",
+    import_module: str = "alpha",
+    user_goal: str = "Transform one local input.",
+    commitment_id: str = "transform-input",
+) -> dict:
+    draft = {
+        "_delivery_profile": {"schema_version": 1, "profile_id": "cli_v2"},
+        "_intent_contract": new_intent_contract(user_goal),
+        "source_repo": {
+            "url": "https://github.com/example/upstream",
+            "resolved_commit": "a" * 40,
+            "license": "MIT",
+            "distribution": "alpha",
+            "import_module": import_module,
+        },
+        "tool": {
+            "schema_version": 3,
+            "name": tool_name,
+            "summary": "",
+            "interface": {
+                "usage": f"{tool_name} <input> [--out FILE]",
+                "input": {"kind": "file", "format": "TXT"},
+                "output": {
+                    "kind": "stdout",
+                    "format": "plain text",
+                    "contract": {
+                        "media_type": "text/plain",
+                        "root_type": "text",
+                        "required": {},
+                        "validation_profile": "plain_text_v1",
+                    },
+                },
+                "exit_codes": {
+                    "0": "success",
+                    "1": "user_error",
+                    "2": "internal_error",
+                },
+            },
+        },
+        "capability": {"statement": "", "output_schema": "AlphaText"},
+    }
+    install_delivery_intent_from_interface(draft, profile_id="cli_v2")
+    install_semantic_commitments(draft, [{
+        "commitment_id": commitment_id,
+        "public_text": "Transform the input through the fixed upstream.",
+        "rationale": "This is the public requested behaviour.",
+    }])
+    install_artifact_protocol(draft, {
+        "schema_version": 1,
+        "protocol_id": "upstream-text-v1",
+        "observations": [{
+            "observation_id": "transformed-body",
+            "commitment_ids": [commitment_id],
+            "locator": "完整 UTF-8 文本正文",
+            "value_encoding": "固定版本上游产生的 UTF-8 文本",
+        }],
+    })
+    return draft
 
 
 def test_repo_summary_receives_the_user_capability_goal(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -86,6 +159,7 @@ def test_repo_summary_projects_structured_requirement_briefs(
         return {
             "inputs": [{
                 "kind": "file", "location": "local",
+                "representation": "utf8_text",
                 "format_label": "RIS", "role": "待整理文献",
             }],
             "outputs": [{
@@ -280,25 +354,26 @@ def test_review_editor_and_examples_only_write_inside_draft(
     monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
     draft = state_root / "drafts" / "draft"
     (draft / "examples").mkdir(parents=True)
-    doc = {
-        "task_id": "tool-alpha-tool-v1",
-        "tool": {
-            "name": "alpha-tool", "summary": "",
-            "interface": {
-                "input": {"format": ""}, "output": {"format": ""},
-            },
-        },
-        "capability": {"statement": "", "output_schema": ""},
-    }
+    doc = _current_editable_draft()
     (draft / "draft.yaml").write_text(yaml.safe_dump(doc), encoding="utf-8")
     (draft / "reference_impl.py").write_text("", encoding="utf-8")
     (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
-
     saved = product_jobs.save_draft_review(
         draft, tool_name="alpha-tool", summary="Alpha 转换",
-        statement="读取 Alpha 输入并返回规范化文本", input_format="TXT",
-        output_format="TXT", output_schema="AlphaText",
-        reference_impl="import alpha\n", output_contract={},
+        statement=doc["capability"]["statement"], input_format="TXT",
+        output_format="plain text", output_schema="AlphaText",
+        reference_impl=(
+            "import alpha\n\n"
+            "def extract(input_path):\n"
+            "    return alpha.transform(input_path.read_text())\n"
+        ),
+        semantic_verifier=(
+            "import alpha\n\n"
+            "def verify(input_path, artifact_path):\n"
+            "    return {'ok': True, 'reason_codes': [], "
+            "'checked_commitment_ids': ['transform-input']}\n"
+        ),
+        output_contract=doc["tool"]["interface"]["output"]["contract"],
         reference_lock="alpha==1.2.3\nalpha-helper==4.5.6",
     )
     assert saved["ok"]
@@ -321,9 +396,142 @@ def test_review_editor_and_examples_only_write_inside_draft(
     ]
     review = product_jobs.read_managed_draft_review(draft)
     assert review["ok"] is True
-    assert review["reference_impl"] == "import alpha\n"
+    readiness = review["draft_readiness"]
+    assert readiness["compatible"] is True
+    assert readiness["current"] is True
+    assert readiness["public_summary"]["example_count"] == 1
+    assert review["reference_impl"].startswith("import alpha\n")
     assert review["dependency_lock"]["source"] == "user"
     assert review["dependency_lock"]["pins"] == ["alpha==1.2.3", "alpha-helper==4.5.6"]
+
+
+def test_unfrozen_legacy_draft_mutations_are_rejected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = (tmp_path / "state").resolve()
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    draft = state_root / "drafts" / "legacy"
+    (draft / "examples").mkdir(parents=True)
+    original = "tool:\n  schema_version: 2\n  name: legacy-tool\n"
+    (draft / "draft.yaml").write_text(original, encoding="utf-8")
+    (draft / "reference_impl.py").write_text("", encoding="utf-8")
+    (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+
+    saved = product_jobs.save_draft_review(
+        draft,
+        tool_name="legacy-tool",
+        summary="legacy",
+        statement="legacy",
+        input_format="TXT",
+        output_format="plain text",
+        output_schema="LegacyText",
+        reference_impl="import legacy\n",
+    )
+    added = product_jobs.add_golden_example(
+        draft,
+        input_name="a.txt",
+        input_bytes=b"a",
+        expected_name="a.expected.txt",
+        expected_bytes=b"A",
+    )
+
+    assert saved["error_code"] == "DRAFT_INCOMPATIBLE"
+    assert added["error_code"] == "DRAFT_INCOMPATIBLE"
+    assert (draft / "draft.yaml").read_text(encoding="utf-8") == original
+    assert not (draft / "examples" / "inputs").exists()
+
+
+def test_traced_review_compiles_public_commitments_and_reconfirms(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = (tmp_path / "state").resolve()
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    draft_dir = state_root / "drafts" / "traced"
+    (draft_dir / "examples").mkdir(parents=True)
+    draft = _current_editable_draft(
+        tool_name="trace-tool",
+        user_goal="整理我的输入，方便后续工作",
+        commitment_id="preserve-order",
+    )
+    (draft_dir / "draft.yaml").write_text(
+        yaml.safe_dump(draft, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    (draft_dir / "reference_impl.py").write_text("import alpha\n", encoding="utf-8")
+    (draft_dir / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+
+    saved = product_jobs.save_draft_review(
+        draft_dir,
+        tool_name="trace-tool",
+        summary="整理工具",
+        statement=draft["capability"]["statement"],
+        semantic_commitments=["保留输入顺序，并删除完全相同的重复条目。"],
+        input_format="TXT",
+        output_format="plain text",
+        output_schema="TraceText",
+        reference_impl=(
+            "import alpha\n\n"
+            "def extract(input_path):\n"
+            "    return alpha.transform(input_path.read_text())\n"
+        ),
+        semantic_verifier=(
+            "import alpha\n\n"
+            "def verify(input_path, artifact_path):\n"
+            "    return {'ok': True, 'reason_codes': [], "
+            "'checked_commitment_ids': ['preserve-order']}\n"
+        ),
+        output_contract={
+                "media_type": "text/plain",
+                "root_type": "text",
+                "required": {},
+                "validation_profile": "plain_text_v1",
+        },
+        reference_lock="alpha==1.2.3",
+    )
+    assert saved["ok"] is True
+    reviewed = yaml.safe_load((draft_dir / "draft.yaml").read_text(encoding="utf-8"))
+    assert "删除完全相同的重复条目" in reviewed["capability"]["statement"]
+    assert reviewed["_intent_contract"]["confirmation"] is None
+    (draft_dir / "examples" / "sample.txt").write_text("sample", encoding="utf-8")
+    (draft_dir / "examples.yaml").write_text(
+        yaml.safe_dump({"examples": [
+            {"input_file": "sample.txt", "expected": "SAMPLE"},
+            {"input": "second", "expected": "SECOND"},
+            {"input": "third", "expected": "THIRD"},
+        ]}),
+        encoding="utf-8",
+    )
+    readiness = product_jobs.read_managed_draft_review(draft_dir)["draft_readiness"]
+    assert readiness["ready_to_confirm"] is True
+    assert readiness["reason_codes"] == ["INTENT_CONFIRMATION_MISSING"]
+
+    confirmed = product_jobs.confirm_draft_intent(draft_dir)
+    assert confirmed["ok"] is True
+    rebound = yaml.safe_load((draft_dir / "draft.yaml").read_text(encoding="utf-8"))
+    assert validate_intent_contract(rebound) == []
+
+    resaved = product_jobs.save_draft_review(
+        draft_dir,
+        tool_name="trace-tool",
+        summary="整理工具",
+        statement=rebound["capability"]["statement"],
+        semantic_commitments=["保留所有有效条目，不去重。"],
+        input_format="TXT",
+        output_format="plain text",
+        output_schema="TraceText",
+        reference_impl="import alpha\n",
+        output_contract={
+                "media_type": "text/plain",
+                "root_type": "text",
+                "required": {},
+                "validation_profile": "plain_text_v1",
+        },
+    )
+    assert resaved["ok"] is True
+    changed = yaml.safe_load((draft_dir / "draft.yaml").read_text(encoding="utf-8"))
+    assert changed["_intent_contract"]["confirmation"] is None
 
 
 def test_candidate_confirmation_preserves_upstream_input_output_binding(
@@ -334,15 +542,44 @@ def test_candidate_confirmation_preserves_upstream_input_output_binding(
     monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
     draft = state_root / "drafts" / "draft"
     (draft / "examples").mkdir(parents=True)
-    (draft / "draft.yaml").write_text("tool: {}\n", encoding="utf-8")
-    (draft / "reference_impl.py").write_text("", encoding="utf-8")
+    candidate_draft = _current_editable_draft(
+        import_module="candidate_upstream",
+    )
+    (draft / "draft.yaml").write_text(
+        yaml.safe_dump(candidate_draft),
+        encoding="utf-8",
+    )
+    (draft / "reference_impl.py").write_text(
+        "from pathlib import Path\nimport candidate_upstream\n\n"
+        "def extract(input_path: Path) -> str:\n"
+        "    return candidate_upstream.convert(input_path.read_text())\n",
+        encoding="utf-8",
+    )
     (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
-    candidate = {
-        "input_name": "bound.txt",
-        "input_text": "original input",
-        "upstream_output": "pinned output",
-        "upstream_error": None,
-    }
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    (upstream / "candidate_upstream.py").write_text(
+        "def convert(text):\n    return 'pinned output'\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        product_jobs,
+        "_draft_upstream_dir",
+        lambda _draft: (upstream, ""),
+    )
+    candidate_object = example_proposer.run_reference_on_candidates(
+        example_proposer.ProposalBatch(candidates=[
+            example_proposer.CandidateExample(
+                input_name="bound.txt",
+                input_text="original input",
+            )
+        ]),
+        draft_dir=draft,
+        upstream_dir=upstream,
+        import_module="candidate_upstream",
+    ).candidates[0]
+    product_jobs._persist_candidate_evidence_records(draft, [candidate_object])
+    candidate = candidate_object.model_dump(mode="json")
 
     changed_input = product_jobs.confirm_candidate_as_example(
         draft,
@@ -356,8 +593,28 @@ def test_candidate_confirmation_preserves_upstream_input_output_binding(
         expected_text="modified output",
         input_text="original input",
     )
+    forged_candidate = json.loads(json.dumps(candidate))
+    forged_candidate["input_text"] = "browser-forged input"
+    forged = product_jobs.confirm_candidate_as_example(
+        draft,
+        forged_candidate,
+        expected_text="pinned output",
+        input_text="browser-forged input",
+    )
+    missing_evidence = product_jobs.confirm_candidate_as_example(
+        draft,
+        {
+            "input_name": "unsigned.txt",
+            "input_text": "unsigned",
+            "upstream_output": "self-asserted",
+        },
+        expected_text="self-asserted",
+        input_text="unsigned",
+    )
     assert changed_input["reason_codes"] == ["CANDIDATE_TRUTH_BINDING_MISMATCH"]
     assert changed_output["reason_codes"] == ["CANDIDATE_TRUTH_BINDING_MISMATCH"]
+    assert forged["reason_codes"] == ["CANDIDATE_MANAGED_EVIDENCE_INVALID"]
+    assert missing_evidence["reason_codes"] == ["CANDIDATE_MANAGED_EVIDENCE_INVALID"]
     assert not (draft / "examples" / "inputs").exists()
 
     confirmed = product_jobs.confirm_candidate_as_example(
@@ -375,6 +632,141 @@ def test_candidate_confirmation_preserves_upstream_input_output_binding(
     persisted = yaml.safe_load((draft / "examples.yaml").read_text())["examples"][0]
     assert persisted["truth_provenance"] == "UPSTREAM_DERIVED_USER_CONFIRMED"
     assert len(persisted["truth_binding_sha256"]) == 64
+    assert persisted["candidate_evidence_id"] == (
+        candidate_object.truth_evidence.evidence_id
+    )
+    assert persisted["candidate_truth_binding_sha256"] == (
+        candidate_object.truth_evidence.truth_binding_sha256
+    )
+
+
+def test_fresh_audit_materialization_uses_managed_candidate_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = tmp_path / "state"
+    tools = tmp_path / "tools"
+    tool_dir = tools / "demo-tool"
+    tool_dir.mkdir(parents=True)
+    root = tmp_path / "project"
+    task_id = "tool-demo-tool-v1"
+    reference_dir = root / "controls" / task_id / "reference"
+    reference_dir.mkdir(parents=True)
+    reference_source = (
+        "from pathlib import Path\nimport audit_upstream\n\n"
+        "def extract(input_path: Path) -> str:\n"
+        "    return audit_upstream.convert(input_path.read_text())\n"
+    )
+    (reference_dir / "impl.py").write_text(reference_source, encoding="utf-8")
+    (reference_dir / "requirements.lock.txt").write_text("audit-upstream==1\n")
+    upstream = root / "upstream-cache" / f"upstream-{'a' * 12}"
+    upstream.mkdir(parents=True)
+    (upstream / "audit_upstream.py").write_text(
+        "def convert(text):\n    return text.upper()\n",
+        encoding="utf-8",
+    )
+    draft = tmp_path / "probe"
+    draft.mkdir()
+    (draft / "reference_impl.py").write_text(reference_source, encoding="utf-8")
+    candidate_object = example_proposer.run_reference_on_candidates(
+        example_proposer.ProposalBatch(candidates=[
+            example_proposer.CandidateExample(
+                input_name="fresh.txt",
+                input_text="fresh input",
+            )
+        ]),
+        draft_dir=draft,
+        upstream_dir=upstream,
+        import_module="audit_upstream",
+    ).candidates[0]
+
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    monkeypatch.setattr(
+        "repoproof.ui.services.product_mode.project_root",
+        lambda: root,
+    )
+    monkeypatch.setattr(
+        "repoproof.ui.services.product_mode.list_tools",
+        lambda _root: {
+            "tools": [{
+                "name": "demo-tool",
+                "task_id": task_id,
+                "path": str(tool_dir),
+                "health": "OK",
+                "resolved_commit": "a" * 40,
+            }],
+            "registry_error": None,
+            "release_error": None,
+        },
+    )
+    monkeypatch.setattr(product_jobs, "_verify_frozen_reference_identity", lambda **_kw: {})
+    monkeypatch.setattr(product_jobs, "_verify_pinned_upstream_tree", lambda *_a: None)
+    from repoproof.domain.models import TaskContract
+
+    monkeypatch.setattr(
+        TaskContract,
+        "load_frozen",
+        staticmethod(lambda *_a, **_kw: (
+            SimpleNamespace(
+                task_id=task_id,
+                source_repo=SimpleNamespace(
+                    resolved_commit="a" * 40,
+                    import_module="audit_upstream",
+                ),
+            ),
+            "contract-sha",
+        )),
+    )
+    context = product_jobs._audit_candidate_context(
+        tool_name="demo-tool",
+        task_id=task_id,
+        dest_root=tools,
+    )
+    store = product_jobs._managed_candidate_evidence_store(
+        namespace="audit",
+        context_identity=context,
+        create=True,
+    )
+    product_jobs._persist_managed_candidate_evidence_records(
+        store=store,
+        context_identity=context,
+        candidates=[candidate_object],
+    )
+    candidate = candidate_object.model_dump(mode="json")
+
+    materialized = product_jobs.materialize_audit_candidate(
+        "demo-tool",
+        candidate=candidate,
+        dest_root=tools,
+        expected_task_id=task_id,
+    )
+    assert materialized["ok"] is True
+    assert Path(materialized["input"]).read_text() == "fresh input"
+    assert Path(materialized["expected"]).read_text() == "FRESH INPUT"
+    assert materialized["candidate_evidence_id"] == (
+        candidate_object.truth_evidence.evidence_id
+    )
+    evidence_record = json.loads(
+        (Path(materialized["input"]).parent / "candidate-evidence.json").read_text()
+    )
+    assert evidence_record["candidate_evidence_id"] == (
+        candidate_object.truth_evidence.evidence_id
+    )
+    assert evidence_record["input_sha256"] == hashlib.sha256(
+        b"fresh input"
+    ).hexdigest()
+
+    forged = json.loads(json.dumps(candidate))
+    forged["input_text"] = "browser-forged"
+    rejected = product_jobs.materialize_audit_candidate(
+        "demo-tool",
+        candidate=forged,
+        dest_root=tools,
+        expected_task_id=task_id,
+    )
+    assert rejected["reason_codes"] == [
+        "AUDIT_CANDIDATE_MANAGED_EVIDENCE_INVALID"
+    ]
 
 
 def test_review_editor_rejects_non_exact_or_executable_dependency_lock(
@@ -385,15 +777,10 @@ def test_review_editor_rejects_non_exact_or_executable_dependency_lock(
     monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
     draft = state_root / "drafts" / "draft"
     (draft / "examples").mkdir(parents=True)
+    current = _current_editable_draft()
+    current["tool"]["summary"] = "Alpha 转换"
     (draft / "draft.yaml").write_text(
-        yaml.safe_dump({
-            "tool": {
-                "name": "alpha-tool",
-                "summary": "Alpha 转换",
-                "interface": {"input": {"format": "TXT"}, "output": {"format": "TXT"}},
-            },
-            "capability": {"statement": "convert alpha", "output_schema": "AlphaText"},
-        }),
+        yaml.safe_dump(current),
         encoding="utf-8",
     )
     (draft / "reference_impl.py").write_text("import alpha\n", encoding="utf-8")
@@ -403,9 +790,9 @@ def test_review_editor_rejects_non_exact_or_executable_dependency_lock(
         draft,
         tool_name="alpha-tool",
         summary="Alpha 转换",
-        statement="convert alpha",
+        statement=current["capability"]["statement"],
         input_format="TXT",
-        output_format="TXT",
+        output_format="plain text",
         output_schema="AlphaText",
         reference_impl="import alpha\n",
         reference_lock="alpha>=1\n--extra-index-url https://evil.invalid",
@@ -432,16 +819,18 @@ def test_candidate_generation_repairs_to_requested_count_without_resetting_golde
     draft = state_root / "drafts" / "draft"
     (draft / "examples" / "inputs").mkdir(parents=True)
     (draft / "examples" / "expected").mkdir()
+    document = _current_editable_draft(
+        import_module="minishout",
+        user_goal="只转换以 good 开头的文本。",
+    )
+    document["source_repo"].update({
+        "url": "https://github.com/acme/minishout",
+        "resolved_commit": "a" * 40,
+        "distribution": "minishout",
+    })
+    document["tool"]["summary"] = "转换文本"
     (draft / "draft.yaml").write_text(
-        yaml.safe_dump({
-            "source_repo": {
-                "url": "https://github.com/acme/minishout",
-                "resolved_commit": "a" * 40,
-                "import_module": "minishout",
-            },
-            "tool": {"summary": "转换文本"},
-            "capability": {"statement": "只转换以 good 开头的文本"},
-        }),
+        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
     (draft / "reference_impl.py").write_text(
@@ -472,6 +861,16 @@ def test_candidate_generation_repairs_to_requested_count_without_resetting_golde
         encoding="utf-8",
     )
     monkeypatch.setattr(product_jobs, "_draft_upstream_dir", lambda _draft: (upstream, ""))
+    monkeypatch.setattr(
+        product_jobs,
+        "resolved_dependency_lock",
+        lambda *_args, **_kwargs: "minishout==1.0.0\n",
+    )
+    monkeypatch.setattr(
+        example_proposer,
+        "prepared_reference_environment",
+        lambda _draft, **_kwargs: nullcontext(sys.executable),
+    )
 
     class RepairingDrafter:
         name = "repairing-stub"
@@ -526,7 +925,236 @@ def test_candidate_generation_repairs_to_requested_count_without_resetting_golde
     ) == "good-existing"
 
 
-def test_candidate_generation_uses_pinned_evidence_before_another_model_round(
+def test_reference_contract_failure_repairs_draft_controls_not_candidate_inputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A successful-but-invalid reference output is an authoring failure.
+
+    The candidate model gets one call. Reference and verifier are repaired in
+    isolated contexts, then the same candidate is replayed through both gates.
+    """
+
+    monkeypatch.setattr(
+        example_proposer,
+        "_sandboxed_reference_argv",
+        lambda argv, _root: argv,
+    )
+    monkeypatch.setattr(
+        semantic_artifact,
+        "offline_sandbox_argv",
+        lambda argv, _root: argv,
+    )
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    draft = state_root / "drafts" / "draft"
+    (draft / "examples").mkdir(parents=True)
+    document = _current_editable_draft(
+        import_module="minishout",
+        user_goal="把这份内容整理一下，给我一份能继续用的文本。",
+    )
+    document["source_repo"].update({
+        "url": "https://github.com/acme/minishout",
+        "resolved_commit": "d" * 40,
+        "distribution": "minishout",
+    })
+    document["tool"]["summary"] = "整理本地文本"
+    (draft / "draft.yaml").write_text(
+        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+    (draft / "reference_impl.py").write_text(
+        "from pathlib import Path\nimport minishout\n\n"
+        "class UserInputError(ValueError):\n    pass\n\n"
+        "def extract(input_path: Path) -> str:\n"
+        "    return minishout.convert(input_path.read_text(encoding='utf-8')) + '\\x00'\n",
+        encoding="utf-8",
+    )
+    (draft / "semantic_verifier.py").write_text(
+        "from pathlib import Path\nimport minishout\n\n"
+        "def verify(input_path: Path, artifact_path: Path) -> dict:\n"
+        "    expected = minishout.convert(input_path.read_text(encoding='utf-8')) + '\\x00'\n"
+        "    ok = artifact_path.read_text(encoding='utf-8') == expected\n"
+        "    return {'ok': ok, 'reason_codes': [] if ok else ['TEXT_MISMATCH'], "
+        "'checked_commitment_ids': ['transform-input']}\n",
+        encoding="utf-8",
+    )
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    (upstream / "minishout.py").write_text(
+        "def convert(text):\n    return text.upper()\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(product_jobs, "_draft_upstream_dir", lambda _draft: (upstream, ""))
+    monkeypatch.setattr(
+        product_jobs,
+        "resolved_dependency_lock",
+        lambda *_args, **_kwargs: "minishout==1.0\n",
+    )
+    monkeypatch.setattr(
+        example_proposer,
+        "prepared_reference_environment",
+        lambda _draft, **_kwargs: nullcontext(sys.executable),
+    )
+
+    class ControlRepairDrafter:
+        name = "control-repair-stub"
+
+        def __init__(self) -> None:
+            self.propose_calls = 0
+            self.reference_context: dict | None = None
+            self.verifier_context: dict | None = None
+
+        def propose_example_inputs(self, context: dict) -> dict:
+            self.propose_calls += 1
+            assert int(context["how_many"]) == 1
+            return {
+                "inputs": [{
+                    "input_name": "case.txt",
+                    "input_text": "good-one",
+                    "why": "覆盖普通工作输入。",
+                }]
+            }
+
+        def repair_reference(self, context: dict) -> dict[str, str]:
+            self.reference_context = context
+            return {
+                "reference_impl": (
+                    "from pathlib import Path\nimport minishout\n\n"
+                    "class UserInputError(ValueError):\n    pass\n\n"
+                    "def extract(input_path: Path) -> str:\n"
+                    "    return minishout.convert(input_path.read_text(encoding='utf-8'))\n"
+                )
+            }
+
+        def repair_verifier(self, context: dict) -> dict[str, str]:
+            self.verifier_context = context
+            return {
+                "semantic_verifier": (
+                    "from pathlib import Path\nimport minishout\n\n"
+                    "def verify(input_path: Path, artifact_path: Path) -> dict:\n"
+                    "    expected = minishout.convert(input_path.read_text(encoding='utf-8'))\n"
+                    "    ok = artifact_path.read_text(encoding='utf-8') == expected\n"
+                    "    return {'ok': ok, 'reason_codes': [] if ok else "
+                    "['TEXT_MISMATCH'], 'checked_commitment_ids': ['transform-input']}\n"
+                )
+            }
+
+    drafter = ControlRepairDrafter()
+    monkeypatch.setattr(tool_drafter, "online_drafter", lambda: drafter)
+
+    result = product_jobs.propose_example_candidates(draft, n=1, offline=False)
+
+    assert result["ok"] is True
+    assert result["usable_count"] == 1
+    assert result["rounds"] == 1
+    assert [event["reason_code"] for event in result["control_repairs"]] == [
+        "REFERENCE_OUTPUT_CONTRACT_MISMATCH",
+        "REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+    ]
+    assert drafter.propose_calls == 1
+    assert drafter.reference_context is not None
+    assert drafter.verifier_context is not None
+    assert drafter.reference_context["artifact_protocol"]["observations"]
+    assert drafter.verifier_context["artifact_protocol"]["observations"]
+    assert "current_reference_impl" in drafter.reference_context
+    assert "current_semantic_verifier" not in drafter.reference_context
+    assert "current_semantic_verifier" in drafter.verifier_context
+    assert "current_reference_impl" not in drafter.verifier_context
+    assert "good-one" not in str(drafter.reference_context)
+    assert "good-one" not in str(drafter.verifier_context)
+    assert "\\x00" not in (draft / "reference_impl.py").read_text(encoding="utf-8")
+    assert "\\x00" not in (draft / "semantic_verifier.py").read_text(encoding="utf-8")
+    assert (draft / "reference.lock.txt").read_text(encoding="utf-8") == (
+        "minishout==1.0\n"
+    )
+
+
+def test_output_contract_repair_diagnostics_expose_shape_not_values() -> None:
+    diagnostics = product_jobs._public_output_contract_diagnostics(
+        ["ris: line=1 invalid_tag"],
+        output_text="123.\nTY  - SECRET-CANDIDATE-VALUE\n",
+    )
+
+    assert "invalid_line_shape[1]=0." in diagnostics
+    assert "SECRET" not in " ".join(diagnostics)
+    assert "CANDIDATE" not in " ".join(diagnostics)
+
+
+def test_uniform_internal_reference_failure_is_not_candidate_repair() -> None:
+    batch = example_proposer.ProposalBatch(
+        candidates=[
+            example_proposer.CandidateExample(
+                input_name=f"case-{index}.txt",
+                input_text=f"public-{index}",
+                why="公开候选",
+                upstream_error="TypeError: private details are not projected",
+            )
+            for index in range(3)
+        ]
+    )
+
+    failure = product_jobs._reference_batch_control_failure(batch)
+
+    assert failure is not None
+    assert failure.owner == "CONTRACT"
+    assert failure.reason_codes == ["REFERENCE_IMPLEMENTATION_EXECUTION_FAILED"]
+    assert failure.diagnostics == ("all_candidates_exception_type=TypeError",)
+    assert "private" not in str(failure.diagnostics)
+
+
+def test_contract_valid_reference_semantic_rejection_is_control_disagreement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    verifier = tmp_path / "semantic_verifier.py"
+    verifier.write_text(
+        "from pathlib import Path\n"
+        "def verify(input_path: Path, artifact_path: Path) -> dict:\n"
+        "    return {'ok': False, 'reason_codes': ['SEMANTIC_MISMATCH'], "
+        "'checked_commitment_ids': ['transform-input']}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        semantic_artifact,
+        "screen_semantic_candidate",
+        lambda **_kwargs: SimpleNamespace(
+            mechanism_ok=True,
+            passed=False,
+            reason_codes=("SEMANTIC_MISMATCH",),
+        ),
+    )
+    candidate = example_proposer.CandidateExample(
+        input_name="case.txt",
+        input_text="private-candidate-body",
+        upstream_output="contract-valid text\n",
+    )
+
+    with pytest.raises(product_jobs._CandidateAdmissionError) as raised:
+        product_jobs._admit_candidate_pair(
+            candidate,
+            output_contract={
+                "media_type": "text/plain",
+                "root_type": "text",
+                "required": {},
+                "validation_profile": "plain_text_v1",
+            },
+            semantic_verifier=verifier,
+            required_commitment_ids=("transform-input",),
+            reference_python=sys.executable,
+            upstream=tmp_path,
+            import_module="alpha",
+        )
+
+    assert raised.value.reason_codes == [
+        "REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT"
+    ]
+    assert raised.value.diagnostics == ("SEMANTIC_MISMATCH",)
+    assert "private-candidate-body" not in str(raised.value.diagnostics)
+
+
+def test_untyped_pinned_literals_are_hints_never_direct_candidate_payloads(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -539,15 +1167,17 @@ def test_candidate_generation_uses_pinned_evidence_before_another_model_round(
     monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
     draft = state_root / "drafts" / "draft"
     (draft / "examples").mkdir(parents=True)
+    document = _current_editable_draft(
+        import_module="minishout",
+        user_goal="只转换 good 输入。",
+    )
+    document["source_repo"].update({
+        "url": "https://github.com/acme/minishout",
+        "resolved_commit": "b" * 40,
+        "distribution": "minishout",
+    })
     (draft / "draft.yaml").write_text(
-        yaml.safe_dump({
-            "source_repo": {
-                "url": "https://github.com/acme/minishout",
-                "resolved_commit": "b" * 40,
-                "import_module": "minishout",
-            },
-            "capability": {"statement": "只转换 good 输入"},
-        }),
+        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
     (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
@@ -568,28 +1198,42 @@ def test_candidate_generation_uses_pinned_evidence_before_another_model_round(
     )
     monkeypatch.setattr(product_jobs, "_draft_upstream_dir", lambda _draft: (upstream, ""))
     monkeypatch.setattr(
+        product_jobs,
+        "resolved_dependency_lock",
+        lambda *_args, **_kwargs: "minishout==1.0.0\n",
+    )
+    monkeypatch.setattr(
+        example_proposer,
+        "prepared_reference_environment",
+        lambda _draft, **_kwargs: nullcontext(sys.executable),
+    )
+    monkeypatch.setattr(
         example_proposer,
         "mine_evidence_literals",
         lambda *_args, **_kwargs: ["good-evidence-2", "good-evidence-3"],
     )
 
-    class OneRoundDrafter:
-        name = "one-round-stub"
+    class TwoRoundDrafter:
+        name = "two-round-stub"
 
         def __init__(self) -> None:
             self.calls = 0
+            self.contexts: list[dict] = []
 
-        def propose_example_inputs(self, _context: dict) -> dict:
+        def propose_example_inputs(self, context: dict) -> dict:
             self.calls += 1
-            if self.calls > 1:
-                raise AssertionError("evidence should avoid another model round")
+            self.contexts.append(context)
+            if self.calls == 1:
+                values = ["good-model", "bad-one", "bad-two"]
+            else:
+                values = ["good-modeled-two", "good-modeled-three"]
+            assert len(values) == int(context["how_many"])
             return {"inputs": [
-                {"input_name": "good.txt", "input_text": "good-model", "why": ""},
-                {"input_name": "bad-1.txt", "input_text": "bad-one", "why": ""},
-                {"input_name": "bad-2.txt", "input_text": "bad-two", "why": ""},
+                {"input_name": f"case-{index}.txt", "input_text": value, "why": ""}
+                for index, value in enumerate(values, start=1)
             ]}
 
-    drafter = OneRoundDrafter()
+    drafter = TwoRoundDrafter()
     monkeypatch.setattr(tool_drafter, "online_drafter", lambda: drafter)
 
     result = product_jobs.propose_example_candidates(draft, n=3, offline=False)
@@ -597,9 +1241,16 @@ def test_candidate_generation_uses_pinned_evidence_before_another_model_round(
     assert result["ok"] is True
     assert result["usable_count"] == 3
     assert result["shortfall"] == 0
-    assert result["rounds"] == 1
-    assert result["evidence_probes"] == 2
-    assert drafter.calls == 1
+    assert result["rounds"] == 2
+    assert result["evidence_probes"] == 0
+    assert drafter.calls == 2
+    assert drafter.contexts[0]["evidence_literals"] == [
+        "good-evidence-2",
+        "good-evidence-3",
+    ]
+    returned_inputs = {row["input_text"] for row in result["candidates"]}
+    assert "good-evidence-2" not in returned_inputs
+    assert "good-evidence-3" not in returned_inputs
     assert (draft / "examples.yaml").read_text(encoding="utf-8") == "examples: []\n"
 
 
@@ -611,16 +1262,21 @@ def test_candidate_reference_environment_failure_is_zero_model_and_owned_by_harn
     monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
     draft = state_root / "drafts" / "draft"
     (draft / "examples").mkdir(parents=True)
+    document = _current_editable_draft(
+        import_module="feed",
+        user_goal="解析一个本地 feed。",
+    )
+    document["source_repo"].update({
+        "url": "https://github.com/acme/feed",
+        "resolved_commit": "c" * 40,
+        "distribution": "feed",
+    })
+    document["tool"]["interface"]["input"]["format"] = "RSS"
+    document["_intent_contract"]["delivery"]["requirements"]["inputs"][0][
+        "format_label"
+    ] = "RSS"
     (draft / "draft.yaml").write_text(
-        yaml.safe_dump({
-            "source_repo": {
-                "url": "https://github.com/acme/feed",
-                "resolved_commit": "c" * 40,
-                "import_module": "feed",
-            },
-            "tool": {"interface": {"input": {"format": "RSS"}}},
-            "capability": {"statement": "parse a local feed"},
-        }),
+        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
     (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
@@ -631,6 +1287,11 @@ def test_candidate_reference_environment_failure_is_zero_model_and_owned_by_harn
     upstream = tmp_path / "upstream"
     upstream.mkdir()
     monkeypatch.setattr(product_jobs, "_draft_upstream_dir", lambda _draft: (upstream, ""))
+    monkeypatch.setattr(
+        product_jobs,
+        "resolved_dependency_lock",
+        lambda *_args, **_kwargs: "feed==1.0.0\n",
+    )
 
     class BrokenEnvironment:
         def __enter__(self):
@@ -639,10 +1300,16 @@ def test_candidate_reference_environment_failure_is_zero_model_and_owned_by_harn
         def __exit__(self, *_args):
             return False
 
+    environment_kwargs: dict = {}
+
+    def broken_environment(_draft, **kwargs):
+        environment_kwargs.update(kwargs)
+        return BrokenEnvironment()
+
     monkeypatch.setattr(
         example_proposer,
         "prepared_reference_environment",
-        lambda _draft: BrokenEnvironment(),
+        broken_environment,
     )
     monkeypatch.setattr(
         tool_drafter,
@@ -656,6 +1323,50 @@ def test_candidate_reference_environment_failure_is_zero_model_and_owned_by_harn
     assert result["failure_owner"] == "HARNESS"
     assert result["reason_codes"] == ["REFERENCE_ENVIRONMENT_SETUP_FAILED"]
     assert "没有调用模型" in result["recommended_action"]
+    assert "missing transitive wheel" not in result["error"]
+    assert str(tmp_path) not in result["error"]
+    assert environment_kwargs["resolved_lock_text"] == "feed==1.0.0\n"
+
+
+def test_candidate_missing_dependency_lock_stops_before_model(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    draft = state_root / "drafts" / "draft"
+    (draft / "examples").mkdir(parents=True)
+    document = _current_editable_draft(import_module="feed")
+    (draft / "draft.yaml").write_text(
+        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+    (draft / "reference_impl.py").write_text(
+        "from pathlib import Path\nimport feed\n\n"
+        "def extract(path: Path) -> str:\n    return feed.convert(path.read_text())\n",
+        encoding="utf-8",
+    )
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    monkeypatch.setattr(product_jobs, "_draft_upstream_dir", lambda _draft: (upstream, ""))
+    monkeypatch.setattr(
+        product_jobs,
+        "resolved_dependency_lock",
+        lambda *_args, **_kwargs: "",
+    )
+    monkeypatch.setattr(
+        tool_drafter,
+        "online_drafter",
+        lambda: pytest.fail("missing dependency lock must stop before model"),
+    )
+
+    result = product_jobs.propose_example_candidates(draft, n=4, offline=False)
+
+    assert result["ok"] is False
+    assert result["failure_owner"] == "HARNESS"
+    assert result["reason_codes"] == ["DEPENDENCY_LOCK_MISSING"]
+    assert "没有调用模型" in result["recommended_action"]
 
 
 def test_binary_candidate_generation_routes_to_real_file_upload(
@@ -666,16 +1377,18 @@ def test_binary_candidate_generation_routes_to_real_file_upload(
     monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
     draft = state_root / "drafts" / "binary"
     (draft / "examples").mkdir(parents=True)
+    document = _current_editable_draft(user_goal="整理一个本地输入文件。")
+    document["tool"]["interface"]["input"]["format"] = "opaque capture"
+    document["_intent_contract"]["delivery"]["requirements"]["inputs"][0][
+        "format_label"
+    ] = "opaque capture"
+    document["_intent_contract"]["delivery"]["requirements"]["inputs"][0][
+        "representation"
+    ] = "binary"
     (draft / "draft.yaml").write_text(
-        "tool:\n"
-        "  interface:\n"
-        "    input:\n"
-        "      kind: file\n"
-        "      format: DOCX\n"
-            "capability:\n"
-            "  statement: 提取文档内容\n",
-            encoding="utf-8",
-        )
+        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
     (draft / "examples.yaml").write_text(
         "# 起草层建议(仅建议;真值文件归人放置):\n"
         "#   - 上传一个带标题和表格的文档。(exact_file)\n"
@@ -700,6 +1413,56 @@ def test_binary_candidate_generation_routes_to_real_file_upload(
     assert result["candidates"] == []
     assert result["suggestions"] == ["上传一个带标题和表格的文档。"]
     assert "不会把模型文本伪装成真实文件" in result["note"]
+
+
+def test_example_input_mode_never_inferrs_representation_from_format_label(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    draft = state_root / "drafts" / "typed-text"
+    (draft / "examples").mkdir(parents=True)
+    document = _current_editable_draft(user_goal="处理一个本地输入文件。")
+    document["tool"]["interface"]["input"]["format"] = "DOCX"
+    document["_intent_contract"]["delivery"]["requirements"]["inputs"][0][
+        "format_label"
+    ] = "DOCX"
+    # The typed contract, not the label, is authoritative.
+    document["_intent_contract"]["delivery"]["requirements"]["inputs"][0][
+        "representation"
+    ] = "utf8_text"
+    (draft / "draft.yaml").write_text(
+        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    result = product_jobs.example_input_mode(draft)
+
+    assert result["ok"] is True
+    assert result["representation"] == "utf8_text"
+    assert result["requires_upload"] is False
+
+
+def test_example_input_mode_fails_closed_for_untyped_legacy_draft(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    draft = state_root / "drafts" / "legacy"
+    draft.mkdir(parents=True)
+    (draft / "draft.yaml").write_text(
+        "tool:\n  schema_version: 2\n  interface:\n"
+        "    input: {kind: file, format: PDF}\n",
+        encoding="utf-8",
+    )
+
+    result = product_jobs.example_input_mode(draft)
+
+    assert result["ok"] is False
+    assert result["failure_owner"] == "CONTRACT"
+    assert result["reason_codes"] == ["TYPED_INPUT_REPRESENTATION_UNAVAILABLE"]
 
 
 def test_activity_log_reader_never_follows_untrusted_state_path(
@@ -793,6 +1556,11 @@ def test_build_reports_invalid_task_version_lineage_without_starting_worker(
     )
     (draft / "reference_impl.py").write_text("", encoding="utf-8")
     (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+    monkeypatch.setattr(
+        product_jobs,
+        "_core_draft_readiness",
+        lambda *_args, **_kwargs: SimpleNamespace(ready=True),
+    )
     monkeypatch.setattr(
         product_jobs,
         "next_tool_task_id",

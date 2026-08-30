@@ -29,6 +29,8 @@ from repoproof.adoption.analysis.repository_analyzer import (
     clone_for_analysis,
 )
 from repoproof.adoption.delivery.product_profile import CLI_V2_PROFILE_ID
+from repoproof.adoption.intake.intent_contract import new_intent_contract
+from repoproof.adoption.intake.upstream_pin import reference_lock_from_checkout
 
 _OWNERS = ("USER", "LLM", "AUTO")
 
@@ -49,6 +51,7 @@ class ToolIntakeReport(BaseModel):
     admission: AdmissionReport
     draft: dict
     draft_gaps: list[DraftGap]
+    reference_lock: str = ""
 
     def to_dict(self) -> dict:
         return self.model_dump()
@@ -187,9 +190,13 @@ def build_draft(repo: RepositoryReport, repo_dir: Path,
             "schema_version": 1,
             "profile_id": CLI_V2_PROFILE_ID,
         },
+        # User intent and model-proposed behaviour are different authorities.
+        # Keep an explicit trace from the first deterministic intake step;
+        # drafting fills commitments, and only a later human action may bind it.
+        "_intent_contract": new_intent_contract(capability_goal),
         "source_repo": {
             "url": repo.repository,
-            "revision": "guided",
+            "revision": repo.requested_revision or "guided",
             "resolved_commit": commit,
             "license": license_id,
             "distribution": dist,
@@ -201,7 +208,7 @@ def build_draft(repo: RepositoryReport, repo_dir: Path,
         "task_family": "LOCAL-TOOL",
         "adoption_shape": "TOOL_ONBOARDING",
         "tool": {
-            "schema_version": 2,
+            "schema_version": 3,
             "name": name,
             "summary": "",
             "interface": {
@@ -256,6 +263,14 @@ def build_draft(repo: RepositoryReport, repo_dir: Path,
                      "(LLM 可建议断言形态;≥3 组、含文件样例、留 held-out)"),
         DraftGap(field="reference_impl", owner="LLM",
                  why="真调上游的参考实现草稿(弱档执法的通关正控),用户确认后入题"),
+        DraftGap(
+            field="semantic_verifier",
+            owner="LLM",
+            why=(
+                "独立于 reference 的任务语义复核草稿；领域规则只留在冻结 oracle，"
+                "Harness 只执行统一协议并校验上游调用与身份绑定"
+            ),
+        ),
         DraftGap(field="reference_lock", owner="AUTO",
                  why="确认 reference 后由 pip 冻结闭包生成(确定性)"),
     ]
@@ -276,7 +291,11 @@ def run_tool_intake(
     repo_dir: Path | None
     if local_path is not None:
         repo_dir = Path(local_path).resolve()
-        repo = analyze_repository_dir(repo_dir, url=source or str(repo_dir))
+        repo = analyze_repository_dir(
+            repo_dir,
+            url=source or str(repo_dir),
+            requested_revision=revision,
+        )
     else:
         # 与 analyze_repository 同两步,但持有仓目录(草稿提取要读它)
         repo_dir, err = clone_for_analysis(source, revision, cache_root)
@@ -301,5 +320,14 @@ def run_tool_intake(
                                     field="*", owner="USER",
                                     why="仓库不可达,无法起草")])
     draft, gaps = build_draft(repo, repo_dir, capability_goal)
+    source_repo = draft.get("source_repo") or {}
+    reference_lock = reference_lock_from_checkout(
+        repo_dir,
+        distribution=str(source_repo.get("distribution") or ""),
+        resolved_commit=str(source_repo.get("resolved_commit") or ""),
+        import_module=str(source_repo.get("import_module") or ""),
+        requested_revision=str(source_repo.get("revision") or ""),
+    )
     return ToolIntakeReport(capability_goal=capability_goal, repo=repo,
-                            admission=admission, draft=draft, draft_gaps=gaps)
+                            admission=admission, draft=draft, draft_gaps=gaps,
+                            reference_lock=reference_lock)

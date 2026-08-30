@@ -1,0 +1,16 @@
+TY  - JOUR
+TI  - 中文文献标题
+AU  - 王小明
+AU  - Smith, John
+PY  - 2024
+JO  - 测试期刊
+AB  - 包含中文摘要与 Unicode：é。
+ER  - 
+TY  - JOUR
+TI  - 中文文献标题
+AU  - 王小明
+AU  - Smith, John
+PY  - 2025
+JO  - 测试期刊
+AB  - 包含中文摘要与 Unicode：é。
+ER  - 

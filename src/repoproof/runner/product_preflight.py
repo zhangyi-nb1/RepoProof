@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from repoproof.adoption.assembly.output_contract import validate_output_text
 from repoproof.adoption.intake.upstream_pin import normalize_dist_name
+from repoproof.domain.models import TaskPackageManifest
 from repoproof.verification.output_match import compare_output
 
 PreflightOwner = Literal["HARNESS", "UPSTREAM", "CONTRACT", "USER_INPUT"]
@@ -167,6 +168,41 @@ def run_product_preflight(
         )
     checks.append(ProductPreflightCheck(name="contract_identity", ok=True))
 
+    package_manifest: TaskPackageManifest | None = None
+    tool_schema_version = int(
+        (tool_contract.get("tool") or {}).get("schema_version") or 1
+    )
+    if tool_schema_version >= 3:
+        from repoproof.harness.task_package import load_and_verify
+
+        try:
+            package_manifest = load_and_verify(
+                project_root,
+                Path(tool_contract_path),
+            )
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return _failure(
+                checks,
+                owner="HARNESS",
+                code="FROZEN_TASK_PACKAGE_INVALID",
+                detail=(
+                    "ToolSpec v3 冻结证据束缺失、损坏或与合同/oracle/目标骨架不一致"
+                ),
+            )
+        if (
+            package_manifest.source_commit != commit
+            or not package_manifest.source_git_tree_hash
+            or not package_manifest.wheelhouse_root
+            or not package_manifest.wheelhouse_wheels
+        ):
+            return _failure(
+                checks,
+                owner="HARNESS",
+                code="FROZEN_TASK_PACKAGE_INVALID",
+                detail="ToolSpec v3 冻结证据束没有完整的 upstream/wheelhouse 身份",
+            )
+        checks.append(ProductPreflightCheck(name="frozen_task_package", ok=True))
+
     upstream = project_root / "upstream-cache" / f"upstream-{commit[:12]}"
     try:
         head = subprocess.run(
@@ -215,6 +251,23 @@ def run_product_preflight(
             detail="离线 wheelhouse 未包含冻结 upstream distribution",
         )
     checks.append(ProductPreflightCheck(name="wheelhouse_upstream", ok=True))
+    if package_manifest is not None:
+        from repoproof.harness.wheelhouse import verify_wheelhouse
+
+        try:
+            verify_wheelhouse(
+                wheelhouse,
+                expected_wheels=dict(package_manifest.wheelhouse_wheels or {}),
+                expected_root=str(package_manifest.wheelhouse_root or ""),
+            )
+        except (OSError, RuntimeError, ValueError):
+            return _failure(
+                checks,
+                owner="HARNESS",
+                code="FROZEN_WHEELHOUSE_IDENTITY_MISMATCH",
+                detail="当前 wheelhouse 与冻结任务包的文件集合或哈希不一致",
+            )
+        checks.append(ProductPreflightCheck(name="frozen_wheelhouse", ok=True))
 
     reference = project_root / "controls" / task_id / "reference" / "impl.py"
     skeleton = project_root / str((tool_contract.get("target_project") or {}).get("path") or "")

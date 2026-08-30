@@ -10,24 +10,30 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
 
 import pytest
 
+from repoproof.adoption.intake import example_proposer
 from repoproof.adoption.intake.example_proposer import (
     CandidateExample,
     ExampleProposalError,
     ProposalBatch,
     ReferenceIsolationError,
+    ReferenceWheelhouseIntegrityError,
     _sandboxed_reference_argv,
     assert_unseen_input,
     confirm_candidate,
+    ensure_reference_wheelhouse,
     prepared_reference_environment,
     propose_inputs,
     public_reference_failure,
+    reference_wheelhouse_runtime_identity,
     run_reference_on_candidates,
+    upstream_runtime_identity,
 )
 
 _UPSTREAM = '''
@@ -182,12 +188,37 @@ def test_upstream_run_produces_real_outputs_and_records_errors(world):
         CandidateExample(input_name="empty.txt", input_text="   "),
     ])
     out = run_reference_on_candidates(
-        batch, draft_dir=world["draft"], upstream_dir=world["upstream"])
+        batch,
+        draft_dir=world["draft"],
+        upstream_dir=world["upstream"],
+        import_module="minishout",
+    )
     ok, bad = out.candidates
     assert ok.upstream_output == "HELLO!" and ok.usable_as_golden
     # 上游抛错如实记下,并且**不算**可做 golden(样例只表达成功路径)
     assert bad.upstream_output is None and "empty input" in (bad.upstream_error or "")
     assert not bad.usable_as_golden
+    assert ok.truth_evidence is not None
+    assert bad.truth_evidence is not None
+    assert ok.truth_evidence.evidence_id != bad.truth_evidence.evidence_id
+    assert ok.truth_evidence.correlation_id != bad.truth_evidence.correlation_id
+    assert ok.truth_evidence.calls == 1
+    assert bad.truth_evidence.calls == 1
+    assert ok.managed_runtime_evidence is not None
+    assert "managed_runtime_evidence" not in ok.model_dump(mode="json")
+    assert out.reference_evidence == {
+        "schema_version": 2,
+        "kind": "CANDIDATE_SCOPED_RUNTIME_UPSTREAM_CALL_SUMMARY",
+        "import_module": "minishout",
+        "reference_sha256": out.reference_evidence["reference_sha256"],
+        "upstream_identity_sha256": out.reference_evidence[
+            "upstream_identity_sha256"
+        ],
+        "candidate_evidence_ids": [
+            ok.truth_evidence.evidence_id,
+            bad.truth_evidence.evidence_id,
+        ],
+    }
 
 
 def test_upstream_run_never_turns_a_truncated_output_into_truth(world):
@@ -312,6 +343,43 @@ def _write_test_wheel(
         archive.writestr(f"{dist_info}/RECORD", "")
 
 
+def test_reference_wheelhouse_cache_is_hash_bound_reused_and_tamper_evident(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lock = tmp_path / "reference.lock.txt"
+    lock.write_text("rootpkg==1.0.0\n", encoding="utf-8")
+    cache = tmp_path / "reference-wheelhouses"
+    downloads: list[list[str]] = []
+
+    def fake_download(argv, **_kwargs):
+        args = [str(item) for item in argv]
+        downloads.append(args)
+        destination = Path(args[args.index("--dest") + 1])
+        _write_test_wheel(
+            destination,
+            distribution="rootpkg",
+            package="rootpkg",
+            source="VALUE = 'cached'\n",
+        )
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(example_proposer.subprocess, "run", fake_download)
+
+    first = ensure_reference_wheelhouse(lock, cache_root=cache)
+    second = ensure_reference_wheelhouse(lock, cache_root=cache)
+
+    assert first == second
+    assert len(downloads) == 1
+    assert (first / "manifest.json").is_file()
+
+    wheel = next(first.glob("*.whl"))
+    wheel.write_bytes(wheel.read_bytes() + b"tampered")
+    with pytest.raises(ReferenceWheelhouseIntegrityError):
+        ensure_reference_wheelhouse(lock, cache_root=cache)
+    assert len(downloads) == 1, "tampered evidence must fail closed, not redownload"
+
+
 def test_reference_environment_installs_transitive_wheels_but_runs_pinned_source(
     tmp_path: Path,
 ) -> None:
@@ -370,24 +438,179 @@ def test_reference_environment_installs_transitive_wheels_but_runs_pinned_source
     assert out.candidates[0].upstream_output == "SOURCE:HELLO"
 
 
+def test_admitted_runtime_uses_locked_wheel_without_unbuilt_source_shadow(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Product runtime imports the admitted wheel; checkout remains provenance.
+
+    Extension-backed projects often cannot import directly from a checkout.
+    A source package that references an absent compiled module therefore models
+    the Biopython failure without coupling the Harness test to Biopython.
+    """
+
+    draft = tmp_path / "draft"
+    draft.mkdir()
+    lock = draft / "reference.lock.txt"
+    lock.write_text("rootpkg==1.0.0\n", encoding="utf-8")
+    (draft / "reference_impl.py").write_text(
+        "from pathlib import Path\nimport rootpkg\n\n"
+        "def extract(input_path: Path) -> str:\n"
+        "    return rootpkg.convert(input_path.read_text(encoding='utf-8'))\n",
+        encoding="utf-8",
+    )
+    upstream = tmp_path / "upstream"
+    (upstream / "src" / "rootpkg").mkdir(parents=True)
+    (upstream / "src" / "rootpkg" / "__init__.py").write_text(
+        "from . import _native\n\n"
+        "def convert(text):\n    return _native.convert(text)\n",
+        encoding="utf-8",
+    )
+    cache = tmp_path / "reference-wheelhouses"
+
+    def fake_download(argv, **_kwargs):
+        args = [str(item) for item in argv]
+        destination = Path(args[args.index("--dest") + 1])
+        _write_test_wheel(
+            destination,
+            distribution="rootpkg",
+            package="rootpkg",
+            source="def convert(text):\n    return 'WHEEL:' + text.strip().upper()\n",
+        )
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(example_proposer.subprocess, "run", fake_download)
+    # Materialise through the real content-addressed cache path, then restore
+    # subprocess so venv creation and offline installation are real.
+    ensure_reference_wheelhouse(lock, cache_root=cache)
+    monkeypatch.undo()
+    runtime_sha = reference_wheelhouse_runtime_identity(lock, cache_root=cache)
+    batch = ProposalBatch(candidates=[
+        CandidateExample(input_name="case.txt", input_text="hello"),
+    ])
+    with prepared_reference_environment(
+        draft,
+        wheelhouse_cache_root=cache,
+    ) as python_exe:
+        out = run_reference_on_candidates(
+            batch,
+            draft_dir=draft,
+            upstream_dir=upstream,
+            python_exe=python_exe,
+            import_module="rootpkg",
+            runtime_artifact_sha256=runtime_sha,
+        )
+
+    assert out.candidates[0].upstream_output == "WHEEL:HELLO"
+    evidence = out.candidates[0].truth_evidence
+    assert evidence is not None
+    assert evidence.upstream_identity_sha256 == upstream_runtime_identity(
+        upstream,
+        import_module="rootpkg",
+        runtime_artifact_sha256=runtime_sha,
+    )
+    assert evidence.upstream_identity_sha256 != upstream_runtime_identity(
+        upstream,
+        import_module="rootpkg",
+    )
+
+
+def test_core_resolved_lock_can_prepare_reference_without_mutating_draft(
+    tmp_path: Path,
+) -> None:
+    draft = tmp_path / "draft"
+    draft.mkdir()
+    (draft / "reference_impl.py").write_text(
+        "from pathlib import Path\nimport rootpkg\n\n"
+        "def extract(input_path: Path) -> str:\n"
+        "    return rootpkg.convert(input_path.read_text(encoding='utf-8'))\n",
+        encoding="utf-8",
+    )
+    upstream = tmp_path / "upstream"
+    (upstream / "rootpkg").mkdir(parents=True)
+    (upstream / "rootpkg" / "__init__.py").write_text(
+        "import helperpkg\n\n"
+        "def convert(text):\n"
+        "    return 'SOURCE:' + helperpkg.decorate(text)\n",
+        encoding="utf-8",
+    )
+    wheels = tmp_path / "wheels"
+    wheels.mkdir()
+    _write_test_wheel(
+        wheels,
+        distribution="rootpkg",
+        package="rootpkg",
+        source="def convert(text):\n    return 'WHEEL:' + text\n",
+        requires=["helperpkg==1.0.0"],
+    )
+    _write_test_wheel(
+        wheels,
+        distribution="helperpkg",
+        package="helperpkg",
+        source="def decorate(text):\n    return text.strip().upper()\n",
+    )
+    batch = ProposalBatch(candidates=[
+        CandidateExample(input_name="case.txt", input_text="hello"),
+    ])
+
+    with prepared_reference_environment(
+        draft,
+        wheelhouse=wheels,
+        resolved_lock_text="rootpkg==1.0.0\n",
+    ) as python_exe:
+        out = run_reference_on_candidates(
+            batch,
+            draft_dir=draft,
+            upstream_dir=upstream,
+            python_exe=python_exe,
+        )
+
+    assert out.candidates[0].upstream_output == "SOURCE:HELLO"
+    assert not (draft / "reference.lock.txt").exists()
+
+
 # ----------------------------------------------------------------- ③ 人确认
 
+def _candidate_with_truth(world, text: str = "hi") -> CandidateExample:
+    return run_reference_on_candidates(
+        ProposalBatch(candidates=[CandidateExample(input_name="a.txt", input_text=text)]),
+        draft_dir=world["draft"],
+        upstream_dir=world["upstream"],
+        import_module="minishout",
+    ).candidates[0]
+
+
 def test_confirm_flips_the_bit_and_records_provenance(world):
-    c = CandidateExample(input_name="a.txt", input_text="hi", upstream_output="HI!")
+    c = _candidate_with_truth(world)
     done = confirm_candidate(c)
     assert done.confirmed and done.truth_provenance() == "UPSTREAM_DERIVED_USER_CONFIRMED"
     assert not c.confirmed, "确认必须返回新对象,不许就地改掉原候选"
 
 
-def test_confirm_accepts_user_override():
-    c = CandidateExample(input_name="a.txt", input_text="hi", upstream_output="HI!")
+def test_confirm_accepts_user_override(world):
+    c = _candidate_with_truth(world)
     done = confirm_candidate(c, expected_text="HI!!(我改的)")
     assert done.upstream_output == "HI!!(我改的)" and done.confirmed
     assert done.truth_provenance() == "USER_OVERRIDDEN"
 
 
-def test_empty_upstream_stdout_is_a_confirmable_exact_output():
-    c = CandidateExample(input_name="empty-output.txt", input_text="quiet", upstream_output="")
+def test_empty_upstream_stdout_is_a_confirmable_exact_output(world):
+    (world["draft"] / "reference_impl.py").write_text(
+        "from pathlib import Path\nimport minishout\n\n"
+        "def extract(input_path: Path) -> str:\n"
+        "    minishout.shout(input_path.read_text())\n"
+        "    return ''\n",
+        encoding="utf-8",
+    )
+    c = run_reference_on_candidates(
+        ProposalBatch(candidates=[CandidateExample(
+            input_name="empty-output.txt",
+            input_text="quiet",
+        )]),
+        draft_dir=world["draft"],
+        upstream_dir=world["upstream"],
+        import_module="minishout",
+    ).candidates[0]
     assert c.usable_as_golden
     done = confirm_candidate(c)
     assert done.confirmed and done.upstream_output == ""
@@ -401,6 +624,18 @@ def test_confirm_refuses_error_candidate_and_says_where_it_belongs():
         confirm_candidate(c)
 
 
+def test_historical_candidate_without_scoped_evidence_cannot_mint_new_truth():
+    legacy = CandidateExample(
+        input_name="legacy.txt",
+        input_text="old",
+        upstream_output="OLD!",
+    )
+    # Historical data remains readable, but a new confirmation fails closed.
+    assert legacy.input_name == "legacy.txt"
+    with pytest.raises(ExampleProposalError, match="CANDIDATE_TRUTH_EVIDENCE_MISSING"):
+        confirm_candidate(legacy)
+
+
 # --------------------------------------------------------- fresh 抽查去重闸
 
 def test_fresh_audit_input_must_be_unseen():
@@ -410,38 +645,68 @@ def test_fresh_audit_input_must_be_unseen():
     assert_unseen_input("teal", ["red", "navy"])       # 没见过 → 放行
 
 
-# ------------------------------------------------- reference 占位检测(真实事故)
+# ----------------------------------------------- reference 上游运行时调用证据
 
-def test_placeholder_reference_is_refused(world):
-    """**负控**:起草占位(`return str(<上游模块>)`)不许拿来产候选输出。
-
-    2026-08-27 用户实测:离线模板起草出的 reference 真 import 了上游、
-    也有确定性输出,所以骨架检查(NotImplementedError)放它过去 —— 但它
-    没实现任何能力。拿它跑候选,每条"上游实际输出"都是模块地址,用户一
-    确认就把 `<module 'webcolors' from ...>` 冻进了验收真值:一个看起来
-    全绿、实则空心的合同。
-    """
+def test_reference_without_runtime_upstream_call_cannot_mint_truth(world):
+    """Importing a package is not evidence that its capability produced truth."""
     (world["draft"] / "reference_impl.py").write_text(
         "from pathlib import Path\n\nimport minishout\n\n\n"
         "def extract(input_path: Path) -> str:\n"
         "    data = input_path.read_text(encoding='utf-8')\n"
         "    return str(minishout)\n", encoding="utf-8")
-    with pytest.raises(ExampleProposalError, match="起草占位"):
+    with pytest.raises(ExampleProposalError, match="REFERENCE_UPSTREAM_CALL_NOT_OBSERVED"):
         run_reference_on_candidates(
             ProposalBatch(candidates=[CandidateExample(input_name="a.txt", input_text="x")]),
-            draft_dir=world["draft"], upstream_dir=world["upstream"])
+            draft_dir=world["draft"],
+            upstream_dir=world["upstream"],
+            import_module="minishout",
+        )
 
 
-def test_real_reference_is_not_mistaken_for_placeholder(world):
-    """**正控**:真实现不许被误伤 —— 判别只认那一个精确形状(AST)。"""
-    from repoproof.adoption.intake.example_proposer import reference_is_placeholder
-
-    assert reference_is_placeholder(
-        (world["draft"] / "reference_impl.py").read_text(encoding="utf-8")) == ""
-    # 返回值里**包含** str(...) 但不是裸模块 → 真实现,放行
-    assert reference_is_placeholder(
+def test_reference_call_evidence_is_independent_of_source_code_shape(world):
+    """A real call passes even when written in a form no source heuristic knows."""
+    (world["draft"] / "reference_impl.py").write_text(
         "import minishout\n\n\ndef extract(p):\n"
-        "    return str(minishout.shout(p.read_text()))\n") == ""
+        "    operation = getattr(minishout, 'shout')\n"
+        "    return str(operation(p.read_text()))\n",
+        encoding="utf-8",
+    )
+    out = run_reference_on_candidates(
+        ProposalBatch(candidates=[CandidateExample(input_name="a.txt", input_text="hi")]),
+        draft_dir=world["draft"],
+        upstream_dir=world["upstream"],
+        import_module="minishout",
+    )
+    assert out.candidates[0].upstream_output == "HI!"
+    assert out.candidates[0].truth_evidence is not None
+    assert out.candidates[0].truth_evidence.calls == 1
+
+
+def test_one_candidate_cannot_borrow_another_candidates_upstream_calls(world):
+    """Two calls in candidate A cannot satisfy candidate B's zero-call output."""
+
+    (world["draft"] / "reference_impl.py").write_text(
+        "from pathlib import Path\nimport minishout\n\n"
+        "def extract(input_path: Path) -> str:\n"
+        "    text = input_path.read_text()\n"
+        "    if text == 'borrow':\n"
+        "        return 'LOCAL-ONLY'\n"
+        "    return minishout.shout(text) + minishout.shout(text)\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        ExampleProposalError,
+        match="REFERENCE_UPSTREAM_CALL_NOT_OBSERVED",
+    ):
+        run_reference_on_candidates(
+            ProposalBatch(candidates=[
+                CandidateExample(input_name="real.txt", input_text="real"),
+                CandidateExample(input_name="borrow.txt", input_text="borrow"),
+            ]),
+            draft_dir=world["draft"],
+            upstream_dir=world["upstream"],
+            import_module="minishout",
+        )
 
 
 # --------------------------------------------------------------- 证据挖掘

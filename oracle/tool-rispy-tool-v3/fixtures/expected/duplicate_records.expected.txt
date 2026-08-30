@@ -1,0 +1,12 @@
+TY  - JOUR
+TI  - Duplicate handling in reference exports
+AU  - Smith, Alice
+PY  - 2024
+JO  - Test Journal
+ER  - 
+TY  - BOOK
+TI  - A distinct retained record
+AU  - Jones, Bob
+PY  - 2023
+PB  - Example Press
+ER  - 

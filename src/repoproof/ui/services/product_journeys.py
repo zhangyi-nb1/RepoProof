@@ -42,7 +42,7 @@ class ProductJourneyRefV1(BaseModel):
     task_id: str | None = Field(default=None, max_length=256)
     dest_root: str = Field(default="", max_length=4096)
     last_job_id: str | None = Field(default=None, max_length=128)
-    agent_backend: Literal["codex-cli", "mini-swe"] = "codex-cli"
+    agent_backend: Literal["codex-cli", "mini-swe"] = "mini-swe"
     created_at: str = Field(default_factory=_utc_now)
     updated_at: str = Field(default_factory=_utc_now)
 
@@ -89,7 +89,7 @@ def create_journey(
     draft_dir: Path,
     dest_root: Path,
     tool_name: str = "",
-    agent_backend: Literal["codex-cli", "mini-swe"] = "codex-cli",
+    agent_backend: Literal["codex-cli", "mini-swe"] = "mini-swe",
     journey_id: str | None = None,
 ) -> ProductJourneyRefV1:
     now = _utc_now()
@@ -175,9 +175,11 @@ def journey_snapshot(journey: ProductJourneyRefV1) -> dict:
     task_id = journey.task_id or str((action_result or {}).get("task_id") or "") or None
     tool_name = journey.tool_name or str((action_result or {}).get("tool_name") or "")
     draft_review = None
+    draft_readiness: dict = {}
     if journey.draft_dir:
         draft_review = product_jobs.read_managed_draft_review(Path(journey.draft_dir))
         if draft_review.get("ok"):
+            draft_readiness = draft_review.get("draft_readiness") or {}
             tool_name = tool_name or str(
                 ((draft_review.get("draft") or {}).get("tool") or {}).get("name") or ""
             )
@@ -218,6 +220,15 @@ def journey_snapshot(journey: ProductJourneyRefV1) -> dict:
         phase = "REHEARSED"
     elif contract_exists:
         phase = "FROZEN"
+    elif (
+        draft_review
+        and draft_review.get("ok")
+        and (
+            not draft_readiness.get("compatible")
+            or not draft_readiness.get("current")
+        )
+    ):
+        phase = "DRAFT_INCOMPATIBLE"
     elif draft_review and draft_review.get("ok"):
         phase = "DRAFT"
     else:

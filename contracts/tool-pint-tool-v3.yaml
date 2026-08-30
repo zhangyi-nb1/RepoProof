@@ -1,0 +1,51 @@
+task_id: tool-pint-tool-v3
+
+source_repo:
+  url: https://github.com/hgrecco/pint
+  revision: guided
+  resolved_commit: 5e79411e1be2dc39c52a536168338773b49fd512
+  license: BSD
+  distribution: Pint
+  import_module: pint
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_pint-tool-v3
+  package: pint_tool
+  entry_point: pint-tool
+
+requirement_spec_file: tool-pint-tool-v3.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 3, "name": "pint-tool", "summary": "将带样本名、原数值和目标单位的 UTF-8 TSV 用 Pint 换算为可直接粘贴到 Excel 的 TSV，保留无法换算的行并说明原因，结果数值限制为最多 6 个有效数字。", "interface": {"usage": "pint-tool <input> [--out FILE]", "input": {"kind": "file", "format": "UTF-8 TSV 换算表（列：sample_name、value、source_unit、target_unit）", "contract": null}, "output": {"kind": "stdout", "format": "TSV", "contract": {"media_type": "text/tab-separated-values", "root_type": "text", "required": {}, "validation_profile": "tsv_table_v1"}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: "用户目标：把带样本名、原数值和目标单位的表格换算成能粘到 Excel 的结果；换不了的保留并说明，小数别太长。\n公开行为承诺：\n- [input-columns] 输入必须是 UTF-8 TSV 表，表头且只能按此顺序为 sample_name、value、source_unit、target_unit，并至少有一条数据行。\n- [row-preservation] 输出为可粘贴到 Excel 的 TSV，表头依次为 sample_name、value、source_unit、target_unit、converted_value、status、reason；每个有效输入数据行恰好对应一个输出数据行，并逐字保留前四列内容。\n- [pint-conversion] 对可换算行，使用 Pint 0.25.3 以该行 value 和 source_unit 构造 Quantity 并转换到 target_unit；status 为 converted，converted_value 为该目标单位下的数值，reason 为空。\n- [compact-number-format] 可换算行的 converted_value 使用 Python 的 .6g 格式化目标数量级，因此最多含 6 个有效数字，并会去除不必要的末尾小数位；极大或极小数值可使用科学计数法。\n- [unconvertible-row] 当 Pint 在构造或转换该行 Quantity 时抛出 PintError（包括未知单位、量纲不兼容或偏移单位计算错误）时，该行不会被丢弃：status 为 unconverted，converted_value 为空，reason 精确写为“异常类名: Pint 异常消息”。\n- [finite-numeric-values] 每行 value 必须能解析为有限的 Python 浮点数；NaN、Infinity 或非数值文本不构成有效换算表输入。\n统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。"
+  output_schema: "UnitConversionTsv"
+  intent_contract: {"schema_version": 1, "user_goal": "把带样本名、原数值和目标单位的表格换算成能粘到 Excel 的结果；换不了的保留并说明，小数别太长。", "user_goal_sha256": "0d7d3b890232e4760e985a572e7ea33751bd791b177602afc394e73ebdc64847", "commitments": [{"commitment_id": "input-columns", "public_text": "输入必须是 UTF-8 TSV 表，表头且只能按此顺序为 sample_name、value、source_unit、target_unit，并至少有一条数据行。", "rationale": "固定的列含义使每个样本的原值、原单位和目标单位可由 Pint 明确换算。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "row-preservation", "public_text": "输出为可粘贴到 Excel 的 TSV，表头依次为 sample_name、value、source_unit、target_unit、converted_value、status、reason；每个有效输入数据行恰好对应一个输出数据行，并逐字保留前四列内容。", "rationale": "即使换算失败，样本名、原数值和单位信息仍会保留在结果中。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "pint-conversion", "public_text": "对可换算行，使用 Pint 0.25.3 以该行 value 和 source_unit 构造 Quantity 并转换到 target_unit；status 为 converted，converted_value 为该目标单位下的数值，reason 为空。", "rationale": "由指定版本 Pint 执行单位解析和量纲换算。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "compact-number-format", "public_text": "可换算行的 converted_value 使用 Python 的 .6g 格式化目标数量级，因此最多含 6 个有效数字，并会去除不必要的末尾小数位；极大或极小数值可使用科学计数法。", "rationale": "结果数值不会出现过长的小数，同时保留适合 Excel 识别的数值文本。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "unconvertible-row", "public_text": "当 Pint 在构造或转换该行 Quantity 时抛出 PintError（包括未知单位、量纲不兼容或偏移单位计算错误）时，该行不会被丢弃：status 为 unconverted，converted_value 为空，reason 精确写为“异常类名: Pint 异常消息”。", "rationale": "无法换算的内容保留在表中，并提供由 Pint 给出的具体原因。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "finite-numeric-values", "public_text": "每行 value 必须能解析为有限的 Python 浮点数；NaN、Infinity 或非数值文本不构成有效换算表输入。", "rationale": "Pint 换算结果需要明确且可写入 Excel 的有限数值。", "origin": "MODEL_PROPOSED"}], "delivery": {"profile_id": "cli_v2", "support_status": "SUPPORTED", "origin": "MODEL_PROPOSED", "requirements": {"inputs": [{"kind": "file", "location": "local", "representation": "utf8_text", "format_label": "UTF-8 TSV 换算表（列：sample_name、value、source_unit、target_unit）", "role": "待换算的样本名、原数值、原单位和目标单位表格"}], "outputs": [{"kind": "text_artifact", "format_id": "tsv", "format_label": "可直接粘贴到 Excel 的 TSV 换算结果表", "role": "逐行保留原始信息、给出换算值或未换算原因的结果表"}], "network": "offline", "credentials": "none", "lifecycle": "per_invocation", "runtime": "local_cpu"}, "admitted_output_format_id": "tsv"}, "confirmation": {"confirmed_by": "USER", "confirmed_at": "2026-08-30T13:36:02.771482Z", "semantics_sha256": "41c9cd789a22f1d9c11e95f5f2d7ece85ae1af7eacbe9e738cd48361e72b3beb"}}
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py
+  semantic_verifier: {"protocol": "repoproof-semantic-verifier-v1", "verifier_id": "pint-tool-semantic-v1", "source_file": "oracle/tool-pint-tool-v3/semantic_verifier.py", "source_sha256": "2bda1496b61325404d735a2446faf4c166a0ce16b37f9b386b1da5db5291a884", "required_for_operational_active": true}

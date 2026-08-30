@@ -151,6 +151,64 @@ def test_exported_build_result_derives_tool_name_for_fresh_core_projection() -> 
     assert result.recorded_operational_status is None
 
 
+@pytest.mark.parametrize(
+    ("reason_code", "owner", "failure_class", "retry_policy", "action_code"),
+    [
+        (
+            "DRAFTER_TIMEOUT",
+            "EXTERNAL",
+            "PROVIDER_TRANSPORT",
+            "RETRY_AFTER_PROVIDER_RECOVERY",
+            "RETRY_DRAFT_AFTER_PROVIDER_RECOVERY",
+        ),
+        (
+            "DRAFTER_CONNECTIVITY_ERROR",
+            "EXTERNAL",
+            "PROVIDER_TRANSPORT",
+            "RETRY_AFTER_PROVIDER_RECOVERY",
+            "RETRY_DRAFT_AFTER_PROVIDER_RECOVERY",
+        ),
+        (
+            "DRAFTER_STRUCTURED_OUTPUT_UNSUPPORTED",
+            "EXTERNAL",
+            "PROVIDER_CAPABILITY",
+            "RETRY_AFTER_CONFIGURATION_REPAIR",
+            "CONFIGURE_STRUCTURED_DRAFTER",
+        ),
+        (
+            "DRAFTER_TIMEOUT_CONFIG_INVALID",
+            "HARNESS",
+            "HARNESS_CONFIGURATION",
+            "RETRY_AFTER_CONFIGURATION_REPAIR",
+            "REPAIR_DRAFTER_CONFIGURATION",
+        ),
+    ],
+)
+def test_tool_add_preserves_typed_drafter_failure(
+    reason_code: str,
+    owner: str,
+    failure_class: str,
+    retry_policy: str,
+    action_code: str,
+) -> None:
+    result = action_result_from_payload(
+        job_id="a" * 32,
+        journey_id="b" * 32,
+        action="tool-add",
+        ok=False,
+        payload={"ok": False, "draft_error": reason_code},
+    )
+
+    assert result.reason_codes == [reason_code]
+    assert result.failure_owner == owner
+    assert result.failure_stage == "DRAFTING"
+    assert result.failure_class == failure_class
+    assert result.retry_policy == retry_policy
+    assert result.requires_new_task_version is False
+    assert result.recommended_action_code == action_code
+    assert result.product_stop_code == "STOP_HARNESS_OR_EXTERNAL"
+
+
 def test_audit_build_failure_is_harness_owned_not_agent_repair() -> None:
     result = action_result_from_payload(
         job_id="a" * 32,
@@ -161,13 +219,48 @@ def test_audit_build_failure_is_harness_owned_not_agent_repair() -> None:
             "ok": False,
             "decision": "REVOKED",
             "reason_code": "BUILD_FAILED",
+            "failure_owner": "HARNESS",
+            "failure_stage": "BUILD",
+            "failure_class": "HARNESS_ENVIRONMENT",
+            "retry_policy": "RETRY_AFTER_ENVIRONMENT_REPAIR",
+            "requires_new_task_version": False,
+            "recommended_action_code": "REPAIR_BUILD_ENVIRONMENT",
+            "recommended_action": "Repair the build environment and retry.",
+            "product_stop_code": "STOP_HARNESS_OR_EXTERNAL",
         },
     )
 
     assert result.failure_owner == "HARNESS"
+    assert result.failure_stage == "BUILD"
+    assert result.failure_class == "HARNESS_ENVIRONMENT"
+    assert result.retry_policy == "RETRY_AFTER_ENVIRONMENT_REPAIR"
+    assert result.requires_new_task_version is False
+    assert result.recommended_action_code == "REPAIR_BUILD_ENVIRONMENT"
     assert result.product_stop_code == "STOP_HARNESS_OR_EXTERNAL"
     assert result.reason_codes == ["BUILD_FAILED"]
-    assert "Agent repair" in str(result.recommended_action)
+    assert result.recommended_action == "Repair the build environment and retry."
+
+
+def test_legacy_audit_reason_code_is_not_reverse_mapped_to_remediation() -> None:
+    result = action_result_from_payload(
+        job_id="a" * 32,
+        journey_id="b" * 32,
+        action="tool-audit",
+        ok=False,
+        payload={
+            "ok": False,
+            "decision": "REVOKED",
+            "reason_code": "SEMANTIC_VERIFIER_MISMATCH",
+        },
+    )
+
+    assert result.reason_codes == ["SEMANTIC_VERIFIER_MISMATCH"]
+    assert result.failure_class is None
+    assert result.retry_policy is None
+    assert result.requires_new_task_version is None
+    assert result.recommended_action_code is None
+    assert "typed failure metadata" in str(result.recommended_action)
+    assert "修复适配器" not in str(result.recommended_action)
 
 
 def test_studio_fresh_audit_rebuilds_export_before_invocation(
@@ -218,7 +311,7 @@ def test_action_result_rejects_unknown_schema(tmp_path: Path) -> None:
 def test_job_result_is_bound_to_job_id_and_managed_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    state = tmp_path / "state"
+    state = (tmp_path / "state").resolve()
     result_dir = state / "job-results"
     result_dir.mkdir(parents=True)
     monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
@@ -250,10 +343,54 @@ def test_journey_round_trip_and_restart_order(
         last_job_id="c" * 32,
     )
     assert updated.created_at == first.created_at
+    assert first.agent_backend == "mini-swe"
     loaded = product_journeys.read_journey(first.journey_id)
     assert loaded.tool_name == "demo-tool"
     assert loaded.task_id == "tool-demo-tool-v1"
     assert product_journeys.list_journeys()[0].journey_id == first.journey_id
+
+
+def test_unfrozen_legacy_draft_is_read_only_incompatible_not_current_draft(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = (tmp_path / "state").resolve()
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    project = tmp_path / "project"
+    project.mkdir()
+    draft_dir = state / "drafts" / "legacy"
+    draft_dir.mkdir(parents=True)
+    (draft_dir / "examples").mkdir()
+    (draft_dir / "draft.yaml").write_text(
+        "tool:\n  name: legacy-tool\n",
+        encoding="utf-8",
+    )
+    (draft_dir / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+    (draft_dir / "reference_impl.py").write_text("import legacy\n", encoding="utf-8")
+    monkeypatch.setattr(product_journeys, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda: {})
+    monkeypatch.setattr(product_mode, "project_root", lambda: project)
+    monkeypatch.setattr(
+        product_mode,
+        "list_tools",
+        lambda *_args, **_kwargs: {"tools": [], "projection_errors": []},
+    )
+    journey = product_journeys.create_journey(
+        source_repo_url="https://github.com/acme/legacy",
+        draft_dir=draft_dir,
+        dest_root=tools,
+    )
+
+    snapshot = product_journeys.journey_snapshot(journey)
+
+    assert snapshot["phase"] == "DRAFT_INCOMPATIBLE"
+    readiness = snapshot["draft_review"]["draft_readiness"]
+    assert readiness["compatible"] is False
+    assert readiness["current"] is False
+    assert "TOOL_SPEC_VERSION_NOT_CURRENT" in readiness["reason_codes"]
+    assert "INTENT_CONTRACT_MISSING" in readiness["reason_codes"]
 
 
 def test_journey_symlink_root_fails_closed(

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <graph id="G" edgedefault="undirected">
+    <node id="节点"/>
+    <node id="éclair"/>
+    <node id="A"/>
+    <node id="孤立"/>
+    <edge id="e0" source="节点" target="éclair"/>
+    <edge id="e1" source="éclair" target="A"/>
+  </graph>
+</graphml>

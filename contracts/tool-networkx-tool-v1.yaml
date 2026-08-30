@@ -1,0 +1,51 @@
+task_id: tool-networkx-tool-v1
+
+source_repo:
+  url: https://github.com/networkx/networkx
+  revision: guided
+  resolved_commit: 7530809bfa1ea7ed6fdf918a4d1431488953cb1f
+  license: BSD
+  distribution: networkx
+  import_module: networkx
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_networkx-tool
+  package: networkx_tool
+  entry_point: networkx-tool
+
+requirement_spec_file: tool-networkx-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 3, "name": "networkx-tool", "summary": "将 UTF-8 GraphML 网络整理为可放进项目笔记的 Markdown 摘要，说明规模、分组、关键节点和落单节点。", "interface": {"usage": "networkx-tool <input> [--out FILE]", "input": {"kind": "file", "format": "UTF-8 GraphML 网络文件", "contract": null}, "output": {"kind": "stdout", "format": "Markdown", "contract": {"media_type": "text/markdown", "root_type": "text", "required": {}, "validation_profile": "markdown_document_v1"}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: "用户目标：做成能放进项目笔记的摘要，告诉我规模、分组、关键和落单节点，不需要复杂绘图。\n公开行为承诺：\n- [graph-size] 摘要报告由 NetworkX 从输入 GraphML 读取的图的节点数和边数；两项分别等于该图的 number_of_nodes() 与 number_of_edges()。\n- [component-groups] 摘要列出图的全部分量及其完整节点成员：无向图使用连通分量，有向图使用弱连通分量。每个分量记录其成员数和成员节点；分量数等于所列记录数。\n- [key-nodes] 摘要报告最大无权度，并列出全部达到该最大值的节点。度采用 NetworkX Graph.degree() 的定义，因此有向图计入入度和出度，多重边按其次数计入；空图的最大度为 null，关键节点列表为空。\n- [isolated-nodes] 摘要列出 NetworkX isolates() 返回的全部孤立节点，即度为零的节点。\n公开产物协议：\n- [node-count -> graph-size] 定位：在“## 规模”标题下，定位标签完全为“节点数：”的唯一 Markdown 列表项，其反引号代码跨度内容。；值表示：非负十进制整数。\n- [edge-count -> graph-size] 定位：在“## 规模”标题下，定位标签完全为“边数：”的唯一 Markdown 列表项，其反引号代码跨度内容。；值表示：非负十进制整数。\n- [component-count -> component-groups] 定位：在“## 分组”标题下，定位标签完全为“分量数：”的唯一 Markdown 列表项，其反引号代码跨度内容。；值表示：非负十进制整数。\n- [component-memberships -> component-groups] 定位：在“## 分组”标题下，定位紧随该标题后的 json 围栏代码块。；值表示：UTF-8 JSON 数组；每个元素是具有唯一非负整数 id、非负整数 size 和 strings 数组 nodes 的对象。数组按 size 降序、再按 nodes 的字典序升序排列；每个 nodes 数组按 Unicode 字符串字典序升序排列。\n- [maximum-degree -> key-nodes] 定位：在“## 关键节点”标题下，定位标签完全为“最大度：”的唯一 Markdown 列表项，其反引号代码跨度内容。；值表示：空图时为 JSON null；否则为非负十进制整数。\n- [key-node-list -> key-nodes] 定位：在“## 关键节点”标题下，定位紧随“最大度”列表项之后的 json 围栏代码块。；值表示：UTF-8 JSON 字符串数组，按 Unicode 字符串字典序升序排列。\n- [isolated-node-list -> isolated-nodes] 定位：在“## 落单节点”标题下，定位紧随标题后的 json 围栏代码块。；值表示：UTF-8 JSON 字符串数组，按 Unicode 字符串字典序升序排列。\n统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。"
+  output_schema: "GraphNetworkSummaryMarkdown"
+  intent_contract: {"schema_version": 1, "user_goal": "做成能放进项目笔记的摘要，告诉我规模、分组、关键和落单节点，不需要复杂绘图。", "user_goal_sha256": "417545f409c877a8ee4fedee11e1067229865f262489c3860a50127ba64e3505", "commitments": [{"commitment_id": "graph-size", "public_text": "摘要报告由 NetworkX 从输入 GraphML 读取的图的节点数和边数；两项分别等于该图的 number_of_nodes() 与 number_of_edges()。", "rationale": "用最基本的规模指标帮助项目笔记快速说明网络体量。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "component-groups", "public_text": "摘要列出图的全部分量及其完整节点成员：无向图使用连通分量，有向图使用弱连通分量。每个分量记录其成员数和成员节点；分量数等于所列记录数。", "rationale": "分组和成员清单让读者能识别网络中的独立子群。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "key-nodes", "public_text": "摘要报告最大无权度，并列出全部达到该最大值的节点。度采用 NetworkX Graph.degree() 的定义，因此有向图计入入度和出度，多重边按其次数计入；空图的最大度为 null，关键节点列表为空。", "rationale": "以可复核、无须绘图的规则标出最直接的关键节点。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "isolated-nodes", "public_text": "摘要列出 NetworkX isolates() 返回的全部孤立节点，即度为零的节点。", "rationale": "单独突出未参与任何连接的节点，便于发现落单实体。", "origin": "MODEL_PROPOSED"}], "artifact_protocol": {"schema_version": 1, "protocol_id": "graph-note-summary", "observations": [{"observation_id": "node-count", "commitment_ids": ["graph-size"], "locator": "在“## 规模”标题下，定位标签完全为“节点数：”的唯一 Markdown 列表项，其反引号代码跨度内容。", "value_encoding": "非负十进制整数。"}, {"observation_id": "edge-count", "commitment_ids": ["graph-size"], "locator": "在“## 规模”标题下，定位标签完全为“边数：”的唯一 Markdown 列表项，其反引号代码跨度内容。", "value_encoding": "非负十进制整数。"}, {"observation_id": "component-count", "commitment_ids": ["component-groups"], "locator": "在“## 分组”标题下，定位标签完全为“分量数：”的唯一 Markdown 列表项，其反引号代码跨度内容。", "value_encoding": "非负十进制整数。"}, {"observation_id": "component-memberships", "commitment_ids": ["component-groups"], "locator": "在“## 分组”标题下，定位紧随该标题后的 json 围栏代码块。", "value_encoding": "UTF-8 JSON 数组；每个元素是具有唯一非负整数 id、非负整数 size 和 strings 数组 nodes 的对象。数组按 size 降序、再按 nodes 的字典序升序排列；每个 nodes 数组按 Unicode 字符串字典序升序排列。"}, {"observation_id": "maximum-degree", "commitment_ids": ["key-nodes"], "locator": "在“## 关键节点”标题下，定位标签完全为“最大度：”的唯一 Markdown 列表项，其反引号代码跨度内容。", "value_encoding": "空图时为 JSON null；否则为非负十进制整数。"}, {"observation_id": "key-node-list", "commitment_ids": ["key-nodes"], "locator": "在“## 关键节点”标题下，定位紧随“最大度”列表项之后的 json 围栏代码块。", "value_encoding": "UTF-8 JSON 字符串数组，按 Unicode 字符串字典序升序排列。"}, {"observation_id": "isolated-node-list", "commitment_ids": ["isolated-nodes"], "locator": "在“## 落单节点”标题下，定位紧随标题后的 json 围栏代码块。", "value_encoding": "UTF-8 JSON 字符串数组，按 Unicode 字符串字典序升序排列。"}]}, "delivery": {"profile_id": "cli_v2", "support_status": "SUPPORTED", "origin": "MODEL_PROPOSED", "requirements": {"inputs": [{"kind": "file", "location": "local", "representation": "utf8_text", "format_label": "UTF-8 GraphML 网络文件", "role": "要摘要的图网络数据"}], "outputs": [{"kind": "text_artifact", "format_id": "markdown", "format_label": "Markdown 项目笔记摘要", "role": "记录图的规模、连通分组、关键节点和落单节点的可直接放入项目笔记的摘要"}], "network": "offline", "credentials": "none", "lifecycle": "per_invocation", "runtime": "local_cpu"}, "admitted_output_format_id": "markdown"}, "confirmation": {"confirmed_by": "USER", "confirmed_at": "2026-08-30T14:25:00.165351Z", "semantics_sha256": "2e6cd22aac7fc8d1f43189d64a9c86cd502a90996868b5fcfda3c5a499c6b616"}}
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py
+  semantic_verifier: {"protocol": "repoproof-semantic-verifier-v1", "verifier_id": "networkx-tool-semantic-v1", "source_file": "oracle/tool-networkx-tool-v1/semantic_verifier.py", "source_sha256": "aece4c5fcd484a7ed9aad3067f7d59d734385ce77cc61cdb02dcaef59098b5c7", "required_for_operational_active": true}

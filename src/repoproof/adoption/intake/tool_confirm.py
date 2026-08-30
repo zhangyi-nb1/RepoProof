@@ -15,28 +15,33 @@
 
 from __future__ import annotations
 
-import ast
+import os
+import secrets
 from pathlib import Path
 
 import yaml
 from pydantic import ValidationError
 
 from repoproof.adoption.assembly.example_compiler import CompileError
-from repoproof.adoption.assembly.output_contract import output_contract_matches_format
 from repoproof.adoption.assembly.tool_assembler import assemble_tool_task
-from repoproof.adoption.delivery.product_profile import (
-    ProductProfileError,
-    product_delivery_profile,
+from repoproof.adoption.intake.draft_readiness import (
+    DRAFT_YAML,
+    EXAMPLES_YAML,
+    REFERENCE_LOCK,
+    REFERENCE_PY,
+    SEMANTIC_VERIFIER_PY,
+    draft_completion_problems,
+    evaluate_draft_readiness,
+    resolved_dependency_lock,
 )
-from repoproof.adoption.intake.upstream_pin import derive_reference_lock
-from repoproof.domain.models import TaskContract, ToolOutputContract, ToolSpec
+from repoproof.adoption.intake.intent_contract import (
+    IntentContractError,
+    confirm_intent_contract,
+    frozen_intent_snapshot,
+)
+from repoproof.domain.models import TaskContract, ToolSpec
 from repoproof.harness.contract_adequacy import evaluate_adequacy
 from repoproof.harness.requirement_spec import load_requirement_spec
-
-DRAFT_YAML = "draft.yaml"
-EXAMPLES_YAML = "examples.yaml"
-REFERENCE_PY = "reference_impl.py"
-REFERENCE_LOCK = "reference.lock.txt"
 
 _REFERENCE_SKELETON = '''"""reference:真调 pinned 上游的参考实现(出题人提供,绝不交付)。
 
@@ -58,6 +63,24 @@ def extract(input_path: Path) -> str:
     raise NotImplementedError("TODO: 真调上游实现能力")
 '''
 
+_SEMANTIC_VERIFIER_SKELETON = '''"""task-authored semantic verifier(oracle only, never delivered).
+
+Implement ``verify(input_path, artifact_path)`` returning exactly ``ok``,
+``reason_codes`` and ``checked_commitment_ids``. Recompute the public semantic
+commitments through the pinned upstream. The verdict must consume values
+returned by real upstream calls; a decorative call followed by a local
+reimplementation is not verification. Do not import reference_impl and do not
+embed any public or held-out sample body/expected value.
+"""
+from pathlib import Path
+
+# TODO: import <上游模块>
+
+
+def verify(input_path: Path, artifact_path: Path) -> dict:
+    raise NotImplementedError("TODO: independent semantic verification")
+'''
+
 _EXAMPLES_SKELETON = """# golden 样例声明(验收真值,owner=USER)。
 # 每项:input(argv 字符串)或 input_file(相对 examples/ 的路径)二选一;
 #       expected("contains:X" 或全等串)或 expected_file 二选一。
@@ -73,22 +96,67 @@ class ConfirmError(RuntimeError):
         super().__init__("; ".join(problems))
 
 
-def _imports_module(source: str, module: str) -> bool:
-    """源码是否以任一合法 Python import 形式导入目标模块。"""
+def confirm_tool_intent_file(draft_dir: Path) -> dict:
+    """Atomically bind the current public semantics without following symlinks."""
+
+    draft_dir = Path(draft_dir).expanduser()
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    directory_fd: int | None = None
+    source_fd: int | None = None
+    temporary = f".{DRAFT_YAML}.{secrets.token_hex(12)}.tmp"
     try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return False
-    prefix = f"{module}."
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            if any(alias.name == module or alias.name.startswith(prefix)
-                   for alias in node.names):
-                return True
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            if node.module == module or node.module.startswith(prefix):
-                return True
-    return False
+        directory_fd = os.open(draft_dir, flags | nofollow)
+        source_fd = os.open(DRAFT_YAML, os.O_RDONLY | nofollow, dir_fd=directory_fd)
+        chunks: list[bytes] = []
+        while chunk := os.read(source_fd, 1024 * 1024):
+            chunks.append(chunk)
+        draft = yaml.safe_load(b"".join(chunks).decode("utf-8")) or {}
+        if not isinstance(draft, dict):
+            raise IntentContractError("DRAFT_DOCUMENT_INVALID")
+        readiness = evaluate_draft_readiness(draft, draft_dir)
+        if not readiness.compatible or not readiness.current:
+            raise IntentContractError(
+                readiness.reason_codes[0] if readiness.reason_codes else "DRAFT_INCOMPATIBLE"
+            )
+        confirm_intent_contract(draft)
+        payload = yaml.safe_dump(
+            draft,
+            allow_unicode=True,
+            sort_keys=False,
+        ).encode("utf-8")
+        target_fd = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow,
+            0o600,
+            dir_fd=directory_fd,
+        )
+        try:
+            with os.fdopen(target_fd, "wb", closefd=False) as stream:
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            os.close(target_fd)
+        os.replace(
+            temporary,
+            DRAFT_YAML,
+            src_dir_fd=directory_fd,
+            dst_dir_fd=directory_fd,
+        )
+        os.fsync(directory_fd)
+        return frozen_intent_snapshot(draft)
+    except (IntentContractError, OSError, UnicodeError, yaml.YAMLError) as exc:
+        raise ConfirmError([f"语义确认失败:{exc}"]) from exc
+    finally:
+        if source_fd is not None:
+            os.close(source_fd)
+        if directory_fd is not None:
+            try:
+                os.unlink(temporary, dir_fd=directory_fd)
+            except FileNotFoundError:
+                pass
+            os.close(directory_fd)
 
 
 # ------------------------------------------------------------ draft 束落盘
@@ -111,87 +179,31 @@ def write_draft_bundle(report, dest: Path) -> Path:
     (dest / "GAPS.md").write_text("\n".join(gaps_md) + "\n", encoding="utf-8")
     (dest / EXAMPLES_YAML).write_text(_EXAMPLES_SKELETON, encoding="utf-8")
     (dest / REFERENCE_PY).write_text(_REFERENCE_SKELETON, encoding="utf-8")
+    (dest / SEMANTIC_VERIFIER_PY).write_text(
+        _SEMANTIC_VERIFIER_SKELETON,
+        encoding="utf-8",
+    )
+    reference_lock = str(getattr(report, "reference_lock", "") or "")
+    if reference_lock.strip():
+        (dest / REFERENCE_LOCK).write_text(reference_lock, encoding="utf-8")
     return dest
 
 
 # ------------------------------------------------------- D 系确认闸(一次报全)
 
-def check_draft_complete(draft: dict, draft_dir: Path) -> list[str]:
-    problems: list[str] = []
+def check_draft_complete(
+    draft: dict,
+    draft_dir: Path,
+    *,
+    project_root: Path | None = None,
+) -> list[str]:
+    """Compatibility wrapper over the Core-owned structured readiness."""
 
-    def need(path: str, value) -> None:
-        empty = (not value.strip()) if isinstance(value, str) else (not value)
-        if empty:
-            problems.append(f"D:{path} 为空 —— 见 GAPS.md 对应缺口")
-
-    delivery = draft.get("_delivery_profile") or {}
-    profile = None
-    if delivery.get("schema_version") != 1:
-        problems.append("D:_delivery_profile.schema_version 必须为 1")
-    try:
-        profile = product_delivery_profile(str(delivery.get("profile_id") or ""))
-    except ProductProfileError as exc:
-        problems.append(f"D:_delivery_profile 非法:{exc}")
-
-    sr = draft.get("source_repo") or {}
-    for k in ("distribution", "import_module", "resolved_commit", "license", "url"):
-        need(f"source_repo.{k}", sr.get(k))
-    tool = draft.get("tool") or {}
-    if tool.get("schema_version") != 2:
-        problems.append(
-            "D:tool.schema_version 必须为 2 —— 新 draft 不得降级绕过 T6–T9")
-    need("tool.name", tool.get("name"))
-    need("tool.summary", tool.get("summary"))
-    iface = tool.get("interface") or {}
-    need("tool.interface.input.format", (iface.get("input") or {}).get("format"))
-    output = iface.get("output") or {}
-    need("tool.interface.output.format", output.get("format"))
-    if tool.get("schema_version") == 2:
-        raw_contract = output.get("contract")
-        need("tool.interface.output.contract", raw_contract)
-        if raw_contract:
-            try:
-                parsed_contract = ToolOutputContract.model_validate(raw_contract)
-            except ValidationError as e:
-                problems.append(f"D:tool.interface.output.contract 非法:{e}")
-            else:
-                if output.get("format") and not output_contract_matches_format(
-                        output["format"], parsed_contract):
-                    problems.append(
-                        "D:tool.interface.output.contract 与 output.format 分叉")
-                if profile is not None and (iface.get("input") or {}).get("format"):
-                    try:
-                        profile.assert_interface(iface)
-                    except ProductProfileError as exc:
-                        problems.append(f"D:交付接口超出声明支持面:{exc}")
-    cap = draft.get("capability") or {}
-    need("capability.statement", cap.get("statement"))
-    need("capability.output_schema", cap.get("output_schema"))
-
-    ex_file = draft_dir / EXAMPLES_YAML
-    examples: list = []
-    if not ex_file.is_file():
-        problems.append(f"D:{EXAMPLES_YAML} 缺失")
-    else:
-        examples = (yaml.safe_load(ex_file.read_text(encoding="utf-8"))
-                    or {}).get("examples") or []
-        if len(examples) < 3:
-            problems.append(f"D:examples 仅 {len(examples)} 组(需 >=3,"
-                            "含文件样例;尾部自动切 held-out)")
-
-    ref = draft_dir / REFERENCE_PY
-    if not ref.is_file():
-        problems.append(f"D:{REFERENCE_PY} 缺失")
-    else:
-        text = ref.read_text(encoding="utf-8")
-        if "TODO" in text or "NotImplementedError" in text:
-            problems.append("D:reference_impl 仍是骨架(含 TODO/NotImplementedError)"
-                            " —— 弱档执法下没有真 reference,fake 全链无正控")
-        if sr.get("import_module") and not _imports_module(
-                text, sr["import_module"]):
-            problems.append(f"D:reference_impl 未 import {sr['import_module']}"
-                            " —— 通关正控必须真调 pinned 上游")
-    return problems
+    return draft_completion_problems(
+        draft,
+        draft_dir,
+        project_root=project_root,
+    )
 
 
 # ------------------------------------------------------------------ 确认入口
@@ -204,7 +216,11 @@ def confirm_tool_draft(draft_dir: Path, project_root: Path) -> dict:
         raise ConfirmError([f"{DRAFT_YAML} 不存在:{draft_p}"])
     draft = yaml.safe_load(draft_p.read_text(encoding="utf-8")) or {}
 
-    problems = check_draft_complete(draft, draft_dir)
+    problems = check_draft_complete(
+        draft,
+        draft_dir,
+        project_root=project_root,
+    )
     if problems:
         raise ConfirmError(problems)
 
@@ -214,7 +230,6 @@ def confirm_tool_draft(draft_dir: Path, project_root: Path) -> dict:
         raise ConfirmError([f"tool 分节非法:{e}"]) from e
     examples = (yaml.safe_load((draft_dir / EXAMPLES_YAML)
                                .read_text(encoding="utf-8")) or {})["examples"]
-    ref_lock = draft_dir / REFERENCE_LOCK
     sr = draft["source_repo"]
     # 输入扩展名从首个文件样例推导(接口契约 malformed fixture 同后缀)
     first_file = next((e.get("input_file") for e in examples
@@ -222,6 +237,7 @@ def confirm_tool_draft(draft_dir: Path, project_root: Path) -> dict:
     input_ext = Path(first_file).suffix if first_file else ".dat"
 
     try:
+        intent_contract = frozen_intent_snapshot(draft)
         info = assemble_tool_task(
             Path(project_root),
             goal=draft["capability"]["statement"],
@@ -230,21 +246,24 @@ def confirm_tool_draft(draft_dir: Path, project_root: Path) -> dict:
             license_id=sr["license"], tool=spec, examples=examples,
             example_src_dir=draft_dir / "examples",
             reference_impl=(draft_dir / REFERENCE_PY).read_text(encoding="utf-8"),
+            semantic_verifier_source=(draft_dir / SEMANTIC_VERIFIER_PY).read_text(
+                encoding="utf-8"
+            ),
             # 草稿束写了就以人写的为准;没写就从钉版树派生 —— 这份锁
             # 缺席会让备轮漏装上游、positive 彩排也不预装,`import <上游>`
-            # 在会话里必炸(2026-08-28 webcolors 四发实测)。"可选"是假的。
-            reference_lock=(ref_lock.read_text(encoding="utf-8")
-                            if ref_lock.is_file()
-                            else derive_reference_lock(
-                                Path(project_root),
-                                distribution=sr["distribution"],
-                                resolved_commit=sr["resolved_commit"])),
+            # 必然在会话里失败；因此它不是可静默省略的输入。
+            reference_lock=resolved_dependency_lock(
+                draft,
+                draft_dir,
+                project_root=project_root,
+            ),
             capability_output_schema=draft["capability"]["output_schema"],
+            intent_contract=intent_contract,
             input_ext=input_ext,
             # 域适用性(M4 chardet):"全域合法输入"类工具声明豁免 malformed
             malformed_applicable=bool(
                 draft["tool"].get("malformed_applicable", True)))
-    except (CompileError, ValidationError, OSError) as e:
+    except (CompileError, IntentContractError, ValidationError, OSError) as e:
         raise ConfirmError([f"装配失败:{e}"]) from e
 
     # adequacy T 闸(冻结后的独立复核;T 键必须全绿)

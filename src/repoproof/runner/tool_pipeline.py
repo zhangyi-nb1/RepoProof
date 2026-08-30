@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import datetime
+import hashlib
 import re
 import shutil
 import subprocess
@@ -31,9 +32,8 @@ from repoproof.adoption.intake.tool_confirm import (
 )
 from repoproof.adoption.intake.upstream_conformance import (
     precheck_upstream_conformance,
-)
-from repoproof.adoption.intake.upstream_conformance import (
-    select_upstream_test_nodes as select_upstream_tests,
+    reference_upstream_symbols,
+    select_upstream_test_nodes,
 )
 from repoproof.adoption.intake.upstream_pin import (
     normalize_dist_name,
@@ -117,7 +117,11 @@ def ensure_pinned_upstream(url: str, commit: str, project_root: Path) -> Path:
     if analysis.is_dir():
         for cand in analysis.iterdir():
             if cand.is_dir() and _head(cand) == commit:
-                shutil.copytree(cand, dest)
+                # The analysis checkout is already the pinned Git tree. Preserve
+                # tracked symlinks as symlinks when promoting it; dereferencing a
+                # link changes the worktree type and makes the freshly promoted
+                # checkout fail its own provenance-integrity check.
+                shutil.copytree(cand, dest, symlinks=True)
                 return dest
     r = subprocess.run(["git", "clone", "--quiet", url, str(dest)],
                        capture_output=True, text=True, timeout=600)
@@ -140,11 +144,13 @@ def _reference_pins(project_root: Path, task_id: str) -> list[str]:
 
 
 def resolve_upstream_pins(project_root: Path, task_id: str, *,
-                          distribution: str, upstream_dir: Path) -> list[str]:
+                          distribution: str, upstream_dir: Path,
+                          requested_revision: str = "",
+                          resolved_commit: str = "") -> list[str]:
     """备轮用的 pin 集合 —— **必须含上游本体**,否则当场拒发。
 
-    2026-08-28 实测(webcolors,三发白跑):`reference.lock.txt` 在人务清单
-    里写着"(可选)",而它一旦缺席,`_reference_pins` **静默返回空** ——
+    `reference.lock.txt` 一旦缺席，旧路径中的 `_reference_pins`
+    会**静默返回空** ——
     wheelhouse 只装 pytest 那套,会话里根本没有上游,于是每条能力测试都
     炸 `ModuleNotFoundError`,再被包装成 `DEPENDENCY_ERROR` +
     `REGRESSION_FAILURE`,在**三轮修复之后**才浮出来,离病因十万八千里。
@@ -160,7 +166,12 @@ def resolve_upstream_pins(project_root: Path, task_id: str, *,
         return pins
     if any(normalize_dist_name(re.split(r"[=<>!~\[]", p, maxsplit=1)[0]) == want for p in pins):
         return pins
-    version = upstream_version(upstream_dir)
+    version = upstream_version(
+        upstream_dir,
+        distribution=distribution,
+        requested_revision=requested_revision,
+        resolved_commit=resolved_commit,
+    )
     if not version:
         raise PipelineError(
             f"备轮缺上游 {distribution!r}:controls/{task_id}/reference/"
@@ -183,47 +194,6 @@ def _build_preflight_venv(task_dir: Path, pins: list[str]) -> Path:
     return py
 
 
-_CONFORMANCE_STOPWORDS = {
-    "array", "boolean", "children", "cli", "file", "format", "input",
-    "integer", "json", "local", "none", "null", "object", "output",
-    "pagecount", "pagenumber", "path", "pdf", "pdfsearchablemanifest",
-    "positive", "string", "true", "unicode", "userinputerror",
-}
-_CONFORMANCE_ALIASES = {
-    "author": ("author", "metadata"),
-    "bookmark": ("bookmark", "outline", "destination"),
-    "bookmarks": ("bookmark", "outline", "destination"),
-    "encrypted": ("encrypted", "encryption", "decrypt"),
-    "pages": ("page", "pages"),
-    "text": ("text", "extracttext", "extraction"),
-    "title": ("title", "metadata"),
-}
-
-
-def _capability_conformance_keywords(draft: dict) -> list[str]:
-    """Derive small public test keywords from the frozen capability wording."""
-
-    statement = str(
-        ((draft.get("capability") or {}).get("statement"))
-        or ((draft.get("tool") or {}).get("statement"))
-        or ""
-    )
-    tokens = re.findall(r"[A-Za-z][A-Za-z0-9_]{2,}", statement.lower())
-    keywords: list[str] = []
-    for token in tokens:
-        compact = re.sub(r"[^a-z0-9]+", "", token)
-        if compact in _CONFORMANCE_STOPWORDS or len(compact) < 3:
-            continue
-        values = _CONFORMANCE_ALIASES.get(compact, (compact,))
-        for value in values:
-            if value not in keywords:
-                keywords.append(value)
-        if len(keywords) >= 24:
-            break
-    return keywords
-
-
-
 def tool_build_real_from_frozen(
     task_id: str,
     project_root: Path,
@@ -232,6 +202,8 @@ def tool_build_real_from_frozen(
     agent_backend: str = "mini-swe",
     batch: str = "EXPLORATORY_UNPREREGISTERED",
     rehearsal_only: bool = False,
+    draft_dir: Path | None = None,
+    bench_root: Path | None = None,
 ) -> dict:
     """Resume a frozen task at rehearsal or real build without re-freezing it.
 
@@ -258,6 +230,21 @@ def tool_build_real_from_frozen(
     if not tool_contract.is_file():
         raise PipelineError(f"找不到已冻结的任务合同:{tool_contract}")
     if not host_contract.is_file():
+        if draft_dir is not None and (Path(draft_dir) / "draft.yaml").is_file():
+            return tool_build(
+                Path(draft_dir),
+                project_root,
+                bench_root=(
+                    Path(bench_root)
+                    if bench_root is not None
+                    else Path("~/RepoProofBench").expanduser()
+                ),
+                dest_root=dest_root,
+                run_real=not rehearsal_only,
+                agent_backend=agent_backend,
+                batch=batch,
+                resume_task_id=task_id,
+            )
         raise PipelineError(
             f"找不到物化的宿主合同:{host_contract} —— 该任务尚未物化"
             "(或 tool_tasks 目录被清理过),无法续跑真发。")
@@ -458,10 +445,11 @@ def tool_build(
     dest_root: Path,
     run_real: bool = True,
     agent_backend: str = "mini-swe",
-    conformance_keywords: list[str] | None = None,
+    conformance_symbols: list[str] | None = None,
     batch: str = "EXPLORATORY_UNPREREGISTERED",
     setup_commands: list[list[str]] | None = None,   # 测试注入(E2E shim)
     wheelhouse_cmd: list[str] | None = None,          # 测试注入(跳过备轮)
+    resume_task_id: str | None = None,
 ) -> dict:
     """→ {task_id, stages, verdict, historical_verdict,
     operational_status, exported};任一门不过即返回(stages 记录到
@@ -490,10 +478,16 @@ def tool_build(
         # D checks are read-only.  Once they pass, reject an impossible or
         # unsafe install before confirm freezes a new task version, and long
         # before either rehearsal or real-model budget is spent.
-        if not check_draft_complete(draft, draft_dir):
+        if not check_draft_complete(
+            draft,
+            draft_dir,
+            project_root=project_root,
+        ):
             try:
-                predicted_task_id = next_tool_task_id(
-                    project_root, draft["tool"]["name"]
+                predicted_task_id = (
+                    str(resume_task_id)
+                    if resume_task_id is not None
+                    else next_tool_task_id(project_root, draft["tool"]["name"])
                 )
                 current = preflight_tool_install(
                     Path(dest_root), draft["tool"]["name"], predicted_task_id
@@ -556,12 +550,67 @@ def tool_build(
             stages["route"] = {"route": route, "agent_invoked": True,
                                "plan_sha256": plan_obj.plan_sha256}
 
-    # 1) 人闸后的确认:D 闸 → 装配 → T 闸 → 冻结
-    try:
-        info = confirm_tool_draft(draft_dir, project_root)
-    except ValueError as exc:
-        raise PipelineError(f"任务版本谱系或草稿装配无效:{exc}") from exc
-    task_id = info["task_id"]
+    # 1) 人闸后的确认:D 闸 → 装配 → T 闸 → 冻结。若上一次在冻结后、
+    # 物化前因 Harness 预检停止，只允许对身份完全一致的冻结合同续跑；
+    # 不删除、不重冻，也不分配 v2。
+    if resume_task_id is None:
+        try:
+            info = confirm_tool_draft(draft_dir, project_root)
+        except ValueError as exc:
+            raise PipelineError(f"任务版本谱系或草稿装配无效:{exc}") from exc
+        task_id = info["task_id"]
+    else:
+        task_id = str(resume_task_id).strip()
+        if re.fullmatch(r"tool-[a-z0-9][a-z0-9-]*-v[1-9][0-9]*", task_id) is None:
+            raise PipelineError("预物化续跑 task_id 非法")
+        if not isinstance(draft, dict):
+            raise PipelineError("预物化续跑缺少可验证的草稿合同")
+        frozen_path = project_root / "contracts" / f"{task_id}.yaml"
+        sidecar = frozen_path.with_suffix(frozen_path.suffix + ".sha256")
+        if not frozen_path.is_file() or not sidecar.is_file():
+            raise PipelineError("预物化续跑缺少冻结合同或哈希 sidecar")
+        frozen = yaml.safe_load(frozen_path.read_text(encoding="utf-8")) or {}
+        if not isinstance(frozen, dict):
+            raise PipelineError("预物化续跑冻结合同不是对象")
+        frozen_source = frozen.get("source_repo") or {}
+        draft_source = draft.get("source_repo") or {}
+        frozen_intent = ((frozen.get("capability") or {}).get("intent_contract") or {})
+        draft_intent = draft.get("_intent_contract") or {}
+        identity_matches = (
+            frozen.get("task_id") == task_id
+            and ((frozen.get("tool") or {}).get("name"))
+            == ((draft.get("tool") or {}).get("name"))
+            and all(
+                frozen_source.get(key) == draft_source.get(key)
+                for key in (
+                    "url",
+                    "resolved_commit",
+                    "distribution",
+                    "import_module",
+                )
+            )
+            and ((frozen_intent.get("confirmation") or {}).get("semantics_sha256"))
+            == ((draft_intent.get("confirmation") or {}).get("semantics_sha256"))
+        )
+        if not identity_matches:
+            raise PipelineError(
+                "冻结合同与预物化草稿身份不一致；拒绝续跑或重写旧版本"
+            )
+        examples_doc = yaml.safe_load(
+            (draft_dir / "examples.yaml").read_text(encoding="utf-8")
+        ) or {}
+        total_examples = len(examples_doc.get("examples") or [])
+        info = {
+            "task_id": task_id,
+            "public": max(0, total_examples - 1),
+            "held": 1 if total_examples else 0,
+        }
+        stages["resumed_pre_materialization"] = {
+            "task_id": task_id,
+            "frozen_contract": str(frozen_path),
+            "identity_matched": True,
+            "contract_rewritten": False,
+        }
     if predicted_task_id is not None and task_id != predicted_task_id:
         raise PipelineError(
             f"安装预检 task_id={predicted_task_id} 与冻结结果 {task_id} 分叉"
@@ -569,21 +618,52 @@ def tool_build(
     stages["confirm"] = {"task_id": task_id, "public": info["public"],
                          "held": info["held"]}
 
+    frozen_reference_path = (
+        project_root / "controls" / task_id / "reference" / "impl.py"
+    )
+    try:
+        reference_source = frozen_reference_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise PipelineError(
+            "冻结任务缺少可读取的 reference implementation"
+        ) from exc
+
     if not isinstance(draft, dict):
         draft = yaml.safe_load(draft_path.read_text(encoding="utf-8"))
     sr = draft["source_repo"]
 
-    # 2) 钉版上游 + conformance 选取(确定性)
+    # 2) 钉版上游 + conformance 选取(确定性)。选择依据来自已审阅
+    # reference 的实际 upstream call AST，不从用户措辞抽词，也不维护
+    # 仓库/格式别名表。
     up = ensure_pinned_upstream(sr["url"], sr["resolved_commit"], project_root)
-    kws = conformance_keywords or _capability_conformance_keywords(draft)
-    selected = select_upstream_tests(up, [k for k in kws if k])
+    symbols = (
+        list(conformance_symbols)
+        if conformance_symbols is not None
+        else reference_upstream_symbols(
+            reference_source,
+            import_module=str(sr["import_module"]),
+        )
+    )
+    selected = select_upstream_test_nodes(up, symbols)
     stages["conformance_selected"] = selected
+    selection_basis = {
+        "schema_version": 1,
+        "kind": "REFERENCE_UPSTREAM_SYMBOLS",
+        "reference_sha256": hashlib.sha256(
+            reference_source.encode("utf-8")
+        ).hexdigest(),
+        "import_module": str(sr["import_module"]),
+        "symbols": symbols,
+    }
+    stages["conformance_selection_basis"] = selection_basis
 
     # 2b) DIRECT_WRAP:受信模板 adapter + 确定 lock **在装配骨架里落位**
     # (materialize 之前 —— 任务包/bench 副本由骨架拷出)。S0 即完整交付,
     # agent 零 diff,completion gate 的既有 PASS_DIRECT 语义自然成立。
     pins = resolve_upstream_pins(project_root, task_id,
-                                 distribution=sr["distribution"], upstream_dir=up)
+                                 distribution=sr["distribution"], upstream_dir=up,
+                                 requested_revision=str(sr.get("revision") or ""),
+                                 resolved_commit=str(sr.get("resolved_commit") or ""))
     if route == "DIRECT_WRAP":
         skel = (Path(project_root) / "fixtures"
                 / f"tool_skeleton_{draft['tool']['name']}")
@@ -603,7 +683,11 @@ def tool_build(
         raise PipelineError(
             f"物化目标已存在:{task_id}(改题面请先重出 draft → 新版本号)")
     conf_py = None
-    conf_record = {"selected": selected, "status": "SKIPPED"}
+    conf_record = {
+        "selected": selected,
+        "status": "SKIPPED",
+        "selection_basis": selection_basis,
+    }
     if selected and pins:
         tmp_task = Path(project_root) / "tool_tasks"
         tmp_task.mkdir(exist_ok=True)
@@ -613,8 +697,8 @@ def tool_build(
                 up,
                 selected,
                 conf_py,
-                bootstrap_missing=True,
             )
+            conf_record["selection_basis"] = selection_basis
             stages["conformance_preflight"] = conf_record
         except RuntimeError as exc:
             stages["conformance_preflight"] = {
@@ -697,6 +781,44 @@ def tool_build(
             f"{sorted(downloaded)[:8]} —— 会话将 import 不到上游,拒绝继续。")
     stages["wheelhouse"] = {"wheels": len(list(wheelhouse.glob('*.whl'))),
                             "upstream_present": True}
+
+    # ToolSpec v3 Fresh audit executes the task-authored semantic verifier in
+    # the same exact dependency/source context that existed before the Coding
+    # Agent ran.  Freeze that trusted context now, while the target skeleton is
+    # still pristine and before either rehearsal or a real model can consume
+    # budget.  The Agent works in an isolated worktree, so its legitimate
+    # adapter patch never rewrites this source-side package manifest.
+    if wheelhouse_cmd is None:
+        from repoproof.harness import task_package
+        from repoproof.harness.wheelhouse import compute_manifest
+
+        try:
+            package_manifest = task_package.freeze(
+                project_root,
+                project_root / "contracts" / f"{task_id}.yaml",
+                upstream_dir=up,
+                wheelhouse_manifest=compute_manifest(wheelhouse),
+            )
+        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+            raise PipelineError(
+                "ToolSpec v3 冻结证据束无法生成；不得进入 Agent",
+                reason_code="FROZEN_TASK_PACKAGE_INVALID",
+                recommended_action=(
+                    "检查冻结合同、oracle、目标骨架、钉版上游和 wheelhouse；"
+                    "修复 Harness 后创建新 task version。"
+                ),
+                partial_result={
+                    "task_id": task_id,
+                    "stages": stages,
+                    "verdict": "BLOCKED",
+                    "exported": None,
+                },
+            ) from exc
+        stages["task_package"] = {
+            "root_hash": package_manifest.root_hash,
+            "wheelhouse_root": package_manifest.wheelhouse_root,
+            "frozen_before_agent": True,
+        }
 
     # 4b) 预算前强制预检:仅使用冻结合同、wheelhouse 与第一个确认样例。
     # 这里失败不会创建 Agent run,也不会进入 RepairLoop。

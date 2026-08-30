@@ -1,0 +1,21 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input_file": "inputs/stable_exact_duplicate.ris",
+   "expected_file": "expected/stable_exact_duplicate.expected.txt",
+   "truth_provenance": "UPSTREAM_DERIVED_USER_CONFIRMED",
+   "truth_binding_sha256": "5bcbf97889928ed423458fa5dead666ab4b66ed6a0d556479dace2390d17150a",
+   "candidate_evidence_id": "aaf7a30531e7e204348336e0cf2ad60a37c841f020cf8f8b0151b5bd5d3d4261",
+   "candidate_truth_binding_sha256": "49917693e27726fc69ebcbb952822e83016f6aa48ca5f0ad106d384d0070bd45"
+  },
+  {
+   "input_file": "inputs/unicode_fields.ris",
+   "expected_file": "expected/unicode_fields.expected.txt",
+   "truth_provenance": "UPSTREAM_DERIVED_USER_CONFIRMED",
+   "truth_binding_sha256": "e49e13b0ddec3dfd2a7db2c1ebb80570801cb7a56081b39ad5d0e0540a983405",
+   "candidate_evidence_id": "ccf10d64eb9a8c805c91804c8cfbd606e9819620a893c684d2269ae660c41012",
+   "candidate_truth_binding_sha256": "f9cdbb9c03399a58e2302df88ecd8a44c5943447a25db5d635ba4423d73bb0bb"
+  }
+ ]
+}

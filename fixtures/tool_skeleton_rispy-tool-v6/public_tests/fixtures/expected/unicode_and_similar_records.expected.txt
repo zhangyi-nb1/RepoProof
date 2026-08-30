@@ -1,0 +1,20 @@
+TY  - JOUR
+AU  - 王小明
+AU  - Müller, Jörg
+TI  - 中文题名：Unicode、é和β的保存
+JO  - 国际文献学报
+PY  - 2022
+AB  - 包含中文、emoji 📚 与阿拉伯语 العربية。
+KW  - 文献管理
+KW  - Unicode
+ER  - 
+TY  - JOUR
+AU  - 王小明
+AU  - Müller, Jörg
+TI  - 中文题名：Unicode、é和β的保存
+JO  - 国际文献学报
+PY  - 2022
+AB  - 包含中文、emoji 📚 与阿拉伯语 العربية。
+KW  - Unicode
+KW  - 文献管理
+ER  - 

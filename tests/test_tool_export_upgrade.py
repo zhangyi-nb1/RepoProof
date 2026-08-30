@@ -104,7 +104,8 @@ def _candidate_world(
         contract = SimpleNamespace(
             task_family="LOCAL-TOOL",
             task_id=task_id,
-            tool=SimpleNamespace(name="alpha"),
+            tool=SimpleNamespace(name="alpha", schema_version=1),
+            acceptance=SimpleNamespace(semantic_verifier=None),
             source_repo=SimpleNamespace(
                 url="u",
                 resolved_commit="c",
@@ -645,11 +646,12 @@ def test_pipeline_preflights_upgrade_before_models_and_uses_safe_installer(
     (draft / "draft.yaml").write_text(
         json.dumps(
             {
-                "source_repo": {
-                    "url": "u",
-                    "resolved_commit": "c",
-                    "distribution": "alpha-dist",
-                },
+                    "source_repo": {
+                        "url": "u",
+                        "resolved_commit": "c",
+                        "distribution": "alpha-dist",
+                        "import_module": "alpha",
+                    },
                 "tool": {
                     "name": "alpha",
                     "interface": {"input": {"format": "TXT"}},
@@ -662,12 +664,23 @@ def test_pipeline_preflights_upgrade_before_models_and_uses_safe_installer(
     contract = project / "contracts" / f"{task_id}.yaml"
     events: list[str] = []
 
+    def confirm(_draft: Path, _project: Path) -> dict:
+        frozen_reference = (
+            project / "controls" / task_id / "reference" / "impl.py"
+        )
+        frozen_reference.parent.mkdir(parents=True)
+        frozen_reference.write_text(
+            "import alpha\n\ndef extract(path):\n    return alpha.transform(path)\n",
+            encoding="utf-8",
+        )
+        return {"task_id": task_id, "public": 3, "held": 1}
+
+    monkeypatch.setattr(tool_pipeline, "confirm_tool_draft", confirm)
     monkeypatch.setattr(
         tool_pipeline,
-        "confirm_tool_draft",
-        lambda _draft, _project: {"task_id": task_id, "public": 3, "held": 1},
+        "check_draft_complete",
+        lambda *_args, **_kwargs: [],
     )
-    monkeypatch.setattr(tool_pipeline, "check_draft_complete", lambda *_args: [])
     monkeypatch.setattr(
         tool_pipeline, "next_tool_task_id", lambda *_args: task_id
     )
@@ -686,7 +699,11 @@ def test_pipeline_preflights_upgrade_before_models_and_uses_safe_installer(
     monkeypatch.setattr(
         tool_pipeline, "ensure_pinned_upstream", lambda *_args: upstream
     )
-    monkeypatch.setattr(tool_pipeline, "select_upstream_tests", lambda *_args: [])
+    monkeypatch.setattr(
+        tool_pipeline,
+        "select_upstream_test_nodes",
+        lambda *_args: [],
+    )
 
     def materialize(*_args: object, **_kwargs: object) -> Path:
         (project / "tool_tasks" / task_id).mkdir(parents=True)
@@ -761,7 +778,11 @@ def test_pipeline_rejects_unsafe_upgrade_before_confirm_freezes_version(
     (draft / "draft.yaml").write_text(
         json.dumps({"tool": {"name": "alpha"}}), encoding="utf-8"
     )
-    monkeypatch.setattr(tool_pipeline, "check_draft_complete", lambda *_args: [])
+    monkeypatch.setattr(
+        tool_pipeline,
+        "check_draft_complete",
+        lambda *_args, **_kwargs: [],
+    )
     monkeypatch.setattr(
         tool_pipeline,
         "next_tool_task_id",

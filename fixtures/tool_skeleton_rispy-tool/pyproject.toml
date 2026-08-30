@@ -1,0 +1,8 @@
+[project]
+name = "rispy_tool"
+version = "1.0.0"
+description = '将本地 UTF-8 RIS 文献导出文件按明确重复去重并重新导出为可导回文献软件的 RIS 文件，不联网补充资料。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -16,17 +16,23 @@ from pathlib import Path
 import pytest
 import yaml
 
+from repoproof.adoption.intake.intent_contract import new_intent_contract
 from repoproof.adoption.intake.tool_confirm import (
     confirm_tool_draft,
+    confirm_tool_intent_file,
     write_draft_bundle,
 )
 from repoproof.adoption.intake.tool_drafter import (
     _REQUIREMENT_BRIEF_SCHEMA,
+    _SUMMARY_SCHEMA,
     _SYSTEM,
+    CodexDrafter,
+    DeliveryAdmissionError,
     DraftError,
     FakeDrafter,
     LiteLLMDrafter,
     draft_into_bundle,
+    reference_source_policy_errors,
     validate_repo_summary_document,
 )
 from repoproof.adoption.intake.tool_intake import run_tool_intake
@@ -37,6 +43,28 @@ def test_draft_prompt_distinguishes_html_and_xhtml_media_types() -> None:
     assert "product_support_profile" in _SYSTEM
     assert "media type" in _SYSTEM
     assert "HTML uses text/html" not in _SYSTEM
+
+
+def test_reference_policy_rejects_broad_error_masking() -> None:
+    broad = (
+        "def extract(path):\n"
+        "    try:\n"
+        "        return upstream.convert(path.read_text())\n"
+        "    except Exception as exc:\n"
+        "        raise UserInputError('bad input') from exc\n"
+    )
+    explicit = (
+        "def extract(path):\n"
+        "    try:\n"
+        "        return upstream.convert(path.read_text())\n"
+        "    except (UnicodeDecodeError, ValueError) as exc:\n"
+        "        raise UserInputError('bad input') from exc\n"
+    )
+
+    assert reference_source_policy_errors(broad) == [
+        "REFERENCE_BROAD_EXCEPTION_MASKING"
+    ]
+    assert reference_source_policy_errors(explicit) == []
 
 
 def _mini_repo(tmp: Path) -> Path:
@@ -77,12 +105,17 @@ def test_fake_draft_fills_llm_gaps_then_human_only_examples_remain(world):
     assert "reference_impl" in out["fields_drafted"]
     meta = json.loads((dest / "draft_meta.json").read_text(encoding="utf-8"))
     assert meta["drafter"] == "fake-drafter"
+    assert meta["verifier_context_policy"] == "public-contract-only-v1"
     drafted = yaml.safe_load((dest / "draft.yaml").read_text(encoding="utf-8"))
     assert drafted["capability"]["output_schema"] == "DraftedOutput"
     assert drafted["tool"]["interface"]["output"]["contract"] == {
-        "media_type": "text/plain", "root_type": "text", "required": {}}
+        "media_type": "text/plain",
+        "root_type": "text",
+        "required": {},
+        "validation_profile": "plain_text_v1",
+    }
 
-    # 起草后:补人的活(样例真值)即可 confirm 通过 —— [G1] 分工闭环
+    # 起草后:人要确认公开语义,并补样例真值。模型不能代替人闸。
     for n, text in (("a", "x"), ("b", "y"), ("c", "z")):
         (dest / "examples" / f"{n}.txt").write_text(text, encoding="utf-8")
     ex = dest / "examples.yaml"
@@ -92,11 +125,114 @@ def test_fake_draft_fills_llm_gaps_then_human_only_examples_remain(world):
         "  - {input: '--help', expected: 'contains:usage'}\n"
         "  - {input_file: a.txt, expected: 'contains:acme'}\n"
         "  - {input_file: b.txt, expected: 'contains:acme'}\n"
-        "  - {input_file: c.txt, expected: 'contains:acme'}\n"), encoding="utf-8")
+            "  - {input_file: c.txt, expected: 'contains:acme'}\n"), encoding="utf-8")
+    (dest / "reference.lock.txt").write_text("acme-lib==0.1.0\n", encoding="utf-8")
+    confirm_tool_intent_file(dest)
     project = tmp / "proj"
     project.mkdir()
     info = confirm_tool_draft(dest, project)
     assert info["task_id"].startswith("tool-acme-lib")
+
+
+def test_verifier_is_drafted_from_an_exact_public_context_only(world) -> None:
+    _, rep, dest = world
+    (dest / "examples" / "golden-secret.txt").write_text(
+        "GOLDEN_BODY_MUST_NOT_REACH_VERIFIER",
+        encoding="utf-8",
+    )
+    (dest / "held-out-secret.txt").write_text(
+        "HELD_OUT_BODY_MUST_NOT_REACH_VERIFIER",
+        encoding="utf-8",
+    )
+
+    class CapturingDrafter(FakeDrafter):
+        def __init__(self) -> None:
+            self.last_usage: dict = {}
+            self.verifier_context: dict | None = None
+
+        def draft(self, context: dict) -> dict:
+            document = super().draft(context)
+            document["reference_impl"] += "\n# PRIVATE_REFERENCE_SOURCE_MARKER\n"
+            self.last_usage = {"stage": "proposal"}
+            return document
+
+        def draft_verifier(self, context: dict) -> dict[str, str]:
+            self.verifier_context = context
+            self.last_usage = {"stage": "verifier"}
+            return super().draft_verifier(context)
+
+    drafter = CapturingDrafter()
+    draft_into_bundle(rep, dest, drafter)
+
+    assert drafter.verifier_context is not None
+    assert set(drafter.verifier_context) == {
+        "capability_goal",
+        "semantic_commitments",
+        "artifact_protocol",
+        "delivery_requirements",
+        "delivery_profile",
+        "input_format",
+        "output_format_id",
+        "output_format",
+        "output_contract",
+        "output_validation_profile_spec",
+        "upstream_public_info",
+    }
+    assert set(drafter.verifier_context["upstream_public_info"]) == {
+        "source_repo_url",
+        "requested_revision",
+        "resolved_commit",
+        "distribution",
+        "import_module",
+        "public_api",
+        "cli_entry_points",
+        "capability_candidates",
+        "tool_name",
+    }
+    serialised = json.dumps(drafter.verifier_context, ensure_ascii=False)
+    assert drafter.verifier_context["artifact_protocol"]["observations"]
+    assert "PRIVATE_REFERENCE_SOURCE_MARKER" not in serialised
+    assert "GOLDEN_BODY_MUST_NOT_REACH_VERIFIER" not in serialised
+    assert "HELD_OUT_BODY_MUST_NOT_REACH_VERIFIER" not in serialised
+    meta = json.loads((dest / "draft_meta.json").read_text(encoding="utf-8"))
+    assert meta["usage_by_stage"] == {
+        "proposal_and_reference": {"stage": "proposal"},
+        "semantic_verifier": {"stage": "verifier"},
+    }
+
+
+def test_current_product_draft_rejects_a_common_cause_verifier(world) -> None:
+    _, rep, dest = world
+
+    class CommonCauseDrafter(FakeDrafter):
+        def draft(self, context: dict) -> dict:
+            document = super().draft(context)
+            document["semantic_verifier"] = "import acme_lib\n"
+            return document
+
+    with pytest.raises(
+        DraftError,
+        match="VERIFIER_MUST_USE_INDEPENDENT_CALL",
+    ):
+        draft_into_bundle(rep, dest, CommonCauseDrafter())
+
+
+def test_current_product_draft_requires_an_independent_verifier_method(world) -> None:
+    _, rep, dest = world
+
+    class ProposalOnlyDrafter:
+        name = "proposal-only"
+        last_usage: dict = {}
+
+        @staticmethod
+        def draft(context: dict) -> dict:
+            return FakeDrafter().draft(context)
+
+    with pytest.raises(
+        DraftError,
+        match="INDEPENDENT_VERIFIER_DRAFTER_REQUIRED",
+    ):
+        draft_into_bundle(rep, dest, ProposalOnlyDrafter())
 
 
 def test_human_written_fields_are_never_overwritten(world):
@@ -115,6 +251,19 @@ def test_human_written_fields_are_never_overwritten(world):
     assert any("reference_impl" in s for s in out["skipped"])
     assert "acme_lib.shout('x')" in (dest / "reference_impl.py").read_text(
         encoding="utf-8")
+
+
+def test_drafter_refuses_a_draft_whose_traced_goal_changed(world):
+    _, rep, dest = world
+    doc = yaml.safe_load((dest / "draft.yaml").read_text(encoding="utf-8"))
+    doc["_intent_contract"] = new_intent_contract("另一个没有经过重新 intake 的目标")
+    (dest / "draft.yaml").write_text(
+        yaml.safe_dump(doc, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(DraftError, match="INTENT_USER_GOAL_MISMATCH"):
+        draft_into_bundle(rep, dest, FakeDrafter())
 
 
 def _stub_litellm(monkeypatch, replies: list[str]):
@@ -147,6 +296,7 @@ def _delivery(input_format: str, output_format_id: str) -> dict:
     return {
         "inputs": [{
             "kind": "file", "location": "local",
+            "representation": "utf8_text",
             "format_label": input_format, "role": "待处理内容",
         }],
         "outputs": [{
@@ -162,8 +312,39 @@ def _delivery(input_format: str, output_format_id: str) -> dict:
 
 _GOOD = json.dumps({"summary": "s", "delivery_requirements": _delivery("TXT", "plain_text"),
                     "output_required_fields": [], "output_schema": "Out",
-                    "statement": "题面", "reference_impl": "import acme_lib\n",
+                    "semantic_commitments": [{
+                        "commitment_id": "convert-input",
+                        "public_text": "使用固定版本上游转换输入文本。",
+                        "rationale": "用户需要这项转换能力。",
+                    }],
+                    "artifact_protocol": {
+                        "schema_version": 1,
+                        "protocol_id": "converted-text-v1",
+                        "observations": [{
+                            "observation_id": "converted-body",
+                            "commitment_ids": ["convert-input"],
+                            "locator": "完整 UTF-8 文本正文",
+                            "value_encoding": "固定版本上游返回的 UTF-8 文本",
+                        }],
+                    }, "reference_impl": (
+                        "from pathlib import Path\n"
+                        "import acme_lib\n\n"
+                        "class UserInputError(ValueError):\n    pass\n\n"
+                        "def extract(input_path: Path) -> str:\n"
+                        "    return acme_lib.shout("
+                        "input_path.read_text(encoding='utf-8'))\n"
+                    ),
                     "example_suggestions": []})
+
+_GOOD_VERIFIER = json.dumps({
+    "semantic_verifier": (
+        "from pathlib import Path\n"
+        "import acme_lib\n"
+        "def verify(input_path: Path, artifact_path: Path) -> dict:\n"
+        "    acme_lib.shout(input_path.read_text())\n"
+        "    return {'ok': artifact_path.is_file(), 'reason_codes': []}\n"
+    ),
+})
 
 _GOOD_REPO_ADVICE = {
     "summary": "这个仓库可以整理科研文本，具体边界仍需用户确认。",
@@ -195,9 +376,113 @@ def test_litellm_retry_then_parse(monkeypatch, world):
                  ("REPOPROOF_DRAFTER_BASE", "http://x"),
                  ("REPOPROOF_DRAFTER_KEY", "k")):
         monkeypatch.setenv(k, v)
-    calls = _stub_litellm(monkeypatch, ["not json at all", _GOOD])
+    calls = _stub_litellm(
+        monkeypatch,
+        ["not json at all", _GOOD, _GOOD_VERIFIER],
+    )
     out = draft_into_bundle(rep, dest, LiteLLMDrafter())
-    assert calls["n"] == 2 and "capability.statement" in out["fields_drafted"]
+    assert calls["n"] == 3 and "capability.statement" in out["fields_drafted"]
+    assert "semantic_verifier" not in calls["kwargs"][1]["messages"][0]["content"]
+    verifier_call = calls["kwargs"][2]
+    assert "independent semantic verifier" in verifier_call["messages"][0]["content"]
+    verifier_context = verifier_call["messages"][1]["content"]
+    assert "reference_impl" not in verifier_context
+    assert "golden" not in verifier_context.lower()
+    assert "held-out" not in verifier_context.lower()
+
+
+def _valid_projection_document(*, format_id: str, required_fields: list[dict]) -> dict:
+    document = json.loads(_GOOD)
+    document["delivery_requirements"] = _delivery("实验记录表格", format_id)
+    document["output_required_fields"] = required_fields
+    document["reference_impl"] = (
+        "from pathlib import Path\n"
+        "import acme_lib\n\n"
+        "class UserInputError(ValueError):\n    pass\n\n"
+        "def extract(input_path: Path) -> str:\n"
+        "    return acme_lib.shout(input_path.read_text(encoding='utf-8'))\n"
+    )
+    return document
+
+
+def test_litellm_repairs_contract_projection_without_hiding_delivery_need(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in (
+        ("REPOPROOF_DRAFTER_MODEL", "m"),
+        ("REPOPROOF_DRAFTER_BASE", "http://gateway.invalid"),
+        ("REPOPROOF_DRAFTER_KEY", "k"),
+    ):
+        monkeypatch.setenv(key, value)
+    fields = [
+        {"name": "sample", "type": "string"},
+        {"name": "converted_value", "type": "number"},
+    ]
+    rejected = _valid_projection_document(format_id="tsv", required_fields=fields)
+    corrected = _valid_projection_document(format_id="tsv", required_fields=[])
+    corrected["semantic_commitments"].append({
+        "commitment_id": "stable-table-columns",
+        "public_text": "输出表格保留样本列并给出换算结果列。",
+        "rationale": "文本表格的列是公开语义，不是 JSON object required 字段。",
+    })
+    corrected["artifact_protocol"]["observations"].append({
+        "observation_id": "stable-table-columns",
+        "commitment_ids": ["stable-table-columns"],
+        "locator": "TSV 首行表头及后续数据行",
+        "value_encoding": "固定列顺序的制表符分隔 UTF-8 文本",
+    })
+    calls = _stub_litellm(
+        monkeypatch,
+        [json.dumps(rejected, ensure_ascii=False), json.dumps(corrected, ensure_ascii=False)],
+    )
+
+    drafted = LiteLLMDrafter().draft({"capability_goal": "整理实验记录"})
+
+    assert calls["n"] == 2
+    assert drafted["delivery_requirements"] == corrected["delivery_requirements"]
+    assert drafted["output_format"] == "TSV"
+    assert drafted["output_contract"]["required"] == {}
+    assert drafted["output_contract"]["validation_profile"] == "tsv_table_v1"
+    repair_prompt = calls["kwargs"][1]["messages"][1]["content"]
+    assert "OUTPUT_REQUIRED_FIELDS_NOT_SUPPORTED" in repair_prompt
+    assert '"allows_required_fields": false' in repair_prompt
+    assert '"format_id": "tsv"' in repair_prompt
+
+
+def test_codex_repairs_contract_projection_with_same_bounded_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fields = [{"name": "sample", "type": "string"}]
+    rejected = _valid_projection_document(format_id="markdown", required_fields=fields)
+    corrected = _valid_projection_document(format_id="markdown", required_fields=[])
+    replies = [rejected, corrected]
+    calls: list[dict] = []
+    drafter = object.__new__(CodexDrafter)
+    drafter.last_usage = {}
+
+    def fake_structured(**kwargs):
+        calls.append(kwargs)
+        return replies[len(calls) - 1]
+
+    monkeypatch.setattr(drafter, "_structured", fake_structured)
+
+    drafted = drafter.draft({"capability_goal": "整理项目记录"})
+
+    assert [row["purpose"] for row in calls] == [
+        "tool-draft",
+        "tool-draft-projection-repair",
+    ]
+    repair = calls[1]["context"]["core_projection_repair"]
+    assert repair["reason_code"] == "OUTPUT_REQUIRED_FIELDS_NOT_SUPPORTED"
+    assert repair["selected_artifact"] == {
+        "format_id": "markdown",
+        "root_type": "text",
+        "allows_required_fields": False,
+    }
+    assert repair["preserve_delivery_requirements"] == rejected[
+        "delivery_requirements"
+    ]
+    assert drafted["output_contract"]["required"] == {}
 
 
 def test_litellm_gateway_calls_have_bounded_timeout_and_no_implicit_retries(
@@ -219,6 +504,58 @@ def test_litellm_gateway_calls_have_bounded_timeout_and_no_implicit_retries(
 
     assert calls["kwargs"][0]["timeout"] == 17.0
     assert calls["kwargs"][0]["max_retries"] == 0
+    response_format = calls["kwargs"][0]["response_format"]
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["name"] == "repo_summary"
+    assert response_format["json_schema"]["strict"] is True
+    assert response_format["json_schema"]["schema"] == _SUMMARY_SCHEMA
+
+
+def test_litellm_all_assistant_actions_use_their_machine_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in (
+        ("REPOPROOF_DRAFTER_MODEL", "m"),
+        ("REPOPROOF_DRAFTER_BASE", "http://gateway.invalid"),
+        ("REPOPROOF_DRAFTER_KEY", "k"),
+    ):
+        monkeypatch.setenv(key, value)
+    calls = _stub_litellm(
+        monkeypatch,
+        [
+            _GOOD,
+            _GOOD_VERIFIER,
+            json.dumps(_GOOD_REPO_ADVICE, ensure_ascii=False),
+            json.dumps({
+                "inputs": [
+                    {"input_name": "one.txt", "input_text": "x", "why": "覆盖输入"},
+                    {"input_name": "two.txt", "input_text": "y", "why": "覆盖边界"},
+                ]
+            }, ensure_ascii=False),
+        ],
+    )
+    drafter = LiteLLMDrafter()
+    drafter.draft({"capability_goal": "处理一个本地文件"})
+    drafter.draft_verifier({"capability_goal": "处理一个本地文件"})
+    drafter.summarize_repo({"headline": "Local tool"})
+    drafter.propose_example_inputs({"how_many": 2})
+
+    formats = [call["response_format"]["json_schema"] for call in calls["kwargs"]]
+    assert [item["name"] for item in formats] == [
+        "tool_draft",
+        "semantic_verifier",
+        "repo_summary",
+        "example_inputs",
+    ]
+    assert all(item["strict"] is True for item in formats)
+    assert [call["timeout"] for call in calls["kwargs"]] == [
+        120.0,
+        120.0,
+        60.0,
+        60.0,
+    ]
+    input_schema = formats[-1]["schema"]["properties"]["inputs"]
+    assert input_schema["minItems"] == input_schema["maxItems"] == 2
 
 
 def test_litellm_timeout_is_classified_without_echoing_diagnostics(
@@ -307,7 +644,7 @@ def test_repo_advice_requires_unique_ids_and_a_valid_recommendation() -> None:
 
 
 @pytest.mark.parametrize(
-    "unsafe_text",
+    "technical_text",
     [
         "调用 parse_file(...) 后生成报告。",
         "请 import rispy 并读取文件。",
@@ -326,18 +663,29 @@ def test_repo_advice_requires_unique_ids_and_a_valid_recommendation() -> None:
         "使用 `read_graphml` 读取输入。",
     ],
 )
-def test_repo_advice_rejects_engineering_language_but_allows_user_formats(
-    unsafe_text: str,
+def test_repo_advice_admission_does_not_depend_on_wording_keywords(
+    technical_text: str,
 ) -> None:
-    unsafe = json.loads(json.dumps(_GOOD_REPO_ADVICE))
-    unsafe["requirement_briefs"][0]["boundary"] = unsafe_text
-    with pytest.raises(DraftError, match="ENGINEERING_LANGUAGE"):
-        validate_repo_summary_document(unsafe)
+    advice = json.loads(json.dumps(_GOOD_REPO_ADVICE))
+    advice["requirement_briefs"][0]["boundary"] = technical_text
+    projected = validate_repo_summary_document(advice)
+    technical = projected["requirement_briefs"][0]
+    # Delivery support remains purely topology-driven.  A separate UX status
+    # prevents code-like prose from entering the one-click user wording path;
+    # it does not reinterpret or silently repair the requested task.
+    assert technical["support_status"] == "SUPPORTED"
+    assert technical["support_reason_codes"] == []
+    assert technical["adoption_status"] == "REVIEW_REQUIRED"
+    assert technical["adoption_reason_codes"]
+    assert technical_text.rstrip("。.;；") in technical["text"]
 
     safe = json.loads(json.dumps(_GOOD_REPO_ADVICE))
     safe["requirement_briefs"][0]["delivery_requirements"] = _delivery("FASTQ", "html")
     safe["requirement_briefs"][0]["boundary"] = "只使用文件里已有的数据"
-    assert validate_repo_summary_document(safe)["recommended_brief_id"] == "clean-ris"
+    accepted = validate_repo_summary_document(safe)
+    assert accepted["recommended_brief_id"] == "clean-ris"
+    assert accepted["requirement_briefs"][0]["adoption_status"] == "ADOPTABLE"
+    assert accepted["recommended_brief_adoption_status"] == "ADOPTABLE"
 
 
 def test_repo_advice_shape_is_compiled_from_profile_not_model_prose() -> None:
@@ -353,6 +701,7 @@ def test_repo_advice_shape_is_compiled_from_profile_not_model_prose() -> None:
         "profile_id": "cli_v2",
         "input_kind": "file",
         "input_cardinality": 1,
+        "input_representation": "utf8_text",
         "output_kind": "stdout",
         "output_cardinality": 1,
         "output_format_id": "ris",
@@ -364,14 +713,90 @@ def test_repo_advice_shape_is_compiled_from_profile_not_model_prose() -> None:
     assert "输出一份RIS 文献文件（.ris）" in brief["text"]
 
 
-def test_repo_advice_cannot_invent_an_output_outside_the_profile() -> None:
+def test_drafter_defines_text_representation_by_bytes_not_file_topology() -> None:
+    from repoproof.adoption.intake.tool_drafter import _SUMMARY_SYSTEM, _SYSTEM
+
+    for prompt in (_SUMMARY_SYSTEM, _SYSTEM):
+        assert "File delivery alone never implies binary" in prompt
+        assert "meaningful Unicode text serialization" in prompt
+
+
+def test_repo_advice_preserves_but_does_not_adopt_output_outside_profile() -> None:
     advice = json.loads(json.dumps(_GOOD_REPO_ADVICE))
     advice["requirement_briefs"][0]["delivery_requirements"]["outputs"][0][
         "format_id"
     ] = "pdf"
 
-    with pytest.raises(DraftError, match="OUTPUT_FORMAT_NOT_IN_PROFILE"):
-        validate_repo_summary_document(advice)
+    result = validate_repo_summary_document(advice)
+    unsupported = result["requirement_briefs"][0]
+
+    assert unsupported["support_status"] == "UNSUPPORTED"
+    assert unsupported["support_reason_codes"] == ["OUTPUT_FORMAT_NOT_IN_PROFILE"]
+    assert unsupported["text"] is None
+    assert unsupported["delivery_shape"] is None
+    assert unsupported["adoption_status"] == "UNAVAILABLE"
+    assert unsupported["adoption_reason_codes"] == ["DELIVERY_UNSUPPORTED"]
+    assert result["recommended_brief_id"] == unsupported["brief_id"]
+    assert result["recommended_brief_support_status"] == "UNSUPPORTED"
+    assert result["recommended_brief_adoption_status"] == "UNAVAILABLE"
+
+
+def test_summary_does_not_repair_a_truthful_unsupported_topology(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in (
+        ("REPOPROOF_DRAFTER_MODEL", "m"),
+        ("REPOPROOF_DRAFTER_BASE", "http://gateway.invalid"),
+        ("REPOPROOF_DRAFTER_KEY", "k"),
+    ):
+        monkeypatch.setenv(key, value)
+    advice = json.loads(json.dumps(_GOOD_REPO_ADVICE))
+    advice["requirement_briefs"][0]["delivery_requirements"]["outputs"].append({
+        "kind": "text_artifact",
+        "format_id": "plain_text",
+        "format_label": "Secondary",
+        "role": "second user-facing result",
+    })
+    calls = _stub_litellm(
+        monkeypatch,
+        [json.dumps(advice, ensure_ascii=False)],
+    )
+
+    result = LiteLLMDrafter().summarize_repo({"headline": "anonymous utility"})
+
+    assert calls["n"] == 1
+    first = result["requirement_briefs"][0]
+    assert first["support_status"] == "UNSUPPORTED"
+    assert first["support_reason_codes"] == ["OUTPUT_CARDINALITY_MISMATCH"]
+
+
+def test_draft_does_not_repair_a_truthful_unsupported_topology(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in (
+        ("REPOPROOF_DRAFTER_MODEL", "m"),
+        ("REPOPROOF_DRAFTER_BASE", "http://gateway.invalid"),
+        ("REPOPROOF_DRAFTER_KEY", "k"),
+    ):
+        monkeypatch.setenv(key, value)
+    document = json.loads(_GOOD)
+    document["delivery_requirements"]["outputs"].append({
+        "kind": "text_artifact",
+        "format_id": "markdown",
+        "format_label": "Secondary",
+        "role": "second user-facing result",
+    })
+    calls = _stub_litellm(
+        monkeypatch,
+        [json.dumps(document, ensure_ascii=False)],
+    )
+
+    with pytest.raises(
+        DeliveryAdmissionError,
+        match="OUTPUT_CARDINALITY_MISMATCH",
+    ):
+        LiteLLMDrafter().draft({"capability_goal": "process one local input"})
+    assert calls["n"] == 1
 
 
 def test_projected_repo_advice_cannot_override_machine_owned_shape() -> None:

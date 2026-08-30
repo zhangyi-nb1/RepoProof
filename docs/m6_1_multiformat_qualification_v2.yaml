@@ -1,0 +1,193 @@
+schema_version: 2
+batch_id: m6.1-natural-requirements-multiformat-qualification-v2
+supersedes_for_future_execution: m6.1-natural-requirements-multiformat-qualification
+amendment_reason: >-
+  The v1 plan correctly kept user requests vague, but incorrectly called
+  task-specific behavior "hidden acceptance rules". Held-out evaluation may
+  hide inputs and expected values, never normative rules. This v2 plan leaves
+  v1 unchanged, makes every rule public before freeze, and binds the user's
+  explicit confirmation to the goal, commitments, interface, and output schema.
+purpose: >-
+  Qualify four human-shaped Product journeys that deliver useful non-JSON UTF-8
+  research artifacts. These are fixed recorded cases, not an estimate of
+  arbitrary-repository or model success.
+intent_policy:
+  initial_request_is_intentionally_vague: true
+  repository_analysis_precedes_drafting: true
+  llm_requirement_briefs_minimum: 2
+  llm_requirement_briefs_maximum: 3
+  adoption_only_refills_user_request: true
+  model_proposes_public_semantic_commitments: true
+  user_confirms_every_commitment_before_freeze: true
+  confirmation_binds:
+    - exact_user_goal
+    - public_semantic_commitments
+    - input_interface
+    - output_interface
+    - output_schema
+  hidden_information_is_limited_to:
+    - held_out_input_bytes
+    - held_out_expected_output_bytes
+  hidden_normative_rules_forbidden: true
+  missing_commitment_is_contract_drafting_failure: true
+  missing_commitment_is_not_agent_repair_work: true
+journey_policy:
+  ui_only: true
+  example_candidates_are_llm_proposed: true
+  expected_outputs_are_upstream_derived: true
+  minimum_confirmed_success_examples: 3
+  confirmed_example_provenance_required: UPSTREAM_DERIVED_USER_CONFIRMED
+  confirmed_example_binding_hash_required: true
+  confirmed_examples_survive_regeneration: true
+  fresh_audit_candidate_is_generated_in_journey: true
+  prepared_user_upload_required: false
+execution_policy:
+  order_is_fixed: true
+  fixed_drafter_backend: litellm
+  fixed_agent_backend: mini-swe
+  framework_changes_during_batch: false
+  restart_from_first_case_after_framework_fix: true
+  backend_is_fixed_during_batch: true
+  required_terminal_status: ACTIVE
+  real_model_launch_policy: user_initiated_from_studio_only
+  json_user_artifact_forbidden: true
+  binary_output_out_of_scope: true
+  product_results_never_count_toward_benchmark_metrics: true
+verification_policy:
+  semantic_truth_source: frozen_reference_calling_pinned_upstream
+  actual_output_compared_with_reference: true
+  every_commitment_has_public_and_held_out_bindings: true
+  independent_semantic_verifier_required: true
+  semantic_verifier_protocol: repoproof-semantic-verifier-v1
+  verifier_logic_is_task_authored_not_harness_hardcoded: true
+  verifier_pass_requires_signed_runtime_upstream_call: true
+  verifier_evidence_binds:
+    - verifier_source_sha256
+    - input_sha256
+    - artifact_sha256
+    - output_contract_sha256
+    - intent_confirmation_sha256
+    - upstream_commit
+    - import_module
+  clean_replay_required: true
+  fresh_audit_required: true
+cases:
+  - order: 1
+    name: rispy-reference-cleanup
+    repository: https://github.com/MrTango/rispy
+    package_version: 0.10.0
+    ui_revision: v0.10.0
+    resolved_commit: b7aae3b2069ced3fb75287711300f2edf0bcac21
+    distribution: rispy
+    import_module: rispy
+    initial_user_request: >-
+      别的 AI 说这个仓库可以帮我处理文献导出。我把几个地方导出的内容
+      混在一起了，想整理干净后继续用。
+    expected_artifact:
+      media_type: application/x-research-info-systems
+      extension: .ris
+      validation_profile: ris_interchange_v1
+    public_commitments_required_before_freeze:
+      - 使用固定版本 RISpy 解析并重新序列化每条可接受记录。
+      - DOI 规范化后相同时视为重复；无 DOI 时仅在标题、作者和年份都相同时去重。
+      - 重复记录保留第一条，输出顺序按首次出现顺序。
+      - 每条输出记录直接以 TY 标签开始、以 ER 标签结束，不携带某个 writer 的序号或调试前缀。
+      - 输出必须能被 RISpy 再次解析并完成稳定 round-trip。
+      - 不联网补充、查询或修改外部书目数据。
+    semantic_verifier: independent_ris_structure_plus_pinned_rispy_round_trip_and_order
+
+  - order: 2
+    name: pint-lab-unit-table
+    repository: https://github.com/hgrecco/pint
+    package_version: 0.25.3
+    ui_revision: 0.25.3
+    resolved_commit: 5e79411e1be2dc39c52a536168338773b49fd512
+    distribution: Pint
+    import_module: pint
+    initial_user_request: >-
+      AI 说这个库适合处理单位。我的实验记录单位很乱，想整理以后发给同学
+      继续用。
+    expected_artifact:
+      media_type: text/tab-separated-values
+      extension: .tsv
+      validation_profile: tsv_table_v1
+    public_commitments_required_before_freeze:
+      - 从 TSV 的每行读取样本名、原始量和目标单位，并保留输入行顺序。
+      - 使用固定版本 Pint 执行量解析、量纲判断和数值换算。
+      - 每行独立成功或失败；一行错误不得使整份表失败。
+      - 输出列顺序、有限小数表示和错误码必须稳定。
+      - 不执行货币换算或外部单位查询。
+    semantic_verifier: csv_parser_plus_pinned_pint_recalculation
+
+  - order: 3
+    name: networkx-project-note
+    repository: https://github.com/networkx/networkx
+    package_version: 3.6.1
+    ui_revision: networkx-3.6.1
+    resolved_commit: 7530809bfa1ea7ed6fdf918a4d1431488953cb1f
+    distribution: networkx
+    import_module: networkx
+    initial_user_request: >-
+      AI 说这个仓库可以分析关系数据。我有一些“谁和谁有关”的数据，想快
+      速看一下大概结构，之后放进项目记录。
+    expected_artifact:
+      media_type: text/markdown
+      extension: .md
+      validation_profile: markdown_document_v1
+    public_commitments_required_before_freeze:
+      - 使用固定版本 NetworkX 读取 GraphML 并计算节点数、边数、密度和落单节点。
+      - 无向图报告连通分量，有向图报告弱连通分量。
+      - 关键节点仅按 degree 选前五，并列时按稳定节点标识排序。
+      - Markdown 固定包含概览、指标、分组、关键节点和警告区域。
+      - 不添加随机社区、布局、PageRank 或绘图。
+    semantic_verifier: markdown_parser_plus_pinned_networkx_recomputation
+
+  - order: 4
+    name: biopython-fastq-qc-report
+    repository: https://github.com/biopython/biopython
+    package_version: "1.88"
+    ui_revision: biopython-188
+    resolved_commit: d7e4b8b19399668b09442a5b35765d9186b5f665
+    distribution: biopython
+    import_module: Bio
+    initial_user_request: >-
+      AI 说这个仓库能处理测序文件。同学给了我一份 FASTQ，我想先知道质量
+      大概怎么样，最好能点开直接看。
+    expected_artifact:
+      media_type: text/html
+      extension: .html
+      validation_profile: safe_self_contained_xhtml_v1
+    public_commitments_required_before_freeze:
+      - 使用固定版本 Biopython 读取 Sanger FASTQ 和每个碱基的质量分数。
+      - 报告 read 数、长度范围、GC、平均 Phred 和 Q20 碱基比例。
+      - GC 仅在 A/C/G/T 中计算；read 平均 Phred 低于 20 时记为低质量。
+      - 输出是无 JavaScript、无外部资源、无时间戳的确定性自包含 XHTML，并转义用户内容。
+      - 不执行修剪、比对、物种识别、绘图或网络请求。
+    semantic_verifier: xml_dom_parser_plus_pinned_biopython_recomputation
+closure_requirements:
+  - every required public commitment is visible and user-confirmed before freeze
+  - every commitment is represented in RequirementSpec with public and held-out bindings
+  - at least three upstream-derived representative examples are confirmed
+  - zero-model rehearsal passes without an Agent call
+  - real build, independent verification, and clean replay pass
+  - unseen in-journey fresh audit reaches ACTIVE with package health OK
+  - the saved artifact matches its declared media type and independent semantic truth
+result:
+  status: NOT_RUN
+  record_schema: QualificationExecutionRecordV1
+  append_only_record_directory: docs/qualification_runs/m6_1_multiformat_v2
+  passed_case_evidence_required:
+    - historical_verdict
+    - clean_replay
+    - fresh_audit
+    - operational_status
+    - package_health
+    - output_validation_profile
+    - semantic_verifier_id
+    - semantic_verifier_sha256
+    - semantic_verifier_evidence_sha256
+    - semantic_verifier_evidence
+    - artifact_sha256
+  evidence_scope: >-
+    This protocol authorizes no model call by itself. Each execution attempt is
+    a separate immutable Product record with every Benchmark scoring field false.

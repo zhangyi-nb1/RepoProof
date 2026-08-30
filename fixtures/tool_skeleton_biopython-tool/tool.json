@@ -1,0 +1,45 @@
+{
+ "manifest_version": 1,
+ "name": "biopython-tool",
+ "version": "1.0.0",
+ "summary": "将单份原始 FASTQ 测序读段文件离线解析为自包含 HTML 质量概览报告。",
+ "source": {
+  "url": "https://github.com/biopython/biopython",
+  "resolved_commit": "d7e4b8b19399668b09442a5b35765d9186b5f665",
+  "license": "BSD",
+  "distribution": "biopython"
+ },
+ "contract_schema_version": 3,
+ "interface": {
+  "usage": "biopython-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "FASTQ 测序读段文件",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "HTML",
+   "contract": {
+    "media_type": "text/html",
+    "root_type": "text",
+    "required": {},
+    "validation_profile": "safe_self_contained_xhtml_v1"
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "FastqQualityHtmlReport"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

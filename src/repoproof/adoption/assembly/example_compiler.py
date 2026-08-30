@@ -62,6 +62,11 @@ class Example(BaseModel):
     # upstream-derived candidate truth from manually supplied truth.
     truth_provenance: TruthProvenance | None = None
     truth_binding_sha256: str | None = None
+    # v3 Studio candidates additionally preserve the identity of the signed,
+    # candidate-scoped reference execution.  Optionality is historical-read
+    # compatibility; new confirmations fail closed before writing without it.
+    candidate_evidence_id: str | None = None
+    candidate_truth_binding_sha256: str | None = None
 
     @model_validator(mode="after")
     def _exactly_one_each(self) -> Example:
@@ -75,6 +80,18 @@ class Example(BaseModel):
                 or re.fullmatch(r"[0-9a-f]{64}", self.truth_binding_sha256) is None
             ):
                 raise ValueError("上游派生样例必须携带小写 SHA-256 输入/输出绑定")
+            present = (
+                self.candidate_evidence_id is not None,
+                self.candidate_truth_binding_sha256 is not None,
+            )
+            if any(present) and not all(present):
+                raise ValueError("候选证据身份与扩展真值绑定必须同时出现")
+            for value in (
+                self.candidate_evidence_id,
+                self.candidate_truth_binding_sha256,
+            ):
+                if value is not None and re.fullmatch(r"[0-9a-f]{64}", value) is None:
+                    raise ValueError("候选证据身份必须是小写 SHA-256")
         return self
 
 

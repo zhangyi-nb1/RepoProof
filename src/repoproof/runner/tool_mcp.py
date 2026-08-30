@@ -24,6 +24,10 @@ from repoproof.runner.tool_paths import (
     tool_install_lock,
     validate_tool_task_id,
 )
+from repoproof.runner.tool_registry import (
+    validate_contract_schema_version,
+    validate_release_audit_trust_identity,
+)
 from repoproof.runner.tool_release import (
     ACTIVE,
     is_historical_tool_ready,
@@ -56,6 +60,8 @@ OUTPUT_CONTRACT = {output_contract!r}
 OUTPUT_MODE = {output_mode!r}
 EXPECTED_TASK_ID = {task_id!r}
 EXPECTED_PACKAGE_FILES = {expected_package_files!r}
+CONTRACT_SCHEMA_VERSION = {contract_schema_version!r}
+RELEASE_AUDIT_TRUST_IDENTITY = {release_audit_trust_identity!r}
 RELEASE_LEDGER = ROOT.parent / ".repoproof-release-decisions.jsonl"
 INSTALL_LOCK = ROOT.parent / ".repoproof-install.lock"
 RELEASE_LOCK = ROOT.parent / ".repoproof-release.lock"
@@ -262,6 +268,211 @@ def _require_safe_tool():
             raise RuntimeError("managed package identity changed")
 
 
+def _canonical_sha256(value):
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _runtime_environment_sha256():
+    environment = ROOT / ".venv"
+    if not environment.exists() and not environment.is_symlink():
+        payload = {{"schema_version": 1, "state": "absent", "entries": {{}}}}
+        return _canonical_sha256(payload)
+    if environment.is_symlink() or not environment.is_dir():
+        raise RuntimeError("runtime environment identity invalid")
+    volatile_dirs = {{"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache"}}
+    volatile_suffixes = {{".pyc", ".pyo"}}
+    entries = {{}}
+    for candidate in sorted(environment.rglob("*")):
+        relative = candidate.relative_to(environment)
+        if any(part in volatile_dirs for part in relative.parts):
+            continue
+        if relative.suffix in volatile_suffixes:
+            continue
+        try:
+            metadata = candidate.lstat()
+        except OSError as exc:
+            raise RuntimeError("runtime environment identity invalid") from exc
+        if stat.S_ISDIR(metadata.st_mode):
+            continue
+        if stat.S_ISREG(metadata.st_mode):
+            try:
+                digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
+            except OSError as exc:
+                raise RuntimeError("runtime environment identity invalid") from exc
+            entries[relative.as_posix()] = {{
+                "kind": "file",
+                "mode": stat.S_IMODE(metadata.st_mode),
+                "sha256": digest,
+            }}
+            continue
+        if stat.S_ISLNK(metadata.st_mode):
+            try:
+                link_text = os.readlink(candidate)
+                resolved = candidate.resolve(strict=True)
+                resolved_metadata = resolved.stat()
+            except OSError as exc:
+                raise RuntimeError("runtime environment identity invalid") from exc
+            if stat.S_ISDIR(resolved_metadata.st_mode):
+                try:
+                    resolved.relative_to(environment.resolve())
+                except ValueError as exc:
+                    raise RuntimeError("runtime environment identity invalid") from exc
+                entries[relative.as_posix()] = {{
+                    "kind": "directory-symlink",
+                    "mode": stat.S_IMODE(metadata.st_mode),
+                    "target": link_text,
+                }}
+                continue
+            if not stat.S_ISREG(resolved_metadata.st_mode):
+                raise RuntimeError("runtime environment identity invalid")
+            try:
+                digest = hashlib.sha256(resolved.read_bytes()).hexdigest()
+            except OSError as exc:
+                raise RuntimeError("runtime environment identity invalid") from exc
+            entries[relative.as_posix()] = {{
+                "kind": "file-symlink",
+                "mode": stat.S_IMODE(metadata.st_mode),
+                "target": link_text,
+                "target_mode": stat.S_IMODE(resolved_metadata.st_mode),
+                "target_sha256": digest,
+            }}
+            continue
+        raise RuntimeError("runtime environment identity invalid")
+    return _canonical_sha256({{
+        "schema_version": 1,
+        "state": "present",
+        "entries": entries,
+    }})
+
+
+def _read_regular_json(path):
+    if path.is_symlink() or not path.is_file():
+        raise RuntimeError("operational_status=REVIEW_REQUIRED")
+    try:
+        return _strict_json_loads(path.read_bytes())
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise RuntimeError("operational_status=REVIEW_REQUIRED") from exc
+
+
+def _require_v3_evidence(evidence_sha256):
+    if CONTRACT_SCHEMA_VERSION < 3:
+        return
+    identity = RELEASE_AUDIT_TRUST_IDENTITY
+    if not isinstance(identity, dict):
+        raise RuntimeError("operational_status=REVIEW_REQUIRED")
+    outer_dir = ROOT / "evidence" / "release-audits"
+    semantic_dir = ROOT / "evidence" / "semantic-audits"
+    if (
+        outer_dir.is_symlink()
+        or not outer_dir.is_dir()
+        or semantic_dir.is_symlink()
+        or not semantic_dir.is_dir()
+    ):
+        raise RuntimeError("operational_status=REVIEW_REQUIRED")
+    outer = None
+    for path in sorted(outer_dir.glob("*.json")):
+        candidate = _read_regular_json(path)
+        if isinstance(candidate, dict) and _canonical_sha256(candidate) == evidence_sha256:
+            outer = candidate
+            break
+    if outer is None:
+        raise RuntimeError("operational_status=REVIEW_REQUIRED")
+    semantic = outer.get("semantic_verifier")
+    execution = outer.get("execution")
+    if not isinstance(semantic, dict) or not isinstance(execution, dict):
+        raise RuntimeError("operational_status=REVIEW_REQUIRED")
+    nested_hash = semantic.get("evidence_sha256")
+    nested_raw = semantic.get("evidence_path")
+    if (
+        semantic.get("passed") is not True
+        or not isinstance(nested_hash, str)
+        or re.fullmatch(r"[0-9a-f]{{64}}", nested_hash) is None
+        or not isinstance(nested_raw, str)
+        or not nested_raw
+    ):
+        raise RuntimeError("operational_status=REVIEW_REQUIRED")
+    nested_path = Path(nested_raw)
+    if not nested_path.is_absolute():
+        nested_path = ROOT / nested_path
+    try:
+        nested_path.resolve().relative_to(semantic_dir.resolve())
+    except (OSError, ValueError) as exc:
+        raise RuntimeError("operational_status=REVIEW_REQUIRED") from exc
+    nested = _read_regular_json(nested_path)
+    expected_keys = {{
+        "schema_version", "protocol", "verifier_id",
+        "verifier_source_sha256", "input_sha256", "artifact_sha256",
+        "output_contract_sha256", "intent_confirmation_sha256",
+        "upstream_commit", "import_module", "upstream_imports",
+        "upstream_calls", "required_commitment_ids",
+        "checked_commitment_ids", "passed", "reason_codes",
+        "input_negative_control_sha256",
+        "input_negative_control_result",
+        "input_negative_control_upstream_imports",
+        "input_negative_control_upstream_calls",
+        "artifact_negative_control_sha256",
+        "artifact_negative_control_result",
+        "artifact_negative_control_upstream_imports",
+        "artifact_negative_control_upstream_calls",
+        "upstream_result_counterfactual_result",
+        "upstream_result_counterfactual_upstream_imports",
+        "upstream_result_counterfactual_upstream_calls",
+    }}
+    verifier = identity.get("semantic_verifier")
+    required = identity.get("required_commitment_ids")
+    if (
+        not isinstance(nested, dict)
+        or set(nested) != expected_keys
+        or _canonical_sha256(nested) != nested_hash
+        or not isinstance(verifier, dict)
+        or nested.get("schema_version") != 3
+        or nested.get("protocol") != "repoproof-semantic-verifier-v1"
+        or nested.get("passed") is not True
+        or nested.get("input_sha256") != outer.get("input_sha256")
+        or nested.get("artifact_sha256") != execution.get("stdout_sha256")
+        or nested.get("artifact_sha256") != semantic.get("artifact_sha256")
+        or nested.get("verifier_id") != verifier.get("verifier_id")
+        or nested.get("verifier_source_sha256") != verifier.get("source_sha256")
+        or nested.get("output_contract_sha256")
+        != identity.get("output_contract_sha256")
+        or nested.get("intent_confirmation_sha256")
+        != identity.get("intent_confirmation_sha256")
+        or nested.get("upstream_commit") != identity.get("upstream_commit")
+        or nested.get("import_module") != identity.get("import_module")
+        or nested.get("required_commitment_ids") != required
+        or nested.get("checked_commitment_ids") != required
+        or type(nested.get("upstream_calls")) is not int
+        or nested.get("upstream_calls", 0) < 1
+        or not isinstance(nested.get("input_negative_control_sha256"), str)
+        or re.fullmatch(
+            r"[0-9a-f]{{64}}", nested.get("input_negative_control_sha256", "")
+        ) is None
+        or nested.get("input_negative_control_result") != "REJECTED"
+        or not isinstance(nested.get("artifact_negative_control_sha256"), str)
+        or re.fullmatch(
+            r"[0-9a-f]{{64}}", nested.get("artifact_negative_control_sha256", "")
+        ) is None
+        or nested.get("artifact_negative_control_result") != "REJECTED"
+        or type(nested.get("artifact_negative_control_upstream_calls")) is not int
+        or nested.get("artifact_negative_control_upstream_calls", 0) < 1
+        or nested.get("upstream_result_counterfactual_result") != "REJECTED"
+        or type(nested.get("upstream_result_counterfactual_upstream_calls")) is not int
+        or nested.get("upstream_result_counterfactual_upstream_calls", 0) < 1
+        or semantic.get("verifier_id") != verifier.get("verifier_id")
+        or semantic.get("required_commitment_ids") != required
+        or semantic.get("checked_commitment_ids") != required
+        or outer.get("runtime_environment_sha256")
+        != _runtime_environment_sha256()
+    ):
+        raise RuntimeError("operational_status=REVIEW_REQUIRED")
+
+
 def _require_active():
     raw = _read_release_ledger()
     latest = None
@@ -280,6 +491,7 @@ def _require_active():
     if latest["decision"] != "ACTIVE":
         raise RuntimeError(f"operational_status={{latest['decision']}}")
     _require_safe_tool()
+    _require_v3_evidence(latest["evidence_sha256"])
 
 
 def _type_ok(value, expected):
@@ -537,6 +749,11 @@ def _write_mcp_server_install_locked(tool_dir: Path, release_root: Path) -> Path
         != verification.get("contract_sha256")
     ):
         raise RuntimeError("manifest/provenance identity 不一致")
+    contract_schema_version = validate_contract_schema_version(manifest)
+    release_audit_identity = validate_release_audit_trust_identity(
+        provenance.get("release_audit_trust_identity"),
+        required=contract_schema_version >= 3,
+    )
     status = operational_status(release_root, name, task_id=task_id)
     if status != ACTIVE:
         raise RuntimeError(
@@ -566,6 +783,12 @@ def _write_mcp_server_install_locked(tool_dir: Path, release_root: Path) -> Path
         output_schema_entry=output_schema_entry,
         task_id=task_id,
         expected_package_files=_runtime_identity_files(tool_dir, name),
+        contract_schema_version=contract_schema_version,
+        release_audit_trust_identity=(
+            release_audit_identity.model_dump(mode="json")
+            if release_audit_identity is not None
+            else None
+        ),
         tool_name_pattern=TOOL_NAME_PATTERN,
         version=manifest.get("version", "1.0.0"),
         server_path=str(out),

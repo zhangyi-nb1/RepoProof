@@ -54,7 +54,7 @@ task_family: LOCAL-TOOL
 adoption_shape: TOOL_ONBOARDING
 
 tool:
-  schema_version: 2                 # 新 draft 必须为 v2;v1 只用于冻结历史
+  schema_version: 3                 # 当前 Product draft；v1/v2 只按历史语义读取
   name: pdf-table
   summary: 从 PDF 提取表格,输出 GitHub-flavored Markdown
   interface:
@@ -67,6 +67,7 @@ tool:
         media_type: text/markdown
         root_type: text
         required: {}
+        validation_profile: markdown_document_v1
     exit_codes: {"0": success, "1": user_error, "2": internal_error}
 
 capability:
@@ -102,6 +103,12 @@ acceptance:
   capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
   regression_command: ["pytest", "-q", "/oracle/test_regression.py"]
   probe_script: direct_tool_probe.py # M1 新增:直连上游探针(工具版)
+  semantic_verifier:                # v3:任务自身的独立判卷器，Core 只执行协议
+    protocol: repoproof-semantic-verifier-v1
+    verifier_id: pdf-table-semantic-v1
+    source_file: oracle/tool-pdf-table-v2/semantic_verifier.py
+    source_sha256: <frozen>
+    required_for_operational_active: true
 ```
 
 ## 三、`ToolSpec` v2 与 `ToolOutputContract`
@@ -118,6 +125,7 @@ class ToolOutputContract(BaseModel):
     media_type: str
     root_type: Literal["text", "json", "object", "array", "json_lines"]
     required: dict[str, OutputFieldType] = Field(default_factory=dict)
+    validation_profile: TextValidationProfile | None = None
 
 class ToolInterfaceIO(BaseModel):
     kind: str                  # file | stdin | stdout | out_file
@@ -145,10 +153,14 @@ Schema:
   模型分别归一为 `object` / `array` / `json_lines`;
 - `media_type` 必须非空且与根类型同族;JSON 根必须声明 JSON/NDJSON
   media type,`text` 不得声明 JSON media type;
+- `media_type` 只标识表示类型，不再暗中选择解析/安全策略。新 Product
+  文本合同必须由 delivery profile 显式编译版本化 `validation_profile`；
+  历史合同缺该字段时保留 root-only 行为，不追溯附加新规则；
 - 已识别的文本产物标签还必须绑定专用 media type：RIS →
   `application/x-research-info-systems`、TSV → `text/tab-separated-values`、
   Markdown → `text/markdown`、HTML → `text/html`、XHTML →
-  `application/xhtml+xml`；不能用 `text/plain` 绕过对应格式解析器;
+  `application/xhtml+xml`；并且其 `validation_profile` 必须与 profile
+  注册表完全一致，不能用 `text/plain` 或删字段绕过对应格式解析器;
 - `required` 只校验顶层字段与上述基本类型;`text` / `array`
   根不得声明 `required`;
 - `extra="forbid"` 使未定义的合同键直接失败,避免拼错字段被静默
@@ -176,6 +188,34 @@ D 闸要求 `schema_version == 2`,且 v2 必须有 `output.contract`。
 装配器把 `schema_version` 投影为 manifest 的
 `contract_schema_version`,保留用户确认的
 `capability.output_schema`,并完整投影 `interface.output`。
+
+### `IntentContract.artifact_protocol`：公开且无真值的产物语法
+
+`ToolOutputContract` 负责媒体类型与基础结构，公开行为承诺负责“必须做到什么”；
+两者都不足以让独立 producer/judge 对多格式可读产物采用同一观察位置。新 Product
+draft 还必须冻结一个公共产物协议：
+
+```yaml
+_intent_contract:
+  artifact_protocol:
+    schema_version: 1
+    protocol_id: project-note-v1
+    observations:
+      - observation_id: graph-size
+        commitment_ids: [C1]
+        locator: "基础指标表中名为 graph_size 的行"
+        value_encoding: "十进制非负整数"
+```
+
+- 协议是 Intent Contract 的一部分，不是仓库名/格式关键词分支；
+- 每条公开承诺必须被至少一个 observation 覆盖，未知承诺、重复 observation ID
+  或空 locator/value encoding 都在冻结前拒绝；
+- locator 与编码规则可以公开给 Agent 和用户，因为它们只描述观察语法；
+- 协议不得含任何样例真值、held-out 输入、golden 内容或私有路径；
+- reference 必须按协议渲染，独立 verifier 必须按协议定位并复算，但 verifier
+  仍不能读取 reference 源码或 golden；
+- 冻结历史合同可继续加载为 `artifact_protocol=None`，不得回填；语义修复使用
+  新 task version。
 
 ## 四、样例三层细则([G2] 落地)
 
@@ -233,8 +273,8 @@ v1 不生成这一新校验;其历史 oracle 与重放语义保持不变。
 ### 第二层:上游行为一致性(M2-e 实施定稿)
 
 从上游自带测试套件确定性选取与目标能力相关的子集(`intake/
-upstream_conformance.select_upstream_tests`:关键词命中排序、上限、
-不硬凑),证明"pinned 版本在本环境行为正常"——它验的是上游与环境,
+upstream_conformance.select_upstream_tests`:reference 限定调用路径的结构
+命中排序、上限、不硬凑),证明"pinned 版本在本环境行为正常"——它验的是上游与环境,
 不是 wrapper。
 
 > **执行时机(html2md 彩排实测倒逼)**:落在 **materialize 期预检**
@@ -243,6 +283,12 @@ upstream_conformance.select_upstream_tests`:关键词命中排序、上限、
 > agent 的 lock 责任,S0 态骨架 venv 里没有它,收集必崩;若让 harness
 > 预装上游,replay"从 agent 自锁 lock 重建"的执法点被打穿。run 期的
 > 上游健康由 agent 装完后的 oracle 自然覆盖。
+
+执行时保留 test root 的真实大小写并从该目录启动 pytest，使仓库自带 fixture
+可见；上游 import 仍来自隔离环境里按 lock 安装的精确 wheel。Git checkout
+只承担 commit/tree/provenance 身份，不得用 `PYTHONPATH` 遮蔽已安装 wheel。
+analysis checkout 升格为 pinned checkout 时必须保留 tracked symlink，否则
+工作树文件类型漂移并在 fresh audit 前 fail closed。
 
 ### 第三层:接口契约检查(装配器自动生成,进 regression)
 

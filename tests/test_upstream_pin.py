@@ -11,11 +11,13 @@ controls 锁 / 备轮不下上游 / positive 彩排不预装)→ `import <上游
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 from repoproof.adoption.intake.upstream_pin import (
     derive_reference_lock,
     normalize_dist_name,
+    reference_lock_from_checkout,
     upstream_version,
 )
 
@@ -57,6 +59,217 @@ def test_dynamic_version_is_not_guessed(tmp_path: Path):
     assert derive_reference_lock(
         tmp_path, distribution="x",
         resolved_commit=_COMMIT) == ""
+
+
+def _tagged_dynamic_tree(
+    project_root: Path,
+    *,
+    tag: str | None,
+    distribution: str = "Pint",
+) -> tuple[Path, str]:
+    staging = project_root / "staging"
+    staging.mkdir(parents=True)
+    (staging / "pyproject.toml").write_text(
+        f'[project]\nname = "{distribution}"\ndynamic = ["version"]\n',
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "init", "--quiet", str(staging)], check=True)
+    subprocess.run(["git", "-C", str(staging), "add", "pyproject.toml"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(staging),
+            "-c",
+            "user.name=RepoProof Test",
+            "-c",
+            "user.email=repoproof@example.invalid",
+            "commit",
+            "--quiet",
+            "-m",
+            "fixture",
+        ],
+        check=True,
+    )
+    commit = subprocess.run(
+        ["git", "-C", str(staging), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    if tag is not None:
+        subprocess.run(["git", "-C", str(staging), "tag", tag], check=True)
+    target = project_root / "upstream-cache" / f"upstream-{commit[:12]}"
+    target.parent.mkdir(parents=True)
+    staging.replace(target)
+    return target, commit
+
+
+def test_dynamic_version_uses_release_tag_bound_to_frozen_commit(tmp_path: Path):
+    _upstream, commit = _tagged_dynamic_tree(tmp_path, tag="0.25.3")
+
+    lock = derive_reference_lock(
+        tmp_path,
+        distribution="Pint",
+        resolved_commit=commit,
+        requested_revision="0.25.3",
+    )
+
+    assert "Pint==0.25.3" in lock
+
+
+def test_shallow_fetch_head_tag_is_bound_without_persistent_tag_ref(tmp_path: Path):
+    upstream, commit = _tagged_dynamic_tree(tmp_path, tag="0.25.3")
+    subprocess.run(
+        ["git", "-C", str(upstream), "tag", "--delete", "0.25.3"],
+        capture_output=True,
+        check=True,
+    )
+    (upstream / ".git" / "FETCH_HEAD").write_text(
+        f"{commit}\t\ttag '0.25.3' of https://github.com/example/pint\n",
+        encoding="utf-8",
+    )
+
+    lock = derive_reference_lock(
+        tmp_path,
+        distribution="Pint",
+        resolved_commit=commit,
+        requested_revision="0.25.3",
+    )
+
+    assert "Pint==0.25.3" in lock
+
+
+def test_distribution_prefixed_release_tag_is_supported_without_keywords(
+    tmp_path: Path,
+):
+    _upstream, commit = _tagged_dynamic_tree(
+        tmp_path,
+        tag="networkx-3.6.1",
+        distribution="networkx",
+    )
+
+    lock = derive_reference_lock(
+        tmp_path,
+        distribution="networkx",
+        resolved_commit=commit,
+        requested_revision="networkx-3.6.1",
+    )
+
+    assert "networkx==3.6.1" in lock
+
+
+def test_analysis_checkout_can_bootstrap_lock_before_formal_cache_exists(
+    tmp_path: Path,
+):
+    checkout, commit = _tagged_dynamic_tree(
+        tmp_path,
+        tag="networkx-3.6.1",
+        distribution="networkx",
+    )
+    assert not (tmp_path / "fresh" / "upstream-cache").exists()
+
+    lock = reference_lock_from_checkout(
+        checkout,
+        distribution="networkx",
+        resolved_commit=commit,
+        requested_revision="networkx-3.6.1",
+    )
+
+    assert "networkx==3.6.1" in lock
+
+
+def test_intake_persists_bootstrap_lock_into_new_draft_bundle(tmp_path: Path):
+    from repoproof.adoption.intake.tool_confirm import write_draft_bundle
+    from repoproof.adoption.intake.tool_intake import run_tool_intake
+
+    checkout, _commit = _tagged_dynamic_tree(
+        tmp_path,
+        tag="networkx-3.6.1",
+        distribution="networkx",
+    )
+    report = run_tool_intake(
+        "https://github.com/example/networkx",
+        "整理一份关系摘要",
+        cache_root=tmp_path / "analysis-cache",
+        revision="networkx-3.6.1",
+        local_path=checkout,
+    )
+    bundle = write_draft_bundle(report, tmp_path / "draft")
+
+    assert (bundle / "reference.lock.txt").read_text(encoding="utf-8").endswith(
+        "networkx==3.6.1\n"
+    )
+
+
+def test_versionish_revision_without_matching_tag_is_not_trusted(tmp_path: Path):
+    _upstream, commit = _tagged_dynamic_tree(tmp_path, tag=None)
+
+    assert derive_reference_lock(
+        tmp_path,
+        distribution="Pint",
+        resolved_commit=commit,
+        requested_revision="0.25.3",
+    ) == ""
+
+
+def test_release_tag_for_another_commit_is_not_trusted(tmp_path: Path):
+    upstream, first_commit = _tagged_dynamic_tree(tmp_path, tag="0.25.3")
+    (upstream / "README.md").write_text("next\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(upstream), "add", "README.md"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(upstream),
+            "-c",
+            "user.name=RepoProof Test",
+            "-c",
+            "user.email=repoproof@example.invalid",
+            "commit",
+            "--quiet",
+            "-m",
+            "next",
+        ],
+        check=True,
+    )
+    second_commit = subprocess.run(
+        ["git", "-C", str(upstream), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert second_commit != first_commit
+    target = tmp_path / "upstream-cache" / f"upstream-{second_commit[:12]}"
+    upstream.replace(target)
+
+    assert derive_reference_lock(
+        tmp_path,
+        distribution="Pint",
+        resolved_commit=second_commit,
+        requested_revision="0.25.3",
+    ) == ""
+
+
+def test_dynamic_version_uses_pinned_import_literal_without_execution(
+    tmp_path: Path,
+) -> None:
+    up = _tree(tmp_path, '[project]\nname = "x"\ndynamic = ["version"]\n')
+    package = up / "src" / "x"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text(
+        '__version__ = "2.4.1"\nraise RuntimeError("must not execute")\n',
+        encoding="utf-8",
+    )
+
+    assert upstream_version(up, import_module="x") == "2.4.1"
+    lock = derive_reference_lock(
+        tmp_path,
+        distribution="x",
+        resolved_commit=_COMMIT,
+        import_module="x",
+    )
+    assert "x==2.4.1" in lock
 
 
 def test_derived_lock_carries_the_pin_and_its_provenance(tmp_path: Path):
@@ -188,19 +401,66 @@ def test_user_owned_source_fields_are_editable_in_the_ui():
 # ---------------- 保存不许把起草成果抹白(2026-08-28 用户截图实录) ----------------
 
 def _managed_draft(tmp_path: Path, monkeypatch, *, summary: str) -> Path:
+    import yaml
+
+    from repoproof.adoption.delivery.product_profile import product_delivery_profile
+    from repoproof.adoption.intake.intent_contract import (
+        install_artifact_protocol,
+        install_delivery_intent_from_interface,
+        install_semantic_commitments,
+        new_intent_contract,
+    )
     from repoproof.ui.services import product_jobs
 
     state = tmp_path / "state"
     draft = state / "drafts" / "d"
     (draft / "examples").mkdir(parents=True)
+    output_format, output_contract = product_delivery_profile().contract_for("json")
+    document = {
+        "_delivery_profile": {"schema_version": 1, "profile_id": "cli_v2"},
+        "_intent_contract": new_intent_contract("整理输入并返回 JSON"),
+        "tool": {
+            "schema_version": 3,
+            "name": "demo-tool",
+            "summary": summary,
+            "interface": {
+                "input": {"kind": "file", "format": "TEXT"},
+                "output": {
+                    "kind": "stdout",
+                    "format": output_format,
+                    "contract": output_contract.model_dump(mode="json"),
+                },
+            },
+        },
+        "capability": {"statement": "", "output_schema": "DemoOut"},
+        "source_repo": {
+            "url": "https://github.com/example/webcolors",
+            "distribution": "webcolors",
+            "import_module": "webcolors",
+            "resolved_commit": _COMMIT,
+            "license": "BSD-3-Clause",
+        },
+    }
+    install_delivery_intent_from_interface(document, profile_id="cli_v2")
+    install_semantic_commitments(document, [{
+        "commitment_id": "produce-json",
+        "public_text": "把一个本地文件整理为确定性的 JSON 结果。",
+        "rationale": "保存审核页回归夹具的公开行为。",
+    }])
+    install_artifact_protocol(document, {
+        "schema_version": 1,
+        "protocol_id": "json-result-v1",
+        "observations": [{
+            "observation_id": "json-document",
+            "commitment_ids": ["produce-json"],
+            "locator": "完整 JSON 根文档",
+            "value_encoding": "UTF-8 JSON 文档",
+        }],
+    })
     (draft / "draft.yaml").write_text(
-        "tool:\n  name: demo-tool\n"
-        f"  summary: {summary}\n"
-        "  interface:\n    input: {format: TEXT}\n"
-        "    output: {format: JSON}\n"
-        "capability:\n  statement: 原有的能力陈述\n  output_schema: DemoOut\n"
-        "source_repo:\n  distribution: webcolors\n"
-        f"  resolved_commit: {_COMMIT}\n", encoding="utf-8")
+        yaml.safe_dump(document, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
     (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
     (draft / "reference_impl.py").write_text("# demo\n", encoding="utf-8")
     monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
@@ -237,6 +497,6 @@ def test_save_still_accepts_a_real_edit(tmp_path: Path, monkeypatch):
     got = product_jobs.save_draft_review(
         draft, tool_name="demo-tool", summary="新摘要", statement="新的能力陈述",
         input_format="TEXT", output_format="JSON", output_schema="DemoOut",
-        reference_impl="# demo\n")
+        reference_impl="# demo\n", semantic_commitments=["新的能力陈述"])
     assert got.get("ok"), got
     assert "新摘要" in (draft / "draft.yaml").read_text(encoding="utf-8")

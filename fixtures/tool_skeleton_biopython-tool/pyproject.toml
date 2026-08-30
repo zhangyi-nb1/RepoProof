@@ -1,0 +1,8 @@
+[project]
+name = "biopython_tool"
+version = "1.0.0"
+description = '将单份原始 FASTQ 测序读段文件离线解析为自包含 HTML 质量概览报告。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,3 @@
+# 由钉版上游树声明版本派生(commit b7aae3b2069c);
+# 草稿束写了 reference.lock.txt 时以你写的为准。
+rispy==0.10.0

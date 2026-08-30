@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -98,6 +101,76 @@ def test_product_job_state_v2_is_atomic_and_records_success(
     assert state["artifact_after"]["sha256"]
     assert state["ok"] and state["finished"] and not state["alive"]
     assert not list(state_path.parent.glob(f".{state_path.name}.*.tmp"))
+
+
+def test_terminal_job_binds_structured_result_hash(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _product_world(tmp_path, monkeypatch)
+    artifact = tmp_path / "tool.json"
+    source = (
+        "import json,sys; from pathlib import Path; "
+        "Path(sys.argv[1]).write_text('tool', encoding='utf-8'); "
+        "job_id=sys.argv[sys.argv.index('--job-id')+1]; "
+        "result=Path(sys.argv[sys.argv.index('--result-json')+1]); "
+        "result.write_text(json.dumps({'schema_version':1,'job_id':job_id,"
+        "'action':'tool-build','ok':True}), encoding='utf-8')"
+    )
+    started = product_jobs._start_product_job(
+        [sys.executable, "-c", source, str(artifact)],
+        kind="tool-build",
+        label="result binding",
+        expected_artifact=artifact,
+    )
+    assert started["ok"]
+    state = _wait_product()
+    result_path = Path(state["result_json"])
+    assert state["status"] == SUCCEEDED
+    assert state["result_json_sha256"] == hashlib.sha256(
+        result_path.read_bytes()
+    ).hexdigest()
+    assert product_jobs.product_job_action_result(state)["ok"] is True
+
+    payload = json.loads(result_path.read_text(encoding="utf-8"))
+    payload["ok"] = False
+    result_path.write_text(json.dumps(payload), encoding="utf-8")
+    replaced = product_jobs.product_job_action_result(state)
+    assert replaced["ok"] is False
+    assert replaced["error_code"] == "ACTION_RESULT_HASH_MISMATCH"
+
+
+def test_completed_durable_worker_is_reaped_by_long_lived_launcher(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A terminal Studio job must not accumulate a zombie worker."""
+
+    _product_world(tmp_path, monkeypatch)
+    artifact = tmp_path / "reaped.json"
+    started = product_jobs._start_product_job(
+        _python_write(artifact),
+        kind="tool-build",
+        label="reaper probe",
+        expected_artifact=artifact,
+    )
+    assert started["ok"]
+    assert _wait_product()["status"] == SUCCEEDED
+
+    deadline = time.monotonic() + 5
+    worker_state = ""
+    while time.monotonic() < deadline:
+        result = subprocess.run(
+            ["ps", "-p", str(started["pid"]), "-o", "stat="],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        worker_state = result.stdout.strip()
+        if result.returncode != 0 or not worker_state:
+            break
+        time.sleep(0.02)
+    assert not worker_state, f"durable worker was not reaped: {worker_state}"
 
 
 def test_nonzero_exit_never_succeeds_even_when_artifact_exists(
@@ -234,7 +307,7 @@ def test_studio_job_blocks_lab_run_with_shared_repo_mutex(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root, _state_root = _product_world(tmp_path, monkeypatch)
+    root, state_root = _product_world(tmp_path, monkeypatch)
     artifact = tmp_path / "studio-result.json"
     started = product_jobs._start_product_job(
         _python_write(artifact, delay=0.5),
@@ -267,7 +340,7 @@ def test_studio_job_blocks_lab_sync_mutation_and_export(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root, _state_root = _product_world(tmp_path, monkeypatch)
+    root, state_root = _product_world(tmp_path, monkeypatch)
     artifact = tmp_path / "studio-sync-result.json"
     assert product_jobs._start_product_job(
         _python_write(artifact, delay=0.5),
@@ -572,6 +645,11 @@ def test_rehearsal_expected_artifact_uses_assembler_version_preview(
         return {"ok": True}
 
     monkeypatch.setattr(product_jobs, "_start_product_job", _capture)
+    monkeypatch.setattr(
+        product_jobs,
+        "_core_draft_readiness",
+        lambda *_args, **_kwargs: SimpleNamespace(ready=True),
+    )
     result = product_jobs.start_tool_build(
         draft_dir=draft_dir,
         dest_root=tmp_path / "tools",
@@ -588,7 +666,7 @@ def test_frozen_task_can_resume_zero_model_rehearsal(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    root, _state_root = _product_world(tmp_path, monkeypatch)
+    root, state_root = _product_world(tmp_path, monkeypatch)
     task_id = "tool-alpha-tool-v1"
     contracts = root / "contracts"
     contracts.mkdir()
@@ -611,8 +689,29 @@ def test_frozen_task_can_resume_zero_model_rehearsal(
 
     assert result["ok"]
     assert "--rehearsal-only" in captured["argv"]
-    assert captured["expected_artifact"] == contracts / f"{task_id}.yaml"
+    assert captured["expected_artifact"] is None
+    assert captured["expected_action_result"] is True
     assert captured["metadata"]["journey_stage"] == 3
+
+    draft = state_root / "drafts" / "alpha"
+    draft.mkdir(parents=True)
+    (draft / "draft.yaml").write_text("tool: {name: alpha-tool}\n")
+    (draft / "reference_impl.py").write_text(
+        "def extract(path):\n    return path.read_text()\n",
+        encoding="utf-8",
+    )
+    (draft / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+    (draft / "examples").mkdir()
+    captured.clear()
+    result = product_jobs.start_tool_build_real(
+        task_id,
+        tmp_path / "tools",
+        rehearsal_only=True,
+        draft_dir=draft,
+    )
+    assert result["ok"]
+    assert "--draft-dir" in captured["argv"]
+    assert str(draft) in captured["argv"]
 
     captured.clear()
     result = product_jobs.start_tool_build_real(

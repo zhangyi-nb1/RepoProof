@@ -6,6 +6,7 @@ import pytest
 
 from repoproof.adoption.delivery.product_profile import (
     ProductProfileError,
+    delivery_requirements_json_schema,
     product_delivery_profile,
     project_requirement_brief,
 )
@@ -16,6 +17,7 @@ def _requirements(
     output_format_id: str = "plain_text",
     input_kind: str = "file",
     input_location: str = "local",
+    input_representation: str = "utf8_text",
     output_kind: str = "text_artifact",
     network: str = "offline",
     credentials: str = "none",
@@ -26,6 +28,7 @@ def _requirements(
         "inputs": [{
             "kind": input_kind,
             "location": input_location,
+            "representation": input_representation,
             "format_label": "Source",
             "role": "material to process",
         }],
@@ -52,6 +55,11 @@ def test_every_registered_text_artifact_round_trips_through_the_profile() -> Non
         assert requirements.outputs[0].format_id == artifact.format_id
         assert admitted == artifact
         format_name, contract = profile.contract_for(artifact.format_id)
+        if artifact.root_type == "text":
+            assert contract.validation_profile == artifact.validation_profile
+            assert contract.validation_profile is not None
+        else:
+            assert contract.validation_profile is None
         assert profile.assert_compiled_output(
             format_id=artifact.format_id,
             format_name=format_name,
@@ -63,9 +71,56 @@ def test_every_registered_text_artifact_round_trips_through_the_profile() -> Non
         ) == artifact
 
 
+def test_input_representation_is_typed_not_inferred_from_format_words() -> None:
+    profile = product_delivery_profile()
+    text_requirements, _ = profile.admit_requirements(
+        _requirements(input_representation="utf8_text")
+    )
+    binary_requirements, _ = profile.admit_requirements(
+        _requirements(input_representation="binary")
+    )
+    assert text_requirements.inputs[0].representation == "utf8_text"
+    assert binary_requirements.inputs[0].representation == "binary"
+
+    # Compatibility parsing retains the historical default, while the schema
+    # shown to every new drafter makes the choice explicit.
+    legacy = _requirements()
+    legacy["inputs"][0].pop("representation")
+    parsed, _ = profile.admit_requirements(legacy)
+    assert parsed.inputs[0].representation == "utf8_text"
+    input_schema = delivery_requirements_json_schema()["properties"]["inputs"]["items"]
+    assert "representation" in input_schema["required"]
+    description = input_schema["properties"]["representation"]["description"]
+    assert "file input kind alone never implies binary" in description.lower()
+    assert "meaningful unicode text serialization" in description.lower()
+
+
+def test_output_selection_ignores_format_and_repository_words_in_prose() -> None:
+    """Only the typed format_id may select a delivery representation."""
+
+    raw = _requirements(output_format_id="plain_text")
+    raw["inputs"][0]["format_label"] = "FASTQ GraphML RIS TSV source"
+    raw["inputs"][0]["role"] = "material recommended for several libraries"
+    raw["outputs"][0]["format_label"] = "RIS TSV Markdown HTML JSON"
+    raw["outputs"][0]["role"] = "make something useful for my work"
+
+    requirements, artifact = product_delivery_profile().admit_requirements(raw)
+
+    assert requirements.outputs[0].format_id == "plain_text"
+    assert artifact.format_id == "plain_text"
+    assert artifact.media_type == "text/plain"
+
+
 def test_required_fields_are_a_property_of_the_artifact_not_model_prose() -> None:
     profile = product_delivery_profile()
     fields = [{"name": "count", "type": "integer"}]
+
+    prompt_artifacts = {
+        row["format_id"]: row
+        for row in profile.prompt_context()["output"]["allowed_artifacts"]
+    }
+    assert prompt_artifacts["markdown"]["allows_required_fields"] is False
+    assert prompt_artifacts["json_object"]["allows_required_fields"] is True
 
     _, object_contract = profile.contract_for(
         "json_object", required_fields=fields

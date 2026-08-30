@@ -1,0 +1,8 @@
+[project]
+name = "rispy_tool"
+version = "1.0.0"
+description = '离线将 UTF-8 RIS 文献导出按完全相同的解析记录去重，并生成可重新导入文献软件的 RIS 文件。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <graph id="D" edgedefault="directed">
+    <node id="alpha"/>
+    <node id="beta"/>
+    <node id="gamma"/>
+    <node id="solo"/>
+    <edge id="e0" source="alpha" target="beta"/>
+    <edge id="e1" source="alpha" target="beta"/>
+    <edge id="e2" source="beta" target="gamma"/>
+  </graph>
+</graphml>

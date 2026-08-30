@@ -225,7 +225,8 @@ def _prepare_upgrade_world(
     contract = SimpleNamespace(
         task_family="LOCAL-TOOL",
         task_id="tool-alpha-v2",
-        tool=SimpleNamespace(name="alpha"),
+        tool=SimpleNamespace(name="alpha", schema_version=1),
+        acceptance=SimpleNamespace(semantic_verifier=None),
         source_repo=SimpleNamespace(
             url="https://example.invalid/tool.git",
             resolved_commit="c",
@@ -544,6 +545,11 @@ def test_audit_build_revalidates_package_before_executing_launcher(
     assert result["ok"] is False
     assert result["operational_status"] == REVOKED
     assert result["reason_code"] == "BUILD_FAILED"
+    assert result["failure_owner"] == "HARNESS"
+    assert result["failure_stage"] == "BUILD"
+    assert result["failure_class"] == "HARNESS_ENVIRONMENT"
+    assert result["retry_policy"] == "RETRY_AFTER_ENVIRONMENT_REPAIR"
+    assert result["requires_new_task_version"] is False
     assert not external_effect.exists()
     assert load_release_decisions(dest_root)[-1]["decision"] == REVOKED
 
