@@ -1,0 +1,8 @@
+[project]
+name = "rispy_screening_table"
+version = "1.0.0"
+description = '把 UTF-8 RIS 按 rispy 解析顺序且不去重地整理为固定列的团队筛选 CSV，并标出 title、authors、year、doi 的空项。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

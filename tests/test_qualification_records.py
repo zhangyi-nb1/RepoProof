@@ -12,6 +12,7 @@ from repoproof.persistence.qualification_records import (
     QualificationCaseResultV1,
     QualificationExecutionRecordV1,
     QualificationRecordError,
+    qualification_framework_tree_sha256,
     write_qualification_record,
 )
 from repoproof.verification.semantic_artifact import (
@@ -166,3 +167,25 @@ def test_symlink_record_root_is_rejected(tmp_path: Path) -> None:
     linked.symlink_to(outside, target_is_directory=True)
     with pytest.raises(QualificationRecordError, match="unsafe"):
         write_qualification_record(linked, _record())
+
+
+def test_framework_tree_fingerprint_is_path_and_content_bound(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "repoproof"
+    (package / "nested").mkdir(parents=True)
+    (package / "a.py").write_text("A = 1\n", encoding="utf-8")
+    (package / "nested" / "b.py").write_text("B = 2\n", encoding="utf-8")
+    (package / "ignored.txt").write_text("not executable source\n", encoding="utf-8")
+
+    first = qualification_framework_tree_sha256(package)
+    assert first == qualification_framework_tree_sha256(package)
+    (package / "ignored.txt").write_text("changed\n", encoding="utf-8")
+    assert qualification_framework_tree_sha256(package) == first
+    (package / "nested" / "b.py").write_text("B = 3\n", encoding="utf-8")
+    assert qualification_framework_tree_sha256(package) != first
+
+    linked = tmp_path / "linked-package"
+    linked.symlink_to(package, target_is_directory=True)
+    with pytest.raises(QualificationRecordError, match="unsafe"):
+        qualification_framework_tree_sha256(linked)

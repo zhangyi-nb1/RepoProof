@@ -1064,9 +1064,10 @@ source_repo:
     assert "工具名" in text_inputs
     assert "固定依赖锁（每行一个 包名==精确版本）" in text_areas
     assert "可执行输出合同" in text_areas
+    assert "公开产物定位协议（JSON）" in text_areas
     assert "上游参考实现（必须真实 import 固定版本）" in text_areas
     assert any(
-        expander.label == "高级：reference 与独立 verifier 源码"
+        expander.label == "高级：产物协议、reference 与独立 verifier"
         for expander in at.expander
     )
     assert any(metric.label == "独立语义验证器" for metric in at.metric)

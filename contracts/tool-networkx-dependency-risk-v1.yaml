@@ -1,0 +1,51 @@
+task_id: tool-networkx-dependency-risk-v1
+
+source_repo:
+  url: https://github.com/networkx/networkx
+  revision: guided
+  resolved_commit: 7530809bfa1ea7ed6fdf918a4d1431488953cb1f
+  license: BSD
+  distribution: networkx
+  import_module: networkx
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_networkx-dependency-risk
+  package: networkx_dependency_risk
+  entry_point: networkx-dependency-risk
+
+requirement_spec_file: tool-networkx-dependency-risk-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 3, "name": "networkx-dependency-risk", "summary": "将任务依赖 CSV 转成可粘贴到表格软件的确定性 TSV 风险清单，标出直接依赖、直接后继、下游影响、可开工状态与循环。", "interface": {"usage": "networkx-dependency-risk <input> [--out FILE]", "input": {"kind": "file", "format": "CSV 任务依赖表", "contract": null}, "output": {"kind": "stdout", "format": "TSV", "contract": {"media_type": "text/tab-separated-values", "root_type": "text", "required": {}, "validation_profile": "tsv_table_v1"}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: "用户目标：把一份 CSV 的任务依赖表整理成能粘进表格软件的风险清单，告诉我哪些可以先做、哪些成环、每个任务直接依赖和影响多少后续；不需要画图，也不要用随机算法。\n公开行为承诺：\n- [task-universe-and-order] 输入是 UTF-8 CSV，表头必须依次为 task、depends_on，每行恰有两列且 task 非空；空 depends_on 只声明独立任务，非空 depends_on 建立 depends_on 指向 task 的边。工具使用固定版本 NetworkX 的 DiGraph，重复边按一条边处理；所有在 task 或非空 depends_on 中出现的任务各输出一行，按 Python 字符串的 Unicode 码点顺序升序，并用标准 TSV 转义。\n- [startable-status] 每行 direct_dependencies 等于该任务在 NetworkX DiGraph 中的入度；ready_now 仅当该入度为 0 时为 true，否则为 false。\n- [cycle-status-and-group] 每行 in_cycle 仅当该任务属于多节点强连通分量，或存在指向自身的 self-loop 时为 true，否则为 false；判定使用固定版本 NetworkX 的 strongly_connected_components 与图边语义。\n- [direct-dependencies] 每行 direct_dependents 等于该任务在 NetworkX DiGraph 中的出度，即不同直接后继任务数；输出表头依次且仅为 task、direct_dependencies、direct_dependents、downstream_count、ready_now、in_cycle。\n- [downstream-impact] 每行 downstream_count 等于固定版本 NetworkX descendants 返回的不同可达后继任务数，不包含任务自身；不计算 PageRank、随机社区、布局或图片，也不进行网络请求。\n公开产物协议：\n- [tsv-header -> direct-dependencies] 定位：The first record parsed with the standard UTF-8 TSV grammar.；值表示：Exactly six text fields in order: task, direct_dependencies, direct_dependents, downstream_count, ready_now, in_cycle.\n- [task-row-catalog -> task-universe-and-order] 定位：All TSV data records after the header, especially field 0 and record order.；值表示：Exactly one standard-TSV-escaped row per NetworkX graph node, ordered by Python string Unicode code-point order.\n- [direct-degree-columns -> startable-status,direct-dependencies] 定位：Fields 1 and 2 of every data record.；值表示：Two non-negative ASCII decimal integers equal to pinned NetworkX in-degree and out-degree.\n- [downstream-column -> downstream-impact] 定位：Field 3 of every data record.；值表示：A non-negative ASCII decimal integer equal to the size of pinned NetworkX descendants for that task.\n- [readiness-and-cycle-flags -> startable-status,cycle-status-and-group] 定位：Fields 4 and 5 of every data record.；值表示：Exact lowercase ASCII true or false tokens for zero-in-degree readiness and SCC/self-loop cycle membership.\n统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。"
+  output_schema: "NetworkXDependencyRiskTsv"
+  intent_contract: {"schema_version": 1, "user_goal": "把一份 CSV 的任务依赖表整理成能粘进表格软件的风险清单，告诉我哪些可以先做、哪些成环、每个任务直接依赖和影响多少后续；不需要画图，也不要用随机算法。", "user_goal_sha256": "06008f9876dab50a391b6896407e7df7d4dbdfa793ae2919f2009e3fd0ae55b7", "commitments": [{"commitment_id": "task-universe-and-order", "public_text": "输入是 UTF-8 CSV，表头必须依次为 task、depends_on，每行恰有两列且 task 非空；空 depends_on 只声明独立任务，非空 depends_on 建立 depends_on 指向 task 的边。工具使用固定版本 NetworkX 的 DiGraph，重复边按一条边处理；所有在 task 或非空 depends_on 中出现的任务各输出一行，按 Python 字符串的 Unicode 码点顺序升序，并用标准 TSV 转义。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}, {"commitment_id": "startable-status", "public_text": "每行 direct_dependencies 等于该任务在 NetworkX DiGraph 中的入度；ready_now 仅当该入度为 0 时为 true，否则为 false。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}, {"commitment_id": "cycle-status-and-group", "public_text": "每行 in_cycle 仅当该任务属于多节点强连通分量，或存在指向自身的 self-loop 时为 true，否则为 false；判定使用固定版本 NetworkX 的 strongly_connected_components 与图边语义。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}, {"commitment_id": "direct-dependencies", "public_text": "每行 direct_dependents 等于该任务在 NetworkX DiGraph 中的出度，即不同直接后继任务数；输出表头依次且仅为 task、direct_dependencies、direct_dependents、downstream_count、ready_now、in_cycle。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}, {"commitment_id": "downstream-impact", "public_text": "每行 downstream_count 等于固定版本 NetworkX descendants 返回的不同可达后继任务数，不包含任务自身；不计算 PageRank、随机社区、布局或图片，也不进行网络请求。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}], "artifact_protocol": {"schema_version": 1, "protocol_id": "networkx-dependency-risk-tsv-v1", "observations": [{"observation_id": "tsv-header", "commitment_ids": ["direct-dependencies"], "locator": "The first record parsed with the standard UTF-8 TSV grammar.", "value_encoding": "Exactly six text fields in order: task, direct_dependencies, direct_dependents, downstream_count, ready_now, in_cycle."}, {"observation_id": "task-row-catalog", "commitment_ids": ["task-universe-and-order"], "locator": "All TSV data records after the header, especially field 0 and record order.", "value_encoding": "Exactly one standard-TSV-escaped row per NetworkX graph node, ordered by Python string Unicode code-point order."}, {"observation_id": "direct-degree-columns", "commitment_ids": ["startable-status", "direct-dependencies"], "locator": "Fields 1 and 2 of every data record.", "value_encoding": "Two non-negative ASCII decimal integers equal to pinned NetworkX in-degree and out-degree."}, {"observation_id": "downstream-column", "commitment_ids": ["downstream-impact"], "locator": "Field 3 of every data record.", "value_encoding": "A non-negative ASCII decimal integer equal to the size of pinned NetworkX descendants for that task."}, {"observation_id": "readiness-and-cycle-flags", "commitment_ids": ["startable-status", "cycle-status-and-group"], "locator": "Fields 4 and 5 of every data record.", "value_encoding": "Exact lowercase ASCII true or false tokens for zero-in-degree readiness and SCC/self-loop cycle membership."}]}, "delivery": {"profile_id": "cli_v2", "support_status": "SUPPORTED", "origin": "USER_EDITED", "requirements": {"inputs": [{"kind": "file", "location": "local", "representation": "utf8_text", "format_label": "CSV 任务依赖表", "role": "user-confirmed primary input"}], "outputs": [{"kind": "text_artifact", "format_id": "tsv", "format_label": "TSV 表格", "role": "user-confirmed primary artifact"}], "network": "offline", "credentials": "none", "lifecycle": "per_invocation", "runtime": "local_cpu"}, "admitted_output_format_id": "tsv"}, "confirmation": {"confirmed_by": "USER", "confirmed_at": "2026-08-30T18:25:18.797684Z", "semantics_sha256": "dcd1ba62fc9af933035e18492a0d41ed2d66f6dd80a6b9c3af1430f8203a59c4"}}
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py
+  semantic_verifier: {"protocol": "repoproof-semantic-verifier-v1", "verifier_id": "networkx-dependency-risk-semantic-v1", "source_file": "oracle/tool-networkx-dependency-risk-v1/semantic_verifier.py", "source_sha256": "e6188f6d8ea124bd3bdc34eb866ca61d924fa87d4ba20a50120ef9dd10e6466f", "required_for_operational_active": true}

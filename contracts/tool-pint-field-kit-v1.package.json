@@ -1,0 +1,47 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "public_tests/test_interface_contract.py"
+  ],
+  "collection_manifest_sha256": null,
+  "consumer_fixture_tree_sha256": "6285f38305654d187e2aafa129c6b2065a6c2d4907dc63da2d0cd5ab9bc2d916",
+  "contract_sha256": "93348759e610a99378382de4eb53cd55478ddecdc25cba58d73fa9a64d3c282f",
+  "controls_summary": null,
+  "environment_constraints": null,
+  "expected_capability_nodes": null,
+  "expected_regression_nodes": null,
+  "held_out_fixture_sha256": "bdf71f32716bdad3871708a50e515942e947258675bc19254ad86f147f06307a",
+  "image_digest": null,
+  "oracle_tree_sha256": "8e68c67aafe98393acbad4645e4e33143cc5b52d3c52d0c20f7e1b06d5c800e1",
+  "prompt_manifest_sha256": null,
+  "public_examples_sha256": null,
+  "public_fixture_sha256": "a51cb1df519f58a4dc491dc55f8dd5a1106bd753a1661d94d2c468fd507a3803",
+  "public_tests_tree_sha256": null,
+  "requirement_spec_sha256": null,
+  "responsibility_matrix": null,
+  "root_hash": "c39431144aec9129e682c11a9e00e3ab6f2a47f5ee15d97115bc8d89c19e8b97",
+  "source_commit": "5e79411e1be2dc39c52a536168338773b49fd512",
+  "source_git_tree_hash": "7049675edf0ef054d2f5955d2a9d446094872849",
+  "task_id": "tool-pint-field-kit-v1",
+  "wheelhouse_root": "7e5e39a2ac01dfb4dd790966e9f4ebe296249e6b183b1f6583b25a47deb76bde",
+  "wheelhouse_wheels": {
+    "flexcache-0.3-py3-none-any.whl": "d43c9fea82336af6e0115e308d9d33a185390b8346a017564611f1466dcd2e32",
+    "flexparser-0.4-py3-none-any.whl": "3738b456192dcb3e15620f324c447721023c0293f6af9955b481e91d00179846",
+    "iniconfig-2.3.0-py3-none-any.whl": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12",
+    "packaging-26.3-py3-none-any.whl": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+    "pint-0.25.3-py3-none-any.whl": "27eb25143bd5de9fcc4d5a4b484f16faf6b4615aa93ece6b3373a8c1a3c1b97d",
+    "platformdirs-4.11.5-py3-none-any.whl": "89f8d42695853b89c7170bd49bc3dc593f98a71e695ede88e06a3b247bc4563b",
+    "pluggy-1.6.0-py3-none-any.whl": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+    "pygments-2.21.0-py3-none-any.whl": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9",
+    "pytest-9.1.1-py3-none-any.whl": "37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c",
+    "setuptools-84.0.0-py3-none-any.whl": "51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670",
+    "typing_extensions-4.16.0-py3-none-any.whl": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+    "wheel-0.48.0-py3-none-any.whl": "3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab"
+  }
+}

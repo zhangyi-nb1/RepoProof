@@ -1,0 +1,45 @@
+{
+ "manifest_version": 1,
+ "name": "biopython-fasta-shortlist",
+ "version": "1.0.0",
+ "summary": "使用 Biopython 离线筛选多记录 FASTA，并生成可直接用于会议的确定性 Markdown 通过/未通过报告。",
+ "source": {
+  "url": "https://github.com/biopython/biopython",
+  "resolved_commit": "d7e4b8b19399668b09442a5b35765d9186b5f665",
+  "license": "BSD",
+  "distribution": "biopython"
+ },
+ "contract_schema_version": 3,
+ "interface": {
+  "usage": "biopython-fasta-shortlist <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "FASTA 候选 DNA 序列文本",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "Markdown",
+   "contract": {
+    "media_type": "text/markdown",
+    "root_type": "text",
+    "required": {},
+    "validation_profile": "markdown_document_v1"
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "DnaCandidateScreeningMarkdownReport"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

@@ -192,6 +192,16 @@ class CandidateExample(BaseModel):
     covered_commitment_ids: tuple[str, ...] = ()
     upstream_output: str | None = None
     upstream_error: str | None = None
+    # Local-only identity for an internal reference failure.  It is derived
+    # from the reference source identity and traceback code sites, never from
+    # the exception message or candidate bytes, and is excluded from browser
+    # projections.  Control repair may compare this value in memory but must
+    # never expose it as model feedback.
+    upstream_error_fingerprint: str | None = Field(
+        default=None,
+        exclude=True,
+        repr=False,
+    )
     upstream_output_truncated: bool = False
     confirmed: bool = False             # 只能经 confirm_candidate 翻
     expected_overridden: bool = False   # 人工改真值时不得冒充上游派生
@@ -237,6 +247,14 @@ class CandidateExample(BaseModel):
             raise ValueError("candidate admission reason codes are invalid")
         if len(self.admission_reason_codes) != len(set(self.admission_reason_codes)):
             raise ValueError("candidate admission reason codes must be unique")
+        if self.upstream_error_fingerprint is not None and (
+            self.upstream_error is None
+            or re.fullmatch(r"[0-9a-f]{64}", self.upstream_error_fingerprint)
+            is None
+        ):
+            raise ValueError(
+                "candidate internal error fingerprint requires one valid error"
+            )
         if self.admission_status == "ADMITTED" and (
             self.upstream_output is None
             or self.upstream_error is not None
@@ -811,7 +829,7 @@ def _sanitise_public_failed_attempts(rows: object) -> list[dict[str, str]]:
 # ------------------------------------------------- ② 候选输出(上游真跑)
 
 _RUNNER = r'''
-import json, sys, traceback
+import hashlib, json, sys, traceback
 from pathlib import Path
 
 ref_dir, payload_path = sys.argv[1], sys.argv[2]
@@ -837,8 +855,46 @@ for item in json.loads(Path(payload_path).read_text(encoding="utf-8")):
         else:
             out.append({"name": item["name"], "output": value})
     except BaseException as exc:
-        out.append({"name": item["name"],
-                    "error": f"{type(exc).__name__}: {exc}"[:800]})
+        # Compare failures by safe execution site rather than exception class
+        # alone.  Messages may contain input bytes, host paths or credentials,
+        # so neither the message nor a hash of it is part of this identity.
+        frames = []
+        cursor = exc.__traceback__
+        while cursor is not None:
+            code = cursor.tb_frame.f_code
+            frames.append({
+                "scope": (
+                    "reference"
+                    if Path(code.co_filename).name == "reference_impl.py"
+                    else "upstream"
+                ),
+                "function": code.co_name,
+                "line": cursor.tb_lineno,
+                "lasti": cursor.tb_lasti,
+            })
+            cursor = cursor.tb_next
+        reference_sha256 = hashlib.sha256(
+            (Path(ref_dir) / "reference_impl.py").read_bytes()
+        ).hexdigest()
+        fingerprint_doc = {
+            "phase": "extract",
+            "exception_module": type(exc).__module__,
+            "exception_type": type(exc).__qualname__,
+            "reference_sha256": reference_sha256,
+            "traceback_sites": frames,
+        }
+        fingerprint = hashlib.sha256(
+            json.dumps(
+                fingerprint_doc,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        out.append({
+            "name": item["name"],
+            "error": f"{type(exc).__name__}: {exc}"[:800],
+            "error_fingerprint": fingerprint,
+        })
 print(json.dumps({"results": out}))
 '''.replace("__OUTPUT_CAP__", str(_OUTPUT_CAP))
 
@@ -1429,6 +1485,11 @@ def run_reference_on_candidates(
 
         output = str(row["output"]) if row is not None and "output" in row else None
         error = str(row["error"]) if row is not None and "error" in row else None
+        error_fingerprint = (
+            str(row["error_fingerprint"])
+            if row is not None and "error_fingerprint" in row
+            else None
+        )
         result_kind = "output" if output is not None else "error"
         result_text = output if output is not None else str(error or "")
         evidence: CandidateTruthEvidence | None = None
@@ -1485,6 +1546,7 @@ def run_reference_on_candidates(
         evaluated = candidate.model_copy(update={
             "upstream_output": output,
             "upstream_error": error,
+            "upstream_error_fingerprint": error_fingerprint,
             "upstream_output_truncated": bool(
                 row.get("output_truncated") if row is not None else False
             ),

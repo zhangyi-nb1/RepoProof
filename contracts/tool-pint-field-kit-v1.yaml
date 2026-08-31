@@ -1,0 +1,51 @@
+task_id: tool-pint-field-kit-v1
+
+source_repo:
+  url: https://github.com/hgrecco/pint
+  revision: guided
+  resolved_commit: 5e79411e1be2dc39c52a536168338773b49fd512
+  license: BSD
+  distribution: Pint
+  import_module: pint
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_pint-field-kit
+  package: pint_field_kit
+  entry_point: pint-field-kit
+
+requirement_spec_file: tool-pint-field-kit-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 3, "name": "pint-field-kit", "summary": "将实验耗材 TSV 按组数与目标单位换算为可离线打开、逐行保留成功和稳定错误状态的现场准备单。", "interface": {"usage": "pint-field-kit <input> [--out FILE]", "input": {"kind": "file", "format": "TSV 准备单", "contract": null}, "output": {"kind": "stdout", "format": "HTML", "contract": {"media_type": "text/html", "root_type": "text", "required": {}, "validation_profile": "safe_self_contained_xhtml_v1"}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: "用户目标：把一份 TSV 准备单（item、per_group_amount、target_unit、groups）按每行组数算成现场可直接打开的离线网页；使用表里的目标单位换算，成功和失败都保留，换不了要说明，不要有联网资源、脚本或时间戳。\n公开行为承诺：\n- [table-columns] 输入是 UTF-8 TSV，表头必须依次为 item、per_group_amount、target_unit、groups，且每个数据行恰有四列。报告固定显示总行数、成功数和失败数，并包含一张明细表；明细表表头依次为 item、per_group_amount、groups、total_amount、status。\n- [row-preservation] TSV 的每个数据行都在明细表中生成且仅生成一行，保持输入顺序；行的 data-input-row 从 1 起连续编号，item、per_group_amount 和 groups 单元格逐字保留对应输入值。一行换算失败不得省略该行或阻止其他行进入报告。\n- [total-conversion] groups 必须仅由 ASCII 数字组成且十进制值大于零。工具使用固定版本 Pint 的 UnitRegistry 解析 per_group_amount，将其乘以 groups 后转换到该行非空的 target_unit。成功结果使用 Pint ~.6gP 格式，最多保留六位有效数字；不执行货币换算、外部单位查询或网络请求。\n- [successful-row] 成功行的 total_amount 是上述 Pint 转换和格式化得到的数量与单位，status 固定为 OK。报告中的成功数等于 status 为 OK 的明细行数，总行数等于输入数据行数。\n- [failed-row] 失败行的 total_amount 为空，status 只能是稳定错误码 INVALID_GROUPS、INVALID_QUANTITY、UNKNOWN_UNIT 或 DIMENSION_MISMATCH：groups 非 ASCII 正整数为 INVALID_GROUPS；数量或目标单位引用 Pint 未定义单位为 UNKNOWN_UNIT；已解析数量不能转换到目标量纲为 DIMENSION_MISMATCH；其他由该行数量语法、非有限数值、目标单位语法或数量运算引起的用户输入错误为 INVALID_QUANTITY。不得输出异常类名或异常文本；失败数等于这四种状态的行数。\n- [document-static] 交付物是确定性、自包含的 XHTML 文档，使用 XHTML 命名空间，固定包含 head、标题、汇总段落和明细表。只允许 html、head、meta、title、body、h1、p、table、thead、tbody、tr、th、td 元素，以及约定的 charset、id 和 data-input-row 属性；th 和 td 必须是无子元素的纯文本单元格。文档不含 DOCTYPE、实体、注释、额外处理指令、脚本、样式、链接、表单、外部资源、时间戳或生成时间，并对用户文本进行 XML 转义。\n公开产物协议：\n- [document-structure -> document-static] 定位：The XHTML root and its complete descendant element, attribute, text, tail, processing-instruction and comment structure.；值表示：An XML-parseable XHTML document in namespace http://www.w3.org/1999/xhtml with the exact static topology and attribute vocabulary defined by document-static.\n- [report-summary -> table-columns,successful-row,failed-row] 定位：XPath /*[local-name()='html']/*[local-name()='body']/*[local-name()='p' and @id='summary'].；值表示：Exact UTF-8 text 总行数：N；成功数：S；失败数：F, where N is the input data-row count, S is the number of OK rows, and F is the number of stable-error-code rows.\n- [table-header -> table-columns] 定位：XPath //*[local-name()='table' and @id='preparation-list']/*[local-name()='thead']/*[local-name()='tr']/*[local-name()='th'], in document order.；值表示：Exactly five leaf text cells: item, per_group_amount, groups, total_amount, status.\n- [input-rows -> row-preservation] 定位：XPath //*[local-name()='table' and @id='preparation-list']/*[local-name()='tbody']/*[local-name()='tr'], in document order.；值表示：Exactly one row per TSV data row; data-input-row is the consecutive ASCII integer starting at 1; every row contains exactly five leaf td cells.\n- [conversion-outcomes -> total-conversion,successful-row,failed-row] 定位：For every input-rows observation, inspect total_amount and status at zero-based cell positions 3 and 4.；值表示：OK rows contain the independently recomputed Pint ~.6gP result. Failure rows have an empty total_amount and exactly one of INVALID_GROUPS, INVALID_QUANTITY, UNKNOWN_UNIT, DIMENSION_MISMATCH.\n统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。"
+  output_schema: "PintFieldKitXhtml"
+  intent_contract: {"schema_version": 1, "user_goal": "把一份 TSV 准备单（item、per_group_amount、target_unit、groups）按每行组数算成现场可直接打开的离线网页；使用表里的目标单位换算，成功和失败都保留，换不了要说明，不要有联网资源、脚本或时间戳。", "user_goal_sha256": "c73e2384f48e5b089cf1dc9de6e8ad548e7c6544a29d6243564fadebd3bb9bb0", "commitments": [{"commitment_id": "table-columns", "public_text": "输入是 UTF-8 TSV，表头必须依次为 item、per_group_amount、target_unit、groups，且每个数据行恰有四列。报告固定显示总行数、成功数和失败数，并包含一张明细表；明细表表头依次为 item、per_group_amount、groups、total_amount、status。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}, {"commitment_id": "row-preservation", "public_text": "TSV 的每个数据行都在明细表中生成且仅生成一行，保持输入顺序；行的 data-input-row 从 1 起连续编号，item、per_group_amount 和 groups 单元格逐字保留对应输入值。一行换算失败不得省略该行或阻止其他行进入报告。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}, {"commitment_id": "total-conversion", "public_text": "groups 必须仅由 ASCII 数字组成且十进制值大于零。工具使用固定版本 Pint 的 UnitRegistry 解析 per_group_amount，将其乘以 groups 后转换到该行非空的 target_unit。成功结果使用 Pint ~.6gP 格式，最多保留六位有效数字；不执行货币换算、外部单位查询或网络请求。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}, {"commitment_id": "successful-row", "public_text": "成功行的 total_amount 是上述 Pint 转换和格式化得到的数量与单位，status 固定为 OK。报告中的成功数等于 status 为 OK 的明细行数，总行数等于输入数据行数。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}, {"commitment_id": "failed-row", "public_text": "失败行的 total_amount 为空，status 只能是稳定错误码 INVALID_GROUPS、INVALID_QUANTITY、UNKNOWN_UNIT 或 DIMENSION_MISMATCH：groups 非 ASCII 正整数为 INVALID_GROUPS；数量或目标单位引用 Pint 未定义单位为 UNKNOWN_UNIT；已解析数量不能转换到目标量纲为 DIMENSION_MISMATCH；其他由该行数量语法、非有限数值、目标单位语法或数量运算引起的用户输入错误为 INVALID_QUANTITY。不得输出异常类名或异常文本；失败数等于这四种状态的行数。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}, {"commitment_id": "document-static", "public_text": "交付物是确定性、自包含的 XHTML 文档，使用 XHTML 命名空间，固定包含 head、标题、汇总段落和明细表。只允许 html、head、meta、title、body、h1、p、table、thead、tbody、tr、th、td 元素，以及约定的 charset、id 和 data-input-row 属性；th 和 td 必须是无子元素的纯文本单元格。文档不含 DOCTYPE、实体、注释、额外处理指令、脚本、样式、链接、表单、外部资源、时间戳或生成时间，并对用户文本进行 XML 转义。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}], "artifact_protocol": {"schema_version": 1, "protocol_id": "pint-field-kit-xhtml-v1", "observations": [{"observation_id": "document-structure", "commitment_ids": ["document-static"], "locator": "The XHTML root and its complete descendant element, attribute, text, tail, processing-instruction and comment structure.", "value_encoding": "An XML-parseable XHTML document in namespace http://www.w3.org/1999/xhtml with the exact static topology and attribute vocabulary defined by document-static."}, {"observation_id": "report-summary", "commitment_ids": ["table-columns", "successful-row", "failed-row"], "locator": "XPath /*[local-name()='html']/*[local-name()='body']/*[local-name()='p' and @id='summary'].", "value_encoding": "Exact UTF-8 text 总行数：N；成功数：S；失败数：F, where N is the input data-row count, S is the number of OK rows, and F is the number of stable-error-code rows."}, {"observation_id": "table-header", "commitment_ids": ["table-columns"], "locator": "XPath //*[local-name()='table' and @id='preparation-list']/*[local-name()='thead']/*[local-name()='tr']/*[local-name()='th'], in document order.", "value_encoding": "Exactly five leaf text cells: item, per_group_amount, groups, total_amount, status."}, {"observation_id": "input-rows", "commitment_ids": ["row-preservation"], "locator": "XPath //*[local-name()='table' and @id='preparation-list']/*[local-name()='tbody']/*[local-name()='tr'], in document order.", "value_encoding": "Exactly one row per TSV data row; data-input-row is the consecutive ASCII integer starting at 1; every row contains exactly five leaf td cells."}, {"observation_id": "conversion-outcomes", "commitment_ids": ["total-conversion", "successful-row", "failed-row"], "locator": "For every input-rows observation, inspect total_amount and status at zero-based cell positions 3 and 4.", "value_encoding": "OK rows contain the independently recomputed Pint ~.6gP result. Failure rows have an empty total_amount and exactly one of INVALID_GROUPS, INVALID_QUANTITY, UNKNOWN_UNIT, DIMENSION_MISMATCH."}]}, "delivery": {"profile_id": "cli_v2", "support_status": "SUPPORTED", "origin": "USER_EDITED", "requirements": {"inputs": [{"kind": "file", "location": "local", "representation": "utf8_text", "format_label": "TSV 准备单", "role": "user-confirmed primary input"}], "outputs": [{"kind": "text_artifact", "format_id": "html", "format_label": "自包含 HTML 报告", "role": "user-confirmed primary artifact"}], "network": "offline", "credentials": "none", "lifecycle": "per_invocation", "runtime": "local_cpu"}, "admitted_output_format_id": "html"}, "confirmation": {"confirmed_by": "USER", "confirmed_at": "2026-08-30T17:56:54.846456Z", "semantics_sha256": "4633d74d1df4543d3e68c6e31624c217c6220a5805caec5efdb8da16746bb874"}}
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py
+  semantic_verifier: {"protocol": "repoproof-semantic-verifier-v1", "verifier_id": "pint-field-kit-semantic-v1", "source_file": "oracle/tool-pint-field-kit-v1/semantic_verifier.py", "source_sha256": "cba18cc734aed1893a06d121d2780f9941948c530f6e94d1297119ca1b8731ed", "required_for_operational_active": true}

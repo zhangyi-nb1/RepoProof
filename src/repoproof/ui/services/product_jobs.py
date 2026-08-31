@@ -20,6 +20,7 @@ import tempfile
 import time
 import uuid
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -39,6 +40,7 @@ from repoproof.adoption.intake.draft_readiness import (
 from repoproof.adoption.intake.intent_contract import (
     IntentContractDraftV1,
     IntentContractError,
+    install_artifact_protocol,
     install_delivery_intent_from_interface,
     invalidate_intent_confirmation,
     replace_delivery_input_representation,
@@ -56,6 +58,9 @@ from repoproof.execution.core_execution import (
     start_durable_job,
 )
 from repoproof.execution.product_action import read_product_action_result_with_sha256
+from repoproof.persistence.qualification_records import (
+    qualification_framework_tree_sha256,
+)
 from repoproof.runner.tool_paths import (
     ToolPathError,
     canonical_tool_path,
@@ -67,6 +72,7 @@ from repoproof.ui.services.product_mode import ui_state_root
 
 PRODUCT_LOCK = "product-job.json"
 _EXACT_PIN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*==[A-Za-z0-9][A-Za-z0-9._+!-]*")
+_CONTROL_REPAIR_MARKER = ".repoproof-control-repair.incomplete"
 
 
 def _product_source_tree_sha256(root: Path | None = None) -> str:
@@ -78,18 +84,8 @@ def _product_source_tree_sha256(root: Path | None = None) -> str:
     signature check: semantic-only edits must also force a process restart.
     """
 
-    package_root = Path(root or Path(__file__).resolve().parents[2]).resolve()
-    digest = hashlib.sha256()
-    for path in sorted(package_root.rglob("*.py")):
-        if not path.is_file() or path.is_symlink():
-            continue
-        relative = path.relative_to(package_root).as_posix().encode("utf-8")
-        payload = path.read_bytes()
-        digest.update(len(relative).to_bytes(8, "big"))
-        digest.update(relative)
-        digest.update(len(payload).to_bytes(8, "big"))
-        digest.update(payload)
-    return digest.hexdigest()
+    package_root = Path(root or Path(__file__).resolve().parents[2])
+    return qualification_framework_tree_sha256(package_root)
 
 
 _LOADED_PRODUCT_SOURCE_SHA256 = _product_source_tree_sha256()
@@ -280,15 +276,49 @@ def _dependency_lock_state(draft_dir: Path, draft: dict) -> dict:
     }
 
 
-def _core_draft_readiness(draft: dict, draft_dir: Path) -> DraftReadinessV1:
+def _control_repair_incomplete(draft_dir: Path) -> bool:
+    """A durable marker makes every partially mutated control bundle unusable."""
+
+    return os.path.lexists(Path(draft_dir) / _CONTROL_REPAIR_MARKER)
+
+
+def _core_draft_readiness(
+    draft: dict,
+    draft_dir: Path,
+    *,
+    allow_control_repair: bool = False,
+) -> DraftReadinessV1:
     """Evaluate one managed draft through the Core-owned read-only boundary."""
 
     from repoproof.ui.services.product_mode import project_root
 
-    return evaluate_draft_readiness(
+    readiness = evaluate_draft_readiness(
         draft,
         draft_dir,
         project_root=project_root(),
+    )
+    if allow_control_repair or not _control_repair_incomplete(draft_dir):
+        return readiness
+    return readiness.model_copy(
+        update={
+            "status": "INCOMPATIBLE",
+            "compatible": False,
+            "current": False,
+            "ready": False,
+            "ready_to_confirm": False,
+            "reason_codes": list(
+                dict.fromkeys(
+                    [
+                        "DRAFT_CONTROL_REPAIR_INCOMPLETE",
+                        *readiness.reason_codes,
+                    ]
+                )
+            ),
+            "recommended_action": (
+                "检测到未完成的控制面修复事务。不要继续确认、生成样例或冻结；"
+                "请从 repair 前快照恢复该草稿，或创建新 task version。"
+            ),
+        }
     )
 
 
@@ -859,6 +889,7 @@ def save_draft_review(
     reference_impl: str,
     semantic_verifier: str | None = None,
     output_contract: dict | None = None,
+    artifact_protocol: dict | None = None,
     # intake 把这三个标为 owner=USER(提取不到时要人来定),但审核页一直
     # 没有入口、本函数也不收 —— 声明了责任却没有履行路径,Studio 用户
     # 只能去手改 YAML(2026-08-28 AUTO/USER 全量核账发现的第二笔账)。
@@ -866,6 +897,7 @@ def save_draft_review(
     import_module: str | None = None,
     license_id: str | None = None,
     reference_lock: str | None = None,
+    _control_repair_transaction: bool = False,
 ) -> dict:
     checked_dir, path_error = _validated_draft_dir(Path(draft_dir), require_existing=True)
     if checked_dir is None:
@@ -880,7 +912,11 @@ def save_draft_review(
         draft = yaml.safe_load(_read_file_at(draft_fd, "draft.yaml").decode("utf-8")) or {}
         if not isinstance(draft, dict):
             raise TypeError("draft.yaml 根节点必须是对象")
-        current_readiness = _core_draft_readiness(draft, draft_dir)
+        current_readiness = _core_draft_readiness(
+            draft,
+            draft_dir,
+            allow_control_repair=_control_repair_transaction,
+        )
         if not current_readiness.compatible or not current_readiness.current:
             return _readiness_rejection(current_readiness, action="保存草稿")
         try:
@@ -967,6 +1003,13 @@ def save_draft_review(
                 }
         else:
             replace_semantic_commitments(draft, semantic_commitments)
+        # The presentation grammar and semantic commitments are one public
+        # contract.  Validate an edited protocol only after commitment IDs have
+        # reached their new state, but before writing any file.  ``None`` means
+        # "not edited" for compatibility; an empty/invalid object is rejected by
+        # Core and can never erase the previously saved protocol.
+        if artifact_protocol is not None:
+            install_artifact_protocol(draft, artifact_protocol)
         sr = draft.setdefault("source_repo", {})
         for key, value in (("distribution", distribution), ("import_module", import_module), ("license", license_id)):
             if value is not None and value.strip():
@@ -2264,6 +2307,123 @@ def existing_example_inputs(draft_dir: Path) -> list[str]:
     return out
 
 
+def _confirmed_public_success_controls(
+    draft_dir: Path,
+) -> list[tuple[str, str, str]]:
+    """Load manifest-bound public success inputs for reference control runs.
+
+    Merely finding a file below ``examples/inputs`` is insufficient: stale or
+    uncommitted files must not become a trust signal.  Only file inputs named
+    by ``examples.yaml`` entries that also carry an expected result are used.
+    Invalid, binary, traversing, or symlinked entries are ignored here; draft
+    readiness remains responsible for reporting the underlying manifest error.
+    """
+
+    draft_dir = Path(draft_dir)
+    manifest = draft_dir / "examples.yaml"
+    try:
+        document = yaml.safe_load(manifest.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeError, yaml.YAMLError):
+        return []
+    if not isinstance(document, dict) or not isinstance(
+        document.get("examples"),
+        list,
+    ):
+        return []
+
+    examples_root = draft_dir / "examples"
+    controls: list[tuple[str, str, str]] = []
+    for item in document["examples"]:
+        if not isinstance(item, dict):
+            continue
+        if item.get("truth_provenance") != UPSTREAM_CONFIRMED:
+            continue
+        raw_input = item.get("input_file")
+        raw_expected = item.get("expected_file")
+        has_inline_expected = isinstance(item.get("expected"), str)
+        has_file_expected = isinstance(raw_expected, str)
+        if not isinstance(raw_input, str) or (
+            has_inline_expected == has_file_expected
+        ):
+            continue
+        relative = Path(raw_input)
+        if (
+            relative.is_absolute()
+            or relative.parts[:1] != ("inputs",)
+            or len(relative.parts) != 2
+            or relative.name in {"", ".", ".."}
+        ):
+            continue
+        input_path = examples_root / relative
+        if (
+            input_path.is_symlink()
+            or _path_has_symlink(input_path)
+            or not input_path.is_file()
+        ):
+            continue
+        if has_file_expected:
+            assert isinstance(raw_expected, str)
+            expected_relative = Path(raw_expected)
+            if (
+                expected_relative.is_absolute()
+                or expected_relative.parts[:1] != ("expected",)
+                or len(expected_relative.parts) != 2
+                or expected_relative.name in {"", ".", ".."}
+            ):
+                continue
+            expected_path = examples_root / expected_relative
+            if (
+                expected_path.is_symlink()
+                or _path_has_symlink(expected_path)
+                or not expected_path.is_file()
+            ):
+                continue
+        try:
+            input_bytes = input_path.read_bytes()
+            input_text = input_bytes.decode("utf-8")
+            expected_bytes = (
+                str(item["expected"]).encode("utf-8")
+                if has_inline_expected
+                else expected_path.read_bytes()
+            )
+            recorded_binding = str(item.get("truth_binding_sha256") or "")
+            if (
+                re.fullmatch(r"[0-9a-f]{64}", recorded_binding) is None
+                or recorded_binding
+                != truth_binding_sha256(input_bytes, expected_bytes)
+            ):
+                continue
+
+            evidence_id = item.get("candidate_evidence_id")
+            evidence_binding = item.get("candidate_truth_binding_sha256")
+            if (evidence_id is None) != (evidence_binding is None):
+                continue
+            if evidence_id is not None:
+                if (
+                    re.fullmatch(r"[0-9a-f]{64}", str(evidence_id)) is None
+                    or re.fullmatch(
+                        r"[0-9a-f]{64}",
+                        str(evidence_binding),
+                    )
+                    is None
+                    or not _managed_candidate_control_matches(
+                        draft_dir=draft_dir,
+                        evidence_id=str(evidence_id),
+                        evidence_binding=str(evidence_binding),
+                        input_name=relative.name,
+                        input_text=input_text,
+                        expected_text=expected_bytes.decode("utf-8"),
+                    )
+                ):
+                    continue
+            controls.append(
+                (relative.name, input_text, expected_bytes.decode("utf-8"))
+            )
+        except (OSError, UnicodeError):
+            continue
+    return controls
+
+
 def _existing_example_names(draft_dir: Path) -> list[str]:
     """Reserve persisted golden filenames so regenerated candidates never collide."""
 
@@ -2450,6 +2610,54 @@ def _load_managed_candidate_evidence_record(
         raise ValueError("CANDIDATE_RUNTIME_RECEIPT_INVALID")
     validate_candidate_truth_evidence(stored)
     return stored
+
+
+def _managed_candidate_control_matches(
+    *,
+    draft_dir: Path,
+    evidence_id: str,
+    evidence_binding: str,
+    input_name: str,
+    input_text: str,
+    expected_text: str,
+) -> bool:
+    """Verify a v2 candidate receipt before it can authorize control repair."""
+
+    try:
+        context = _draft_candidate_context(draft_dir)
+        store = _managed_candidate_evidence_store(
+            namespace="draft",
+            context_identity=context,
+            create=False,
+        )
+        store_fd = _open_absolute_directory(store)
+        try:
+            raw_record = _read_file_at(store_fd, f"{evidence_id}.json")
+        finally:
+            os.close(store_fd)
+        record = json.loads(raw_record.decode("utf-8"))
+        if not isinstance(record, dict):
+            return False
+        stored = _load_managed_candidate_evidence_record(
+            store=store,
+            context_identity=context,
+            browser_candidate=record.get("candidate"),
+        )
+        evidence = stored.truth_evidence
+        return bool(
+            evidence is not None
+            and evidence.schema_version == 2
+            and evidence.evidence_id == evidence_id
+            and evidence.truth_binding_sha256 == evidence_binding
+            and stored.input_name == input_name
+            and stored.input_text == input_text
+            and stored.upstream_output == expected_text
+            and stored.upstream_error is None
+            and stored.expected_behavior == "success"
+            and stored.admission_status == "ADMITTED"
+        )
+    except (OSError, UnicodeError, TypeError, ValueError, RuntimeError):
+        return False
 
 
 def _draft_candidate_context(draft_dir: Path) -> str:
@@ -2703,8 +2911,15 @@ def _source_defines_sync_function(source: str, name: str) -> bool:
     )
 
 
-def _reference_batch_control_failure(batch) -> _CandidateAdmissionError | None:
-    """Promote a uniform internal reference crash out of candidate repair."""
+def _uniform_internal_reference_failure(
+    batch,
+) -> tuple[str, str] | None:
+    """Return one safe code-site identity shared by the complete batch.
+
+    Messages are deliberately ignored.  The isolated runner derives the
+    local-only fingerprint from reference identity and traceback code sites;
+    historical rows without that identity fail closed.
+    """
 
     candidates = list(getattr(batch, "candidates", []) or [])
     if not candidates or any(candidate.upstream_output is not None for candidate in candidates):
@@ -2721,15 +2936,248 @@ def _reference_batch_control_failure(batch) -> _CandidateAdmissionError | None:
     exception_type = next(iter(exception_types))
     if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", exception_type) is None:
         exception_type = "UNKNOWN"
+    fingerprints = {
+        str(getattr(candidate, "upstream_error_fingerprint", "") or "")
+        for candidate in candidates
+    }
+    fingerprint = next(iter(fingerprints), "")
+    if (
+        len(fingerprints) != 1
+        or re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None
+    ):
+        return None
+    return exception_type, fingerprint
+
+
+def _uniform_internal_reference_exception(batch) -> str | None:
+    failure = _uniform_internal_reference_failure(batch)
+    return failure[0] if failure is not None else None
+
+
+_CONTROL_ALL_SUCCEEDED = "ALL_SUCCEEDED"
+_CONTROL_ALL_SAME_INTERNAL_EXCEPTION = "ALL_SAME_INTERNAL_EXCEPTION"
+_CONTROL_FAILED_OR_MIXED = "FAILED_OR_MIXED"
+
+
+@dataclass(frozen=True)
+class _PositiveControlRun:
+    batch: object
+    expected_outputs: tuple[str, ...]
+
+
+def _positive_control_verdict(control_run) -> tuple[str, str | None]:
+    """Classify every positive-control result without treating errors as PASS."""
+
+    if not isinstance(control_run, _PositiveControlRun):
+        return _CONTROL_FAILED_OR_MIXED, None
+    controls = list(getattr(control_run.batch, "candidates", []) or [])
+    if not controls or len(controls) != len(control_run.expected_outputs):
+        return _CONTROL_FAILED_OR_MIXED, None
+    if all(
+        candidate.upstream_output is not None
+        and candidate.upstream_error is None
+        and not candidate.upstream_output_truncated
+        and candidate.upstream_output == expected_output
+        for candidate, expected_output in zip(
+            controls,
+            control_run.expected_outputs,
+            strict=True,
+        )
+    ):
+        return _CONTROL_ALL_SUCCEEDED, None
+    failure = _uniform_internal_reference_failure(control_run.batch)
+    if failure is not None:
+        return _CONTROL_ALL_SAME_INTERNAL_EXCEPTION, failure[0]
+    return _CONTROL_FAILED_OR_MIXED, None
+
+
+def _reference_batch_control_failure(
+    batch,
+    *,
+    positive_control_batch=None,
+) -> _CandidateAdmissionError | None:
+    """Classify a uniform internal crash using a confirmed success control.
+
+    A model can generate an entire batch outside the public input domain.  The
+    candidate batch alone therefore cannot prove that the reference control is
+    broken.  Automatic control repair is permitted only when at least one
+    manifest-bound public success example exists and *all* such controls
+    reproduce the same internal exception.  The optional keyword preserves the
+    historical one-argument helper API while making that path fail closed.
+    """
+
+    candidate_failure = _uniform_internal_reference_failure(batch)
+    if candidate_failure is None:
+        return None
+    exception_type, failure_fingerprint = candidate_failure
+
+    controls = (
+        list(getattr(positive_control_batch.batch, "candidates", []) or [])
+        if isinstance(positive_control_batch, _PositiveControlRun)
+        else []
+    )
+    if not controls:
+        return _CandidateAdmissionError(
+            owner="CONTRACT",
+            reason_codes=["REFERENCE_OR_INPUT_DOMAIN_REVIEW_REQUIRED"],
+            message=(
+                "所有公开候选均触发同一种 reference 内部异常，"
+                "但没有已确认的公开成功样例可作正控；"
+                "无法安全区分 reference 故障与候选输入域错误。"
+            ),
+            diagnostics=(
+                f"all_candidates_exception_type={exception_type}",
+                "positive_control=missing",
+            ),
+        )
+
+    control_verdict, control_exception_type = _positive_control_verdict(
+        positive_control_batch
+    )
+    control_failure = (
+        _uniform_internal_reference_failure(positive_control_batch.batch)
+        if isinstance(positive_control_batch, _PositiveControlRun)
+        else None
+    )
+    if (
+        control_verdict == _CONTROL_ALL_SAME_INTERNAL_EXCEPTION
+        and control_exception_type == exception_type
+        and control_failure is not None
+        and secrets.compare_digest(control_failure[1], failure_fingerprint)
+    ):
+        return _CandidateAdmissionError(
+            owner="CONTRACT",
+            reason_codes=["REFERENCE_IMPLEMENTATION_EXECUTION_FAILED"],
+            message=(
+                "所有公开候选与已确认的公开成功正控均触发"
+                "同一种 reference 内部异常；这是草稿生产者故障，"
+                "不应消耗候选输入 repair。"
+            ),
+            diagnostics=(
+                f"all_candidates_exception_type={exception_type}",
+                (
+                    "positive_control_verdict="
+                    f"{_CONTROL_ALL_SAME_INTERNAL_EXCEPTION}"
+                ),
+            ),
+        )
+    if control_verdict == _CONTROL_ALL_SUCCEEDED:
+        return _CandidateAdmissionError(
+            owner="CONTRACT",
+            reason_codes=["CANDIDATE_INPUT_DOMAIN_REVIEW_REQUIRED"],
+            message=(
+                "所有公开候选均触发同一种 reference 内部异常，"
+                "但已确认的公开成功样例未复现该异常；"
+                "应审查候选输入域，不得自动修改正确的控制面。"
+            ),
+            diagnostics=(
+                f"all_candidates_exception_type={exception_type}",
+                f"positive_control_verdict={_CONTROL_ALL_SUCCEEDED}",
+            ),
+        )
+
     return _CandidateAdmissionError(
         owner="CONTRACT",
-        reason_codes=["REFERENCE_IMPLEMENTATION_EXECUTION_FAILED"],
+        reason_codes=["REFERENCE_POSITIVE_CONTROL_FAILED_OR_MIXED"],
         message=(
-            "所有公开候选均触发同一种 reference 内部异常；"
-            "这是草稿生产者故障，不应消耗候选输入 repair。"
+            "已确认的公开成功正控未全部成功，且没有全部复现"
+            "候选的同一种内部异常；当前无法安全授权控制面 repair。"
         ),
-        diagnostics=(f"all_candidates_exception_type={exception_type}",),
+        diagnostics=(
+            f"all_candidates_exception_type={exception_type}",
+            f"positive_control_verdict={control_verdict}",
+            *(
+                ("positive_control_failure_match=false",)
+                if control_verdict == _CONTROL_ALL_SAME_INTERNAL_EXCEPTION
+                else ()
+            ),
+        ),
     )
+
+
+_CONTROL_ROLLBACK_FILES = (
+    "draft.yaml",
+    "reference_impl.py",
+    "semantic_verifier.py",
+    "reference.lock.txt",
+)
+
+
+def _snapshot_draft_control_state(draft_dir: Path) -> dict[str, bytes | None]:
+    """Capture every file the repair saver may replace."""
+
+    draft_fd = _open_absolute_directory(draft_dir)
+    try:
+        snapshot: dict[str, bytes | None] = {}
+        for name in _CONTROL_ROLLBACK_FILES:
+            try:
+                snapshot[name] = _read_file_at(draft_fd, name)
+            except FileNotFoundError:
+                snapshot[name] = None
+        return snapshot
+    finally:
+        os.close(draft_fd)
+
+
+def _begin_draft_control_repair(draft_dir: Path) -> None:
+    """Durably mark the four-file control bundle unavailable before mutation."""
+
+    draft_fd = _open_absolute_directory(draft_dir)
+    try:
+        _write_new_file_at(
+            draft_fd,
+            _CONTROL_REPAIR_MARKER,
+            (
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "state": "INCOMPLETE",
+                        "started_at_ns": time.time_ns(),
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n"
+            ).encode("utf-8"),
+        )
+        os.fsync(draft_fd)
+    finally:
+        os.close(draft_fd)
+
+
+def _finish_draft_control_repair(draft_dir: Path) -> None:
+    """Commit or finish rollback by removing the fail-closed marker last."""
+
+    draft_fd = _open_absolute_directory(draft_dir)
+    try:
+        os.unlink(_CONTROL_REPAIR_MARKER, dir_fd=draft_fd)
+        os.fsync(draft_fd)
+    finally:
+        os.close(draft_fd)
+
+
+def _restore_draft_control_state(
+    draft_dir: Path,
+    snapshot: dict[str, bytes | None],
+) -> None:
+    """Atomically replace each repaired control with its pre-repair bytes."""
+
+    if set(snapshot) != set(_CONTROL_ROLLBACK_FILES):
+        raise ValueError("DRAFT_CONTROL_REPAIR_ROLLBACK_SNAPSHOT_INVALID")
+    draft_fd = _open_absolute_directory(draft_dir)
+    try:
+        for name in _CONTROL_ROLLBACK_FILES:
+            payload = snapshot[name]
+            if payload is None:
+                try:
+                    os.unlink(name, dir_fd=draft_fd)
+                except FileNotFoundError:
+                    pass
+            else:
+                _replace_file_at(draft_fd, name, payload)
+        os.fsync(draft_fd)
+    finally:
+        os.close(draft_fd)
 
 
 def _repair_draft_controls_after_contract_mismatch(
@@ -2779,7 +3227,6 @@ def _repair_draft_controls_after_contract_mismatch(
         )
     if failure_reason_code not in {
         "REFERENCE_ERROR_MASKING_INVALID",
-        "REFERENCE_IMPLEMENTATION_EXECUTION_FAILED",
         "REFERENCE_OUTPUT_CONTRACT_MISMATCH",
         "REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
     }:
@@ -2967,6 +3414,7 @@ def _repair_draft_controls_after_contract_mismatch(
         import_module=str(source_repo.get("import_module") or ""),
         license_id=str(source_repo.get("license") or ""),
         reference_lock=lock_text,
+        _control_repair_transaction=True,
     )
     if not save_result.get("ok"):
         raise _CandidateAdmissionError(
@@ -3117,6 +3565,17 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
     if checked_dir is None:
         return {"ok": False, "error": path_error}
     draft_dir = checked_dir
+    if _control_repair_incomplete(draft_dir):
+        return {
+            "ok": False,
+            "error": "草稿存在未完成的控制面修复事务，已拒绝继续生成候选。",
+            "failure_owner": "HARNESS",
+            "reason_codes": ["DRAFT_CONTROL_REPAIR_INCOMPLETE"],
+            "recommended_action": (
+                "从 repair 前快照恢复该草稿，或创建新 task version；"
+                "不要在混合控制束上继续调用模型。"
+            ),
+        }
 
     overview_doc = yaml.safe_load((draft_dir / "draft.yaml").read_text(encoding="utf-8")) or {}
     goal = str(
@@ -3197,6 +3656,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
 
     persisted_inputs = existing_example_inputs(draft_dir)
     persisted_names = _existing_example_names(draft_dir)
+    confirmed_success_controls = _confirmed_public_success_controls(draft_dir)
     attempted_inputs: list[str] = []
     attempted_names: list[str] = []
     usable: list[CandidateExample] = []
@@ -3257,6 +3717,98 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
             reference_source_policy_errors,
         )
 
+        def run_confirmed_success_controls():
+            if not confirmed_success_controls:
+                return None
+            batch = run_reference_on_candidates(
+                ProposalBatch(
+                    candidates=[
+                        CandidateExample(
+                            input_name=name,
+                            input_text=input_text,
+                            why="manifest-bound public success control",
+                        )
+                        for name, input_text, _expected_text
+                        in confirmed_success_controls
+                    ],
+                    drafter="confirmed-public-success-control",
+                    note="manifest-bound public success controls",
+                ),
+                draft_dir=draft_dir,
+                upstream_dir=upstream,
+                python_exe=reference_python,
+                isolation_required=True,
+                import_module=reference_import_module,
+                runtime_artifact_sha256=runtime_artifact_sha256,
+            )
+            return _PositiveControlRun(
+                batch=batch,
+                expected_outputs=tuple(
+                    expected_text
+                    for _name, _input_text, expected_text
+                    in confirmed_success_controls
+                ),
+            )
+
+        def repair_controls_with_postcheck(
+            *,
+            failure_reason_code: str,
+            diagnostics: tuple[str, ...],
+        ):
+            # Snapshot every possible write before the durable marker is
+            # created.  The marker stays visible until either the repaired
+            # bundle and post-checks commit, or the complete snapshot is
+            # restored.  A crash/partial rollback therefore remains
+            # fail-closed instead of exposing a mixed four-file bundle.
+            snapshot = _snapshot_draft_control_state(draft_dir)
+            _begin_draft_control_repair(draft_dir)
+            try:
+                repaired = _repair_draft_controls_after_contract_mismatch(
+                    draft_dir=draft_dir,
+                    overview_doc=overview_doc,
+                    drafter=drafter,
+                    failure_reason_code=failure_reason_code,
+                    diagnostics=diagnostics,
+                )
+                post_controls = run_confirmed_success_controls()
+                if confirmed_success_controls:
+                    verdict, _exception_type = _positive_control_verdict(
+                        post_controls
+                    )
+                    if verdict != _CONTROL_ALL_SUCCEEDED:
+                        raise _CandidateAdmissionError(
+                            owner="CONTRACT",
+                            reason_codes=[
+                                "REFERENCE_POSITIVE_CONTROL_POST_REPAIR_FAILED"
+                            ],
+                            message=(
+                                "控制面 repair 后，已确认的公开成功正控"
+                                "没有全部成功；本轮修复已撤销。"
+                            ),
+                            diagnostics=(
+                                f"positive_control_verdict={verdict}",
+                            ),
+                        )
+                _finish_draft_control_repair(draft_dir)
+                return repaired, post_controls
+            except BaseException:
+                try:
+                    _restore_draft_control_state(draft_dir, snapshot)
+                    _finish_draft_control_repair(draft_dir)
+                except (OSError, TypeError, ValueError) as rollback_exc:
+                    raise _CandidateAdmissionError(
+                        owner="HARNESS",
+                        reason_codes=[
+                            "DRAFT_CONTROL_REPAIR_ROLLBACK_FAILED"
+                        ],
+                        message=(
+                            "控制面修复失败，且无法安全恢复 repair 前状态；"
+                            "事务标记已保留，后续操作将 fail closed。"
+                        ),
+                    ) from rollback_exc
+                raise
+
+        positive_control_batch = None
         reference_source = (draft_dir / "reference_impl.py").read_text(
             encoding="utf-8"
         )
@@ -3282,16 +3834,17 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                     separators=(",", ":"),
                 ).encode("utf-8")
             ).hexdigest()
-            event = _repair_draft_controls_after_contract_mismatch(
-                draft_dir=draft_dir,
-                overview_doc=overview_doc,
-                drafter=drafter,
+            event, positive_control_batch = repair_controls_with_postcheck(
                 failure_reason_code="REFERENCE_ERROR_MASKING_INVALID",
                 diagnostics=tuple(source_policy_errors),
             )
             event["failure_fingerprint"] = fingerprint
             control_repair_events.append(event)
             last_control_failure_fingerprint = fingerprint
+
+        # Execute controls lazily: ordinary mixed/successful candidate batches
+        # need no extra subprocesses.  A uniform internal crash, however, must
+        # never be interpreted without this independent positive control.
         evidence_literals = mine_evidence_literals(
             upstream,
             import_module_names=[str((overview_doc.get("source_repo") or {}).get("import_module") or "")],
@@ -3328,7 +3881,18 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                 )
                 while True:
                     try:
-                        reference_failure = _reference_batch_control_failure(batch)
+                        if (
+                            _uniform_internal_reference_exception(batch)
+                            is not None
+                            and positive_control_batch is None
+                        ):
+                            positive_control_batch = (
+                                run_confirmed_success_controls()
+                            )
+                        reference_failure = _reference_batch_control_failure(
+                            batch,
+                            positive_control_batch=positive_control_batch,
+                        )
                         if reference_failure is not None:
                             raise reference_failure
                         batch = batch.model_copy(update={
@@ -3356,7 +3920,6 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                             in (
                                 ["REFERENCE_OUTPUT_CONTRACT_MISMATCH"],
                                 ["REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT"],
-                                ["REFERENCE_IMPLEMENTATION_EXECUTION_FAILED"],
                             )
                             and not offline
                         )
@@ -3395,12 +3958,11 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                                 reason_codes=["DRAFT_CONTROL_REPAIR_LIMIT_REACHED"],
                                 message="草稿控制面达到有界修复上限。",
                             ) from exc
-                        event = _repair_draft_controls_after_contract_mismatch(
-                            draft_dir=draft_dir,
-                            overview_doc=overview_doc,
-                            drafter=drafter,
+                        event, positive_control_batch = (
+                            repair_controls_with_postcheck(
                             failure_reason_code=exc.reason_codes[0],
                             diagnostics=exc.diagnostics,
+                            )
                         )
                         event["failure_fingerprint"] = fingerprint
                         control_repair_events.append(event)
@@ -3449,10 +4011,39 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                         public_candidate_failure(candidate)
                     )
     except _CandidateAdmissionError as exc:
+        prior_repair_note = (
+            f"此前已完成 {len(control_repair_events)} 次控制面 repair；"
+            "当前停止未新增修改。"
+            if control_repair_events
+            else "当前停止前没有修改 reference/verifier。"
+        )
         if "DEPENDENCY_LOCK_MISSING" in exc.reason_codes:
             recommended_action = (
                 "固定公开发布版本并重新加载草稿；Core 必须先从钉版源码或"
                 "与 commit 一致的发布 tag 派生精确依赖锁。本次没有调用模型。"
+            )
+        elif "REFERENCE_OR_INPUT_DOMAIN_REVIEW_REQUIRED" in exc.reason_codes:
+            recommended_action = (
+                "先确认至少一条公开成功样例，或人工核对候选输入是否"
+                f"属于公开有效域。{prior_repair_note}"
+            )
+        elif "CANDIDATE_INPUT_DOMAIN_REVIEW_REQUIRED" in exc.reason_codes:
+            recommended_action = (
+                "已确认正控未复现异常；请检查候选输入是否属于公开"
+                f"有效域并重新生成。{prior_repair_note}"
+            )
+        elif "REFERENCE_POSITIVE_CONTROL_FAILED_OR_MIXED" in exc.reason_codes:
+            recommended_action = (
+                "已确认正控自身不是全成功，也未与候选复现同一"
+                f"内部异常；请人工检查草稿与输入域。{prior_repair_note}"
+            )
+        elif (
+            "REFERENCE_POSITIVE_CONTROL_POST_REPAIR_FAILED"
+            in exc.reason_codes
+        ):
+            recommended_action = (
+                "repair 后正控未全部成功，本轮控制面写入已恢复；"
+                f"请人工审查，不要继续自动 repair。{prior_repair_note}"
             )
         else:
             recommended_action = (

@@ -1,0 +1,51 @@
+task_id: tool-rispy-screening-table-v1
+
+source_repo:
+  url: https://github.com/MrTango/rispy
+  revision: guided
+  resolved_commit: b7aae3b2069ced3fb75287711300f2edf0bcac21
+  license: MIT
+  distribution: rispy
+  import_module: rispy
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_rispy-screening-table
+  package: rispy_screening_table
+  entry_point: rispy-screening-table
+
+requirement_spec_file: tool-rispy-screening-table-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 3, "name": "rispy-screening-table", "summary": "把 UTF-8 RIS 按 rispy 解析顺序且不去重地整理为固定列的团队筛选 CSV，并标出 title、authors、year、doi 的空项。", "interface": {"usage": "rispy-screening-table <input> [--out FILE]", "input": {"kind": "file", "format": "UTF-8 RIS 文献文本", "contract": null}, "output": {"kind": "stdout", "format": "CSV", "contract": {"media_type": "text/csv", "root_type": "text", "required": {}, "validation_profile": "csv_table_v1"}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: "用户目标：把这份 RIS 整理成团队能筛选的 CSV，每条记录保留原顺序且不去重。表头固定为 record_index、title、authors、year、doi、type、missing_fields；missing_fields 只列 title、authors、year、doi 中的空项。无法完整解析的损坏 RIS 要直接报错，不能只输出已经读到的部分；不联网补数据。\n公开行为承诺：\n- [fixed-csv-header] 输出是严格 CSV 表格，且唯一表头依次且仅为 record_index、title、authors、year、doi、type、missing_fields。\n- [record-order-and-index] 对 rispy 从有效输入解析出的每一条记录，输出恰好一条数据行，不删除或合并重复记录；数据行顺序与解析记录顺序相同，record_index 从 1 起按该顺序连续编号。\n- [bibliographic-column-mapping] 每条数据行的 title、year、doi、type 单元格分别等于 rispy 解析记录的 title、year、doi、type_of_reference 键的文本值；缺失或值为 null 时写为空字符串，其他值不作额外清洗。\n- [authors-serialization] 每条数据行的 authors 单元格取 rispy 解析记录的 authors 值：列表值按其原有顺序以“; ”连接；缺失或 null 值写为空字符串；非列表值写为其文本值。\n- [missing-fields-encoding] 每条数据行的 missing_fields 仅检查渲染后的 title、authors、year、doi 四个单元格；其中为空字符串的字段名按 title、authors、year、doi 顺序以英文分号连接，若均非空则写为空字符串。\n公开产物协议：\n- [header-row -> fixed-csv-header] 定位：严格 CSV 解析后的第 1 条记录（表头记录）。；值表示：一条恰有七个 UTF-8 文本单元格的严格 CSV 记录。\n- [data-row-sequence -> record-order-and-index] 定位：严格 CSV 解析后的每条数据记录（第 2 条及以后）；读取其第 1 个单元格，并按数据记录在文件中的顺序检查。；值表示：每条记录均为恰有七个 UTF-8 文本单元格的严格 CSV 记录；第 1 个单元格为十进制正整数语法。\n- [bibliographic-cells -> bibliographic-column-mapping,authors-serialization] 定位：严格 CSV 解析后的每条数据记录（第 2 条及以后）的第 2 至第 6 个单元格。；值表示：五个 UTF-8 文本单元格，按表头所定义的位置编码单值书目信息及可重复作者信息。\n- [missing-fields-cell -> missing-fields-encoding] 定位：严格 CSV 解析后的每条数据记录（第 2 条及以后）的第 7 个单元格。；值表示：空字符串，或由一个或多个受限字段标识符以单个英文分号连接而成的 UTF-8 文本，且标识符按预定义字段顺序排列。\n统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。"
+  output_schema: "RisScreeningCsv"
+  intent_contract: {"schema_version": 1, "user_goal": "把这份 RIS 整理成团队能筛选的 CSV，每条记录保留原顺序且不去重。表头固定为 record_index、title、authors、year、doi、type、missing_fields；missing_fields 只列 title、authors、year、doi 中的空项。无法完整解析的损坏 RIS 要直接报错，不能只输出已经读到的部分；不联网补数据。", "user_goal_sha256": "a56c48be6e7e59256a57e279328ede71f239ef3dd546a9512e988bb2d98fbb91", "commitments": [{"commitment_id": "fixed-csv-header", "public_text": "输出是严格 CSV 表格，且唯一表头依次且仅为 record_index、title、authors、year、doi、type、missing_fields。", "rationale": "团队筛选需要固定、可预测的列名和列顺序。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "record-order-and-index", "public_text": "对 rispy 从有效输入解析出的每一条记录，输出恰好一条数据行，不删除或合并重复记录；数据行顺序与解析记录顺序相同，record_index 从 1 起按该顺序连续编号。", "rationale": "满足保留原顺序且不去重的要求，并提供可引用的行序号。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "bibliographic-column-mapping", "public_text": "每条数据行的 title、year、doi、type 单元格分别等于 rispy 解析记录的 title、year、doi、type_of_reference 键的文本值；缺失或值为 null 时写为空字符串，其他值不作额外清洗。", "rationale": "将 rispy 的公开解析结果直接投射到团队所需的书目信息列。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "authors-serialization", "public_text": "每条数据行的 authors 单元格取 rispy 解析记录的 authors 值：列表值按其原有顺序以“; ”连接；缺失或 null 值写为空字符串；非列表值写为其文本值。", "rationale": "RIS 可包含多个作者，单个 CSV 单元格需要稳定地保留其顺序。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "missing-fields-encoding", "public_text": "每条数据行的 missing_fields 仅检查渲染后的 title、authors、year、doi 四个单元格；其中为空字符串的字段名按 title、authors、year、doi 顺序以英文分号连接，若均非空则写为空字符串。", "rationale": "让筛选人员能直接识别所要求的四项书目信息中缺失的项目。", "origin": "MODEL_PROPOSED"}], "artifact_protocol": {"schema_version": 1, "protocol_id": "ris-csv-screening-v1", "observations": [{"observation_id": "header-row", "commitment_ids": ["fixed-csv-header"], "locator": "严格 CSV 解析后的第 1 条记录（表头记录）。", "value_encoding": "一条恰有七个 UTF-8 文本单元格的严格 CSV 记录。"}, {"observation_id": "data-row-sequence", "commitment_ids": ["record-order-and-index"], "locator": "严格 CSV 解析后的每条数据记录（第 2 条及以后）；读取其第 1 个单元格，并按数据记录在文件中的顺序检查。", "value_encoding": "每条记录均为恰有七个 UTF-8 文本单元格的严格 CSV 记录；第 1 个单元格为十进制正整数语法。"}, {"observation_id": "bibliographic-cells", "commitment_ids": ["bibliographic-column-mapping", "authors-serialization"], "locator": "严格 CSV 解析后的每条数据记录（第 2 条及以后）的第 2 至第 6 个单元格。", "value_encoding": "五个 UTF-8 文本单元格，按表头所定义的位置编码单值书目信息及可重复作者信息。"}, {"observation_id": "missing-fields-cell", "commitment_ids": ["missing-fields-encoding"], "locator": "严格 CSV 解析后的每条数据记录（第 2 条及以后）的第 7 个单元格。", "value_encoding": "空字符串，或由一个或多个受限字段标识符以单个英文分号连接而成的 UTF-8 文本，且标识符按预定义字段顺序排列。"}]}, "delivery": {"profile_id": "cli_v2", "support_status": "SUPPORTED", "origin": "USER_EDITED", "requirements": {"inputs": [{"kind": "file", "location": "local", "representation": "utf8_text", "format_label": "UTF-8 RIS 文献文本", "role": "user-confirmed primary input"}], "outputs": [{"kind": "text_artifact", "format_id": "csv", "format_label": "CSV 表格", "role": "user-confirmed primary artifact"}], "network": "offline", "credentials": "none", "lifecycle": "per_invocation", "runtime": "local_cpu"}, "admitted_output_format_id": "csv"}, "confirmation": {"confirmed_by": "USER", "confirmed_at": "2026-08-30T17:29:02.615614Z", "semantics_sha256": "ef60fd4704317338e1b83cc91de4e42e406864caf0bcaee7c890d69070e1b450"}}
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py
+  semantic_verifier: {"protocol": "repoproof-semantic-verifier-v1", "verifier_id": "rispy-screening-table-semantic-v1", "source_file": "oracle/tool-rispy-screening-table-v1/semantic_verifier.py", "source_sha256": "5506c195137f19d917522664e62e3466e2734f30cb1c5d31242f5364384b1aa5", "required_for_operational_active": true}

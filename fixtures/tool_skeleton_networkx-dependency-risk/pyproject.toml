@@ -1,0 +1,8 @@
+[project]
+name = "networkx_dependency_risk"
+version = "1.0.0"
+description = '将任务依赖 CSV 转成可粘贴到表格软件的确定性 TSV 风险清单，标出直接依赖、直接后继、下游影响、可开工状态与循环。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

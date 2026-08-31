@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import zipfile
@@ -268,6 +269,8 @@ def test_upstream_run_produces_real_outputs_and_records_errors(world):
     assert ok.upstream_output == "HELLO!" and ok.usable_as_golden
     # 上游抛错如实记下,并且**不算**可做 golden(样例只表达成功路径)
     assert bad.upstream_output is None and "empty input" in (bad.upstream_error or "")
+    assert re.fullmatch(r"[0-9a-f]{64}", bad.upstream_error_fingerprint or "")
+    assert "upstream_error_fingerprint" not in bad.model_dump(mode="json")
     assert not bad.usable_as_golden
     assert ok.truth_evidence is not None
     assert bad.truth_evidence is not None
@@ -290,6 +293,28 @@ def test_upstream_run_produces_real_outputs_and_records_errors(world):
             bad.truth_evidence.evidence_id,
         ],
     }
+
+
+def test_internal_error_fingerprint_binds_safe_code_site_not_message(world):
+    batch = ProposalBatch(candidates=[
+        CandidateExample(input_name="empty-a.txt", input_text=""),
+        CandidateExample(input_name="empty-b.txt", input_text="   "),
+    ])
+
+    out = run_reference_on_candidates(
+        batch,
+        draft_dir=world["draft"],
+        upstream_dir=world["upstream"],
+        import_module="minishout",
+    )
+
+    first, second = out.candidates
+    assert first.upstream_error != second.upstream_error or first.input_text != second.input_text
+    assert first.upstream_error_fingerprint == second.upstream_error_fingerprint
+    assert re.fullmatch(
+        r"[0-9a-f]{64}",
+        first.upstream_error_fingerprint or "",
+    )
 
 
 def test_upstream_run_never_turns_a_truncated_output_into_truth(world):

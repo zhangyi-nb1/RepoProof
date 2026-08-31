@@ -90,6 +90,7 @@ _SERVICE_EXPECTATIONS = (
             "license_id",
             "reference_lock",
             "semantic_commitments",
+            "artifact_protocol",
             "input_representation",
         ),
     ),
@@ -563,6 +564,7 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
     capability = draft.get("capability") or {}
     intent_contract = draft.get("_intent_contract") or {}
     semantic_commitment_rows = list(intent_contract.get("commitments") or [])
+    saved_artifact_protocol = intent_contract.get("artifact_protocol")
     delivery_inputs = list(
         ((intent_contract.get("delivery") or {}).get("requirements") or {}).get("inputs") or []
     )
@@ -681,7 +683,26 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
             key=f"{prefix}_output_contract_{raw_signature}",
             help="所有输出（包括上游参考输出与最终工具 stdout）都会由同一 ToolOutputContract 校验。",
         )
-        with st.expander("高级：reference 与独立 verifier 源码", expanded=False):
+        with st.expander("高级：产物协议、reference 与独立 verifier", expanded=False):
+            artifact_protocol_text = st.text_area(
+                "公开产物定位协议（JSON）",
+                value=(
+                    json.dumps(
+                        saved_artifact_protocol,
+                        ensure_ascii=False,
+                        indent=2,
+                    )
+                    if saved_artifact_protocol is not None
+                    else ""
+                ),
+                height=220,
+                key=f"{prefix}_artifact_protocol_{raw_signature}",
+                help=(
+                    "当你修改公开行为承诺时，请同步核对 observation 的 commitment_ids、"
+                    "locator 与 value_encoding。Core 会拒绝未知 ID 或覆盖不完整的协议；"
+                    "留空表示不编辑现有协议，不能用空对象清除它。"
+                ),
+            )
             reference = st.text_area(
                 "上游参考实现（必须真实 import 固定版本）",
                 value=str(review.get("reference_impl") or ""),
@@ -701,18 +722,34 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
         save_contract = st.form_submit_button("保存合同修改", type="primary")
 
     if save_contract:
+        parsed_artifact_protocol: dict | None = None
+        artifact_protocol_errors: list[str] = []
+        if artifact_protocol_text.strip():
+            try:
+                raw_artifact_protocol = json.loads(artifact_protocol_text)
+            except json.JSONDecodeError:
+                artifact_protocol_errors.append("公开产物定位协议不是合法 JSON。")
+            else:
+                if not isinstance(raw_artifact_protocol, dict):
+                    artifact_protocol_errors.append("公开产物定位协议的 JSON 根节点必须是对象。")
+                else:
+                    parsed_artifact_protocol = raw_artifact_protocol
         parsed_contract, contract_errors = parse_output_contract(
             output_contract_text,
             output_format=output_format,
         )
-        if contract_errors:
-            save_result = {"ok": False, "error": "；".join(contract_errors)}
+        if contract_errors or artifact_protocol_errors:
+            save_result = {
+                "ok": False,
+                "error": "；".join([*contract_errors, *artifact_protocol_errors]),
+            }
         elif not _require_service(
             "save_draft_review",
             "distribution",
             "import_module",
             "license_id",
             "reference_lock",
+            "artifact_protocol",
             "input_representation",
         ):
             save_result = {"ok": False, "error": "请重启 Studio 后再保存合同。"}
@@ -734,6 +771,7 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
                 reference_impl=reference,
                 semantic_verifier=semantic_verifier,
                 output_contract=parsed_contract.model_dump(mode="json"),
+                artifact_protocol=parsed_artifact_protocol,
                 distribution=distribution,
                 import_module=import_module,
                 license_id=license_id,

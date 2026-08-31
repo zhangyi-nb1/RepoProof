@@ -1,0 +1,102 @@
+task_id: tool-pint-field-kit-v1
+
+controls:
+  positive: controls/tool-pint-field-kit-v1/positive
+  negatives:
+    - path: controls/tool-pint-field-kit-v1/negative_empty
+      label: NC_empty
+      must_fail_nodes: ["test_example"]
+    - path: controls/tool-pint-field-kit-v1/negative_hardcode
+      label: NC_hardcode
+      must_fail_nodes: ["test_held_example"]
+    - path: controls/tool-pint-field-kit-v1/negative_badexit
+      label: NC_badexit
+      must_fail_nodes: ["test_malformed_input_is_user_error"]
+  # NC_reimpl(零 import 上游)不在此表:它在 oracle 上全绿,判死属
+  # provenance 层(runner 验证阶段执法;harness 测试喂它自证查得出)。
+  # 见 TOOL_READY_GATE §五。目录:controls/tool-pint-field-kit-v1/negative_reimpl
+
+requirements:
+  - id: satisfy-user-examples
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      调用 pinned Pint 实现能力,使全部用户样例断言通过
+      (行为以公开样例为准,例:pint-field-kit inputs/mixed_valid_and_row_failures -> 见 expected/mixed_valid_and_row_failures.expected.txt; pint-field-kit inputs/typical_convertible_rows -> 见 expected/typical_convertible_rows.expected.txt)。
+    examples:
+      - "pint-field-kit inputs/mixed_valid_and_row_failures -> 见 expected/mixed_valid_and_row_failures.expected.txt; pint-field-kit inputs/typical_convertible_rows -> 见 expected/typical_convertible_rows.expected.txt"
+    oracle_nodes:
+      - "test_capability::test_example_1"
+      - "test_capability::test_example_2"
+      - "test_capability::test_held_example_1"
+  - id: interface-contract
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      坏输入内容抛 UserInputError(骨架转 exit 1);不得让异常裸奔到
+      兜底层(exit 2);重复调用同一输入输出逐字节一致;成功路径不向
+      stderr 泄漏 traceback。
+    examples:
+      - "exit: 0=成功 1=用户错误 2=内部错误"
+    oracle_nodes:
+      - "test_capability::test_malformed_input_is_user_error"
+      - "test_capability::test_deterministic_output"
+      - "test_capability::test_stdout_purity_on_success"
+  - id: skeleton-anchors-untouched
+    owner: HOST_INPUT_GUARD
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      骨架锚定件(main.py / bin/ / build.sh / tool.json / pyproject.toml)
+      与其 argparse/输入存在检查/exit 语义由 harness 预置,不可修改,
+      不计 agent 能力。
+    examples:
+      - "pint-field-kit --help -> usage"
+    oracle_nodes:
+      - "test_interface_contract::test_help_reachable"
+      - "test_interface_contract::test_missing_input_is_user_error"
+  - id: intent-table-columns
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "输入是 UTF-8 TSV，表头必须依次为 item、per_group_amount、target_unit、groups，且每个数据行恰有四列。报告固定显示总行数、成功数和失败数，并包含一张明细表；明细表表头依次为 item、per_group_amount、groups、total_amount、status。"
+    examples: []
+    verified_by: semantic-verifier:pint-field-kit-semantic-v1
+  - id: intent-row-preservation
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "TSV 的每个数据行都在明细表中生成且仅生成一行，保持输入顺序；行的 data-input-row 从 1 起连续编号，item、per_group_amount 和 groups 单元格逐字保留对应输入值。一行换算失败不得省略该行或阻止其他行进入报告。"
+    examples: []
+    verified_by: semantic-verifier:pint-field-kit-semantic-v1
+  - id: intent-total-conversion
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "groups 必须仅由 ASCII 数字组成且十进制值大于零。工具使用固定版本 Pint 的 UnitRegistry 解析 per_group_amount，将其乘以 groups 后转换到该行非空的 target_unit。成功结果使用 Pint ~.6gP 格式，最多保留六位有效数字；不执行货币换算、外部单位查询或网络请求。"
+    examples: []
+    verified_by: semantic-verifier:pint-field-kit-semantic-v1
+  - id: intent-successful-row
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "成功行的 total_amount 是上述 Pint 转换和格式化得到的数量与单位，status 固定为 OK。报告中的成功数等于 status 为 OK 的明细行数，总行数等于输入数据行数。"
+    examples: []
+    verified_by: semantic-verifier:pint-field-kit-semantic-v1
+  - id: intent-failed-row
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "失败行的 total_amount 为空，status 只能是稳定错误码 INVALID_GROUPS、INVALID_QUANTITY、UNKNOWN_UNIT 或 DIMENSION_MISMATCH：groups 非 ASCII 正整数为 INVALID_GROUPS；数量或目标单位引用 Pint 未定义单位为 UNKNOWN_UNIT；已解析数量不能转换到目标量纲为 DIMENSION_MISMATCH；其他由该行数量语法、非有限数值、目标单位语法或数量运算引起的用户输入错误为 INVALID_QUANTITY。不得输出异常类名或异常文本；失败数等于这四种状态的行数。"
+    examples: []
+    verified_by: semantic-verifier:pint-field-kit-semantic-v1
+  - id: intent-document-static
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "交付物是确定性、自包含的 XHTML 文档，使用 XHTML 命名空间，固定包含 head、标题、汇总段落和明细表。只允许 html、head、meta、title、body、h1、p、table、thead、tbody、tr、th、td 元素，以及约定的 charset、id 和 data-input-row 属性；th 和 td 必须是无子元素的纯文本单元格。文档不含 DOCTYPE、实体、注释、额外处理指令、脚本、样式、链接、表单、外部资源、时间戳或生成时间，并对用户文本进行 XML 转义。"
+    examples: []
+    verified_by: semantic-verifier:pint-field-kit-semantic-v1
+

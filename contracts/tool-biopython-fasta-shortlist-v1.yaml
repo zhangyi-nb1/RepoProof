@@ -1,0 +1,51 @@
+task_id: tool-biopython-fasta-shortlist-v1
+
+source_repo:
+  url: https://github.com/biopython/biopython
+  revision: guided
+  resolved_commit: d7e4b8b19399668b09442a5b35765d9186b5f665
+  license: BSD
+  distribution: biopython
+  import_module: Bio
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_biopython-fasta-shortlist
+  package: biopython_fasta_shortlist
+  entry_point: biopython-fasta-shortlist
+
+requirement_spec_file: tool-biopython-fasta-shortlist-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 3, "name": "biopython-fasta-shortlist", "summary": "使用 Biopython 离线筛选多记录 FASTA，并生成可直接用于会议的确定性 Markdown 通过/未通过报告。", "interface": {"usage": "biopython-fasta-shortlist <input> [--out FILE]", "input": {"kind": "file", "format": "FASTA 候选 DNA 序列文本", "contract": null}, "output": {"kind": "stdout", "format": "Markdown", "contract": {"media_type": "text/markdown", "root_type": "text", "required": {}, "validation_profile": "markdown_document_v1"}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: "用户目标：把一份 FASTA 候选 DNA 序列做成开会能直接看的 Markdown 筛选报告：长度 150 到 1000 bp、GC 35% 到 65%、非 ACGT 字符不超过 1% 才算通过；每条都说明原因，不要改动或修剪序列，也不要联网。\n公开行为承诺：\n- [record-coverage-and-order] 输入必须是非空 UTF-8 多记录 FASTA，由固定版本 Biopython 的 SeqIO.parse(..., \"fasta\") 读取，至少包含一条记录且每条 SeqRecord.id 和序列均非空；按解析记录顺序处理，重复 id 不去重且逐条保留；通过表和未通过表各自保持输入中的相对顺序。\n- [sequence-preservation] 工具只读取输入序列，不修改、修剪、翻译或比对序列，也不查询远程数据库；FASTA 序列字符必须为 ASCII，非 A/C/G/T 的 ASCII 字符计入 ambiguous_percent；空文件、无有效记录、空 id、空序列、含非 ASCII 序列字符、无法由固定版本 Biopython FASTA parser 解析的输入或非 UTF-8 输入以 UserInputError 终止，不生成部分报告。\n- [length-and-composition-metrics] 每条记录的 length_bp 等于 SeqRecord.seq 长度；gc_percent 使用固定版本 Bio.SeqUtils.gc_fraction(sequence, ambiguous=\"ignore\") 乘 100；ambiguous_percent 是不区分大小写的非 A/C/G/T 字符数除以序列长度乘 100。显示值按十进制 ROUND_HALF_UP 保留两位小数，但筛选使用未舍入值。\n- [screening-decision] decision 仅当 length_bp 在 150 到 1000（含边界）、未舍入 gc_percent 在 35 到 65（含边界）且未舍入 ambiguous_percent 不超过 1 时为 PASS，否则为 REJECT。\n- [failure-reasons] 每条记录固定报告 id、length_bp、gc_percent、ambiguous_percent、decision、reasons 六列；PASS 的 reasons 恰为 NONE，REJECT 按长度、GC、非 ACGT 的顺序列出适用的 LENGTH_BELOW_MIN、LENGTH_ABOVE_MAX、GC_BELOW_MIN、GC_ABOVE_MAX、AMBIGUOUS_ABOVE_MAX，以分号连接。\n- [behavior-6] Markdown 依次且仅包含标题、摘要、通过序列、未通过序列和警告区域；摘要固定报告总记录数、PASS 数和 REJECT 数，两张表使用相同固定六列表头且空表也保留表头；id 先编码为 JSON 字符串再采用可逆 HTML entity 转义以防破坏表格；警告区域固定说明处理边界，并报告重复 id 值的数量；输出不含时间戳且逐字节确定。\n公开产物协议：\n- [summary-and-section-order -> record-coverage-and-order,behavior-6] 定位：完整 UTF-8 Markdown 文档；从首行起依次定位 # FASTA 候选序列筛选报告、## 摘要、## 通过序列、## 未通过序列、## 警告。；值表示：章节各出现一次且顺序固定；摘要三行是无前导零的非负十进制总记录数、PASS 数和 REJECT 数，后两者之和等于总数。\n- [screening-tables -> record-coverage-and-order,behavior-6] 定位：通过序列与未通过序列章节中各自唯一的 Markdown 表格。；值表示：两表表头依次且仅为 id、length_bp、gc_percent、ambiguous_percent、decision、reasons；每行六格，id 是可逆 HTML entity 编码后的 JSON 字符串；表内按输入相对顺序，重复 id 保留。\n- [metric-columns -> length-and-composition-metrics] 定位：两张记录表中每一行的 length_bp、gc_percent 与 ambiguous_percent 列。；值表示：length_bp 是非负 ASCII 十进制整数；两个百分比均为恰有两位小数且不带百分号的非负十进制数。\n- [decision-column -> screening-decision] 定位：两张记录表中每一行的 decision 列以及所在章节。；值表示：值只能是 PASS 或 REJECT；PASS 只出现在通过序列表，REJECT 只出现在未通过序列表。\n- [reasons-column -> failure-reasons] 定位：两张记录表中每一行的 reasons 列。；值表示：PASS 行恰为 NONE；REJECT 行是固定失败码按长度、GC、非 ACGT 顺序以分号连接的非空文本。\n- [processing-boundary-and-warnings -> sequence-preservation,behavior-6] 定位：## 警告章节中的固定处理边界行与重复 id 统计行。；值表示：第一行精确声明未修改、修剪、翻译、比对或联网；第二行以非负 ASCII 十进制整数报告重复出现的不同 id 值数量。\n统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。"
+  output_schema: "DnaCandidateScreeningMarkdownReport"
+  intent_contract: {"schema_version": 1, "user_goal": "把一份 FASTA 候选 DNA 序列做成开会能直接看的 Markdown 筛选报告：长度 150 到 1000 bp、GC 35% 到 65%、非 ACGT 字符不超过 1% 才算通过；每条都说明原因，不要改动或修剪序列，也不要联网。", "user_goal_sha256": "1a0b8d6a92cad8c12ed20227959dafbafe4ee741dc2e543271961a82655a41cf", "commitments": [{"commitment_id": "record-coverage-and-order", "public_text": "输入必须是非空 UTF-8 多记录 FASTA，由固定版本 Biopython 的 SeqIO.parse(..., \"fasta\") 读取，至少包含一条记录且每条 SeqRecord.id 和序列均非空；按解析记录顺序处理，重复 id 不去重且逐条保留；通过表和未通过表各自保持输入中的相对顺序。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}, {"commitment_id": "sequence-preservation", "public_text": "工具只读取输入序列，不修改、修剪、翻译或比对序列，也不查询远程数据库；FASTA 序列字符必须为 ASCII，非 A/C/G/T 的 ASCII 字符计入 ambiguous_percent；空文件、无有效记录、空 id、空序列、含非 ASCII 序列字符、无法由固定版本 Biopython FASTA parser 解析的输入或非 UTF-8 输入以 UserInputError 终止，不生成部分报告。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}, {"commitment_id": "length-and-composition-metrics", "public_text": "每条记录的 length_bp 等于 SeqRecord.seq 长度；gc_percent 使用固定版本 Bio.SeqUtils.gc_fraction(sequence, ambiguous=\"ignore\") 乘 100；ambiguous_percent 是不区分大小写的非 A/C/G/T 字符数除以序列长度乘 100。显示值按十进制 ROUND_HALF_UP 保留两位小数，但筛选使用未舍入值。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}, {"commitment_id": "screening-decision", "public_text": "decision 仅当 length_bp 在 150 到 1000（含边界）、未舍入 gc_percent 在 35 到 65（含边界）且未舍入 ambiguous_percent 不超过 1 时为 PASS，否则为 REJECT。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}, {"commitment_id": "failure-reasons", "public_text": "每条记录固定报告 id、length_bp、gc_percent、ambiguous_percent、decision、reasons 六列；PASS 的 reasons 恰为 NONE，REJECT 按长度、GC、非 ACGT 的顺序列出适用的 LENGTH_BELOW_MIN、LENGTH_ABOVE_MAX、GC_BELOW_MIN、GC_ABOVE_MAX、AMBIGUOUS_ABOVE_MAX，以分号连接。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}, {"commitment_id": "behavior-6", "public_text": "Markdown 依次且仅包含标题、摘要、通过序列、未通过序列和警告区域；摘要固定报告总记录数、PASS 数和 REJECT 数，两张表使用相同固定六列表头且空表也保留表头；id 先编码为 JSON 字符串再采用可逆 HTML entity 转义以防破坏表格；警告区域固定说明处理边界，并报告重复 id 值的数量；输出不含时间戳且逐字节确定。", "rationale": "用户在合同审核阶段补充或修改。", "origin": "USER_EDITED"}], "artifact_protocol": {"schema_version": 1, "protocol_id": "biopython-fasta-shortlist-markdown-v1", "observations": [{"observation_id": "summary-and-section-order", "commitment_ids": ["record-coverage-and-order", "behavior-6"], "locator": "完整 UTF-8 Markdown 文档；从首行起依次定位 # FASTA 候选序列筛选报告、## 摘要、## 通过序列、## 未通过序列、## 警告。", "value_encoding": "章节各出现一次且顺序固定；摘要三行是无前导零的非负十进制总记录数、PASS 数和 REJECT 数，后两者之和等于总数。"}, {"observation_id": "screening-tables", "commitment_ids": ["record-coverage-and-order", "behavior-6"], "locator": "通过序列与未通过序列章节中各自唯一的 Markdown 表格。", "value_encoding": "两表表头依次且仅为 id、length_bp、gc_percent、ambiguous_percent、decision、reasons；每行六格，id 是可逆 HTML entity 编码后的 JSON 字符串；表内按输入相对顺序，重复 id 保留。"}, {"observation_id": "metric-columns", "commitment_ids": ["length-and-composition-metrics"], "locator": "两张记录表中每一行的 length_bp、gc_percent 与 ambiguous_percent 列。", "value_encoding": "length_bp 是非负 ASCII 十进制整数；两个百分比均为恰有两位小数且不带百分号的非负十进制数。"}, {"observation_id": "decision-column", "commitment_ids": ["screening-decision"], "locator": "两张记录表中每一行的 decision 列以及所在章节。", "value_encoding": "值只能是 PASS 或 REJECT；PASS 只出现在通过序列表，REJECT 只出现在未通过序列表。"}, {"observation_id": "reasons-column", "commitment_ids": ["failure-reasons"], "locator": "两张记录表中每一行的 reasons 列。", "value_encoding": "PASS 行恰为 NONE；REJECT 行是固定失败码按长度、GC、非 ACGT 顺序以分号连接的非空文本。"}, {"observation_id": "processing-boundary-and-warnings", "commitment_ids": ["sequence-preservation", "behavior-6"], "locator": "## 警告章节中的固定处理边界行与重复 id 统计行。", "value_encoding": "第一行精确声明未修改、修剪、翻译、比对或联网；第二行以非负 ASCII 十进制整数报告重复出现的不同 id 值数量。"}]}, "delivery": {"profile_id": "cli_v2", "support_status": "SUPPORTED", "origin": "USER_EDITED", "requirements": {"inputs": [{"kind": "file", "location": "local", "representation": "utf8_text", "format_label": "FASTA 候选 DNA 序列文本", "role": "user-confirmed primary input"}], "outputs": [{"kind": "text_artifact", "format_id": "markdown", "format_label": "Markdown 文档", "role": "user-confirmed primary artifact"}], "network": "offline", "credentials": "none", "lifecycle": "per_invocation", "runtime": "local_cpu"}, "admitted_output_format_id": "markdown"}, "confirmation": {"confirmed_by": "USER", "confirmed_at": "2026-08-30T19:03:38.642215Z", "semantics_sha256": "09b7b7c7e23c2262907518f85ae97e5006250169b110de8b07bca7b809750017"}}
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py
+  semantic_verifier: {"protocol": "repoproof-semantic-verifier-v1", "verifier_id": "biopython-fasta-shortlist-semantic-v1", "source_file": "oracle/tool-biopython-fasta-shortlist-v1/semantic_verifier.py", "source_sha256": "bf95cb9d744b4b5aa5c5bb3651bb4c3182e04ad8aa7b963f0ef874bf915d294e", "required_for_operational_active": true}

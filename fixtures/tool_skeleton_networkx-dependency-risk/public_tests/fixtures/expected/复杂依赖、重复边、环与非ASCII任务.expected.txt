@@ -1,0 +1,12 @@
+task	direct_dependencies	direct_dependents	downstream_count	ready_now	in_cycle
+发布	1	1	1	false	false
+含,逗号	1	0	0	false	false
+审核	1	0	0	false	false
+循环乙	1	1	1	false	true
+循环甲	1	1	1	false	true
+构建	1	2	4	false	false
+测试	1	1	2	false	false
+独立	0	1	1	true	false
+自环	1	1	0	false	true
+获取	0	1	5	true	false
+部署	1	0	0	false	false

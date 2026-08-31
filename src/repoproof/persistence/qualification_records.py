@@ -8,6 +8,7 @@ never opt into Benchmark Lab scoring.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -26,6 +27,43 @@ _ID_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,127}")
 
 class QualificationRecordError(RuntimeError):
     """A record is invalid or would violate append-only storage."""
+
+
+def qualification_framework_tree_sha256(package_root: Path) -> str:
+    """Fingerprint the executable RepoProof Python package deterministically.
+
+    The frozen protocol has its own byte hash, while this identity binds the
+    Product implementation actually executed.  The algorithm matches Studio's
+    stale-process guard: sorted ``*.py`` paths relative to ``src/repoproof``,
+    each framed by path/content length before hashing.  Symlinks are excluded
+    from the executable identity and an empty/unsafe root fails closed.
+    """
+
+    raw_root = Path(package_root)
+    if raw_root.is_symlink():
+        raise QualificationRecordError(
+            f"unsafe qualification framework root: {raw_root}"
+        )
+    package_root = raw_root.resolve()
+    if not package_root.is_dir():
+        raise QualificationRecordError(
+            f"unsafe qualification framework root: {package_root}"
+        )
+    digest = hashlib.sha256()
+    count = 0
+    for path in sorted(package_root.rglob("*.py")):
+        if not path.is_file() or path.is_symlink():
+            continue
+        relative = path.relative_to(package_root).as_posix().encode("utf-8")
+        payload = path.read_bytes()
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        digest.update(len(payload).to_bytes(8, "big"))
+        digest.update(payload)
+        count += 1
+    if count == 0:
+        raise QualificationRecordError("qualification framework tree is empty")
+    return digest.hexdigest()
 
 
 class QualificationCaseResultV1(BaseModel):

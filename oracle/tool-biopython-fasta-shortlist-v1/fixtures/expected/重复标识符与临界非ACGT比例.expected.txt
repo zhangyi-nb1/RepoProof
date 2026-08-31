@@ -1,0 +1,21 @@
+# FASTA 候选序列筛选报告
+
+## 摘要
+- 总记录数：3
+- PASS：2
+- REJECT：1
+
+## 通过序列
+| id | length_bp | gc_percent | ambiguous_percent | decision | reasons |
+|---|---:|---:|---:|:---:|---|
+| "dup" | 150 | 53.33 | 0.00 | PASS | NONE |
+| "ambedge" | 200 | 50.00 | 1.00 | PASS | NONE |
+
+## 未通过序列
+| id | length_bp | gc_percent | ambiguous_percent | decision | reasons |
+|---|---:|---:|---:|:---:|---|
+| "dup" | 150 | 0.00 | 0.00 | REJECT | GC_BELOW_MIN |
+
+## 警告
+- 处理边界：未修改、修剪、翻译或比对输入序列，未查询远程数据库。
+- 重复 id 值数量：1
