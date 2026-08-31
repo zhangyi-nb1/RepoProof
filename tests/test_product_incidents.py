@@ -202,6 +202,53 @@ def test_change_writer_requires_real_matching_independent_incidents(
         )
 
 
+def test_change_writer_accepts_two_independent_pre_task_contexts(
+    tmp_path: Path,
+) -> None:
+    incident_root = tmp_path / "incidents"
+    first = _incident(
+        incident_id="incident-pre-task-1",
+        task_version=None,
+        stage="INTENT_ADMISSION",
+        owner="HARNESS",
+        pre_task_context_sha256="1" * 64,
+        public_failed_nodes=("repository_analysis::optional-credential-reference",),
+        reason_codes=("OPTIONAL_CREDENTIAL_REFERENCE_OVERCLASSIFIED",),
+        agent_diff_present=False,
+        repair_eligible=False,
+        disposition="RECORD_PENDING_SECOND_INCIDENT",
+    )
+    second = first.model_copy(
+        update={
+            "incident_id": "incident-pre-task-2",
+            "pre_task_context_sha256": "2" * 64,
+        }
+    )
+    write_product_incident(incident_root, first)
+    write_product_incident(incident_root, second)
+    evidence = HarnessChangeEvidenceV1(
+        evidence_id="change-two-pre-task-contexts",
+        invariant="Two independent pre-task contexts must support generic evidence.",
+        anonymous_fixture_id="anonymous-pre-task-contexts",
+        normalized_fingerprint=first.normalized_fingerprint,
+        before_control_sha256="3" * 64,
+        after_control_sha256="4" * 64,
+        affected_component="generic.admission",
+        incident_ids=(first.incident_id, second.incident_id),
+        regression_tests=(
+            "test_change_writer_accepts_two_independent_pre_task_contexts",
+        ),
+        case_identifier_scan_passed=True,
+        created_at="2026-08-31T00:10:00Z",
+    )
+
+    assert write_harness_change_evidence(
+        tmp_path / "changes",
+        evidence,
+        incident_root=incident_root,
+    ).is_file()
+
+
 def test_case_identifier_scan_is_limited_to_core_python(tmp_path: Path) -> None:
     source = tmp_path / "src" / "repoproof"
     source.mkdir(parents=True)

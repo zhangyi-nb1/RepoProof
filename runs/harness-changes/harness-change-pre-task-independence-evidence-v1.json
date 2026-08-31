@@ -1,0 +1,21 @@
+{
+  "affected_component": "persistence.product_incidents",
+  "after_control_sha256": "1d371f72911be5da26c2e1a7dd7123d25cce48c2853d19d55630caae579f4825",
+  "anonymous_fixture_id": "anonymous-pre-task-contexts",
+  "before_control_sha256": "7bb7d6ba7f335f9147e6f51ae25c5e949e6446f085d32e1a000015b354c54b91",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-08-31T19:25:00+08:00",
+  "evidence_id": "harness-change-pre-task-independence-evidence-v1",
+  "incident_ids": [
+    "incident-pre-task-evidence-context-1-2dba9b6",
+    "incident-pre-task-evidence-context-2-2dba9b6"
+  ],
+  "invariant": "A generic pre-task admission failure observed in two independent repository revisions must be representable without inventing task versions.",
+  "normalized_fingerprint": "28db8ab72814e17d",
+  "regression_tests": [
+    "test_change_writer_accepts_two_independent_pre_task_contexts",
+    "test_change_writer_requires_real_matching_independent_incidents"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

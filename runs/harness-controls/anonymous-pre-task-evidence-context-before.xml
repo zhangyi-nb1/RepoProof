@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.103" timestamp="2026-08-31T19:12:52.544554+08:00" hostname="ZhangrongleideMacBook-Air-3.local"><testcase classname="tests.test_product_incidents" name="test_change_writer_accepts_two_independent_pre_task_contexts" time="0.003"><failure message="pydantic_core._pydantic_core.ValidationError: 1 validation error for ProductIncidentV1&#10;pre_task_context_sha256&#10;  Extra inputs are not permitted [type=extra_forbidden, input_value='111111111111111111111111...11111111111111111111111', input_type=str]&#10;    For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-110/test_change_writer_accepts_two0')
+
+    def test_change_writer_accepts_two_independent_pre_task_contexts(
+        tmp_path: Path,
+    ) -&gt; None:
+        incident_root = tmp_path / "incidents"
+&gt;       first = _incident(
+            incident_id="incident-pre-task-1",
+            task_version=None,
+            stage="INTENT_ADMISSION",
+            owner="HARNESS",
+            pre_task_context_sha256="1" * 64,
+            public_failed_nodes=("repository_analysis::optional-credential-reference",),
+            reason_codes=("OPTIONAL_CREDENTIAL_REFERENCE_OVERCLASSIFIED",),
+            agent_diff_present=False,
+            repair_eligible=False,
+            disposition="RECORD_PENDING_SECOND_INCIDENT",
+        )
+
+tests/test_product_incidents.py:209: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+overrides = {'incident_id': 'incident-pre-task-1', 'task_version': None, 'stage': 'INTENT_ADMISSION', 'owner': 'HARNESS', ...}
+
+    def _incident(**overrides) -&gt; ProductIncidentV1:
+        raw = {
+            "incident_id": "incident-1",
+            "framework_git_commit": _COMMIT,
+            "framework_tree_sha256": _SHA,
+            "profile_id": "workspace_bundle_v1",
+            "task_version": "tool-example-v1",
+            "stage": "AGENT_ADAPTER",
+            "owner": "AGENT_ADAPTER",
+            "normalized_fingerprint": "c" * 16,
+            "public_failed_nodes": ("public::required-entry",),
+            "reason_codes": ("WORKSPACE_REQUIRED_ENTRY_MISSING",),
+            "artifact_tree_diff": {"missing": ["README.md"]},
+            "agent_diff_present": True,
+            "repair_eligible": True,
+            "disposition": "REPAIR_AGENT",
+            "created_at": "2026-08-31T00:00:00Z",
+        }
+        raw.update(overrides)
+&gt;       return ProductIncidentV1.model_validate(raw)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for ProductIncidentV1
+E       pre_task_context_sha256
+E         Extra inputs are not permitted [type=extra_forbidden, input_value='111111111111111111111111...11111111111111111111111', input_type=str]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/test_product_incidents.py:44: ValidationError</failure></testcase></testsuite></testsuites>

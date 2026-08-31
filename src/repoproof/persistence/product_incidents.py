@@ -46,6 +46,9 @@ _SAFE_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,127}")
 _SAFE_REASON = re.compile(r"[A-Z][A-Z0-9_]{0,95}")
 _SHA = r"^[0-9a-f]{64}$"
 _COMMIT = r"^[0-9a-f]{40}$"
+_PRE_TASK_STAGES: frozenset[IncidentStage] = frozenset(
+    {"INTENT_ADMISSION", "CONTRACT_AUTHORING", "PREFLIGHT_UPSTREAM"}
+)
 
 
 class IncidentRecordError(RuntimeError):
@@ -61,6 +64,7 @@ class ProductIncidentV1(BaseModel):
     framework_tree_sha256: str = Field(pattern=_SHA)
     profile_id: str = Field(min_length=1, max_length=64)
     task_version: str | None = Field(default=None, max_length=256)
+    pre_task_context_sha256: str | None = Field(default=None, pattern=_SHA)
     stage: IncidentStage
     owner: IncidentOwner
     normalized_fingerprint: str = Field(pattern=r"^[0-9a-f]{16}$")
@@ -105,6 +109,11 @@ class ProductIncidentV1(BaseModel):
             and self.owner != "HARNESS"
         ):
             raise ValueError("generic Harness changes require HARNESS ownership")
+        if self.pre_task_context_sha256 is not None:
+            if self.task_version is not None:
+                raise ValueError("pre-task context cannot accompany a task version")
+            if self.stage not in _PRE_TASK_STAGES:
+                raise ValueError("pre-task context is limited to pre-task stages")
         return self
 
 
@@ -180,6 +189,24 @@ def public_incident_fingerprint(
         separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(basis).hexdigest()[:16]
+
+
+def pre_task_incident_context(
+    *,
+    repository_url: str,
+    resolved_commit: str,
+) -> str:
+    """Bind a pre-task incident to one repository revision without naming its case."""
+
+    repository_url = repository_url.strip()
+    resolved_commit = resolved_commit.strip().lower()
+    if not repository_url:
+        raise IncidentRecordError("pre-task context requires a repository URL")
+    if re.fullmatch(_COMMIT, resolved_commit) is None:
+        raise IncidentRecordError("pre-task context requires a resolved commit")
+    return hashlib.sha256(
+        repository_url.encode("utf-8") + b"\0" + resolved_commit.encode("ascii")
+    ).hexdigest()
 
 
 def _stable_reason_code(value: str) -> str:
@@ -370,8 +397,9 @@ def write_harness_change_evidence(
     The Pydantic model makes malformed evidence impossible, but an arbitrary
     pair of strings is not proof of two independent failures.  The writer is
     the trusted boundary: it loads the append-only incident bytes, requires the
-    same normalized fingerprint and, outside the safety exception, two distinct
-    non-empty task versions.
+    same normalized fingerprint and, outside the safety exception, either two
+    distinct task versions or two distinct repository revisions observed before
+    a task version could exist.
     """
 
     incident_root = (
@@ -404,9 +432,23 @@ def write_harness_change_evidence(
         incidents.append(incident)
     if not evidence.safety_or_false_success_exception:
         task_versions = {item.task_version for item in incidents if item.task_version}
-        if len(task_versions) < 2:
+        pre_task_contexts = {
+            item.pre_task_context_sha256
+            for item in incidents
+            if item.pre_task_context_sha256 is not None
+        }
+        all_pre_task = bool(incidents) and all(
+            item.task_version is None
+            and item.stage in _PRE_TASK_STAGES
+            and item.pre_task_context_sha256 is not None
+            for item in incidents
+        )
+        if len(task_versions) < 2 and not (
+            all_pre_task and len(pre_task_contexts) >= 2
+        ):
             raise IncidentRecordError(
-                "non-safety Harness change requires two independent task versions"
+                "non-safety Harness change requires two independent task versions "
+                "or pre-task repository contexts"
             )
     payload = (
         json.dumps(evidence.model_dump(mode="json"), ensure_ascii=False,
