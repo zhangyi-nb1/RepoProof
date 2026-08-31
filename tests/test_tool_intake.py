@@ -162,6 +162,33 @@ def test_decide_tool_external_services_is_risk_review():
     assert r.status == "RISK_REVIEW" and any("外部服务" in x for x in r.risks)
 
 
+def test_intake_rejects_credentialled_irreversible_intent_before_repository_access(
+    tmp_path, monkeypatch
+):
+    """Explicit high-risk intent is a zero-repository, zero-Agent safety stop."""
+
+    def forbidden_repository_access(*_args, **_kwargs):
+        raise AssertionError("repository access must not occur for rejected intent")
+
+    monkeypatch.setattr(
+        "repoproof.adoption.intake.tool_intake.clone_for_analysis",
+        forbidden_repository_access,
+    )
+    report = run_tool_intake(
+        "https://example.invalid/public-source",
+        "Authenticate to a private account and complete an irreversible external transaction.",
+        cache_root=tmp_path / "cache",
+        revision="v1",
+    )
+
+    assert report.admission.status == "UNSUPPORTED"
+    assert report.admission.executes_third_party_code is False
+    assert report.admission.reason_codes == [
+        "UNSUPPORTED_CREDENTIALLED_EXTERNAL_SIDE_EFFECT"
+    ]
+    assert report.draft == {}
+
+
 # ------------------------------------------------------------ 草稿与缺口
 
 def test_intake_draft_fills_deterministic_fields(tmp_path):

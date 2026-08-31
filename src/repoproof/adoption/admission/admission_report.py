@@ -33,6 +33,7 @@ class AdmissionReport(BaseModel):
     questions: list[str] = []          # ?
     blockers: list[str] = []           # ×
     risks: list[str] = []              # !
+    reason_codes: list[str] = []       # stable public machine reasons
     next_step: str = ""
     executes_third_party_code: bool = True
 
@@ -106,6 +107,28 @@ def decide_tool(repo: RepositoryReport) -> AdmissionReport:
     )
 
 
+def decide_tool_intent(capability_goal: str) -> AdmissionReport | None:
+    """Reject explicit unsupported delivery risks before repository access."""
+
+    from repoproof.adoption.admission.intent_risk_policy import (
+        classify_product_intent_risk,
+    )
+
+    risk = classify_product_intent_risk(capability_goal)
+    if risk.supported:
+        return None
+    return AdmissionReport(
+        status=UNSUPPORTED,
+        blockers=list(risk.blockers),
+        reason_codes=list(risk.reason_codes),
+        next_step=(
+            "把需求收敛为无凭证、运行期离线、单次调用且不产生外部副作用的"
+            "本地工具，或等待相应运行 profile 获得支持。"
+        ),
+        executes_third_party_code=False,
+    )
+
+
 def apply_user_confirmations(
     report: AdmissionReport, confirmed_questions: list[str]
 ) -> AdmissionReport:
@@ -132,6 +155,7 @@ def apply_user_confirmations(
         questions=remaining,
         blockers=report.blockers,
         risks=report.risks,
+        reason_codes=report.reason_codes,
         next_step=_NEXT_STEP[status],
         executes_third_party_code=report.executes_third_party_code,
     )

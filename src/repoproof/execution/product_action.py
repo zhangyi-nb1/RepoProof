@@ -340,9 +340,19 @@ def action_result_from_payload(
         admission = admission if isinstance(admission, Mapping) else {}
         if action == "tool-add" and admission.get("status") == "UNSUPPORTED":
             failure_owner = "USER_INPUT"
-            reason_codes = sorted({*reason_codes, "ADMISSION_UNSUPPORTED"})
+            admission_codes = admission.get("reason_codes") or []
+            if not isinstance(admission_codes, list):
+                admission_codes = [str(admission_codes)]
+            reason_codes = sorted({
+                *reason_codes,
+                *(str(code) for code in admission_codes if str(code).strip()),
+                *([] if admission_codes else ["ADMISSION_UNSUPPORTED"]),
+            })
+            failure_stage = "INTAKE"
             product_stop_code = product_stop_code or "STOP_NEEDS_HUMAN"
-            recommended_action = recommended_action or "收紧能力范围或选择受支持的公开 Python 仓库。"
+            recommended_action = recommended_action or _string(
+                admission.get("next_step")
+            ) or "收紧能力范围或选择受支持的公开 Python 仓库。"
         elif action == "tool-add":
             draft_error = _string(payload.get("draft_error"))
             failure = _DRAFTER_FAILURES.get(draft_error or "")

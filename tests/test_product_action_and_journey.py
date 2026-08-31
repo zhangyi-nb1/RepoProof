@@ -214,6 +214,33 @@ def test_tool_add_preserves_typed_drafter_failure(
     assert result.product_stop_code == "STOP_HARNESS_OR_EXTERNAL"
 
 
+def test_tool_add_preserves_specific_intent_admission_reason() -> None:
+    result = action_result_from_payload(
+        job_id="a" * 32,
+        journey_id="b" * 32,
+        action="tool-add",
+        ok=False,
+        payload={
+            "ok": False,
+            "admission": {
+                "status": "UNSUPPORTED",
+                "reason_codes": [
+                    "UNSUPPORTED_CREDENTIALLED_EXTERNAL_SIDE_EFFECT"
+                ],
+                "next_step": "Use an offline workflow without credentials.",
+            },
+        },
+    )
+
+    assert result.reason_codes == [
+        "UNSUPPORTED_CREDENTIALLED_EXTERNAL_SIDE_EFFECT"
+    ]
+    assert result.failure_owner == "USER_INPUT"
+    assert result.failure_stage == "INTAKE"
+    assert result.agent_invoked is False
+    assert result.recommended_action == "Use an offline workflow without credentials."
+
+
 def test_audit_build_failure_is_harness_owned_not_agent_repair() -> None:
     result = action_result_from_payload(
         job_id="a" * 32,

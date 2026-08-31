@@ -21,7 +21,11 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from repoproof.adoption.admission.admission_report import AdmissionReport, decide_tool
+from repoproof.adoption.admission.admission_report import (
+    AdmissionReport,
+    decide_tool,
+    decide_tool_intent,
+)
 from repoproof.adoption.analysis.repository_analyzer import (
     Finding,
     RepositoryReport,
@@ -288,6 +292,32 @@ def run_tool_intake(
     local_path: Path | None = None,
 ) -> ToolIntakeReport:
     """source = GitHub URL(联网浅克隆)或忽略(local_path 直读,零网络)。"""
+    intent_admission = decide_tool_intent(capability_goal)
+    if intent_admission is not None:
+        # Intent safety is earlier than repository support.  A stopped request
+        # must not clone, inspect, execute, or ask a model about third-party
+        # code merely to rediscover the same delivery-profile mismatch.
+        repo = RepositoryReport(
+            repository=source or str(local_path or ""),
+            requested_revision=revision,
+            is_public=Finding.unknown("意图安全闸在仓库分析前停止"),
+            commit=Finding.unknown("意图安全闸在仓库分析前停止"),
+            license=Finding.unknown("意图安全闸在仓库分析前停止"),
+            python_version=Finding.unknown("意图安全闸在仓库分析前停止"),
+            install_method=Finding.unknown("意图安全闸在仓库分析前停止"),
+            risks=["仓库尚未分析：需求已在交付风险预检阶段停止。"],
+        )
+        return ToolIntakeReport(
+            capability_goal=capability_goal,
+            repo=repo,
+            admission=intent_admission,
+            draft={},
+            draft_gaps=[DraftGap(
+                field="capability_goal",
+                owner="USER",
+                why=intent_admission.next_step,
+            )],
+        )
     repo_dir: Path | None
     if local_path is not None:
         repo_dir = Path(local_path).resolve()
