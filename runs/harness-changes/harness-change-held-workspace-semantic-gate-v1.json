@@ -1,0 +1,22 @@
+{
+  "affected_component": "workspace_bundle_v1 generated capability acceptance",
+  "after_control_sha256": "845f6c6aacfa8a4acf893e131d5b78d708bef4d2ca1dcd769b60d147f1c5e566",
+  "anonymous_fixture_id": "anonymous-semantic-equivalence-presentation-variance-v1",
+  "before_control_sha256": "643abf503a71a1acc325c359b54f0e22d9943b20da059225d03792804e6b3878",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T01:22:48+08:00",
+  "evidence_id": "harness-change-held-workspace-semantic-gate-v1",
+  "incident_ids": [
+    "incident-action-bb03f1d9d5ada28b85dc243b",
+    "incident-held-golden-overconstraint-7d324f8"
+  ],
+  "invariant": "Public user-confirmed examples may bind canonical bytes, but held-out inputs may only test public commitments through the frozen task semantic verifier; hidden acceptance cannot introduce undeclared presentation bytes. Exact runtime determinism remains independently bound by repeated tree hashes.",
+  "normalized_fingerprint": "held-workspace-exact-golden-enforces-undisclosed-presentation-v1",
+  "preregistered_requirement": "M6.2 plan section II.3 requires task semantic validation as an independent workspace validation layer.",
+  "regression_tests": [
+    "tests/test_workspace_tool_assembler.py::test_held_workspace_acceptance_uses_frozen_semantics_not_incidental_bytes",
+    "tests/test_workspace_tool_assembler.py::test_golden_identity_ignores_oracle_read_only_hardening"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

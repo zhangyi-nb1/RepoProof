@@ -13,6 +13,7 @@ import yaml
 from repoproof.adoption.assembly import workspace_tool_assembler
 from repoproof.adoption.assembly.example_compiler import CompileError
 from repoproof.adoption.assembly.workspace_tool_assembler import (
+    WorkspaceGoldenExampleV1,
     assemble_workspace_tool_task,
     workspace_truth_binding_sha256,
 )
@@ -67,6 +68,83 @@ def test_golden_identity_ignores_oracle_read_only_hardening(
 
     assert namespace["_tree_sha"](ordinary) != namespace["_tree_sha"](hardened)
     assert namespace["_golden_sha"](ordinary) == namespace["_golden_sha"](hardened)
+
+
+def test_held_workspace_acceptance_uses_frozen_semantics_not_incidental_bytes(
+    tmp_path: Path,
+) -> None:
+    """Held-out inputs may hide values, not an undeclared punctuation rule."""
+
+    oracle = tmp_path / "oracle"
+    source = oracle / "fixtures" / "equivalent" / "input"
+    expected = oracle / "fixtures" / "equivalent" / "expected"
+    source.mkdir(parents=True)
+    expected.mkdir(parents=True)
+    (source / "items.txt").write_text("alpha\nbeta\n", encoding="utf-8")
+    (expected / "report.txt").write_text("alpha、beta\n", encoding="utf-8")
+    (oracle / "semantic_verifier.py").write_text(
+        "from pathlib import Path\n\n"
+        "def verify(input_path: Path, artifact_path: Path) -> dict:\n"
+        "    expected = set((input_path / 'items.txt').read_text().split())\n"
+        "    actual = (artifact_path / 'report.txt').read_text().strip()\n"
+        "    found = set(actual.replace('、', ';').split(';'))\n"
+        "    ok = found == expected\n"
+        "    return {'ok': ok, 'reason_codes': [] if ok else ['ITEMS_MISMATCH'], "
+        "'checked_commitment_ids': ['render-items']}\n",
+        encoding="utf-8",
+    )
+    tool = tmp_path / "anonymous-tool"
+    tool.write_text(
+        f"#!{sys.executable}\n"
+        "import argparse\n"
+        "from pathlib import Path\n"
+        "parser = argparse.ArgumentParser()\n"
+        "parser.add_argument('input')\n"
+        "parser.add_argument('--out-dir', required=True)\n"
+        "args = parser.parse_args()\n"
+        "output = Path(args.out_dir)\n"
+        "output.mkdir()\n"
+        "(output / 'report.txt').write_text('alpha;beta\\n')\n",
+        encoding="utf-8",
+    )
+    tool.chmod(0o755)
+    example = WorkspaceGoldenExampleV1(
+        example_id="equivalent",
+        input_path="equivalent/input",
+        expected_dir="equivalent/expected",
+        truth_provenance="UPSTREAM_DERIVED_USER_CONFIRMED",
+        truth_binding_sha256="0" * 64,
+    )
+    test_source = oracle / "test_capability.py"
+    test_source.write_text(
+        workspace_tool_assembler._test_source([example], held=True),
+        encoding="utf-8",
+    )
+    completed = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", str(test_source)],
+        env={**os.environ, "REPOPROOF_TOOL_BIN": str(tool)},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+    tool.write_text(
+        tool.read_text(encoding="utf-8").replace("alpha;beta", "alpha;gamma"),
+        encoding="utf-8",
+    )
+    rejected = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", str(test_source)],
+        env={**os.environ, "REPOPROOF_TOOL_BIN": str(tool)},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert rejected.returncode != 0
+    assert "ITEMS_MISMATCH" in rejected.stdout
 
 
 def _tool() -> ToolSpec:

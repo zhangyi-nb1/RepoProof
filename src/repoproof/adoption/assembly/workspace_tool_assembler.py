@@ -181,6 +181,7 @@ Source: {repo_url} @ {commit} (license: {license_id}).
 
 _TEST_PRELUDE = r'''import hashlib
 import os
+import runpy
 import stat
 import subprocess
 from pathlib import Path
@@ -227,7 +228,20 @@ def _golden_sha(root):
     return digest.hexdigest()
 
 
-def _run_case(tmp_path, example_id):
+def _semantic_acceptance(source, output):
+    verifier_path = Path(__file__).resolve().parent / "semantic_verifier.py"
+    namespace = runpy.run_path(str(verifier_path))
+    verify = namespace.get("verify")
+    assert callable(verify), "frozen semantic verifier has no callable verify"
+    result = verify(source, output)
+    assert isinstance(result, dict), "semantic verifier returned a non-object"
+    reasons = result.get("reason_codes") or []
+    assert result.get("ok") is True, "semantic verifier rejected artifact: " + ",".join(
+        str(item) for item in reasons
+    )
+
+
+def _run_case(tmp_path, example_id, *, exact=True):
     source = _FIXTURES / example_id / "input"
     expected = _FIXTURES / example_id / "expected"
     output = tmp_path / f"{example_id}-output"
@@ -237,7 +251,10 @@ def _run_case(tmp_path, example_id):
     )
     assert process.returncode == 0, process.stderr
     assert output.is_dir()
-    assert _golden_sha(output) == _golden_sha(expected)
+    if exact:
+        assert _golden_sha(output) == _golden_sha(expected)
+    else:
+        _semantic_acceptance(source, output)
     return output
 '''
 
@@ -251,9 +268,10 @@ def _test_source(
     body = [_TEST_PRELUDE]
     prefix = "held_example" if held else "example"
     for index, example in enumerate(examples, start=1):
+        exact_argument = ", exact=False" if held else ""
         body.append(
             f"\ndef test_{prefix}_{index}(tmp_path):\n"
-            f"    _run_case(tmp_path, {example.example_id!r})\n"
+            f"    _run_case(tmp_path, {example.example_id!r}{exact_argument})\n"
         )
     if not held and examples:
         identifier = examples[0].example_id
