@@ -1,0 +1,27 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "invalid_path_slots": 1,
+    "repair_rounds": 0
+  },
+  "created_at": "2026-09-01T03:41:00+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "2b1a9cb9a1fb73abe8481aee0704863f8c3a32dd",
+  "framework_tree_sha256": "afd39ebd5552600b38a944515529d48642c691157ebb819dd19e9a66f4f63f9b",
+  "incident_id": "incident-initial-fixture-blueprint-portability-v1",
+  "normalized_fingerprint": "31ffaee1a17b188e",
+  "owner": "HARNESS",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "fixture_blueprints::portable-path"
+  ],
+  "reason_codes": [
+    "FIXTURE_BLUEPRINT_NONPORTABLE_PATH"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": "datasette-tool-draft-v2"
+}

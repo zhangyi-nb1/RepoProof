@@ -34,6 +34,7 @@ from repoproof.adoption.intake.tool_drafter import (
     FakeDrafter,
     LiteLLMDrafter,
     _compile_workspace_runtime_closure,
+    _normalize_fixture_blueprints,
     _validate_fixture_builder_source,
     draft_into_bundle,
     normalize_draft_document,
@@ -90,6 +91,37 @@ def test_runnable_python_workspace_compiles_to_core_owned_offline_launcher() -> 
     assert by_path["app.py"]["executable"] is False
     assert by_path["run.sh"]["executable"] is True
     assert "vendor/wheels/*.whl" in by_path
+
+
+def test_initial_workspace_draft_rejects_nonportable_blueprint_paths() -> None:
+    document = {
+        "fixture_blueprints": [
+            {
+                "blueprint_id": f"scenario-{index}",
+                "title": f"Scenario {index}",
+                "scenario": "Unicode content is valid",
+                "input_kind": "directory",
+                "parameters_json": json.dumps(
+                    {
+                        "files": [
+                            {
+                                "path": "入口.csv" if index == 1 else f"input-{index}.csv",
+                                "content": "你好",
+                            }
+                        ]
+                    },
+                    ensure_ascii=False,
+                ),
+            }
+            for index in range(1, 4)
+        ]
+    }
+
+    with pytest.raises(
+        DraftProjectionError,
+        match="FIXTURE_BLUEPRINT_NONPORTABLE_PATH",
+    ):
+        _normalize_fixture_blueprints(document, input_kind="directory")
 
 
 def test_reference_policy_rejects_broad_error_masking() -> None:
