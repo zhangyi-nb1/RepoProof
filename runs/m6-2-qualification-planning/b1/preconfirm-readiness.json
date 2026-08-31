@@ -1,0 +1,539 @@
+{
+  "delivery_profile_id": "workspace_bundle_v1",
+  "dependency_lock": {
+    "note": "以你在草稿束里写的 reference.lock.txt 为准。",
+    "pins": [
+      "cookiecutter==2.7.1"
+    ],
+    "source": "user"
+  },
+  "draft": {
+    "_delivery_profile": {
+      "profile_id": "workspace_bundle_v1",
+      "schema_version": 1
+    },
+    "_draft": {
+      "note": "确定性字段已填;缺口见 draft_gaps。冻结走确认流,本文件不产 sidecar。",
+      "provenance": {
+        "distribution": "pyproject.toml [project].name",
+        "import_module": "顶层布局:cookiecutter/__init__.py 存在(真实目录名回读)"
+      },
+      "status": "DRAFT"
+    },
+    "_intent_contract": {
+      "artifact_protocol": {
+        "observations": [
+          {
+            "commitment_ids": [
+              "title-from-input"
+            ],
+            "locator": "读取 `project/README.md` 的第一行；该行是唯一的一级 ATX Markdown 标题。",
+            "observation_id": "readme-project-title",
+            "value_encoding": "UTF-8 Markdown；首行语法为 `# ` 后接项目标题的 Unicode 文本。"
+          },
+          {
+            "commitment_ids": [
+              "description-preservation"
+            ],
+            "locator": "读取 `project/README.md` 中 `<!-- project-description-start -->` 与 `<!-- project-description-end -->` 两个各占一行的标记之间的全部行。",
+            "observation_id": "readme-project-description",
+            "value_encoding": "UTF-8 文本；两个标记之间的行按原有顺序构成说明正文，允许为空。"
+          },
+          {
+            "commitment_ids": [
+              "normalized-distribution-name"
+            ],
+            "locator": "用 TOML 解析 `project/pyproject.toml`，读取 `[project]` 表的 `name` 字符串字段。",
+            "observation_id": "pyproject-distribution-name",
+            "value_encoding": "TOML 基本字符串；值是小写 ASCII 字母、数字和连字符组成的非空名称。"
+          },
+          {
+            "commitment_ids": [
+              "starter-module-title"
+            ],
+            "locator": "用 Python AST 解析 `project/src/starter_project/__init__.py`，查找模块级名称 `PROJECT_NAME` 的字符串常量赋值。",
+            "observation_id": "starter-module-project-name",
+            "value_encoding": "Python 源码；`PROJECT_NAME` 是一个字符串常量赋值。"
+          },
+          {
+            "commitment_ids": [
+              "starter-layout"
+            ],
+            "locator": "递归列出交付目录中的相对常规文件路径，并按 Unicode 码点升序排序。",
+            "observation_id": "workspace-file-layout",
+            "value_encoding": "UTF-8 路径列表；必须与工作区契约列出的十个常规文件路径完全一致。"
+          },
+          {
+            "commitment_ids": [
+              "direct-test-entrypoint"
+            ],
+            "locator": "用 Python AST 解析 `project/run_tests.py`，读取 `main` 函数中 `unittest.defaultTestLoader.discover` 的调用，以及模块末尾对 `main()` 返回值的 `SystemExit` 调用。",
+            "observation_id": "test-runner-behavior",
+            "value_encoding": "Python AST；测试发现目录为入口脚本同级的 `tests` 目录，入口以该测试运行结果作为进程退出状态。"
+          },
+          {
+            "commitment_ids": [
+              "behavior-7"
+            ],
+            "locator": "解析 `project/config/experiment.yaml`，并读取 `project/scripts/bootstrap.sh`、`project/.github/workflows/ci.yml` 与 `project/REPRODUCING.md` 的公开命令和配置引用。",
+            "observation_id": "handoff-support-files",
+            "value_encoding": "YAML 与 UTF-8 文本；配置包含 schema version、项目标题和整数随机种子，三个说明/执行文件引用同一测试入口和配置路径。"
+          }
+        ],
+        "protocol_id": "cookiecutter-starter-workspace",
+        "schema_version": 1
+      },
+      "commitments": [
+        {
+          "commitment_id": "title-from-input",
+          "origin": "USER_EDITED",
+          "public_text": "项目说明 YAML 的 title 非空字符串会去除首尾空白，作为项目标题写入 README 的一级标题。",
+          "rationale": "用户在合同审核阶段补充或修改。"
+        },
+        {
+          "commitment_id": "description-preservation",
+          "origin": "USER_EDITED",
+          "public_text": "项目说明 YAML 的 description 字符串会原样写入 README 的说明标记之间；说明允许为空。",
+          "rationale": "用户在合同审核阶段补充或修改。"
+        },
+        {
+          "commitment_id": "normalized-distribution-name",
+          "origin": "MODEL_PROPOSED",
+          "public_text": "pyproject 的 `[project].name` 由标题经 NFKD 规范化、移除非 ASCII 字符、转小写、将连续非 ASCII 字母数字字符替换为一个连字符、去除首尾连字符得到；若结果为空则使用 `project`。",
+          "rationale": "为固定模板提供适合作为 Python 项目发行名称的稳定标识。"
+        },
+        {
+          "commitment_id": "starter-module-title",
+          "origin": "MODEL_PROPOSED",
+          "public_text": "生成的 `starter_project` 模块会以 Python 字符串常量 `PROJECT_NAME` 暴露项目标题。",
+          "rationale": "给后续业务代码和最小测试提供已连通的项目配置入口。"
+        },
+        {
+          "commitment_id": "starter-layout",
+          "origin": "USER_EDITED",
+          "public_text": "固定本地模板经 Cookiecutter 渲染后，工作区恰好包含合同列出的十个文件，覆盖 README、pyproject、源码、测试、实验配置、脚本、CI、Git 忽略规则和复现说明。",
+          "rationale": "用户在合同审核阶段补充或修改。"
+        },
+        {
+          "commitment_id": "direct-test-entrypoint",
+          "origin": "MODEL_PROPOSED",
+          "public_text": "可执行的 `run_tests.py` 将源目录加入导入路径，发现 `tests` 目录中的 unittest 测试，并以测试成功或失败决定进程状态。",
+          "rationale": "无需网络或额外依赖即可验证交接后的最小项目状态。"
+        },
+        {
+          "commitment_id": "behavior-7",
+          "origin": "USER_EDITED",
+          "public_text": "实验配置固定声明 schema version、项目标题和随机种子 42；启动脚本创建本地虚拟环境并运行检查；CI 执行同一检查；复现说明公开对应命令和配置位置。",
+          "rationale": "用户在合同审核阶段补充或修改。"
+        }
+      ],
+      "confirmation": null,
+      "delivery": {
+        "admitted_output_format_id": "workspace_bundle",
+        "origin": "USER_EDITED",
+        "profile_id": "workspace_bundle_v1",
+        "requirements": {
+          "browser": "none",
+          "credentials": "none",
+          "external_side_effects": "none",
+          "inputs": [
+            {
+              "format_label": "UTF-8 YAML project brief（title 与 description）",
+              "kind": "file",
+              "location": "local",
+              "representation": "utf8_text",
+              "role": "user-confirmed primary input"
+            }
+          ],
+          "lifecycle": "per_invocation",
+          "network": "offline",
+          "outputs": [
+            {
+              "format_id": "workspace_bundle",
+              "format_label": "离线多文件工作区",
+              "kind": "directory",
+              "role": "user-confirmed primary artifact"
+            }
+          ],
+          "runtime": "local_cpu"
+        },
+        "support_status": "SUPPORTED"
+      },
+      "schema_version": 1,
+      "user_goal": "我只提供一份项目说明文件，工具使用内置并固定的本地实验模板，生成一套能直接开工、也方便交接的项目文件夹。",
+      "user_goal_sha256": "46a05d5cfcbf42fd7f1a346a24eddaf1414be9e959f85cfb47efc3acdc6517b8"
+    },
+    "acceptance": {
+      "capability_command": [
+        "pytest",
+        "-q",
+        "/oracle/test_capability.py"
+      ],
+      "probe_script": "direct_tool_probe.py",
+      "regression_command": [
+        "pytest",
+        "-q",
+        "public_tests/test_interface_contract.py"
+      ]
+    },
+    "adoption_shape": "TOOL_ONBOARDING",
+    "budgets": {
+      "max_agent_steps": 20,
+      "max_command_minutes": 5,
+      "max_input_tokens_total": 400000,
+      "max_output_tokens_total": 40000,
+      "max_patch_files": 12,
+      "max_patch_lines": 1200,
+      "max_same_action": 2,
+      "max_semantic_recoveries": 3,
+      "max_wall_time_minutes": 30,
+      "monetary_soft_cap_usd": 5.0
+    },
+    "capability": {
+      "output_schema": "ResearchProjectWorkspace",
+      "statement": "用户目标：我只提供一份项目说明文件，工具使用内置并固定的本地实验模板，生成一套能直接开工、也方便交接的项目文件夹。\n公开行为承诺：\n- [title-from-input] 项目说明 YAML 的 title 非空字符串会去除首尾空白，作为项目标题写入 README 的一级标题。\n- [description-preservation] 项目说明 YAML 的 description 字符串会原样写入 README 的说明标记之间；说明允许为空。\n- [normalized-distribution-name] pyproject 的 `[project].name` 由标题经 NFKD 规范化、移除非 ASCII 字符、转小写、将连续非 ASCII 字母数字字符替换为一个连字符、去除首尾连字符得到；若结果为空则使用 `project`。\n- [starter-module-title] 生成的 `starter_project` 模块会以 Python 字符串常量 `PROJECT_NAME` 暴露项目标题。\n- [starter-layout] 固定本地模板经 Cookiecutter 渲染后，工作区恰好包含合同列出的十个文件，覆盖 README、pyproject、源码、测试、实验配置、脚本、CI、Git 忽略规则和复现说明。\n- [direct-test-entrypoint] 可执行的 `run_tests.py` 将源目录加入导入路径，发现 `tests` 目录中的 unittest 测试，并以测试成功或失败决定进程状态。\n- [behavior-7] 实验配置固定声明 schema version、项目标题和随机种子 42；启动脚本创建本地虚拟环境并运行检查；CI 执行同一检查；复现说明公开对应命令和配置位置。\n公开产物协议：\n- [readme-project-title -> title-from-input] 定位：读取 `project/README.md` 的第一行；该行是唯一的一级 ATX Markdown 标题。；值表示：UTF-8 Markdown；首行语法为 `# ` 后接项目标题的 Unicode 文本。\n- [readme-project-description -> description-preservation] 定位：读取 `project/README.md` 中 `<!-- project-description-start -->` 与 `<!-- project-description-end -->` 两个各占一行的标记之间的全部行。；值表示：UTF-8 文本；两个标记之间的行按原有顺序构成说明正文，允许为空。\n- [pyproject-distribution-name -> normalized-distribution-name] 定位：用 TOML 解析 `project/pyproject.toml`，读取 `[project]` 表的 `name` 字符串字段。；值表示：TOML 基本字符串；值是小写 ASCII 字母、数字和连字符组成的非空名称。\n- [starter-module-project-name -> starter-module-title] 定位：用 Python AST 解析 `project/src/starter_project/__init__.py`，查找模块级名称 `PROJECT_NAME` 的字符串常量赋值。；值表示：Python 源码；`PROJECT_NAME` 是一个字符串常量赋值。\n- [workspace-file-layout -> starter-layout] 定位：递归列出交付目录中的相对常规文件路径，并按 Unicode 码点升序排序。；值表示：UTF-8 路径列表；必须与工作区契约列出的十个常规文件路径完全一致。\n- [test-runner-behavior -> direct-test-entrypoint] 定位：用 Python AST 解析 `project/run_tests.py`，读取 `main` 函数中 `unittest.defaultTestLoader.discover` 的调用，以及模块末尾对 `main()` 返回值的 `SystemExit` 调用。；值表示：Python AST；测试发现目录为入口脚本同级的 `tests` 目录，入口以该测试运行结果作为进程退出状态。\n- [handoff-support-files -> behavior-7] 定位：解析 `project/config/experiment.yaml`，并读取 `project/scripts/bootstrap.sh`、`project/.github/workflows/ci.yml` 与 `project/REPRODUCING.md` 的公开命令和配置引用。；值表示：YAML 与 UTF-8 文本；配置包含 schema version、项目标题和整数随机种子，三个说明/执行文件引用同一测试入口和配置路径。\n统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。"
+    },
+    "constraints": {
+      "editable_zones": [
+        "tool"
+      ],
+      "forbidden": [
+        "gpu",
+        "privileged_container",
+        "oracle_write",
+        "model_download",
+        "network_at_test_time"
+      ],
+      "forbidden_install_extras": []
+    },
+    "environment": {
+      "arch": "arm64",
+      "cpu_only": true,
+      "network_install": true,
+      "network_test": false,
+      "os": "linux",
+      "python": "3.12"
+    },
+    "source_repo": {
+      "distribution": "cookiecutter",
+      "import_module": "cookiecutter",
+      "license": "BSD",
+      "resolved_commit": "083dd3c6104124221e2cbc3e13e0929795861ed5",
+      "revision": "083dd3c6104124221e2cbc3e13e0929795861ed5",
+      "url": "https://github.com/cookiecutter/cookiecutter"
+    },
+    "target_project": {
+      "entry_point": "research-project-starter",
+      "kind": "local_tool",
+      "package": "research_project_starter",
+      "path": "fixtures/tool_skeleton_research-project-starter"
+    },
+    "task_family": "LOCAL-TOOL",
+    "task_id": "tool-research-project-starter-v1",
+    "tool": {
+      "delivery_profile_id": "workspace_bundle_v1",
+      "interface": {
+        "exit_codes": {
+          "0": "success",
+          "1": "user_error",
+          "2": "internal_error"
+        },
+        "input": {
+          "format": "UTF-8 YAML project brief（title 与 description）",
+          "kind": "file"
+        },
+        "output": {
+          "format": "offline research project workspace",
+          "kind": "directory"
+        },
+        "usage": "research-project-starter <input> --out-dir <new-directory>"
+      },
+      "name": "research-project-starter",
+      "schema_version": 4,
+      "summary": "把一份项目说明 YAML 通过固定 Cookiecutter 模板生成可开工、可检查和可交接的离线研究项目工作区。",
+      "workspace_contract": {
+        "allow_extra_files": false,
+        "entrypoints": [
+          "project/run_tests.py"
+        ],
+        "limits": {
+          "max_depth": 4,
+          "max_file_bytes": 16384,
+          "max_files": 10,
+          "max_path_bytes": 240,
+          "max_total_bytes": 65536
+        },
+        "require_offline_wheelhouse": false,
+        "rules": [
+          {
+            "executable": false,
+            "max_count": 1,
+            "media_type": "text/markdown",
+            "min_count": 1,
+            "path_pattern": "project/README.md",
+            "role": "项目说明与启动指引",
+            "validation_profile": "text_utf8_v1"
+          },
+          {
+            "executable": false,
+            "max_count": 1,
+            "media_type": "application/toml",
+            "min_count": 1,
+            "path_pattern": "project/pyproject.toml",
+            "role": "Python 项目元数据",
+            "validation_profile": "toml_v1"
+          },
+          {
+            "executable": false,
+            "max_count": 1,
+            "media_type": "text/plain",
+            "min_count": 1,
+            "path_pattern": "project/.gitignore",
+            "role": "Git 忽略规则",
+            "validation_profile": "text_utf8_v1"
+          },
+          {
+            "executable": false,
+            "max_count": 1,
+            "media_type": "text/x-python",
+            "min_count": 1,
+            "path_pattern": "project/src/starter_project/__init__.py",
+            "role": "起始 Python 包",
+            "validation_profile": "python_compile_v1"
+          },
+          {
+            "executable": false,
+            "max_count": 1,
+            "media_type": "text/x-python",
+            "min_count": 1,
+            "path_pattern": "project/tests/test_smoke.py",
+            "role": "起始 smoke 测试",
+            "validation_profile": "python_compile_v1"
+          },
+          {
+            "executable": true,
+            "max_count": 1,
+            "media_type": "text/x-python",
+            "min_count": 1,
+            "path_pattern": "project/run_tests.py",
+            "role": "可执行测试入口",
+            "validation_profile": "python_compile_v1"
+          },
+          {
+            "executable": false,
+            "max_count": 1,
+            "media_type": "application/yaml",
+            "min_count": 1,
+            "path_pattern": "project/config/experiment.yaml",
+            "role": "可复现的实验参数配置",
+            "validation_profile": "yaml_v1"
+          },
+          {
+            "executable": true,
+            "max_count": 1,
+            "media_type": "text/x-shellscript",
+            "min_count": 1,
+            "path_pattern": "project/scripts/bootstrap.sh",
+            "role": "本地环境和检查启动脚本",
+            "validation_profile": "shell_v1"
+          },
+          {
+            "executable": false,
+            "max_count": 1,
+            "media_type": "application/yaml",
+            "min_count": 1,
+            "path_pattern": "project/.github/workflows/ci.yml",
+            "role": "持续集成检查配置",
+            "validation_profile": "yaml_v1"
+          },
+          {
+            "executable": false,
+            "max_count": 1,
+            "media_type": "text/markdown",
+            "min_count": 1,
+            "path_pattern": "project/REPRODUCING.md",
+            "role": "离线复现与交接说明",
+            "validation_profile": "text_utf8_v1"
+          }
+        ],
+        "runnable": true,
+        "schema_version": 1,
+        "smoke_command": [
+          "./project/run_tests.py"
+        ],
+        "smoke_timeout_seconds": 10
+      }
+    }
+  },
+  "draft_dir": "/Users/zhangronglei/.repoproof/drafts/journey-6ecd00052933",
+  "draft_readiness": {
+    "compatible": true,
+    "current": true,
+    "public_summary": {
+      "commitment_coverage": "RUNTIME_PENDING",
+      "dependency_lock_ready": true,
+      "dependency_lock_source": "draft",
+      "example_count": 3,
+      "minimum_examples": 3,
+      "semantic_commitment_count": 7,
+      "semantic_verifier_ready": true,
+      "tool_schema_version": 4,
+      "verifier_declared_commitment_count": 0
+    },
+    "ready": false,
+    "ready_to_confirm": true,
+    "reason_codes": [
+      "INTENT_CONFIRMATION_MISSING"
+    ],
+    "recommended_action": "请显式确认当前用户目标、公开行为承诺和交付接口。",
+    "schema_version": 1,
+    "status": "READY_TO_CONFIRM"
+  },
+  "examples": [
+    {
+      "example_id": "web-service",
+      "expected_dir": "workspace-expected/web-service",
+      "input_path": "workspace-inputs/web-service",
+      "truth_binding_sha256": "32d709a63fc8ab2f353e0d21e848c2010a06ade0d598f7c26594b5aad63f3784",
+      "truth_provenance": "UPSTREAM_DERIVED_USER_CONFIRMED"
+    },
+    {
+      "example_id": "lab-notes",
+      "expected_dir": "workspace-expected/lab-notes",
+      "input_path": "workspace-inputs/lab-notes",
+      "truth_binding_sha256": "781828c2cb000bb37e57018c0eab683d5cc92f4a2709d70aa1034e44179ef9ae",
+      "truth_provenance": "UPSTREAM_DERIVED_USER_CONFIRMED"
+    },
+    {
+      "example_id": "punctuated-title",
+      "expected_dir": "workspace-expected/punctuated-title",
+      "input_path": "workspace-inputs/punctuated-title",
+      "truth_binding_sha256": "4fefa0e27a86a9eeb353559542042640863af20f61f23b0cb612b6938edb65c0",
+      "truth_provenance": "UPSTREAM_DERIVED_USER_CONFIRMED"
+    }
+  ],
+  "gaps": "# 草稿缺口清单(补完后跑 tool-confirm)\n\n- admission:RISK_REVIEW\n\n- [ ] `tool.name`(owner=USER):确定性建议 'cookiecutter-tool'(取自 distribution)——最终命名归用户\n- [ ] `tool.summary`(owner=LLM):一句话摘要,起草层从 goal+仓库事实措辞\n- [ ] `tool.interface.input.format`(owner=LLM):输入格式名,从 goal 与仓库能力候选起草,用户确认\n- [ ] `tool.interface.output.format`(owner=LLM):输出格式名,同上\n- [ ] `tool.interface.output.contract`(owner=LLM):机器可执行输出合同(media_type/root_type/required);v2 冻结前必须经人确认\n- [ ] `capability.statement`(owner=LLM):含行为定义(渲染/边界语义)的题面,起草后过 adequacy 闸再人确认\n- [ ] `capability.output_schema`(owner=LLM):输出 schema 名,随 statement 起草\n- [ ] `examples`(owner=USER):golden 样例文件与期望是验收真值,只能人提供/确认(LLM 可建议断言形态;≥3 组、含文件样例、留 held-out)\n- [ ] `reference_impl`(owner=LLM):真调上游的参考实现草稿(弱档执法的通关正控),用户确认后入题\n- [ ] `semantic_verifier`(owner=LLM):独立于 reference 的任务语义复核草稿；领域规则只留在冻结 oracle，Harness 只执行统一协议并校验上游调用与身份绑定\n- [ ] `reference_lock`(owner=AUTO):确认 reference 后由 pip 冻结闭包生成(确定性)\n\n## admission 待答(NEED_INFORMATION 时)\n\n(无)\n",
+  "ok": true,
+  "raw_draft": "_draft:\n  status: DRAFT\n  note: 确定性字段已填;缺口见 draft_gaps。冻结走确认流,本文件不产 sidecar。\n  provenance:\n    distribution: pyproject.toml [project].name\n    import_module: 顶层布局:cookiecutter/__init__.py 存在(真实目录名回读)\ntask_id: tool-research-project-starter-v1\n_delivery_profile:\n  schema_version: 1\n  profile_id: workspace_bundle_v1\n_intent_contract:\n  schema_version: 1\n  user_goal: 我只提供一份项目说明文件，工具使用内置并固定的本地实验模板，生成一套能直接开工、也方便交接的项目文件夹。\n  user_goal_sha256: 46a05d5cfcbf42fd7f1a346a24eddaf1414be9e959f85cfb47efc3acdc6517b8\n  commitments:\n  - commitment_id: title-from-input\n    public_text: 项目说明 YAML 的 title 非空字符串会去除首尾空白，作为项目标题写入 README 的一级标题。\n    rationale: 用户在合同审核阶段补充或修改。\n    origin: USER_EDITED\n  - commitment_id: description-preservation\n    public_text: 项目说明 YAML 的 description 字符串会原样写入 README 的说明标记之间；说明允许为空。\n    rationale: 用户在合同审核阶段补充或修改。\n    origin: USER_EDITED\n  - commitment_id: normalized-distribution-name\n    public_text: pyproject 的 `[project].name` 由标题经 NFKD 规范化、移除非 ASCII 字符、转小写、将连续非\n      ASCII 字母数字字符替换为一个连字符、去除首尾连字符得到；若结果为空则使用 `project`。\n    rationale: 为固定模板提供适合作为 Python 项目发行名称的稳定标识。\n    origin: MODEL_PROPOSED\n  - commitment_id: starter-module-title\n    public_text: 生成的 `starter_project` 模块会以 Python 字符串常量 `PROJECT_NAME` 暴露项目标题。\n    rationale: 给后续业务代码和最小测试提供已连通的项目配置入口。\n    origin: MODEL_PROPOSED\n  - commitment_id: starter-layout\n    public_text: 固定本地模板经 Cookiecutter 渲染后，工作区恰好包含合同列出的十个文件，覆盖 README、pyproject、源码、测试、实验配置、脚本、CI、Git\n      忽略规则和复现说明。\n    rationale: 用户在合同审核阶段补充或修改。\n    origin: USER_EDITED\n  - commitment_id: direct-test-entrypoint\n    public_text: 可执行的 `run_tests.py` 将源目录加入导入路径，发现 `tests` 目录中的 unittest 测试，并以测试成功或失败决定进程状态。\n    rationale: 无需网络或额外依赖即可验证交接后的最小项目状态。\n    origin: MODEL_PROPOSED\n  - commitment_id: behavior-7\n    public_text: 实验配置固定声明 schema version、项目标题和随机种子 42；启动脚本创建本地虚拟环境并运行检查；CI 执行同一检查；复现说明公开对应命令和配置位置。\n    rationale: 用户在合同审核阶段补充或修改。\n    origin: USER_EDITED\n  artifact_protocol:\n    schema_version: 1\n    protocol_id: cookiecutter-starter-workspace\n    observations:\n    - observation_id: readme-project-title\n      commitment_ids:\n      - title-from-input\n      locator: 读取 `project/README.md` 的第一行；该行是唯一的一级 ATX Markdown 标题。\n      value_encoding: UTF-8 Markdown；首行语法为 `# ` 后接项目标题的 Unicode 文本。\n    - observation_id: readme-project-description\n      commitment_ids:\n      - description-preservation\n      locator: 读取 `project/README.md` 中 `<!-- project-description-start -->` 与 `<!--\n        project-description-end -->` 两个各占一行的标记之间的全部行。\n      value_encoding: UTF-8 文本；两个标记之间的行按原有顺序构成说明正文，允许为空。\n    - observation_id: pyproject-distribution-name\n      commitment_ids:\n      - normalized-distribution-name\n      locator: 用 TOML 解析 `project/pyproject.toml`，读取 `[project]` 表的 `name` 字符串字段。\n      value_encoding: TOML 基本字符串；值是小写 ASCII 字母、数字和连字符组成的非空名称。\n    - observation_id: starter-module-project-name\n      commitment_ids:\n      - starter-module-title\n      locator: 用 Python AST 解析 `project/src/starter_project/__init__.py`，查找模块级名称 `PROJECT_NAME`\n        的字符串常量赋值。\n      value_encoding: Python 源码；`PROJECT_NAME` 是一个字符串常量赋值。\n    - observation_id: workspace-file-layout\n      commitment_ids:\n      - starter-layout\n      locator: 递归列出交付目录中的相对常规文件路径，并按 Unicode 码点升序排序。\n      value_encoding: UTF-8 路径列表；必须与工作区契约列出的十个常规文件路径完全一致。\n    - observation_id: test-runner-behavior\n      commitment_ids:\n      - direct-test-entrypoint\n      locator: 用 Python AST 解析 `project/run_tests.py`，读取 `main` 函数中 `unittest.defaultTestLoader.discover`\n        的调用，以及模块末尾对 `main()` 返回值的 `SystemExit` 调用。\n      value_encoding: Python AST；测试发现目录为入口脚本同级的 `tests` 目录，入口以该测试运行结果作为进程退出状态。\n    - observation_id: handoff-support-files\n      commitment_ids:\n      - behavior-7\n      locator: 解析 `project/config/experiment.yaml`，并读取 `project/scripts/bootstrap.sh`、`project/.github/workflows/ci.yml`\n        与 `project/REPRODUCING.md` 的公开命令和配置引用。\n      value_encoding: YAML 与 UTF-8 文本；配置包含 schema version、项目标题和整数随机种子，三个说明/执行文件引用同一测试入口和配置路径。\n  delivery:\n    profile_id: workspace_bundle_v1\n    support_status: SUPPORTED\n    origin: USER_EDITED\n    requirements:\n      inputs:\n      - kind: file\n        location: local\n        representation: utf8_text\n        format_label: UTF-8 YAML project brief（title 与 description）\n        role: user-confirmed primary input\n      outputs:\n      - kind: directory\n        format_id: workspace_bundle\n        format_label: 离线多文件工作区\n        role: user-confirmed primary artifact\n      network: offline\n      credentials: none\n      lifecycle: per_invocation\n      runtime: local_cpu\n      browser: none\n      external_side_effects: none\n    admitted_output_format_id: workspace_bundle\n  confirmation: null\nsource_repo:\n  url: https://github.com/cookiecutter/cookiecutter\n  revision: 083dd3c6104124221e2cbc3e13e0929795861ed5\n  resolved_commit: 083dd3c6104124221e2cbc3e13e0929795861ed5\n  license: BSD\n  distribution: cookiecutter\n  import_module: cookiecutter\ntarget_project:\n  kind: local_tool\n  path: fixtures/tool_skeleton_research-project-starter\n  package: research_project_starter\n  entry_point: research-project-starter\ntask_family: LOCAL-TOOL\nadoption_shape: TOOL_ONBOARDING\ntool:\n  schema_version: 4\n  name: research-project-starter\n  summary: 把一份项目说明 YAML 通过固定 Cookiecutter 模板生成可开工、可检查和可交接的离线研究项目工作区。\n  interface:\n    usage: research-project-starter <input> --out-dir <new-directory>\n    input:\n      kind: file\n      format: UTF-8 YAML project brief（title 与 description）\n    output:\n      kind: directory\n      format: offline research project workspace\n    exit_codes:\n      '0': success\n      '1': user_error\n      '2': internal_error\n  delivery_profile_id: workspace_bundle_v1\n  workspace_contract:\n    schema_version: 1\n    rules:\n    - path_pattern: project/README.md\n      role: 项目说明与启动指引\n      media_type: text/markdown\n      validation_profile: text_utf8_v1\n      min_count: 1\n      max_count: 1\n      executable: false\n    - path_pattern: project/pyproject.toml\n      role: Python 项目元数据\n      media_type: application/toml\n      validation_profile: toml_v1\n      min_count: 1\n      max_count: 1\n      executable: false\n    - path_pattern: project/.gitignore\n      role: Git 忽略规则\n      media_type: text/plain\n      validation_profile: text_utf8_v1\n      min_count: 1\n      max_count: 1\n      executable: false\n    - path_pattern: project/src/starter_project/__init__.py\n      role: 起始 Python 包\n      media_type: text/x-python\n      validation_profile: python_compile_v1\n      min_count: 1\n      max_count: 1\n      executable: false\n    - path_pattern: project/tests/test_smoke.py\n      role: 起始 smoke 测试\n      media_type: text/x-python\n      validation_profile: python_compile_v1\n      min_count: 1\n      max_count: 1\n      executable: false\n    - path_pattern: project/run_tests.py\n      role: 可执行测试入口\n      media_type: text/x-python\n      validation_profile: python_compile_v1\n      min_count: 1\n      max_count: 1\n      executable: true\n    - path_pattern: project/config/experiment.yaml\n      role: 可复现的实验参数配置\n      media_type: application/yaml\n      validation_profile: yaml_v1\n      min_count: 1\n      max_count: 1\n      executable: false\n    - path_pattern: project/scripts/bootstrap.sh\n      role: 本地环境和检查启动脚本\n      media_type: text/x-shellscript\n      validation_profile: shell_v1\n      min_count: 1\n      max_count: 1\n      executable: true\n    - path_pattern: project/.github/workflows/ci.yml\n      role: 持续集成检查配置\n      media_type: application/yaml\n      validation_profile: yaml_v1\n      min_count: 1\n      max_count: 1\n      executable: false\n    - path_pattern: project/REPRODUCING.md\n      role: 离线复现与交接说明\n      media_type: text/markdown\n      validation_profile: text_utf8_v1\n      min_count: 1\n      max_count: 1\n      executable: false\n    allow_extra_files: false\n    entrypoints:\n    - project/run_tests.py\n    runnable: true\n    smoke_command:\n    - ./project/run_tests.py\n    smoke_timeout_seconds: 10\n    require_offline_wheelhouse: false\n    limits:\n      max_files: 10\n      max_total_bytes: 65536\n      max_file_bytes: 16384\n      max_depth: 4\n      max_path_bytes: 240\ncapability:\n  statement: '用户目标：我只提供一份项目说明文件，工具使用内置并固定的本地实验模板，生成一套能直接开工、也方便交接的项目文件夹。\n\n    公开行为承诺：\n\n    - [title-from-input] 项目说明 YAML 的 title 非空字符串会去除首尾空白，作为项目标题写入 README 的一级标题。\n\n    - [description-preservation] 项目说明 YAML 的 description 字符串会原样写入 README 的说明标记之间；说明允许为空。\n\n    - [normalized-distribution-name] pyproject 的 `[project].name` 由标题经 NFKD 规范化、移除非\n    ASCII 字符、转小写、将连续非 ASCII 字母数字字符替换为一个连字符、去除首尾连字符得到；若结果为空则使用 `project`。\n\n    - [starter-module-title] 生成的 `starter_project` 模块会以 Python 字符串常量 `PROJECT_NAME`\n    暴露项目标题。\n\n    - [starter-layout] 固定本地模板经 Cookiecutter 渲染后，工作区恰好包含合同列出的十个文件，覆盖 README、pyproject、源码、测试、实验配置、脚本、CI、Git\n    忽略规则和复现说明。\n\n    - [direct-test-entrypoint] 可执行的 `run_tests.py` 将源目录加入导入路径，发现 `tests` 目录中的 unittest\n    测试，并以测试成功或失败决定进程状态。\n\n    - [behavior-7] 实验配置固定声明 schema version、项目标题和随机种子 42；启动脚本创建本地虚拟环境并运行检查；CI 执行同一检查；复现说明公开对应命令和配置位置。\n\n    公开产物协议：\n\n    - [readme-project-title -> title-from-input] 定位：读取 `project/README.md` 的第一行；该行是唯一的一级\n    ATX Markdown 标题。；值表示：UTF-8 Markdown；首行语法为 `# ` 后接项目标题的 Unicode 文本。\n\n    - [readme-project-description -> description-preservation] 定位：读取 `project/README.md`\n    中 `<!-- project-description-start -->` 与 `<!-- project-description-end -->` 两个各占一行的标记之间的全部行。；值表示：UTF-8\n    文本；两个标记之间的行按原有顺序构成说明正文，允许为空。\n\n    - [pyproject-distribution-name -> normalized-distribution-name] 定位：用 TOML 解析 `project/pyproject.toml`，读取\n    `[project]` 表的 `name` 字符串字段。；值表示：TOML 基本字符串；值是小写 ASCII 字母、数字和连字符组成的非空名称。\n\n    - [starter-module-project-name -> starter-module-title] 定位：用 Python AST 解析 `project/src/starter_project/__init__.py`，查找模块级名称\n    `PROJECT_NAME` 的字符串常量赋值。；值表示：Python 源码；`PROJECT_NAME` 是一个字符串常量赋值。\n\n    - [workspace-file-layout -> starter-layout] 定位：递归列出交付目录中的相对常规文件路径，并按 Unicode 码点升序排序。；值表示：UTF-8\n    路径列表；必须与工作区契约列出的十个常规文件路径完全一致。\n\n    - [test-runner-behavior -> direct-test-entrypoint] 定位：用 Python AST 解析 `project/run_tests.py`，读取\n    `main` 函数中 `unittest.defaultTestLoader.discover` 的调用，以及模块末尾对 `main()` 返回值的 `SystemExit`\n    调用。；值表示：Python AST；测试发现目录为入口脚本同级的 `tests` 目录，入口以该测试运行结果作为进程退出状态。\n\n    - [handoff-support-files -> behavior-7] 定位：解析 `project/config/experiment.yaml`，并读取\n    `project/scripts/bootstrap.sh`、`project/.github/workflows/ci.yml` 与 `project/REPRODUCING.md`\n    的公开命令和配置引用。；值表示：YAML 与 UTF-8 文本；配置包含 schema version、项目标题和整数随机种子，三个说明/执行文件引用同一测试入口和配置路径。\n\n    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'\n  output_schema: ResearchProjectWorkspace\nenvironment:\n  os: linux\n  arch: arm64\n  python: '3.12'\n  cpu_only: true\n  network_install: true\n  network_test: false\nconstraints:\n  forbidden:\n  - gpu\n  - privileged_container\n  - oracle_write\n  - model_download\n  - network_at_test_time\n  editable_zones:\n  - tool\n  forbidden_install_extras: []\nbudgets:\n  max_agent_steps: 20\n  max_wall_time_minutes: 30\n  max_command_minutes: 5\n  max_semantic_recoveries: 3\n  max_same_action: 2\n  max_patch_files: 12\n  max_patch_lines: 1200\n  max_input_tokens_total: 400000\n  max_output_tokens_total: 40000\n  monetary_soft_cap_usd: 5.0\nacceptance:\n  capability_command:\n  - pytest\n  - -q\n  - /oracle/test_capability.py\n  regression_command:\n  - pytest\n  - -q\n  - public_tests/test_interface_contract.py\n  probe_script: direct_tool_probe.py\n",
+  "reference_impl": "from pathlib import Path\nimport re\nimport tempfile\nimport unicodedata\n\nfrom cookiecutter.main import cookiecutter\nimport yaml\n\n\nclass UserInputError(ValueError):\n    pass\n\n\ndef _read_description(input_path: Path) -> tuple[str, str]:\n    try:\n        document = yaml.safe_load(input_path.read_text(encoding=\"utf-8\"))\n    except (\n        FileNotFoundError,\n        IsADirectoryError,\n        PermissionError,\n        UnicodeDecodeError,\n        yaml.YAMLError,\n    ) as exc:\n        raise UserInputError(\"项目说明必须是可读取的 UTF-8 YAML 文件\") from exc\n    if not isinstance(document, dict):\n        raise UserInputError(\"项目说明 YAML 的根节点必须是对象\")\n    title = document.get(\"title\")\n    description = document.get(\"description\", \"\")\n    if not isinstance(title, str) or not title.strip():\n        raise UserInputError(\"项目说明必须包含非空字符串 title\")\n    if not isinstance(description, str):\n        raise UserInputError(\"项目说明的 description 必须是字符串\")\n    return title.strip(), description\n\n\ndef _distribution_name(title: str) -> str:\n    ascii_title = unicodedata.normalize(\"NFKD\", title).encode(\"ascii\", \"ignore\").decode(\"ascii\")\n    slug = re.sub(r\"[^a-z0-9]+\", \"-\", ascii_title.lower()).strip(\"-\")\n    return slug or \"project\"\n\n\ndef _write_template(template_dir: Path) -> None:\n    (template_dir / \"cookiecutter.json\").write_text(\n        '{\"directory_name\":\"project\",\"project_name\":\"Project\",'\n        '\"project_description\":\"\",\"distribution_name\":\"project\"}\\n',\n        encoding=\"utf-8\",\n    )\n    project = template_dir / \"{{ cookiecutter.directory_name }}\"\n    (project / \"src\" / \"starter_project\").mkdir(parents=True)\n    (project / \"tests\").mkdir()\n    (project / \"config\").mkdir()\n    (project / \"scripts\").mkdir()\n    (project / \".github\" / \"workflows\").mkdir(parents=True)\n    (project / \"README.md\").write_text(\n        \"# {{ cookiecutter.project_name }}\\n\\n\"\n        \"<!-- project-description-start -->\\n\"\n        \"{{ cookiecutter.project_description }}\\n\"\n        \"<!-- project-description-end -->\\n\\n\"\n        \"## 开始\\n\\n\"\n        \"在此目录运行：\\n\\n\"\n        \"```sh\\n\"\n        \"./run_tests.py\\n\"\n        \"```\\n\",\n        encoding=\"utf-8\",\n    )\n    (project / \"pyproject.toml\").write_text(\n        \"[project]\\n\"\n        \"name = {{ cookiecutter.distribution_name | tojson }}\\n\"\n        \"version = \\\"0.1.0\\\"\\n\"\n        \"description = {{ cookiecutter.project_description | tojson }}\\n\"\n        \"requires-python = \\\">=3.9\\\"\\n\",\n        encoding=\"utf-8\",\n    )\n    (project / \".gitignore\").write_text(\"__pycache__/\\n*.py[cod]\\n.venv/\\n\", encoding=\"utf-8\")\n    (project / \"src\" / \"starter_project\" / \"__init__.py\").write_text(\n        \"\\\"\\\"\\\"Starter package for the generated project.\\\"\\\"\\\"\\n\\n\"\n        \"PROJECT_NAME = {{ cookiecutter.project_name | tojson }}\\n\",\n        encoding=\"utf-8\",\n    )\n    (project / \"tests\" / \"test_smoke.py\").write_text(\n        \"import sys\\n\"\n        \"from pathlib import Path\\n\"\n        \"import unittest\\n\\n\"\n        \"sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))\\n\"\n        \"from starter_project import PROJECT_NAME\\n\\n\"\n        \"class StarterProjectTests(unittest.TestCase):\\n\"\n        \"    def test_project_name_is_present(self):\\n\"\n        \"        self.assertTrue(PROJECT_NAME.strip())\\n\",\n        encoding=\"utf-8\",\n    )\n    runner = project / \"run_tests.py\"\n    runner.write_text(\n        \"#!/usr/bin/env python3\\n\"\n        \"import sys\\n\"\n        \"from pathlib import Path\\n\"\n        \"import unittest\\n\\n\"\n        \"def main():\\n\"\n        \"    root = Path(__file__).resolve().parent\\n\"\n        \"    sys.path.insert(0, str(root / 'src'))\\n\"\n        \"    suite = unittest.defaultTestLoader.discover(str(root / 'tests'))\\n\"\n        \"    result = unittest.TextTestRunner(verbosity=2).run(suite)\\n\"\n        \"    return 0 if result.wasSuccessful() else 1\\n\\n\"\n        \"if __name__ == '__main__':\\n\"\n        \"    raise SystemExit(main())\\n\",\n        encoding=\"utf-8\",\n    )\n    runner.chmod(0o755)\n    (project / \"config\" / \"experiment.yaml\").write_text(\n        \"schema_version: 1\\n\"\n        \"project_name: {{ cookiecutter.project_name | tojson }}\\n\"\n        \"random_seed: 42\\n\",\n        encoding=\"utf-8\",\n    )\n    bootstrap = project / \"scripts\" / \"bootstrap.sh\"\n    bootstrap.write_text(\n        \"#!/bin/sh\\n\"\n        \"set -eu\\n\"\n        \"python3 -m venv .venv\\n\"\n        \".venv/bin/python run_tests.py\\n\",\n        encoding=\"utf-8\",\n    )\n    bootstrap.chmod(0o755)\n    (project / \".github\" / \"workflows\" / \"ci.yml\").write_text(\n        \"name: checks\\n\"\n        \"on: [push, pull_request]\\n\"\n        \"jobs:\\n\"\n        \"  test:\\n\"\n        \"    runs-on: ubuntu-latest\\n\"\n        \"    steps:\\n\"\n        \"      - uses: actions/checkout@v4\\n\"\n        \"      - uses: actions/setup-python@v5\\n\"\n        \"        with:\\n\"\n        \"          python-version: '3.12'\\n\"\n        \"      - run: python run_tests.py\\n\",\n        encoding=\"utf-8\",\n    )\n    (project / \"REPRODUCING.md\").write_text(\n        \"# Reproducing this starter project\\n\\n\"\n        \"1. Create an isolated environment with `python3 -m venv .venv`.\\n\"\n        \"2. Run the deterministic smoke check with `.venv/bin/python run_tests.py`.\\n\"\n        \"3. Keep `config/experiment.yaml` under version control when parameters change.\\n\",\n        encoding=\"utf-8\",\n    )\n\n\ndef build_workspace(input_path: Path, output_dir: Path) -> None:\n    title, description = _read_description(input_path)\n    output_dir.mkdir(parents=True, exist_ok=True)\n    with tempfile.TemporaryDirectory() as temporary_dir:\n        template_dir = Path(temporary_dir) / \"embedded-template\"\n        template_dir.mkdir()\n        _write_template(template_dir)\n        cookiecutter(\n            str(template_dir),\n            no_input=True,\n            extra_context={\n                \"directory_name\": \"project\",\n                \"project_name\": title,\n                \"project_description\": description,\n                \"distribution_name\": _distribution_name(title),\n            },\n            output_dir=str(output_dir),\n        )\n",
+  "semantic_readiness": {
+    "ok": true,
+    "reason_codes": [
+      "INTENT_CONFIRMATION_MISSING"
+    ],
+    "recommended_action": "请显式确认当前用户目标、公开行为承诺和交付接口。"
+  },
+  "semantic_verifier": "from pathlib import Path\nimport ast\nimport json\nimport re\nimport tempfile\nimport unicodedata\nimport yaml\n\n\ndef _read_utf8(path: Path):\n    try:\n        return path.read_text(encoding=\"utf-8\")\n    except (OSError, UnicodeDecodeError):\n        return None\n\n\ndef _input_values(input_path: Path):\n    text = _read_utf8(input_path)\n    if text is None:\n        return None, None\n    try:\n        document = yaml.safe_load(text)\n    except yaml.YAMLError:\n        return None, None\n    if not isinstance(document, dict):\n        return None, None\n    title = document.get(\"title\")\n    description = document.get(\"description\", \"\")\n    if not isinstance(title, str) or not title.strip() or not isinstance(description, str):\n        return None, None\n    return title.strip(), description\n\n\ndef _distribution_name(title: str) -> str:\n    ascii_text = unicodedata.normalize(\"NFKD\", title).encode(\"ascii\", \"ignore\").decode(\"ascii\")\n    name = re.sub(r\"[^a-z0-9]+\", \"-\", ascii_text.lower()).strip(\"-\")\n    return name or \"project\"\n\n\ndef _module_project_name(tree: ast.AST):\n    for node in getattr(tree, \"body\", []):\n        targets = []\n        if isinstance(node, ast.Assign):\n            targets = node.targets\n            value = node.value\n        elif isinstance(node, ast.AnnAssign):\n            targets = [node.target]\n            value = node.value\n        else:\n            continue\n        if not isinstance(value, ast.Constant) or not isinstance(value.value, str):\n            continue\n        for target in targets:\n            if isinstance(target, ast.Name) and target.id == \"PROJECT_NAME\":\n                return value.value\n    return None\n\n\ndef _dotted_name(node: ast.AST):\n    if isinstance(node, ast.Name):\n        return node.id\n    if isinstance(node, ast.Attribute):\n        base = _dotted_name(node.value)\n        return (base + \".\" if base else \"\") + node.attr\n    return None\n\n\ndef _contains_string(node: ast.AST, value: str) -> bool:\n    return any(isinstance(item, ast.Constant) and item.value == value for item in ast.walk(node))\n\n\ndef _contains_file_name(node: ast.AST) -> bool:\n    return any(isinstance(item, ast.Name) and item.id == \"__file__\" for item in ast.walk(node))\n\n\ndef _runner_is_contractual(tree: ast.Module) -> bool:\n    main_node = next((n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == \"main\"), None)\n    if main_node is None:\n        return False\n\n    assignments = {}\n    for node in ast.walk(main_node):\n        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):\n            assignments[node.targets[0].id] = node.value\n        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.value is not None:\n            assignments[node.target.id] = node.value\n\n    def expanded(expr, seen=frozenset()):\n        if isinstance(expr, ast.Name) and expr.id in assignments and expr.id not in seen:\n            return expanded(assignments[expr.id], seen | {expr.id})\n        return expr\n\n    has_src_path = False\n    has_discovery = False\n    has_result_status = False\n    for node in ast.walk(main_node):\n        if not isinstance(node, ast.Call):\n            continue\n        called = _dotted_name(node.func)\n        if called in {\"sys.path.insert\", \"sys.path.append\"}:\n            relevant = [expanded(arg) for arg in node.args]\n            if any(_contains_string(arg, \"src\") for arg in relevant) and any(_contains_file_name(arg) for arg in relevant):\n                has_src_path = True\n        if called == \"unittest.defaultTestLoader.discover\":\n            relevant = [expanded(arg) for arg in node.args]\n            relevant.extend(expanded(keyword.value) for keyword in node.keywords if keyword.arg in {\"start_dir\", \"top_level_dir\"})\n            if any(_contains_string(arg, \"tests\") for arg in relevant) and any(_contains_file_name(arg) for arg in relevant):\n                has_discovery = True\n        if called and called.endswith(\".wasSuccessful\"):\n            has_result_status = True\n\n    has_return = any(isinstance(node, ast.Return) for node in ast.walk(main_node))\n    exits_with_main = False\n    for node in tree.body:\n        for call in ast.walk(node):\n            if not isinstance(call, ast.Call) or _dotted_name(call.func) != \"SystemExit\" or len(call.args) != 1:\n                continue\n            argument = call.args[0]\n            if isinstance(argument, ast.Call) and _dotted_name(argument.func) == \"main\":\n                exits_with_main = True\n    return has_src_path and has_discovery and has_result_status and has_return and exits_with_main\n\n\ndef _render_upstream_values(title: str, description: str, distribution_name: str):\n    try:\n        from cookiecutter.main import cookiecutter\n    except ImportError:\n        return None\n    with tempfile.TemporaryDirectory() as temporary:\n        root = Path(temporary)\n        template = root / \"template\"\n        rendered = template / \"{{ cookiecutter.output_dir }}\"\n        rendered.mkdir(parents=True)\n        (template / \"cookiecutter.json\").write_text(\n            '{\"output_dir\":\"rendered\",\"title\":\"Project\",'\n            '\"description\":\"\",\"distribution_name\":\"project\"}\\n',\n            encoding=\"utf-8\",\n        )\n        (rendered / \"values.json\").write_text(\n            '{\"title\":{{ cookiecutter.title | tojson }},'\n            '\"description\":{{ cookiecutter.description | tojson }},'\n            '\"distribution_name\":{{ cookiecutter.distribution_name | tojson }}}\\n',\n            encoding=\"utf-8\",\n        )\n        try:\n            result = Path(cookiecutter(\n                str(template),\n                no_input=True,\n                extra_context={\n                    \"output_dir\": \"rendered\",\n                    \"title\": title,\n                    \"description\": description,\n                    \"distribution_name\": distribution_name,\n                },\n                output_dir=str(root / \"output\"),\n            ))\n            return json.loads((result / \"values.json\").read_text(encoding=\"utf-8\"))\n        except (OSError, ValueError, TypeError, KeyError):\n            return None\n\n\ndef verify(input_path: Path, artifact_path: Path) -> dict:\n    reasons = []\n    checked = []\n\n    title, description = _input_values(input_path)\n    if title is None:\n        reasons.append(\"CONTRACT_INPUT_TITLE_UNSPECIFIED\")\n        return {\"ok\": False, \"reason_codes\": reasons, \"checked_commitment_ids\": checked}\n    expected_name = _distribution_name(title)\n    upstream_values = _render_upstream_values(title, description, expected_name)\n    if upstream_values is None:\n        reasons.append(\"UPSTREAM_COOKIECUTTER_UNAVAILABLE\")\n        upstream_values = {}\n    expected_title = upstream_values.get(\"title\")\n    expected_description = upstream_values.get(\"description\")\n    expected_name = upstream_values.get(\"distribution_name\")\n\n    project = artifact_path / \"project\"\n    expected_paths = {\n        \"project/README.md\",\n        \"project/pyproject.toml\",\n        \"project/.gitignore\",\n        \"project/src/starter_project/__init__.py\",\n        \"project/tests/test_smoke.py\",\n        \"project/run_tests.py\",\n        \"project/config/experiment.yaml\",\n        \"project/scripts/bootstrap.sh\",\n        \"project/.github/workflows/ci.yml\",\n        \"project/REPRODUCING.md\",\n    }\n\n    checked.append(\"title-from-input\")\n    readme = _read_utf8(project / \"README.md\")\n    readme_lines = readme.splitlines() if readme is not None else None\n    if readme_lines is None or not readme_lines or readme_lines[0] != \"# \" + str(expected_title) or sum(line.startswith(\"# \") for line in readme_lines) != 1:\n        reasons.append(\"README_TITLE_MISMATCH\")\n\n    checked.append(\"description-preservation\")\n    start_marker = \"<!-- project-description-start -->\"\n    end_marker = \"<!-- project-description-end -->\"\n    if readme_lines is None or readme_lines.count(start_marker) != 1 or readme_lines.count(end_marker) != 1:\n        reasons.append(\"README_DESCRIPTION_MARKERS_INVALID\")\n    else:\n        start = readme_lines.index(start_marker)\n        end = readme_lines.index(end_marker)\n        if end <= start or \"\\n\".join(readme_lines[start + 1:end]) != expected_description:\n            reasons.append(\"README_DESCRIPTION_MISMATCH\")\n\n    checked.append(\"normalized-distribution-name\")\n    pyproject_text = _read_utf8(project / \"pyproject.toml\")\n    actual_name = None\n    if pyproject_text is not None:\n        try:\n            import tomllib\n            parsed = tomllib.loads(pyproject_text)\n            actual_name = parsed.get(\"project\", {}).get(\"name\")\n        except (ImportError, ValueError):\n            actual_name = None\n    if not isinstance(actual_name, str) or actual_name != expected_name or not re.fullmatch(r\"[a-z0-9]+(?:-[a-z0-9]+)*\", actual_name):\n        reasons.append(\"PYPROJECT_DISTRIBUTION_NAME_MISMATCH\")\n\n    checked.append(\"starter-module-title\")\n    module_text = _read_utf8(project / \"src\" / \"starter_project\" / \"__init__.py\")\n    actual_title = None\n    if module_text is not None:\n        try:\n            actual_title = _module_project_name(ast.parse(module_text))\n        except SyntaxError:\n            actual_title = None\n    if actual_title != expected_title:\n        reasons.append(\"STARTER_MODULE_TITLE_MISMATCH\")\n\n    checked.append(\"starter-layout\")\n    actual_paths = set()\n    try:\n        if artifact_path.exists():\n            actual_paths = {path.relative_to(artifact_path).as_posix() for path in artifact_path.rglob(\"*\") if path.is_file()}\n    except OSError:\n        actual_paths = set()\n    if actual_paths != expected_paths:\n        reasons.append(\"WORKSPACE_LAYOUT_MISMATCH\")\n\n    checked.append(\"direct-test-entrypoint\")\n    runner_text = _read_utf8(project / \"run_tests.py\")\n    runner_ok = False\n    if runner_text is not None:\n        try:\n            runner_ok = _runner_is_contractual(ast.parse(runner_text))\n        except SyntaxError:\n            runner_ok = False\n    if not runner_ok:\n        reasons.append(\"TEST_RUNNER_SEMANTICS_MISMATCH\")\n\n    checked.append(\"handoff-support-assets\")\n    config_text = _read_utf8(project / \"config\" / \"experiment.yaml\") or \"\"\n    bootstrap_text = _read_utf8(project / \"scripts\" / \"bootstrap.sh\") or \"\"\n    ci_text = _read_utf8(project / \".github\" / \"workflows\" / \"ci.yml\") or \"\"\n    reproducing_text = _read_utf8(project / \"REPRODUCING.md\") or \"\"\n    if (\n        \"schema_version: 1\" not in config_text\n        or f\"project_name: {json.dumps(expected_title, ensure_ascii=False)}\" not in config_text\n        or \"random_seed: 42\" not in config_text\n    ):\n        reasons.append(\"EXPERIMENT_CONFIG_MISMATCH\")\n    if \"python3 -m venv .venv\" not in bootstrap_text or \".venv/bin/python run_tests.py\" not in bootstrap_text:\n        reasons.append(\"BOOTSTRAP_SCRIPT_MISMATCH\")\n    if \"actions/checkout@v4\" not in ci_text or \"python run_tests.py\" not in ci_text:\n        reasons.append(\"CI_WORKFLOW_MISMATCH\")\n    if \"python3 -m venv .venv\" not in reproducing_text or \"config/experiment.yaml\" not in reproducing_text:\n        reasons.append(\"REPRODUCTION_GUIDE_MISMATCH\")\n\n    return {\"ok\": not reasons, \"reason_codes\": reasons, \"checked_commitment_ids\": checked}\n",
+  "workspace_contract": {
+    "allow_extra_files": false,
+    "entrypoints": [
+      "project/run_tests.py"
+    ],
+    "limits": {
+      "max_depth": 4,
+      "max_file_bytes": 16384,
+      "max_files": 10,
+      "max_path_bytes": 240,
+      "max_total_bytes": 65536
+    },
+    "require_offline_wheelhouse": false,
+    "rules": [
+      {
+        "executable": false,
+        "max_count": 1,
+        "media_type": "text/markdown",
+        "min_count": 1,
+        "path_pattern": "project/README.md",
+        "role": "项目说明与启动指引",
+        "validation_profile": "text_utf8_v1"
+      },
+      {
+        "executable": false,
+        "max_count": 1,
+        "media_type": "application/toml",
+        "min_count": 1,
+        "path_pattern": "project/pyproject.toml",
+        "role": "Python 项目元数据",
+        "validation_profile": "toml_v1"
+      },
+      {
+        "executable": false,
+        "max_count": 1,
+        "media_type": "text/plain",
+        "min_count": 1,
+        "path_pattern": "project/.gitignore",
+        "role": "Git 忽略规则",
+        "validation_profile": "text_utf8_v1"
+      },
+      {
+        "executable": false,
+        "max_count": 1,
+        "media_type": "text/x-python",
+        "min_count": 1,
+        "path_pattern": "project/src/starter_project/__init__.py",
+        "role": "起始 Python 包",
+        "validation_profile": "python_compile_v1"
+      },
+      {
+        "executable": false,
+        "max_count": 1,
+        "media_type": "text/x-python",
+        "min_count": 1,
+        "path_pattern": "project/tests/test_smoke.py",
+        "role": "起始 smoke 测试",
+        "validation_profile": "python_compile_v1"
+      },
+      {
+        "executable": true,
+        "max_count": 1,
+        "media_type": "text/x-python",
+        "min_count": 1,
+        "path_pattern": "project/run_tests.py",
+        "role": "可执行测试入口",
+        "validation_profile": "python_compile_v1"
+      },
+      {
+        "executable": false,
+        "max_count": 1,
+        "media_type": "application/yaml",
+        "min_count": 1,
+        "path_pattern": "project/config/experiment.yaml",
+        "role": "可复现的实验参数配置",
+        "validation_profile": "yaml_v1"
+      },
+      {
+        "executable": true,
+        "max_count": 1,
+        "media_type": "text/x-shellscript",
+        "min_count": 1,
+        "path_pattern": "project/scripts/bootstrap.sh",
+        "role": "本地环境和检查启动脚本",
+        "validation_profile": "shell_v1"
+      },
+      {
+        "executable": false,
+        "max_count": 1,
+        "media_type": "application/yaml",
+        "min_count": 1,
+        "path_pattern": "project/.github/workflows/ci.yml",
+        "role": "持续集成检查配置",
+        "validation_profile": "yaml_v1"
+      },
+      {
+        "executable": false,
+        "max_count": 1,
+        "media_type": "text/markdown",
+        "min_count": 1,
+        "path_pattern": "project/REPRODUCING.md",
+        "role": "离线复现与交接说明",
+        "validation_profile": "text_utf8_v1"
+      }
+    ],
+    "runnable": true,
+    "schema_version": 1,
+    "smoke_command": [
+      "./project/run_tests.py"
+    ],
+    "smoke_timeout_seconds": 10
+  }
+}

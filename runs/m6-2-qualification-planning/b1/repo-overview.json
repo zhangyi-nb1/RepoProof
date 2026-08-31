@@ -1,0 +1,86 @@
+{
+  "admission_hint": [
+    "无标准打包配置——安装方式需要人工确认",
+    "代码/文档要求环境密钥: ['COOKIECUTTER_REPO_PASSWORD']——当前不自动提供 secret"
+  ],
+  "ok": true,
+  "overview": {
+    "facts": [
+      {
+        "evidence": "LICENSE",
+        "label": "许可证",
+        "provenance": "FACT",
+        "value": "BSD"
+      },
+      {
+        "evidence": "pyproject.toml requires-python",
+        "label": "Python 版本",
+        "provenance": "FACT",
+        "value": ">=3.10"
+      },
+      {
+        "evidence": "无打包配置,存在包目录",
+        "label": "安装方式",
+        "provenance": "INFERENCE",
+        "value": "不可直接安装——需源码复制/wheel 构建"
+      },
+      {
+        "evidence": "git rev-parse HEAD",
+        "label": "可固定版本",
+        "provenance": "FACT",
+        "value": "083dd3c6104124221e2cbc3e13e0929795861ed5"
+      },
+      {
+        "evidence": "pyproject.toml",
+        "label": "运行期依赖",
+        "provenance": "FACT",
+        "value": "arrow、binaryornot、click、jinja2、python-slugify、pyyaml、requests、rich"
+      },
+      {
+        "evidence": "静态扫描 os.environ 读取点",
+        "label": "需要的环境密钥",
+        "provenance": "FACT",
+        "value": "COOKIECUTTER_REPO_PASSWORD"
+      },
+      {
+        "evidence": "tests/",
+        "label": "测试目录",
+        "provenance": "FACT",
+        "value": "tests/ 存在,50 个测试文件"
+      }
+    ],
+    "headline": "<h1 align=\"center\"> </h1>",
+    "prose": "<h1 align=\"center\"> </h1>\n\n</div>\n\nCookiecutter\n\nCreate projects swiftly from **cookiecutters** (project templates) with this command-line utility. Ideal for generating Python package projects and more.\n\n- [Documentation](https://cookiecutter.readthedocs.io) - [GitHub](https://github.com/cookiecutter/cookiecutter) - [PyPI](https://pypi.org/project/cookiecutter/) - [License (BSD)](https://github.com/cookiecutter/cookiecutter/blob/main/LICENSE)\n\nInstallation\n\nInstall Cookiecutter as a CLI tool with [uv](https://docs.astral.sh/uv/): ``` uv tool install cookiecutter ```\n\nFeatures\n\n- **Cross-Platform:** Supports Windows, Mac, and Linux. - **User-Friendly:** No Python knowledge required. - **Versatile:** Compatible with Python 3.10 to 3.14. - **Multi-Language Support:** Use templates in any language or markup format.\n\nFor Users\n\nQuickstart\n\nThe most common way to use Cookiecutter is as a command line utility with a GitHub-hosted Cookiecutter template such as https://github.com/audreyfeldroy/cookiecutter-pypackage\n\n**Use a GitHub-hosted Cookiecutter template**\n\n**Use a local template**\n\n**Use it from Python**\n\nIf you plan to use Cookiecutter programmatically, please run `uv add cookiecutt",
+    "prose_source": "README 原文摘录(未经模型改写)",
+    "quickstart": "uv tool install cookiecutter",
+    "quickstart_evidence": "README.md 首个代码块",
+    "quickstart_note": "",
+    "repository": "https://github.com/cookiecutter/cookiecutter",
+    "risks": [
+      "无标准打包配置——安装方式需要人工确认",
+      "代码/文档要求环境密钥: ['COOKIECUTTER_REPO_PASSWORD']——当前不自动提供 secret"
+    ],
+    "sources": [
+      "LICENSE",
+      "README.md",
+      "pyproject.toml"
+    ],
+    "surfaces": [
+      {
+        "evidence": "__main__.py",
+        "kind": "CLI 入口",
+        "value": "python -m "
+      },
+      {
+        "evidence": "cookiecutter/__main__.py",
+        "kind": "CLI 入口",
+        "value": "python -m cookiecutter"
+      },
+      {
+        "evidence": "pyproject.toml [project.scripts]",
+        "kind": "CLI 入口",
+        "value": "cookiecutter = cookiecutter.__main__:main"
+      }
+    ]
+  }
+}

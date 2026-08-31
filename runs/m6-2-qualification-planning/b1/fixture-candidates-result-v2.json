@@ -1,0 +1,54 @@
+{
+  "candidates": [
+    {
+      "blueprint_id": "web-service",
+      "candidate_token": "e3ffcf295adbd8ed543613d511307f332b5e17c3c10eb6a856047c04c4334b98",
+      "confirmed": false,
+      "expected_file_count": 10,
+      "expected_total_bytes": 2062,
+      "expected_tree_sha256": "058e5e8f16839da55abb52383bf71e3e4a67cb21413fc363f91a744915158ee8",
+      "input_file_count": 1,
+      "input_kind": "file",
+      "input_sha256": "6f971aa2a6aafddcf32e8e4c82e121c8ee3856c477f752f984ee8f6aff808e39",
+      "input_total_bytes": 156,
+      "scenario": "含标题、段落和空行的典型项目说明。",
+      "title": "客户预约服务说明"
+    },
+    {
+      "blueprint_id": "leading-blank-lines",
+      "candidate_token": "0fc0f5e86515e0687204d7bca4848dc3841813d7b64f30b66d6f53dae5933b29",
+      "confirmed": false,
+      "expected_file_count": 10,
+      "expected_total_bytes": 1900,
+      "expected_tree_sha256": "4225d869ebd2f5e23539502615c0f99a5afe3914d1e2800b8f0396a61c813677",
+      "input_file_count": 1,
+      "input_kind": "file",
+      "input_sha256": "5bd9f017bf7a40b0c125fc60197d5b1a9652c2f2c1cfb67e1eca76355c8570aa",
+      "input_total_bytes": 98,
+      "scenario": "说明文件在项目标题前含空白行，用于验证首个非空行的标题规则。",
+      "title": "带前导空行的说明"
+    },
+    {
+      "blueprint_id": "punctuated-title",
+      "candidate_token": "f4231b6eef91c8eef1d7680809ba6e64f4154de04af8ea5a4120591c0e03f45a",
+      "confirmed": false,
+      "expected_file_count": 10,
+      "expected_total_bytes": 1918,
+      "expected_tree_sha256": "721e26d73ae28b19e778b992c1aabae6279264ed4831c5f8f24a673a71b3c0df",
+      "input_file_count": 1,
+      "input_kind": "file",
+      "input_sha256": "1153966140bd55489952c1bc428ebd02be35a196782148882eb04b70e838c0d2",
+      "input_total_bytes": 109,
+      "scenario": "标题含空格、标点和非 ASCII 字符，用于验证发行名称规范化。",
+      "title": "带标点的双语标题"
+    }
+  ],
+  "drafter": "frozen-draft-blueprints",
+  "generation_id": "generation-1788176485-792aec48",
+  "note": "场景来自模型草稿，字节由冻结 fixture builder 生成，期望工作区来自固定版本上游 reference。",
+  "offline": true,
+  "ok": true,
+  "requested": 3,
+  "shortfall": 0,
+  "usable_count": 3
+}

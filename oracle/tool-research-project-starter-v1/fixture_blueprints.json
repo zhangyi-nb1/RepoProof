@@ -1,0 +1,35 @@
+{
+  "blueprints": [
+    {
+      "blueprint_id": "web-service",
+      "input_kind": "file",
+      "parameters": {
+        "description": "为小型团队管理客户预约、可用时段和提醒。\n\n首个迭代聚焦预约创建与列表查看。",
+        "title": "客户预约服务"
+      },
+      "scenario": "含标题、段落和空行的典型项目说明。",
+      "title": "客户预约服务说明"
+    },
+    {
+      "blueprint_id": "lab-notes",
+      "input_kind": "file",
+      "parameters": {
+        "description": "记录实验步骤、观察结果和后续任务。",
+        "title": "实验室记录工具"
+      },
+      "scenario": "中文标题和简短说明的日常实验记录项目。",
+      "title": "实验记录项目说明"
+    },
+    {
+      "blueprint_id": "punctuated-title",
+      "input_kind": "file",
+      "parameters": {
+        "description": "整理版本变更、已知问题和发布检查项。",
+        "title": "Release Notes: Q2 / 内部版"
+      },
+      "scenario": "标题含空格、标点和非 ASCII 字符，用于验证发行名称规范化。",
+      "title": "带标点的双语标题"
+    }
+  ],
+  "schema_version": 1
+}

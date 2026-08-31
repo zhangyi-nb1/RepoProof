@@ -1,0 +1,28 @@
+{
+  "agent_invoked": false,
+  "artifact_manifest_sha256": null,
+  "artifact_tree_sha256": null,
+  "case_name": "b1-cookiecutter-research-project",
+  "clean_replay": null,
+  "delivery_profile_id": "workspace_bundle_v1",
+  "failure_owner": "HARNESS",
+  "failure_stage": "PREFLIGHT_UPSTREAM",
+  "fresh_audit": null,
+  "historical_verdict": null,
+  "journey_id": "6ecd00052933496f8f665b8ce410118f",
+  "operational_status": null,
+  "package_health": null,
+  "reason_codes": [
+    "UPSTREAM_CONFORMANCE_ENVIRONMENT"
+  ],
+  "recommended_action": "冻结 wheelhouse 缺少所选上游公开测试节点需要的 pytest-mock；保持本任务与预注册依赖不变，将该环境缺口作为唯一终态记录，不进入 Agent repair。",
+  "repair_attempts": 0,
+  "run_id": null,
+  "semantic_verifier_evidence": null,
+  "semantic_verifier_evidence_sha256": null,
+  "semantic_verifier_id": null,
+  "semantic_verifier_sha256": null,
+  "status": "FAILED",
+  "task_id": "tool-research-project-starter-v1",
+  "workspace_structure_passed": null
+}

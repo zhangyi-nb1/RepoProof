@@ -1,0 +1,9 @@
+{
+  "error": "目录样例生成失败：WORKSPACE_REFERENCE_FAILED",
+  "failure_owner": "HARNESS",
+  "ok": false,
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_FAILED"
+  ],
+  "recommended_action": "修正冻结前的 fixture builder/场景蓝图并创建新的语义确认；不要把生成器故障交给构建 Agent 盲修。"
+}

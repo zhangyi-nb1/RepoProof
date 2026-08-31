@@ -1,0 +1,23 @@
+{
+  "independent_verifier_call": true,
+  "ok": true,
+  "result": {
+    "fields_drafted": [
+      "fixture_builder",
+      "fixture_blueprints",
+      "_intent_contract.delivery",
+      "_intent_contract.commitments",
+      "_intent_contract.artifact_protocol",
+      "capability.statement",
+      "tool.summary",
+      "tool.interface.input.format",
+      "capability.output_schema",
+      "reference_impl",
+      "semantic_verifier"
+    ],
+    "meta_path": "/Users/zhangronglei/.repoproof/drafts/journey-6ecd00052933/draft_meta.json",
+    "skipped": []
+  },
+  "schema_version": 1,
+  "source_response_sha256": "2b30c3ad02b1e228ad31f9832d604359228410c435957d840faaa514a255a1bf"
+}

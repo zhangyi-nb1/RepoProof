@@ -1,0 +1,5 @@
+{
+  "returncode": 1,
+  "stderr": "Traceback (most recent call last):\n  File \"/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/rp-b1-debug-7u99y2pj/runner.py\", line 6, in <module>\n    m.build_workspace(Path(i),Path(o))\n  File \"/Users/zhangronglei/.repoproof/drafts/journey-6ecd00052933/reference_impl.py\", line 152, in build_workspace\n    cookiecutter(\n  File \"/Users/zhangronglei/Desktop/XIANGMU/RepoProof/upstream-cache/upstream-083dd3c61041/cookiecutter/main.py\", line 185, in cookiecutter\n    result = generate_files(\n             ^^^^^^^^^^^^^^^\n  File \"/Users/zhangronglei/Desktop/XIANGMU/RepoProof/upstream-cache/upstream-083dd3c61041/cookiecutter/generate.py\", line 353, in generate_files\n    template_dir = find_template(repo_dir, env)\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/zhangronglei/Desktop/XIANGMU/RepoProof/upstream-cache/upstream-083dd3c61041/cookiecutter/find.py\", line 35, in find_template\n    raise NonTemplatedInputDirException\ncookiecutter.exceptions.NonTemplatedInputDirException\n",
+  "stdout": ""
+}

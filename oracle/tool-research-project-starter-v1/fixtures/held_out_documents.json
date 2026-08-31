@@ -1,0 +1,1 @@
+{"examples": [{"example_id": "punctuated-title", "input_path": "workspace-inputs/punctuated-title", "expected_dir": "workspace-expected/punctuated-title", "truth_provenance": "UPSTREAM_DERIVED_USER_CONFIRMED", "truth_binding_sha256": "4fefa0e27a86a9eeb353559542042640863af20f61f23b0cb612b6938edb65c0"}]}

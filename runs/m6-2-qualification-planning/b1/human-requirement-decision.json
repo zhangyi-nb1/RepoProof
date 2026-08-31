@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-31T11:06:31.867831Z",
+  "case_id": "b1-cookiecutter-research-project",
+  "journey_id": "6ecd00052933496f8f665b8ce410118f",
+  "model_advice_evidence": "model-advice-after-strict-schema-fix.json",
+  "selected_direction": "experiment_workspace_from_local_template",
+  "model_proposal_support_status": "UNSUPPORTED",
+  "model_proposal_reason_codes": [
+    "INPUT_CARDINALITY_MISMATCH"
+  ],
+  "human_action": "ADOPT_DIRECTION_AND_REDUCE_TO_ONE_INPUT",
+  "initial_user_request": "每次新实验的文件夹都很乱，想根据几项目信息生成一套能开工、也方便交接的项目。",
+  "final_user_request": "我只想给一份项目说明文件，工具自己使用固定的本地实验模板，生成一套能直接开工、也方便交接的项目文件夹；不要联网，也不需要我另外准备模板。",
+  "normative_note": "The frozen template is task-owned support material, not a second user input."
+}

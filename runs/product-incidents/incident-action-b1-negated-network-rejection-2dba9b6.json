@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "draft_created": 0,
+    "journey_created": 1,
+    "source_action_schema_version": 1
+  },
+  "created_at": "2026-08-31T11:07:46.888511Z",
+  "disposition": "UNSUPPORTED",
+  "framework_git_commit": "2dba9b64c3519f77ecb2f53fad22fe8b306fef98",
+  "framework_tree_sha256": "6a353ee019e68a3e3fe2e92a5be7084bb981fbf21c076c3d9431606654cce1d4",
+  "incident_id": "incident-action-b1-negated-network-rejection-2dba9b6",
+  "normalized_fingerprint": "217c5009078446bf",
+  "owner": "USER_INPUT",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "UNSUPPORTED_RUNTIME_NETWORK_REQUIRED"
+  ],
+  "reason_codes": [
+    "UNSUPPORTED_RUNTIME_NETWORK_REQUIRED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "INTENT_ADMISSION",
+  "task_version": null
+}

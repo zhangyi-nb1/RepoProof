@@ -1,0 +1,9 @@
+{
+  "error": "模型调用失败:DRAFTER_STRUCTURED_OUTPUT_UNSUPPORTED",
+  "failure_owner": "EXTERNAL",
+  "ok": false,
+  "reason_codes": [
+    "DRAFTER_STRUCTURED_OUTPUT_UNSUPPORTED"
+  ],
+  "recommended_action": "为默认网关启用 JSON Schema structured output，或显式切换到支持同一 schema 的起草通道；本次没有创建 Journey，也不消耗 Agent repair 轮次。"
+}

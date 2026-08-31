@@ -1,0 +1,11 @@
+{
+  "delivery_profile": "workspace_bundle_v1",
+  "normalized": true,
+  "raw_sha256": "2b30c3ad02b1e228ad31f9832d604359228410c435957d840faaa514a255a1bf",
+  "raw_size": 12705,
+  "schema_version": 1,
+  "usage": {
+    "completion_tokens": 7256,
+    "prompt_tokens": 4280
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-31T11:03:39.960614Z",
+  "case_id": "b1-cookiecutter-research-project",
+  "attempt": 4,
+  "framework_fix": "strict-model-schema-completeness",
+  "ok": true,
+  "summary": "该仓库是一个命令行项目模板生成工具，可用模板快速创建新项目。README 明确提到可使用本地模板，也说明模板可以覆盖 Python 以及其他语言或标记格式。最贴合你的需求的做法，是让团队提供一个本地项目模板，再用一份简短的项目说明建立新的实验工作区。摘录没有说明仓库自带哪些实验目录或交接文档，因此这些内容需要由你们自己的模板决定。",
+  "requirement_briefs": [
+    {
+      "brief_id": "experiment_workspace_from_local_template",
+      "title": "基于本地模板的新实验工作区生成器",
+      "scenario": "每次启动新实验时，研究人员需要快速建立一致的项目基础，避免文件夹杂乱，也让后来接手的人能理解项目。",
+      "boundary": "不负责替团队决定实验方法。",
+      "reason": "README 说明该工具可从项目模板创建项目，并明确支持使用本地模板；这适合把团队已有的实验骨架与每次实验的基本信息结合起来。",
+      "delivery_requirements": {
+        "browser": "none",
+        "credentials": "none",
+        "external_side_effects": "none",
+        "inputs": [
+          {
+            "format_label": "项目说明 Markdown 文档",
+            "kind": "file",
+            "location": "local",
+            "representation": "utf8_text",
+            "role": "提供实验名称、负责人、目标和交接说明等基本信息"
+          },
+          {
+            "format_label": "本地项目模板目录",
+            "kind": "directory",
+            "location": "local",
+            "representation": "binary",
+            "role": "提供团队希望复用的实验项目骨架"
+          }
+        ],
+        "lifecycle": "per_invocation",
+        "network": "offline",
+        "outputs": [
+          {
+            "format_id": "workspace_bundle",
+            "format_label": "离线多文件工作区",
+            "kind": "directory",
+            "role": "可立即开始并便于后续交接的实验项目工作区"
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "text": null,
+      "delivery_shape": null,
+      "support_status": "UNSUPPORTED",
+      "support_reason_codes": [
+        "INPUT_CARDINALITY_MISMATCH"
+      ],
+      "adoption_status": "UNAVAILABLE",
+      "adoption_reason_codes": [
+        "DELIVERY_UNSUPPORTED"
+      ]
+    },
+    {
+      "brief_id": "research_code_starter_from_local_python_",
+      "title": "研究代码项目起步工作区生成器",
+      "scenario": "需要开始一个带研究代码的新项目，但希望在项目命名、维护责任和交接背景上保持团队一致。",
+      "boundary": "不负责检查或修复实验内容是否正确。",
+      "reason": "README 将生成 Python 包项目列为常见用途，因此可将团队自己的研究代码模板用于建立统一的项目起点；但摘录未说明具体会生成哪些文件。",
+      "delivery_requirements": {
+        "browser": "none",
+        "credentials": "none",
+        "external_side_effects": "none",
+        "inputs": [
+          {
+            "format_label": "项目说明 Markdown 文档",
+            "kind": "file",
+            "location": "local",
+            "representation": "utf8_text",
+            "role": "提供项目名称、用途、维护人和交接背景"
+          },
+          {
+            "format_label": "本地项目模板目录",
+            "kind": "directory",
+            "location": "local",
+            "representation": "binary",
+            "role": "提供已约定的研究代码项目骨架"
+          }
+        ],
+        "lifecycle": "per_invocation",
+        "network": "offline",
+        "outputs": [
+          {
+            "format_id": "workspace_bundle",
+            "format_label": "离线多文件工作区",
+            "kind": "directory",
+            "role": "按团队代码项目惯例建立的起步工作区"
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "text": null,
+      "delivery_shape": null,
+      "support_status": "UNSUPPORTED",
+      "support_reason_codes": [
+        "INPUT_CARDINALITY_MISMATCH"
+      ],
+      "adoption_status": "UNAVAILABLE",
+      "adoption_reason_codes": [
+        "DELIVERY_UNSUPPORTED"
+      ]
+    },
+    {
+      "brief_id": "multilanguage_project_handover_starter",
+      "title": "多语言项目交接起步工作区生成器",
+      "scenario": "团队会开展不同语言或文档类型的项目，希望新项目从一开始就保留清晰的负责人和交接背景。",
+      "boundary": "不负责把现有杂乱项目自动整理成新结构。",
+      "reason": "README 表示模板可以用于任何语言或标记格式，因此该思路不局限于 Python；不过没有足够证据确认仓库自带任何特定行业或交接模板。",
+      "delivery_requirements": {
+        "browser": "none",
+        "credentials": "none",
+        "external_side_effects": "none",
+        "inputs": [
+          {
+            "format_label": "项目说明 Markdown 文档",
+            "kind": "file",
+            "location": "local",
+            "representation": "utf8_text",
+            "role": "提供项目背景、负责人和交接所需的基本说明"
+          },
+          {
+            "format_label": "本地项目模板目录",
+            "kind": "directory",
+            "location": "local",
+            "representation": "binary",
+            "role": "提供适用于该项目语言或文档类型的团队模板"
+          }
+        ],
+        "lifecycle": "per_invocation",
+        "network": "offline",
+        "outputs": [
+          {
+            "format_id": "workspace_bundle",
+            "format_label": "离线多文件工作区",
+            "kind": "directory",
+            "role": "用于启动并交接项目的模板化工作区"
+          }
+        ],
+        "runtime": "local_cpu"
+      },
+      "text": null,
+      "delivery_shape": null,
+      "support_status": "UNSUPPORTED",
+      "support_reason_codes": [
+        "INPUT_CARDINALITY_MISMATCH"
+      ],
+      "adoption_status": "UNAVAILABLE",
+      "adoption_reason_codes": [
+        "DELIVERY_UNSUPPORTED"
+      ]
+    }
+  ],
+  "recommended_brief_id": "experiment_workspace_from_local_template",
+  "delivery_profile": "cli_v2",
+  "drafter": "litellm:openai/gpt-5.6-terra"
+}

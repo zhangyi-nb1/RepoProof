@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-08-31T11:08:00.293069Z",
+  "case_id": "b1-cookiecutter-research-project",
+  "journey_id": "6ecd00052933496f8f665b8ce410118f",
+  "amendment": 1,
+  "trigger_reason_codes": [
+    "UNSUPPORTED_RUNTIME_NETWORK_REQUIRED"
+  ],
+  "root_incident": "incident-intent-negation-polarity-b1-2dba9b6",
+  "action": "REMOVE_REDUNDANT_NEGATED_NETWORK_PHRASE",
+  "final_user_request": "我只提供一份项目说明文件，工具使用内置并固定的本地实验模板，生成一套能直接开工、也方便交接的项目文件夹。",
+  "offline_constraint_source": "workspace_bundle_v1"
+}

@@ -1,0 +1,35 @@
+{
+  "rows": [
+    {
+      "blueprint_id": "web-service",
+      "confirmed": {
+        "note": "已确认目录样例：web-service",
+        "ok": true,
+        "truth_binding_sha256": "32d709a63fc8ab2f353e0d21e848c2010a06ade0d598f7c26594b5aad63f3784"
+      },
+      "preview_expected_file_count": 10,
+      "preview_ok": true
+    },
+    {
+      "blueprint_id": "lab-notes",
+      "confirmed": {
+        "note": "已确认目录样例：lab-notes",
+        "ok": true,
+        "truth_binding_sha256": "781828c2cb000bb37e57018c0eab683d5cc92f4a2709d70aa1034e44179ef9ae"
+      },
+      "preview_expected_file_count": 10,
+      "preview_ok": true
+    },
+    {
+      "blueprint_id": "punctuated-title",
+      "confirmed": {
+        "note": "已确认目录样例：punctuated-title",
+        "ok": true,
+        "truth_binding_sha256": "4fefa0e27a86a9eeb353559542042640863af20f61f23b0cb612b6938edb65c0"
+      },
+      "preview_expected_file_count": 10,
+      "preview_ok": true
+    }
+  ],
+  "schema_version": 1
+}
