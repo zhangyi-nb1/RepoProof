@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": true,
+  "artifact_tree_diff": {
+    "actual_content_matches_expected": 1,
+    "actual_non_executable_mode": "0644",
+    "expected_non_executable_mode_after_oracle_freeze": "0444",
+    "repair_consumed": 0
+  },
+  "created_at": "2026-09-01T00:46:25+08:00",
+  "disposition": "GENERIC_GOLDEN_IDENTITY_MUST_EXCLUDE_ORACLE_STORAGE_HARDENING",
+  "framework_git_commit": "65cf19c",
+  "incident_id": "incident-oracle-permission-hardening-drift-65cf19c",
+  "normalized_fingerprint": "oracle-read-only-hardening-pollutes-golden-identity-v1",
+  "owner": "HARNESS",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "capability-verifier::workspace-golden-identity"
+  ],
+  "reason_codes": [
+    "ORACLE_STORAGE_MODE_DRIFT",
+    "GOLDEN_TREE_FALSE_MISMATCH"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "SEMANTIC_VERIFIER",
+  "task_version": "tool-networkx-tool-v2"
+}

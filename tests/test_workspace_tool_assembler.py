@@ -10,6 +10,7 @@ from pathlib import Path
 
 import yaml
 
+from repoproof.adoption.assembly import workspace_tool_assembler
 from repoproof.adoption.assembly.example_compiler import CompileError
 from repoproof.adoption.assembly.workspace_tool_assembler import (
     assemble_workspace_tool_task,
@@ -43,6 +44,29 @@ from repoproof.verification.workspace_semantic import (
     workspace_semantic_evidence_sha256,
     write_workspace_semantic_evidence,
 )
+
+
+def test_golden_identity_ignores_oracle_read_only_hardening(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """Freezing expected fixtures read-only must not change product truth."""
+
+    ordinary = tmp_path / "ordinary"
+    hardened = tmp_path / "hardened"
+    ordinary.mkdir()
+    hardened.mkdir()
+    (ordinary / "report.txt").write_text("same payload\n", encoding="utf-8")
+    (hardened / "report.txt").write_text("same payload\n", encoding="utf-8")
+    (ordinary / "report.txt").chmod(0o644)
+    (hardened / "report.txt").chmod(0o444)
+    monkeypatch.setenv("REPOPROOF_TOOL_BIN", "/bin/true")
+    namespace: dict[str, object] = {"__file__": str(tmp_path / "test_contract.py")}
+    prelude = workspace_tool_assembler._TEST_PRELUDE.split("def _run_case", 1)[0]
+    exec(prelude, namespace)
+
+    assert namespace["_tree_sha"](ordinary) != namespace["_tree_sha"](hardened)
+    assert namespace["_golden_sha"](ordinary) == namespace["_golden_sha"](hardened)
 
 
 def _tool() -> ToolSpec:

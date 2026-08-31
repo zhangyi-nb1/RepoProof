@@ -205,6 +205,28 @@ def _tree_sha(root):
     return digest.hexdigest()
 
 
+def _golden_sha(root):
+    """Bind product bytes and executable semantics, not Oracle hardening.
+
+    Frozen Oracle fixtures are intentionally chmod read-only.  The workspace
+    contract separately checks whether each artifact is executable, so rw
+    permission bits are storage protection rather than product truth.
+    """
+    digest = hashlib.sha256(b"REPOPROOF-WORKSPACE-GOLDEN-V1\0")
+    for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
+        info = path.lstat()
+        if stat.S_ISDIR(info.st_mode):
+            continue
+        assert stat.S_ISREG(info.st_mode) and not path.is_symlink()
+        payload = path.read_bytes()
+        relative = path.relative_to(root).as_posix().encode()
+        digest.update(len(relative).to_bytes(8, "big")); digest.update(relative)
+        digest.update(int(bool(stat.S_IMODE(info.st_mode) & 0o111)).to_bytes(1, "big"))
+        digest.update(len(payload).to_bytes(8, "big"))
+        digest.update(hashlib.sha256(payload).digest())
+    return digest.hexdigest()
+
+
 def _run_case(tmp_path, example_id):
     source = _FIXTURES / example_id / "input"
     expected = _FIXTURES / example_id / "expected"
@@ -215,7 +237,7 @@ def _run_case(tmp_path, example_id):
     )
     assert process.returncode == 0, process.stderr
     assert output.is_dir()
-    assert _tree_sha(output) == _tree_sha(expected)
+    assert _golden_sha(output) == _golden_sha(expected)
     return output
 '''
 

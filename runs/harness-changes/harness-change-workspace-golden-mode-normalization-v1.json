@@ -1,0 +1,19 @@
+{
+  "affected_component": "Workspace capability golden identity compiler",
+  "after_control_sha256": "e1db72233597faa0cb36bc0adfcab0b07fc98c1ba877d75490fa3bb6ed537ee7",
+  "anonymous_fixture_id": "anonymous-read-only-oracle-golden-v1",
+  "before_control_sha256": "93cde1dfa112dff3987aff8ae1cb99de49462e20bed79d164826e10381b44b6b",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T00:46:25+08:00",
+  "evidence_id": "harness-change-workspace-golden-mode-normalization-v1",
+  "incident_ids": [
+    "incident-oracle-permission-hardening-drift-65cf19c"
+  ],
+  "invariant": "Golden comparison must bind relative paths, bytes, and executable semantics while excluding read/write permission changes introduced solely by Oracle storage hardening; exact permission modes remain bound by runtime manifests and deterministic replay.",
+  "normalized_fingerprint": "oracle-read-only-hardening-pollutes-golden-identity-v1",
+  "regression_tests": [
+    "tests/test_workspace_tool_assembler.py::test_golden_identity_ignores_oracle_read_only_hardening"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}
