@@ -393,6 +393,7 @@ def assemble_workspace_tool_task(
     fixture_blueprints: list[dict],
     reference_lock: str,
     intent_contract: dict,
+    output_schema: str,
 ) -> dict:
     """Freeze a v4 workspace task without running a model."""
 
@@ -437,7 +438,7 @@ def assemble_workspace_tool_task(
         compiled_statement=goal.strip(),
         input_contract=tool.interface.input.model_dump(mode="json"),
         output_contract=tool.interface.output.model_dump(mode="json"),
-        output_schema="workspace_bundle",
+        output_schema=output_schema,
     )
     if projection_errors:
         raise CompileError(f"CURRENT_PRODUCT_INTENT_INVALID:{projection_errors[0]}")
@@ -485,7 +486,7 @@ def assemble_workspace_tool_task(
         "tool": tool.model_dump(mode="json"),
         "capability": {
             "statement": goal.strip(),
-            "output_schema": "workspace_bundle",
+            "output_schema": output_schema,
             "intent_contract": intent_contract,
         },
         "environment": {
@@ -614,7 +615,7 @@ def assemble_workspace_tool_task(
         "delivery_profile_id": "workspace_bundle_v1",
         "workspace_contract": contract_json,
         "interface": tool.interface.model_dump(mode="json"),
-        "capability": {"output_schema": "workspace_bundle"},
+        "capability": {"output_schema": output_schema},
         "runtime": {"python": "3.12", "cpu_only": True, "offline": True},
         "verification": None,
     }

@@ -1,0 +1,28 @@
+{
+  "agent_invoked": false,
+  "artifact_manifest_sha256": null,
+  "artifact_tree_sha256": null,
+  "case_name": "c3-networkx-project-dependency-browser",
+  "clean_replay": null,
+  "delivery_profile_id": "workspace_bundle_v1",
+  "failure_owner": "HARNESS",
+  "failure_stage": "CONTRACT_AUTHORING",
+  "fresh_audit": null,
+  "historical_verdict": null,
+  "journey_id": "3f71285633174338a541b17bb3617614",
+  "operational_status": null,
+  "package_health": null,
+  "reason_codes": [
+    "WORKSPACE_OUTPUT_SCHEMA_PROJECTION_MISMATCH"
+  ],
+  "recommended_action": "装配器必须保留并验证用户刚确认的任务级输出语义名，不能用交付 profile 的固定标识覆盖。该问题已由 B1 和 C3 两个独立仓库以相同公开指纹复现；在匿名负控和通用修复完成前停止，不调用 Agent 或 repair。",
+  "repair_attempts": 0,
+  "run_id": null,
+  "semantic_verifier_evidence": null,
+  "semantic_verifier_evidence_sha256": null,
+  "semantic_verifier_id": null,
+  "semantic_verifier_sha256": null,
+  "status": "FAILED",
+  "task_id": null,
+  "workspace_structure_passed": null
+}

@@ -1,0 +1,23 @@
+{
+  "affected_component": "workspace task assembly and confirmed intent projection",
+  "after_control_sha256": "6f04cf0015e70132484c50e6f0576228330ef5d4cbeeb78f06dbc06d053ce143",
+  "anonymous_fixture_id": "anonymous-workspace-output-schema-projection-v1",
+  "before_control_sha256": "481b12e57ef1d396cef48d4f0a3605a5e87abc9fde30d2528be3a12dbe1c1600",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-08-31T13:55:00.000000Z",
+  "evidence_id": "harness-change-workspace-output-schema-projection-v1",
+  "incident_ids": [
+    "incident-workspace-output-schema-projection-b1-d475b43",
+    "incident-workspace-output-schema-projection-c3-1bae666"
+  ],
+  "invariant": "Workspace assembly must validate, freeze, and export the exact task-level output semantic identifier bound by the human confirmation. A delivery profile identifies topology and cannot overwrite a task's confirmed semantic schema; any mismatch must stop before Agent execution.",
+  "normalized_fingerprint": "f10e9692a71cc06d",
+  "regression_tests": [
+    "tests/test_workspace_tool_assembler.py",
+    "tests/test_intent_contract.py",
+    "tests/test_tool_confirm.py",
+    "tests/ui/test_workspace_ui_services.py"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

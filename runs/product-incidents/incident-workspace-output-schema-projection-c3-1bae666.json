@@ -1,0 +1,27 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "repair_consumed": 0
+  },
+  "created_at": "2026-08-31T13:40:51.839992Z",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "1bae66640f9fb3f47970a296d4becb7b5fca43fd",
+  "framework_tree_sha256": "063396413255bad07e487e65e3c6382b7edf6f514c9885da3ec09f7a5b36bcc7",
+  "incident_id": "incident-workspace-output-schema-projection-c3-1bae666",
+  "normalized_fingerprint": "f10e9692a71cc06d",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "b80920016ff060c19962884e7dc0e67b24bbed26c410919a7f7c2374673dfe51",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "contract_assembly::output-schema-projection"
+  ],
+  "reason_codes": [
+    "WORKSPACE_OUTPUT_SCHEMA_PROJECTION_MISMATCH"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

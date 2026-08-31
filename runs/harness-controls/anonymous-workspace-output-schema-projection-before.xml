@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.193" timestamp="2026-08-31T21:48:13.056439+08:00" hostname="ZhangrongleideMacBook-Air-3.local"><testcase classname="tests.test_workspace_tool_assembler" name="test_workspace_assembler_preserves_confirmed_task_output_schema" time="0.008"><failure message="repoproof.adoption.assembly.example_compiler.CompileError: CURRENT_PRODUCT_INTENT_INVALID:INTENT_CONFIRMATION_STALE">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-151/test_workspace_assembler_prese0')
+
+    def test_workspace_assembler_preserves_confirmed_task_output_schema(
+        tmp_path: Path,
+    ) -&gt; None:
+        tool = _tool()
+        source_root, examples = _world(tmp_path)
+        output_schema = "ReadableStudyWorkspace"
+        goal, intent = _intent(tool, output_schema=output_schema)
+
+&gt;       result = assemble_workspace_tool_task(
+            tmp_path / "project",
+            goal=goal,
+            repo_url="https://example.invalid/synthetic",
+            resolved_commit="a" * 40,
+            distribution="synthetic-upstream",
+            import_module="synthetic_upstream",
+            license_id="MIT",
+            tool=tool,
+            examples=examples,
+            example_src_dir=source_root,
+            reference_impl=_REFERENCE,
+            semantic_verifier_source=_VERIFIER,
+            fixture_builder_source=_FIXTURE_BUILDER,
+            fixture_blueprints=_FIXTURE_BLUEPRINTS,
+            reference_lock="synthetic-upstream==1.0.0\n",
+            intent_contract=intent,
+        )
+
+tests/test_workspace_tool_assembler.py:448:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-151/test_workspace_assembler_prese0/project')
+goal = '用户目标：把学习材料整理成一个能离线交接的工作目录\n公开行为承诺：\n- [compose-study-workspace] 把输入材料组织成含说明和派生数据的离线工作目录。\n公开产物协议：\n- [workspace-conte...a files；值表示：validated directory tree\n统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+repo_url = 'https://example.invalid/synthetic'
+resolved_commit = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+distribution = 'synthetic-upstream', import_module = 'synthetic_upstream'
+license_id = 'MIT'
+tool = ToolSpec(schema_version=4, name='study-workspace-tool', summary='Build an offline study workspace', interface=ToolInte...ceArtifactLimits(max_files=512, max_total_bytes=268435456, max_file_bytes=67108864, max_depth=12, max_path_bytes=240)))
+examples = [{'example_id': 'case-1', 'input_path': 'case-1/input', 'expected_dir': 'case-1/expected', 'truth_provenance': 'UPSTRE..._path': 'case-3/input', 'expected_dir': 'case-3/expected', 'truth_provenance': 'UPSTREAM_DERIVED_USER_CONFIRMED', ...}]
+example_src_dir = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-151/test_workspace_assembler_prese0/example-source')
+reference_impl = 'from pathlib import Path\nimport synthetic_upstream\n\nclass UserInputError(ValueError):\n    pass\n\ndef build_works...    (output_dir / "README.md").write_text(f"# {text}\\n")\n    (output_dir / "data" / "value.txt").write_text(value)\n'
+semantic_verifier_source = 'from pathlib import Path\nimport synthetic_upstream\n\ndef verify(input_path: Path, artifact_path: Path) -&gt; dict:\n  ...reason_codes": [] if ok else ["VALUE_MISMATCH"],\n            "checked_commitment_ids": ["compose-study-workspace"]}\n'
+fixture_builder_source = 'from pathlib import Path\n\ndef build(blueprint, output_path: Path) -&gt; None:\n    output_path.mkdir()\n    (output_path / "brief.txt").write_text(blueprint["parameters"]["text"])\n'
+fixture_blueprints = [{'blueprint_id': 'study-1', 'title': 'Study 1', 'scenario': 'One realistic study folder.', 'input_kind': 'directory',...ueprint_id': 'study-3', 'title': 'Study 3', 'scenario': 'One realistic study folder.', 'input_kind': 'directory', ...}]
+reference_lock = 'synthetic-upstream==1.0.0\n'
+intent_contract = {'schema_version': 1, 'user_goal': '把学习材料整理成一个能离线交接的工作目录', 'user_goal_sha256': '02f96aaf592334987b906321faff581f4dbab9...-workspace', 'public_text': '把输入材料组织成含说明和派生数据的离线工作目录。', 'rationale': '这是用户确认的交付结果。', 'origin': 'MODEL_PROPOSED'}], ...}
+
+    def assemble_workspace_tool_task(
+        root: Path,
+        *,
+        goal: str,
+        repo_url: str,
+        resolved_commit: str,
+        distribution: str,
+        import_module: str,
+        license_id: str,
+        tool: ToolSpec,
+        examples: list[dict],
+        example_src_dir: Path,
+        reference_impl: str,
+        semantic_verifier_source: str,
+        fixture_builder_source: str,
+        fixture_blueprints: list[dict],
+        reference_lock: str,
+        intent_contract: dict,
+    ) -&gt; dict:
+        """Freeze a v4 workspace task without running a model."""
+
+        root = Path(root)
+        if tool.schema_version != 4 or tool.delivery_profile_id != "workspace_bundle_v1":
+            raise CompileError("workspace assembler requires ToolSpec v4")
+        if tool.workspace_contract is None:
+            raise CompileError("workspace contract is required")
+        workspace_contract = tool.workspace_contract
+        parsed = [WorkspaceGoldenExampleV1.model_validate(item) for item in examples]
+        if len(parsed) &lt; 3:
+            raise CompileError("at least three workspace examples are required")
+        _assert_function(reference_impl, "build_workspace")
+        _assert_function(semantic_verifier_source, "verify")
+        _assert_function(fixture_builder_source, "build")
+        parsed_blueprints = [
+            FixtureBlueprintV1.model_validate(item) for item in fixture_blueprints
+        ]
+        if not 3 &lt;= len(parsed_blueprints) &lt;= 4:
+            raise CompileError("workspace fixture builder requires 3-4 blueprints")
+        expected_input_kind = tool.interface.input.kind
+        if any(item.input_kind != expected_input_kind for item in parsed_blueprints):
+            raise CompileError("workspace fixture blueprint input kind mismatch")
+        for example in parsed:
+            input_identity = identify_input_path(example_src_dir / example.input_path)
+            expected_manifest = build_artifact_manifest(
+                example_src_dir / example.expected_dir,
+                workspace_contract.limits,
+            )
+            binding = workspace_truth_binding_sha256(
+                input_identity.sha256, expected_manifest.tree_sha256
+            )
+            if binding != example.truth_binding_sha256:
+                raise CompileError(f"workspace example binding drift: {example.example_id}")
+        public = parsed[:-max(1, len(parsed) // 4)]
+        held = parsed[-max(1, len(parsed) // 4):]
+        if len(public) &lt; 2:
+            raise CompileError("workspace anti-hardcode layer requires two public examples")
+
+        projection_errors = validate_frozen_intent_projection(
+            intent_contract=intent_contract,
+            compiled_statement=goal.strip(),
+            input_contract=tool.interface.input.model_dump(mode="json"),
+            output_contract=tool.interface.output.model_dump(mode="json"),
+            output_schema="workspace_bundle",
+        )
+        if projection_errors:
+&gt;           raise CompileError(f"CURRENT_PRODUCT_INTENT_INVALID:{projection_errors[0]}")
+E           repoproof.adoption.assembly.example_compiler.CompileError: CURRENT_PRODUCT_INTENT_INVALID:INTENT_CONFIRMATION_STALE
+
+src/repoproof/adoption/assembly/workspace_tool_assembler.py:443: CompileError</failure></testcase></testsuite></testsuites>

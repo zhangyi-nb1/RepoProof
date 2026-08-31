@@ -116,12 +116,16 @@ def _world(tmp_path: Path) -> tuple[Path, list[dict]]:
     return examples_root, examples
 
 
-def _intent(tool: ToolSpec) -> tuple[str, dict]:
+def _intent(
+    tool: ToolSpec,
+    *,
+    output_schema: str = "workspace_bundle",
+) -> tuple[str, dict]:
     user_goal = "把学习材料整理成一个能离线交接的工作目录"
     draft = {
         "_intent_contract": new_intent_contract(user_goal),
         "tool": tool.model_dump(mode="json"),
-        "capability": {"statement": "", "output_schema": "workspace_bundle"},
+        "capability": {"statement": "", "output_schema": output_schema},
     }
     install_delivery_intent_from_interface(draft, profile_id="workspace_bundle_v1")
     install_semantic_commitments(
@@ -222,6 +226,7 @@ def test_workspace_assembler_freezes_v4_task_and_runs_public_controls(
         fixture_blueprints=_FIXTURE_BLUEPRINTS,
         reference_lock="synthetic-upstream==1.0.0\n",
         intent_contract=intent,
+        output_schema="workspace_bundle",
     )
     contract_path = project / "contracts" / f"{result['task_id']}.yaml"
     contract, _ = TaskContract.load_frozen(contract_path, require_sidecar=True)
@@ -426,11 +431,55 @@ def test_workspace_assembler_rejects_drifted_truth_binding(tmp_path: Path) -> No
             fixture_blueprints=_FIXTURE_BLUEPRINTS,
             reference_lock="synthetic-upstream==1.0.0\n",
             intent_contract=intent,
+            output_schema="workspace_bundle",
         )
     except CompileError as exc:
         assert "binding drift" in str(exc)
     else:
         raise AssertionError("drifted workspace truth binding was accepted")
+
+
+def test_workspace_assembler_preserves_confirmed_task_output_schema(
+    tmp_path: Path,
+) -> None:
+    tool = _tool()
+    source_root, examples = _world(tmp_path)
+    output_schema = "ReadableStudyWorkspace"
+    goal, intent = _intent(tool, output_schema=output_schema)
+
+    result = assemble_workspace_tool_task(
+        tmp_path / "project",
+        goal=goal,
+        repo_url="https://example.invalid/synthetic",
+        resolved_commit="a" * 40,
+        distribution="synthetic-upstream",
+        import_module="synthetic_upstream",
+        license_id="MIT",
+        tool=tool,
+        examples=examples,
+        example_src_dir=source_root,
+        reference_impl=_REFERENCE,
+        semantic_verifier_source=_VERIFIER,
+        fixture_builder_source=_FIXTURE_BUILDER,
+        fixture_blueprints=_FIXTURE_BLUEPRINTS,
+        reference_lock="synthetic-upstream==1.0.0\n",
+        intent_contract=intent,
+        output_schema=output_schema,
+    )
+
+    contract_path = (
+        tmp_path / "project" / "contracts" / f"{result['task_id']}.yaml"
+    )
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    assert contract["capability"]["output_schema"] == output_schema
+    manifest_path = (
+        tmp_path
+        / "project"
+        / contract["target_project"]["path"]
+        / "tool.json"
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["capability"]["output_schema"] == output_schema
 
 
 def test_confirm_dispatches_current_workspace_draft_to_v4_assembler(

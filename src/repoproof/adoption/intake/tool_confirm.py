@@ -278,6 +278,7 @@ def confirm_tool_draft(draft_dir: Path, project_root: Path) -> dict:
                     project_root=project_root,
                 ),
                 intent_contract=intent_contract,
+                output_schema=str(draft["capability"]["output_schema"]),
             )
         else:
             examples = (
