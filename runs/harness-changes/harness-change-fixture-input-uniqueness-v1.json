@@ -1,0 +1,20 @@
+{
+  "affected_component": "adoption.intake.workspace_fixtures input identity uniqueness and Product candidate publication",
+  "after_control_sha256": "15ef4f678de9f5d85ce58d8f0531e4066307017ca3d95556a6ba8621196b4d69",
+  "anonymous_fixture_id": "anonymous-fixture-input-collision-v1",
+  "before_control_sha256": "79e1c317b0350a610b30379be51ba73f7a3001a673b433fccec8586557e253a5",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-08-31T12:52:00.000000Z",
+  "evidence_id": "harness-change-fixture-input-uniqueness-v1",
+  "incident_ids": [
+    "incident-fixture-input-duplication-772905f-v1"
+  ],
+  "invariant": "Distinct representative fixture scenarios must bind to distinct exact admitted input content identities; human-facing labels cannot multiply coverage. When regeneration collides with an already confirmed exact fixture, the confirmed fixture wins and the unconfirmed duplicate contributes no additional example.",
+  "normalized_fingerprint": "6409c78db3a87af4",
+  "regression_tests": [
+    "tests/test_workspace_fixtures.py",
+    "tests/ui/test_workspace_ui_services.py"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

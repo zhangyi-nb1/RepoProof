@@ -1,6 +1,6 @@
 """In-process import 取证(M2-c · RFC-010 [D4] 弱档→运行时升级)。
 
-静态 provenance 的结构上限:`import pdfplumber` 写在文件顶部、实现却
+静态 provenance 的结构上限:`import upstream_library` 写在文件顶部、实现却
 全自写 —— 零 import 检测对"装样子 import"束手无策(nc3 同型)。
 本件把证据升到运行时:验收期(oracle/replay/regression)harness 在
 **工具子进程**注入一个 sitecustomize hook:

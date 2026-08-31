@@ -1482,6 +1482,8 @@ def propose_workspace_fixture_candidates(
     from repoproof.adoption.intake.workspace_fixtures import (
         FixtureBlueprintV1,
         FixtureBuilderError,
+        InputFixtureCandidateV1,
+        assert_distinct_fixture_inputs,
         build_fixture_candidate,
     )
     from repoproof.execution.core_execution import atomic_write_json
@@ -1579,6 +1581,7 @@ def propose_workspace_fixture_candidates(
         generation_root = draft_dir / "workspace-candidates" / generation_id
         generation_root.mkdir(parents=True, exist_ok=False)
         records: list[dict[str, object]] = []
+        input_candidates: list[InputFixtureCandidateV1] = []
         stack = ExitStack()
         try:
             reference_python = stack.enter_context(
@@ -1597,6 +1600,8 @@ def propose_workspace_fixture_candidates(
                     python_exe=reference_python,
                     isolation_required=True,
                 )
+                input_candidates.append(candidate)
+                assert_distinct_fixture_inputs(input_candidates)
                 expected_dir = generation_root / "expected" / blueprint.blueprint_id
                 expected = _run_workspace_reference_candidate(
                     reference_source=draft_dir / "reference_impl.py",

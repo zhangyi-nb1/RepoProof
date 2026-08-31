@@ -114,9 +114,9 @@ def test_v2_protocol_freezes_exact_wheel_bytes_before_formal_execution() -> None
 def test_preregistered_case_identities_do_not_enter_new_generic_core() -> None:
     """Freeze old Lab references while rejecting any new M6.2 case coupling.
 
-    Two upstream names already occur in the historical host-adaptation/Lab code
-    before M6.2.  Listing those exact files makes the inherited debt visible and
-    prevents the workspace implementation from adding another occurrence.
+    One negative-control name already occurs in historical host-adaptation/Lab
+    code before M6.2.  Listing those exact files makes the inherited debt visible
+    while every qualification repository remains absent from generic Core.
     """
 
     document = _protocol()
@@ -132,10 +132,6 @@ def test_preregistered_case_identities_do_not_enter_new_generic_core() -> None:
             "harness/host_guard.py",
             "runner/host_guided.py",
             "ui/services/live_run.py",
-        ],
-        "pdfplumber": [
-            "execution/import_hook.py",
-            "harness/host_guard.py",
         ],
     }
 

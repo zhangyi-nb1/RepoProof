@@ -54,6 +54,21 @@ def test_frozen_builder_generates_real_directory_fixture(tmp_path: Path) -> None
     assert candidate.confirmed is False
 
 
+def test_fixture_bundle_rejects_distinct_blueprints_with_identical_input_bytes(
+    tmp_path: Path,
+) -> None:
+    first = _build(tmp_path, "ordinary-study")
+    second = _build(tmp_path, "edge-study")
+
+    assert first.blueprint.blueprint_id != second.blueprint.blueprint_id
+    assert first.fixture_identity == second.fixture_identity
+    with pytest.raises(ValueError, match="fixture inputs must be unique"):
+        InputFixtureBundleV1(
+            generation_id="anonymous-collision",
+            candidates=(first, second),
+        )
+
+
 def test_regeneration_preserves_exact_confirmed_fixture(tmp_path: Path) -> None:
     original = confirm_fixture_candidate(_build(tmp_path, "confirmed-study"))
     previous = InputFixtureBundleV1(
@@ -66,7 +81,6 @@ def test_regeneration_preserves_exact_confirmed_fixture(tmp_path: Path) -> None:
     merged = merge_regenerated_fixture_bundle(previous, generated)
     assert [item.blueprint.blueprint_id for item in merged.candidates] == [
         "confirmed-study",
-        "new-study",
     ]
     assert merged.candidates[0].confirmed is True
 

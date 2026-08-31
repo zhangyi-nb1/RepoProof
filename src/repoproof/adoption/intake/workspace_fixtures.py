@@ -112,6 +112,12 @@ class InputFixtureBundleV1(BaseModel):
         ids = [item.blueprint.blueprint_id for item in self.candidates]
         if len(ids) != len(set(ids)):
             raise ValueError("fixture blueprint ids must be unique")
+        input_identities = [
+            (item.fixture_identity.kind, item.fixture_identity.sha256)
+            for item in self.candidates
+        ]
+        if len(input_identities) != len(set(input_identities)):
+            raise ValueError("fixture inputs must be unique")
         return self
 
 
@@ -119,6 +125,28 @@ class FixtureBuilderError(RuntimeError):
     def __init__(self, code: str, detail: str = "") -> None:
         super().__init__(f"{code}: {detail}" if detail else code)
         self.code = code
+
+
+def assert_distinct_fixture_inputs(
+    candidates: list[InputFixtureCandidateV1]
+    | tuple[InputFixtureCandidateV1, ...],
+) -> None:
+    """Reject multiple scenarios that bind to the same exact input bytes.
+
+    Blueprint labels are suggestions, not coverage evidence.  Two distinct
+    labels backed by the same admitted input cannot count as two representative
+    fixtures, regardless of whether their expected artifacts are also equal.
+    """
+
+    seen: set[tuple[str, str]] = set()
+    for candidate in candidates:
+        identity = (
+            candidate.fixture_identity.kind,
+            candidate.fixture_identity.sha256,
+        )
+        if identity in seen:
+            raise FixtureBuilderError("FIXTURE_INPUT_DUPLICATE")
+        seen.add(identity)
 
 
 def _read_builder_source(path: Path) -> bytes:
@@ -263,11 +291,22 @@ def merge_regenerated_fixture_bundle(
             # different bytes.  The confirmed exact fixture wins; keeping both
             # would either erase the confirmation or create an invalid duplicate.
             current.pop(old.blueprint.blueprint_id, None)
-    retained.extend(
-        current[item.blueprint.blueprint_id]
-        for item in generated.candidates
-        if item.blueprint.blueprint_id in current
-    )
+    seen_inputs = {
+        (item.fixture_identity.kind, item.fixture_identity.sha256)
+        for item in retained
+    }
+    for item in generated.candidates:
+        candidate = current.get(item.blueprint.blueprint_id)
+        if candidate is None:
+            continue
+        identity = (
+            candidate.fixture_identity.kind,
+            candidate.fixture_identity.sha256,
+        )
+        if identity in seen_inputs:
+            continue
+        retained.append(candidate)
+        seen_inputs.add(identity)
     return InputFixtureBundleV1(
         generation_id=generated.generation_id,
         candidates=tuple(retained),

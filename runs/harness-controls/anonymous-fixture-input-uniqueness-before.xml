@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.164" timestamp="2026-08-31T20:48:57.819631+08:00" hostname="ZhangrongleideMacBook-Air-3.local"><testcase classname="tests.test_workspace_fixtures" name="test_fixture_bundle_rejects_distinct_blueprints_with_identical_input_bytes" time="0.057"><failure message="Failed: DID NOT RAISE ValueError">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-131/test_fixture_bundle_rejects_di0')
+
+    def test_fixture_bundle_rejects_distinct_blueprints_with_identical_input_bytes(
+        tmp_path: Path,
+    ) -&gt; None:
+        first = _build(tmp_path, "ordinary-study")
+        second = _build(tmp_path, "edge-study")
+    
+        assert first.blueprint.blueprint_id != second.blueprint.blueprint_id
+        assert first.fixture_identity == second.fixture_identity
+&gt;       with pytest.raises(ValueError, match="fixture inputs must be unique"):
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_workspace_fixtures.py:65: Failed</failure></testcase></testsuite></testsuites>

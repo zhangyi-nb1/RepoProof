@@ -482,7 +482,7 @@ _BENCH_ALLOWED_NAMES = frozenset({
     "hb1-click-3581-v2",
     "hb1-click-3407-v2",
     # LOCAL-TOOL 产品线首任务(M1,2026-08-23):host = 工具骨架副本
-    # (harness 生成,无用户数据),wheelhouse = pdfplumber+pytest 闭包轮仓。
+    # (harness 生成,无用户数据),wheelhouse = upstream+test-runner 闭包轮仓。
     # 登记照旧是有意识动作;答案区(controls/oracle)在任务包与仓内,不入 bench。
     "tool-pdf-table-v1",
     # M2 验收任务(2026-08-23):markdownify → html2md,同律登记。
