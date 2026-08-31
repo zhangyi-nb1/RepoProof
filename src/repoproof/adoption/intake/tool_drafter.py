@@ -60,7 +60,7 @@ from repoproof.adoption.intake.tool_confirm import (
 from repoproof.adoption.intake.tool_intake import ToolIntakeReport
 from repoproof.adoption.intake.workspace_fixtures import (
     FixtureBlueprintV1,
-    FixtureBuilderError,
+    project_fixture_blueprint_portable_paths,
     validate_fixture_blueprint_portable_paths,
 )
 from repoproof.domain.models import WorkspaceArtifactContractV1
@@ -1208,19 +1208,13 @@ def _normalize_fixture_blueprints(
             "tool-draft:WORKSPACE_FIXTURE_BLUEPRINT_DUPLICATE"
         )
     admitted = tuple(FixtureBlueprintV1.model_validate(item) for item in normalized)
-    try:
-        for blueprint in admitted:
-            validate_fixture_blueprint_portable_paths(
-                blueprint,
-                seeds=admitted,
-            )
-    except FixtureBuilderError as exc:
-        if exc.code == "FIXTURE_BLUEPRINT_NONPORTABLE_PATH":
-            raise DraftProjectionError(
-                "tool-draft:FIXTURE_BLUEPRINT_NONPORTABLE_PATH"
-            ) from exc
-        raise
-    return tuple(normalized)
+    projected = tuple(
+        project_fixture_blueprint_portable_paths(blueprint, seeds=admitted)
+        for blueprint in admitted
+    )
+    for blueprint in projected:
+        validate_fixture_blueprint_portable_paths(blueprint, seeds=projected)
+    return tuple(item.model_dump(mode="json") for item in projected)
 
 
 def normalize_workspace_fixture_blueprints_document(
@@ -1552,10 +1546,7 @@ _PROJECTION_REPAIR_INSTRUCTION = (
     "not silently discard it and do not change the requested artifact. For "
     "workspace_bundle_v1, keep output_required_fields empty and repair only the "
     "complete workspace_contract while preserving fixture_builder and "
-    "fixture_blueprints byte-for-byte, EXCEPT when reason_code is "
-    "FIXTURE_BLUEPRINT_NONPORTABLE_PATH: then change only path-bearing parameter "
-    "values to portable ASCII POSIX paths and preserve every scenario, content "
-    "value, parameter key and builder byte-for-byte; for cli_v2, workspace_contract and "
+    "fixture_blueprints byte-for-byte; for cli_v2, workspace_contract and "
     "fixture_builder must be null and fixture_blueprints empty."
 )
 
@@ -1593,10 +1584,6 @@ def _projection_repair_context(
         "preserve_fixture_builder": document.get("fixture_builder"),
         "preserve_fixture_blueprints": deepcopy(
             document.get("fixture_blueprints") or []
-        ),
-        "repair_fixture_blueprint_paths_only": (
-            str(error).removeprefix("tool-draft:")
-            == "FIXTURE_BLUEPRINT_NONPORTABLE_PATH"
         ),
     }
 

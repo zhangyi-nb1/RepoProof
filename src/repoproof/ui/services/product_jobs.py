@@ -2794,53 +2794,32 @@ def _propose_portable_workspace_fixture_blueprints(
     requested: int,
     seeds: tuple[FixtureBlueprintV1, ...],
 ) -> list[FixtureBlueprintV1]:
-    """Give model-authored fixture paths one bounded, public correction."""
+    """Apply the same deterministic Core path projection to fresh fixtures."""
 
     from repoproof.adoption.intake.tool_drafter import (
-        DraftError,
         normalize_workspace_fixture_blueprints_document,
     )
     from repoproof.adoption.intake.workspace_fixtures import (
-        FixtureBuilderError,
+        project_fixture_blueprint_portable_paths,
         validate_fixture_blueprint_portable_paths,
     )
 
-    proposed: list[FixtureBlueprintV1] = []
-    for proposal_attempt in (1, 2):
-        response = drafter.propose_workspace_fixture_blueprints(proposal_context)
-        proposed = [
-            FixtureBlueprintV1.model_validate(item)
-            for item in normalize_workspace_fixture_blueprints_document(
-                response,
-                input_kind=input_kind,
-                expected_count=requested,
-            )
-        ]
-        try:
-            for blueprint in proposed:
-                validate_fixture_blueprint_portable_paths(
-                    blueprint,
-                    seeds=seeds,
-                )
-        except FixtureBuilderError as exc:
-            if (
-                proposal_attempt == 1
-                and exc.code == "FIXTURE_BLUEPRINT_NONPORTABLE_PATH"
-            ):
-                proposal_context = {
-                    **proposal_context,
-                    "previous_public_rejection_codes": [exc.code],
-                    "correction": (
-                        "Keep Unicode in contents, but replace every generated "
-                        "relative filename/path with a portable ASCII POSIX name."
-                    ),
-                }
-                continue
-            raise DraftError(
-                "workspace-fixture-candidates:NONPORTABLE_PATH"
-            ) from exc
-        return proposed
-    raise DraftError("workspace-fixture-candidates:NONPORTABLE_PATH")
+    response = drafter.propose_workspace_fixture_blueprints(proposal_context)
+    proposed = [
+        FixtureBlueprintV1.model_validate(item)
+        for item in normalize_workspace_fixture_blueprints_document(
+            response,
+            input_kind=input_kind,
+            expected_count=requested,
+        )
+    ]
+    projected = [
+        project_fixture_blueprint_portable_paths(blueprint, seeds=seeds)
+        for blueprint in proposed
+    ]
+    for blueprint in projected:
+        validate_fixture_blueprint_portable_paths(blueprint, seeds=seeds)
+    return projected
 
 
 def _propose_workspace_audit_candidates(

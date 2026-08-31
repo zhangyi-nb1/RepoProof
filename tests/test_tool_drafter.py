@@ -93,7 +93,7 @@ def test_runnable_python_workspace_compiles_to_core_owned_offline_launcher() -> 
     assert "vendor/wheels/*.whl" in by_path
 
 
-def test_initial_workspace_draft_rejects_nonportable_blueprint_paths() -> None:
+def test_initial_workspace_draft_projects_nonportable_blueprint_paths() -> None:
     document = {
         "fixture_blueprints": [
             {
@@ -117,11 +117,15 @@ def test_initial_workspace_draft_rejects_nonportable_blueprint_paths() -> None:
         ]
     }
 
-    with pytest.raises(
-        DraftProjectionError,
-        match="FIXTURE_BLUEPRINT_NONPORTABLE_PATH",
-    ):
-        _normalize_fixture_blueprints(document, input_kind="directory")
+    projected = _normalize_fixture_blueprints(document, input_kind="directory")
+
+    first_file = projected[0]["parameters"]["files"][0]
+    assert first_file["path"].startswith("fixture-")
+    assert first_file["path"].endswith(".csv")
+    assert first_file["path"].isascii()
+    assert first_file["content"] == "你好"
+    assert projected[0]["scenario"] == "Unicode content is valid"
+    assert projected[1]["parameters"]["files"][0]["path"] == "input-2.csv"
 
 
 def test_reference_policy_rejects_broad_error_masking() -> None:
@@ -798,6 +802,43 @@ def test_workspace_projection_compiles_minimum_satisfiable_resource_limits() -> 
     assert limits["max_files"] == 2
     assert limits["max_depth"] == 2
     assert limits["max_path_bytes"] == len(b"data/result.tsv")
+
+
+def test_litellm_draft_projects_fixture_paths_without_a_second_model_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in (
+        ("REPOPROOF_DRAFTER_MODEL", "m"),
+        ("REPOPROOF_DRAFTER_BASE", "http://gateway.invalid"),
+        ("REPOPROOF_DRAFTER_KEY", "k"),
+    ):
+        monkeypatch.setenv(key, value)
+    document = _workspace_projection_document()
+    for index, row in enumerate(document["fixture_blueprints"], start=1):
+        row["parameters_json"] = json.dumps(
+            {
+                "text": f"value-{index}",
+                "files": [
+                    {
+                        "path": "实验数据.csv" if index == 1 else f"input-{index}.csv",
+                        "content": f"样本,值\n甲,{index}\n",
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        )
+    calls = _stub_litellm(
+        monkeypatch,
+        [json.dumps(document, ensure_ascii=False)],
+    )
+
+    drafted = LiteLLMDrafter().draft({"capability_goal": "整理匿名研究目录"})
+
+    assert calls["n"] == 1
+    first = drafted["fixture_blueprints"][0]["parameters"]["files"][0]
+    assert first["path"].startswith("fixture-")
+    assert first["path"].endswith(".csv")
+    assert first["content"] == "样本,值\n甲,1\n"
 
 
 def test_litellm_preserves_sanitized_second_projection_reason(

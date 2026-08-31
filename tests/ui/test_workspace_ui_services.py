@@ -348,7 +348,7 @@ def test_workspace_reference_repair_is_bounded_and_producer_only() -> None:
     assert "fixture" not in json.dumps(drafter.contexts, sort_keys=True).lower()
 
 
-def test_fresh_fixture_blueprint_gets_one_portable_path_correction() -> None:
+def test_fresh_fixture_blueprint_gets_core_owned_portable_path_projection() -> None:
     seed = FixtureBlueprintV1(
         blueprint_id="seed-project",
         title="Seed",
@@ -365,7 +365,6 @@ def test_fresh_fixture_blueprint_gets_one_portable_path_correction() -> None:
             self, context: dict[str, object]
         ) -> dict[str, object]:
             self.contexts.append(context)
-            filename = "入口.py" if len(self.contexts) == 1 else "src/entry.py"
             return {
                 "fixture_blueprints": [
                     {
@@ -374,7 +373,7 @@ def test_fresh_fixture_blueprint_gets_one_portable_path_correction() -> None:
                         "scenario": "Unicode content in a fresh local project.",
                         "input_kind": "directory",
                         "parameters_json": json.dumps(
-                            {"files": {filename: "print('你好')\n"}},
+                            {"files": {"入口.py": "print('你好')\n"}},
                             ensure_ascii=False,
                         ),
                     }
@@ -390,13 +389,13 @@ def test_fresh_fixture_blueprint_gets_one_portable_path_correction() -> None:
         seeds=(seed,),
     )
 
-    assert len(drafter.contexts) == 2
-    assert drafter.contexts[1]["previous_public_rejection_codes"] == [
-        "FIXTURE_BLUEPRINT_NONPORTABLE_PATH"
-    ]
-    assert proposed[0].parameters == {
-        "files": {"src/entry.py": "print('你好')\n"}
-    }
+    assert len(drafter.contexts) == 1
+    projected_files = proposed[0].parameters["files"]
+    assert len(projected_files) == 1
+    projected_path = next(iter(projected_files))
+    assert projected_path.startswith("fixture-")
+    assert projected_path.endswith(".py")
+    assert projected_files[projected_path] == "print('你好')\n"
 
 
 def test_workspace_candidate_preview_zip_and_confirmation_are_tree_bound(

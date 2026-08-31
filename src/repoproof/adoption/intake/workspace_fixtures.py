@@ -138,14 +138,96 @@ def _portable_path_map(seed_values: tuple[object, ...]) -> bool:
     if not dictionaries:
         return False
     keys = [str(key) for value in dictionaries for key in value]
-    if not keys or not any("/" in key or "." in Path(key).name for key in keys):
-        return False
-    try:
-        for key in keys:
-            validate_workspace_relative_path(key)
-    except ValueError:
-        return False
-    return True
+    return bool(keys) and any("/" in key or "." in Path(key).name for key in keys)
+
+
+def _portable_fixture_path_alias(value: str) -> str:
+    """Return a stable portable alias without preserving unsafe path segments."""
+
+    suffix = Path(value.replace("\\", "/")).suffix
+    if not (
+        suffix.startswith(".")
+        and 1 < len(suffix) <= 12
+        and suffix[1:].isascii()
+        and suffix[1:].isalnum()
+    ):
+        suffix = ""
+    digest = hashlib.sha256(value.encode("utf-8")).hexdigest()[:12]
+    return f"fixture-{digest}{suffix.lower()}"
+
+
+def _project_parameter_paths(
+    value: object,
+    *,
+    seed_values: tuple[object, ...],
+    field_name: str = "",
+) -> object:
+    if isinstance(value, dict):
+        path_map = _portable_path_map(seed_values)
+        seed_dicts = [item for item in seed_values if isinstance(item, dict)]
+        projected: dict[str, object] = {}
+        for key, child in value.items():
+            projected_key = str(key)
+            if path_map:
+                try:
+                    validate_workspace_relative_path(projected_key)
+                except ValueError:
+                    projected_key = _portable_fixture_path_alias(projected_key)
+            if projected_key in projected:
+                raise FixtureBuilderError("FIXTURE_BLUEPRINT_PATH_ALIAS_COLLISION")
+            child_seeds = tuple(item[key] for item in seed_dicts if key in item)
+            projected[projected_key] = _project_parameter_paths(
+                child,
+                seed_values=child_seeds,
+                field_name=str(key).lower(),
+            )
+        return projected
+    if isinstance(value, list):
+        seed_items = tuple(
+            child
+            for item in seed_values
+            if isinstance(item, list)
+            for child in item
+        )
+        return [
+            _project_parameter_paths(
+                child,
+                seed_values=seed_items,
+                field_name=field_name,
+            )
+            for child in value
+        ]
+    if isinstance(value, str) and field_name in _PATH_VALUE_FIELDS:
+        seed_strings = tuple(item for item in seed_values if isinstance(item, str))
+        if seed_strings:
+            try:
+                validate_workspace_relative_path(value)
+            except ValueError:
+                return _portable_fixture_path_alias(value)
+    return value
+
+
+def project_fixture_blueprint_portable_paths(
+    blueprint: FixtureBlueprintV1,
+    *,
+    seeds: tuple[FixtureBlueprintV1, ...],
+) -> FixtureBlueprintV1:
+    """Project only path-bearing model parameters to deterministic safe aliases.
+
+    Fixture paths are transport representation, not user-authored semantic truth.
+    Core therefore owns this projection instead of spending another model call on
+    a mechanical safety correction. Scenario prose and file contents remain
+    byte-for-byte unchanged and the projected blueprint is validated normally.
+    """
+
+    parameters = _project_parameter_paths(
+        blueprint.parameters,
+        seed_values=tuple(seed.parameters for seed in seeds),
+    )
+    assert isinstance(parameters, dict)
+    projected = blueprint.model_copy(update={"parameters": parameters})
+    validate_fixture_blueprint_portable_paths(projected, seeds=(projected,))
+    return projected
 
 
 def _validate_parameter_paths(

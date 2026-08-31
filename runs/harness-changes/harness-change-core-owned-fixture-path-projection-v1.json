@@ -1,0 +1,22 @@
+{
+  "affected_component": "Initial and fresh workspace fixture blueprint path projection",
+  "after_control_sha256": "fa05f95f0f3f8bcf95bfaf119b6ed067b65bff16bd7156d8defa0a7679c1708c",
+  "anonymous_fixture_id": "anonymous-core-owned-fixture-path-projection-v1",
+  "before_control_sha256": "fc858a27246bda31ac94ad0d653a247d4e3f2501bde8e6a8456cf8d34fadc310",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T04:01:00+08:00",
+  "evidence_id": "harness-change-core-owned-fixture-path-projection-v1",
+  "incident_ids": [
+    "incident-fixture-path-model-repair-ineffective-v1"
+  ],
+  "invariant": "Model-authored fixture paths are transport representation rather than semantic truth. Core must deterministically project only path-bearing parameter values or path-map keys to stable portable ASCII POSIX aliases before filesystem use, preserve scenario prose and file contents byte-for-byte, validate the projected result through the normal path policy, and never spend a second model call on this mechanical safety correction.",
+  "normalized_fingerprint": "ac62c91b36b6d9bd",
+  "regression_tests": [
+    "tests/test_tool_drafter.py::test_initial_workspace_draft_projects_nonportable_blueprint_paths",
+    "tests/test_tool_drafter.py::test_litellm_draft_projects_fixture_paths_without_a_second_model_call",
+    "tests/test_workspace_fixtures.py::test_core_projects_only_model_path_slots_to_portable_aliases",
+    "tests/ui/test_workspace_ui_services.py::test_fresh_fixture_blueprint_gets_core_owned_portable_path_projection"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "model_projection_attempts": 2,
+    "task_frozen": "no"
+  },
+  "created_at": "2026-09-01T03:55:46+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "303a8300d2264043841c62d499586ce2288a59e0",
+  "framework_tree_sha256": "afd39ebd5552600b38a944515529d48642c691157ebb819dd19e9a66f4f63f9b",
+  "incident_id": "incident-fixture-path-model-repair-ineffective-v1",
+  "normalized_fingerprint": "ac62c91b36b6d9bd",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "64f27fa5a089fb94cfee3d80e43997daf6b8aba30c38e98702859051d04bf472",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "fixture_blueprints::portable-path-projection"
+  ],
+  "reason_codes": [
+    "FIXTURE_BLUEPRINT_PATH_REPAIR_INEFFECTIVE"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

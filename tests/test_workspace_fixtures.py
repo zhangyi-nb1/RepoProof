@@ -12,6 +12,7 @@ from repoproof.adoption.intake.workspace_fixtures import (
     build_fixture_candidate,
     confirm_fixture_candidate,
     merge_regenerated_fixture_bundle,
+    project_fixture_blueprint_portable_paths,
     validate_fixture_blueprint_portable_paths,
 )
 
@@ -97,6 +98,35 @@ def test_model_blueprint_rejects_nonportable_generated_paths_but_allows_unicode_
         validate_fixture_blueprint_portable_paths(unsafe, seeds=(seed,))
 
     validate_fixture_blueprint_portable_paths(safe, seeds=(seed,))
+
+
+def test_core_projects_only_model_path_slots_to_portable_aliases() -> None:
+    blueprint = FixtureBlueprintV1(
+        blueprint_id="unicode-study",
+        title="Unicode study",
+        scenario="保留中文场景",
+        input_kind="directory",
+        parameters={
+            "files": [
+                {"path": "原始数据/实验一.csv", "content": "样本,数值\n甲,1\n"},
+                {"path": "notes.txt", "content": "中文说明"},
+            ],
+            "title": "中文标题",
+        },
+    )
+
+    projected = project_fixture_blueprint_portable_paths(
+        blueprint,
+        seeds=(blueprint,),
+    )
+
+    assert projected.parameters["files"][0]["path"].startswith("fixture-")
+    assert projected.parameters["files"][0]["path"].endswith(".csv")
+    assert projected.parameters["files"][1]["path"] == "notes.txt"
+    assert projected.parameters["files"][0]["content"] == "样本,数值\n甲,1\n"
+    assert projected.parameters["title"] == "中文标题"
+    assert projected.scenario == "保留中文场景"
+    validate_fixture_blueprint_portable_paths(projected, seeds=(projected,))
 
 
 def test_regeneration_preserves_exact_confirmed_fixture(tmp_path: Path) -> None:
