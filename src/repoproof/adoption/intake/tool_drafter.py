@@ -1190,6 +1190,63 @@ def normalize_workspace_fixture_blueprints_document(
     return list(normalized)
 
 
+def _compile_workspace_contract_resource_floors(value: object) -> object:
+    """Make a model-authored, pre-freeze resource budget internally satisfiable.
+
+    Required literal artifacts determine a lower bound for file count, path
+    depth, and path bytes. Model-proposed numeric caps below those floors are
+    representation noise, not a user requirement. Core raises only those caps
+    before review; frozen contracts and loaded ToolSpecs remain strict.
+    """
+
+    if not isinstance(value, dict):
+        return value
+    compiled = deepcopy(value)
+    raw_rules = compiled.get("rules")
+    raw_limits = compiled.get("limits")
+    if not isinstance(raw_rules, list) or not isinstance(raw_limits, dict):
+        return compiled
+    required_literals: set[str] = set()
+    for raw_rule in raw_rules:
+        if not isinstance(raw_rule, dict):
+            continue
+        path = raw_rule.get("path_pattern")
+        minimum = raw_rule.get("min_count", 1)
+        if (
+            isinstance(path, str)
+            and "*" not in path
+            and isinstance(minimum, int)
+            and minimum > 0
+        ):
+            required_literals.add(path)
+    if not required_literals:
+        return compiled
+    raw_limits["max_files"] = max(
+        int(raw_limits.get("max_files") or 0), len(required_literals)
+    )
+    raw_limits["max_depth"] = max(
+        int(raw_limits.get("max_depth") or 0),
+        max(len(path.split("/")) for path in required_literals),
+    )
+    raw_limits["max_path_bytes"] = max(
+        int(raw_limits.get("max_path_bytes") or 0),
+        max(len(path.encode("utf-8")) for path in required_literals),
+    )
+    return compiled
+
+
+def _invalid_model_output_error(exc: BaseException) -> DraftError:
+    """Retain one allowlisted Core projection code without leaking model text."""
+
+    message = str(exc)
+    prefix = "tool-draft:"
+    if message.startswith(prefix):
+        reason = message.removeprefix(prefix)
+        if re.fullmatch(r"[A-Z][A-Z0-9_]{0,95}", reason):
+            return DraftError(f"tool-draft:INVALID_MODEL_OUTPUT:{reason}")
+    return DraftError("tool-draft:INVALID_MODEL_OUTPUT")
+
+
 def normalize_draft_document(
     document: dict,
     *,
@@ -1236,7 +1293,9 @@ def normalize_draft_document(
             )
         try:
             workspace_contract = WorkspaceArtifactContractV1.model_validate(
-                document.get("workspace_contract")
+                _compile_workspace_contract_resource_floors(
+                    document.get("workspace_contract")
+                )
             )
         except ValueError as exc:
             raise DraftProjectionError(
@@ -1531,7 +1590,7 @@ class CodexDrafter:
                 raise
             except DraftProjectionError as exc:
                 if attempt == 2:
-                    raise DraftError("tool-draft:INVALID_MODEL_OUTPUT") from exc
+                    raise _invalid_model_output_error(exc) from exc
                 structured_context = {
                     **_context_with_product_profile(context),
                     "core_projection_repair": _projection_repair_context(
@@ -1908,7 +1967,7 @@ class LiteLLMDrafter:
                 raise
             except DraftProjectionError as exc:
                 if attempt == 2:
-                    raise DraftError("tool-draft:INVALID_MODEL_OUTPUT") from exc
+                    raise _invalid_model_output_error(exc) from exc
                 repair_context = _projection_repair_context(
                     document,
                     exc,
@@ -1924,7 +1983,7 @@ class LiteLLMDrafter:
                 )
             except (ValueError, IndexError, DraftError) as exc:
                 if attempt == 2:
-                    raise DraftError("tool-draft:INVALID_MODEL_OUTPUT") from exc
+                    raise _invalid_model_output_error(exc) from exc
                 text = self._once(
                     user_msg + "\n\nYour previous output did not conform to the "
                     "requested JSON schema. Output ONLY a corrected JSON object. "

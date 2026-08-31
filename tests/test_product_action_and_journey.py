@@ -236,6 +236,28 @@ def test_tool_add_projects_invalid_model_output_to_typed_review_stop() -> None:
     assert "恢复起草通道" not in str(result.recommended_action)
 
 
+def test_tool_add_preserves_sanitized_invalid_projection_subreason() -> None:
+    result = action_result_from_payload(
+        job_id="a" * 32,
+        journey_id="b" * 32,
+        action="tool-add",
+        ok=False,
+        payload={
+            "ok": False,
+            "draft_error": (
+                "tool-draft:INVALID_MODEL_OUTPUT:WORKSPACE_CONTRACT_INVALID"
+            ),
+        },
+    )
+
+    assert result.reason_codes == [
+        "DRAFTER_INVALID_MODEL_OUTPUT",
+        "DRAFTER_WORKSPACE_CONTRACT_INVALID",
+    ]
+    assert result.failure_stage == "DRAFTING"
+    assert result.agent_invoked is False
+
+
 @pytest.mark.parametrize(
     "semantic_reason",
     [

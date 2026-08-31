@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "draft_directory_materialized": 0,
+    "projection_subreason_recorded": 0,
+    "repair_consumed": 0,
+    "structured_draft_attempts": 2
+  },
+  "created_at": "2026-08-31T15:46:31Z",
+  "disposition": "GENERIC_DRAFTER_DIAGNOSTIC_AND_PREFREEZE_COMPILATION_REQUIRED",
+  "framework_git_commit": "576381ab501995ab8115be5847aa058b99d46c22",
+  "incident_id": "incident-drafter-invalid-projection-c3-576381a",
+  "normalized_fingerprint": "adfb4b89a6c9c874",
+  "owner": "EXTERNAL",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "contract_authoring::core-projection"
+  ],
+  "reason_codes": [
+    "DRAFTER_INVALID_MODEL_OUTPUT",
+    "DRAFTER_PROJECTION_SUBREASON_LOST"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

@@ -152,6 +152,22 @@ def _typed_drafter_failure(
     return None
 
 
+def _invalid_model_output_detail(draft_error: str) -> str | None:
+    """Project only a stable Core reason token, never provider/model text."""
+
+    prefix = "tool-draft:INVALID_MODEL_OUTPUT:"
+    if not draft_error.startswith(prefix):
+        return None
+    detail = draft_error.removeprefix(prefix)
+    if (
+        1 <= len(detail) <= 96
+        and detail[0].isalpha()
+        and all(char.isupper() or char.isdigit() or char == "_" for char in detail)
+    ):
+        return f"DRAFTER_{detail}"
+    return None
+
+
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
@@ -441,6 +457,9 @@ def action_result_from_payload(
                 ) = failure
                 failure_stage = "DRAFTING"
                 reason_codes = sorted({*reason_codes, public_reason_code})
+                detail = _invalid_model_output_detail(draft_error or "")
+                if detail is not None:
+                    reason_codes = sorted({*reason_codes, detail})
                 recommended_action = recommended_action or typed_action
                 product_stop_code = product_stop_code or typed_stop_code
         elif action == "tool-mcp":

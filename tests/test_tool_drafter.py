@@ -588,6 +588,136 @@ def _valid_projection_document(*, format_id: str, required_fields: list[dict]) -
     return document
 
 
+def _workspace_projection_document() -> dict:
+    document = json.loads(_GOOD)
+    document["delivery_requirements"] = {
+        "inputs": [{
+            "kind": "directory",
+            "location": "local",
+            "representation": "binary",
+            "format_label": "本地项目目录",
+            "role": "待分析项目",
+        }],
+        "outputs": [{
+            "kind": "directory",
+            "format_id": "workspace_bundle",
+            "format_label": "离线工作区",
+            "role": "可交接结果",
+        }],
+        "network": "offline",
+        "credentials": "none",
+        "lifecycle": "per_invocation",
+        "runtime": "local_cpu",
+        "browser": "none",
+        "external_side_effects": "none",
+    }
+    document["output_required_fields"] = []
+    document["output_schema"] = "OfflineWorkspace"
+    document["workspace_contract"] = {
+        "schema_version": 1,
+        "rules": [
+            {
+                "path_pattern": "README.md",
+                "role": "使用说明",
+                "media_type": "text/markdown",
+                "validation_profile": "text_utf8_v1",
+            },
+            {
+                "path_pattern": "data/result.tsv",
+                "role": "结果表",
+                "media_type": "text/tab-separated-values",
+                "validation_profile": "tsv_v1",
+            },
+        ],
+        "allow_extra_files": False,
+        "entrypoints": [],
+        "runnable": False,
+        "smoke_command": [],
+        "smoke_timeout_seconds": 30,
+        "require_offline_wheelhouse": False,
+        "limits": {
+            "max_files": 1,
+            "max_total_bytes": 4096,
+            "max_file_bytes": 2048,
+            "max_depth": 1,
+            "max_path_bytes": 8,
+        },
+    }
+    document["fixture_builder"] = (
+        "from pathlib import Path\n\n"
+        "def build(blueprint: dict, output_path: Path) -> None:\n"
+        "    output_path.mkdir(parents=True)\n"
+        "    (output_path / 'input.txt').write_text(\n"
+        "        str(blueprint['parameters']['text']), encoding='utf-8')\n"
+    )
+    document["fixture_blueprints"] = [
+        {
+            "blueprint_id": f"case-{index}",
+            "title": f"场景 {index}",
+            "scenario": "匿名项目输入",
+            "input_kind": "directory",
+            "parameters_json": json.dumps({"text": f"value-{index}"}),
+        }
+        for index in range(1, 4)
+    ]
+    document["reference_impl"] = (
+        "from pathlib import Path\n"
+        "import acme_lib\n\n"
+        "def build_workspace(input_path: Path, output_dir: Path) -> None:\n"
+        "    output_dir.mkdir(parents=True)\n"
+        "    value = acme_lib.shout('ok')\n"
+        "    (output_dir / 'README.md').write_text(value, encoding='utf-8')\n"
+        "    (output_dir / 'data').mkdir()\n"
+        "    (output_dir / 'data/result.tsv').write_text(\n"
+        "        'value\\n' + value + '\\n', encoding='utf-8')\n"
+    )
+    return document
+
+
+def test_workspace_projection_compiles_minimum_satisfiable_resource_limits() -> None:
+    """Pre-freeze numeric caps cannot contradict required literal artifacts."""
+
+    drafted = normalize_draft_document(
+        _workspace_projection_document(),
+        capability_goal="生成匿名离线工作区",
+    )
+
+    limits = drafted["workspace_contract"]["limits"]
+    assert limits["max_files"] == 2
+    assert limits["max_depth"] == 2
+    assert limits["max_path_bytes"] == len(b"data/result.tsv")
+
+
+def test_litellm_preserves_sanitized_second_projection_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bounded failed repair keeps a stable public reason, never raw output."""
+
+    for key, value in (
+        ("REPOPROOF_DRAFTER_MODEL", "m"),
+        ("REPOPROOF_DRAFTER_BASE", "http://gateway.invalid"),
+        ("REPOPROOF_DRAFTER_KEY", "k"),
+    ):
+        monkeypatch.setenv(key, value)
+    rejected = _valid_projection_document(
+        format_id="tsv",
+        required_fields=[{"name": "sample", "type": "string"}],
+    )
+    _stub_litellm(
+        monkeypatch,
+        [json.dumps(rejected, ensure_ascii=False)] * 2,
+    )
+
+    with pytest.raises(
+        DraftError,
+        match=(
+            "tool-draft:INVALID_MODEL_OUTPUT:"
+            "OUTPUT_REQUIRED_FIELDS_NOT_SUPPORTED"
+        ),
+    ):
+        LiteLLMDrafter().draft({"capability_goal": "整理匿名表格"})
+
+
 def test_litellm_repairs_contract_projection_without_hiding_delivery_need(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -873,8 +1003,8 @@ def test_litellm_all_assistant_actions_use_their_machine_schema(
     for item in formats:
         assert_every_object_property_is_required(item["schema"])
     assert [call["timeout"] for call in calls["kwargs"]] == [
-        180.0,
-        180.0,
+        300.0,
+        300.0,
         60.0,
         60.0,
     ]
