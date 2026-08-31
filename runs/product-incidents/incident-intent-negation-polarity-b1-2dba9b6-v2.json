@@ -1,0 +1,27 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "supersedes_missing_context_record": "incident-intent-negation-polarity-b1-2dba9b6"
+  },
+  "created_at": "2026-08-31T11:07:46.888511Z",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "2dba9b64c3519f77ecb2f53fad22fe8b306fef98",
+  "framework_tree_sha256": "6a353ee019e68a3e3fe2e92a5be7084bb981fbf21c076c3d9431606654cce1d4",
+  "incident_id": "incident-intent-negation-polarity-b1-2dba9b6-v2",
+  "normalized_fingerprint": "8e45032d156261dd",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "7f3ba78d42851ce54a013dc59bf4b8876497107b3018e29e1b9b45f0f5f52615",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "intent_risk_policy.network_polarity"
+  ],
+  "reason_codes": [
+    "INTENT_NEGATION_POLARITY_MISCLASSIFIED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "INTENT_ADMISSION",
+  "task_version": null
+}

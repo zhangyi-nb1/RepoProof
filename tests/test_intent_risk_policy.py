@@ -72,3 +72,32 @@ def test_local_sensitive_data_remains_supported_when_processing_is_offline() -> 
 
     assert result.supported is True
     assert result.reason_codes == ()
+
+
+@pytest.mark.parametrize(
+    "goal",
+    [
+        "生成一个本地资料夹，不要联网，也不需要浏览器自动化。",
+        "只处理本地文件，不持续监控，也不上传到云盘。",
+        "Process local files; do not use browser automation or upload to cloud storage.",
+    ],
+)
+def test_explicitly_negated_delivery_topology_is_not_rejected(goal: str) -> None:
+    result = classify_product_intent_risk(goal)
+
+    assert result.supported is True
+    assert result.reason_codes == ()
+
+
+@pytest.mark.parametrize(
+    "goal",
+    [
+        "不需要浏览器自动化，但是要把报告上传到云盘。",
+        "Do not use browser automation, but upload the report to cloud storage.",
+    ],
+)
+def test_contrast_boundary_preserves_later_positive_external_write(goal: str) -> None:
+    result = classify_product_intent_risk(goal)
+
+    assert result.supported is False
+    assert "UNSUPPORTED_REVERSIBLE_EXTERNAL_SIDE_EFFECT" in result.reason_codes

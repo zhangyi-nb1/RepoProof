@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "draft_created": 0,
+    "repair_consumed": 0
+  },
+  "created_at": "2026-08-31T12:30:43.671183Z",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "5dc056209301b5d8712c6df91c055b99529edfb4",
+  "framework_tree_sha256": "1c2d52a5bfca51203cb564718ccb21715d75ae4ebb1ddd11b0b4ea061b0193ab",
+  "incident_id": "incident-intent-negation-polarity-5dc0562-v1",
+  "normalized_fingerprint": "8e45032d156261dd",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "dc4411da84f04d0afa7a3e6a988a8f728b5b5ade92bb3da7eabd9a66425276cf",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "intent_risk_policy.network_polarity"
+  ],
+  "reason_codes": [
+    "INTENT_NEGATION_POLARITY_MISCLASSIFIED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "INTENT_ADMISSION",
+  "task_version": null
+}

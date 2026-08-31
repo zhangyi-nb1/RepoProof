@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="0.090" timestamp="2026-08-31T20:32:44.015786+08:00" hostname="ZhangrongleideMacBook-Air-3.local"><testcase classname="tests.test_intent_risk_policy" name="test_explicitly_negated_delivery_topology_is_not_rejected[\u751f\u6210\u4e00\u4e2a\u672c\u5730\u8d44\u6599\u5939\uff0c\u4e0d\u8981\u8054\u7f51\uff0c\u4e5f\u4e0d\u9700\u8981\u6d4f\u89c8\u5668\u81ea\u52a8\u5316\u3002]" time="0.001"><failure message="AssertionError: assert False is True&#10; +  where False = IntentDeliveryRiskV1(schema_version=1, credentials='none', network='required', browser='required', lifecycle='per_invo...NETWORK_REQUIRED'), blockers=('需求明确要求运行期联网；当前 Product profile 固定为运行期离线。', '需求明确要求浏览器交互；当前 Product profile 不包含浏览器运行时。')).supported">goal = '生成一个本地资料夹，不要联网，也不需要浏览器自动化。'
+
+    @pytest.mark.parametrize(
+        "goal",
+        [
+            "生成一个本地资料夹，不要联网，也不需要浏览器自动化。",
+            "只处理本地文件，不持续监控，也不上传到云盘。",
+            "Process local files; do not use browser automation or upload to cloud storage.",
+        ],
+    )
+    def test_explicitly_negated_delivery_topology_is_not_rejected(goal: str) -&gt; None:
+        result = classify_product_intent_risk(goal)
+    
+&gt;       assert result.supported is True
+E       AssertionError: assert False is True
+E        +  where False = IntentDeliveryRiskV1(schema_version=1, credentials='none', network='required', browser='required', lifecycle='per_invo...NETWORK_REQUIRED'), blockers=('需求明确要求运行期联网；当前 Product profile 固定为运行期离线。', '需求明确要求浏览器交互；当前 Product profile 不包含浏览器运行时。')).supported
+
+tests/test_intent_risk_policy.py:88: AssertionError</failure></testcase><testcase classname="tests.test_intent_risk_policy" name="test_explicitly_negated_delivery_topology_is_not_rejected[\u53ea\u5904\u7406\u672c\u5730\u6587\u4ef6\uff0c\u4e0d\u6301\u7eed\u76d1\u63a7\uff0c\u4e5f\u4e0d\u4e0a\u4f20\u5230\u4e91\u76d8\u3002]" time="0.000"><failure message="AssertionError: assert False is True&#10; +  where False = IntentDeliveryRiskV1(schema_version=1, credentials='none', network='offline', browser='none', lifecycle='long_running'...T'), blockers=('需求明确要求向外部系统写入；即使可以撤销，当前 Product profile 也只允许在新建的本地产物目录内写入。', '需求明确要求常驻运行；当前 Product profile 只支持单次调用。')).supported">goal = '只处理本地文件，不持续监控，也不上传到云盘。'
+
+    @pytest.mark.parametrize(
+        "goal",
+        [
+            "生成一个本地资料夹，不要联网，也不需要浏览器自动化。",
+            "只处理本地文件，不持续监控，也不上传到云盘。",
+            "Process local files; do not use browser automation or upload to cloud storage.",
+        ],
+    )
+    def test_explicitly_negated_delivery_topology_is_not_rejected(goal: str) -&gt; None:
+        result = classify_product_intent_risk(goal)
+    
+&gt;       assert result.supported is True
+E       AssertionError: assert False is True
+E        +  where False = IntentDeliveryRiskV1(schema_version=1, credentials='none', network='offline', browser='none', lifecycle='long_running'...T'), blockers=('需求明确要求向外部系统写入；即使可以撤销，当前 Product profile 也只允许在新建的本地产物目录内写入。', '需求明确要求常驻运行；当前 Product profile 只支持单次调用。')).supported
+
+tests/test_intent_risk_policy.py:88: AssertionError</failure></testcase><testcase classname="tests.test_intent_risk_policy" name="test_explicitly_negated_delivery_topology_is_not_rejected[Process local files; do not use browser automation or upload to cloud storage.]" time="0.000"><failure message="AssertionError: assert False is True&#10; +  where False = IntentDeliveryRiskV1(schema_version=1, credentials='none', network='offline', browser='required', lifecycle='per_invoc..., blockers=('需求明确要求向外部系统写入；即使可以撤销，当前 Product profile 也只允许在新建的本地产物目录内写入。', '需求明确要求浏览器交互；当前 Product profile 不包含浏览器运行时。')).supported">goal = 'Process local files; do not use browser automation or upload to cloud storage.'
+
+    @pytest.mark.parametrize(
+        "goal",
+        [
+            "生成一个本地资料夹，不要联网，也不需要浏览器自动化。",
+            "只处理本地文件，不持续监控，也不上传到云盘。",
+            "Process local files; do not use browser automation or upload to cloud storage.",
+        ],
+    )
+    def test_explicitly_negated_delivery_topology_is_not_rejected(goal: str) -&gt; None:
+        result = classify_product_intent_risk(goal)
+    
+&gt;       assert result.supported is True
+E       AssertionError: assert False is True
+E        +  where False = IntentDeliveryRiskV1(schema_version=1, credentials='none', network='offline', browser='required', lifecycle='per_invoc..., blockers=('需求明确要求向外部系统写入；即使可以撤销，当前 Product profile 也只允许在新建的本地产物目录内写入。', '需求明确要求浏览器交互；当前 Product profile 不包含浏览器运行时。')).supported
+
+tests/test_intent_risk_policy.py:88: AssertionError</failure></testcase></testsuite></testsuites>

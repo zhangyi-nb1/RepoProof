@@ -41,8 +41,44 @@ class IntentDeliveryRiskV1(BaseModel):
         return not self.reason_codes
 
 
+_POLARITY_BOUNDARY = re.compile(
+    r"[。！？!?；;，,]|\b(?:but|however)\b|(?:但是|但|却)"
+)
+_ENGLISH_NEGATED_SUFFIX = re.compile(
+    r"(?:\bdo not\b|\bdon't\b|\bdoes not\b|\bmust not\b|"
+    r"\bshould not\b|\bwithout\b|\bnever\b|\bno(?:\s+need\s+to)?\b)"
+    r"(?:[\s\w'/-]{0,64})$"
+)
+_CHINESE_NEGATED_SUFFIX = re.compile(
+    r"(?:无需|无须|不要|不需要|不必|不得|禁止|避免|不)"
+    r"(?:再|使用|进行|要求|主动|自动)?[^，。；;,.!?]{0,20}$"
+)
+
+
+def _match_is_explicitly_negated(text: str, start: int) -> bool:
+    """Read polarity only inside the clause immediately preceding a match.
+
+    Negation is deliberately lexical and local.  It prevents a statement such
+    as ``不要联网`` from becoming an online-runtime requirement, while clause
+    and contrast boundaries keep ``不需要浏览器，但是要上传`` classified as an
+    external write.  Ambiguous prose continues to contract authoring instead
+    of being promoted to a positive unsupported requirement.
+    """
+
+    prefix = text[max(0, start - 96):start]
+    clause = _POLARITY_BOUNDARY.split(prefix)[-1]
+    return bool(
+        _ENGLISH_NEGATED_SUFFIX.search(clause)
+        or _CHINESE_NEGATED_SUFFIX.search(clause)
+    )
+
+
 def _matches(patterns: tuple[re.Pattern[str], ...], text: str) -> bool:
-    return any(pattern.search(text) is not None for pattern in patterns)
+    for pattern in patterns:
+        for match in pattern.finditer(text):
+            if not _match_is_explicitly_negated(text, match.start()):
+                return True
+    return False
 
 
 _CREDENTIAL_PATTERNS = (
