@@ -29,6 +29,12 @@ def collect_risks(host: HostProjectReport, repo: RepositoryReport) -> list[str]:
         risks.append("源码扫描不完整(仓库过大)——分析结论覆盖面有限,需你确认可接受")
     if repo.tests.provenance == "UNKNOWN":
         risks.append("目标仓库没有测试目录——其行为只能靠参考校准确认,风险较高")
+    if repo.secrets_optional:
+        names = sorted({str(item.value) for item in repo.secrets_optional})
+        risks.append(
+            f"目标仓库包含可选式环境密钥读取 {names}"
+            "——所选能力必须在无凭证环境预检中通过,需你确认"
+        )
 
     host_min, repo_min = _min_minor(host.python_version.value), _min_minor(repo.python_version.value)
     if host_min is not None and repo_min is not None and repo_min > host_min:

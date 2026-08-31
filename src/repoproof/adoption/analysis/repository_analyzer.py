@@ -32,8 +32,12 @@ _GPU_DEPS = {"torch", "torchvision", "torchaudio", "tensorflow", "cupy", "triton
 _EXTERNAL_DEPS = {"openai", "anthropic", "google-genai", "boto3", "redis", "qdrant-client",
                   "chromadb", "pinecone", "weaviate-client", "pymongo", "psycopg2", "mysqlclient",
                   "elasticsearch", "kafka-python"}
-_RE_SECRET = re.compile(
-    r"(?:environ(?:\.get)?\s*[\[(]|getenv\s*\()\s*['\"]([A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)['\"]"
+_SECRET_NAME = r"([A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)"
+_RE_SECRET_REQUIRED = re.compile(
+    rf"\benviron\s*\[\s*['\"]{_SECRET_NAME}['\"]\s*\]"
+)
+_RE_SECRET_OPTIONAL = re.compile(
+    rf"\b(?:environ\.get|getenv)\s*\(\s*['\"]{_SECRET_NAME}['\"]"
 )
 _RE_TOP_DEF = re.compile(r"^(?:def|class)\s+([A-Za-z_]\w*)", re.MULTILINE)
 _RE_ALL = re.compile(r"__all__\s*=\s*[\[(]([^\])]*)[\])]", re.DOTALL)
@@ -71,6 +75,7 @@ class RepositoryReport(BaseModel):
     gpu: Finding = Finding.unknown()
     external_services: Finding = Finding.unknown()
     secrets_required: list[Finding] = []
+    secrets_optional: list[Finding] = []
     quickstart: Finding = Finding.unknown()
     # README 正文摘录(有界):此前只留第一个代码块当 quickstart,正文丢掉了,
     # 于是"这个仓库到底是干什么的"在 UI 里无从展示。**它是展示件**:不参与
@@ -339,9 +344,20 @@ def analyze_repository_dir(
     # ---- 源码扫描:7 public api / 8 cli / 11 secrets / 候选 ----
     public_api: list[Finding] = []
     cli_entries: list[Finding] = []
-    secrets: list[Finding] = []
+    secrets: dict[str, Finding] = {}
+    optional_secrets: dict[str, Finding] = {}
     candidates: list[CapabilityCandidate] = []
-    seen_secret: set[str] = set()
+
+    def collect_secrets(text: str, evidence: str) -> None:
+        for match in _RE_SECRET_REQUIRED.finditer(text):
+            name = match.group(1)
+            secrets.setdefault(name, Finding.fact(name, evidence))
+            optional_secrets.pop(name, None)
+        for match in _RE_SECRET_OPTIONAL.finditer(text):
+            name = match.group(1)
+            if name not in secrets:
+                optional_secrets.setdefault(name, Finding.fact(name, evidence))
+
     for rel, text in _iter_py_files(root, stats):
         rel_s = str(rel)
         # 顶层包 __init__:兼容根布局(pkg/__init__.py)与 src 布局
@@ -361,18 +377,19 @@ def analyze_repository_dir(
                     public_api.append(Finding.fact(m2.group(1), rel_s))
         if rel.name == "__main__.py":
             cli_entries.append(Finding.fact(f"python -m {rel.parent.name}", rel_s))
-        for m3 in _RE_SECRET.finditer(text):
-            if m3.group(1) not in seen_secret:
-                seen_secret.add(m3.group(1))
-                secrets.append(Finding.fact(m3.group(1), rel_s))
-    for m4 in _RE_SECRET.finditer(readme_text):
-        if m4.group(1) not in seen_secret:
-            seen_secret.add(m4.group(1))
-            secrets.append(Finding.fact(m4.group(1), readme.name if readme else "README"))
+        collect_secrets(text, rel_s)
+    collect_secrets(readme_text, readme.name if readme else "README")
     for name, target in scripts.items():
         cli_entries.append(Finding.fact(f"{name} = {target}", "pyproject.toml [project.scripts]"))
     if secrets:
-        risks.append(f"代码/文档要求环境密钥: {sorted(seen_secret)}——当前不自动提供 secret")
+        risks.append(
+            f"代码/文档要求环境密钥: {sorted(secrets)}——当前不自动提供 secret"
+        )
+    if optional_secrets:
+        risks.append(
+            "代码/文档包含可选式环境密钥读取: "
+            f"{sorted(optional_secrets)}——所选能力必须在无凭证预检中通过"
+        )
 
     for f in public_api[:10]:
         candidates.append(CapabilityCandidate(
@@ -405,7 +422,8 @@ def analyze_repository_dir(
         runtime={"python": True, "gpu": bool(gpu.value), "external_api": bool(ext_hits)},
         gpu=gpu,
         external_services=external,
-        secrets_required=secrets[:20],
+        secrets_required=list(secrets.values())[:20],
+        secrets_optional=list(optional_secrets.values())[:20],
         quickstart=quickstart,
         readme_excerpt=readme_prose(readme_text),
         tests=tests,

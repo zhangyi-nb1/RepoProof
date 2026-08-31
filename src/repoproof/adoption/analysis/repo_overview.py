@@ -62,6 +62,13 @@ def build_repo_overview(report: RepositoryReport) -> dict:
         facts.append({"label": "需要的环境密钥",
                       "value": "、".join(sorted({_val(s) for s in report.secrets_required})),
                       "evidence": "静态扫描 os.environ 读取点", "provenance": "FACT"})
+    if report.secrets_optional:
+        facts.append({
+            "label": "可选式环境密钥引用",
+            "value": "、".join(sorted({_val(s) for s in report.secrets_optional})),
+            "evidence": "静态扫描 getenv / environ.get 读取点",
+            "provenance": "FACT",
+        })
     fact("测试目录", report.tests)
 
     surfaces: list[dict] = []

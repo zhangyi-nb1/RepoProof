@@ -244,7 +244,12 @@ elif step == 2:
     if rr:
         _lic = rr["license"]["value"] or "未识别"
         _gpu = "需要 GPU ⚠️" if rr["gpu"]["value"] is True else "CPU 即可"
-        _sec = "需要密钥 ⚠️" if rr.get("secrets_required") else "不需要密钥"
+        if rr.get("secrets_required"):
+            _sec = "需要密钥 ⚠️"
+        elif rr.get("secrets_optional"):
+            _sec = "可能读取可选密钥（需无密钥预检）"
+        else:
+            _sec = "未发现密钥读取"
         _api = len(rr.get("public_api", []))
         _sha12 = str(rr["commit"]["value"])[:12] if rr["commit"]["value"] else "未固定"
         st.markdown(f"**目标仓库**:许可证 {_lic} · {_gpu} · {_sec} · 公开入口 {_api} 个 · "

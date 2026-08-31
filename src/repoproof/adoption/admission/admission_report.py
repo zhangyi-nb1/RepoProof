@@ -82,6 +82,12 @@ def decide_tool(repo: RepositoryReport) -> AdmissionReport:
         risks.append("源码扫描不完整(仓库过大)——分析结论覆盖面有限,需你确认可接受")
     if repo.tests.provenance == "UNKNOWN":
         risks.append("目标仓库没有测试目录——其行为只能靠参考校准确认,风险较高")
+    if repo.secrets_optional:
+        names = sorted({str(item.value) for item in repo.secrets_optional})
+        risks.append(
+            f"目标仓库包含可选式环境密钥读取 {names}"
+            "——所选能力必须在无凭证环境预检中通过,需你确认"
+        )
     _covered = ("GPU", "secret", "密钥", "无法固定版本", "许可证", "测试配置",
                 "版本要求", "依赖声明", "无测试目录", "扫描不完整", "外部服务")
     for r in repo.risks:

@@ -9,6 +9,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from repoproof.adoption.admission.admission_report import decide_tool
 from repoproof.adoption.analysis.host_analyzer import FACT, INFERENCE, UNKNOWN
 from repoproof.adoption.analysis.repository_analyzer import (
     analyze_repository_dir,
@@ -92,11 +93,43 @@ def test_repo_requiring_secret(tmp_path: Path) -> None:
     _write(tmp_path, "requirements.txt", "openai\n")
     r = analyze_repository_dir(tmp_path)
     names = {str(s.value) for s in r.secrets_required}
-    assert {"OPENAI_API_KEY", "HF_TOKEN"} <= names
+    optional_names = {str(s.value) for s in r.secrets_optional}
+    assert names == {"OPENAI_API_KEY"}
+    assert optional_names == {"HF_TOKEN"}
     assert all(s.provenance == FACT and s.evidence for s in r.secrets_required)
     assert r.runtime["external_api"] is True
     assert any("secret" in x for x in r.risks)
     assert any("外部服务" in x for x in r.risks)
+
+
+def test_optional_credential_lookup_is_reviewed_not_blocked(tmp_path: Path) -> None:
+    _make_repo_with_pyproject(tmp_path)
+    _write(
+        tmp_path,
+        "textlib/settings.py",
+        'import os\nOPTIONAL = os.environ.get("ANALYTICS_TOKEN")\n',
+    )
+    for args in (
+        ["init", "-q"],
+        ["add", "-A"],
+        ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "pin"],
+    ):
+        subprocess.run(
+            ["git", "-C", str(tmp_path), *args],
+            check=True,
+            capture_output=True,
+        )
+
+    report = analyze_repository_dir(tmp_path)
+    admission = decide_tool(report)
+
+    assert report.secrets_required == []
+    assert {str(item.value) for item in report.secrets_optional} == {
+        "ANALYTICS_TOKEN"
+    }
+    assert admission.status == "RISK_REVIEW"
+    assert not admission.blockers
+    assert any("无凭证" in item for item in admission.risks)
 
 
 # ---- 安全与诚实 ----
