@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="2.642" timestamp="2026-08-31T20:10:49.119027+08:00" hostname="ZhangrongleideMacBook-Air-3.local"><testcase classname="tests.test_tool_drafter" name="test_long_form_request_allows_anonymous_slow_structured_transport" time="2.407"><failure message="repoproof.adoption.intake.tool_drafter.DraftError: DRAFTER_TIMEOUT">kwargs = {'temperature': 0, 'model': 'openai/m', 'api_base': 'http://gateway.invalid', 'api_key': 'k', ...}
+
+    def slow_structured_completion(**kwargs):
+        calls.append(kwargs)
+        if float(kwargs["timeout"]) &lt; 180.0:
+&gt;           raise TimeoutError("anonymous long-form response exceeded request budget")
+E           TimeoutError: anonymous long-form response exceeded request budget
+
+tests/test_tool_drafter.py:684: TimeoutError
+
+The above exception was the direct cause of the following exception:
+
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x109a8bfb0&gt;
+
+    def test_long_form_request_allows_anonymous_slow_structured_transport(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -&gt; None:
+        """Long strict schemas receive the full bounded budget, without retries.
+    
+        This is an anonymous transport control rather than a repository fixture:
+        short structured replies are available immediately, while a response with
+        the shape and size of a complete contract is only available when the
+        caller grants the already-admitted maximum request budget.
+        """
+    
+        for key, value in (
+            ("REPOPROOF_DRAFTER_MODEL", "m"),
+            ("REPOPROOF_DRAFTER_BASE", "http://gateway.invalid"),
+            ("REPOPROOF_DRAFTER_KEY", "k"),
+        ):
+            monkeypatch.setenv(key, value)
+        import litellm
+    
+        calls: list[dict] = []
+    
+        class _Message:
+            content = _GOOD
+    
+        class _Choice:
+            message = _Message()
+    
+        class _Response:
+            choices = [_Choice()]
+            usage = None
+    
+        def slow_structured_completion(**kwargs):
+            calls.append(kwargs)
+            if float(kwargs["timeout"]) &lt; 180.0:
+                raise TimeoutError("anonymous long-form response exceeded request budget")
+            return _Response()
+    
+        monkeypatch.setattr(litellm, "completion", slow_structured_completion)
+    
+&gt;       assert LiteLLMDrafter()._once("{}") == _GOOD
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_tool_drafter.py:689: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/repoproof/adoption/intake/tool_drafter.py:1789: in _once
+    return self._once_with_system(
+src/repoproof/adoption/intake/tool_drafter.py:2053: in _once_with_system
+    resp, dropped = _completion_with_temperature_fallback(
+src/repoproof/adoption/intake/tool_drafter.py:370: in _completion_with_temperature_fallback
+    _raise_public_transport_error(exc)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+exc = TimeoutError('anonymous long-form response exceeded request budget')
+
+    def _raise_public_transport_error(exc: Exception) -&gt; None:
+        """Classify gateway transport failures without echoing private diagnostics."""
+    
+        kind = type(exc).__name__.lower()
+        message = str(exc).lower()
+        if "timeout" in kind or "timed out" in message or "timeout" in message:
+&gt;           raise DraftError("DRAFTER_TIMEOUT") from exc
+E           repoproof.adoption.intake.tool_drafter.DraftError: DRAFTER_TIMEOUT
+
+src/repoproof/adoption/intake/tool_drafter.py:340: DraftError</failure></testcase></testsuite></testsuites>

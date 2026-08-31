@@ -647,6 +647,51 @@ def test_litellm_gateway_calls_have_bounded_timeout_and_no_implicit_retries(
     assert response_format["json_schema"]["schema"] == _SUMMARY_SCHEMA
 
 
+def test_long_form_request_allows_anonymous_slow_structured_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Long strict schemas receive the full bounded budget, without retries.
+
+    This is an anonymous transport control rather than a repository fixture:
+    short structured replies are available immediately, while a response with
+    the shape and size of a complete contract is only available when the
+    caller grants the already-admitted maximum request budget.
+    """
+
+    for key, value in (
+        ("REPOPROOF_DRAFTER_MODEL", "m"),
+        ("REPOPROOF_DRAFTER_BASE", "http://gateway.invalid"),
+        ("REPOPROOF_DRAFTER_KEY", "k"),
+    ):
+        monkeypatch.setenv(key, value)
+    import litellm
+
+    calls: list[dict] = []
+
+    class _Message:
+        content = _GOOD
+
+    class _Choice:
+        message = _Message()
+
+    class _Response:
+        choices = [_Choice()]
+        usage = None
+
+    def slow_structured_completion(**kwargs):
+        calls.append(kwargs)
+        if float(kwargs["timeout"]) < 180.0:
+            raise TimeoutError("anonymous long-form response exceeded request budget")
+        return _Response()
+
+    monkeypatch.setattr(litellm, "completion", slow_structured_completion)
+
+    assert LiteLLMDrafter()._once("{}") == _GOOD
+    assert len(calls) == 1
+    assert calls[0]["timeout"] == 180.0
+    assert calls[0]["max_retries"] == 0
+
+
 def test_litellm_all_assistant_actions_use_their_machine_schema(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -702,8 +747,8 @@ def test_litellm_all_assistant_actions_use_their_machine_schema(
     for item in formats:
         assert_every_object_property_is_required(item["schema"])
     assert [call["timeout"] for call in calls["kwargs"]] == [
-        120.0,
-        120.0,
+        180.0,
+        180.0,
         60.0,
         60.0,
     ]

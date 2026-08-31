@@ -1,0 +1,21 @@
+{
+  "affected_component": "adoption.intake.tool_drafter long-form structured request budget",
+  "after_control_sha256": "3ca89c8655dac21940de6c0226b9c6469c964bb017bf00d3c3ae6fed0be691fe",
+  "anonymous_fixture_id": "anonymous-slow-structured-transport-v1",
+  "before_control_sha256": "5d2999f9cec9c2c6ad9713bd9159148d6f113157afabea0ab4c63b4d1f631a01",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-08-31T12:12:35.017994Z",
+  "evidence_id": "harness-change-long-form-drafter-budget-v1",
+  "incident_ids": [
+    "incident-contract-drafter-timeout-d475b43-v2",
+    "incident-contract-drafter-timeout-d0e3a19-v1"
+  ],
+  "invariant": "Provider-enforced long-form contract and verifier requests must receive the full bounded request budget already admitted by Product configuration, while short repository advice and example requests remain on the short budget and all provider calls retain zero implicit retries.",
+  "normalized_fingerprint": "37abdf3ac05c2015",
+  "regression_tests": [
+    "tests/test_tool_drafter.py",
+    "tests/test_tool_drafter.py::test_long_form_request_allows_anonymous_slow_structured_transport"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}
