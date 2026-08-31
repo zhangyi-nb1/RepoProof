@@ -19,6 +19,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from repoproof.domain.models import validate_workspace_relative_path
 from repoproof.execution.core_execution import atomic_write_json
 from repoproof.execution.offline_sandbox import (
     OfflineSandboxUnavailable,
@@ -125,6 +126,97 @@ class FixtureBuilderError(RuntimeError):
     def __init__(self, code: str, detail: str = "") -> None:
         super().__init__(f"{code}: {detail}" if detail else code)
         self.code = code
+
+
+_PATH_VALUE_FIELDS = frozenset(
+    {"file", "files", "filename", "filenames", "path", "paths", "relative_path"}
+)
+
+
+def _portable_path_map(seed_values: tuple[object, ...]) -> bool:
+    dictionaries = [value for value in seed_values if isinstance(value, dict)]
+    if not dictionaries:
+        return False
+    keys = [str(key) for value in dictionaries for key in value]
+    if not keys or not any("/" in key or "." in Path(key).name for key in keys):
+        return False
+    try:
+        for key in keys:
+            validate_workspace_relative_path(key)
+    except ValueError:
+        return False
+    return True
+
+
+def _validate_parameter_paths(
+    value: object,
+    *,
+    seed_values: tuple[object, ...],
+    field_name: str = "",
+) -> None:
+    if isinstance(value, dict):
+        if _portable_path_map(seed_values):
+            for key in value:
+                try:
+                    validate_workspace_relative_path(str(key))
+                except ValueError as exc:
+                    raise FixtureBuilderError(
+                        "FIXTURE_BLUEPRINT_NONPORTABLE_PATH"
+                    ) from exc
+        seed_dicts = [item for item in seed_values if isinstance(item, dict)]
+        for key, child in value.items():
+            child_seeds = tuple(item[key] for item in seed_dicts if key in item)
+            _validate_parameter_paths(
+                child,
+                seed_values=child_seeds,
+                field_name=str(key).lower(),
+            )
+        return
+    if isinstance(value, list):
+        seed_items = tuple(
+            child
+            for item in seed_values
+            if isinstance(item, list)
+            for child in item
+        )
+        for child in value:
+            _validate_parameter_paths(
+                child,
+                seed_values=seed_items,
+                field_name=field_name,
+            )
+        return
+    if isinstance(value, str) and field_name in _PATH_VALUE_FIELDS:
+        seed_strings = tuple(item for item in seed_values if isinstance(item, str))
+        if not seed_strings:
+            return
+        try:
+            for seed in seed_strings:
+                validate_workspace_relative_path(seed)
+            validate_workspace_relative_path(value)
+        except ValueError as exc:
+            raise FixtureBuilderError(
+                "FIXTURE_BLUEPRINT_NONPORTABLE_PATH"
+            ) from exc
+
+
+def validate_fixture_blueprint_portable_paths(
+    blueprint: FixtureBlueprintV1,
+    *,
+    seeds: tuple[FixtureBlueprintV1, ...],
+) -> None:
+    """Reject model parameters that would create non-portable fixture paths.
+
+    Path-bearing parameter positions are inferred from the frozen seed shape;
+    arbitrary Unicode scenario text and file contents remain valid.  This keeps
+    task-specific builders expressive without letting a model-proposed filename
+    reach the filesystem before the common workspace policy is applied.
+    """
+
+    _validate_parameter_paths(
+        blueprint.parameters,
+        seed_values=tuple(seed.parameters for seed in seeds),
+    )
 
 
 def assert_distinct_fixture_inputs(

@@ -141,6 +141,9 @@ _WORKSPACE_INPUTS_SYSTEM = (
     "task builder—not the model—will create the real bytes. Vary ordinary, Unicode, "
     "boundary and malformed-real-world scenarios without embedding expected outputs, "
     "binary bytes, paths outside the fixture, credentials, URLs, code, or shell commands. "
+    "Unicode is welcome in scenario text and file contents, but every parameter key or "
+    "value that represents a relative file/path name must use portable ASCII POSIX "
+    "characters only (A-Z, a-z, 0-9, dot, underscore, at, plus, hyphen and slash). "
     "Do not repeat excluded_blueprint_ids or excluded_parameter_fingerprints."
 )
 

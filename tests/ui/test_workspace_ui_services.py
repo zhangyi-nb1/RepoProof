@@ -10,7 +10,10 @@ import pytest
 import yaml
 
 from repoproof.adoption.intake import example_proposer, workspace_fixtures
-from repoproof.adoption.intake.workspace_fixtures import InputFixtureCandidateV1
+from repoproof.adoption.intake.workspace_fixtures import (
+    FixtureBlueprintV1,
+    InputFixtureCandidateV1,
+)
 from repoproof.execution.workspace_bundle import (
     build_artifact_manifest,
     identify_input_path,
@@ -296,6 +299,57 @@ def test_workspace_reference_exception_is_a_contract_failure(
 
     assert caught.value.code == "WORKSPACE_REFERENCE_EXECUTION_FAILED"
     assert caught.value.detail == "AttributeError"
+
+
+def test_fresh_fixture_blueprint_gets_one_portable_path_correction() -> None:
+    seed = FixtureBlueprintV1(
+        blueprint_id="seed-project",
+        title="Seed",
+        scenario="Portable seed tree",
+        input_kind="directory",
+        parameters={"files": {"src/main.py": "print('seed')\n"}},
+    )
+
+    class Drafter:
+        def __init__(self) -> None:
+            self.contexts: list[dict[str, object]] = []
+
+        def propose_workspace_fixture_blueprints(
+            self, context: dict[str, object]
+        ) -> dict[str, object]:
+            self.contexts.append(context)
+            filename = "入口.py" if len(self.contexts) == 1 else "src/entry.py"
+            return {
+                "fixture_blueprints": [
+                    {
+                        "blueprint_id": "fresh-project",
+                        "title": "Fresh project",
+                        "scenario": "Unicode content in a fresh local project.",
+                        "input_kind": "directory",
+                        "parameters_json": json.dumps(
+                            {"files": {filename: "print('你好')\n"}},
+                            ensure_ascii=False,
+                        ),
+                    }
+                ]
+            }
+
+    drafter = Drafter()
+    proposed = product_jobs._propose_portable_workspace_fixture_blueprints(
+        drafter=drafter,
+        proposal_context={"how_many": 1},
+        input_kind="directory",
+        requested=1,
+        seeds=(seed,),
+    )
+
+    assert len(drafter.contexts) == 2
+    assert drafter.contexts[1]["previous_public_rejection_codes"] == [
+        "FIXTURE_BLUEPRINT_NONPORTABLE_PATH"
+    ]
+    assert proposed[0].parameters == {
+        "files": {"src/entry.py": "print('你好')\n"}
+    }
 
 
 def test_workspace_candidate_preview_zip_and_confirmation_are_tree_bound(

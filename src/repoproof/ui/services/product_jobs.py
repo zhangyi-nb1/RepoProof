@@ -22,6 +22,7 @@ import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlsplit
 
 import yaml
@@ -50,6 +51,7 @@ from repoproof.adoption.intake.tool_confirm import (
     ConfirmError,
     confirm_tool_intent_file,
 )
+from repoproof.adoption.intake.workspace_fixtures import FixtureBlueprintV1
 from repoproof.execution.core_execution import (
     LEGACY_LAB_STATE,
     RUNNING,
@@ -2488,6 +2490,63 @@ def _workspace_audit_record_paths(
     return result[0], result[1]
 
 
+def _propose_portable_workspace_fixture_blueprints(
+    *,
+    drafter: Any,
+    proposal_context: dict[str, object],
+    input_kind: str,
+    requested: int,
+    seeds: tuple[FixtureBlueprintV1, ...],
+) -> list[FixtureBlueprintV1]:
+    """Give model-authored fixture paths one bounded, public correction."""
+
+    from repoproof.adoption.intake.tool_drafter import (
+        DraftError,
+        normalize_workspace_fixture_blueprints_document,
+    )
+    from repoproof.adoption.intake.workspace_fixtures import (
+        FixtureBuilderError,
+        validate_fixture_blueprint_portable_paths,
+    )
+
+    proposed: list[FixtureBlueprintV1] = []
+    for proposal_attempt in (1, 2):
+        response = drafter.propose_workspace_fixture_blueprints(proposal_context)
+        proposed = [
+            FixtureBlueprintV1.model_validate(item)
+            for item in normalize_workspace_fixture_blueprints_document(
+                response,
+                input_kind=input_kind,
+                expected_count=requested,
+            )
+        ]
+        try:
+            for blueprint in proposed:
+                validate_fixture_blueprint_portable_paths(
+                    blueprint,
+                    seeds=seeds,
+                )
+        except FixtureBuilderError as exc:
+            if (
+                proposal_attempt == 1
+                and exc.code == "FIXTURE_BLUEPRINT_NONPORTABLE_PATH"
+            ):
+                proposal_context = {
+                    **proposal_context,
+                    "previous_public_rejection_codes": [exc.code],
+                    "correction": (
+                        "Keep Unicode in contents, but replace every generated "
+                        "relative filename/path with a portable ASCII POSIX name."
+                    ),
+                }
+                continue
+            raise DraftError(
+                "workspace-fixture-candidates:NONPORTABLE_PATH"
+            ) from exc
+        return proposed
+    raise DraftError("workspace-fixture-candidates:NONPORTABLE_PATH")
+
+
 def _propose_workspace_audit_candidates(
     *,
     name: str,
@@ -2514,11 +2573,9 @@ def _propose_workspace_audit_candidates(
     )
     from repoproof.adoption.intake.tool_drafter import (
         DraftError,
-        normalize_workspace_fixture_blueprints_document,
         online_drafter,
     )
     from repoproof.adoption.intake.workspace_fixtures import (
-        FixtureBlueprintV1,
         FixtureBuilderError,
         build_fixture_candidate,
     )
@@ -2572,44 +2629,41 @@ def _propose_workspace_audit_candidates(
             drafter_name = "frozen-unused-blueprints"
         else:
             drafter = online_drafter()
-            response = drafter.propose_workspace_fixture_blueprints(
-                {
-                    "how_many": requested,
-                    "capability_goal": str(contract.capability.statement or ""),
-                    "input_kind": tool.interface.input.kind,
-                    "seed_blueprints": [
-                        {
-                            **item.model_dump(mode="json", exclude={"parameters"}),
-                            "parameters_json": json.dumps(
-                                item.parameters,
-                                ensure_ascii=False,
-                                sort_keys=True,
-                            ),
-                        }
-                        for item in seeds
-                    ],
-                    "excluded_blueprint_ids": [item.blueprint_id for item in seeds],
-                    "excluded_parameter_fingerprints": [
-                        hashlib.sha256(
-                            json.dumps(
-                                item.parameters,
-                                ensure_ascii=False,
-                                sort_keys=True,
-                                separators=(",", ":"),
-                            ).encode("utf-8")
-                        ).hexdigest()
-                        for item in seeds
-                    ],
-                }
+            proposal_context = {
+                "how_many": requested,
+                "capability_goal": str(contract.capability.statement or ""),
+                "input_kind": tool.interface.input.kind,
+                "seed_blueprints": [
+                    {
+                        **item.model_dump(mode="json", exclude={"parameters"}),
+                        "parameters_json": json.dumps(
+                            item.parameters,
+                            ensure_ascii=False,
+                            sort_keys=True,
+                        ),
+                    }
+                    for item in seeds
+                ],
+                "excluded_blueprint_ids": [item.blueprint_id for item in seeds],
+                "excluded_parameter_fingerprints": [
+                    hashlib.sha256(
+                        json.dumps(
+                            item.parameters,
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ).encode("utf-8")
+                    ).hexdigest()
+                    for item in seeds
+                ],
+            }
+            proposed = _propose_portable_workspace_fixture_blueprints(
+                drafter=drafter,
+                proposal_context=proposal_context,
+                input_kind=tool.interface.input.kind,
+                requested=requested,
+                seeds=tuple(seeds),
             )
-            proposed = [
-                FixtureBlueprintV1.model_validate(item)
-                for item in normalize_workspace_fixture_blueprints_document(
-                    response,
-                    input_kind=tool.interface.input.kind,
-                    expected_count=requested,
-                )
-            ]
             drafter_name = getattr(drafter, "name", type(drafter).__name__)
         store = _workspace_audit_candidate_store(
             tool_name=name,

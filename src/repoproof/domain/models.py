@@ -435,6 +435,12 @@ def _validate_workspace_relative_path(value: str, *, pattern: bool) -> str:
     return value
 
 
+def validate_workspace_relative_path(value: str) -> str:
+    """Validate one literal path against the public workspace portability rules."""
+
+    return _validate_workspace_relative_path(value, pattern=False)
+
+
 class WorkspaceArtifactRule(BaseModel):
     """One public structural rule for a generated workspace file set."""
 
@@ -573,7 +579,7 @@ class ArtifactManifestEntryV1(BaseModel):
     @field_validator("path")
     @classmethod
     def _safe_path(cls, value: str) -> str:
-        return _validate_workspace_relative_path(value, pattern=False)
+        return validate_workspace_relative_path(value)
 
 
 class ArtifactManifestV1(BaseModel):

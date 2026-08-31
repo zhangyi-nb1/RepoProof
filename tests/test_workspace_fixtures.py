@@ -12,6 +12,7 @@ from repoproof.adoption.intake.workspace_fixtures import (
     build_fixture_candidate,
     confirm_fixture_candidate,
     merge_regenerated_fixture_bundle,
+    validate_fixture_blueprint_portable_paths,
 )
 
 _BUILDER = '''from pathlib import Path
@@ -67,6 +68,35 @@ def test_fixture_bundle_rejects_distinct_blueprints_with_identical_input_bytes(
             generation_id="anonymous-collision",
             candidates=(first, second),
         )
+
+
+def test_model_blueprint_rejects_nonportable_generated_paths_but_allows_unicode_content(
+) -> None:
+    seed = FixtureBlueprintV1(
+        blueprint_id="seed-project",
+        title="Seed",
+        scenario="Portable seed tree",
+        input_kind="directory",
+        parameters={"files": {"src/main.py": "print('seed')\n"}},
+    )
+    unsafe = FixtureBlueprintV1(
+        blueprint_id="fresh-project",
+        title="Fresh",
+        scenario="A natural Unicode project scenario",
+        input_kind="directory",
+        parameters={"files": {"入口.py": "print('你好')\n"}},
+    )
+    safe = unsafe.model_copy(
+        update={"parameters": {"files": {"src/entry.py": "print('你好')\n"}}}
+    )
+
+    with pytest.raises(
+        FixtureBuilderError,
+        match="FIXTURE_BLUEPRINT_NONPORTABLE_PATH",
+    ):
+        validate_fixture_blueprint_portable_paths(unsafe, seeds=(seed,))
+
+    validate_fixture_blueprint_portable_paths(safe, seeds=(seed,))
 
 
 def test_regeneration_preserves_exact_confirmed_fixture(tmp_path: Path) -> None:

@@ -1,0 +1,20 @@
+{
+  "affected_component": "workspace fixture blueprint model-to-builder boundary",
+  "after_control_sha256": "188ddb84d5a62f74ade2ab8d5e1482fd3ca1cb47295a5fc002f6647216c5bdc0",
+  "anonymous_fixture_id": "anonymous-unicode-content-portable-path-v1",
+  "before_control_sha256": "e6cd245f552b214f7caec377e18b3be9b5fd27edefc58b791696c4d5c60f6477",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T01:50:19+08:00",
+  "evidence_id": "harness-change-fixture-blueprint-portability-v1",
+  "incident_ids": [
+    "incident-fixture-blueprint-portability-df8d934"
+  ],
+  "invariant": "Model-authored fixture parameters must be checked against the frozen seed shape before a task builder touches the filesystem. Path-bearing slots use the common portable workspace policy, while Unicode scenario text and file contents remain valid. One public representation correction is allowed; repeated invalid output stops before Agent repair.",
+  "normalized_fingerprint": "c103f2facd796d25",
+  "regression_tests": [
+    "tests/test_workspace_fixtures.py::test_model_blueprint_rejects_nonportable_generated_paths_but_allows_unicode_content",
+    "tests/ui/test_workspace_ui_services.py::test_fresh_fixture_blueprint_gets_one_portable_path_correction"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}
