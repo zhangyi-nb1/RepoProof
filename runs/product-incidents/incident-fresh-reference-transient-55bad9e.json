@@ -1,0 +1,27 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "candidate_persisted": "no",
+    "same_framework_retry_candidate_count": 4,
+    "same_framework_retry_succeeded": "yes"
+  },
+  "created_at": "2026-09-01T01:56:21+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "55bad9e6d06bd988f46235c151d2326a798ecf23",
+  "framework_tree_sha256": "18ff7ab12ef8794fecd2fd8488bf4133a612c2dfa6f1d48637520e28e5ca3c80",
+  "incident_id": "incident-fresh-reference-transient-55bad9e",
+  "normalized_fingerprint": "c75f6db3b2cb7a3d",
+  "owner": "HARNESS",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "fresh-workspace-reference"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_EXECUTION_FAILED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "FIXTURE_REFERENCE",
+  "task_version": "tool-networkx-tool-v4"
+}
