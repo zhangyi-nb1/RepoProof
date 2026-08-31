@@ -310,3 +310,42 @@ def test_blind_scan_blocks_the_run_with_its_own_reason() -> None:
     assert "        if blind:\n" in src, "盲区没有独立的拒开分支"
     assert '"reason": "ANSWER_KEY_SCAN_BLIND"' in src, "盲区没有独立的拒开理由"
     assert "blind=blind" in src, "preflight 根本没把 blind 收集起来"
+
+
+def test_answer_key_scan_does_not_open_fifo_as_regular_content(tmp_path) -> None:
+    """H9-a must not let a same-sized FIFO defeat the preflight wall budget.
+
+    A zero-byte protected fixture makes zero-byte candidates hash-eligible.  A
+    FIFO reports the same size, but opening it with a normal blocking read waits
+    forever for a writer.  Run the control in a child process so the negative
+    fixture fails by timeout instead of hanging the test runner itself.
+    """
+    import os
+    import subprocess
+    import sys
+
+    task = tmp_path / "task"
+    protected = task / "oracle"
+    protected.mkdir(parents=True)
+    (protected / "empty.bin").write_bytes(b"")
+    scan_root = tmp_path / "scan-root"
+    scan_root.mkdir()
+    fifo = scan_root / "unrelated.pipe"
+    os.mkfifo(fifo)
+
+    script = (
+        "from pathlib import Path\n"
+        "from repoproof.runner.host_guided import reachable_answer_keys\n"
+        f"found = reachable_answer_keys(Path({str(task)!r}), "
+        f"roots=({str(scan_root)!r},))\n"
+        "assert found == []\n"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path.cwd(),
+        capture_output=True,
+        text=True,
+        timeout=2,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr

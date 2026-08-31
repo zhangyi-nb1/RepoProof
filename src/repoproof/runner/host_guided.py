@@ -44,8 +44,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
+import stat
 import subprocess
 import time
 from collections.abc import Callable
@@ -1163,6 +1165,35 @@ PROTECTED_TASK_DIRS = ("controls", "oracle", "fixtures", "public_tests")
 _SESSION_DIR = "_sessions"
 
 
+def _read_regular_file_nonblocking(path: Path) -> bytes | None:
+    """Read one regular file without ever blocking on a special file.
+
+    H9-a scans shared host roots.  A FIFO/socket/device is not an answer-key
+    content candidate, and a blocking ``Path.read_bytes`` on a same-sized FIFO
+    can otherwise defeat the entire preflight wall budget.  Open first with
+    ``O_NONBLOCK``, then decide from the descriptor (not a racy path stat).
+    Symlinks to regular files remain content-scanned because ``os.open`` follows
+    them and the descriptor's final target must still be a regular file.
+    """
+
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)
+    try:
+        fd = os.open(path, flags)
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        with os.fdopen(fd, "rb", closefd=True) as stream:
+            fd = -1
+            return stream.read()
+    except OSError:
+        return None
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+
 def reachable_answer_keys(
     task_dir: Path, roots: tuple[str, ...] = ANSWER_KEY_SCAN_ROOTS, max_depth: int = 3,
     blind: list[str] | None = None,
@@ -1224,8 +1255,13 @@ def reachable_answer_keys(
                     continue
                 try:
                     digests = by_size.get(e.stat().st_size)
-                    if digests and hashlib.sha256(e.read_bytes()).hexdigest() in digests:
-                        found.append(str(e))
+                    if digests:
+                        raw = _read_regular_file_nonblocking(e)
+                        if (
+                            raw is not None
+                            and hashlib.sha256(raw).hexdigest() in digests
+                        ):
+                            found.append(str(e))
                 except OSError:          # 同上:读不到不算证据
                     continue
     return sorted(set(found))
