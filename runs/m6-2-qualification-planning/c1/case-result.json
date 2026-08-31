@@ -1,0 +1,28 @@
+{
+  "agent_invoked": false,
+  "artifact_manifest_sha256": null,
+  "artifact_tree_sha256": null,
+  "case_name": "c1-pdf-evidence-review",
+  "clean_replay": null,
+  "delivery_profile_id": "workspace_bundle_v1",
+  "failure_owner": "CONTRACT",
+  "failure_stage": "FIXTURE_REFERENCE",
+  "fresh_audit": null,
+  "historical_verdict": null,
+  "journey_id": "0259b595a5e84815bb6e02ef9642d3f9",
+  "operational_status": null,
+  "package_health": null,
+  "reason_codes": [
+    "FIXTURE_INPUT_DUPLICATE"
+  ],
+  "recommended_action": "三个不同自然场景被冻结 fixture builder 生成成同一份精确输入，不能作为三组代表性覆盖。保持本草稿、候选和 incident 不变；停止在 C1 内重试，不进入 Agent repair。后续若独立仓库复现同一作者协议缺陷，再依据双事故证据改进通用 drafter 机制。",
+  "repair_attempts": 0,
+  "run_id": null,
+  "semantic_verifier_evidence": null,
+  "semantic_verifier_evidence_sha256": null,
+  "semantic_verifier_id": null,
+  "semantic_verifier_sha256": null,
+  "status": "FAILED",
+  "task_id": null,
+  "workspace_structure_passed": null
+}
