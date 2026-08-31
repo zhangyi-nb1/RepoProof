@@ -230,7 +230,12 @@ def _start_new_journey() -> None:
     pending_adoption = st.session_state.pop("rp_pending_capability_adoption", None)
     if isinstance(pending_adoption, dict):
         pending_text = str(pending_adoption.get("text") or "").strip()
-        if pending_adoption.get("signature") == analysis_signature and pending_text:
+        pending_requirements = pending_adoption.get("delivery_requirements")
+        if (
+            pending_adoption.get("signature") == analysis_signature
+            and pending_text
+            and isinstance(pending_requirements, dict)
+        ):
             # The capability widget has not been instantiated in this run yet,
             # so this is the one safe place to update its keyed value.
             st.session_state["rp_journey_capability"] = pending_text
@@ -238,11 +243,17 @@ def _start_new_journey() -> None:
             # previously confirmed launch payload must be invalidated so the
             # user explicitly confirms the text that will reach Core.
             st.session_state.pop("rp_confirmed_capability", None)
+            st.session_state["rp_adopted_delivery_requirements"] = {
+                "signature": analysis_signature,
+                "brief_id": str(pending_adoption.get("brief_id") or ""),
+                "requirements": pending_requirements,
+            }
             st.session_state["rp_capability_adoption_flash"] = {
                 "ok": True,
                 "message": "已把模型建议放入需求框；你仍可继续用自己的话修改，再决定是否创建任务。",
             }
         else:
+            st.session_state.pop("rp_adopted_delivery_requirements", None)
             st.session_state["rp_capability_adoption_flash"] = {
                 "ok": False,
                 "message": "仓库或版本已经变化，旧建议没有被采用。请重新分析当前仓库。",
@@ -374,6 +385,9 @@ def _start_new_journey() -> None:
                                         "signature": analysis_signature,
                                         "brief_id": brief["brief_id"],
                                         "text": brief["text"],
+                                        "delivery_requirements": brief[
+                                            "delivery_requirements"
+                                        ],
                                     }
                                     st.rerun()
                         if st.button("保留原想法", key="rp_keep_original_capability"):
@@ -429,6 +443,17 @@ def _start_new_journey() -> None:
         ),
     )
     confirmed_payload = st.session_state.get("rp_confirmed_capability")
+    adopted_delivery = st.session_state.get("rp_adopted_delivery_requirements")
+    adopted_delivery_current = bool(
+        isinstance(adopted_delivery, dict)
+        and adopted_delivery.get("signature") == analysis_signature
+        and isinstance(adopted_delivery.get("requirements"), dict)
+    )
+    adopted_requirements = (
+        adopted_delivery.get("requirements")
+        if isinstance(adopted_delivery, dict) and adopted_delivery_current
+        else None
+    )
     confirmed_current = bool(
         isinstance(confirmed_payload, dict)
         and confirmed_payload.get("signature") == analysis_signature
@@ -449,10 +474,22 @@ def _start_new_journey() -> None:
             st.session_state["rp_confirmed_capability"] = {
                 "signature": analysis_signature,
                 "text": final_text,
+                "delivery_requirements": adopted_requirements,
             }
             st.rerun()
     if confirmed_current:
-        st.success("已确认当前需求文本；后台起草只会接收这段已显示并确认的内容。")
+        confirmed_requirements = (
+            confirmed_payload.get("delivery_requirements")
+            if isinstance(confirmed_payload, dict)
+            else None
+        )
+        if isinstance(confirmed_requirements, dict):
+            st.success(
+                "已确认当前需求文本与所采用建议的交付形状；后台模型只起草任务语义，"
+                "不能改写输入、输出、生命周期、网络或副作用边界。"
+            )
+        else:
+            st.success("已确认当前需求文本；后台起草只会接收这段已显示并确认的内容。")
     else:
         st.caption("采用建议或修改需求后，请先确认当前文本，再创建任务。")
     submitted = st.button(
@@ -491,6 +528,9 @@ def _start_new_journey() -> None:
         draft_dir=draft_dir,
         fake_drafter=False,
         journey_id=journey.journey_id,
+        authoritative_delivery_requirements=(
+            (confirmed_payload or {}).get("delivery_requirements")
+        ),
     )
     if result.get("ok"):
         st.session_state["rp_active_journey_id"] = journey.journey_id

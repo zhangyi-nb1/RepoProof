@@ -468,6 +468,7 @@ def tool_add_argv(
     draft_dir: Path,
     revision: str | None = None,
     fake_drafter: bool = False,
+    authoritative_delivery_requirements: dict | None = None,
 ) -> list[str]:
     argv = [
         _product_python(root),
@@ -484,6 +485,16 @@ def tool_add_argv(
     ]
     if revision:
         argv += ["--revision", revision]
+    if authoritative_delivery_requirements is not None:
+        argv += [
+            "--delivery-requirements-json",
+            json.dumps(
+                authoritative_delivery_requirements,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        ]
     if fake_drafter:
         argv.append("--fake-drafter")
     return argv
@@ -713,6 +724,7 @@ def start_tool_add(
     revision: str | None = None,
     fake_drafter: bool = False,
     journey_id: str = "",
+    authoritative_delivery_requirements: dict | None = None,
 ) -> dict:
     if not _valid_public_github_repo(repo):
         return {"ok": False, "error": "当前只支持公开 GitHub 仓库地址。"}
@@ -731,6 +743,9 @@ def start_tool_add(
             draft_dir=draft_dir,
             revision=revision,
             fake_drafter=fake_drafter,
+            authoritative_delivery_requirements=(
+                authoritative_delivery_requirements
+            ),
         ),
         kind="tool-add",
         label=f"分析并起草 {repo.rsplit('/', 1)[-1]}",

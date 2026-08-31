@@ -228,6 +228,11 @@ def main(argv: list[str] | None = None) -> int:
     pt_add.add_argument("--capability", required=True)
     pt_add.add_argument("--revision", default=None)
     pt_add.add_argument("--draft-out", type=Path, required=True)
+    pt_add.add_argument(
+        "--delivery-requirements-json",
+        default=None,
+        help=argparse.SUPPRESS,
+    )
     pt_add.add_argument("--fake-drafter", action="store_true",
                         help="确定性模板起草(零 API)")
     _add_product_result_args(pt_add)
@@ -633,6 +638,35 @@ def main(argv: list[str] | None = None) -> int:
             )
             from repoproof.adoption.intake.tool_intake import run_tool_intake
 
+            authoritative_delivery_requirements = None
+            if args.delivery_requirements_json is not None:
+                try:
+                    parsed_requirements = json.loads(args.delivery_requirements_json)
+                except json.JSONDecodeError as exc:
+                    return _emit_tool_action(
+                        args,
+                        action="tool-add",
+                        payload={
+                            "ok": False,
+                            "failure_owner": "USER_INPUT",
+                            "reason_codes": ["DELIVERY_REQUIREMENTS_JSON_INVALID"],
+                            "error": f"已确认的交付要求不是有效 JSON：{exc}",
+                        },
+                        exit_code=3,
+                    )
+                if not isinstance(parsed_requirements, dict):
+                    return _emit_tool_action(
+                        args,
+                        action="tool-add",
+                        payload={
+                            "ok": False,
+                            "failure_owner": "USER_INPUT",
+                            "reason_codes": ["DELIVERY_REQUIREMENTS_JSON_INVALID"],
+                            "error": "已确认的交付要求必须是 JSON 对象。",
+                        },
+                        exit_code=3,
+                    )
+                authoritative_delivery_requirements = parsed_requirements
             add_rep = run_tool_intake(args.repo, args.capability,
                                   cache_root=PROJECT_ROOT / "upstream-cache",
                                   revision=args.revision)
@@ -648,7 +682,14 @@ def main(argv: list[str] | None = None) -> int:
             add_payload["draft_bundle"] = str(bundle)
             try:
                 drafter = FakeDrafter() if args.fake_drafter else online_drafter()
-                add_payload["drafted"] = draft_into_bundle(add_rep, bundle, drafter)
+                add_payload["drafted"] = draft_into_bundle(
+                    add_rep,
+                    bundle,
+                    drafter,
+                    authoritative_delivery_requirements=(
+                        authoritative_delivery_requirements
+                    ),
+                )
             except DraftError as exc:
                 add_payload["draft_error"] = str(exc)
                 return _emit_tool_action(

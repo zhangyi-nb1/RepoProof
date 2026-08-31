@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.267" timestamp="2026-08-31T22:38:14.573616+08:00" hostname="ZhangrongleideMacBook-Air-3.local"><testcase classname="tests.test_tool_drafter" name="test_codex_compiles_human_confirmed_delivery_instead_of_model_echo" time="0.041"><failure message="repoproof.adoption.intake.tool_drafter.DeliveryAdmissionError: tool-draft:LIFECYCLE_MISMATCH">document = {'summary': 's', 'delivery_requirements': {'inputs': [{'kind': 'file', 'location': 'local', 'representation': 'utf8_te...'用户产物'}], 'network': 'offline', 'credentials': 'none', ...}, 'output_required_fields': [], 'output_schema': 'Out', ...}
+capability_goal = '把本地输入整理成一次性生成的离线产物'
+
+    def normalize_draft_document(document: dict, *, capability_goal: str) -&gt; dict:
+        """Validate model fields and compile delivery shape from the Core profile."""
+    
+        try:
+            import jsonschema
+    
+            jsonschema.validate(document, _DRAFT_SCHEMA)
+        except jsonschema.ValidationError as exc:
+            raise DraftError("tool-draft:INVALID_DOCUMENT") from exc
+        try:
+&gt;           profile = select_product_delivery_profile(document["delivery_requirements"])
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src/repoproof/adoption/intake/tool_drafter.py:1187: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/repoproof/adoption/delivery/product_profile.py:638: in select_product_delivery_profile
+    selected.admit_requirements(requirements)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ProductDeliveryProfile(schema_version=1, profile_id='cli_v2', input_kind='file', input_cardinality=1, output_kind='std...-ndjson', root_type='json_lines', validation_profile=None, aliases=('JSONL', 'NDJSON'), allows_required_fields=False)))
+raw = DeliveryRequirements(inputs=(DeliveryInputRequirement(kind='file', location='local', representation='utf8_text', forma...line', credentials='none', lifecycle='long_running', runtime='local_cpu', browser='none', external_side_effects='none')
+
+    def admit_requirements(
+        self,
+        raw: DeliveryRequirements | dict,
+    ) -&gt; tuple[DeliveryRequirements, OutputArtifactSpec]:
+        """Admit a proposed workflow by topology, never by task vocabulary."""
+    
+        try:
+            requirements = (
+                raw
+                if isinstance(raw, DeliveryRequirements)
+                else DeliveryRequirements.model_validate(raw)
+            )
+        except ValueError as exc:
+            raise ProductProfileError("DELIVERY_REQUIREMENTS_INVALID") from exc
+        if len(requirements.inputs) != self.input_cardinality:
+            raise ProductProfileError("INPUT_CARDINALITY_MISMATCH")
+        input_requirement = requirements.inputs[0]
+        allowed_input_kinds = (
+            {"file", "directory"}
+            if self.input_kind == "file_or_directory"
+            else {"file"}
+        )
+        if (
+            input_requirement.kind not in allowed_input_kinds
+            or input_requirement.location != "local"
+        ):
+            raise ProductProfileError("INPUT_SOURCE_MISMATCH")
+        if len(requirements.outputs) != self.output_cardinality:
+            raise ProductProfileError("OUTPUT_CARDINALITY_MISMATCH")
+        output_requirement = requirements.outputs[0]
+        expected_output_kind = (
+            "directory" if self.output_kind == "directory" else "text_artifact"
+        )
+        if output_requirement.kind != expected_output_kind:
+            raise ProductProfileError("OUTPUT_TRANSPORT_MISMATCH")
+        artifact = self.artifact(output_requirement.format_id)
+        if requirements.network != self.network:
+            raise ProductProfileError("NETWORK_MODE_MISMATCH")
+        if requirements.credentials != self.credentials:
+            raise ProductProfileError("CREDENTIAL_MODE_MISMATCH")
+        if requirements.lifecycle != self.lifecycle:
+&gt;           raise ProductProfileError("LIFECYCLE_MISMATCH")
+E           repoproof.adoption.delivery.product_profile.ProductProfileError: LIFECYCLE_MISMATCH
+
+src/repoproof/adoption/delivery/product_profile.py:197: ProductProfileError
+
+The above exception was the direct cause of the following exception:
+
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x107d50c20&gt;
+
+    def test_codex_compiles_human_confirmed_delivery_instead_of_model_echo(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -&gt; None:
+        """The model cannot redefine an already confirmed delivery topology."""
+    
+        authoritative = _delivery("TXT", "plain_text")
+        echoed = _valid_projection_document(format_id="plain_text", required_fields=[])
+        echoed["delivery_requirements"]["lifecycle"] = "long_running"
+        drafter = object.__new__(CodexDrafter)
+        drafter.last_usage = {}
+        calls: list[dict] = []
+    
+        def fake_structured(**kwargs):
+            calls.append(kwargs)
+            return echoed
+    
+        monkeypatch.setattr(drafter, "_structured", fake_structured)
+    
+&gt;       drafted = drafter.draft({
+            "capability_goal": "把本地输入整理成一次性生成的离线产物",
+            "authoritative_delivery_requirements": authoritative,
+        })
+
+tests/test_tool_drafter.py:690: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/repoproof/adoption/intake/tool_drafter.py:1481: in draft
+    return normalize_draft_document(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+document = {'summary': 's', 'delivery_requirements': {'inputs': [{'kind': 'file', 'location': 'local', 'representation': 'utf8_te...'用户产物'}], 'network': 'offline', 'credentials': 'none', ...}, 'output_required_fields': [], 'output_schema': 'Out', ...}
+capability_goal = '把本地输入整理成一次性生成的离线产物'
+
+    def normalize_draft_document(document: dict, *, capability_goal: str) -&gt; dict:
+        """Validate model fields and compile delivery shape from the Core profile."""
+    
+        try:
+            import jsonschema
+    
+            jsonschema.validate(document, _DRAFT_SCHEMA)
+        except jsonschema.ValidationError as exc:
+            raise DraftError("tool-draft:INVALID_DOCUMENT") from exc
+        try:
+            profile = select_product_delivery_profile(document["delivery_requirements"])
+            requirements, artifact = profile.admit_requirements(
+                document["delivery_requirements"]
+            )
+        except ProductProfileError as exc:
+&gt;           raise DeliveryAdmissionError(f"tool-draft:{exc}") from exc
+E           repoproof.adoption.intake.tool_drafter.DeliveryAdmissionError: tool-draft:LIFECYCLE_MISMATCH
+
+src/repoproof/adoption/intake/tool_drafter.py:1192: DeliveryAdmissionError</failure></testcase></testsuite></testsuites>

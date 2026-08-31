@@ -422,6 +422,27 @@ def test_dashboard_keeps_recorded_and_operational_counts_separate(tmp_path: Path
 
 
 def test_product_argv_is_shell_free_and_contains_no_credentials(tmp_path: Path) -> None:
+    confirmed_delivery = {
+        "inputs": [{
+            "kind": "directory",
+            "location": "local",
+            "representation": "binary",
+            "format_label": "研究资料目录",
+            "role": "待整理资料",
+        }],
+        "outputs": [{
+            "kind": "directory",
+            "format_id": "workspace_bundle",
+            "format_label": "离线工作区",
+            "role": "可交接结果",
+        }],
+        "network": "offline",
+        "credentials": "none",
+        "lifecycle": "per_invocation",
+        "runtime": "local_cpu",
+        "browser": "none",
+        "external_side_effects": "none",
+    }
     argv = product_jobs.tool_add_argv(
         REPO,
         repo="https://github.com/acme/alpha",
@@ -429,11 +450,14 @@ def test_product_argv_is_shell_free_and_contains_no_credentials(tmp_path: Path) 
         draft_dir=tmp_path / "draft",
         revision="v1.0.0",
         fake_drafter=True,
+        authoritative_delivery_requirements=confirmed_delivery,
     )
     assert argv[-1] == "--fake-drafter"
     assert "https://github.com/acme/alpha" in argv
     assert not any("KEY" in arg or "TOKEN" in arg or "sk-" in arg for arg in argv)
     assert all(";" not in arg for arg in argv)
+    requirements_arg = argv[argv.index("--delivery-requirements-json") + 1]
+    assert json.loads(requirements_arg) == confirmed_delivery
 
 
 def test_review_editor_and_examples_only_write_inside_draft(

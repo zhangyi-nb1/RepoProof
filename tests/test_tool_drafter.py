@@ -669,6 +669,84 @@ def test_codex_repairs_contract_projection_with_same_bounded_policy(
     assert drafted["output_contract"]["required"] == {}
 
 
+def test_codex_compiles_human_confirmed_delivery_instead_of_model_echo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The model cannot redefine an already confirmed delivery topology."""
+
+    authoritative = _delivery("TXT", "plain_text")
+    echoed = _valid_projection_document(format_id="plain_text", required_fields=[])
+    echoed["delivery_requirements"]["lifecycle"] = "long_running"
+    drafter = object.__new__(CodexDrafter)
+    drafter.last_usage = {}
+    calls: list[dict] = []
+
+    def fake_structured(**kwargs):
+        calls.append(kwargs)
+        return echoed
+
+    monkeypatch.setattr(drafter, "_structured", fake_structured)
+
+    drafted = drafter.draft({
+        "capability_goal": "把本地输入整理成一次性生成的离线产物",
+        "authoritative_delivery_requirements": authoritative,
+    })
+
+    assert len(calls) == 1
+    assert drafted["delivery_requirements"] == authoritative
+    assert drafted["delivery_profile"] == "cli_v2"
+
+
+def test_litellm_compiles_human_confirmed_delivery_instead_of_model_echo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in (
+        ("REPOPROOF_DRAFTER_MODEL", "m"),
+        ("REPOPROOF_DRAFTER_BASE", "http://gateway.invalid"),
+        ("REPOPROOF_DRAFTER_KEY", "k"),
+    ):
+        monkeypatch.setenv(key, value)
+    authoritative = _delivery("TXT", "plain_text")
+    echoed = _valid_projection_document(format_id="plain_text", required_fields=[])
+    echoed["delivery_requirements"]["external_side_effects"] = "reversible"
+    calls = _stub_litellm(
+        monkeypatch,
+        [json.dumps(echoed, ensure_ascii=False)],
+    )
+
+    drafted = LiteLLMDrafter().draft({
+        "capability_goal": "把本地输入整理成一次性生成的离线产物",
+        "authoritative_delivery_requirements": authoritative,
+    })
+
+    assert calls["n"] == 1
+    assert drafted["delivery_requirements"] == authoritative
+    assert "authoritative_delivery_requirements" in calls["kwargs"][0]["messages"][1]["content"]
+
+
+def test_confirmed_unsupported_delivery_stops_before_drafter_call(world) -> None:
+    _, report, destination = world
+    unsupported = _delivery("TXT", "plain_text")
+    unsupported["credentials"] = "required"
+    calls = 0
+
+    class NeverCalledDrafter:
+        def draft(self, _context: dict) -> dict:
+            nonlocal calls
+            calls += 1
+            raise AssertionError("drafter must not run for unsupported delivery")
+
+    with pytest.raises(DeliveryAdmissionError, match="CREDENTIAL_MODE_MISMATCH"):
+        draft_into_bundle(
+            report,
+            destination,
+            NeverCalledDrafter(),
+            authoritative_delivery_requirements=unsupported,
+        )
+
+    assert calls == 0
+
+
 def test_litellm_gateway_calls_have_bounded_timeout_and_no_implicit_retries(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

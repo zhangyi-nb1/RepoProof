@@ -220,6 +220,16 @@ _SYSTEM = (
 
 _CODEX_DRAFT_SYSTEM = _SYSTEM
 
+_CONFIRMED_DELIVERY_INSTRUCTION = (
+    "When authoritative_delivery_requirements is present in the supplied context, "
+    "it is the exact delivery topology the human confirmed after Core admission. "
+    "Copy it byte-for-structure into delivery_requirements. You may propose task "
+    "semantics and the artifact contract, but you must not reinterpret network, "
+    "credentials, lifecycle, browser, runtime, side effects, cardinality, transport, "
+    "or input representation. Core will compile those machine-owned facts even if "
+    "your echo drifts."
+)
+
 _VERIFIER_SYSTEM = (
     "You draft ONLY an independent semantic verifier for a local-tool proposal. "
     "You are intentionally isolated from the reference implementation, golden "
@@ -1174,8 +1184,25 @@ def normalize_workspace_fixture_blueprints_document(
     return list(normalized)
 
 
-def normalize_draft_document(document: dict, *, capability_goal: str) -> dict:
-    """Validate model fields and compile delivery shape from the Core profile."""
+def normalize_draft_document(
+    document: dict,
+    *,
+    capability_goal: str,
+    authoritative_delivery_requirements: dict | None = None,
+) -> dict:
+    """Validate model fields and compile delivery shape from the Core profile.
+
+    A model may be the first proposer of a delivery topology.  Once the user has
+    explicitly adopted a supported proposal, however, that exact typed topology
+    becomes a Core-owned input.  The model's repeated copy is then explanatory
+    output, not authority: compiling from it again caused otherwise supported
+    tasks to be rejected when a drafter changed ``per_invocation`` or local
+    side-effect wording during the next call.
+
+    The authoritative value is still admitted through the ordinary Product
+    profile below.  This therefore cannot coerce a genuinely unsupported user
+    requirement into a supported one.
+    """
 
     try:
         import jsonschema
@@ -1183,11 +1210,14 @@ def normalize_draft_document(document: dict, *, capability_goal: str) -> dict:
         jsonschema.validate(document, _DRAFT_SCHEMA)
     except jsonschema.ValidationError as exc:
         raise DraftError("tool-draft:INVALID_DOCUMENT") from exc
+    raw_requirements = (
+        deepcopy(authoritative_delivery_requirements)
+        if authoritative_delivery_requirements is not None
+        else document["delivery_requirements"]
+    )
     try:
-        profile = select_product_delivery_profile(document["delivery_requirements"])
-        requirements, artifact = profile.admit_requirements(
-            document["delivery_requirements"]
-        )
+        profile = select_product_delivery_profile(raw_requirements)
+        requirements, artifact = profile.admit_requirements(raw_requirements)
     except ProductProfileError as exc:
         raise DeliveryAdmissionError(f"tool-draft:{exc}") from exc
     workspace_contract: WorkspaceArtifactContractV1 | None = None
@@ -1257,7 +1287,7 @@ def normalize_draft_document(document: dict, *, capability_goal: str) -> dict:
     normalized["output_format_id"] = artifact.format_id
     normalized["input_format"] = requirements.inputs[0].format_label
     normalized_requirements = requirements.model_dump(mode="json")
-    raw_requirements = document.get("delivery_requirements") or {}
+    raw_requirements = raw_requirements or {}
     for compatibility_default in ("browser", "external_side_effects"):
         if compatibility_default not in raw_requirements:
             normalized_requirements.pop(compatibility_default, None)
@@ -1298,17 +1328,22 @@ _PROJECTION_REPAIR_INSTRUCTION = (
 def _projection_repair_context(
     document: dict,
     error: DraftProjectionError,
+    *,
+    authoritative_delivery_requirements: dict | None = None,
 ) -> dict:
     """Return the bounded machine facts needed for representation-only repair."""
 
-    profile = select_product_delivery_profile(document["delivery_requirements"])
-    requirements, artifact = profile.admit_requirements(
-        document["delivery_requirements"]
+    raw_requirements = (
+        authoritative_delivery_requirements
+        if authoritative_delivery_requirements is not None
+        else document["delivery_requirements"]
     )
+    profile = select_product_delivery_profile(raw_requirements)
+    requirements, artifact = profile.admit_requirements(raw_requirements)
     return {
         "reason_code": str(error).removeprefix("tool-draft:"),
         "preserve_delivery_requirements": deepcopy(
-            document["delivery_requirements"]
+            requirements.model_dump(mode="json")
         ),
         "selected_artifact": {
             "profile_id": profile.profile_id,
@@ -1469,7 +1504,10 @@ class CodexDrafter:
 
     def draft(self, context: dict) -> dict:
         structured_context = _context_with_product_profile(context)
+        authoritative = context.get("authoritative_delivery_requirements")
         instructions = _CODEX_DRAFT_SYSTEM
+        if authoritative is not None:
+            instructions += "\n" + _CONFIRMED_DELIVERY_INSTRUCTION
         for attempt in (1, 2):
             document = self._structured(
                 instructions=instructions,
@@ -1481,6 +1519,7 @@ class CodexDrafter:
                 return normalize_draft_document(
                     document,
                     capability_goal=str(context.get("capability_goal") or ""),
+                    authoritative_delivery_requirements=authoritative,
                 )
             except DeliveryAdmissionError:
                 raise
@@ -1492,6 +1531,7 @@ class CodexDrafter:
                     "core_projection_repair": _projection_repair_context(
                         document,
                         exc,
+                        authoritative_delivery_requirements=authoritative,
                     ),
                 }
                 instructions = _CODEX_DRAFT_SYSTEM + "\n" + _PROJECTION_REPAIR_INSTRUCTION
@@ -1834,7 +1874,16 @@ class LiteLLMDrafter:
         user_msg = json.dumps(
             _context_with_product_profile(context), ensure_ascii=False, indent=1
         )
-        text = self._once(user_msg)
+        authoritative = context.get("authoritative_delivery_requirements")
+        system = _SYSTEM
+        if authoritative is not None:
+            system += "\n" + _CONFIRMED_DELIVERY_INSTRUCTION
+        text = self._once_with_system(
+            system,
+            user_msg,
+            schema=_DRAFT_SCHEMA,
+            schema_name="tool_draft",
+        )
         for attempt in (1, 2):
             try:
                 body = text.strip()
@@ -1845,6 +1894,7 @@ class LiteLLMDrafter:
                 return normalize_draft_document(
                     document,
                     capability_goal=str(context.get("capability_goal") or ""),
+                    authoritative_delivery_requirements=authoritative,
                 )
             except DeliveryAdmissionError:
                 # A well-formed but unsupported topology is an admission result,
@@ -1853,7 +1903,11 @@ class LiteLLMDrafter:
             except DraftProjectionError as exc:
                 if attempt == 2:
                     raise DraftError("tool-draft:INVALID_MODEL_OUTPUT") from exc
-                repair_context = _projection_repair_context(document, exc)
+                repair_context = _projection_repair_context(
+                    document,
+                    exc,
+                    authoritative_delivery_requirements=authoritative,
+                )
                 text = self._once(
                     user_msg
                     + "\n\n"
@@ -2287,14 +2341,35 @@ def _verifier_context(public_upstream: dict, drafted: dict) -> dict:
     }
 
 
-def draft_into_bundle(report: ToolIntakeReport, draft_dir: Path,
-                      drafter) -> dict:
+def draft_into_bundle(
+    report: ToolIntakeReport,
+    draft_dir: Path,
+    drafter,
+    *,
+    authoritative_delivery_requirements: dict | None = None,
+) -> dict:
     """起草并写回 draft 束;返回 {fields_drafted, skipped, meta_path}。"""
     draft_dir = Path(draft_dir)
     draft_p = draft_dir / DRAFT_YAML
     if not draft_p.is_file():
         raise DraftError(f"{DRAFT_YAML} 不存在:{draft_p}(先跑 tool-intake --draft-out)")
     public_context = _drafter_context(report.model_dump())
+    if authoritative_delivery_requirements is not None:
+        # Validate before any LLM call.  An unsupported adopted topology is a
+        # deterministic admission result and must consume neither drafting nor
+        # Agent/repair budget.
+        try:
+            selected = select_product_delivery_profile(
+                authoritative_delivery_requirements
+            )
+            admitted, _ = selected.admit_requirements(
+                authoritative_delivery_requirements
+            )
+        except ProductProfileError as exc:
+            raise DeliveryAdmissionError(f"tool-draft:{exc}") from exc
+        public_context["authoritative_delivery_requirements"] = (
+            admitted.model_dump(mode="json")
+        )
     drafted = drafter.draft(public_context)
     # A current Product draft may not smuggle its judge out of the same model
     # response that produced the reference implementation.  Requiring a second

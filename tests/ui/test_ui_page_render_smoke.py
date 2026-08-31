@@ -13,6 +13,7 @@ int[0,100] / float[0,1] —— 于是**用户盯着构建跑的时候**这一屏
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -582,6 +583,8 @@ def test_primary_journey_adopts_safe_llm_brief_without_creating_a_task(
     assert capability.value == recommended_text
     assert created == []
     assert "rp_pending_capability_adoption" not in at.session_state
+    adopted = at.session_state["rp_adopted_delivery_requirements"]
+    assert adopted["requirements"] == delivery("csv")
 
 
 def test_primary_journey_launches_only_the_explicitly_confirmed_final_text(
@@ -612,10 +615,13 @@ def test_primary_journey_launches_only_the_explicitly_confirmed_final_text(
         "create_journey",
         lambda **_kwargs: SimpleNamespace(journey_id="a" * 32),
     )
-    seen: dict[str, str] = {}
+    seen: dict[str, object] = {}
 
     def _start_tool_add(**kwargs):
         seen["capability"] = kwargs["capability"]
+        seen["delivery_requirements"] = kwargs[
+            "authoritative_delivery_requirements"
+        ]
         return {"ok": False, "error": "test stop"}
 
     monkeypatch.setattr(product_jobs, "start_tool_add", _start_tool_add)
@@ -624,6 +630,28 @@ def test_primary_journey_launches_only_the_explicitly_confirmed_final_text(
     at.session_state["rp_journey_repo"] = "https://github.com/example/demo"
     at.session_state["rp_journey_revision"] = "v1"
     at.session_state["rp_journey_capability"] = "先按模型建议整理资料。"
+    confirmed_delivery = {
+        "inputs": [{
+            "kind": "file", "location": "local",
+            "representation": "utf8_text", "format_label": "资料",
+            "role": "待整理内容",
+        }],
+        "outputs": [{
+            "kind": "text_artifact", "format_id": "markdown",
+            "format_label": "Markdown", "role": "整理结果",
+        }],
+        "network": "offline", "credentials": "none",
+        "lifecycle": "per_invocation", "runtime": "local_cpu",
+        "browser": "none", "external_side_effects": "none",
+    }
+    signature = hashlib.sha256(
+        b"https://github.com/example/demo\nv1"
+    ).hexdigest()
+    at.session_state["rp_adopted_delivery_requirements"] = {
+        "signature": signature,
+        "brief_id": "organize-notes",
+        "requirements": confirmed_delivery,
+    }
     at.run()
 
     next(
@@ -652,6 +680,7 @@ def test_primary_journey_launches_only_the_explicitly_confirmed_final_text(
     ).click().run()
 
     assert seen["capability"] == "把资料整理好，明确重复去掉，中文别乱码。"
+    assert seen["delivery_requirements"] == confirmed_delivery
 
 
 def test_primary_journey_rejects_stale_or_technical_brief_adoption(

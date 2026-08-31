@@ -1,0 +1,24 @@
+{
+  "affected_component": "Product draft delivery-authority projection across Studio, CLI, gateway and Codex drafters",
+  "after_control_sha256": "37193e6b299bdb0cb987721b3ed88161f22a955ed8af5476b051ab5b3e799d99",
+  "anonymous_fixture_id": "anonymous-machine-owned-delivery-projection-v1",
+  "before_control_sha256": "adaf914cfd09247efa01c951986443b305bc4b0b690a84ca8f6b13abc6e7e01d",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-08-31T14:49:00.000000Z",
+  "evidence_id": "harness-change-machine-owned-delivery-projection-v1",
+  "incident_ids": [
+    "incident-machine-owned-delivery-projection-c4-1ec428a",
+    "incident-machine-owned-delivery-projection-c5-a3d61c3"
+  ],
+  "invariant": "After a human adopts and explicitly confirms a Core-admitted delivery topology, that exact typed value is the sole authority for input and output transport, cardinality, representation, network, credentials, lifecycle, runtime, browser and external-side-effect policy. A drafting model may propose task semantics and artifact implementation but cannot redefine those machine-owned facts. Unsupported confirmed topology still stops before any LLM, Coding Agent or repair call.",
+  "normalized_fingerprint": "d6f973bd2beb43a1",
+  "regression_tests": [
+    "tests/test_tool_drafter.py",
+    "tests/test_product_action_and_journey.py",
+    "tests/test_product_incidents.py",
+    "tests/ui/test_ui_product_mode.py",
+    "tests/ui/test_ui_page_render_smoke.py"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

@@ -1,0 +1,27 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "repair_consumed": 0
+  },
+  "created_at": "2026-08-31T14:36:00.000000Z",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "1ec428ae097254187ed3e50fde524fcb6976dfe1",
+  "framework_tree_sha256": "17014ef3b9967ee8ddcac120d46692885d578a185a4cd944e1f78d3f6ad6ebbf",
+  "incident_id": "incident-machine-owned-delivery-projection-c4-1ec428a",
+  "normalized_fingerprint": "d6f973bd2beb43a1",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "64f27fa5a089fb94cfee3d80e43997daf6b8aba30c38e98702859051d04bf472",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft_projection::machine-owned-delivery-topology"
+  ],
+  "reason_codes": [
+    "MODEL_AUTHORED_MACHINE_TOPOLOGY_DRIFT"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}
