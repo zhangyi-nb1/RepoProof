@@ -1,0 +1,28 @@
+{
+  "agent_invoked": false,
+  "artifact_manifest_sha256": null,
+  "artifact_tree_sha256": null,
+  "case_name": "b2-csvkit-reconciliation-workspace",
+  "clean_replay": null,
+  "delivery_profile_id": "workspace_bundle_v1",
+  "failure_owner": "EXTERNAL",
+  "failure_stage": "CONTRACT_AUTHORING",
+  "fresh_audit": null,
+  "historical_verdict": null,
+  "journey_id": "a90d320c1d5c47aeaacf85295ca1f108",
+  "operational_status": null,
+  "package_health": null,
+  "reason_codes": [
+    "DRAFTER_INVALID_MODEL_OUTPUT"
+  ],
+  "recommended_action": "模型在一次起草和一次公开投影修正后仍未满足 workspace 合同协议；停止自动重试，不进入 Agent。保留本案例为合同起草失败终态，在后续独立仓库中继续观察同类公开指纹。",
+  "repair_attempts": 0,
+  "run_id": null,
+  "semantic_verifier_evidence": null,
+  "semantic_verifier_evidence_sha256": null,
+  "semantic_verifier_id": null,
+  "semantic_verifier_sha256": null,
+  "status": "FAILED",
+  "task_id": null,
+  "workspace_structure_passed": null
+}
