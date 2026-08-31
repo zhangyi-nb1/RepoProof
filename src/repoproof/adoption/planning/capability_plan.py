@@ -24,7 +24,13 @@ from pydantic import BaseModel, Field
 
 from repoproof.adoption.admission.support_policy import PolicyResult
 from repoproof.adoption.analysis.repository_analyzer import RepositoryReport
-from repoproof.adoption.delivery.product_profile import CLI_V2_PROFILE_ID
+from repoproof.adoption.delivery.product_profile import (
+    CLI_V2_PROFILE_ID,
+    WORKSPACE_BUNDLE_PROFILE_ID,
+    DeliveryRequirements,
+    ProductProfileError,
+    product_delivery_profile,
+)
 
 SCHEMA_VERSION = 1
 DELIVERY_PROFILE = CLI_V2_PROFILE_ID
@@ -77,6 +83,21 @@ class CapabilityPlanV1(BaseModel):
         return hashlib.sha256(raw).hexdigest()
 
     def seal(self) -> CapabilityPlanV1:
+        self.plan_sha256 = self.compute_sha256()
+        return self
+
+
+AdaptationShape = Literal["SINGLE_ARTIFACT", "WORKSPACE_COMPOSITION"]
+
+
+class CapabilityPlanV2(CapabilityPlanV1):
+    """Profile-aware plan without changing the frozen V1 representation."""
+
+    schema_version: Literal[2] = 2
+    adaptation_shape: AdaptationShape = "SINGLE_ARTIFACT"
+    delivery_requirements: DeliveryRequirements
+
+    def seal(self) -> CapabilityPlanV2:
         self.plan_sha256 = self.compute_sha256()
         return self
 
@@ -288,6 +309,80 @@ def build_capability_plan(root: Path, report: RepositoryReport,
     )
     if not str(report.commit.value or ""):
         plan.reason_codes = sorted(set(plan.reason_codes + ["COMMIT_UNRESOLVED"]))
+    return plan.seal()
+
+
+def build_capability_plan_v2(
+    root: Path,
+    report: RepositoryReport,
+    policy: PolicyResult,
+    *,
+    goal: str,
+    delivery_requirements: DeliveryRequirements | dict,
+) -> CapabilityPlanV2:
+    """Bind repository routing to one deterministically admitted delivery shape."""
+
+    try:
+        requirements = (
+            delivery_requirements
+            if isinstance(delivery_requirements, DeliveryRequirements)
+            else DeliveryRequirements.model_validate(delivery_requirements)
+        )
+    except ValueError as exc:
+        raise PlanError("DELIVERY_REQUIREMENTS_INVALID") from exc
+
+    base = build_capability_plan(root, report, policy, goal=goal)
+    output_kinds = {item.kind for item in requirements.outputs}
+    if output_kinds == {"directory"}:
+        profile_id = WORKSPACE_BUNDLE_PROFILE_ID
+        shape: AdaptationShape = "WORKSPACE_COMPOSITION"
+    elif output_kinds == {"text_artifact"}:
+        profile_id = CLI_V2_PROFILE_ID
+        shape = "SINGLE_ARTIFACT"
+    else:
+        profile_id = WORKSPACE_BUNDLE_PROFILE_ID
+        shape = "WORKSPACE_COMPOSITION"
+
+    delivery_codes: list[str] = []
+    if (
+        requirements.credentials == "required"
+        and requirements.external_side_effects == "irreversible"
+    ):
+        delivery_codes.append("UNSUPPORTED_CREDENTIALLED_EXTERNAL_SIDE_EFFECT")
+    try:
+        product_delivery_profile(profile_id).admit_requirements(requirements)
+    except ProductProfileError as exc:
+        delivery_codes.append(str(exc))
+
+    support_status = base.support_status
+    implementation_route = base.implementation_route
+    if delivery_codes:
+        support_status = "UNSUPPORTED"
+        implementation_route = "NONE"
+    elif profile_id == WORKSPACE_BUNDLE_PROFILE_ID and support_status == "SUPPORTED":
+        implementation_route = "AGENT_ADAPT"
+
+    confirmations = list(base.human_confirmations)
+    if profile_id == WORKSPACE_BUNDLE_PROFILE_ID:
+        confirmations.extend([
+            "workspace structure contract",
+            "workspace semantic commitments",
+            "bounded runtime entrypoints",
+        ])
+    plan = CapabilityPlanV2(
+        source=base.source,
+        capability_goal=base.capability_goal,
+        detected_surfaces=base.detected_surfaces,
+        support_status=support_status,
+        implementation_route=implementation_route,
+        delivery_profile=profile_id,
+        reason_codes=sorted(set(base.reason_codes + delivery_codes)),
+        risks=base.risks,
+        human_confirmations=list(dict.fromkeys(confirmations)),
+        confirmed=False,
+        adaptation_shape=shape,
+        delivery_requirements=requirements,
+    )
     return plan.seal()
 
 

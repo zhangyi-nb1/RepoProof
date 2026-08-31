@@ -5,10 +5,12 @@ from __future__ import annotations
 import pytest
 
 from repoproof.adoption.delivery.product_profile import (
+    WORKSPACE_BUNDLE_PROFILE_ID,
     ProductProfileError,
     delivery_requirements_json_schema,
     product_delivery_profile,
     project_requirement_brief,
+    select_product_delivery_profile,
 )
 
 
@@ -190,3 +192,81 @@ def test_adoptable_text_is_compiled_from_admitted_shape() -> None:
     assert "evidence label not copied" not in projected["text"]
     assert "一份Markdown 文档（.md）" in projected["text"]
     assert projected["delivery_shape"]["output_cardinality"] == 1
+
+
+@pytest.mark.parametrize("input_kind", ["file", "directory"])
+def test_workspace_bundle_profile_admits_one_local_input_path(input_kind: str) -> None:
+    profile = product_delivery_profile(WORKSPACE_BUNDLE_PROFILE_ID)
+    raw = _requirements(
+        output_format_id="workspace_bundle",
+        input_kind=input_kind,
+        output_kind="directory",
+    )
+
+    requirements, artifact = profile.admit_requirements(raw)
+
+    assert requirements.inputs[0].kind == input_kind
+    assert artifact.format_id == "workspace_bundle"
+    assert profile.prompt_context()["output"] == {
+        "kind": "directory",
+        "cardinality": 1,
+        "transport": "filesystem",
+        "workspace_contract_required": True,
+        "allowed_artifacts": [{
+            "format_id": "workspace_bundle",
+            "display_name": "离线多文件工作区",
+            "extension": "",
+            "media_type": "application/vnd.repoproof.workspace",
+        }],
+    }
+    with pytest.raises(ProductProfileError, match="WORKSPACE_CONTRACT_REQUIRED"):
+        profile.contract_for("workspace_bundle")
+
+
+def test_workspace_bundle_profile_rejects_service_and_remote_topologies() -> None:
+    profile = product_delivery_profile(WORKSPACE_BUNDLE_PROFILE_ID)
+    with pytest.raises(ProductProfileError, match="OUTPUT_TRANSPORT_MISMATCH"):
+        profile.admit_requirements(_requirements(
+            output_format_id="workspace_bundle",
+            output_kind="service",
+        ))
+    with pytest.raises(ProductProfileError, match="INPUT_SOURCE_MISMATCH"):
+        profile.admit_requirements(_requirements(
+            output_format_id="workspace_bundle",
+            input_kind="url",
+            input_location="remote",
+            output_kind="directory",
+        ))
+
+
+def test_workspace_requirement_brief_is_profile_compiled() -> None:
+    profile = product_delivery_profile(WORKSPACE_BUNDLE_PROFILE_ID)
+    raw = {
+        "brief_id": "workspace",
+        "title": "Workspace",
+        "scenario": "I need a reproducible research folder",
+        "delivery_requirements": _requirements(
+            output_format_id="workspace_bundle",
+            input_kind="directory",
+            output_kind="directory",
+        ),
+        "boundary": "do not contact remote services",
+        "reason": "Useful",
+    }
+
+    projected = project_requirement_brief(raw, profile)
+
+    assert "离线多文件工作区" in projected["text"]
+    assert projected["delivery_shape"]["profile_id"] == WORKSPACE_BUNDLE_PROFILE_ID
+    assert projected["delivery_shape"]["output_kind"] == "directory"
+
+
+def test_typed_directory_output_selects_workspace_profile_without_keywords() -> None:
+    requirements = _requirements(
+        output_format_id="workspace_bundle",
+        input_kind="directory",
+        output_kind="directory",
+    )
+    requirements["inputs"][0]["format_label"] = "ordinary local material"
+    selected = select_product_delivery_profile(requirements)
+    assert selected.profile_id == WORKSPACE_BUNDLE_PROFILE_ID

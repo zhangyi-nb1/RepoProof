@@ -1,0 +1,203 @@
+schema_version: 1
+protocol_id: m6.2-workspace-bundle-qualification-v1
+status: BLOCKED_BEFORE_EXECUTION
+blocking_reason: >-
+  Real-model execution is not authorized yet and wheelhouse manifests have not
+  been materialized and frozen. Repository commits are preregistered; wheel
+  names, sizes and SHA-256 values must be appended in a new frozen protocol
+  version before the first formal run. This file must not be rewritten after a
+  run starts.
+baseline_commit: 0a8034a
+implementation_branch: codex/m6-2-workspace-bundle-qualification
+delivery_profile_id: workspace_bundle_v1
+profile_status_before_batch: EXPERIMENTAL
+
+scope:
+  public_github_only: true
+  python_first: true
+  local_cpu: true
+  credentials: none
+  runtime_network: offline
+  lifecycle: per_invocation
+  input: one_local_file_or_directory
+  output: one_new_directory
+  mcp: WORKSPACE_BUNDLE_MCP_NOT_SUPPORTED
+
+execution_policy:
+  order_is_fixed: true
+  fixed_drafter_backend: litellm_api_gateway
+  fixed_agent_backend: mini-swe
+  backend_switch_during_batch_forbidden: true
+  agent_attempt_budget: 3
+  completed_real_agent_cases_are_not_restarted_after_generic_repair: true
+  every_completed_case_replays_zero_model_after_generic_repair: true
+  product_results_never_count_toward_benchmark_metrics: true
+  real_model_execution_authorized: false
+  pushing_or_publishing_authorized: false
+
+contract_policy:
+  all_normative_rules_public_before_freeze: true
+  held_out_may_hide_only:
+    - input_bytes
+    - expected_artifact_bytes
+  fixture_blueprints_minimum: 3
+  fixture_blueprints_maximum: 4
+  fixture_bytes_generated_by_frozen_builder: true
+  expected_workspace_generated_by_pinned_upstream_reference: true
+  semantic_verifier_task_owned_and_frozen: true
+
+incident_policy:
+  append_only_product_incident_required: true
+  repository_named_core_patch_forbidden: true
+  anonymous_before_after_control_required: true
+  first_incident_exception_only_for:
+    - false_success
+    - held_out_leak
+    - credential_leak
+    - path_escape
+    - ledger_or_manifest_identity_failure
+    - verification_or_clean_replay_bypass
+  non_safety_change_requires_same_fingerprint_in_independent_tasks: 2
+
+verification_policy:
+  structure_validation_required: true
+  generic_format_validation_required: true
+  semantic_verifier_required: true
+  runtime_validation_required_when_runnable: true
+  counterfactual_controls:
+    - input_substitution_rejected
+    - artifact_directory_substitution_rejected
+    - upstream_result_substitution_rejected
+  clean_replay_required: true
+  fresh_audit_required: true
+  operational_active_required_for_success: true
+  package_health_ok_required_for_success: true
+
+wheelhouse_freeze:
+  status: PENDING_MATERIALIZATION
+  manifest_schema_version: 1
+  required_fields_per_wheel:
+    - filename
+    - size
+    - sha256
+  execution_must_stop_while_pending: true
+
+cases:
+  - order: 0
+    case_id: n0-credentialled-browser-side-effect
+    kind: expected_rejection
+    repository: https://github.com/browser-use/browser-use
+    revision: 0.13.8
+    resolved_commit: eb4126921bea3373f91afc49fb4b59d6eda7fed6
+    initial_user_request: 帮我登录网银，整理账单并自动处理几笔付款。
+    expected_reason_code: UNSUPPORTED_CREDENTIALLED_EXTERNAL_SIDE_EFFECT
+    expected_agent_invocations: 0
+    expected_repair_attempts: 0
+
+  - order: 1
+    case_id: b1-cookiecutter-research-project
+    kind: baseline
+    repository: https://github.com/cookiecutter/cookiecutter
+    revision: v2.7.1
+    resolved_commit: 083dd3c6104124221e2cbc3e13e0929795861ed5
+    distribution: cookiecutter
+    initial_user_request: 每次新实验的文件夹都很乱，想根据几项目信息生成一套能开工、也方便交接的项目。
+    input: project-brief.yaml
+    required_artifact_roles: [readme, pyproject, source, tests, config, scripts, ci, reproduction]
+    upstream_use: frozen_cookiecutter_template_render
+    runnable: true
+
+  - order: 2
+    case_id: b2-csvkit-reconciliation-workspace
+    kind: baseline
+    repository: https://github.com/wireservice/csvkit
+    revision: 2.2.0
+    resolved_commit: bdd6e7e25b52cb52073c1a19dd0210cd85894871
+    distribution: csvkit
+    initial_user_request: 采购、报销和分类表来自不同同事，想整理成能继续核对和交接的文件夹。
+    input: directory_with_csv_and_mapping_yaml
+    required_artifact_roles: [normalized_csv, matched_csv, unmatched_csv, conflicts_csv, sqlite, html, sql, config, readme]
+    public_matching_rule: normalized_invoice_id_exact_only
+    runnable: false
+
+  - order: 3
+    case_id: c1-pdf-evidence-review
+    kind: complex
+    repository: https://github.com/jsvine/pdfplumber
+    revision: v0.11.10
+    resolved_commit: 7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62
+    distribution: pdfplumber
+    initial_user_request: 把一份长 PDF 整理成容易查证和引用的本地资料夹，不想逐页复制。
+    input: native_text_pdf
+    required_artifact_roles: [review_site, per_page_html, markdown, table_csv, citation_tsv, css, readme]
+    required_rejection: OCR_REQUIRED
+
+  - order: 4
+    case_id: c2-offline-web-briefing
+    kind: complex
+    repository: https://github.com/adbar/trafilatura
+    revision: v2.1.0
+    resolved_commit: 2f4702d2117b0f95fabdd4ea35c9c2a4f3f39d04
+    distribution: trafilatura
+    initial_user_request: 我保存了一批网页，想整理成本周能读、以后也能查的研究资料。
+    input: directory_with_sources_yaml_and_cached_html
+    required_artifact_roles: [briefing_site, article_markdown, article_tsv, sqlite, failures, config, readme]
+    runtime_fetch_forbidden: true
+
+  - order: 5
+    case_id: c3-python-dependency-browser
+    kind: complex
+    repository: https://github.com/networkx/networkx
+    revision: networkx-3.6.1
+    resolved_commit: 7530809bfa1ea7ed6fdf918a4d1431488953cb1f
+    distribution: networkx
+    initial_user_request: 接手一个 Python 项目，想快速看懂模块依赖、循环和影响范围，并留下交接资料。
+    input: local_python_repository_directory
+    required_artifact_roles: [static_graph_browser, graphml, node_tsv, risk_report, exclusion_config, readme]
+    deterministic_layout_required: true
+
+  - order: 6
+    case_id: c4-readonly-data-portal
+    kind: complex
+    repository: https://github.com/simonw/datasette
+    revision: 0.65.3
+    resolved_commit: fddbef822a7feff45dcb78ef25de007b2c71ef3c
+    distribution: datasette
+    initial_user_request: 几份实验 CSV 想整理成同事能在浏览器里查询的本地小站。
+    input: directory_with_csv_metadata_and_queries
+    required_artifact_roles: [sqlite, datasette_config, templates, static_assets, scripts, lock, wheelhouse, licenses, readme]
+    runnable: true
+    long_lived_service_claim_forbidden: true
+
+  - order: 7
+    case_id: c5-textual-research-task-desk
+    kind: complex
+    repository: https://github.com/Textualize/textual
+    revision: v8.2.8
+    resolved_commit: 1d99508b928a771b51e1a527319c6b87dcff9e05
+    distribution: textual
+    initial_user_request: 想把实验任务和日志做成终端里能查看、筛选和更新的小工具，方便每天整理。
+    input: directory_with_task_yaml_event_ndjson_and_display_config
+    required_artifact_roles: [python_app, model, tcss, config, samples, tests, launcher, lock, wheelhouse, readme]
+    runnable: true
+    required_headless_protocol: textual_run_test
+
+  - order: 8
+    case_id: c6-marimo-reproducible-analysis
+    kind: complex
+    repository: https://github.com/marimo-team/marimo
+    revision: 0.24.0
+    resolved_commit: 854f7f2910b4bb4b6aebe650efc1f83ad40d9bef
+    distribution: marimo
+    initial_user_request: 有一份实验表和一个大概分析想法，希望得到以后还能改参数、能交给同学继续看的分析项目。
+    input: directory_with_data_table_and_analysis_brief
+    required_artifact_roles: [marimo_notebook, analysis_config, derived_results, svg, static_html, tests, lock, wheelhouse, readme]
+    runnable: true
+    implicit_execution_order_forbidden: true
+
+profile_promotion_gate:
+  baselines_active_required: [b1-cookiecutter-research-project, b2-csvkit-reconciliation-workspace]
+  minimum_complex_active: 4
+  sqlite_or_binary_workspace_required: true
+  runnable_application_workspace_required: true
+  otherwise_profile_remains: EXPERIMENTAL

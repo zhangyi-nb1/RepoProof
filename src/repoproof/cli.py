@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -38,7 +39,10 @@ def _emit_tool_action(
     if result_path is not None:
         try:
             from repoproof.execution.product_action import (
+                ProductActionResult,
+                ProductActionResultV2,
                 action_result_from_payload,
+                workspace_action_result_from_payload,
                 write_product_action_result,
             )
 
@@ -46,21 +50,101 @@ def _emit_tool_action(
             if not job_id:
                 raise ValueError("--result-json 必须与 --job-id 同时使用")
             semantic_payload = {**payload, **(context or {})}
-            result = action_result_from_payload(
-                job_id=job_id,
-                journey_id=str(getattr(args, "journey_id", "") or ""),
-                action=action,
-                ok=exit_code == 0 and bool(payload.get("ok", True)),
-                payload=semantic_payload,
-            )
+            delivery_profile_id = _action_delivery_profile(semantic_payload)
+            journey_id = str(getattr(args, "journey_id", "") or "")
+            semantic_ok = exit_code == 0 and bool(payload.get("ok", True))
+            result: ProductActionResult
+            if delivery_profile_id == "workspace_bundle_v1":
+                result = workspace_action_result_from_payload(
+                    job_id=job_id,
+                    journey_id=journey_id,
+                    action=action,
+                    ok=semantic_ok,
+                    payload=semantic_payload,
+                    artifact_root=(
+                        semantic_payload.get("artifact_root")
+                        or semantic_payload.get("exported")
+                    ),
+                    artifact_tree_sha256=(
+                        semantic_payload.get("artifact_tree_sha256")
+                        or semantic_payload.get("semantic_verifier_artifact_tree_sha256")
+                    ),
+                    artifact_manifest_sha256=(
+                        semantic_payload.get("artifact_manifest_sha256")
+                        or semantic_payload.get("semantic_verifier_artifact_manifest_sha256")
+                    ),
+                    workspace_structure_passed=(
+                        semantic_payload.get("workspace_structure_passed")
+                        if type(semantic_payload.get("workspace_structure_passed")) is bool
+                        else None
+                    ),
+                )
+            else:
+                result = action_result_from_payload(
+                    job_id=job_id,
+                    journey_id=journey_id,
+                    action=action,
+                    ok=semantic_ok,
+                    payload=semantic_payload,
+                )
             write_product_action_result(Path(result_path), result)
-        except (OSError, TypeError, ValueError) as exc:
-            result_error = f"无法写入 ProductActionResultV1：{exc}"
+            if isinstance(result, ProductActionResultV2) and not result.ok:
+                from repoproof.persistence.product_incidents import (
+                    product_action_failure_incident,
+                    write_product_incident,
+                )
+                from repoproof.persistence.qualification_records import (
+                    qualification_framework_tree_sha256,
+                )
+
+                commit = subprocess.run(
+                    ["git", "-C", str(PROJECT_ROOT), "rev-parse", "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                ).stdout.strip()
+                incident = product_action_failure_incident(
+                    result,
+                    framework_git_commit=commit,
+                    framework_tree_sha256=qualification_framework_tree_sha256(
+                        PROJECT_ROOT / "src" / "repoproof"
+                    ),
+                )
+                write_product_incident(
+                    PROJECT_ROOT / "runs" / "product-incidents",
+                    incident,
+                )
+        except (OSError, RuntimeError, subprocess.SubprocessError, TypeError, ValueError) as exc:
+            result_error = f"无法写入 ProductActionResult：{exc}"
     print(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
     if result_error:
         print(result_error, file=sys.stderr)
         return 4
     return exit_code
+
+
+def _action_delivery_profile(payload: dict) -> str | None:
+    """Resolve the versioned delivery topology from trusted Core state.
+
+    New pipeline results include the profile directly.  During migration, a
+    frozen task contract is the fallback fact source; log text and UI state are
+    deliberately ignored.
+    """
+
+    direct = str(payload.get("delivery_profile_id") or "").strip()
+    if direct:
+        return direct
+    task_id = str(payload.get("task_id") or "").strip()
+    if not task_id:
+        return None
+    contract_path = PROJECT_ROOT / "contracts" / f"{task_id}.yaml"
+    try:
+        import yaml
+
+        document = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    except (OSError, TypeError, yaml.YAMLError):
+        return None
+    return str(((document.get("tool") or {}).get("delivery_profile_id")) or "").strip() or None
 
 
 def main(argv: list[str] | None = None) -> int:

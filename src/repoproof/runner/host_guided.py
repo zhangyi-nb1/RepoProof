@@ -848,7 +848,13 @@ class HostContract(BaseModel):
         # (冻结、台账可见);档口串本身进指纹/台账,杜绝跨代合池。
         # local-tool-v1(RFC-010 LOCAL-TOOL 谱系,2026-08-23):工具包骨架
         # 形态,渲染函数 _build_tool_prompt;与 delta 双档同律进指纹/台账。
-        known = {"offerclaw-v1", "hb-delta-v1", "hb-delta-v2", "local-tool-v1"}
+        known = {
+            "offerclaw-v1",
+            "hb-delta-v1",
+            "hb-delta-v2",
+            "local-tool-v1",
+            "workspace-tool-v1",
+        }
         if v not in known:
             # 打错字必须炸在加载期 —— 否则一个 typo 会静默落回缺省档,
             # 而缺省档的提示对 delta 宿主句句是假话。
@@ -1369,6 +1375,10 @@ def build_host_prompt(contract: HostContract, *, wheel_note: str,
     if contract.prompt_profile == "local-tool-v1":
         # 必须先于 source_repo 检查:工具契约声明与否上游源码树皆合法。
         return _build_tool_prompt(contract, wheel_note=wheel_note, budgets=budgets)
+    if contract.prompt_profile == "workspace-tool-v1":
+        return _build_workspace_tool_prompt(
+            contract, wheel_note=wheel_note, budgets=budgets
+        )
     if contract.prompt_profile in ("hb-delta-v1", "hb-delta-v2"):
         return _build_delta_prompt(contract, wheel_note=wheel_note, budgets=budgets)
     if contract.source_repo is None:
@@ -1578,6 +1588,83 @@ def _build_tool_prompt(contract: HostContract, *, wheel_note: str,
         "exit-code semantics, determinism, clean stdout), and a clean-room\n"
         "replay that rebuilds from requirements.lock.txt. There is no partial\n"
         "credit for claims.\n"
+        "When done, submit with: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT",
+    ]
+    return "\n\n".join(parts)
+
+
+def _build_workspace_tool_prompt(
+    contract: HostContract, *, wheel_note: str, budgets=None
+) -> str:
+    """workspace-tool-v1: one admitted path -> atomic offline workspace.
+
+    This prompt exposes every normative requirement to the agent while keeping
+    held-out fixture bytes and expected trees private.  Atomic placement,
+    containment, manifest generation and evidence remain Harness-owned; the
+    adapter owns only ``impl.build_workspace`` and its dependency lock.
+    """
+    cap = contract.capability
+    req_lines = [f"[{r.id}] {' '.join(r.text.split())}" for r in cap.requirements]
+    forbidden = [f"- {' '.join(f.split())}" for f in contract.constraints.forbidden]
+    b = budgets if budgets is not None else contract.budgets
+    public_cmd = " ".join(contract.acceptance.public_test_command)
+    upstream_line = (
+        "- ../upstream          read-only snapshot of the pinned upstream library;\n"
+        "  inspect and CALL it instead of reimplementing its capability.\n"
+        if contract.source_repo is not None
+        else ""
+    )
+    budget_line = (
+        f"- PER ROUND (reset each round): model calls {b.max_model_calls}, "
+        if b.per_round
+        else f"- WHOLE RUN: model calls {b.max_model_calls}, "
+    )
+    parts = [
+        "You are packaging ONE capability from a pinned open-source library into\n"
+        "an OFFLINE, MULTI-FILE LOCAL WORKSPACE TOOL. You work inside a disposable\n"
+        "tool-package snapshot. The public contract is complete; hidden tests only\n"
+        "hide concrete inputs and expected artifacts, never additional rules.",
+        f"GOAL\n{cap.statement.strip()}",
+        "REQUIREMENTS (each is independently verified)\n" + "\n".join(req_lines),
+        "THE WORKSPACE PACKAGE CONTRACT\n"
+        "- Implement ONLY src/*/impl.py: build_workspace(input_path, output_dir).\n"
+        "  It must CALL the pinned upstream library and populate output_dir.\n"
+        "- The Harness owns validation, temporary-directory cleanup, atomic final\n"
+        "  placement, directory manifests, tree hashes and evidence. Do not forge\n"
+        "  or emit those records yourself.\n"
+        "- Treat output_dir as an empty staging directory. Do not write outside it,\n"
+        "  overwrite the user's input, follow links, start daemons, use credentials,\n"
+        "  or access the network.\n"
+        "- Pin every dependency, including the upstream distribution, to an exact\n"
+        "  version in requirements.lock.txt. Clean replay installs only from the\n"
+        "  package-local offline wheelhouse.\n"
+        "- SKELETON ANCHORS ARE FROZEN: src/*/main.py, the portable runtime, bin/,\n"
+        "  build.sh, tool.json, pyproject.toml and public tests. Modifying one is\n"
+        "  instrument tampering, not a repair.",
+        "YOUR ENVIRONMENT\n"
+        "- You start in the tool package root; ./.venv is the tool virtualenv.\n"
+        + upstream_line
+        + "- Public checks (run them, never edit them):\n"
+        f"    {public_cmd}\n"
+        f"- pip is OFFLINE and resolves only from {wheel_note}.\n"
+        "- Command output is truncated around 8000 characters; inspect targeted\n"
+        "  ranges and individual files rather than dumping entire trees.",
+        "HARD RULES\n"
+        + "\n".join(forbidden)
+        + "\n- Never modify public_tests, public_examples, fixtures, contracts, oracle,"
+        " or controls.\n- STAY INSIDE THE WORKSPACE; filesystem-wide discovery and access to hidden"
+        " acceptance material are denied.",
+        "BUDGETS\n"
+        + budget_line
+        + f"executed commands {b.max_commands}, input/output token allowance "
+        f"{b.max_input_tokens_total}/{b.max_output_tokens_total}; patch budget "
+        f"{b.max_patch_files} files / {b.max_patch_lines} lines; wall time "
+        f"{b.max_wall_time_minutes} minutes.\n"
+        "Acceptance is judged independently by public and held-out workspace\n"
+        "examples, the frozen structure contract, generic format checks, the\n"
+        "task semantic verifier, runnable smoke checks where declared, upstream\n"
+        "call evidence and clean-room replay. Hardcoding public fixture trees or\n"
+        "claiming completion cannot pass.\n"
         "When done, submit with: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT",
     ]
     return "\n\n".join(parts)

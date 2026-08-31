@@ -2025,9 +2025,21 @@ MUTATIONS: list[dict] = [
         "lesson": "prompt_profile 打错字静默落回缺省档,而缺省档对 delta 宿主"
                   "句句是假话",
         "file": _HD,
-        "old": "        known = {\"offerclaw-v1\", \"hb-delta-v1\", \"hb-delta-v2\", \"local-tool-v1\"}\n"
+        "old": "        known = {\n"
+               "            \"offerclaw-v1\",\n"
+               "            \"hb-delta-v1\",\n"
+               "            \"hb-delta-v2\",\n"
+               "            \"local-tool-v1\",\n"
+               "            \"workspace-tool-v1\",\n"
+               "        }\n"
                "        if v not in known:",
-        "new": "        known = {\"offerclaw-v1\", \"hb-delta-v1\", \"hb-delta-v2\", \"local-tool-v1\"}\n"
+        "new": "        known = {\n"
+               "            \"offerclaw-v1\",\n"
+               "            \"hb-delta-v1\",\n"
+               "            \"hb-delta-v2\",\n"
+               "            \"local-tool-v1\",\n"
+               "            \"workspace-tool-v1\",\n"
+               "        }\n"
                "        if False:",
         "catchers": _T_HTG,
         "expected_catcher": ["test_g2d_unknown_prompt_profile_refused"],
@@ -2878,8 +2890,19 @@ MUTATIONS: list[dict] = [
                   "更糟:若校验也松了,typo 静默落回缺省档,对 delta 宿主"
                   "句句是假话的提示照发(档口注册与校验是一体两面)",
         "file": _HD,
-        "old": '        known = {"offerclaw-v1", "hb-delta-v1", "hb-delta-v2", "local-tool-v1"}',
-        "new": '        known = {"offerclaw-v1", "hb-delta-v1", "local-tool-v1"}',
+        "old": "        known = {\n"
+               "            \"offerclaw-v1\",\n"
+               "            \"hb-delta-v1\",\n"
+               "            \"hb-delta-v2\",\n"
+               "            \"local-tool-v1\",\n"
+               "            \"workspace-tool-v1\",\n"
+               "        }",
+        "new": "        known = {\n"
+               "            \"offerclaw-v1\",\n"
+               "            \"hb-delta-v1\",\n"
+               "            \"local-tool-v1\",\n"
+               "            \"workspace-tool-v1\",\n"
+               "        }",
         "catchers": _T_HTP,
         "expected_catcher": [
             "test_p3v2_v2_contract_and_manifest_pins"],

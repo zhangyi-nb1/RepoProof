@@ -14,6 +14,7 @@ must be recreated through the current intake flow.
 from __future__ import annotations
 
 import ast
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,6 +33,10 @@ from repoproof.adoption.assembly.output_contract import (
     is_capability_output_invocation,
     validate_output_text,
 )
+from repoproof.adoption.assembly.workspace_tool_assembler import (
+    WorkspaceGoldenExampleV1,
+    workspace_truth_binding_sha256,
+)
 from repoproof.adoption.delivery.product_profile import (
     ProductProfileError,
     product_delivery_profile,
@@ -41,18 +46,28 @@ from repoproof.adoption.intake.intent_contract import (
     validate_intent_contract,
 )
 from repoproof.adoption.intake.upstream_pin import derive_reference_lock
+from repoproof.adoption.intake.workspace_fixtures import FixtureBlueprintV1
 from repoproof.domain.models import ToolOutputContract, ToolSpec
+from repoproof.execution.workspace_bundle import (
+    WorkspaceBundleError,
+    build_artifact_manifest,
+    identify_input_path,
+)
 
 DRAFT_READINESS_SCHEMA_VERSION = 1
 CURRENT_TOOL_SCHEMA_VERSION = 3
+CURRENT_WORKSPACE_TOOL_SCHEMA_VERSION = 4
 CURRENT_DELIVERY_PROFILE_SCHEMA_VERSION = 1
 MINIMUM_EXAMPLES = 3
 
 DRAFT_YAML = "draft.yaml"
 EXAMPLES_YAML = "examples.yaml"
+WORKSPACE_EXAMPLES_YAML = "workspace_examples.yaml"
 REFERENCE_PY = "reference_impl.py"
 REFERENCE_LOCK = "reference.lock.txt"
 SEMANTIC_VERIFIER_PY = "semantic_verifier.py"
+FIXTURE_BUILDER_PY = "fixture_builder.py"
+FIXTURE_BLUEPRINTS_JSON = "fixture_blueprints.json"
 
 _EXACT_PIN_RE = re.compile(
     r"[A-Za-z0-9][A-Za-z0-9._-]*==[A-Za-z0-9][A-Za-z0-9._+!-]*"
@@ -573,6 +588,142 @@ def _read_examples(
     return examples
 
 
+def _read_workspace_examples(
+    draft_dir: Path,
+    issues: list[_Issue],
+    tool: ToolSpec | None,
+) -> list[WorkspaceGoldenExampleV1]:
+    path = draft_dir / WORKSPACE_EXAMPLES_YAML
+    source = _read_text(path)
+    if source is None:
+        _append(
+            issues,
+            "WORKSPACE_EXAMPLES_DOCUMENT_MISSING",
+            f"D:{WORKSPACE_EXAMPLES_YAML} 缺失",
+        )
+        return []
+    try:
+        document = yaml.safe_load(source) or {}
+    except yaml.YAMLError:
+        document = None
+    if not isinstance(document, dict) or not isinstance(document.get("examples"), list):
+        _append(
+            issues,
+            "WORKSPACE_EXAMPLES_DOCUMENT_INVALID",
+            f"D:{WORKSPACE_EXAMPLES_YAML}.examples 必须为列表",
+        )
+        return []
+    examples: list[WorkspaceGoldenExampleV1] = []
+    for index, raw in enumerate(document["examples"], start=1):
+        try:
+            example = WorkspaceGoldenExampleV1.model_validate(raw)
+        except ValidationError as exc:
+            _append(
+                issues,
+                "WORKSPACE_EXAMPLE_INVALID",
+                f"D:workspace example {index} 非法:{exc}",
+            )
+            continue
+        examples.append(example)
+        if tool is None or tool.workspace_contract is None:
+            continue
+        try:
+            input_identity = identify_input_path(
+                draft_dir / "examples" / example.input_path
+            )
+            expected = build_artifact_manifest(
+                draft_dir / "examples" / example.expected_dir,
+                tool.workspace_contract.limits,
+            )
+        except WorkspaceBundleError as exc:
+            _append(
+                issues,
+                "WORKSPACE_EXAMPLE_PATH_INVALID",
+                f"D:workspace example {index} 不安全或不可读取:{exc.code}",
+            )
+            continue
+        binding = workspace_truth_binding_sha256(
+            input_identity.sha256,
+            expected.tree_sha256,
+        )
+        if binding != example.truth_binding_sha256:
+            _append(
+                issues,
+                "WORKSPACE_EXAMPLE_TRUTH_BINDING_INVALID",
+                f"D:workspace example {index} 输入/期望目录绑定已漂移",
+            )
+    if len(examples) < MINIMUM_EXAMPLES:
+        _append(
+            issues,
+            "EXAMPLES_INSUFFICIENT",
+            f"D:workspace examples 仅 {len(examples)} 组(需 >={MINIMUM_EXAMPLES})",
+        )
+    return examples
+
+
+def _check_workspace_fixture_assets(
+    draft_dir: Path,
+    issues: list[_Issue],
+    tool: ToolSpec | None,
+) -> None:
+    """Require one frozen builder protocol and 3-4 typed scenario blueprints."""
+
+    builder_source = _read_text(draft_dir / FIXTURE_BUILDER_PY)
+    if builder_source is None:
+        _append(
+            issues,
+            "FIXTURE_BUILDER_MISSING",
+            f"D:{FIXTURE_BUILDER_PY} 缺失",
+        )
+    else:
+        builder_tree = _parse_python(
+            builder_source,
+            code="FIXTURE_BUILDER_INVALID_PYTHON",
+            problem="D:fixture builder 不是合法 Python",
+            issues=issues,
+        )
+        if builder_tree is not None and _sync_function(
+            builder_tree,
+            "build",
+            positional_arguments=2,
+        ) is None:
+            _append(
+                issues,
+                "FIXTURE_BUILDER_PROTOCOL_INVALID",
+                "D:fixture builder 必须定义同步 build(blueprint, output_path)",
+            )
+
+    source = _read_text(draft_dir / FIXTURE_BLUEPRINTS_JSON)
+    if source is None:
+        _append(
+            issues,
+            "FIXTURE_BLUEPRINTS_MISSING",
+            f"D:{FIXTURE_BLUEPRINTS_JSON} 缺失",
+        )
+        return
+    try:
+        document = json.loads(source)
+        rows = document.get("blueprints") if isinstance(document, dict) else None
+        if not isinstance(rows, list) or not 3 <= len(rows) <= 4:
+            raise ValueError("fixture blueprints must contain 3-4 rows")
+        blueprints = [FixtureBlueprintV1.model_validate(item) for item in rows]
+    except (ValueError, ValidationError, json.JSONDecodeError):
+        _append(
+            issues,
+            "FIXTURE_BLUEPRINTS_INVALID",
+            "D:fixture blueprints 必须是 3-4 个安全、类型化的自然场景",
+        )
+        return
+    if tool is not None and any(
+        item.input_kind != tool.interface.input.kind for item in blueprints
+    ):
+        _append(
+            issues,
+            "FIXTURE_BLUEPRINT_INPUT_KIND_MISMATCH",
+            "D:fixture blueprint 的 file/directory 类型与工具输入合同不一致",
+        )
+
+
 def _resolve_dependency_lock(
     draft: dict,
     draft_dir: Path,
@@ -627,14 +778,20 @@ def _compatibility(draft: dict) -> tuple[bool, bool, list[_Issue]]:
     issues: list[_Issue] = []
     tool = _mapping(draft.get("tool"))
     raw_version = tool.get("schema_version")
-    current = raw_version == CURRENT_TOOL_SCHEMA_VERSION
+    delivery = _mapping(draft.get("_delivery_profile"))
+    expected_version = (
+        CURRENT_WORKSPACE_TOOL_SCHEMA_VERSION
+        if delivery.get("profile_id") == "workspace_bundle_v1"
+        else CURRENT_TOOL_SCHEMA_VERSION
+    )
+    current = raw_version == expected_version
     if not current:
         _append(
             issues,
             "TOOL_SPEC_VERSION_NOT_CURRENT",
             (
-                f"D:tool.schema_version 必须为 {CURRENT_TOOL_SCHEMA_VERSION} —— "
-                "旧 v1/v2 只保留历史语义，不得原地升级"
+                f"D:tool.schema_version 必须为 {expected_version} —— "
+                "旧版本只保留历史语义，不得原地升级"
             ),
         )
 
@@ -658,7 +815,6 @@ def _compatibility(draft: dict) -> tuple[bool, bool, list[_Issue]]:
                 "D:_intent_contract 不是当前 v1 结构",
             )
 
-    delivery = _mapping(draft.get("_delivery_profile"))
     delivery_compatible = delivery.get("schema_version") == (
         CURRENT_DELIVERY_PROFILE_SCHEMA_VERSION
     )
@@ -781,9 +937,14 @@ def _evaluate(
         parsed_tool = None
         _append(issues, "TOOL_SPEC_INVALID", f"D:tool 分节非法:{exc}")
     output_contract: ToolOutputContract | None = None
+    workspace_profile = str(delivery.get("profile_id") or "") == (
+        "workspace_bundle_v1"
+    )
     if current:
         raw_contract = output_interface.get("contract")
-        if not _nonempty(raw_contract):
+        if workspace_profile:
+            output_contract = None
+        elif not _nonempty(raw_contract):
             _append(
                 issues,
                 "OUTPUT_CONTRACT_MISSING",
@@ -807,18 +968,27 @@ def _evaluate(
                     "DELIVERY_INTERFACE_UNSUPPORTED",
                     f"D:交付接口超出声明支持面:{exc}",
                 )
-        if parsed_tool is not None and parsed_tool.schema_version != (
-            CURRENT_TOOL_SCHEMA_VERSION
-        ):
+        expected_schema = (
+            CURRENT_WORKSPACE_TOOL_SCHEMA_VERSION
+            if workspace_profile
+            else CURRENT_TOOL_SCHEMA_VERSION
+        )
+        if parsed_tool is not None and parsed_tool.schema_version != expected_schema:
             # ToolSpec intentionally loads historical versions.  Product draft
             # currentness remains the explicit policy above.
             parsed_tool = None
 
-    examples = _read_examples(
-        draft_dir,
-        issues,
-        output_contract=output_contract,
+    examples = (
+        _read_workspace_examples(draft_dir, issues, parsed_tool)
+        if workspace_profile
+        else _read_examples(
+            draft_dir,
+            issues,
+            output_contract=output_contract,
+        )
     )
+    if workspace_profile:
+        _check_workspace_fixture_assets(draft_dir, issues, parsed_tool)
 
     import_module = str(source_repo.get("import_module") or "")
     reference_source = _read_text(draft_dir / REFERENCE_PY)
@@ -832,18 +1002,27 @@ def _evaluate(
             issues=issues,
         )
         if reference_tree is not None:
-            extract = _sync_function(
+            reference_name = "build_workspace" if workspace_profile else "extract"
+            reference_arguments = 2 if workspace_profile else 1
+            reference_function = _sync_function(
                 reference_tree,
-                "extract",
-                positional_arguments=1,
+                reference_name,
+                positional_arguments=reference_arguments,
             )
-            if extract is None or not _has_value_return(extract):
+            incomplete = reference_function is None or (
+                not workspace_profile and not _has_value_return(reference_function)
+            )
+            if incomplete:
                 _append(
                     issues,
                     "REFERENCE_PROTOCOL_INVALID",
                     (
                         "D:reference_impl 仍是骨架或协议不完整 —— "
-                        "必须定义有返回值的同步 extract(input_path)"
+                        + (
+                            "必须定义同步 build_workspace(input_path, output_dir)"
+                            if workspace_profile
+                            else "必须定义有返回值的同步 extract(input_path)"
+                        )
                     ),
                 )
             if import_module and not _imports_module(reference_tree, import_module):

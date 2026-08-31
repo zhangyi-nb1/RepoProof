@@ -43,6 +43,7 @@ from repoproof.runner.tool_release import (
 
 REGISTRY_NAME = tool_registry.REGISTRY_NAME
 
+
 def project_root() -> Path:
     return Path(__file__).resolve().parents[4]
 
@@ -121,15 +122,11 @@ def list_tools(dest_root: Path | None = None) -> dict[str, Any]:
         core_rows = tool_registry.list_tools(root, scan=False)
     except ReleaseLedgerError as exc:
         result["release_error"] = str(exc)
-        result["projection_errors"] = [
-            {"reason_code": "RELEASE_LEDGER_INVALID", "detail": str(exc)}
-        ]
+        result["projection_errors"] = [{"reason_code": "RELEASE_LEDGER_INVALID", "detail": str(exc)}]
         return result
     except (OSError, UnicodeError, ValueError, ToolPathError) as exc:
         result["registry_error"] = str(exc)
-        result["projection_errors"] = [
-            {"reason_code": "TOOL_REGISTRY_INVALID", "detail": str(exc)}
-        ]
+        result["projection_errors"] = [{"reason_code": "TOOL_REGISTRY_INVALID", "detail": str(exc)}]
         return result
 
     result["tools"] = [_project_tool(row, root) for row in core_rows]
@@ -154,22 +151,12 @@ def dashboard_snapshot(
     library = list_tools(dest_root)
     tools = library["tools"]
     metrics = load_recorded_metrics(root)
-    operational = {
-        key: 0 for key in ("ACTIVE", "REVIEW_REQUIRED", "REVOKED", "UNVERIFIED")
-    }
+    operational = {key: 0 for key in ("ACTIVE", "REVIEW_REQUIRED", "REVOKED", "UNVERIFIED")}
     for tool in tools:
         status = tool["operational_status"]
         operational[status] = operational.get(status, 0) + 1
-    verified = sum(
-        1
-        for tool in tools
-        if is_historical_tool_ready(tool.get("historical_verdict"))
-    )
-    reason_codes = Counter(
-        code
-        for tool in tools
-        for code in tool.get("reason_codes", [])
-    )
+    verified = sum(1 for tool in tools if is_historical_tool_ready(tool.get("historical_verdict")))
+    reason_codes = Counter(code for tool in tools for code in tool.get("reason_codes", []))
     return {
         **library,
         "metrics": metrics,
@@ -200,19 +187,14 @@ def default_output_contract(format_name: str) -> dict[str, Any]:
             root_type="text",
         )
     elif family == "json_lines":
-        contract = ToolOutputContract(
-            media_type="application/x-ndjson", root_type="json_lines"
-        )
+        contract = ToolOutputContract(media_type="application/x-ndjson", root_type="json_lines")
     else:
         # root_type 是 Literal 字面量集合;经 dict.get 会退化成 str,
         # 显式分支保住字面量身份(拼错的键会在这里当场露馅)
         root_type: Literal["object", "array", "json"] = (
-            "object" if family == "json_object"
-            else "array" if family == "json_array"
-            else "json")
-        contract = ToolOutputContract(
-            media_type="application/json", root_type=root_type
+            "object" if family == "json_object" else "array" if family == "json_array" else "json"
         )
+        contract = ToolOutputContract(media_type="application/json", root_type=root_type)
     return contract.model_dump(mode="json")
 
 
@@ -241,23 +223,15 @@ def parse_output_contract(
                 contract=contract,
             )
         except ProductProfileError as exc:
-            return None, [
-                "OUTPUT_CONTRACT_PROFILE_MISMATCH: "
-                f"合同不是当前支持面编译结果（{exc}）"
-            ]
+            return None, [f"OUTPUT_CONTRACT_PROFILE_MISMATCH: 合同不是当前支持面编译结果（{exc}）"]
     elif not output_contract_matches_format(output_format, contract):
-        return None, [
-            "OUTPUT_CONTRACT_FORMAT_MISMATCH: "
-            "output.format 与可执行输出合同的 root_type 不一致"
-        ]
+        return None, ["OUTPUT_CONTRACT_FORMAT_MISMATCH: output.format 与可执行输出合同的 root_type 不一致"]
     return contract, []
 
 
 def _safe_example_path(root: Path, relative: str) -> Path | None:
     candidate = Path(relative)
-    if candidate.is_absolute() or any(
-        part in {"", ".", ".."} for part in candidate.parts
-    ):
+    if candidate.is_absolute() or any(part in {"", ".", ".."} for part in candidate.parts):
         return None
     resolved_root = root.resolve()
     resolved = (root / candidate).resolve()
@@ -279,9 +253,7 @@ def validate_draft_output_examples(draft_dir: Path) -> dict[str, Any]:
     draft_dir = Path(draft_dir)
     errors: list[str] = []
     try:
-        draft = yaml.safe_load(
-            (draft_dir / "draft.yaml").read_text(encoding="utf-8")
-        )
+        draft = yaml.safe_load((draft_dir / "draft.yaml").read_text(encoding="utf-8"))
         if not isinstance(draft, dict):
             raise ValueError("draft.yaml 必须是 object")
         spec = ToolSpec.model_validate(draft.get("tool"))
@@ -293,18 +265,70 @@ def validate_draft_output_examples(draft_dir: Path) -> dict[str, Any]:
         }
 
     output = spec.interface.output
-    if spec.schema_version < 2:
-        errors.append(
-            "TOOL_SCHEMA_VERSION_UNSUPPORTED: 新构建不得用 v1 绕过输出合同门"
+    if spec.schema_version == 4:
+        from repoproof.adoption.assembly.workspace_tool_assembler import (
+            WorkspaceGoldenExampleV1,
+            workspace_truth_binding_sha256,
         )
+        from repoproof.execution.workspace_bundle import (
+            build_artifact_manifest,
+            identify_input_path,
+        )
+
+        workspace_contract = spec.workspace_contract
+        if spec.delivery_profile_id != "workspace_bundle_v1" or workspace_contract is None:
+            errors.append("WORKSPACE_CONTRACT_MISSING: v4 必须声明 workspace_bundle_v1 目录合同")
+        try:
+            examples_doc = yaml.safe_load((draft_dir / "workspace_examples.yaml").read_text(encoding="utf-8"))
+            raw_examples = (examples_doc or {}).get("examples")
+            if not isinstance(raw_examples, list) or len(raw_examples) < 3:
+                raise ValueError("workspace examples 必须至少包含 3 组")
+        except (OSError, UnicodeError, ValueError, yaml.YAMLError) as exc:
+            errors.append(f"WORKSPACE_EXAMPLES_INVALID: {exc}")
+            raw_examples = []
+        examples_root = draft_dir / "examples"
+        for index, raw in enumerate(raw_examples, start=1):
+            try:
+                workspace_example = WorkspaceGoldenExampleV1.model_validate(raw)
+                input_path = _safe_example_path(examples_root, workspace_example.input_path)
+                expected_dir = _safe_example_path(examples_root, workspace_example.expected_dir)
+                if (
+                    input_path is None
+                    or expected_dir is None
+                    or input_path.is_symlink()
+                    or expected_dir.is_symlink()
+                    or not (input_path.is_file() or input_path.is_dir())
+                    or not expected_dir.is_dir()
+                ):
+                    raise ValueError("输入或期望工作区不存在/类型不安全")
+                binding = workspace_truth_binding_sha256(
+                    identify_input_path(input_path).sha256,
+                    build_artifact_manifest(
+                        expected_dir,
+                        limits=(workspace_contract.limits if workspace_contract is not None else None),
+                    ).tree_sha256,
+                )
+                if binding != workspace_example.truth_binding_sha256:
+                    raise ValueError("目录真值绑定漂移")
+            except (OSError, ValueError, ValidationError) as exc:
+                errors.append(f"WORKSPACE_EXAMPLE_INVALID: example={index} {exc}")
+        return {
+            "ok": not errors,
+            "structured": True,
+            "artifact_kind": "directory",
+            "errors": errors,
+            "workspace_contract": (
+                workspace_contract.model_dump(mode="json") if workspace_contract is not None else None
+            ),
+        }
+    if spec.schema_version < 2:
+        errors.append("TOOL_SCHEMA_VERSION_UNSUPPORTED: 新构建不得用 v1 绕过输出合同门")
     if spec.schema_version >= 2 and output.contract is None:
         errors.append("OUTPUT_CONTRACT_MISSING: v2 工具必须声明完整输出合同")
     contract = output.contract
     if contract is not None and spec.schema_version >= 3:
         try:
-            intent = IntentContractDraftV1.model_validate(
-                draft.get("_intent_contract")
-            )
+            intent = IntentContractDraftV1.model_validate(draft.get("_intent_contract"))
             if intent.delivery is None:
                 raise ProductProfileError("DELIVERY_INTENT_MISSING")
             profile = product_delivery_profile(intent.delivery.profile_id)
@@ -315,23 +339,17 @@ def validate_draft_output_examples(draft_dir: Path) -> dict[str, Any]:
             )
         except (ProductProfileError, ValueError) as exc:
             errors.append(f"OUTPUT_CONTRACT_PROFILE_MISMATCH: {exc}")
-    elif contract is not None and not output_contract_matches_format(
-        output.format, contract
-    ):
+    elif contract is not None and not output_contract_matches_format(output.format, contract):
         # Historical v1/v2 drafts predate the typed delivery intent.  Keep the
         # old label bridge read-only; it never admits a new v3 Product task.
-        errors.append(
-            "OUTPUT_CONTRACT_FORMAT_MISMATCH: output.format 与输出合同不一致"
-        )
+        errors.append("OUTPUT_CONTRACT_FORMAT_MISMATCH: output.format 与输出合同不一致")
 
     # Executable structure is a contract property.  Human labels are allowed to
     # vary without changing whether a complete exact golden is required.
     structured = contract is not None and contract.root_type != "text"
     exact_structured = False
     try:
-        examples_doc = yaml.safe_load(
-            (draft_dir / "examples.yaml").read_text(encoding="utf-8")
-        )
+        examples_doc = yaml.safe_load((draft_dir / "examples.yaml").read_text(encoding="utf-8"))
         raw_examples = (examples_doc or {}).get("examples")
         if not isinstance(raw_examples, list):
             raise ValueError("examples 必须是 list")
@@ -353,9 +371,7 @@ def validate_draft_output_examples(draft_dir: Path) -> dict[str, Any]:
         if example.expected_file is not None:
             path = _safe_example_path(examples_root, example.expected_file)
             if path is None:
-                errors.append(
-                    f"GOLDEN_PATH_INVALID: example={index} expected_file 越界"
-                )
+                errors.append(f"GOLDEN_PATH_INVALID: example={index} expected_file 越界")
                 continue
             try:
                 golden = path.read_text(encoding="utf-8")
@@ -372,9 +388,7 @@ def validate_draft_output_examples(draft_dir: Path) -> dict[str, Any]:
                 errors.append(f"GOLDEN_OUTPUT_INVALID: example={index} {detail}")
 
     if structured and not exact_structured:
-        errors.append(
-            "EXACT_STRUCTURED_GOLDEN_MISSING: JSON 家族至少需要一组完整精确真值"
-        )
+        errors.append("EXACT_STRUCTURED_GOLDEN_MISSING: JSON 家族至少需要一组完整精确真值")
     return {
         "ok": not errors,
         "structured": structured,
@@ -383,9 +397,7 @@ def validate_draft_output_examples(draft_dir: Path) -> dict[str, Any]:
     }
 
 
-def next_task_version_preview(
-    tool_name: str, root: Path | None = None
-) -> dict[str, str]:
+def next_task_version_preview(tool_name: str, root: Path | None = None) -> dict[str, str]:
     """Read-only preview; the assembler remains authoritative at build time."""
 
     task_id = next_tool_task_id(Path(root or project_root()), tool_name)
@@ -453,7 +465,7 @@ def parse_build_summary(log_text: str) -> dict | None:
                 depth -= 1
                 if depth == 0:
                     try:
-                        doc = _json.loads(text[start:end + 1])
+                        doc = _json.loads(text[start : end + 1])
                     except ValueError:
                         break
                     if isinstance(doc, dict) and "stages" in doc:
@@ -466,16 +478,14 @@ def parse_build_summary(log_text: str) -> dict | None:
 def build_conclusion(summary: dict) -> dict:
     """构建结论的人读投影(路线/终止码/归因),供活动页渲染。"""
     stages = summary.get("stages") or {}
-    route = ((stages.get("route") or {}).get("route")
-             or ("DIRECT_WRAP" if "direct" in stages else "AGENT_ADAPT"))
+    route = (stages.get("route") or {}).get("route") or ("DIRECT_WRAP" if "direct" in stages else "AGENT_ADAPT")
     seg = stages.get("direct") or stages.get("real") or {}
     stop = seg.get("product_stop_code") or ""
     fa = seg.get("failure_assessment") or {}
     return {
         "route": route,
         "route_label": ROUTE_LABELS.get(route, route),
-        "agent_invoked": bool((stages.get("route") or {}).get(
-            "agent_invoked", route != "DIRECT_WRAP")),
+        "agent_invoked": bool((stages.get("route") or {}).get("agent_invoked", route != "DIRECT_WRAP")),
         "verdict": summary.get("verdict"),
         "exported": summary.get("exported"),
         "product_stop_code": stop,
@@ -501,39 +511,25 @@ AUDIT_EXPLAINER = (
 
 STATUS_EXPLAINERS: dict[str, str] = {
     "ACTIVE": "构建、验证、新输入抽查都通过了,现在可以使用、也可以接入 AI 助手。",
-    "REVIEW_REQUIRED": "构建与自动验证已通过,但还没做过「新输入抽查」——"
-                       "在下方「管理这个工具」里做一次即可上架。",
-    "REVOKED": "已停用:今后不能使用、不能接入 AI 助手。历史成绩不受影响"
-               "(当时的验证结论永远保留)。",
+    "REVIEW_REQUIRED": "构建与自动验证已通过,但还没做过「新输入抽查」——在下方「管理这个工具」里做一次即可上架。",
+    "REVOKED": "已停用:今后不能使用、不能接入 AI 助手。历史成绩不受影响(当时的验证结论永远保留)。",
     "UNVERIFIED": "登记信息与验证证据对不上,系统按最保守方式处理:不可使用。",
 }
 
 REASON_CODE_LABELS: dict[str, str] = {
-    "INITIAL_EXPORT_REVIEW_REQUIRED":
-        "刚构建完成,还没做过新输入抽查(抽查通过后才能使用)",
-    "FRESH_INPUT_PASS":
-        "已通过新输入抽查(用一份从未见过的输入实测,结果正确)",
-    "FRESH_INPUT_MISMATCH":
-        "新输入抽查未通过:实测输出与期望不一致,已自动停用",
-    "FRESH_INPUT_EXECUTION_FAILED":
-        "新输入抽查未通过:工具运行报错,已自动停用",
-    "OUTPUT_CONTRACT_MISMATCH":
-        "审计发现当初的任务定义自相矛盾(要求的输出格式与验收标准对不上)。"
-        "历史成绩保留,但现已停用;恢复使用需要人工修正任务定义后重新构建",
-    "USER_WITHDRAWAL":
-        "使用者主动停用。注意:主动停用后不能靠普通抽查恢复,"
-        "如需再次使用要构建新版本",
-    "MIGRATED_FRESH_INPUT_PASS":
-        "已通过新输入抽查(历史抽查记录经完整性校验后一次性导入)",
-    "MIGRATED_AUDIT_FAIL":
-        "历史抽查未通过(记录经完整性校验后一次性导入),已停用",
+    "INITIAL_EXPORT_REVIEW_REQUIRED": "刚构建完成,还没做过新输入抽查(抽查通过后才能使用)",
+    "FRESH_INPUT_PASS": "已通过新输入抽查(用一份从未见过的输入实测,结果正确)",
+    "FRESH_INPUT_MISMATCH": "新输入抽查未通过:实测输出与期望不一致,已自动停用",
+    "FRESH_INPUT_EXECUTION_FAILED": "新输入抽查未通过:工具运行报错,已自动停用",
+    "OUTPUT_CONTRACT_MISMATCH": "审计发现当初的任务定义自相矛盾(要求的输出格式与验收标准对不上)。"
+    "历史成绩保留,但现已停用;恢复使用需要人工修正任务定义后重新构建",
+    "USER_WITHDRAWAL": "使用者主动停用。注意:主动停用后不能靠普通抽查恢复,如需再次使用要构建新版本",
+    "MIGRATED_FRESH_INPUT_PASS": "已通过新输入抽查(历史抽查记录经完整性校验后一次性导入)",
+    "MIGRATED_AUDIT_FAIL": "历史抽查未通过(记录经完整性校验后一次性导入),已停用",
     "BUILD_FAILED": "构建失败",
-    "AUDIT_TASK_IDENTITY_MISMATCH":
-        "Fresh audit 候选属于旧任务版本；已拒绝运行，请刷新后重新生成候选",
-    "LEGACY_SERVER_MUST_BE_DETACHED":
-        "旧版 AI 接入文件已失效:请先从你的 AI 助手里移除它,再重新生成",
-    "LEGACY_MCP_MUST_BE_DETACHED":
-        "旧版 MCP 文件不具备发布状态闸门：先从 AI 助手解绑并移入备份，再重试升级",
+    "AUDIT_TASK_IDENTITY_MISMATCH": "Fresh audit 候选属于旧任务版本；已拒绝运行，请刷新后重新生成候选",
+    "LEGACY_SERVER_MUST_BE_DETACHED": "旧版 AI 接入文件已失效:请先从你的 AI 助手里移除它,再重新生成",
+    "LEGACY_MCP_MUST_BE_DETACHED": "旧版 MCP 文件不具备发布状态闸门：先从 AI 助手解绑并移入备份，再重试升级",
 }
 
 

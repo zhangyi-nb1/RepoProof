@@ -59,9 +59,7 @@ ACTIVE = "ACTIVE"
 REVOKED = "REVOKED"
 VALID_RELEASE_DECISIONS = frozenset({REVIEW_REQUIRED, ACTIVE, REVOKED})
 VALID_ACTORS = frozenset({"human", "operator", "migration"})
-HISTORICAL_READY_VERDICTS = frozenset(
-    {"VERIFIED_TOOL_READY", "VERIFIED_TOOL_READY (DIRECT)"}
-)
+HISTORICAL_READY_VERDICTS = frozenset({"VERIFIED_TOOL_READY", "VERIFIED_TOOL_READY (DIRECT)"})
 
 _SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
 
@@ -72,9 +70,7 @@ _AUDIT_INTERNAL_FAILURE = AuditFailureMetadata(
     retry_policy="RETRY_AFTER_ENVIRONMENT_REPAIR",
     requires_new_task_version=False,
     recommended_action_code="REPAIR_AUDIT_ENVIRONMENT",
-    recommended_action=(
-        "修复审核环境或受管状态后重试；不要修改 adapter 来绕过审核。"
-    ),
+    recommended_action=("修复审核环境或受管状态后重试；不要修改 adapter 来绕过审核。"),
     product_stop_code="STOP_HARNESS_OR_EXTERNAL",
 )
 _AUDIT_INPUT_FAILURE = AuditFailureMetadata(
@@ -94,9 +90,7 @@ _STALE_AUDIT_CANDIDATE_FAILURE = AuditFailureMetadata(
     retry_policy="RETRY_AFTER_INPUT_REFRESH",
     requires_new_task_version=False,
     recommended_action_code="REFRESH_AUDIT_CANDIDATE",
-    recommended_action=(
-        "丢弃旧候选并刷新当前工具版本；重新生成 Fresh audit 候选后再审核。"
-    ),
+    recommended_action=("丢弃旧候选并刷新当前工具版本；重新生成 Fresh audit 候选后再审核。"),
     product_stop_code="STOP_HARNESS_OR_EXTERNAL",
 )
 _PACKAGE_IDENTITY_FAILURE = AuditFailureMetadata(
@@ -106,10 +100,7 @@ _PACKAGE_IDENTITY_FAILURE = AuditFailureMetadata(
     retry_policy="RETRY_AFTER_PACKAGE_RESTORE",
     requires_new_task_version=False,
     recommended_action_code="RESTORE_OR_REEXPORT_PACKAGE",
-    recommended_action=(
-        "恢复已登记的不可变工具包身份，或重新导出后再审核；"
-        "不要原地修改已登记包。"
-    ),
+    recommended_action=("恢复已登记的不可变工具包身份，或重新导出后再审核；不要原地修改已登记包。"),
     product_stop_code="STOP_HARNESS_OR_EXTERNAL",
 )
 _BUILD_FAILURE = AuditFailureMetadata(
@@ -119,9 +110,7 @@ _BUILD_FAILURE = AuditFailureMetadata(
     retry_policy="RETRY_AFTER_ENVIRONMENT_REPAIR",
     requires_new_task_version=False,
     recommended_action_code="REPAIR_BUILD_ENVIRONMENT",
-    recommended_action=(
-        "检查导出包 build.sh、固定依赖与 wheelhouse；环境恢复后重新审核。"
-    ),
+    recommended_action=("检查导出包 build.sh、固定依赖与 wheelhouse；环境恢复后重新审核。"),
     product_stop_code="STOP_HARNESS_OR_EXTERNAL",
 )
 _ADAPTER_EXECUTION_FAILURE = AuditFailureMetadata(
@@ -141,9 +130,7 @@ _REFERENCE_MISMATCH_FAILURE = AuditFailureMetadata(
     retry_policy="REVIEW_REQUIRED",
     requires_new_task_version=False,
     recommended_action_code="REVIEW_REFERENCE_AND_ADAPTER",
-    recommended_action=(
-        "先核对 operator reference；若真值正确，再修复 adapter 并创建新任务版本。"
-    ),
+    recommended_action=("先核对 operator reference；若真值正确，再修复 adapter 并创建新任务版本。"),
     product_stop_code="STOP_NEEDS_HUMAN",
 )
 _OUTPUT_CONTRACT_CONFLICT_FAILURE = AuditFailureMetadata(
@@ -153,9 +140,7 @@ _OUTPUT_CONTRACT_CONFLICT_FAILURE = AuditFailureMetadata(
     retry_policy="NEW_TASK_VERSION_REQUIRED",
     requires_new_task_version=True,
     recommended_action_code="REVIEW_CONTRACT_AND_CREATE_NEW_TASK_VERSION",
-    recommended_action=(
-        "人工核对冻结输出合同与 reference；修正冲突后创建新任务版本。"
-    ),
+    recommended_action=("人工核对冻结输出合同与 reference；修正冲突后创建新任务版本。"),
     product_stop_code="STOP_NEEDS_HUMAN",
 )
 _SEMANTIC_MECHANISM_FAILURE = AuditFailureMetadata(
@@ -165,10 +150,7 @@ _SEMANTIC_MECHANISM_FAILURE = AuditFailureMetadata(
     retry_policy="REVIEW_REQUIRED",
     requires_new_task_version=False,
     recommended_action_code="RESTORE_SEMANTIC_VERIFIER_AND_REVIEW",
-    recommended_action=(
-        "恢复冻结 semantic verifier 及证据环境后重新审核；"
-        "当前需人工复核，不要猜测修改 adapter。"
-    ),
+    recommended_action=("恢复冻结 semantic verifier 及证据环境后重新审核；当前需人工复核，不要猜测修改 adapter。"),
     product_stop_code="STOP_HARNESS_OR_EXTERNAL",
 )
 _SEMANTIC_IDENTITY_FAILURE = AuditFailureMetadata(
@@ -179,8 +161,7 @@ _SEMANTIC_IDENTITY_FAILURE = AuditFailureMetadata(
     requires_new_task_version=False,
     recommended_action_code="RESTORE_SEMANTIC_VERIFIER_IDENTITY",
     recommended_action=(
-        "恢复 registry、冻结合同与 semantic verifier 的一致身份后重新审核；"
-        "不要修改 adapter 来绕过身份检查。"
+        "恢复 registry、冻结合同与 semantic verifier 的一致身份后重新审核；不要修改 adapter 来绕过身份检查。"
     ),
     product_stop_code="STOP_HARNESS_OR_EXTERNAL",
 )
@@ -286,9 +267,7 @@ def _sha256(data: bytes) -> str:
 
 
 def _canonical_sha256(value: Any) -> str:
-    return _sha256(
-        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    )
+    return _sha256(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8"))
 
 
 def _reject_json_constant(constant: str) -> None:
@@ -328,9 +307,7 @@ def _same_commitment_coverage(
     if any(not isinstance(item, str) for item in observed):
         return False
     return bool(
-        len(observed) == len(required)
-        and len(observed) == len(set(observed))
-        and set(observed) == set(required)
+        len(observed) == len(required) and len(observed) == len(set(observed)) and set(observed) == set(required)
     )
 
 
@@ -395,29 +372,88 @@ def validate_release_audit_evidence(
     if not nested_path.is_absolute():
         nested_path = root / nested_path
     semantic_dir = root / "evidence" / "semantic-audits"
-    if (
-        semantic_dir.is_symlink()
-        or not semantic_dir.is_dir()
-        or nested_path.is_symlink()
-        or not nested_path.is_file()
-    ):
+    if semantic_dir.is_symlink() or not semantic_dir.is_dir() or nested_path.is_symlink() or not nested_path.is_file():
         return False
     try:
         nested_path.resolve().relative_to(semantic_dir.resolve())
-        from repoproof.verification.semantic_artifact import (
-            SemanticVerifierEvidenceV1,
-            semantic_verifier_evidence_sha256,
-        )
-
-        nested = SemanticVerifierEvidenceV1.model_validate(
-            _strict_json_loads(nested_path.read_bytes())
-        )
+        nested_document = _strict_json_loads(nested_path.read_bytes())
+        if not isinstance(nested_document, dict):
+            return False
     except (OSError, TypeError, UnicodeError, ValueError):
         return False
     verifier = trust_identity.semantic_verifier
     try:
         current_runtime_environment_sha256 = runtime_environment_sha256(root)
     except (OSError, ToolPackageIdentityError):
+        return False
+    if nested_document.get("protocol") == "repoproof-workspace-semantic-verifier-v2":
+        try:
+            from repoproof.domain.models import WorkspaceArtifactContractV1
+            from repoproof.execution.workspace_bundle import WorkspaceRuntimeEvidenceV1
+            from repoproof.verification.workspace_semantic import (
+                SemanticVerifierEvidenceV2,
+                workspace_semantic_evidence_sha256,
+            )
+
+            workspace = SemanticVerifierEvidenceV2.model_validate(nested_document)
+            package_manifest = _strict_json_loads((root / "tool.json").read_bytes())
+            if not isinstance(package_manifest, dict):
+                return False
+            workspace_contract = WorkspaceArtifactContractV1.model_validate(
+                package_manifest.get("workspace_contract")
+            )
+            runtime_document = outer.get("workspace_runtime")
+            runtime_ok = not workspace_contract.runnable
+            if workspace_contract.runnable:
+                runtime = WorkspaceRuntimeEvidenceV1.model_validate(runtime_document)
+                runtime_ok = bool(
+                    runtime.passed
+                    and runtime.artifact_tree_sha256
+                    == execution.get("artifact_tree_sha256")
+                    and runtime.command_sha256
+                    == _canonical_sha256(list(workspace_contract.smoke_command))
+                )
+        except (OSError, TypeError, ValueError):
+            return False
+        return bool(
+            workspace.passed
+            and runtime_ok
+            and workspace_semantic_evidence_sha256(workspace) == nested_hash
+            and workspace.input_sha256 == outer.get("input_sha256")
+            and workspace.artifact_tree_sha256 == execution.get("artifact_tree_sha256")
+            and workspace.artifact_tree_sha256 == semantic.get("artifact_tree_sha256")
+            and workspace.artifact_manifest_sha256 == execution.get("artifact_manifest_sha256")
+            and workspace.verifier_id == verifier.verifier_id
+            and workspace.verifier_source_sha256 == verifier.source_sha256
+            and workspace.workspace_contract_sha256 == trust_identity.output_contract_sha256
+            and workspace.intent_confirmation_sha256 == trust_identity.intent_confirmation_sha256
+            and workspace.upstream_commit == trust_identity.upstream_commit
+            and workspace.import_module == trust_identity.import_module
+            and workspace.required_commitment_ids == trust_identity.required_commitment_ids
+            and _same_commitment_coverage(
+                workspace.checked_commitment_ids,
+                trust_identity.required_commitment_ids,
+            )
+            and workspace.upstream_calls >= 1
+            and workspace.input_negative_control_result == "REJECTED"
+            and workspace.artifact_negative_control_result == "REJECTED"
+            and workspace.upstream_result_counterfactual_result == "REJECTED"
+            and semantic.get("verifier_id") == verifier.verifier_id
+            and semantic.get("required_commitment_ids") == list(trust_identity.required_commitment_ids)
+            and _same_commitment_coverage(
+                semantic.get("checked_commitment_ids"),
+                trust_identity.required_commitment_ids,
+            )
+            and outer.get("runtime_environment_sha256") == current_runtime_environment_sha256
+        )
+    try:
+        from repoproof.verification.semantic_artifact import (
+            SemanticVerifierEvidenceV1,
+            semantic_verifier_evidence_sha256,
+        )
+
+        nested = SemanticVerifierEvidenceV1.model_validate(nested_document)
+    except (TypeError, ValueError):
         return False
     return bool(
         nested.passed
@@ -427,28 +463,23 @@ def validate_release_audit_evidence(
         and nested.artifact_sha256 == semantic.get("artifact_sha256")
         and nested.verifier_id == verifier.verifier_id
         and nested.verifier_source_sha256 == verifier.source_sha256
-        and nested.output_contract_sha256
-        == trust_identity.output_contract_sha256
-        and nested.intent_confirmation_sha256
-        == trust_identity.intent_confirmation_sha256
+        and nested.output_contract_sha256 == trust_identity.output_contract_sha256
+        and nested.intent_confirmation_sha256 == trust_identity.intent_confirmation_sha256
         and nested.upstream_commit == trust_identity.upstream_commit
         and nested.import_module == trust_identity.import_module
-        and nested.required_commitment_ids
-        == trust_identity.required_commitment_ids
+        and nested.required_commitment_ids == trust_identity.required_commitment_ids
         and _same_commitment_coverage(
             nested.checked_commitment_ids,
             trust_identity.required_commitment_ids,
         )
         and nested.upstream_calls >= 1
         and semantic.get("verifier_id") == verifier.verifier_id
-        and semantic.get("required_commitment_ids")
-        == list(trust_identity.required_commitment_ids)
+        and semantic.get("required_commitment_ids") == list(trust_identity.required_commitment_ids)
         and _same_commitment_coverage(
             semantic.get("checked_commitment_ids"),
             trust_identity.required_commitment_ids,
         )
-        and outer.get("runtime_environment_sha256")
-        == current_runtime_environment_sha256
+        and outer.get("runtime_environment_sha256") == current_runtime_environment_sha256
     )
 
 
@@ -522,9 +553,7 @@ def _validate_decision(row: Any, *, where: str) -> dict[str, Any]:
     if row["run_id"] is not None and not isinstance(row["run_id"], str):
         raise ReleaseLedgerError(f"{where}: run_id 必须为字符串或 null")
     if row["decision"] not in VALID_RELEASE_DECISIONS:
-        raise ReleaseLedgerError(
-            f"{where}: decision={row['decision']!r}，只允许 {sorted(VALID_RELEASE_DECISIONS)}"
-        )
+        raise ReleaseLedgerError(f"{where}: decision={row['decision']!r}，只允许 {sorted(VALID_RELEASE_DECISIONS)}")
     if not isinstance(row["reason_code"], str) or not row["reason_code"].strip():
         raise ReleaseLedgerError(f"{where}: reason_code 必须为非空字符串")
     if not isinstance(row["reason"], str) or not row["reason"].strip():
@@ -553,9 +582,7 @@ def load_release_decisions_file(ledger: Path) -> list[dict[str, Any]]:
         if encoded is None:
             return []
         if encoded and not encoded.endswith(b"\n"):
-            raise ReleaseLedgerError(
-                f"{ledger}: 非空 append-only ledger 必须以换行结束"
-            )
+            raise ReleaseLedgerError(f"{ledger}: 非空 append-only ledger 必须以换行结束")
         raw = encoded.decode("utf-8")
     except (ToolPathError, UnicodeError) as exc:
         raise ReleaseLedgerError(f"无法读取 release ledger {ledger}: {exc}") from exc
@@ -797,11 +824,7 @@ def _tool_context(dest_root: Path, name: str) -> tuple[Path, dict[str, Any], str
         )
     run_id = verification.get("run_id")
     contract_sha256 = verification.get("contract_sha256")
-    if (
-        not isinstance(run_id, str)
-        or not run_id
-        or provenance.get("run_id") != run_id
-    ):
+    if not isinstance(run_id, str) or not run_id or provenance.get("run_id") != run_id:
         raise ToolAuditError(
             "manifest/provenance run_id 不一致",
             failure=_PACKAGE_IDENTITY_FAILURE,
@@ -1012,8 +1035,27 @@ def _public_fixture_hashes(tool_dir: Path) -> set[str]:
     return hashes
 
 
+def _public_fixture_path_identities(tool_dir: Path) -> set[str]:
+    """Collect file and directory identities without following fixture links."""
+    from repoproof.execution.workspace_bundle import identify_input_path
+
+    identities = _public_fixture_hashes(tool_dir)
+    for relative_root in ("public_examples", "public_tests"):
+        root = tool_dir / relative_root
+        if root.is_symlink() or not root.is_dir():
+            continue
+        for candidate in sorted(root.rglob("*")):
+            if candidate.is_symlink() or not candidate.is_dir():
+                continue
+            try:
+                identities.add(identify_input_path(candidate).sha256)
+            except (OSError, ValueError):
+                continue
+    return identities
+
+
 def _output_contract_errors(manifest: dict[str, Any], actual: bytes) -> list[str]:
-    contract = (((manifest.get("interface") or {}).get("output") or {}).get("contract"))
+    contract = ((manifest.get("interface") or {}).get("output") or {}).get("contract")
     if contract is None:  # Compatible legacy frozen tools retain exact-output audit semantics.
         return []
     try:
@@ -1050,9 +1092,7 @@ def _record_audit_decision(
     evidence_sha256 = _canonical_sha256(evidence)
     tool_dir = canonical_tool_path(dest_root, name)
     evidence_dir = tool_dir / "evidence" / "release-audits"
-    if evidence_dir.exists() and (
-        evidence_dir.is_symlink() or not evidence_dir.is_dir()
-    ):
+    if evidence_dir.exists() and (evidence_dir.is_symlink() or not evidence_dir.is_dir()):
         raise ToolAuditError(
             "release audit evidence directory is unsafe",
             failure=_EVIDENCE_PERSISTENCE_FAILURE,
@@ -1125,12 +1165,26 @@ def _record_audit_decision(
         for key in (
             "verifier_id",
             "artifact_sha256",
+            "artifact_tree_sha256",
+            "artifact_manifest_sha256",
             "evidence_sha256",
             "evidence_path",
             "passed",
         ):
             if key in semantic:
                 result[f"semantic_verifier_{key}"] = semantic[key]
+    if evidence.get("artifact_kind") == "directory":
+        result["delivery_profile_id"] = "workspace_bundle_v1"
+        result["artifact_kind"] = "directory"
+        structure = evidence.get("workspace_structure")
+        if isinstance(structure, dict) and type(structure.get("ok")) is bool:
+            result["workspace_structure_passed"] = structure["ok"]
+        execution = evidence.get("execution")
+        if isinstance(execution, dict):
+            for key in ("artifact_tree_sha256", "artifact_manifest_sha256"):
+                value = execution.get(key)
+                if isinstance(value, str):
+                    result[key] = value
     return result
 
 
@@ -1163,7 +1217,7 @@ def _run_required_semantic_audit(
     manifest: dict[str, Any],
     task_id: str,
     input_path: Path,
-    artifact: bytes,
+    artifact: bytes | Path,
     required_schema_version: int,
     required_semantic_identity: dict[str, Any] | None,
     required_release_identity: ReleaseAuditTrustIdentityV1 | None,
@@ -1215,6 +1269,11 @@ def _run_required_semantic_audit(
         run_semantic_verifier,
         semantic_verifier_evidence_sha256,
         write_semantic_verifier_evidence,
+    )
+    from repoproof.verification.workspace_semantic import (
+        run_workspace_semantic_verifier,
+        workspace_semantic_evidence_sha256,
+        write_workspace_semantic_evidence,
     )
 
     contract_path = root / "contracts" / f"{task_id}.yaml"
@@ -1278,9 +1337,7 @@ def _run_required_semantic_audit(
             failure=_SEMANTIC_IDENTITY_FAILURE,
         )
 
-    upstream = root / "upstream-cache" / (
-        f"upstream-{contract.source_repo.resolved_commit[:12]}"
-    )
+    upstream = root / "upstream-cache" / (f"upstream-{contract.source_repo.resolved_commit[:12]}")
     try:
         verify_clean_git_checkout(
             upstream,
@@ -1294,15 +1351,19 @@ def _run_required_semantic_audit(
             failure=_SEMANTIC_MECHANISM_FAILURE,
         ) from exc
 
-    output = contract.tool.interface.output.contract
     intent = contract.capability.intent_contract
-    if output is None or intent is None:
+    artifact_contract = (
+        contract.tool.workspace_contract
+        if contract.tool.schema_version == 4
+        else contract.tool.interface.output.contract
+    )
+    if artifact_contract is None or intent is None:
         raise ToolAuditError(
-            "v3 semantic audit is missing output or intent identity",
+            "v3+ semantic audit is missing artifact contract or intent identity",
             reason_code="SEMANTIC_VERIFIER_CONTEXT_INVALID",
             failure=_SEMANTIC_MECHANISM_FAILURE,
         )
-    output_contract_sha256 = _canonical_sha256(output.model_dump(mode="json"))
+    output_contract_sha256 = _canonical_sha256(artifact_contract.model_dump(mode="json"))
     host_contract = root / "tool_tasks" / task_id / "contract.yaml"
     try:
         import yaml
@@ -1317,60 +1378,363 @@ def _run_required_semantic_audit(
         ) from exc
 
     try:
+        semantic_evidence: Any
         with frozen_python_environment(
             wheelhouse=wheelhouse,
             expected_wheels=package.wheelhouse_wheels,
             expected_root=package.wheelhouse_root,
         ) as python_exe:
-            with tempfile.TemporaryDirectory(prefix="rp-release-semantic-") as temp:
-                artifact_path = Path(temp) / "artifact"
-                artifact_path.write_bytes(artifact)
-                semantic_evidence = run_semantic_verifier(
+            if contract.tool.schema_version == 4:
+                if not isinstance(artifact, Path):
+                    raise SemanticVerifierError("workspace semantic audit requires an artifact directory")
+                artifact_path = artifact
+                semantic_evidence = run_workspace_semantic_verifier(
                     verifier_id=spec.verifier_id,
                     verifier_source=source,
                     input_path=input_path,
-                    artifact_path=artifact_path,
+                    artifact_dir=artifact_path,
                     python_exe=python_exe,
                     upstream_dir=upstream,
                     import_module=contract.source_repo.import_name,
                     upstream_commit=contract.source_repo.resolved_commit,
-                    output_contract_sha256=output_contract_sha256,
+                    workspace_contract_sha256=output_contract_sha256,
                     intent_confirmation_sha256=intent.confirmation.semantics_sha256,
-                    required_commitment_ids=[
-                        commitment.commitment_id
-                        for commitment in intent.commitments
-                    ],
+                    required_commitment_ids=[commitment.commitment_id for commitment in intent.commitments],
                     execute_installed_upstream=True,
                     isolation_required=True,
                 )
-        evidence_sha256 = semantic_verifier_evidence_sha256(semantic_evidence)
-        evidence_path = (
-            tool_dir
-            / "evidence"
-            / "semantic-audits"
-            / f"{secrets.token_hex(16)}.json"
-        )
-        write_semantic_verifier_evidence(evidence_path, semantic_evidence)
+            else:
+                if not isinstance(artifact, bytes):
+                    raise SemanticVerifierError("single-artifact semantic audit requires bytes")
+                with tempfile.TemporaryDirectory(prefix="rp-release-semantic-") as temp:
+                    artifact_path = Path(temp) / "artifact"
+                    artifact_path.write_bytes(artifact)
+                    semantic_evidence = run_semantic_verifier(
+                        verifier_id=spec.verifier_id,
+                        verifier_source=source,
+                        input_path=input_path,
+                        artifact_path=artifact_path,
+                        python_exe=python_exe,
+                        upstream_dir=upstream,
+                        import_module=contract.source_repo.import_name,
+                        upstream_commit=contract.source_repo.resolved_commit,
+                        output_contract_sha256=output_contract_sha256,
+                        intent_confirmation_sha256=(intent.confirmation.semantics_sha256),
+                        required_commitment_ids=[commitment.commitment_id for commitment in intent.commitments],
+                        execute_installed_upstream=True,
+                        isolation_required=True,
+                    )
+        evidence_path = tool_dir / "evidence" / "semantic-audits" / f"{secrets.token_hex(16)}.json"
+        if contract.tool.schema_version == 4:
+            evidence_sha256 = workspace_semantic_evidence_sha256(semantic_evidence)
+            write_workspace_semantic_evidence(evidence_path, semantic_evidence)
+        else:
+            evidence_sha256 = semantic_verifier_evidence_sha256(semantic_evidence)
+            write_semantic_verifier_evidence(evidence_path, semantic_evidence)
     except (FrozenPythonEnvironmentError, SemanticVerifierError) as exc:
         raise ToolAuditError(
             "semantic verifier could not run inside the trusted execution boundary",
             reason_code="SEMANTIC_VERIFIER_UNAVAILABLE",
             failure=_SEMANTIC_MECHANISM_FAILURE,
         ) from exc
-    return {
+    common = {
         "verifier_id": semantic_evidence.verifier_id,
-        "artifact_sha256": semantic_evidence.artifact_sha256,
         "evidence_sha256": evidence_sha256,
         "evidence_path": str(evidence_path),
         "passed": semantic_evidence.passed,
         "reason_codes": list(semantic_evidence.reason_codes),
-        "required_commitment_ids": list(
-            semantic_evidence.required_commitment_ids
-        ),
-        "checked_commitment_ids": list(
-            semantic_evidence.checked_commitment_ids
-        ),
+        "required_commitment_ids": list(semantic_evidence.required_commitment_ids),
+        "checked_commitment_ids": list(semantic_evidence.checked_commitment_ids),
     }
+    if contract.tool.schema_version == 4:
+        common["artifact_tree_sha256"] = semantic_evidence.artifact_tree_sha256
+        common["artifact_manifest_sha256"] = semantic_evidence.artifact_manifest_sha256
+    else:
+        common["artifact_sha256"] = semantic_evidence.artifact_sha256
+    return common
+
+
+def _audit_workspace_execution(
+    *,
+    dest_root: Path,
+    name: str,
+    tool_dir: Path,
+    manifest: dict[str, Any],
+    task_id: str,
+    run_id: str | None,
+    input_path: Path,
+    expected_dir: Path,
+    executable: Path,
+    timeout: int,
+    evidence: dict[str, Any],
+    project_root: Path | None,
+    package_identity: str,
+    runtime_environment_identity: str | None,
+    required_schema_version: int,
+    required_semantic_identity: dict[str, Any] | None,
+    required_release_identity: ReleaseAuditTrustIdentityV1 | None,
+) -> dict[str, Any]:
+    """Execute and judge one v4 workspace without leaking directory truth."""
+    from repoproof.domain.models import WorkspaceArtifactContractV1
+    from repoproof.execution.workspace_bundle import (
+        build_artifact_manifest,
+        run_workspace_smoke,
+        validate_workspace,
+    )
+
+    try:
+        workspace_contract = WorkspaceArtifactContractV1.model_validate(manifest.get("workspace_contract"))
+    except ValueError:
+        evidence["workspace_contract"] = {"status": "invalid"}
+        return _record_audit_decision(
+            dest_root,
+            name=name,
+            task_id=task_id,
+            run_id=run_id,
+            decision=REVIEW_REQUIRED,
+            reason_code="WORKSPACE_CONTRACT_INVALID",
+            reason="The installed workspace contract is invalid.",
+            evidence=evidence,
+            failure=_SEMANTIC_IDENTITY_FAILURE,
+        )
+
+    with tempfile.TemporaryDirectory(prefix="rp-fresh-workspace-") as temp:
+        artifact_dir = Path(temp) / "artifact"
+        try:
+            result = subprocess.run(
+                [
+                    str(executable),
+                    str(input_path.resolve()),
+                    "--out-dir",
+                    str(artifact_dir),
+                ],
+                cwd=tool_dir,
+                capture_output=True,
+                timeout=timeout,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            evidence["execution"] = {"status": type(exc).__name__}
+            return _record_audit_decision(
+                dest_root,
+                name=name,
+                task_id=task_id,
+                run_id=run_id,
+                decision=REVOKED,
+                reason_code="FRESH_INPUT_EXECUTION_FAILED",
+                reason="The workspace tool did not complete the fresh-input audit.",
+                evidence=evidence,
+                failure=_ADAPTER_EXECUTION_FAILURE,
+            )
+        evidence["execution"] = {
+            "returncode": result.returncode,
+            "stdout_sha256": _sha256(result.stdout),
+            "stderr_sha256": _sha256(result.stderr),
+        }
+        if result.returncode != 0 or not artifact_dir.is_dir():
+            return _record_audit_decision(
+                dest_root,
+                name=name,
+                task_id=task_id,
+                run_id=run_id,
+                decision=REVOKED,
+                reason_code="FRESH_INPUT_EXECUTION_FAILED",
+                reason="The workspace tool failed to atomically create its output directory.",
+                evidence=evidence,
+                failure=_ADAPTER_EXECUTION_FAILURE,
+            )
+
+        try:
+            post_dir, post_manifest, post_task_id, post_run_id = _tool_context(dest_root, name)
+            post_package_identity = _package_control_identity(post_dir)
+            (
+                post_schema_version,
+                post_semantic_identity,
+                post_release_identity,
+            ) = _managed_release_identity(
+                dest_root=dest_root,
+                name=name,
+                tool_dir=post_dir,
+                manifest=post_manifest,
+                task_id=post_task_id,
+                run_id=post_run_id,
+            )
+            post_runtime_identity = runtime_environment_sha256(post_dir)
+            if (
+                post_dir != tool_dir
+                or post_task_id != task_id
+                or post_run_id != run_id
+                or post_package_identity != package_identity
+                or post_schema_version != required_schema_version
+                or post_semantic_identity != required_semantic_identity
+                or post_release_identity != required_release_identity
+                or post_runtime_identity != runtime_environment_identity
+            ):
+                raise ToolAuditError(
+                    "package or runtime identity changed during workspace audit",
+                    failure=_PACKAGE_IDENTITY_FAILURE,
+                )
+        except (OSError, ToolAuditError, ToolPathError, ValueError) as exc:
+            evidence["post_execution_identity"] = {
+                "status": "changed",
+                "diagnostic_sha256": _sha256(str(exc).encode("utf-8")),
+            }
+            return _record_audit_decision(
+                dest_root,
+                name=name,
+                task_id=task_id,
+                run_id=run_id,
+                decision=REVIEW_REQUIRED,
+                reason_code="PACKAGE_IDENTITY_CHANGED_DURING_AUDIT",
+                reason="The managed package changed during workspace execution.",
+                evidence=evidence,
+                failure=_PACKAGE_IDENTITY_FAILURE,
+            )
+
+        structure = validate_workspace(artifact_dir, workspace_contract)
+        if not structure.ok:
+            evidence["workspace_structure"] = {
+                "ok": False,
+                "reason_codes": list(structure.reason_codes),
+            }
+            return _record_audit_decision(
+                dest_root,
+                name=name,
+                task_id=task_id,
+                run_id=run_id,
+                decision=REVOKED,
+                reason_code="WORKSPACE_CONTRACT_MISMATCH",
+                reason="The fresh workspace violated its frozen structural contract.",
+                evidence=evidence,
+                failure=_OUTPUT_CONTRACT_CONFLICT_FAILURE,
+            )
+        actual_manifest = build_artifact_manifest(artifact_dir, limits=workspace_contract.limits)
+        expected_manifest = build_artifact_manifest(expected_dir, limits=workspace_contract.limits)
+        actual_manifest_sha = _canonical_sha256(actual_manifest.model_dump(mode="json"))
+        evidence["execution"].update(
+            {
+                "artifact_tree_sha256": actual_manifest.tree_sha256,
+                "artifact_manifest_sha256": actual_manifest_sha,
+                "file_count": len(actual_manifest.entries),
+            }
+        )
+        evidence["workspace_structure"] = {"ok": True}
+        if actual_manifest.tree_sha256 != expected_manifest.tree_sha256:
+            return _record_audit_decision(
+                dest_root,
+                name=name,
+                task_id=task_id,
+                run_id=run_id,
+                decision=REVOKED,
+                reason_code="FRESH_INPUT_MISMATCH",
+                reason="The fresh workspace tree did not match the confirmed reference tree.",
+                evidence=evidence,
+                failure=_REFERENCE_MISMATCH_FAILURE,
+            )
+
+        if workspace_contract.runnable:
+            runtime = run_workspace_smoke(artifact_dir, workspace_contract)
+            evidence["workspace_runtime"] = runtime.model_dump(mode="json")
+            if not runtime.passed:
+                isolation_unavailable = (
+                    "WORKSPACE_SMOKE_ISOLATION_UNAVAILABLE"
+                    in runtime.reason_codes
+                )
+                return _record_audit_decision(
+                    dest_root,
+                    name=name,
+                    task_id=task_id,
+                    run_id=run_id,
+                    decision=REVIEW_REQUIRED if isolation_unavailable else REVOKED,
+                    reason_code=(
+                        "WORKSPACE_SMOKE_ISOLATION_UNAVAILABLE"
+                        if isolation_unavailable
+                        else "WORKSPACE_RUNTIME_FAILED"
+                    ),
+                    reason=(
+                        "The reviewed offline runtime boundary was unavailable."
+                        if isolation_unavailable
+                        else "The frozen workspace smoke command did not complete safely."
+                    ),
+                    evidence=evidence,
+                    failure=(
+                        _SEMANTIC_MECHANISM_FAILURE
+                        if isolation_unavailable
+                        else _ADAPTER_EXECUTION_FAILURE
+                    ),
+                )
+
+        try:
+            semantic = _run_required_semantic_audit(
+                project_root=project_root,
+                tool_dir=tool_dir,
+                manifest=manifest,
+                task_id=task_id,
+                input_path=input_path,
+                artifact=artifact_dir,
+                required_schema_version=required_schema_version,
+                required_semantic_identity=required_semantic_identity,
+                required_release_identity=required_release_identity,
+            )
+        except ToolAuditError as exc:
+            mechanism_code = exc.reason_code or "SEMANTIC_VERIFIER_UNAVAILABLE"
+            evidence["semantic_verifier"] = {
+                "passed": False,
+                "reason_codes": [mechanism_code],
+            }
+            return _record_audit_decision(
+                dest_root,
+                name=name,
+                task_id=task_id,
+                run_id=run_id,
+                decision=REVIEW_REQUIRED,
+                reason_code=mechanism_code,
+                reason="The frozen workspace semantic verifier was unavailable.",
+                evidence=evidence,
+                failure=exc.failure,
+            )
+        if semantic is None:
+            raise ToolAuditError(
+                "ToolSpec v4 semantic audit unexpectedly returned no evidence",
+                failure=_SEMANTIC_MECHANISM_FAILURE,
+            )
+        evidence["semantic_verifier"] = semantic
+        if semantic_mechanism_failure(semantic["reason_codes"]):
+            return _record_audit_decision(
+                dest_root,
+                name=name,
+                task_id=task_id,
+                run_id=run_id,
+                decision=REVIEW_REQUIRED,
+                reason_code="SEMANTIC_VERIFIER_UNAVAILABLE",
+                reason="Workspace semantic controls did not produce trustworthy evidence.",
+                evidence=evidence,
+                failure=_SEMANTIC_MECHANISM_FAILURE,
+            )
+        if semantic["passed"] is not True:
+            return _record_audit_decision(
+                dest_root,
+                name=name,
+                task_id=task_id,
+                run_id=run_id,
+                decision=REVOKED,
+                reason_code="SEMANTIC_VERIFIER_MISMATCH",
+                reason="The workspace matched reference bytes but failed semantic verification.",
+                evidence=evidence,
+                failure=_SEMANTIC_ORACLE_CONFLICT_FAILURE,
+            )
+        return _record_audit_decision(
+            dest_root,
+            name=name,
+            task_id=task_id,
+            run_id=run_id,
+            decision=ACTIVE,
+            reason_code="FRESH_INPUT_PASS",
+            reason=(
+                "Fresh workspace structure, reference tree, runtime and semantics all passed."
+            ),
+            evidence=evidence,
+            failure=None,
+        )
 
 
 def _audit_tool_locked(
@@ -1409,11 +1773,7 @@ def _audit_tool_locked(
 
             registry = load_registry(dest_root)
             current_entry = registry["tools"].get(name)
-            current_task_id = (
-                current_entry.get("task_id")
-                if isinstance(current_entry, dict)
-                else None
-            )
+            current_task_id = current_entry.get("task_id") if isinstance(current_entry, dict) else None
         except (KeyError, OSError, ToolPathError, TypeError, ValueError) as exc:
             raise ToolAuditError(
                 f"{name}: 无法确认 registry 当前 task，拒绝执行 Fresh audit",
@@ -1457,6 +1817,7 @@ def _audit_tool_locked(
 
     terminal_contract_reasons = {
         "OUTPUT_CONTRACT_MISMATCH",
+        "WORKSPACE_CONTRACT_MISMATCH",
         "SEMANTIC_VERIFIER_MISMATCH",
     }
     if any(
@@ -1467,8 +1828,7 @@ def _audit_tool_locked(
         for row in all_decisions
     ):
         raise ToolAuditError(
-            f"{name}: 当前 task 因冻结合同/独立语义证据冲突已撤回；"
-            "必须发布新 task version，不能原地恢复",
+            f"{name}: 当前 task 因冻结合同/独立语义证据冲突已撤回；必须发布新 task version，不能原地恢复",
             failure=_TERMINAL_CONTRACT_FAILURE,
         )
     current = next(
@@ -1488,14 +1848,15 @@ def _audit_tool_locked(
 
     input_path = Path(input_path)
     expected_file = Path(expected_file)
-    if not input_path.is_file():
+    workspace_profile = required_schema_version == 4
+    if input_path.is_symlink() or not (input_path.is_file() or (workspace_profile and input_path.is_dir())):
         raise ToolAuditError(
-            f"audit input 不存在: {input_path}",
+            f"audit input 不存在或类型不受支持: {input_path}",
             failure=_AUDIT_INPUT_FAILURE,
         )
-    if not expected_file.is_file():
+    if expected_file.is_symlink() or not (expected_file.is_dir() if workspace_profile else expected_file.is_file()):
         raise ToolAuditError(
-            f"expected file 不存在: {expected_file}",
+            f"expected artifact 不存在或类型不受支持: {expected_file}",
             failure=_AUDIT_INPUT_FAILURE,
         )
     if _inside(input_path, tool_dir):
@@ -1511,27 +1872,52 @@ def _audit_tool_locked(
     if timeout <= 0:
         raise ToolAuditError("timeout 必须大于 0", failure=_AUDIT_INPUT_FAILURE)
 
-    expected = expected_file.read_bytes()
-    input_bytes = input_path.read_bytes()
-    public_hashes = _public_fixture_hashes(tool_dir)
-    if _sha256(input_bytes) in public_hashes:
-        raise ToolAuditError(
-            "audit input 与工具包公开 fixture 相同，不满足 fresh non-example 要求",
-            failure=_AUDIT_INPUT_FAILURE,
+    if workspace_profile:
+        from repoproof.execution.workspace_bundle import (
+            build_artifact_manifest,
+            identify_input_path,
         )
-    if _sha256(expected) in public_hashes:
-        raise ToolAuditError(
-            "expected file 与工具包公开 fixture 相同，不能复用旧真值",
-            failure=_AUDIT_INPUT_FAILURE,
-        )
+
+        input_identity = identify_input_path(input_path)
+        expected_manifest = build_artifact_manifest(expected_file)
+        public_identities = _public_fixture_path_identities(tool_dir)
+        if input_identity.sha256 in public_identities:
+            raise ToolAuditError(
+                "audit input 与工具包公开 fixture 相同，不满足 fresh non-example 要求",
+                failure=_AUDIT_INPUT_FAILURE,
+            )
+        if expected_manifest.tree_sha256 in public_identities:
+            raise ToolAuditError(
+                "expected workspace 与公开 fixture 相同，不能复用旧真值",
+                failure=_AUDIT_INPUT_FAILURE,
+            )
+        input_sha256 = input_identity.sha256
+        expected_sha256 = expected_manifest.tree_sha256
+    else:
+        expected = expected_file.read_bytes()
+        input_bytes = input_path.read_bytes()
+        public_hashes = _public_fixture_hashes(tool_dir)
+        if _sha256(input_bytes) in public_hashes:
+            raise ToolAuditError(
+                "audit input 与工具包公开 fixture 相同，不满足 fresh non-example 要求",
+                failure=_AUDIT_INPUT_FAILURE,
+            )
+        if _sha256(expected) in public_hashes:
+            raise ToolAuditError(
+                "expected file 与工具包公开 fixture 相同，不能复用旧真值",
+                failure=_AUDIT_INPUT_FAILURE,
+            )
+        input_sha256 = _sha256(input_bytes)
+        expected_sha256 = _sha256(expected)
     evidence: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2 if workspace_profile else 1,
         "tool": name,
         "task_id": task_id,
         "run_id": run_id,
         "historical_verdict": historical_verdict,
-        "input_sha256": _sha256(input_bytes),
-        "expected_sha256": _sha256(expected),
+        "input_sha256": input_sha256,
+        "expected_sha256": expected_sha256,
+        "artifact_kind": "directory" if workspace_profile else "stdout",
         "build_requested": run_build,
     }
 
@@ -1551,9 +1937,7 @@ def _audit_tool_locked(
                 failure=_BUILD_FAILURE,
             )
         try:
-            built = subprocess.run(
-                ["bash", str(build_script)], cwd=tool_dir, capture_output=True, timeout=timeout
-            )
+            built = subprocess.run(["bash", str(build_script)], cwd=tool_dir, capture_output=True, timeout=timeout)
         except (OSError, subprocess.TimeoutExpired) as exc:
             evidence["build"] = {"status": type(exc).__name__}
             return _record_audit_decision(
@@ -1590,9 +1974,7 @@ def _audit_tool_locked(
         # rewrite the package identity that this audit is about.  Revalidate
         # after the subprocess and before resolving/executing bin/<name>.
         try:
-            rebuilt_dir, rebuilt_manifest, rebuilt_task_id, rebuilt_run_id = (
-                _tool_context(dest_root, name)
-            )
+            rebuilt_dir, rebuilt_manifest, rebuilt_task_id, rebuilt_run_id = _tool_context(dest_root, name)
             rebuilt_identity = _package_control_identity(rebuilt_dir)
             if (
                 rebuilt_dir != tool_dir
@@ -1670,6 +2052,26 @@ def _audit_tool_locked(
             evidence=evidence,
             failure=_PACKAGE_IDENTITY_FAILURE,
         )
+    if workspace_profile:
+        return _audit_workspace_execution(
+            dest_root=dest_root,
+            name=name,
+            tool_dir=tool_dir,
+            manifest=manifest,
+            task_id=task_id,
+            run_id=run_id,
+            input_path=input_path,
+            expected_dir=expected_file,
+            executable=executable,
+            timeout=timeout,
+            evidence=evidence,
+            project_root=project_root,
+            package_identity=package_identity,
+            runtime_environment_identity=runtime_environment_identity,
+            required_schema_version=required_schema_version,
+            required_semantic_identity=required_semantic_identity,
+            required_release_identity=required_release_identity,
+        )
     try:
         result = subprocess.run(
             [str(executable), str(input_path.resolve())],
@@ -1698,9 +2100,7 @@ def _audit_tool_locked(
     }
     if required_schema_version >= 3:
         try:
-            post_dir, post_manifest, post_task_id, post_run_id = _tool_context(
-                dest_root, name
-            )
+            post_dir, post_manifest, post_task_id, post_run_id = _tool_context(dest_root, name)
             post_package_identity = _package_control_identity(post_dir)
             (
                 post_schema_version,
@@ -1742,10 +2142,7 @@ def _audit_tool_locked(
                 run_id=run_id,
                 decision=REVIEW_REQUIRED,
                 reason_code="PACKAGE_IDENTITY_CHANGED_DURING_AUDIT",
-                reason=(
-                    "The managed package or runtime environment changed while "
-                    "the fresh audit was executing."
-                ),
+                reason=("The managed package or runtime environment changed while the fresh audit was executing."),
                 evidence=evidence,
                 failure=_PACKAGE_IDENTITY_FAILURE,
             )
@@ -1766,12 +2163,14 @@ def _audit_tool_locked(
     # LESSONS #57。
     from repoproof.verification.output_match import compare_output
 
-    _root_type = str((((manifest.get("interface") or {}).get("output") or {})
-                      .get("contract") or {}).get("root_type") or "text")
+    _root_type = str(
+        (((manifest.get("interface") or {}).get("output") or {}).get("contract") or {}).get("root_type") or "text"
+    )
     stdout_matches, _mode = compare_output(
         result.stdout.decode("utf-8", errors="replace"),
         expected.decode("utf-8", errors="replace"),
-        root_type=_root_type)
+        root_type=_root_type,
+    )
     evidence["execution"]["comparison"] = _mode
     evidence["execution"]["root_type"] = _root_type
     if not stdout_matches:
@@ -1841,9 +2240,7 @@ def _audit_tool_locked(
         )
     if semantic is not None:
         evidence["semantic_verifier"] = semantic
-        mechanism_failure = semantic_mechanism_failure(
-            semantic["reason_codes"]
-        )
+        mechanism_failure = semantic_mechanism_failure(semantic["reason_codes"])
         if mechanism_failure:
             return _record_audit_decision(
                 dest_root,
@@ -1988,32 +2385,22 @@ def _import_audit_decisions_install_locked(
         if not isinstance(tool, str) or not tool or not isinstance(task_id, str):
             raise ReleaseLedgerError(f"{audits_path}:{line_no}: audit 缺 tool/task_id")
 
-        outcome = parse_operator_audit_outcome(
-            audit, where=f"{audits_path}:{line_no}"
-        )
+        outcome = parse_operator_audit_outcome(audit, where=f"{audits_path}:{line_no}")
         decision = ACTIVE if outcome else REVOKED
         verdict = audit.get("verdict")
         ok = audit.get("ok")
 
         if audit.get("mode") != "fresh-input-cli":
-            raise ReleaseLedgerError(
-                f"{audits_path}:{line_no}: mode 必须为 fresh-input-cli"
-            )
+            raise ReleaseLedgerError(f"{audits_path}:{line_no}: mode 必须为 fresh-input-cli")
         if audit.get("input_is_example") is not False:
-            raise ReleaseLedgerError(
-                f"{audits_path}:{line_no}: input_is_example 必须显式为 false"
-            )
+            raise ReleaseLedgerError(f"{audits_path}:{line_no}: input_is_example 必须显式为 false")
 
         # Legacy notes are human prose, not typed control data.  Inferring a
         # failure owner from words such as "contract" or "oracle" made the
         # migration result depend on language and phrasing.  Preserve only the
         # outcome the legacy row actually proves; current Product audits carry
         # structured AuditFailureMetadata at the producer boundary.
-        reason_code = (
-            "MIGRATED_FRESH_INPUT_PASS"
-            if decision == ACTIVE
-            else "MIGRATED_AUDIT_FAIL"
-        )
+        reason_code = "MIGRATED_FRESH_INPUT_PASS" if decision == ACTIVE else "MIGRATED_AUDIT_FAIL"
         try:
             tool_dir = canonical_tool_path(dest_root, tool)
             ensure_safe_package_tree(tool_dir)
@@ -2021,80 +2408,55 @@ def _import_audit_decisions_install_locked(
             raise ReleaseLedgerError(f"{audits_path}:{line_no}: {exc}") from exc
         manifest_path = tool_dir / "tool.json"
         if not manifest_path.is_file():
-            raise ReleaseLedgerError(
-                f"{audits_path}:{line_no}: 迁移目标 manifest 不存在 {manifest_path}"
-            )
+            raise ReleaseLedgerError(f"{audits_path}:{line_no}: 迁移目标 manifest 不存在 {manifest_path}")
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, ValueError) as exc:
-            raise ReleaseLedgerError(
-                f"无法读取迁移目标 manifest {manifest_path}: {exc}"
-            ) from exc
+            raise ReleaseLedgerError(f"无法读取迁移目标 manifest {manifest_path}: {exc}") from exc
         if not isinstance(manifest, dict):
-            raise ReleaseLedgerError(
-                f"{audits_path}:{line_no}: 迁移目标 manifest 必须为 JSON object"
-            )
+            raise ReleaseLedgerError(f"{audits_path}:{line_no}: 迁移目标 manifest 必须为 JSON object")
         if manifest.get("name") != tool:
-            raise ReleaseLedgerError(
-                f"{audits_path}:{line_no}: audit tool 与 manifest name 不一致"
-            )
+            raise ReleaseLedgerError(f"{audits_path}:{line_no}: audit tool 与 manifest name 不一致")
         historical_verdict = (manifest.get("verification") or {}).get("verdict")
         if not is_historical_tool_ready(historical_verdict):
-            raise ReleaseLedgerError(
-                f"{audits_path}:{line_no}: 迁移目标不是历史 VERIFIED_TOOL_READY"
-            )
+            raise ReleaseLedgerError(f"{audits_path}:{line_no}: 迁移目标不是历史 VERIFIED_TOOL_READY")
         provenance_path = tool_dir / "evidence" / "provenance.json"
         if not provenance_path.is_file():
-            raise ReleaseLedgerError(
-                f"{audits_path}:{line_no}: 迁移目标缺 provenance {provenance_path}"
-            )
+            raise ReleaseLedgerError(f"{audits_path}:{line_no}: 迁移目标缺 provenance {provenance_path}")
         try:
             provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, ValueError) as exc:
-            raise ReleaseLedgerError(
-                f"无法读取迁移目标 provenance {provenance_path}: {exc}"
-            ) from exc
+            raise ReleaseLedgerError(f"无法读取迁移目标 provenance {provenance_path}: {exc}") from exc
         if not isinstance(provenance, dict):
-            raise ReleaseLedgerError(
-                f"{audits_path}:{line_no}: 迁移目标 provenance 必须为 JSON object"
-            )
+            raise ReleaseLedgerError(f"{audits_path}:{line_no}: 迁移目标 provenance 必须为 JSON object")
         from repoproof.runner.tool_registry import validate_contract_schema_version
 
         try:
             contract_schema_version = validate_contract_schema_version(manifest)
         except ValueError as exc:
-            raise ReleaseLedgerError(
-                f"{audits_path}:{line_no}: 迁移目标 contract schema 非法"
-            ) from exc
+            raise ReleaseLedgerError(f"{audits_path}:{line_no}: 迁移目标 contract schema 非法") from exc
         if contract_schema_version >= 3 and decision == ACTIVE:
             raise ReleaseLedgerError(
                 f"{audits_path}:{line_no}: ToolSpec v3 不接受缺少独立语义证据的 "
                 "legacy ACTIVE 迁移；请运行当前 Fresh audit"
             )
         if provenance.get("task_id") != task_id:
-            raise ReleaseLedgerError(
-                f"{audits_path}:{line_no}: audit task_id 与 provenance 不一致"
-            )
+            raise ReleaseLedgerError(f"{audits_path}:{line_no}: audit task_id 与 provenance 不一致")
         try:
             validate_tool_task_id(tool, task_id)
         except ToolPathError as exc:
             raise ReleaseLedgerError(f"{audits_path}:{line_no}: {exc}") from exc
         if provenance.get("tool") != tool:
-            raise ReleaseLedgerError(
-                f"{audits_path}:{line_no}: provenance tool 与 manifest name 不一致"
-            )
+            raise ReleaseLedgerError(f"{audits_path}:{line_no}: provenance tool 与 manifest name 不一致")
         verification = manifest.get("verification") or {}
         run_id = verification.get("run_id")
         if (
             not isinstance(run_id, str)
             or not run_id
             or provenance.get("run_id") != run_id
-            or provenance.get("tool_contract_sha256")
-            != verification.get("contract_sha256")
+            or provenance.get("tool_contract_sha256") != verification.get("contract_sha256")
         ):
-            raise ReleaseLedgerError(
-                f"{audits_path}:{line_no}: manifest/provenance identity 不一致"
-            )
+            raise ReleaseLedgerError(f"{audits_path}:{line_no}: manifest/provenance identity 不一致")
         prepared.append(
             {
                 "tool": tool,
@@ -2119,21 +2481,13 @@ def _import_audit_decisions_install_locked(
 
     with release_decision_lock(dest_root):
         existing = load_release_decisions(dest_root)
-        seen = {
-            (row["evidence_sha256"], row["tool"], row["decision"])
-            for row in existing
-        }
+        seen = {(row["evidence_sha256"], row["tool"], row["decision"]) for row in existing}
         latest_by_tool: dict[str, dict[str, Any]] = {}
         migrated_failure_tasks: set[tuple[str, str]] = set()
         for existing_row in existing:
             latest_by_tool[existing_row["tool"]] = existing_row
-            if (
-                existing_row["actor"] == "migration"
-                and existing_row["decision"] == REVOKED
-            ):
-                migrated_failure_tasks.add(
-                    (existing_row["tool"], existing_row["task_id"])
-                )
+            if existing_row["actor"] == "migration" and existing_row["decision"] == REVOKED:
+                migrated_failure_tasks.add((existing_row["tool"], existing_row["task_id"]))
         counts = {"imported": 0, "skipped": 0, "active": 0, "revoked": 0}
         for row in prepared:
             key = (row["evidence_sha256"], row["tool"], row["decision"])
@@ -2141,18 +2495,11 @@ def _import_audit_decisions_install_locked(
                 counts["skipped"] += 1
                 continue
             current = latest_by_tool.get(row["tool"])
-            if (
-                row["decision"] == ACTIVE
-                and (row["tool"], row["task_id"]) in migrated_failure_tasks
-            ) or (
+            if (row["decision"] == ACTIVE and (row["tool"], row["task_id"]) in migrated_failure_tasks) or (
                 current is not None
                 and (
                     current["task_id"] != row["task_id"]
-                    or (
-                        current["actor"] != "migration"
-                        and current["reason_code"]
-                        != "INITIAL_EXPORT_REVIEW_REQUIRED"
-                    )
+                    or (current["actor"] != "migration" and current["reason_code"] != "INITIAL_EXPORT_REVIEW_REQUIRED")
                 )
             ):
                 # A historical migration may seed an unreviewed export, but

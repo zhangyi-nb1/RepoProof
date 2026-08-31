@@ -92,7 +92,11 @@ def synthesize_host_contract(
         "task_id": tc.task_id,
         "task_version": "v1",
         "kind": "host_integrated",          # HostContract.load 硬校验值
-        "prompt_profile": "local-tool-v1",
+        "prompt_profile": (
+            "workspace-tool-v1"
+            if tc.tool.delivery_profile_id == "workspace_bundle_v1"
+            else "local-tool-v1"
+        ),
         "task_family": "LOCAL-TOOL",
         "adoption_shape": "TOOL_ONBOARDING",
         "runtime_profile": tc.runtime_profile,
@@ -282,8 +286,10 @@ def materialize_tool_task(
         p = oracle_src / "fixtures" / doc_name
         if p.is_file():
             n_file_examples += sum(
-                1 for e in _json.loads(p.read_text(encoding="utf-8"))["examples"]
-                if e.get("input_file"))
+                1
+                for e in _json.loads(p.read_text(encoding="utf-8"))["examples"]
+                if e.get("input_file") or e.get("input_path")
+            )
     # M2-e 物化期预检:选中子集在 harness 侧解释器上必须绿(供给问题
     # 早暴露);记录落任务包 conformance.json。未给解释器 = 只记选取。
     conf_record = (

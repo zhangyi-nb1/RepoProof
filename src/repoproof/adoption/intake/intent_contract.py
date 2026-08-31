@@ -332,14 +332,18 @@ def install_delivery_intent_from_interface(
         )
     requirements = DeliveryRequirements.model_validate({
         "inputs": [{
-            "kind": "file",
+            "kind": str((interface.get("input") or {}).get("kind") or "file"),
             "location": "local",
             "representation": prior_representation,
             "format_label": input_format,
             "role": "user-confirmed primary input",
         }],
         "outputs": [{
-            "kind": "text_artifact",
+            "kind": (
+                "directory"
+                if profile.profile_id == "workspace_bundle_v1"
+                else "text_artifact"
+            ),
             "format_id": artifact.format_id,
             "format_label": artifact.display_name,
             "role": "user-confirmed primary artifact",

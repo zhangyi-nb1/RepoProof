@@ -3,8 +3,8 @@
 [![CI](https://github.com/zhangyi-nb1/RepoProof/actions/workflows/ci.yml/badge.svg)](https://github.com/zhangyi-nb1/RepoProof/actions/workflows/ci.yml)
 
 **RepoProof turns one capability from a pinned public GitHub repository into a
-CLI-first local tool, then independently verifies the result before reporting
-`VERIFIED_TOOL_READY`.**
+CLI-first local file tool or offline workspace, then independently verifies the
+result before reporting `VERIFIED_TOOL_READY`.**
 
 New here? Start with the one-page map: [docs/PROJECT_MAP.md](docs/PROJECT_MAP.md)
 (code zones, milestone/gate numbering across generations, and the verdict
@@ -56,10 +56,20 @@ ACTIVE RepoProof-managed MCP / upgrade release (or append-only REVOKED)
 The LLM suggestion step is a writing aid, not an acceptance authority. Adopting
 a suggestion only refills the editable requirement field; it does not create a
 journey, freeze a contract, generate expected output, or mark a tool verified.
-User-facing artifacts are not limited to JSON: the current UTF-8 text delivery
-contract can represent ordinary text plus structured text formats such as RIS,
-TSV, Markdown, and self-contained XHTML/HTML. Binary artifacts such as PDF are
-outside the current delivery contract.
+User-facing artifacts are not limited to JSON. The supported `cli_v2` profile
+delivers one deterministic UTF-8 file, including RIS, TSV, Markdown and
+self-contained XHTML/HTML. M6.2 adds an **experimental**
+`workspace_bundle_v1` profile: one local file or directory becomes one new,
+atomic, offline multi-file workspace. Its structure, formats, task semantics,
+runnable smoke behavior and directory tree hash are independently checked;
+binary files may exist only as contract-declared workspace members with
+format/magic validation. This profile is not yet qualified as `SUPPORTED`.
+
+Workspace tools use `bin/<tool> <input> --out-dir <new-directory>`. They reject
+existing output directories, links, special files, path escape and resource
+limit violations. MCP deliberately returns
+`WORKSPACE_BUNDLE_MCP_NOT_SUPPORTED`; Studio's deterministic ZIP is a transport
+copy, never the trusted verdict object.
 
 The coding agent receives only the public contract, public examples, and
 runnable public tests. Held-out examples and the acceptance oracle are never

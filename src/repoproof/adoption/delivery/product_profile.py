@@ -28,6 +28,7 @@ from repoproof.domain.models import (
 )
 
 CLI_V2_PROFILE_ID = "cli_v2"
+WORKSPACE_BUNDLE_PROFILE_ID = "workspace_bundle_v1"
 DELIVERY_SUPPORTED = "SUPPORTED"
 DELIVERY_UNSUPPORTED = "UNSUPPORTED"
 
@@ -98,6 +99,8 @@ class DeliveryRequirements(BaseModel):
     credentials: Literal["none", "required"]
     lifecycle: Literal["per_invocation", "long_running"]
     runtime: Literal["local_cpu", "gpu", "remote_service"]
+    browser: Literal["none", "required"] = "none"
+    external_side_effects: Literal["none", "reversible", "irreversible"] = "none"
 
 
 class ProductDeliveryProfile(BaseModel):
@@ -107,15 +110,17 @@ class ProductDeliveryProfile(BaseModel):
 
     schema_version: int = 1
     profile_id: str
-    input_kind: Literal["file"] = "file"
+    input_kind: Literal["file", "file_or_directory"] = "file"
     input_cardinality: Literal[1] = 1
-    output_kind: Literal["stdout"] = "stdout"
+    output_kind: Literal["stdout", "directory"] = "stdout"
     output_cardinality: Literal[1] = 1
-    output_transport: Literal["utf8_text"] = "utf8_text"
+    output_transport: Literal["utf8_text", "filesystem"] = "utf8_text"
     network: Literal["offline"] = "offline"
     credentials: Literal["none"] = "none"
     lifecycle: Literal["per_invocation"] = "per_invocation"
     runtime: Literal["local_cpu"] = "local_cpu"
+    browser: Literal["none"] = "none"
+    external_side_effects: Literal["none"] = "none"
     output_artifacts: tuple[OutputArtifactSpec, ...] = Field(min_length=1)
 
     def artifact(self, format_id: str) -> OutputArtifactSpec:
@@ -165,12 +170,23 @@ class ProductDeliveryProfile(BaseModel):
         if len(requirements.inputs) != self.input_cardinality:
             raise ProductProfileError("INPUT_CARDINALITY_MISMATCH")
         input_requirement = requirements.inputs[0]
-        if input_requirement.kind != "file" or input_requirement.location != "local":
+        allowed_input_kinds = (
+            {"file", "directory"}
+            if self.input_kind == "file_or_directory"
+            else {"file"}
+        )
+        if (
+            input_requirement.kind not in allowed_input_kinds
+            or input_requirement.location != "local"
+        ):
             raise ProductProfileError("INPUT_SOURCE_MISMATCH")
         if len(requirements.outputs) != self.output_cardinality:
             raise ProductProfileError("OUTPUT_CARDINALITY_MISMATCH")
         output_requirement = requirements.outputs[0]
-        if output_requirement.kind != "text_artifact":
+        expected_output_kind = (
+            "directory" if self.output_kind == "directory" else "text_artifact"
+        )
+        if output_requirement.kind != expected_output_kind:
             raise ProductProfileError("OUTPUT_TRANSPORT_MISMATCH")
         artifact = self.artifact(output_requirement.format_id)
         if requirements.network != self.network:
@@ -181,14 +197,45 @@ class ProductDeliveryProfile(BaseModel):
             raise ProductProfileError("LIFECYCLE_MISMATCH")
         if requirements.runtime != self.runtime:
             raise ProductProfileError("RUNTIME_MODE_MISMATCH")
+        if requirements.browser != self.browser:
+            raise ProductProfileError("BROWSER_MODE_MISMATCH")
+        if requirements.external_side_effects != self.external_side_effects:
+            raise ProductProfileError("EXTERNAL_SIDE_EFFECT_MISMATCH")
         return requirements, artifact
 
     def prompt_context(self) -> dict:
         """Public, deterministic context safe to send to a drafting model."""
 
-        from repoproof.adoption.assembly.output_contract import (
-            public_validation_profile_spec,
-        )
+        from repoproof.adoption.assembly.output_contract import public_validation_profile_spec
+
+        if self.output_kind == "directory":
+            return {
+                "schema_version": self.schema_version,
+                "profile_id": self.profile_id,
+                "input": {
+                    "kind": "file_or_directory",
+                    "cardinality": self.input_cardinality,
+                    "supported_representations": ["utf8_text", "binary"],
+                },
+                "output": {
+                    "kind": "directory",
+                    "cardinality": self.output_cardinality,
+                    "transport": self.output_transport,
+                    "workspace_contract_required": True,
+                    "allowed_artifacts": [{
+                        "format_id": "workspace_bundle",
+                        "display_name": "离线多文件工作区",
+                        "extension": "",
+                        "media_type": "application/vnd.repoproof.workspace",
+                    }],
+                },
+                "network": self.network,
+                "credentials": self.credentials,
+                "lifecycle": self.lifecycle,
+                "runtime": self.runtime,
+                "browser": self.browser,
+                "external_side_effects": self.external_side_effects,
+            }
 
         return {
             "schema_version": self.schema_version,
@@ -226,6 +273,8 @@ class ProductDeliveryProfile(BaseModel):
             "credentials": self.credentials,
             "lifecycle": self.lifecycle,
             "runtime": self.runtime,
+            "browser": self.browser,
+            "external_side_effects": self.external_side_effects,
         }
 
     def contract_for(
@@ -236,6 +285,8 @@ class ProductDeliveryProfile(BaseModel):
     ) -> tuple[str, ToolOutputContract]:
         """Compile a model's format choice into the canonical Core contract."""
 
+        if self.output_kind == "directory":
+            raise ProductProfileError("WORKSPACE_CONTRACT_REQUIRED")
         artifact = self.artifact(format_id)
         required: dict[str, OutputFieldType] = {}
         for field in required_fields or []:
@@ -272,6 +323,8 @@ class ProductDeliveryProfile(BaseModel):
     ) -> ToolOutputContract:
         """Re-check the compiled artifact without trusting drafter provenance."""
 
+        if self.output_kind == "directory":
+            raise ProductProfileError("WORKSPACE_CONTRACT_REQUIRED")
         artifact = self.artifact(format_id)
         try:
             parsed = (
@@ -301,6 +354,8 @@ class ProductDeliveryProfile(BaseModel):
     ) -> OutputArtifactSpec:
         """Resolve an editable final draft back to one profile artifact."""
 
+        if self.output_kind == "directory":
+            raise ProductProfileError("WORKSPACE_CONTRACT_REQUIRED")
         try:
             parsed = (
                 contract
@@ -327,10 +382,19 @@ class ProductDeliveryProfile(BaseModel):
 
         input_spec = interface.get("input") or {}
         output_spec = interface.get("output") or {}
-        if input_spec.get("kind") != self.input_kind:
+        input_kind = input_spec.get("kind")
+        if self.input_kind == "file_or_directory":
+            input_ok = input_kind in {"file", "directory"}
+        else:
+            input_ok = input_kind == self.input_kind
+        if not input_ok:
             raise ProductProfileError("INPUT_TOPOLOGY_MISMATCH")
         if output_spec.get("kind") != self.output_kind:
             raise ProductProfileError("OUTPUT_TOPOLOGY_MISMATCH")
+        if self.output_kind == "directory":
+            if output_spec.get("contract") is not None:
+                raise ProductProfileError("WORKSPACE_STDOUT_CONTRACT_FORBIDDEN")
+            return self.artifact("workspace_bundle")
         return self.resolve_compiled_output(
             format_name=str(output_spec.get("format") or ""),
             contract=output_spec.get("contract") or {},
@@ -496,11 +560,57 @@ _CLI_V2 = ProductDeliveryProfile(
     ),
 )
 
+_WORKSPACE_BUNDLE_V1 = ProductDeliveryProfile(
+    profile_id=WORKSPACE_BUNDLE_PROFILE_ID,
+    input_kind="file_or_directory",
+    output_kind="directory",
+    output_transport="filesystem",
+    output_artifacts=(
+        OutputArtifactSpec(
+            format_id="workspace_bundle",
+            display_name="离线多文件工作区",
+            format_name="workspace directory",
+            extension="",
+            media_type="application/vnd.repoproof.workspace",
+            root_type="text",
+            aliases=("workspace", "directory", "project folder"),
+        ),
+    ),
+)
+
 
 def product_delivery_profile(profile_id: str = CLI_V2_PROFILE_ID) -> ProductDeliveryProfile:
-    if profile_id != CLI_V2_PROFILE_ID:
-        raise ProductProfileError("DELIVERY_PROFILE_UNKNOWN")
-    return _CLI_V2
+    profiles = {
+        CLI_V2_PROFILE_ID: _CLI_V2,
+        WORKSPACE_BUNDLE_PROFILE_ID: _WORKSPACE_BUNDLE_V1,
+    }
+    try:
+        return profiles[profile_id]
+    except KeyError as exc:
+        raise ProductProfileError("DELIVERY_PROFILE_UNKNOWN") from exc
+
+
+def select_product_delivery_profile(
+    raw: DeliveryRequirements | dict,
+) -> ProductDeliveryProfile:
+    """Select one profile from typed topology, never repository/task words."""
+
+    try:
+        requirements = (
+            raw
+            if isinstance(raw, DeliveryRequirements)
+            else DeliveryRequirements.model_validate(raw)
+        )
+    except ValueError as exc:
+        raise ProductProfileError("DELIVERY_REQUIREMENTS_INVALID") from exc
+    output_kinds = {item.kind for item in requirements.outputs}
+    output_formats = {item.format_id for item in requirements.outputs}
+    if output_kinds == {"directory"} or "workspace_bundle" in output_formats:
+        selected = _WORKSPACE_BUNDLE_V1
+    else:
+        selected = _CLI_V2
+    selected.admit_requirements(requirements)
+    return selected
 
 
 def project_requirement_brief(raw: dict, profile: ProductDeliveryProfile | None = None) -> dict:
@@ -529,7 +639,18 @@ def assess_requirement_brief(
     remain visible, but never receive adoptable text.
     """
 
-    selected = profile or product_delivery_profile()
+    try:
+        selected = profile or select_product_delivery_profile(
+            raw.get("delivery_requirements") or {}
+        )
+    except ProductProfileError as exc:
+        return {
+            **raw,
+            "text": None,
+            "delivery_shape": None,
+            "support_status": DELIVERY_UNSUPPORTED,
+            "support_reason_codes": [str(exc)],
+        }
     title = str(raw.get("title") or "").strip()
     scenario = str(raw.get("scenario") or "").strip().rstrip("。.;；")
     boundary = str(raw.get("boundary") or "").strip().rstrip("。.;；")
@@ -551,11 +672,18 @@ def assess_requirement_brief(
     if not input_format:
         raise ProductProfileError("BRIEF_FIELD_EMPTY")
     input_label = input_format if input_format.lower().endswith(("文件", "file")) else f"{input_format} 文件"
-    text = (
-        f"{scenario}。每次输入一份 {input_label}，输出一份"
-        f"{artifact.display_name}（{artifact.extension}）；完全离线、每次调用独立运行。"
-        f"主要边界是{boundary}。"
-    )
+    if selected.output_kind == "directory":
+        text = (
+            f"{scenario}。每次输入一个本地{input_format}文件或资料目录，"
+            "输出一套离线多文件工作区；每次调用独立运行。"
+            f"主要边界是{boundary}。"
+        )
+    else:
+        text = (
+            f"{scenario}。每次输入一份 {input_label}，输出一份"
+            f"{artifact.display_name}（{artifact.extension}）；完全离线、每次调用独立运行。"
+            f"主要边界是{boundary}。"
+        )
     return {
         **raw,
         "delivery_requirements": requirements.model_dump(mode="json"),

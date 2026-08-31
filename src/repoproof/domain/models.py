@@ -11,6 +11,7 @@ Design rules:
 from __future__ import annotations
 
 import hashlib
+import re
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, Literal
@@ -145,6 +146,10 @@ class FrozenDeliveryRequirements(BaseModel):
     credentials: Literal["none", "required"]
     lifecycle: Literal["per_invocation", "long_running"]
     runtime: Literal["local_cpu", "gpu", "remote_service"]
+    browser: Literal["none", "required"] = "none"
+    external_side_effects: Literal[
+        "none", "reversible", "irreversible"
+    ] = "none"
 
 
 class FrozenDeliveryIntent(BaseModel):
@@ -222,7 +227,10 @@ class SemanticVerifierSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    protocol: Literal["repoproof-semantic-verifier-v1"]
+    protocol: Literal[
+        "repoproof-semantic-verifier-v1",
+        "repoproof-workspace-semantic-verifier-v2",
+    ]
     verifier_id: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]{0,255}$")
     source_file: str
     source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -370,18 +378,250 @@ class ToolInterface(BaseModel):
     不在模型层拒——模型层拒会把旧谱系契约的加载路径复杂化。"""
 
 
+WorkspaceValidationProfile = Literal[
+    "binary_v1",
+    "csv_v1",
+    "html_v1",
+    "json_v1",
+    "python_compile_v1",
+    "shell_v1",
+    "sqlite_v1",
+    "svg_xml_v1",
+    "text_utf8_v1",
+    "toml_v1",
+    "tsv_v1",
+    "wheel_v1",
+    "xml_v1",
+    "yaml_v1",
+    "zip_v1",
+]
+
+_WORKSPACE_LITERAL_PATH_RE = re.compile(r"[A-Za-z0-9._@+\-/]+")
+
+
+def _validate_workspace_relative_path(value: str, *, pattern: bool) -> str:
+    """Validate one portable output path without touching the filesystem.
+
+    Workspace contracts deliberately use a small glob language. ``*`` may
+    match within one path segment and ``**`` may appear only as an entire
+    segment. Character classes, brace expansion and platform separators are
+    excluded so every consumer implements exactly the same matching rules.
+    """
+
+    value = value.strip()
+    if not value or len(value.encode("utf-8")) > 240:
+        raise ValueError("workspace path must contain 1..240 UTF-8 bytes")
+    if value.startswith(("/", "\\")) or "\\" in value or "\x00" in value:
+        raise ValueError("workspace path must be a relative POSIX path")
+    parts = value.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        raise ValueError("workspace path contains an unsafe segment")
+    if len(parts) > 12:
+        raise ValueError("workspace path exceeds the profile depth limit")
+    if any(char in value for char in "?[]{}"):
+        raise ValueError("workspace path uses an unsupported glob token")
+    if not pattern and "*" in value:
+        raise ValueError("literal workspace path cannot contain globs")
+    for part in parts:
+        if part == "**":
+            if not pattern:
+                raise ValueError("literal workspace path cannot contain globs")
+            continue
+        if "**" in part:
+            raise ValueError("** is valid only as a complete path segment")
+        probe = part.replace("*", "a")
+        if _WORKSPACE_LITERAL_PATH_RE.fullmatch(probe) is None:
+            raise ValueError("workspace path contains a non-portable character")
+    return value
+
+
+class WorkspaceArtifactRule(BaseModel):
+    """One public structural rule for a generated workspace file set."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    path_pattern: str
+    role: str = Field(min_length=1, max_length=160)
+    media_type: str = Field(min_length=1, max_length=120)
+    validation_profile: WorkspaceValidationProfile
+    min_count: int = Field(default=1, ge=0, le=512)
+    max_count: int = Field(default=1, ge=1, le=512)
+    executable: bool = False
+
+    @field_validator("path_pattern")
+    @classmethod
+    def _safe_pattern(cls, value: str) -> str:
+        return _validate_workspace_relative_path(value, pattern=True)
+
+    @field_validator("media_type")
+    @classmethod
+    def _normalise_media_type(cls, value: str) -> str:
+        return value.strip().lower()
+
+    @model_validator(mode="after")
+    def _valid_cardinality(self) -> WorkspaceArtifactRule:
+        if self.max_count < self.min_count:
+            raise ValueError("workspace rule max_count is below min_count")
+        return self
+
+
+class WorkspaceArtifactLimits(BaseModel):
+    """Hard profile limits, with conservative M6.2 defaults."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    max_files: int = Field(default=512, ge=1, le=512)
+    max_total_bytes: int = Field(default=256 * 1024 * 1024, ge=1,
+                                 le=256 * 1024 * 1024)
+    max_file_bytes: int = Field(default=64 * 1024 * 1024, ge=1,
+                                le=64 * 1024 * 1024)
+    max_depth: int = Field(default=12, ge=1, le=12)
+    max_path_bytes: int = Field(default=240, ge=1, le=240)
+
+
+class WorkspaceArtifactContractV1(BaseModel):
+    """Machine-executable contract for one offline directory artifact."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal[1] = 1
+    rules: tuple[WorkspaceArtifactRule, ...] = Field(min_length=1, max_length=128)
+    allow_extra_files: bool = False
+    entrypoints: tuple[str, ...] = Field(default_factory=tuple, max_length=16)
+    runnable: bool = False
+    smoke_command: tuple[str, ...] = Field(default_factory=tuple, max_length=32)
+    smoke_timeout_seconds: int = Field(default=30, ge=1, le=120)
+    require_offline_wheelhouse: bool = False
+    limits: WorkspaceArtifactLimits = Field(default_factory=WorkspaceArtifactLimits)
+
+    @field_validator("entrypoints")
+    @classmethod
+    def _safe_entrypoints(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        checked = tuple(
+            _validate_workspace_relative_path(item, pattern=False) for item in value
+        )
+        if len(checked) != len(set(checked)):
+            raise ValueError("workspace entrypoints must be unique")
+        return checked
+
+    @field_validator("smoke_command")
+    @classmethod
+    def _safe_smoke_command(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        for argument in value:
+            if not argument or len(argument.encode("utf-8")) > 256 or "\0" in argument:
+                raise ValueError("workspace smoke argv contains an unsafe argument")
+        return value
+
+    @model_validator(mode="after")
+    def _coherent_workspace_contract(self) -> WorkspaceArtifactContractV1:
+        patterns = [rule.path_pattern for rule in self.rules]
+        if len(patterns) != len(set(patterns)):
+            raise ValueError("workspace path rules must be unique")
+        if self.runnable and not self.entrypoints:
+            raise ValueError("runnable workspace requires an entrypoint")
+        if self.runnable and not self.smoke_command:
+            raise ValueError("runnable workspace requires a frozen smoke command")
+        if not self.runnable and self.smoke_command:
+            raise ValueError("non-runnable workspace cannot declare a smoke command")
+        if self.smoke_command:
+            command = self.smoke_command[0]
+            expected_commands = {f"./{entrypoint}" for entrypoint in self.entrypoints}
+            if command not in expected_commands:
+                raise ValueError(
+                    "workspace smoke command must invoke a declared entrypoint"
+                )
+        if self.require_offline_wheelhouse and not self.runnable:
+            raise ValueError("offline wheelhouse is meaningful only for runnable workspaces")
+        if self.require_offline_wheelhouse:
+            required_literals = {
+                "requirements.lock.txt",
+                "THIRD_PARTY_NOTICES.md",
+            }
+            literal_patterns = {item for item in patterns if "*" not in item}
+            if not required_literals.issubset(literal_patterns):
+                raise ValueError(
+                    "offline runnable workspace must contract-bind lock and notices"
+                )
+            if not any(item.startswith("vendor/wheels/") for item in patterns):
+                raise ValueError("offline runnable workspace must contract-bind wheelhouse")
+        return self
+
+
+class ArtifactManifestEntryV1(BaseModel):
+    """One immutable regular-file identity in a generated workspace."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    path: str
+    size: int = Field(ge=0)
+    mode: int = Field(ge=0, le=0o777)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @field_validator("path")
+    @classmethod
+    def _safe_path(cls, value: str) -> str:
+        return _validate_workspace_relative_path(value, pattern=False)
+
+
+class ArtifactManifestV1(BaseModel):
+    """Harness-authored directory identity; never stored in Agent output."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal[1] = 1
+    artifact_kind: Literal["directory"] = "directory"
+    file_count: int = Field(ge=0, le=512)
+    total_bytes: int = Field(ge=0, le=256 * 1024 * 1024)
+    tree_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    entries: tuple[ArtifactManifestEntryV1, ...] = Field(max_length=512)
+
+    @model_validator(mode="after")
+    def _manifest_totals_match(self) -> ArtifactManifestV1:
+        if self.file_count != len(self.entries):
+            raise ValueError("artifact manifest file_count mismatch")
+        if self.total_bytes != sum(item.size for item in self.entries):
+            raise ValueError("artifact manifest total_bytes mismatch")
+        paths = [item.path for item in self.entries]
+        if paths != sorted(paths) or len(paths) != len(set(paths)):
+            raise ValueError("artifact manifest paths must be unique and sorted")
+        return self
+
+
 class ToolSpec(BaseModel):
     """LOCAL-TOOL 谱系唯一新增分节。name = CLI 命令名,必须与
     target_project.entry_point 一致(adequacy T2 执法)。"""
 
     schema_version: int = Field(default=1, ge=1)
     """1 = historical semantics; 2 = output-contract gates; 3 = frozen
-    task-authored semantic verification required before operational ACTIVE."""
+    task-authored semantic verification required before operational ACTIVE;
+    4 = offline workspace-bundle delivery with a directory contract."""
     name: str = Field(
         pattern=r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$"
     )
     summary: str
     interface: ToolInterface
+    delivery_profile_id: str | None = None
+    workspace_contract: WorkspaceArtifactContractV1 | None = None
+
+    @model_validator(mode="after")
+    def _versioned_delivery_shape(self) -> ToolSpec:
+        if self.schema_version < 4:
+            if self.delivery_profile_id is not None or self.workspace_contract is not None:
+                raise ValueError("ToolSpec v1-v3 cannot declare workspace delivery")
+            return self
+        if self.delivery_profile_id != "workspace_bundle_v1":
+            raise ValueError("ToolSpec v4 requires workspace_bundle_v1")
+        if self.workspace_contract is None:
+            raise ValueError("ToolSpec v4 requires workspace_contract")
+        if self.interface.input.kind not in {"file", "directory"}:
+            raise ValueError("ToolSpec v4 input must be one local path")
+        if self.interface.output.kind != "directory":
+            raise ValueError("ToolSpec v4 output must be a directory")
+        if self.interface.output.contract is not None:
+            raise ValueError("ToolSpec v4 uses workspace_contract, not stdout contract")
+        if "--out-dir" not in self.interface.usage:
+            raise ValueError("ToolSpec v4 usage must expose --out-dir")
+        return self
 
 
 class TaskContract(BaseModel):

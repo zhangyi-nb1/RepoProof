@@ -33,6 +33,7 @@ from repoproof.adoption.intake.tool_drafter import (
     FakeDrafter,
     LiteLLMDrafter,
     draft_into_bundle,
+    normalize_draft_document,
     reference_source_policy_errors,
     validate_repo_summary_document,
 )
@@ -180,6 +181,7 @@ def test_verifier_is_drafted_from_an_exact_public_context_only(world) -> None:
         "output_format_id",
         "output_format",
         "output_contract",
+        "workspace_contract",
         "output_validation_profile_spec",
         "upstream_public_info",
     }
@@ -238,6 +240,130 @@ def test_current_product_draft_requires_an_independent_verifier_method(world) ->
         match="INDEPENDENT_VERIFIER_DRAFTER_REQUIRED",
     ):
         draft_into_bundle(rep, dest, ProposalOnlyDrafter())
+
+
+def test_typed_directory_need_compiles_a_v4_workspace_draft(world) -> None:
+    _, report, destination = world
+
+    class WorkspaceDrafter:
+        name = "workspace-test-drafter"
+        last_usage: dict = {}
+
+        def draft(self, context: dict) -> dict:
+            return normalize_draft_document(
+                {
+                    "summary": "生成离线研究工作区",
+                    "delivery_requirements": {
+                        "inputs": [{
+                            "kind": "directory",
+                            "location": "local",
+                            "representation": "binary",
+                            "format_label": "研究资料目录",
+                            "role": "待整理资料",
+                        }],
+                        "outputs": [{
+                            "kind": "directory",
+                            "format_id": "workspace_bundle",
+                            "format_label": "离线工作区",
+                            "role": "可交接结果",
+                        }],
+                        "network": "offline",
+                        "credentials": "none",
+                        "lifecycle": "per_invocation",
+                        "runtime": "local_cpu",
+                    },
+                    "output_required_fields": [],
+                    "output_schema": "ResearchWorkspace",
+                    "workspace_contract": {
+                        "schema_version": 1,
+                        "rules": [{
+                            "path_pattern": "README.md",
+                            "role": "human documentation",
+                            "media_type": "text/markdown",
+                            "validation_profile": "text_utf8_v1",
+                        }],
+                        "allow_extra_files": False,
+                        "entrypoints": [],
+                        "runnable": False,
+                        "smoke_command": [],
+                        "smoke_timeout_seconds": 30,
+                        "require_offline_wheelhouse": False,
+                    },
+                    "fixture_builder": (
+                        "from pathlib import Path\n"
+                        "def build(blueprint, output_path: Path):\n"
+                        "    output_path.mkdir(parents=True)\n"
+                        "    (output_path / 'brief.txt').write_text(\n"
+                        "        blueprint['parameters']['text'], encoding='utf-8')\n"
+                    ),
+                    "fixture_blueprints": [
+                        {
+                            "blueprint_id": f"study-{index}",
+                            "title": f"研究场景 {index}",
+                            "scenario": "一份需要整理的研究资料目录",
+                            "input_kind": "directory",
+                            "parameters_json": json.dumps(
+                                {"text": f"experiment {index}"}
+                            ),
+                        }
+                        for index in range(1, 4)
+                    ],
+                    "semantic_commitments": [{
+                        "commitment_id": "workspace-summary",
+                        "public_text": "README 总结输入目录里的资料。",
+                        "rationale": "这是用户可核对的交付内容。",
+                    }],
+                    "artifact_protocol": {
+                        "schema_version": 1,
+                        "protocol_id": "workspace-summary-v1",
+                        "observations": [{
+                            "observation_id": "summary-body",
+                            "commitment_ids": ["workspace-summary"],
+                            "locator": "README.md 的完整 Markdown 正文",
+                            "value_encoding": "UTF-8 Markdown 文本",
+                        }],
+                    },
+                    "reference_impl": (
+                        "from pathlib import Path\nimport acme_lib\n"
+                        "class UserInputError(ValueError):\n    pass\n"
+                        "def build_workspace(input_path: Path, output_dir: Path) -> None:\n"
+                        "    value = str(acme_lib)\n"
+                        "    (output_dir / 'README.md').write_text(value, encoding='utf-8')\n"
+                    ),
+                    "example_suggestions": [{
+                        "description": "包含一份典型资料的目录",
+                        "assertion_kind": "exact_file",
+                    }],
+                },
+                capability_goal=context["capability_goal"],
+            )
+
+        def draft_verifier(self, context: dict) -> dict[str, str]:
+            assert context["delivery_profile"] == "workspace_bundle_v1"
+            assert context["workspace_contract"]["rules"]
+            return {
+                "semantic_verifier": (
+                    "from pathlib import Path\nimport acme_lib\n"
+                    "def verify(input_path: Path, artifact_dir: Path) -> dict:\n"
+                    "    _ = acme_lib\n"
+                    "    return {'ok': False, 'reason_codes': "
+                    "['INDEPENDENT_REVIEW_REQUIRED'], "
+                    "'checked_commitment_ids': ['workspace-summary']}\n"
+                )
+            }
+
+    draft_into_bundle(report, destination, WorkspaceDrafter())
+    document = yaml.safe_load(
+        (destination / "draft.yaml").read_text(encoding="utf-8")
+    )
+    assert document["tool"]["schema_version"] == 4
+    assert document["tool"]["delivery_profile_id"] == "workspace_bundle_v1"
+    assert document["tool"]["interface"]["input"]["kind"] == "directory"
+    assert document["tool"]["interface"]["output"]["kind"] == "directory"
+    assert "contract" not in document["tool"]["interface"]["output"]
+    assert (destination / "workspace_examples.yaml").is_file()
+    assert (destination / "fixture_builder.py").is_file()
+    assert (destination / "fixture_blueprints.json").is_file()
 
 
 def test_human_written_fields_are_never_overwritten(world):
@@ -480,6 +606,7 @@ def test_codex_repairs_contract_projection_with_same_bounded_policy(
     repair = calls[1]["context"]["core_projection_repair"]
     assert repair["reason_code"] == "OUTPUT_REQUIRED_FIELDS_NOT_SUPPORTED"
     assert repair["selected_artifact"] == {
+        "profile_id": "cli_v2",
         "format_id": "markdown",
         "root_type": "text",
         "allows_required_fields": False,

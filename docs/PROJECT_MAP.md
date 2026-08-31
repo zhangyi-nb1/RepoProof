@@ -10,13 +10,19 @@
 "我做完了"永远不算数——判定只出自 agent 摸不到的验证链(隐藏验收、
 回归基线、策略执法、干净重放、主仓完整性对账)。
 
-当前主链(2026-08-25,Verified Tool Onboarding Harness):
+当前主链(2026-08-31,Verified Tool Onboarding Harness + M6.2 实验 profile):
 
 ```text
 URL+一句话 → 静态分析 → CapabilityPlanV1(证据+确定性路由,用户确认)
   → DIRECT_WRAP(受信模板,零 agent) 或 AGENT_ADAPT(有界修复循环)
   → 同一条独立验证链 → 判定 → 导出/注册表/MCP + append-only 运营账本
 ```
+
+稳定交付面 `cli_v2` = 一输入 → 一份 UTF-8 文件。实验交付面
+`workspace_bundle_v1` = 一文件/目录输入 → 一个原子离线工作区；目录 manifest、
+tree hash、结构/格式/语义/运行验证、clean replay 与 fresh audit 都重新取证，
+本阶段不支持 MCP。工程候选已经落地，但正式九案例资格批次尚未授权，不能写成
+`SUPPORTED` 或新增成功率。
 
 ## 10 分钟阅读路径
 
@@ -34,7 +40,7 @@ URL+一句话 → 静态分析 → CapabilityPlanV1(证据+确定性路由,用�
 
 | 分区 | 包/文件 | 状态 |
 |---|---|---|
-| 产品主编排 | `runner/tool_pipeline.py`(384 行) | 在役,新逻辑落这里 |
+| 产品主编排 | `runner/tool_pipeline.py` | 在役,新逻辑落这里 |
 | 产品可信链 | `adoption/`(analyzer/plan/intake/assembly/repair)、`verification/`、`harness/`、`domain/`、`persistence/`、`execution/`、`receipts/`、`probes/` | 在役,mypy 0 错 |
 | 产品运营 | `runner/tool_export|registry|release|mcp|paths|host_bridge` | 在役,mypy 0 错(2026-08-26 摘出豁免) |
 | 展示面 | `ui/`(Streamlit Studio,不参与判定)、`cli.py` | 在役,mypy 0 错(2026-08-27 摘出豁免) |
@@ -45,9 +51,10 @@ URL+一句话 → 静态分析 → CapabilityPlanV1(证据+确定性路由,用�
 渐进队列已清空:类型覆盖是**棘轮**,名单只许减。新增模块默认受检,
 不得靠加 override 绕过。
 
-冻结区的特殊件:`host_guided.py`(3900+ 行)**功能面冻结但没有退役**——
+冻结区的特殊件:`host_guided.py`(3900+ 行)**旧宿主适配功能面冻结但没有退役**——
 产品的彩排与真发仍由 `tool_pipeline` 调用它执行,其验证链就是判定来源。
-冻结 = 不再新增研究面功能;判定/安全缺陷照修。不拆分重构:单人项目里
+M6.2 只接入新的 Product prompt profile，不恢复旧宿主适配任务或研究扩展。
+冻结 = 不再新增旧研究面功能;判定/安全缺陷照修。不拆分重构:单人项目里
 宣布冻结比拆 4000 行便宜一百倍,且不引入回归风险。
 
 ## 编号系统对照(四套,只有两套现行)
@@ -56,6 +63,7 @@ URL+一句话 → 静态分析 → CapabilityPlanV1(证据+确定性路由,用�
 |---|---|---|
 | **M0–M7** | RFC-010 产品里程碑:M0 章程 → M1 首工具闭环 → M2 半自动 intake → M3 单命令+注册表+MCP → M4 两批 24 真实仓 → M5 输出合同+运营账本 → M6 Studio+用户测试 → M7 强回执 sidecar(EXPERIMENTAL) | **现行**;M0–M6 已关,M7 部分 |
 | **新阶段 Gate 0–4** | 2026-08-25 指导文档的关门序:0 事实收口 → 1 CapabilityPlanV1 → 2 修复控制器产品化 → 3 DIRECT_WRAP → 4 Studio 收口 | **现行**;全部已关 |
+| **M6.1/M6.2** | M6.1 产品旅程稳定化；M6.2 离线多文件工作区 profile 与九案例资格 | M6.1 已关；M6.2 工程候选完成、真实资格未开始 |
 | MVP Gate 0–7.x(数字) | 2026 早期 Benchmark MVP 的证据链关卡(Gate 5 SEMANTIC_SUBSTITUTION、Gate 6/7 量具修正等),见 PROJECT_EVOLUTION | 历史,已完成 |
 | RFC-008 Gate A–F(字母) | Guided Adoption UI 线的实施序 | 历史,已完成 |
 
@@ -79,10 +87,11 @@ historical 与 operational 是**双口径并列**,不是新旧替代:一个工�
 "历史 VERIFIED_TOOL_READY + 运营 REVOKED" —— 这正是 false-success 被
 新输入审计抓出后的诚实形态(实例:pyspellchecker,M4 批次二)。
 
-## RFC 索引(12 个)
+## RFC 索引(13 个)
 
 现行:**RFC-010**(产品章程)、**RFC-011**(输出合同+运营发布状态)、
-**RFC-013**(CapabilityPlanV1:证据化计划+确定性路由+用户确认)。
+**RFC-013**(CapabilityPlanV1:证据化计划+确定性路由+用户确认)、
+**RFC-014**(Verified Offline Workspace Bundle，EXPERIMENTAL)。
 历史(演进记录,读旧文档时查):001 host-analyzer、002 repository-
 analyzer、003 admission、004 plan-only、005 human-gate、006 repair-loop、
 007 example-assembly、008 guided-adoption UI(Gate A–F)、009

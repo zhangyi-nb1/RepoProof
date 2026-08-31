@@ -10,7 +10,9 @@ from pydantic import ValidationError
 
 from repoproof.persistence.qualification_records import (
     QualificationCaseResultV1,
+    QualificationCaseResultV2,
     QualificationExecutionRecordV1,
+    QualificationExecutionRecordV2,
     QualificationRecordError,
     qualification_framework_tree_sha256,
     write_qualification_record,
@@ -18,6 +20,10 @@ from repoproof.persistence.qualification_records import (
 from repoproof.verification.semantic_artifact import (
     SemanticVerifierEvidenceV1,
     semantic_verifier_evidence_sha256,
+)
+from repoproof.verification.workspace_semantic import (
+    SemanticVerifierEvidenceV2,
+    workspace_semantic_evidence_sha256,
 )
 
 
@@ -189,3 +195,100 @@ def test_framework_tree_fingerprint_is_path_and_content_bound(
     linked.symlink_to(package, target_is_directory=True)
     with pytest.raises(QualificationRecordError, match="unsafe"):
         qualification_framework_tree_sha256(linked)
+
+
+def _workspace_evidence() -> SemanticVerifierEvidenceV2:
+    return SemanticVerifierEvidenceV2(
+        verifier_id="independent-workspace-verifier-v1",
+        verifier_source_sha256="1" * 64,
+        input_kind="directory",
+        input_sha256="2" * 64,
+        artifact_tree_sha256="3" * 64,
+        artifact_manifest_sha256="4" * 64,
+        workspace_contract_sha256="5" * 64,
+        intent_confirmation_sha256="6" * 64,
+        upstream_commit="7" * 40,
+        import_module="synthetic_upstream",
+        upstream_imports=1,
+        upstream_calls=1,
+        input_negative_control_sha256="8" * 64,
+        input_negative_control_result="REJECTED",
+        artifact_negative_control_tree_sha256="9" * 64,
+        artifact_negative_control_result="REJECTED",
+        upstream_result_counterfactual_result="REJECTED",
+        upstream_result_counterfactual_upstream_imports=1,
+        upstream_result_counterfactual_upstream_calls=1,
+        required_commitment_ids=("workspace-output",),
+        checked_commitment_ids=("workspace-output",),
+        passed=True,
+    )
+
+
+def test_v2_records_success_and_expected_admission_rejection(tmp_path: Path) -> None:
+    evidence = _workspace_evidence()
+    success = QualificationCaseResultV2(
+        case_name="baseline-one",
+        status="PASSED",
+        journey_id="a" * 32,
+        task_id="tool-baseline-one-v1",
+        run_id="run-one",
+        historical_verdict="VERIFIED_TOOL_READY",
+        clean_replay="PASS",
+        fresh_audit="PASS",
+        operational_status="ACTIVE",
+        package_health="OK",
+        artifact_tree_sha256=evidence.artifact_tree_sha256,
+        artifact_manifest_sha256=evidence.artifact_manifest_sha256,
+        workspace_structure_passed=True,
+        semantic_verifier_id=evidence.verifier_id,
+        semantic_verifier_sha256=evidence.verifier_source_sha256,
+        semantic_verifier_evidence_sha256=workspace_semantic_evidence_sha256(evidence),
+        semantic_verifier_evidence=evidence,
+        agent_invoked=True,
+        repair_attempts=1,
+    )
+    rejection = QualificationCaseResultV2(
+        case_name="negative-control",
+        status="EXPECTED_REJECTION",
+        failure_stage="ADMISSION",
+        failure_owner="USER_INPUT",
+        reason_codes=("UNSUPPORTED_CREDENTIALLED_EXTERNAL_SIDE_EFFECT",),
+        recommended_action="Use an offline reversible task.",
+        agent_invoked=False,
+        repair_attempts=0,
+    )
+    record = QualificationExecutionRecordV2(
+        execution_id="m6-2-workspace-attempt-1",
+        protocol_id="m6.2-workspace-bundle-qualification-v1",
+        protocol_sha256="a" * 64,
+        framework_git_commit="b" * 40,
+        framework_tree_sha256="c" * 64,
+        started_at="2026-08-31T00:00:00Z",
+        completed_at="2026-08-31T01:00:00Z",
+        status="COMPLETED",
+        cases=(rejection, success),
+    )
+    path = write_qualification_record(tmp_path, record)
+    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 2
+
+
+def test_v2_failure_cannot_be_active_or_ambiguous() -> None:
+    with pytest.raises(ValidationError, match="one failure verdict"):
+        QualificationCaseResultV2(
+            case_name="failed",
+            status="FAILED",
+            agent_invoked=False,
+            repair_attempts=0,
+        )
+    with pytest.raises(ValidationError, match="cannot be ACTIVE"):
+        QualificationCaseResultV2(
+            case_name="failed",
+            status="FAILED",
+            operational_status="ACTIVE",
+            failure_stage="CLEAN_REPLAY",
+            failure_owner="HARNESS",
+            reason_codes=("REPLAY_DRIFT",),
+            recommended_action="Inspect the package.",
+            agent_invoked=False,
+            repair_attempts=0,
+        )

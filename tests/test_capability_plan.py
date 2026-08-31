@@ -25,6 +25,7 @@ from repoproof.adoption.planning.capability_plan import (
     assert_may_execute,
     assert_plan_matches_source,
     build_capability_plan,
+    build_capability_plan_v2,
     confirm_plan,
 )
 
@@ -276,5 +277,80 @@ def test_non_supported_plan_cannot_be_confirmed(tmp_path):
         "src/svc2/__init__.py": "__all__ = []\n",
     })
     plan, _ = _plan(root, "服务")
+    with pytest.raises(PlanError, match="不可确认执行"):
+        confirm_plan(plan, acks=list(plan.human_confirmations))
+
+
+def _workspace_requirements(**overrides) -> dict:
+    result = {
+        "inputs": [{
+            "kind": "directory",
+            "location": "local",
+            "representation": "utf8_text",
+            "format_label": "research materials",
+            "role": "local source bundle",
+        }],
+        "outputs": [{
+            "kind": "directory",
+            "format_id": "workspace_bundle",
+            "format_label": "workspace",
+            "role": "offline project folder",
+        }],
+        "network": "offline",
+        "credentials": "none",
+        "lifecycle": "per_invocation",
+        "runtime": "local_cpu",
+        "browser": "none",
+        "external_side_effects": "none",
+    }
+    result.update(overrides)
+    return result
+
+
+def test_v2_workspace_plan_forces_composition_without_new_route(tmp_path: Path) -> None:
+    root = _direct_repo(tmp_path)
+    report = analyze_repository_dir(root)
+    policy = evaluate_tool_policy(report)
+
+    plan = build_capability_plan_v2(
+        root,
+        report,
+        policy,
+        goal="Generate an offline research workspace",
+        delivery_requirements=_workspace_requirements(),
+    )
+
+    assert plan.schema_version == 2
+    assert plan.delivery_profile == "workspace_bundle_v1"
+    assert plan.adaptation_shape == "WORKSPACE_COMPOSITION"
+    assert plan.implementation_route == "AGENT_ADAPT"
+    assert plan.support_status == "SUPPORTED"
+    assert "workspace structure contract" in plan.human_confirmations
+
+
+def test_v2_credentialled_irreversible_browser_request_is_zero_agent(tmp_path: Path) -> None:
+    root = _direct_repo(tmp_path)
+    report = analyze_repository_dir(root)
+    policy = evaluate_tool_policy(report)
+    requirements = _workspace_requirements(
+        network="required",
+        credentials="required",
+        lifecycle="long_running",
+        runtime="remote_service",
+        browser="required",
+        external_side_effects="irreversible",
+    )
+
+    plan = build_capability_plan_v2(
+        root,
+        report,
+        policy,
+        goal="Log in to a bank and make payments",
+        delivery_requirements=requirements,
+    )
+
+    assert plan.support_status == "UNSUPPORTED"
+    assert plan.implementation_route == "NONE"
+    assert "UNSUPPORTED_CREDENTIALLED_EXTERNAL_SIDE_EFFECT" in plan.reason_codes
     with pytest.raises(PlanError, match="不可确认执行"):
         confirm_plan(plan, acks=list(plan.human_confirmations))

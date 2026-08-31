@@ -21,7 +21,12 @@ from pydantic import BaseModel, Field
 
 from repoproof.adoption.assembly.output_contract import validate_output_text
 from repoproof.adoption.intake.upstream_pin import normalize_dist_name
-from repoproof.domain.models import TaskPackageManifest
+from repoproof.domain.models import TaskPackageManifest, WorkspaceArtifactContractV1
+from repoproof.execution.workspace_bundle import (
+    build_artifact_manifest,
+    run_workspace_smoke,
+    validate_workspace,
+)
 from repoproof.verification.output_match import compare_output
 
 PreflightOwner = Literal["HARNESS", "UPSTREAM", "CONTRACT", "USER_INPUT"]
@@ -111,7 +116,7 @@ def _fixture_path(skeleton: Path, relative: str) -> Path | None:
         skeleton / "public_examples" / rel,
         skeleton / "public_tests" / "fixtures" / rel,
     )
-    return next((path for path in candidates if path.is_file()), None)
+    return next((path for path in candidates if path.exists() and not path.is_symlink()), None)
 
 
 _REFERENCE_RUNNER = """
@@ -128,6 +133,22 @@ result = module.extract(Path(sys.argv[2]))
 if not isinstance(result, str):
     raise TypeError("reference extract() must return str")
 sys.stdout.write(result)
+""".strip()
+
+
+_WORKSPACE_REFERENCE_RUNNER = """
+import importlib.util
+import sys
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("repoproof_reference", sys.argv[1])
+if spec is None or spec.loader is None:
+    raise RuntimeError("reference module cannot be loaded")
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+result = module.build_workspace(Path(sys.argv[2]), Path(sys.argv[3]))
+if result is not None:
+    raise TypeError("reference build_workspace() must return None")
 """.strip()
 
 
@@ -169,9 +190,29 @@ def run_product_preflight(
     checks.append(ProductPreflightCheck(name="contract_identity", ok=True))
 
     package_manifest: TaskPackageManifest | None = None
-    tool_schema_version = int(
-        (tool_contract.get("tool") or {}).get("schema_version") or 1
-    )
+    tool_document = tool_contract.get("tool") or {}
+    tool_schema_version = int(tool_document.get("schema_version") or 1)
+    delivery_profile_id = str(tool_document.get("delivery_profile_id") or "cli_v2")
+    workspace_contract: WorkspaceArtifactContractV1 | None = None
+    if delivery_profile_id == "workspace_bundle_v1":
+        if tool_schema_version != 4:
+            return _failure(
+                checks,
+                owner="CONTRACT",
+                code="WORKSPACE_PROFILE_SCHEMA_MISMATCH",
+                detail="workspace_bundle_v1 必须由 ToolSpec v4 冻结",
+            )
+        try:
+            workspace_contract = WorkspaceArtifactContractV1.model_validate(
+                tool_document.get("workspace_contract")
+            )
+        except (TypeError, ValueError) as exc:
+            return _failure(
+                checks,
+                owner="CONTRACT",
+                code="WORKSPACE_CONTRACT_INVALID",
+                detail=str(exc),
+            )
     if tool_schema_version >= 3:
         from repoproof.harness.task_package import load_and_verify
 
@@ -275,8 +316,16 @@ def run_product_preflight(
     try:
         truth = json.loads(truth_path.read_text(encoding="utf-8"))
         first = (truth.get("examples") or [])[0]
-        input_path = _fixture_path(skeleton, str(first["input_file"]))
-        expected_path = _fixture_path(skeleton, str(first["expected_file"]))
+        if delivery_profile_id == "workspace_bundle_v1":
+            input_path = _fixture_path(
+                skeleton, f"{first['example_id']}/input"
+            )
+            expected_path = _fixture_path(
+                skeleton, f"{first['example_id']}/expected"
+            )
+        else:
+            input_path = _fixture_path(skeleton, str(first["input_file"]))
+            expected_path = _fixture_path(skeleton, str(first["expected_file"]))
     except (OSError, UnicodeError, ValueError, KeyError, IndexError, TypeError) as exc:
         return _failure(
             checks,
@@ -355,9 +404,24 @@ def run_product_preflight(
         checks.append(ProductPreflightCheck(name="upstream_import", ok=True))
 
         runner = temp_root / "run_reference.py"
-        runner.write_text(_REFERENCE_RUNNER + "\n", encoding="utf-8")
+        reference_output = temp_root / "reference-output"
+        if delivery_profile_id == "workspace_bundle_v1":
+            reference_output.mkdir()
+            runner.write_text(_WORKSPACE_REFERENCE_RUNNER + "\n", encoding="utf-8")
+            reference_command = [
+                str(python),
+                str(runner),
+                str(reference),
+                str(input_path),
+                str(reference_output),
+            ]
+        else:
+            runner.write_text(_REFERENCE_RUNNER + "\n", encoding="utf-8")
+            reference_command = [
+                str(python), str(runner), str(reference), str(input_path)
+            ]
         reference_run = subprocess.run(
-            [str(python), str(runner), str(reference), str(input_path)],
+            reference_command,
             capture_output=True,
             text=True,
             timeout=120,
@@ -372,7 +436,59 @@ def run_product_preflight(
             )
         checks.append(ProductPreflightCheck(name="reference_execution", ok=True))
 
-    output = (((tool_contract.get("tool") or {}).get("interface") or {}).get("output") or {})
+        if workspace_contract is not None:
+            structure = validate_workspace(reference_output, workspace_contract)
+            if not structure.ok:
+                return _failure(
+                    checks,
+                    owner="CONTRACT",
+                    code="REFERENCE_WORKSPACE_CONTRACT_MISMATCH",
+                    detail="；".join(structure.reason_codes[:3]),
+                )
+            checks.append(
+                ProductPreflightCheck(name="reference_workspace_contract", ok=True)
+            )
+            actual_manifest = build_artifact_manifest(
+                reference_output, limits=workspace_contract.limits
+            )
+            expected_manifest = build_artifact_manifest(
+                expected_path, limits=workspace_contract.limits
+            )
+            if actual_manifest.tree_sha256 != expected_manifest.tree_sha256:
+                return _failure(
+                    checks,
+                    owner="CONTRACT",
+                    code="REFERENCE_GOLDEN_MISMATCH",
+                    detail="冻结 reference 目录树与第一个用户确认的期望工作区不一致",
+                )
+            checks.append(
+                ProductPreflightCheck(name="reference_workspace_golden", ok=True)
+            )
+            if workspace_contract.runnable:
+                runtime = run_workspace_smoke(reference_output, workspace_contract)
+                if not runtime.passed:
+                    isolation_unavailable = (
+                        "WORKSPACE_SMOKE_ISOLATION_UNAVAILABLE"
+                        in runtime.reason_codes
+                    )
+                    return _failure(
+                        checks,
+                        owner="HARNESS" if isolation_unavailable else "CONTRACT",
+                        code=(
+                            "WORKSPACE_SMOKE_ISOLATION_UNAVAILABLE"
+                            if isolation_unavailable
+                            else "REFERENCE_WORKSPACE_SMOKE_FAILED"
+                        ),
+                        detail="；".join(runtime.reason_codes[:3]),
+                    )
+                checks.append(
+                    ProductPreflightCheck(name="reference_workspace_smoke", ok=True)
+                )
+
+    if workspace_contract is not None:
+        return ProductPreflightResult(ok=True, checks=checks)
+
+    output = ((tool_document.get("interface") or {}).get("output") or {})
     output_contract = output.get("contract") or {
         "media_type": "text/plain",
         "root_type": "text",

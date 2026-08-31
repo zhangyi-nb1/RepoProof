@@ -34,6 +34,8 @@ from repoproof.runner.tool_release import (
     operational_status,
 )
 
+WORKSPACE_BUNDLE_MCP_NOT_SUPPORTED = "WORKSPACE_BUNDLE_MCP_NOT_SUPPORTED"
+
 _SERVER_TMPL = '''#!/usr/bin/env python3
 """MCP stdio server for `{name}`(由 repoproof tool mcp 机械生成)。
 
@@ -716,6 +718,11 @@ def _write_mcp_server_install_locked(tool_dir: Path, release_root: Path) -> Path
     manifest = json.loads((tool_dir / "tool.json").read_text(encoding="utf-8"))
     if not isinstance(manifest, dict):
         raise RuntimeError("tool manifest 必须为 JSON object")
+    if manifest.get("delivery_profile_id") == "workspace_bundle_v1":
+        # M6.2 deliberately keeps directory delivery on the CLI/UI path.  A
+        # future MCP projection must define directory transport semantics; it
+        # must not silently reuse the single-file/stdout adapter.
+        raise RuntimeError(WORKSPACE_BUNDLE_MCP_NOT_SUPPORTED)
     historical_verdict = (manifest.get("verification") or {}).get("verdict")
     if not is_historical_tool_ready(historical_verdict):
         raise RuntimeError(

@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import secrets
 from pathlib import Path
@@ -24,12 +25,16 @@ from pydantic import ValidationError
 
 from repoproof.adoption.assembly.example_compiler import CompileError
 from repoproof.adoption.assembly.tool_assembler import assemble_tool_task
+from repoproof.adoption.assembly.workspace_tool_assembler import (
+    assemble_workspace_tool_task,
+)
 from repoproof.adoption.intake.draft_readiness import (
     DRAFT_YAML,
     EXAMPLES_YAML,
     REFERENCE_LOCK,
     REFERENCE_PY,
     SEMANTIC_VERIFIER_PY,
+    WORKSPACE_EXAMPLES_YAML,
     draft_completion_problems,
     evaluate_draft_readiness,
     resolved_dependency_lock,
@@ -228,41 +233,86 @@ def confirm_tool_draft(draft_dir: Path, project_root: Path) -> dict:
         spec = ToolSpec.model_validate(draft["tool"])
     except ValidationError as e:
         raise ConfirmError([f"tool 分节非法:{e}"]) from e
-    examples = (yaml.safe_load((draft_dir / EXAMPLES_YAML)
-                               .read_text(encoding="utf-8")) or {})["examples"]
     sr = draft["source_repo"]
-    # 输入扩展名从首个文件样例推导(接口契约 malformed fixture 同后缀)
-    first_file = next((e.get("input_file") for e in examples
-                       if e.get("input_file")), None)
-    input_ext = Path(first_file).suffix if first_file else ".dat"
 
     try:
         intent_contract = frozen_intent_snapshot(draft)
-        info = assemble_tool_task(
-            Path(project_root),
-            goal=draft["capability"]["statement"],
-            repo_url=sr["url"], resolved_commit=sr["resolved_commit"],
-            distribution=sr["distribution"], import_module=sr["import_module"],
-            license_id=sr["license"], tool=spec, examples=examples,
-            example_src_dir=draft_dir / "examples",
-            reference_impl=(draft_dir / REFERENCE_PY).read_text(encoding="utf-8"),
-            semantic_verifier_source=(draft_dir / SEMANTIC_VERIFIER_PY).read_text(
-                encoding="utf-8"
-            ),
-            # 草稿束写了就以人写的为准;没写就从钉版树派生 —— 这份锁
-            # 缺席会让备轮漏装上游、positive 彩排也不预装,`import <上游>`
-            # 必然在会话里失败；因此它不是可静默省略的输入。
-            reference_lock=resolved_dependency_lock(
-                draft,
-                draft_dir,
-                project_root=project_root,
-            ),
-            capability_output_schema=draft["capability"]["output_schema"],
-            intent_contract=intent_contract,
-            input_ext=input_ext,
-            # 域适用性(M4 chardet):"全域合法输入"类工具声明豁免 malformed
-            malformed_applicable=bool(
-                draft["tool"].get("malformed_applicable", True)))
+        if spec.schema_version == 4:
+            examples = (
+                yaml.safe_load(
+                    (draft_dir / WORKSPACE_EXAMPLES_YAML).read_text(encoding="utf-8")
+                )
+                or {}
+            )["examples"]
+            info = assemble_workspace_tool_task(
+                Path(project_root),
+                goal=draft["capability"]["statement"],
+                repo_url=sr["url"],
+                resolved_commit=sr["resolved_commit"],
+                distribution=sr["distribution"],
+                import_module=sr["import_module"],
+                license_id=sr["license"],
+                tool=spec,
+                examples=examples,
+                example_src_dir=draft_dir / "examples",
+                reference_impl=(draft_dir / REFERENCE_PY).read_text(
+                    encoding="utf-8"
+                ),
+                semantic_verifier_source=(draft_dir / SEMANTIC_VERIFIER_PY).read_text(
+                    encoding="utf-8"
+                ),
+                fixture_builder_source=(draft_dir / "fixture_builder.py").read_text(
+                    encoding="utf-8"
+                ),
+                fixture_blueprints=(
+                    json.loads(
+                        (draft_dir / "fixture_blueprints.json").read_text(
+                            encoding="utf-8"
+                        )
+                    ).get("blueprints")
+                    or []
+                ),
+                reference_lock=resolved_dependency_lock(
+                    draft,
+                    draft_dir,
+                    project_root=project_root,
+                ),
+                intent_contract=intent_contract,
+            )
+        else:
+            examples = (
+                yaml.safe_load((draft_dir / EXAMPLES_YAML).read_text(encoding="utf-8"))
+                or {}
+            )["examples"]
+            # 输入扩展名从首个文件样例推导(接口契约 malformed fixture 同后缀)
+            first_file = next(
+                (e.get("input_file") for e in examples if e.get("input_file")),
+                None,
+            )
+            input_ext = Path(first_file).suffix if first_file else ".dat"
+            info = assemble_tool_task(
+                Path(project_root),
+                goal=draft["capability"]["statement"],
+                repo_url=sr["url"], resolved_commit=sr["resolved_commit"],
+                distribution=sr["distribution"], import_module=sr["import_module"],
+                license_id=sr["license"], tool=spec, examples=examples,
+                example_src_dir=draft_dir / "examples",
+                reference_impl=(draft_dir / REFERENCE_PY).read_text(encoding="utf-8"),
+                semantic_verifier_source=(draft_dir / SEMANTIC_VERIFIER_PY).read_text(
+                    encoding="utf-8"
+                ),
+                # 草稿束写了就以人写的为准;没写就从钉版树派生。
+                reference_lock=resolved_dependency_lock(
+                    draft,
+                    draft_dir,
+                    project_root=project_root,
+                ),
+                capability_output_schema=draft["capability"]["output_schema"],
+                intent_contract=intent_contract,
+                input_ext=input_ext,
+                malformed_applicable=bool(
+                    draft["tool"].get("malformed_applicable", True)),
+            )
     except (CompileError, IntentContractError, ValidationError, OSError) as e:
         raise ConfirmError([f"装配失败:{e}"]) from e
 

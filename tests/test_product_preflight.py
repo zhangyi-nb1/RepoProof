@@ -160,6 +160,68 @@ def _mark_tool_contract_v3(world: dict[str, Path | str]) -> dict:
     return contract
 
 
+def _mark_workspace_contract_v4(world: dict[str, Path | str]) -> dict:
+    project = Path(world["project"])
+    task_id = str(world["task_id"])
+    contract_path = Path(world["tool_contract"])
+    contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    skeleton = project / contract["target_project"]["path"]
+    fixture = skeleton / "public_tests" / "fixtures" / "case-1"
+    (fixture / "input").mkdir(parents=True)
+    (fixture / "expected" / "data").mkdir(parents=True)
+    (fixture / "input" / "brief.txt").write_text("alpha", encoding="utf-8")
+    (fixture / "expected" / "README.md").write_text("# alpha\n", encoding="utf-8")
+    (fixture / "expected" / "data" / "value.txt").write_text(
+        "ALPHA", encoding="utf-8"
+    )
+    (skeleton / "public_examples" / "truth_table.json").write_text(
+        json.dumps({"examples": [{"example_id": "case-1"}]}),
+        encoding="utf-8",
+    )
+    reference = project / "controls" / task_id / "reference" / "impl.py"
+    reference.write_text(
+        "from pathlib import Path\nimport demo_upstream\n"
+        "def build_workspace(input_path: Path, output_dir: Path) -> None:\n"
+        "    value = input_path.joinpath('brief.txt').read_text()\n"
+        "    output_dir.joinpath('data').mkdir()\n"
+        "    output_dir.joinpath('README.md').write_text(f'# {value}\\n')\n"
+        "    output_dir.joinpath('data/value.txt').write_text(demo_upstream.convert(value))\n",
+        encoding="utf-8",
+    )
+    contract["tool"] = {
+        "schema_version": 4,
+        "delivery_profile_id": "workspace_bundle_v1",
+        "workspace_contract": {
+            "schema_version": 1,
+            "rules": [
+                {
+                    "path_pattern": "README.md",
+                    "role": "documentation",
+                    "media_type": "text/markdown",
+                    "validation_profile": "text_utf8_v1",
+                },
+                {
+                    "path_pattern": "data/value.txt",
+                    "role": "derived data",
+                    "media_type": "text/plain",
+                    "validation_profile": "text_utf8_v1",
+                },
+            ],
+            "allow_extra_files": False,
+            "entrypoints": [],
+            "runnable": False,
+            "require_offline_wheelhouse": False,
+        },
+        "interface": {
+            "output": {"kind": "directory", "format": "offline workspace"}
+        },
+    }
+    contract_path.write_text(
+        yaml.safe_dump(contract, sort_keys=False), encoding="utf-8"
+    )
+    return contract
+
+
 def test_product_preflight_proves_offline_reference_path(tmp_path: Path) -> None:
     result = _run(_world(tmp_path))
     assert result.ok is True
@@ -223,6 +285,43 @@ def test_v3_preflight_binds_complete_wheelhouse_before_agent(
     assert rejected.ok is False
     assert rejected.reason_codes == ["FROZEN_WHEELHOUSE_IDENTITY_MISMATCH"]
     assert all(check.name != "offline_install" for check in rejected.checks)
+
+
+def test_v4_workspace_preflight_runs_reference_and_validates_exact_tree(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from repoproof.harness.wheelhouse import compute_manifest
+
+    world = _world(tmp_path)
+    contract = _mark_workspace_contract_v4(world)
+    wheel_manifest = compute_manifest(Path(world["wheelhouse"]))
+    monkeypatch.setattr(
+        "repoproof.harness.task_package.load_and_verify",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            source_commit=contract["source_repo"]["resolved_commit"],
+            source_git_tree_hash="a" * 40,
+            wheelhouse_root=wheel_manifest["root"],
+            wheelhouse_wheels=wheel_manifest["wheels"],
+        ),
+    )
+
+    result = _run(world)
+
+    assert result.ok is True
+    names = [check.name for check in result.checks]
+    assert "reference_workspace_contract" in names
+    assert "reference_workspace_golden" in names
+    assert "reference_output_contract" not in names
+
+    expected = (
+        Path(world["project"])
+        / "fixtures/tool_skeleton_demo/public_tests/fixtures/case-1/expected/data/value.txt"
+    )
+    expected.write_text("WRONG", encoding="utf-8")
+    rejected = _run(world)
+    assert rejected.ok is False
+    assert rejected.reason_codes == ["REFERENCE_GOLDEN_MISMATCH"]
 
 
 def test_missing_upstream_wheel_stops_as_harness_fault(tmp_path: Path) -> None:

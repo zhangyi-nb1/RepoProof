@@ -21,6 +21,10 @@ from repoproof.verification.semantic_artifact import (
     SemanticVerifierEvidenceV1,
     semantic_verifier_evidence_sha256,
 )
+from repoproof.verification.workspace_semantic import (
+    SemanticVerifierEvidenceV2,
+    workspace_semantic_evidence_sha256,
+)
 
 _ID_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,127}")
 
@@ -192,9 +196,151 @@ class QualificationExecutionRecordV1(BaseModel):
         return self
 
 
+class QualificationCaseResultV2(BaseModel):
+    """One workspace case with either proof of success or one failure owner."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    case_name: str = Field(min_length=1, max_length=128)
+    delivery_profile_id: Literal["workspace_bundle_v1"] = "workspace_bundle_v1"
+    status: Literal["PASSED", "FAILED", "EXPECTED_REJECTION"]
+    journey_id: str | None = Field(default=None, max_length=128)
+    task_id: str | None = Field(default=None, max_length=256)
+    run_id: str | None = Field(default=None, max_length=256)
+    historical_verdict: Literal["VERIFIED_TOOL_READY"] | None = None
+    clean_replay: Literal["PASS"] | None = None
+    fresh_audit: Literal["PASS"] | None = None
+    operational_status: Literal["ACTIVE", "REVIEW_REQUIRED", "REVOKED"] | None = None
+    package_health: Literal["OK"] | None = None
+    artifact_tree_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    artifact_manifest_sha256: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{64}$"
+    )
+    workspace_structure_passed: bool | None = None
+    semantic_verifier_id: str | None = Field(default=None, max_length=256)
+    semantic_verifier_sha256: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{64}$"
+    )
+    semantic_verifier_evidence_sha256: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{64}$"
+    )
+    semantic_verifier_evidence: SemanticVerifierEvidenceV2 | None = None
+    failure_stage: str | None = Field(default=None, max_length=64)
+    failure_owner: str | None = Field(default=None, max_length=64)
+    reason_codes: tuple[str, ...] = Field(default_factory=tuple, max_length=32)
+    recommended_action: str | None = Field(default=None, max_length=2000)
+    agent_invoked: bool
+    repair_attempts: int = Field(ge=0, le=2)
+
+    @model_validator(mode="after")
+    def _terminal_evidence_is_unambiguous(self) -> QualificationCaseResultV2:
+        if self.status == "PASSED":
+            required = {
+                "journey_id": self.journey_id,
+                "task_id": self.task_id,
+                "run_id": self.run_id,
+                "historical_verdict": self.historical_verdict,
+                "clean_replay": self.clean_replay,
+                "fresh_audit": self.fresh_audit,
+                "package_health": self.package_health,
+                "artifact_tree_sha256": self.artifact_tree_sha256,
+                "artifact_manifest_sha256": self.artifact_manifest_sha256,
+                "semantic_verifier_id": self.semantic_verifier_id,
+                "semantic_verifier_sha256": self.semantic_verifier_sha256,
+                "semantic_verifier_evidence_sha256": (
+                    self.semantic_verifier_evidence_sha256
+                ),
+                "semantic_verifier_evidence": self.semantic_verifier_evidence,
+            }
+            missing = sorted(name for name, value in required.items() if not value)
+            if missing:
+                raise ValueError(
+                    "PASSED workspace case is missing evidence: " + ", ".join(missing)
+                )
+            if self.workspace_structure_passed is not True:
+                raise ValueError("PASSED workspace case requires structure PASS")
+            if self.operational_status != "ACTIVE":
+                raise ValueError("PASSED workspace case requires ACTIVE")
+            evidence = self.semantic_verifier_evidence
+            assert evidence is not None
+            mismatches: list[str] = []
+            if evidence.verifier_id != self.semantic_verifier_id:
+                mismatches.append("semantic_verifier_id")
+            if evidence.verifier_source_sha256 != self.semantic_verifier_sha256:
+                mismatches.append("semantic_verifier_sha256")
+            if evidence.artifact_tree_sha256 != self.artifact_tree_sha256:
+                mismatches.append("artifact_tree_sha256")
+            if evidence.artifact_manifest_sha256 != self.artifact_manifest_sha256:
+                mismatches.append("artifact_manifest_sha256")
+            if not evidence.passed:
+                mismatches.append("semantic_verifier_evidence.passed")
+            if (
+                workspace_semantic_evidence_sha256(evidence)
+                != self.semantic_verifier_evidence_sha256
+            ):
+                mismatches.append("semantic_verifier_evidence_sha256")
+            if mismatches:
+                raise ValueError(
+                    "PASSED workspace case has mismatched evidence: "
+                    + ", ".join(mismatches)
+                )
+            if self.failure_owner or self.failure_stage or self.reason_codes:
+                raise ValueError("PASSED workspace case cannot carry a failure verdict")
+            return self
+
+        if not self.failure_owner or not self.failure_stage or not self.reason_codes:
+            raise ValueError("non-passing workspace case requires one failure verdict")
+        if not (self.recommended_action or "").strip():
+            raise ValueError("non-passing workspace case requires a next action")
+        if self.operational_status == "ACTIVE":
+            raise ValueError("non-passing workspace case cannot be ACTIVE")
+        if self.status == "EXPECTED_REJECTION" and (
+            self.agent_invoked or self.repair_attempts != 0
+        ):
+            raise ValueError("admission rejection must use zero Agent and zero repair")
+        return self
+
+
+class QualificationExecutionRecordV2(BaseModel):
+    """Append-only M6.2 record; every preregistered case has one terminal state."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal[2] = 2
+    execution_id: str = Field(min_length=1, max_length=128)
+    protocol_id: str = Field(min_length=1, max_length=256)
+    protocol_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    framework_git_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
+    framework_tree_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    backend: Literal["mini-swe"] = "mini-swe"
+    started_at: str
+    completed_at: str
+    status: Literal["COMPLETED", "BLOCKED"]
+    cases: tuple[QualificationCaseResultV2, ...] = Field(min_length=1, max_length=16)
+    test_mode: Literal["PRODUCT"] = "PRODUCT"
+    counts_toward_model_score: Literal[False] = False
+    counts_toward_stage_gate: Literal[False] = False
+    counts_toward_profile_qualification: Literal[False] = False
+    counts_toward_observation_policy_qualification: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _valid_execution(self) -> QualificationExecutionRecordV2:
+        if _ID_RE.fullmatch(self.execution_id) is None:
+            raise ValueError("execution_id must be a safe lowercase identifier")
+        names = [case.case_name for case in self.cases]
+        if len(names) != len(set(names)):
+            raise ValueError("qualification case names must be unique")
+        return self
+
+
+QualificationExecutionRecord = (
+    QualificationExecutionRecordV1 | QualificationExecutionRecordV2
+)
+
+
 def write_qualification_record(
     root: Path,
-    record: QualificationExecutionRecordV1,
+    record: QualificationExecutionRecord,
 ) -> Path:
     """Create one immutable record; duplicate ids and symlinks fail closed."""
 

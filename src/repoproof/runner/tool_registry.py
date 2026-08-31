@@ -85,13 +85,17 @@ def release_audit_trust_identity_from_contract(
     if contract.tool is None or contract.tool.schema_version < 3:
         return None
     verifier = contract.acceptance.semantic_verifier
-    output = contract.tool.interface.output.contract
+    artifact_contract = (
+        contract.tool.workspace_contract
+        if contract.tool.schema_version == 4
+        else contract.tool.interface.output.contract
+    )
     intent = contract.capability.intent_contract
-    if verifier is None or output is None or intent is None:
-        raise ValueError("ToolSpec v3 缺 semantic verifier/output/intent identity")
+    if verifier is None or artifact_contract is None or intent is None:
+        raise ValueError("ToolSpec v3+ 缺 semantic verifier/artifact contract/intent identity")
     output_sha256 = hashlib.sha256(
         json.dumps(
-            output.model_dump(mode="json"),
+            artifact_contract.model_dump(mode="json"),
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
@@ -103,9 +107,7 @@ def release_audit_trust_identity_from_contract(
         intent_confirmation_sha256=intent.confirmation.semantics_sha256,
         upstream_commit=contract.source_repo.resolved_commit,
         import_module=contract.source_repo.import_name,
-        required_commitment_ids=tuple(
-            commitment.commitment_id for commitment in intent.commitments
-        ),
+        required_commitment_ids=tuple(commitment.commitment_id for commitment in intent.commitments),
     )
 
 
@@ -143,9 +145,7 @@ def validate_reference_identity(
             raise ValueError("reference_identity 缺失")
         return None
     if not isinstance(value, dict) or set(value) != _REFERENCE_IDENTITY_KEYS:
-        raise ValueError(
-            "reference_identity 必须且只能包含 impl_sha256/lock_sha256"
-        )
+        raise ValueError("reference_identity 必须且只能包含 impl_sha256/lock_sha256")
     identity: dict[str, str] = {}
     for key in sorted(_REFERENCE_IDENTITY_KEYS):
         digest = value.get(key)
@@ -175,8 +175,10 @@ def validate_semantic_verifier_identity(
 
 def validate_contract_schema_version(manifest: dict) -> int:
     value = manifest.get("contract_schema_version", 1)
-    if type(value) is not int or value not in {1, 2, 3}:
-        raise ValueError("contract_schema_version 必须为 1、2 或 3")
+    if type(value) is not int or value not in {1, 2, 3, 4}:
+        raise ValueError("contract_schema_version 必须为 1、2、3 或 4")
+    if value == 4 and manifest.get("delivery_profile_id") != "workspace_bundle_v1":
+        raise ValueError("contract_schema_version=4 必须声明 workspace_bundle_v1")
     return value
 
 
@@ -185,6 +187,7 @@ def _load(dest_root: Path) -> dict:
     raw = read_control_file(p, missing_ok=True)
     if raw is None:
         return {"schema_version": 1, "tools": {}}
+
     def reject_constant(constant: str) -> None:
         raise ValueError(f"non-standard JSON constant: {constant}")
 
@@ -203,10 +206,7 @@ def _load(dest_root: Path) -> dict:
         not isinstance(doc, dict)
         or doc.get("schema_version") != 1
         or not isinstance(doc.get("tools"), dict)
-        or any(
-            not isinstance(name, str) or not isinstance(entry, dict)
-            for name, entry in doc["tools"].items()
-        )
+        or any(not isinstance(name, str) or not isinstance(entry, dict) for name, entry in doc["tools"].items())
     ):
         raise ValueError("registry schema invalid")
     return doc
@@ -281,8 +281,7 @@ def _load_package_provenance(
         raise ValueError(f"{name}: provenance tool 与 manifest name 不一致")
     if require_verification_binding and (
         provenance.get("run_id") != verification.get("run_id")
-        or provenance.get("tool_contract_sha256")
-        != verification.get("contract_sha256")
+        or provenance.get("tool_contract_sha256") != verification.get("contract_sha256")
     ):
         raise ValueError(f"{name}: manifest/provenance identity 不一致")
     if "reference_identity" in provenance:
@@ -301,15 +300,15 @@ def _load_package_provenance(
         required=schema_version >= 3,
     )
     if schema_version < 3 and semantic_identity is not None:
-        raise ValueError(
-            f"{name}: legacy contract 不得声明 v3 semantic_verifier_identity"
-        )
+        raise ValueError(f"{name}: legacy contract 不得声明 v3 semantic_verifier_identity")
     if release_audit_identity is not None:
         output_contract = (
-            ((manifest.get("interface") or {}).get("output") or {}).get("contract")
+            manifest.get("workspace_contract")
+            if schema_version == 4
+            else ((manifest.get("interface") or {}).get("output") or {}).get("contract")
         )
         if not isinstance(output_contract, dict):
-            raise ValueError(f"{name}: v3 package 缺 output contract identity")
+            raise ValueError(f"{name}: v3+ package 缺 artifact contract identity")
         output_contract_sha256 = hashlib.sha256(
             json.dumps(
                 output_contract,
@@ -320,20 +319,14 @@ def _load_package_provenance(
         ).hexdigest()
         package_commit = (manifest.get("source") or {}).get("resolved_commit")
         if (
-            semantic_identity
-            != release_audit_identity.semantic_verifier.model_dump(mode="json")
-            or output_contract_sha256
-            != release_audit_identity.output_contract_sha256
+            semantic_identity != release_audit_identity.semantic_verifier.model_dump(mode="json")
+            or output_contract_sha256 != release_audit_identity.output_contract_sha256
             or package_commit != release_audit_identity.upstream_commit
         ):
-            raise ValueError(
-                f"{name}: manifest/provenance release audit identity 不一致"
-            )
+            raise ValueError(f"{name}: manifest/provenance release audit identity 不一致")
     provenance["semantic_verifier_identity"] = semantic_identity
     provenance["release_audit_trust_identity"] = (
-        release_audit_identity.model_dump(mode="json")
-        if release_audit_identity is not None
-        else None
+        release_audit_identity.model_dump(mode="json") if release_audit_identity is not None else None
     )
     return task_id, provenance
 
@@ -384,10 +377,15 @@ def _validate_upgrade_archive(
         raise ValueError(f"{name}: archived previous package identity 不一致")
 
 
-def register_tool(dest_root: Path, tool_dir: Path, *,
-                  run_id: str | None, exported_at: str | None,
-                  _lock_held: bool = False,
-                  _upgrade_previous: dict | None = None) -> dict:
+def register_tool(
+    dest_root: Path,
+    tool_dir: Path,
+    *,
+    run_id: str | None,
+    exported_at: str | None,
+    _lock_held: bool = False,
+    _upgrade_previous: dict | None = None,
+) -> dict:
     """导出后登记(pipeline 显式调用;export 本身保持纯函数)。"""
     if not _lock_held:
         with registry_install_lock(dest_root):
@@ -411,9 +409,7 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
     manifest_name = manifest.get("name")
     validate_tool_name(manifest_name)
     if manifest_name != directory_name:
-        raise ValueError(
-            f"工具目录名 {directory_name!r} 与 manifest name={manifest_name!r} 不一致"
-        )
+        raise ValueError(f"工具目录名 {directory_name!r} 与 manifest name={manifest_name!r} 不一致")
     historical_verdict = (manifest.get("verification") or {}).get("verdict")
     if not is_historical_tool_ready(historical_verdict):
         raise ValueError(
@@ -439,6 +435,9 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
         "contract_schema_version": validate_contract_schema_version(manifest),
         "package_payload_sha256": package_payload_sha256(tool_dir),
     }
+    delivery_profile_id = str(manifest.get("delivery_profile_id") or "").strip()
+    if delivery_profile_id:
+        entry["delivery_profile_id"] = delivery_profile_id
     reference_identity = validate_reference_identity(
         provenance.get("reference_identity"),
         required="reference_identity" in provenance,
@@ -456,9 +455,7 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
         required=entry["contract_schema_version"] >= 3,
     )
     if release_audit_identity is not None:
-        entry["release_audit_trust_identity"] = (
-            release_audit_identity.model_dump(mode="json")
-        )
+        entry["release_audit_trust_identity"] = release_audit_identity.model_dump(mode="json")
     # Validate both existing indexes before any write.  Initial export appends
     # REVIEW_REQUIRED only once; a repeated registration never masks a revoke.
     doc = _load(dest_root)
@@ -468,13 +465,12 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
         if previous_task_id == task_id:
             previous_run_id = previous.get("run_id")
             previous_contract = previous.get("contract_sha256")
-            if (
-                previous_run_id not in (None, entry["run_id"])
-                or previous_contract not in (None, entry["contract_sha256"])
+            if previous_run_id not in (None, entry["run_id"]) or previous_contract not in (
+                None,
+                entry["contract_sha256"],
             ):
                 raise ValueError(
-                    f"{manifest_name}: 同一 task_id={task_id!r} 的 run/contract "
-                    "与 registry 不一致，拒绝覆盖"
+                    f"{manifest_name}: 同一 task_id={task_id!r} 的 run/contract 与 registry 不一致，拒绝覆盖"
                 )
             previous_reference_identity = validate_reference_identity(
                 previous.get("reference_identity"),
@@ -482,46 +478,53 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
             )
             if previous_reference_identity != reference_identity:
                 raise ValueError(
-                    f"{manifest_name}: 同一 task_id={task_id!r} 的 reference_identity "
-                    "与 registry 不一致，拒绝覆盖"
+                    f"{manifest_name}: 同一 task_id={task_id!r} 的 reference_identity 与 registry 不一致，拒绝覆盖"
                 )
             previous_schema_version = previous.get("contract_schema_version")
             if previous_schema_version not in (None, entry["contract_schema_version"]):
                 raise ValueError(
-                    f"{manifest_name}: 同一 task_id={task_id!r} 的 contract schema "
-                    "与 registry 不一致，拒绝覆盖"
+                    f"{manifest_name}: 同一 task_id={task_id!r} 的 contract schema 与 registry 不一致，拒绝覆盖"
+                )
+            if previous.get("delivery_profile_id") not in (
+                None,
+                entry.get("delivery_profile_id"),
+            ):
+                raise ValueError(
+                    f"{manifest_name}: 同一 task_id={task_id!r} 的 delivery profile 与 registry 不一致，拒绝覆盖"
+                )
+            if (
+                entry["contract_schema_version"] >= 4
+                and previous.get("delivery_profile_id") is None
+            ):
+                raise ValueError(
+                    f"{manifest_name}: v4 registry 缺 delivery profile identity，拒绝从可变 package 回填"
                 )
             previous_semantic_identity = validate_semantic_verifier_identity(
                 previous.get("semantic_verifier_identity"),
-                required=previous_schema_version == 3,
+                required=(isinstance(previous_schema_version, int) and previous_schema_version >= 3),
             )
             if previous_semantic_identity != semantic_identity:
                 raise ValueError(
-                    f"{manifest_name}: 同一 task_id={task_id!r} 的 semantic verifier "
-                    "与 registry 不一致，拒绝覆盖"
+                    f"{manifest_name}: 同一 task_id={task_id!r} 的 semantic verifier 与 registry 不一致，拒绝覆盖"
                 )
             previous_release_identity = validate_release_audit_trust_identity(
                 previous.get("release_audit_trust_identity"),
-                required=previous_schema_version == 3,
+                required=(isinstance(previous_schema_version, int) and previous_schema_version >= 3),
             )
             if previous_release_identity != release_audit_identity:
                 raise ValueError(
-                    f"{manifest_name}: 同一 task_id={task_id!r} 的 release audit "
-                    "identity 与 registry 不一致，拒绝覆盖"
+                    f"{manifest_name}: 同一 task_id={task_id!r} 的 release audit identity 与 registry 不一致，拒绝覆盖"
                 )
             previous_payload = previous.get("package_payload_sha256")
             if previous_payload not in (None, entry["package_payload_sha256"]):
                 raise ValueError(
-                    f"{manifest_name}: 同一 task_id={task_id!r} 的 package payload "
-                    "与 registry 不一致，拒绝覆盖"
+                    f"{manifest_name}: 同一 task_id={task_id!r} 的 package payload 与 registry 不一致，拒绝覆盖"
                 )
             entry["previous_versions"] = list(previous.get("previous_versions", []))
         else:
             replaces = provenance.get("replaces")
             if not isinstance(replaces, dict) or _upgrade_previous is None:
-                raise ValueError(
-                    f"{manifest_name}: task 变更只能由受管 installer 结算"
-                )
+                raise ValueError(f"{manifest_name}: task 变更只能由受管 installer 结算")
             if any(
                 previous.get(field) != _upgrade_previous.get(field)
                 for field in ("task_id", "run_id", "contract_sha256")
@@ -529,9 +532,7 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
                 raise ValueError(f"{manifest_name}: installer 前态与 registry 不一致")
             indexed_previous_task = previous_task_id or replaces.get("task_id")
             if replaces.get("task_id") != indexed_previous_task:
-                raise ValueError(
-                    f"{manifest_name}: 新版本 provenance 未绑定 registry 中的前一 task"
-                )
+                raise ValueError(f"{manifest_name}: 新版本 provenance 未绑定 registry 中的前一 task")
             _validate_upgrade_archive(
                 dest_root,
                 manifest_name,
@@ -546,9 +547,7 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
                     "contract_sha256": previous.get("contract_sha256"),
                     "exported_at": previous.get("exported_at"),
                     "archive_path": replaces.get("archive_path"),
-                    "historical_verdict": previous.get(
-                        "historical_verdict", previous.get("verdict")
-                    ),
+                    "historical_verdict": previous.get("historical_verdict", previous.get("verdict")),
                 }
             )
             entry["previous_versions"] = history
@@ -564,9 +563,7 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
     return entry
 
 
-def list_tools(
-    dest_root: Path, *, scan: bool = False, _lock_held: bool = False
-) -> list[dict]:
+def list_tools(dest_root: Path, *, scan: bool = False, _lock_held: bool = False) -> list[dict]:
     """List package health plus historical and operational release status."""
     if scan and not _lock_held:
         with registry_install_lock(dest_root):
@@ -603,9 +600,7 @@ def list_tools(
                 task_id, package_provenance = _load_package_provenance(
                     d,
                     m,
-                    require_verification_binding=is_historical_tool_ready(
-                        historical_verdict
-                    ),
+                    require_verification_binding=is_historical_tool_ready(historical_verdict),
                 )
             except (OSError, UnicodeError, ValueError):
                 continue
@@ -615,10 +610,9 @@ def list_tools(
                 "run_id": (m.get("verification") or {}).get("run_id"),
                 "verdict": historical_verdict,
                 "historical_verdict": historical_verdict,
-                "contract_sha256": (m.get("verification") or {}).get(
-                    "contract_sha256"
-                ),
+                "contract_sha256": (m.get("verification") or {}).get("contract_sha256"),
                 "contract_schema_version": observed_schema_version,
+                "delivery_profile_id": m.get("delivery_profile_id"),
                 "package_payload_sha256": package_payload_sha256(d),
             }
             package_reference_identity = validate_reference_identity(
@@ -638,16 +632,14 @@ def list_tools(
                 required=observed_schema_version >= 3,
             )
             if package_release_identity is not None:
-                observed["release_audit_trust_identity"] = (
-                    package_release_identity.model_dump(mode="json")
-                )
+                observed["release_audit_trust_identity"] = package_release_identity.model_dump(mode="json")
             if name not in doc["tools"]:
                 doc["tools"][name] = {
                     "path": str(d),
                     **observed,
                     "source": m.get("source", {}),
                     "summary": m.get("summary", ""),
-                    "exported_at": None,           # scan 补录:不伪造导出时间
+                    "exported_at": None,  # scan 补录:不伪造导出时间
                     "provenance": "scan",
                 }
             else:
@@ -669,6 +661,7 @@ def list_tools(
                         "semantic_verifier_identity",
                         "release_audit_trust_identity",
                         "contract_schema_version",
+                        "delivery_profile_id",
                         "package_payload_sha256",
                     }:
                         continue
@@ -721,29 +714,17 @@ def list_tools(
                 m = json.loads(mf.read_text(encoding="utf-8"))
                 if not isinstance(m, dict) or m.get("name") != name:
                     raise ValueError("manifest name 与 canonical directory 不一致")
-                observed_historical_verdict = (
-                    (m.get("verification") or {}).get("verdict")
-                )
-                row["package_observed_historical_verdict"] = (
-                    observed_historical_verdict
-                )
+                observed_historical_verdict = (m.get("verification") or {}).get("verdict")
+                row["package_observed_historical_verdict"] = observed_historical_verdict
                 if historical_verdict in (None, ""):
                     historical_verdict = observed_historical_verdict
                 elif observed_historical_verdict != historical_verdict:
-                    raise ValueError(
-                        "registry/package historical verdict identity 不一致"
-                    )
-                row["status"] = (
-                    "OK"
-                    if is_historical_tool_ready(observed_historical_verdict)
-                    else "UNVERIFIED"
-                )
+                    raise ValueError("registry/package historical verdict identity 不一致")
+                row["status"] = "OK" if is_historical_tool_ready(observed_historical_verdict) else "UNVERIFIED"
                 provenance_task_id, package_provenance = _load_package_provenance(
                     tool_dir,
                     m,
-                    require_verification_binding=is_historical_tool_ready(
-                        historical_verdict
-                    ),
+                    require_verification_binding=is_historical_tool_ready(historical_verdict),
                 )
                 row["task_id"] = provenance_task_id
                 package_reference_identity = validate_reference_identity(
@@ -755,22 +736,28 @@ def list_tools(
                     required="reference_identity" in entry,
                 )
                 if (
-                    package_reference_identity is not None
-                    or registry_reference_identity is not None
+                    package_reference_identity is not None or registry_reference_identity is not None
                 ) and package_reference_identity != registry_reference_identity:
                     raise ValueError("registry/package reference_identity 不一致")
                 package_schema_version = validate_contract_schema_version(m)
                 registry_schema_version = entry.get("contract_schema_version")
+                package_delivery_profile = str(m.get("delivery_profile_id") or "")
+                registry_delivery_profile = str(entry.get("delivery_profile_id") or "")
+                if package_schema_version == 4 and not registry_delivery_profile:
+                    raise ValueError("v4 package 缺受管 registry delivery profile identity")
+                if registry_delivery_profile != package_delivery_profile:
+                    raise ValueError("registry/package delivery profile 不一致")
+                row["delivery_profile_id"] = package_delivery_profile or None
                 package_semantic_identity = validate_semantic_verifier_identity(
                     package_provenance.get("semantic_verifier_identity"),
                     required=package_schema_version >= 3,
                 )
                 registry_semantic_identity = validate_semantic_verifier_identity(
                     entry.get("semantic_verifier_identity"),
-                    required=registry_schema_version == 3,
+                    required=(isinstance(registry_schema_version, int) and registry_schema_version >= 3),
                 )
                 if package_schema_version >= 3 and registry_schema_version is None:
-                    raise ValueError("v3 package 缺受管 registry schema identity")
+                    raise ValueError("v3+ package 缺受管 registry schema identity")
                 if registry_schema_version not in (None, package_schema_version):
                     raise ValueError("registry/package contract schema 不一致")
                 if package_semantic_identity != registry_semantic_identity:
@@ -781,14 +768,14 @@ def list_tools(
                 )
                 registry_release_identity = validate_release_audit_trust_identity(
                     entry.get("release_audit_trust_identity"),
-                    required=registry_schema_version == 3,
+                    required=(isinstance(registry_schema_version, int) and registry_schema_version >= 3),
                 )
                 if package_release_identity != registry_release_identity:
                     raise ValueError("registry/package release audit identity 不一致")
                 observed_payload = package_payload_sha256(tool_dir)
                 registered_payload = entry.get("package_payload_sha256")
                 if package_schema_version >= 3 and registered_payload is None:
-                    raise ValueError("v3 package 缺受管 payload identity")
+                    raise ValueError("v3+ package 缺受管 payload identity")
                 if registered_payload not in (None, observed_payload):
                     raise ValueError("registry/package payload identity 不一致")
             except (OSError, UnicodeError, ToolPackageIdentityError, ValueError):
@@ -805,9 +792,7 @@ def list_tools(
             continue
         release = release_decisions.get(name)
         current_task_id = row.get("task_id", "")
-        release_matches = bool(
-            release is not None and release["task_id"] == current_task_id
-        )
+        release_matches = bool(release is not None and release["task_id"] == current_task_id)
         if row["status"] != "OK":
             # Historical/package health is a prerequisite for any operational
             # decision.  A stale ACTIVE ledger row can never promote an
@@ -815,15 +800,12 @@ def list_tools(
             # projection without needing a UI-specific override.
             row["operational_status"] = REVIEW_REQUIRED
             row["operational_reason_code"] = (
-                "PACKAGE_MISSING"
-                if row["status"] == "MISSING"
-                else "HISTORICAL_VERIFICATION_NOT_READY"
+                "PACKAGE_MISSING" if row["status"] == "MISSING" else "HISTORICAL_VERIFICATION_NOT_READY"
             )
         elif release is not None and release_matches:
             # release_matches 定义即含非 None;重述一遍只为类型可证,恒等
             v3_active_evidence_valid = not (
-                package_schema_version >= 3
-                and release["decision"] == "ACTIVE"
+                package_schema_version >= 3 and release["decision"] == "ACTIVE"
             ) or validate_release_audit_evidence(
                 tool_dir,
                 evidence_sha256=release["evidence_sha256"],
@@ -847,9 +829,7 @@ def list_tools(
         if mcp_server.is_file():
             row["mcp_server_present"] = True
             try:
-                runtime_aware = "RELEASE_LEDGER =" in mcp_server.read_text(
-                    encoding="utf-8"
-                )
+                runtime_aware = "RELEASE_LEDGER =" in mcp_server.read_text(encoding="utf-8")
             except (OSError, UnicodeError):
                 runtime_aware = False
             row["mcp_runtime_release_enforced"] = runtime_aware

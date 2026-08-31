@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from repoproof.execution.audit_failure import (
     AuditFailureClass,
@@ -29,7 +29,7 @@ from repoproof.execution.audit_failure import (
 )
 from repoproof.execution.core_execution import atomic_write_json
 
-ACTION_RESULT_SCHEMA_VERSION = 1
+ACTION_RESULT_SCHEMA_VERSION = 2
 MAX_ACTION_RESULT_BYTES = 1024 * 1024
 
 ProductFailureStage = AuditFailureStage | Literal["INTAKE", "DRAFTING"]
@@ -93,12 +93,11 @@ def _utc_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
-class ProductActionResultV1(BaseModel):
-    """One CLI action's semantic result, bound to one durable job."""
+class _ProductActionResultBase(BaseModel):
+    """Fields shared by versioned Product action results."""
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal[1] = 1
     job_id: str = Field(min_length=1, max_length=128)
     journey_id: str = Field(default="", max_length=128)
     action: str = Field(min_length=1, max_length=64)
@@ -128,6 +127,49 @@ class ProductActionResultV1(BaseModel):
     error: str | None = None
     artifacts: dict[str, str] = Field(default_factory=dict)
     created_at: str = Field(default_factory=_utc_now)
+
+
+class ProductActionResultV1(_ProductActionResultBase):
+    """One CLI action's semantic result, bound to one durable job."""
+
+    schema_version: Literal[1] = 1
+
+
+class ProductActionResultV2(_ProductActionResultBase):
+    """Directory-aware action result without changing the v1 wire contract."""
+
+    schema_version: Literal[2] = 2
+    delivery_profile_id: str = Field(min_length=1, max_length=64)
+    artifact_kind: Literal["file", "directory"]
+    artifact_root: str | None = None
+    artifact_tree_sha256: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{64}$"
+    )
+    artifact_manifest_sha256: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{64}$"
+    )
+    workspace_structure_passed: bool | None = None
+
+    @model_validator(mode="after")
+    def _validate_workspace_result(self) -> ProductActionResultV2:
+        if self.delivery_profile_id != "workspace_bundle_v1":
+            return self
+        if self.artifact_kind != "directory":
+            raise ValueError("workspace_bundle_v1 requires artifact_kind=directory")
+        hashes_present = (
+            self.artifact_tree_sha256 is not None,
+            self.artifact_manifest_sha256 is not None,
+        )
+        if any(hashes_present) and not all(hashes_present):
+            raise ValueError(
+                "workspace artifact evidence requires both tree and manifest hashes"
+            )
+        if self.ok and any(hashes_present) and self.workspace_structure_passed is not True:
+            raise ValueError("successful workspace evidence requires a passing structure verdict")
+        return self
+
+
+ProductActionResult = ProductActionResultV1 | ProductActionResultV2
 
 
 def _string(value: object) -> str | None:
@@ -376,7 +418,45 @@ def action_result_from_payload(
     )
 
 
-def write_product_action_result(path: Path, result: ProductActionResultV1) -> Path:
+def workspace_action_result_from_payload(
+    *,
+    job_id: str,
+    journey_id: str,
+    action: str,
+    ok: bool,
+    payload: Mapping[str, Any],
+    artifact_root: Path | str | None,
+    artifact_tree_sha256: str | None,
+    artifact_manifest_sha256: str | None,
+    workspace_structure_passed: bool | None,
+) -> ProductActionResultV2:
+    """Project a workspace action while retaining all v1 failure semantics."""
+
+    base = action_result_from_payload(
+        job_id=job_id,
+        journey_id=journey_id,
+        action=action,
+        ok=ok,
+        payload=payload,
+    )
+    values = base.model_dump(mode="json", exclude={"schema_version"})
+    root = str(Path(artifact_root).resolve()) if artifact_root is not None else None
+    artifacts = dict(base.artifacts)
+    if root:
+        artifacts["workspace_bundle"] = root
+    values["artifacts"] = artifacts
+    return ProductActionResultV2(
+        **values,
+        delivery_profile_id="workspace_bundle_v1",
+        artifact_kind="directory",
+        artifact_root=root,
+        artifact_tree_sha256=artifact_tree_sha256,
+        artifact_manifest_sha256=artifact_manifest_sha256,
+        workspace_structure_passed=workspace_structure_passed,
+    )
+
+
+def write_product_action_result(path: Path, result: ProductActionResult) -> Path:
     """Atomically persist one validated result."""
 
     path = Path(path)
@@ -402,17 +482,19 @@ def _read_product_action_result_bytes(path: Path) -> bytes:
     return payload
 
 
-def _parse_product_action_result(payload: bytes) -> ProductActionResultV1:
+def _parse_product_action_result(payload: bytes) -> ProductActionResult:
     value = json.loads(payload)
     if not isinstance(value, dict):
         raise ValueError("action result root must be an object")
+    schema_version = value.get("schema_version")
+    model = ProductActionResultV2 if schema_version == 2 else ProductActionResultV1
     try:
-        return ProductActionResultV1.model_validate(value)
+        return model.model_validate(value)
     except ValidationError as exc:
-        raise ValueError(f"invalid ProductActionResultV1: {exc}") from exc
+        raise ValueError(f"invalid ProductActionResultV1/V2: {exc}") from exc
 
 
-def read_product_action_result(path: Path) -> ProductActionResultV1:
+def read_product_action_result(path: Path) -> ProductActionResult:
     """Safely read a bounded, regular, non-symlink result file."""
 
     return _parse_product_action_result(_read_product_action_result_bytes(path))
@@ -420,7 +502,7 @@ def read_product_action_result(path: Path) -> ProductActionResultV1:
 
 def read_product_action_result_with_sha256(
     path: Path,
-) -> tuple[ProductActionResultV1, str]:
+) -> tuple[ProductActionResult, str]:
     """Read and hash one immutable byte snapshot of an action result."""
 
     payload = _read_product_action_result_bytes(path)

@@ -344,7 +344,16 @@ def read_managed_draft_review(value: Path) -> dict:
     try:
         draft_fd = _open_absolute_directory(draft_dir)
         raw_draft = _read_file_at(draft_fd, "draft.yaml").decode("utf-8")
-        raw_examples = _read_file_at(draft_fd, "examples.yaml").decode("utf-8")
+        draft = yaml.safe_load(raw_draft) or {}
+        if not isinstance(draft, dict):
+            raise TypeError("draft.yaml 根节点必须是对象")
+        tool = draft.get("tool") or {}
+        workspace_profile = (
+            int(tool.get("schema_version") or 1) == 4
+            and tool.get("delivery_profile_id") == "workspace_bundle_v1"
+        )
+        examples_name = "workspace_examples.yaml" if workspace_profile else "examples.yaml"
+        raw_examples = _read_file_at(draft_fd, examples_name).decode("utf-8")
         reference = _read_file_at(draft_fd, "reference_impl.py").decode("utf-8")
         try:
             semantic_verifier = _read_file_at(
@@ -353,10 +362,9 @@ def read_managed_draft_review(value: Path) -> dict:
             ).decode("utf-8")
         except FileNotFoundError:
             semantic_verifier = ""
-        draft = yaml.safe_load(raw_draft) or {}
         examples_doc = yaml.safe_load(raw_examples) or {}
-        if not isinstance(draft, dict) or not isinstance(examples_doc, dict):
-            raise TypeError("draft.yaml/examples.yaml 根节点必须是对象")
+        if not isinstance(examples_doc, dict):
+            raise TypeError(f"{examples_name} 根节点必须是对象")
         try:
             gaps = _read_file_at(draft_fd, "GAPS.md").decode("utf-8")
         except FileNotFoundError:
@@ -369,6 +377,12 @@ def read_managed_draft_review(value: Path) -> dict:
             "draft": draft,
             "raw_draft": raw_draft,
             "examples": examples_doc.get("examples") or [],
+            "delivery_profile_id": (
+                "workspace_bundle_v1" if workspace_profile else "cli_v2"
+            ),
+            "workspace_contract": (
+                tool.get("workspace_contract") if workspace_profile else None
+            ),
             "reference_impl": reference,
             "semantic_verifier": semantic_verifier,
             "gaps": gaps,
@@ -889,6 +903,7 @@ def save_draft_review(
     reference_impl: str,
     semantic_verifier: str | None = None,
     output_contract: dict | None = None,
+    workspace_contract: dict | None = None,
     artifact_protocol: dict | None = None,
     # intake 把这三个标为 owner=USER(提取不到时要人来定),但审核页一直
     # 没有入口、本函数也不收 —— 声明了责任却没有履行路径,Studio 用户
@@ -912,6 +927,46 @@ def save_draft_review(
         draft = yaml.safe_load(_read_file_at(draft_fd, "draft.yaml").decode("utf-8")) or {}
         if not isinstance(draft, dict):
             raise TypeError("draft.yaml 根节点必须是对象")
+        tool_document = draft.get("tool") or {}
+        workspace_profile = (
+            int(tool_document.get("schema_version") or 1) == 4
+            and tool_document.get("delivery_profile_id") == "workspace_bundle_v1"
+        )
+        if workspace_profile:
+            from repoproof.domain.models import WorkspaceArtifactContractV1
+
+            if output_contract is not None:
+                return {
+                    "ok": False,
+                    "error": "WORKSPACE_STDOUT_CONTRACT_FORBIDDEN",
+                    "failure_owner": "CONTRACT",
+                    "reason_codes": ["WORKSPACE_STDOUT_CONTRACT_FORBIDDEN"],
+                }
+            selected_workspace_contract = (
+                workspace_contract
+                if workspace_contract is not None
+                else tool_document.get("workspace_contract")
+            )
+            try:
+                parsed_workspace_contract = WorkspaceArtifactContractV1.model_validate(
+                    selected_workspace_contract
+                )
+            except ValueError as exc:
+                return {
+                    "ok": False,
+                    "error": f"WORKSPACE_CONTRACT_INVALID: {exc}",
+                    "failure_owner": "CONTRACT",
+                    "reason_codes": ["WORKSPACE_CONTRACT_INVALID"],
+                }
+        else:
+            if workspace_contract is not None:
+                return {
+                    "ok": False,
+                    "error": "CLI_WORKSPACE_CONTRACT_FORBIDDEN",
+                    "failure_owner": "CONTRACT",
+                    "reason_codes": ["CLI_WORKSPACE_CONTRACT_FORBIDDEN"],
+                }
+            parsed_workspace_contract = None
         current_readiness = _core_draft_readiness(
             draft,
             draft_dir,
@@ -951,9 +1006,7 @@ def save_draft_review(
                     current_semantic_verifier,
                 ),
             )
-            if new_value is not None
-            and not str(new_value or "").strip()
-            and str(old_value or "").strip()
+            if new_value is not None and not str(new_value or "").strip() and str(old_value or "").strip()
         ]
         if blanked:
             return {
@@ -968,8 +1021,13 @@ def save_draft_review(
         draft["tool"]["summary"] = summary.strip()
         draft["tool"]["interface"]["input"]["format"] = input_format.strip()
         draft["tool"]["interface"]["output"]["format"] = output_format.strip()
-        if output_contract is not None:
+        if output_contract is not None and not workspace_profile:
             draft["tool"]["interface"]["output"]["contract"] = output_contract
+        if workspace_profile and parsed_workspace_contract is not None:
+            draft["tool"]["workspace_contract"] = parsed_workspace_contract.model_dump(
+                mode="json"
+            )
+            draft["tool"]["interface"]["output"].pop("contract", None)
         if input_representation is not None:
             if input_representation not in {"utf8_text", "binary"}:
                 return {
@@ -984,22 +1042,14 @@ def save_draft_review(
             )
         install_delivery_intent_from_interface(
             draft,
-            profile_id=str(
-                (draft.get("_delivery_profile") or {}).get("profile_id")
-                or "cli_v2"
-            ),
+            profile_id=str((draft.get("_delivery_profile") or {}).get("profile_id") or "cli_v2"),
         )
         if semantic_commitments is None:
-            current_statement = str(
-                (draft.get("capability") or {}).get("statement") or ""
-            )
+            current_statement = str((draft.get("capability") or {}).get("statement") or "")
             if statement.strip() != current_statement:
                 return {
                     "ok": False,
-                    "error": (
-                        "能力语义必须通过公开行为承诺编辑；"
-                        "不能绕过追踪链直接改写最终 statement。"
-                    ),
+                    "error": ("能力语义必须通过公开行为承诺编辑；不能绕过追踪链直接改写最终 statement。"),
                 }
         else:
             replace_semantic_commitments(draft, semantic_commitments)
@@ -1040,7 +1090,11 @@ def save_draft_review(
         target["package"] = clean_name.replace("-", "_")
         target["entry_point"] = clean_name
         draft["target_project"] = target
-        draft["tool"]["interface"]["usage"] = f"{clean_name} <input> [--out FILE]"
+        draft["tool"]["interface"]["usage"] = (
+            f"{clean_name} <input> --out-dir <new-directory>"
+            if workspace_profile
+            else f"{clean_name} <input> [--out FILE]"
+        )
         invalidate_intent_confirmation(draft)
         _replace_file_at(
             draft_fd,
@@ -1085,9 +1139,7 @@ def confirm_draft_intent(draft_dir: Path) -> dict:
     if checked_dir is None:
         return {"ok": False, "error": path_error}
     try:
-        draft = yaml.safe_load(
-            (checked_dir / "draft.yaml").read_text(encoding="utf-8")
-        ) or {}
+        draft = yaml.safe_load((checked_dir / "draft.yaml").read_text(encoding="utf-8")) or {}
         if not isinstance(draft, dict):
             raise TypeError("draft.yaml 根节点必须是对象")
         readiness = _core_draft_readiness(draft, checked_dir)
@@ -1138,9 +1190,7 @@ def add_golden_example(
         # Directory descriptors + O_NOFOLLOW keep every mutation inside the
         # already validated draft even if a local path is swapped concurrently.
         draft_fd = _open_absolute_directory(draft_dir)
-        draft = yaml.safe_load(
-            _read_file_at(draft_fd, "draft.yaml").decode("utf-8")
-        ) or {}
+        draft = yaml.safe_load(_read_file_at(draft_fd, "draft.yaml").decode("utf-8")) or {}
         if not isinstance(draft, dict):
             raise TypeError("draft.yaml 根节点必须是对象")
         readiness = _core_draft_readiness(draft, draft_dir)
@@ -1177,9 +1227,7 @@ def add_golden_example(
                 ):
                     raise ValueError("候选逐条证据身份无效")
                 entry["candidate_evidence_id"] = candidate_evidence_id
-                entry["candidate_truth_binding_sha256"] = str(
-                    candidate_truth_binding_sha256
-                )
+                entry["candidate_truth_binding_sha256"] = str(candidate_truth_binding_sha256)
         doc.setdefault("examples", []).append(entry)
         _replace_file_at(
             draft_fd,
@@ -1210,6 +1258,874 @@ def add_golden_example(
         for fd in (expected_fd, inputs_fd, examples_fd, draft_fd):
             if fd is not None:
                 os.close(fd)
+
+
+_WORKSPACE_FIXTURE_STATE = "workspace_fixture_candidates.json"
+_WORKSPACE_REFERENCE_RUNNER = '''import importlib.util
+import sys
+from pathlib import Path
+
+source, input_path, output_dir = sys.argv[1:4]
+spec = importlib.util.spec_from_file_location("repoproof_workspace_reference", source)
+if spec is None or spec.loader is None:
+    raise RuntimeError("workspace reference cannot be loaded")
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+build = getattr(module, "build_workspace", None)
+if not callable(build):
+    raise TypeError("reference must export build_workspace(input_path, output_dir)")
+build(Path(input_path), Path(output_dir))
+'''
+
+
+def _workspace_tool_from_draft(draft: dict):
+    from repoproof.domain.models import ToolSpec
+
+    tool = ToolSpec.model_validate(draft.get("tool"))
+    if (
+        tool.schema_version != 4
+        or tool.delivery_profile_id != "workspace_bundle_v1"
+        or tool.workspace_contract is None
+    ):
+        raise ValueError("WORKSPACE_PROFILE_REQUIRED")
+    return tool
+
+
+def _workspace_tree_projection(path: Path, *, contract=None) -> dict[str, object]:
+    from repoproof.execution.workspace_bundle import (
+        WorkspaceBundleError,
+        build_artifact_manifest,
+        validate_workspace,
+    )
+
+    try:
+        validation = validate_workspace(path, contract) if contract is not None else None
+        manifest = (
+            validation.manifest
+            if validation is not None and validation.manifest is not None
+            else build_artifact_manifest(path)
+        )
+    except WorkspaceBundleError as exc:
+        return {
+            "ok": False,
+            "error": exc.code,
+            "reason_codes": [exc.code],
+        }
+    entries = [
+        {
+            "path": item.path,
+            "size": item.size,
+            "mode": oct(item.mode),
+            "sha256": item.sha256,
+        }
+        for item in manifest.entries
+    ]
+    return {
+        "ok": bool(validation is None or validation.ok),
+        "reason_codes": list(validation.reason_codes) if validation is not None else [],
+        "tree_sha256": manifest.tree_sha256,
+        "file_count": manifest.file_count,
+        "total_bytes": manifest.total_bytes,
+        "entries": entries,
+    }
+
+
+def _workspace_candidate_token(record: dict[str, object]) -> str:
+    digest = hashlib.sha256(b"REPOPROOF-WORKSPACE-UI-CANDIDATE-v1\0")
+    for key in (
+        "blueprint_id",
+        "builder_source_sha256",
+        "input_sha256",
+        "expected_tree_sha256",
+    ):
+        payload = str(record.get(key) or "").encode("utf-8")
+        digest.update(len(payload).to_bytes(8, "big"))
+        digest.update(payload)
+    return digest.hexdigest()
+
+
+def _workspace_candidate_record_paths(
+    draft_dir: Path,
+    state: dict,
+    record: dict,
+) -> tuple[Path, Path]:
+    generation_id = str(state.get("generation_id") or "")
+    if not re.fullmatch(r"generation-[0-9]+-[0-9a-f]{8}", generation_id):
+        raise ValueError("WORKSPACE_CANDIDATE_GENERATION_INVALID")
+    root = draft_dir / "workspace-candidates" / generation_id
+    if root.is_symlink() or not root.is_dir() or _path_has_symlink(root):
+        raise ValueError("WORKSPACE_CANDIDATE_ROOT_UNSAFE")
+    resolved_root = root.resolve()
+    paths: list[Path] = []
+    for key in ("input_path", "expected_dir"):
+        candidate = Path(str(record.get(key) or ""))
+        if not candidate.is_absolute() or _path_has_symlink(candidate):
+            raise ValueError("WORKSPACE_CANDIDATE_PATH_UNSAFE")
+        resolved = candidate.resolve(strict=True)
+        try:
+            resolved.relative_to(resolved_root)
+        except ValueError as exc:
+            raise ValueError("WORKSPACE_CANDIDATE_PATH_ESCAPE") from exc
+        paths.append(resolved)
+    return paths[0], paths[1]
+
+
+def _run_workspace_reference_candidate(
+    *,
+    reference_source: Path,
+    input_path: Path,
+    expected_dir: Path,
+    contract,
+    python_exe: str,
+    upstream_dir: Path,
+    timeout_s: int = 120,
+) -> dict[str, object]:
+    """Build one expected workspace in an offline, disposable reference root."""
+
+    from repoproof.execution.offline_sandbox import (
+        OfflineSandboxUnavailable,
+        offline_sandbox_argv,
+        sanitised_subprocess_env,
+    )
+    from repoproof.execution.workspace_bundle import (
+        WorkspaceBundleError,
+        snapshot_admitted_path,
+        validate_workspace,
+    )
+
+    if expected_dir.exists() or expected_dir.is_symlink():
+        raise WorkspaceBundleError("WORKSPACE_EXPECTED_DESTINATION_EXISTS")
+    with tempfile.TemporaryDirectory(prefix="rp-workspace-reference-") as temp:
+        root = Path(temp)
+        source_parent_fd = _open_absolute_directory(reference_source.parent)
+        try:
+            source_payload = _read_file_at(source_parent_fd, reference_source.name)
+        finally:
+            os.close(source_parent_fd)
+        source = root / "reference_impl.py"
+        source.write_bytes(source_payload)
+        source.chmod(0o400)
+        runner = root / "runner.py"
+        runner.write_text(_WORKSPACE_REFERENCE_RUNNER, encoding="utf-8")
+        runner.chmod(0o400)
+        admitted_input = root / "input"
+        snapshot_admitted_path(input_path, admitted_input)
+        output = root / "output"
+        argv = [
+            python_exe,
+            str(runner),
+            str(source),
+            str(admitted_input),
+            str(output),
+        ]
+        try:
+            argv = offline_sandbox_argv(argv, root)
+        except OfflineSandboxUnavailable as exc:
+            raise WorkspaceBundleError(
+                "WORKSPACE_REFERENCE_ISOLATION_UNAVAILABLE"
+            ) from exc
+        try:
+            process = subprocess.run(  # noqa: S603 - fixed argv, no shell
+                argv,
+                cwd=root,
+                env=sanitised_subprocess_env(root, [str(upstream_dir)]),
+                capture_output=True,
+                text=True,
+                timeout=timeout_s,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise WorkspaceBundleError("WORKSPACE_REFERENCE_TIMEOUT") from exc
+        except OSError as exc:
+            raise WorkspaceBundleError("WORKSPACE_REFERENCE_START_FAILED") from exc
+        if process.returncode != 0:
+            raise WorkspaceBundleError(
+                "WORKSPACE_REFERENCE_FAILED",
+                f"exit={process.returncode}",
+            )
+        validation = validate_workspace(output, contract)
+        if not validation.ok or validation.manifest is None:
+            raise WorkspaceBundleError(
+                "WORKSPACE_REFERENCE_CONTRACT_FAILED",
+                ",".join(validation.reason_codes),
+            )
+        snapshot_admitted_path(output, expected_dir, limits=contract.limits)
+        return {
+            "tree_sha256": validation.manifest.tree_sha256,
+            "file_count": validation.manifest.file_count,
+            "total_bytes": validation.manifest.total_bytes,
+        }
+
+
+def propose_workspace_fixture_candidates(
+    draft_dir: Path,
+    *,
+    n: int,
+    offline: bool,
+) -> dict:
+    """Materialise model-authored scenarios through one frozen task builder.
+
+    The model never supplies fixture bytes.  Both online and offline buttons use
+    the blueprints already bound into the current draft; ``offline`` only labels
+    the user's requested mode and never changes expected truth generation.
+    """
+
+    import shutil
+    from contextlib import ExitStack
+
+    from pydantic import ValidationError
+
+    from repoproof.adoption.intake.example_proposer import (
+        prepared_reference_environment,
+    )
+    from repoproof.adoption.intake.tool_drafter import DraftError
+    from repoproof.adoption.intake.workspace_fixtures import (
+        FixtureBlueprintV1,
+        FixtureBuilderError,
+        build_fixture_candidate,
+    )
+    from repoproof.execution.core_execution import atomic_write_json
+    from repoproof.execution.workspace_bundle import WorkspaceBundleError
+
+    checked_dir, path_error = _validated_draft_dir(Path(draft_dir), require_existing=True)
+    if checked_dir is None:
+        return {"ok": False, "error": path_error}
+    draft_dir = checked_dir
+    generation_root: Path | None = None
+    try:
+        draft = yaml.safe_load((draft_dir / "draft.yaml").read_text(encoding="utf-8")) or {}
+        if not isinstance(draft, dict):
+            raise TypeError("draft.yaml root")
+        readiness = _core_draft_readiness(draft, draft_dir)
+        if not readiness.compatible or not readiness.current:
+            return _readiness_rejection(readiness, action="生成目录样例")
+        tool = _workspace_tool_from_draft(draft)
+        contract = tool.workspace_contract
+        assert contract is not None
+        builder = draft_dir / "fixture_builder.py"
+        blueprints_document = json.loads(
+            (draft_dir / "fixture_blueprints.json").read_text(encoding="utf-8")
+        )
+        rows = blueprints_document.get("blueprints")
+        if not isinstance(rows, list):
+            raise ValueError("WORKSPACE_FIXTURE_BLUEPRINTS_INVALID")
+        blueprints = [FixtureBlueprintV1.model_validate(item) for item in rows]
+        requested = max(1, min(int(n), 4))
+        if offline:
+            selected = blueprints[:requested]
+            drafter_name = "frozen-draft-blueprints"
+        else:
+            from repoproof.adoption.intake.tool_drafter import (
+                normalize_workspace_fixture_blueprints_document,
+                online_drafter,
+            )
+
+            drafter = online_drafter()
+            proposed = drafter.propose_workspace_fixture_blueprints(
+                {
+                    "how_many": requested,
+                    "capability_goal": str(
+                        (draft.get("capability") or {}).get("statement") or ""
+                    ),
+                    "input_kind": tool.interface.input.kind,
+                    "seed_blueprints": [
+                        {
+                            **item.model_dump(mode="json", exclude={"parameters"}),
+                            "parameters_json": json.dumps(
+                                item.parameters,
+                                ensure_ascii=False,
+                                sort_keys=True,
+                            ),
+                        }
+                        for item in blueprints
+                    ],
+                    "excluded_blueprint_ids": [],
+                    "excluded_parameter_fingerprints": [],
+                }
+            )
+            selected = [
+                FixtureBlueprintV1.model_validate(item)
+                for item in normalize_workspace_fixture_blueprints_document(
+                    proposed,
+                    input_kind=tool.interface.input.kind,
+                    expected_count=requested,
+                )
+            ]
+            drafter_name = getattr(drafter, "name", type(drafter).__name__)
+        if not selected:
+            raise ValueError("WORKSPACE_FIXTURE_BLUEPRINTS_EMPTY")
+        upstream, upstream_error = _draft_upstream_dir(draft_dir)
+        if upstream is None:
+            return {
+                "ok": False,
+                "error": upstream_error,
+                "failure_owner": "HARNESS",
+                "reason_codes": ["PINNED_UPSTREAM_UNAVAILABLE"],
+            }
+        lock_text = resolved_dependency_lock(
+            draft,
+            draft_dir,
+            project_root=_product_root(),
+        )
+        if not lock_text:
+            return {
+                "ok": False,
+                "error": "固定上游依赖锁尚未成立；本次没有调用模型。",
+                "failure_owner": "HARNESS",
+                "reason_codes": ["DEPENDENCY_LOCK_MISSING"],
+                "recommended_action": "先补齐精确依赖锁，再生成真实目录样例。",
+            }
+        generation_id = f"generation-{int(time.time())}-{secrets.token_hex(4)}"
+        generation_root = draft_dir / "workspace-candidates" / generation_id
+        generation_root.mkdir(parents=True, exist_ok=False)
+        records: list[dict[str, object]] = []
+        stack = ExitStack()
+        try:
+            reference_python = stack.enter_context(
+                prepared_reference_environment(
+                    draft_dir,
+                    wheelhouse_cache_root=ui_state_root() / "reference-wheelhouses",
+                    resolved_lock_text=lock_text,
+                )
+            ) or _product_python()
+            for blueprint in selected:
+                candidate = build_fixture_candidate(
+                    blueprint=blueprint,
+                    builder_id="task-fixture-builder-v1",
+                    builder_source=builder,
+                    fixture_root=generation_root / "inputs",
+                    python_exe=reference_python,
+                    isolation_required=True,
+                )
+                expected_dir = generation_root / "expected" / blueprint.blueprint_id
+                expected = _run_workspace_reference_candidate(
+                    reference_source=draft_dir / "reference_impl.py",
+                    input_path=Path(candidate.fixture_path),
+                    expected_dir=expected_dir,
+                    contract=contract,
+                    python_exe=reference_python,
+                    upstream_dir=upstream,
+                )
+                record: dict[str, object] = {
+                    "blueprint_id": blueprint.blueprint_id,
+                    "title": blueprint.title,
+                    "scenario": blueprint.scenario,
+                    "input_kind": blueprint.input_kind,
+                    "builder_source_sha256": candidate.builder_source_sha256,
+                    "input_path": candidate.fixture_path,
+                    "input_sha256": candidate.fixture_identity.sha256,
+                    "input_file_count": candidate.fixture_identity.file_count,
+                    "input_total_bytes": candidate.fixture_identity.total_bytes,
+                    "expected_dir": str(expected_dir.resolve()),
+                    "expected_tree_sha256": expected["tree_sha256"],
+                    "expected_file_count": expected["file_count"],
+                    "expected_total_bytes": expected["total_bytes"],
+                    "confirmed": False,
+                    "generation_id": generation_id,
+                }
+                record["candidate_token"] = _workspace_candidate_token(record)
+                records.append(record)
+        finally:
+            stack.close()
+        state = {
+            "schema_version": 1,
+            "generation_id": generation_id,
+            "records": records,
+        }
+        atomic_write_json(draft_dir / _WORKSPACE_FIXTURE_STATE, state)
+        public_records: list[dict[str, object]] = []
+        for record in records:
+            public_records.append(
+                {
+                    key: record[key]
+                    for key in (
+                        "blueprint_id",
+                        "title",
+                        "scenario",
+                        "input_kind",
+                        "input_sha256",
+                        "input_file_count",
+                        "input_total_bytes",
+                        "expected_tree_sha256",
+                        "expected_file_count",
+                        "expected_total_bytes",
+                        "candidate_token",
+                        "confirmed",
+                    )
+                }
+            )
+        return {
+            "ok": True,
+            "drafter": drafter_name,
+            "note": (
+                "场景来自模型草稿，字节由冻结 fixture builder 生成，"
+                "期望工作区来自固定版本上游 reference。"
+            ),
+            "requested": requested,
+            "usable_count": len(public_records),
+            "shortfall": max(0, requested - len(public_records)),
+            "offline": bool(offline),
+            "generation_id": generation_id,
+            "candidates": public_records,
+        }
+    except (
+        FixtureBuilderError,
+        DraftError,
+        WorkspaceBundleError,
+        ValidationError,
+        OSError,
+        UnicodeError,
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+        yaml.YAMLError,
+    ) as exc:
+        if generation_root is not None:
+            shutil.rmtree(generation_root, ignore_errors=True)
+        code = getattr(exc, "code", type(exc).__name__.upper())
+        return {
+            "ok": False,
+            "error": f"目录样例生成失败：{code}",
+            "failure_owner": "CONTRACT" if str(code).startswith("FIXTURE_") else "HARNESS",
+            "reason_codes": [str(code)],
+            "recommended_action": (
+                "修正冻结前的 fixture builder/场景蓝图并创建新的语义确认；"
+                "不要把生成器故障交给构建 Agent 盲修。"
+            ),
+        }
+
+
+def workspace_candidate_preview(
+    draft_dir: Path,
+    *,
+    candidate_token: str,
+) -> dict:
+    """Return bounded trees and small text previews for one server-bound candidate."""
+
+    checked_dir, path_error = _validated_draft_dir(Path(draft_dir), require_existing=True)
+    if checked_dir is None:
+        return {"ok": False, "error": path_error}
+    try:
+        state = json.loads((checked_dir / _WORKSPACE_FIXTURE_STATE).read_text(encoding="utf-8"))
+        record = next(
+            item
+            for item in state.get("records") or []
+            if item.get("candidate_token") == candidate_token
+        )
+        draft = yaml.safe_load((checked_dir / "draft.yaml").read_text(encoding="utf-8")) or {}
+        tool = _workspace_tool_from_draft(draft)
+        input_path, expected_dir = _workspace_candidate_record_paths(
+            checked_dir,
+            state,
+            record,
+        )
+        expected = _workspace_tree_projection(
+            expected_dir,
+            contract=tool.workspace_contract,
+        )
+        from repoproof.execution.workspace_bundle import identify_input_path
+
+        current_input = identify_input_path(input_path)
+        if (
+            current_input.sha256 != record.get("input_sha256")
+            or expected.get("tree_sha256") != record.get("expected_tree_sha256")
+        ):
+            raise ValueError("WORKSPACE_CANDIDATE_CONTENT_DRIFT")
+        if input_path.is_dir():
+            input_tree = _workspace_tree_projection(input_path)
+        else:
+            input_tree = {
+                "ok": True,
+                "entries": [{"path": input_path.name, "size": input_path.stat().st_size}],
+                "file_count": 1,
+                "total_bytes": input_path.stat().st_size,
+                "tree_sha256": str(record["input_sha256"]),
+            }
+        previews: list[dict[str, str]] = []
+        raw_entries = expected.get("entries")
+        entries = raw_entries if isinstance(raw_entries, list) else []
+        for item in entries[:8]:
+            path = expected_dir / str(item.get("path") or "")
+            if int(item.get("size") or 0) > 16_384:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeError):
+                continue
+            previews.append({"path": str(item["path"]), "text": text[:2000]})
+        return {
+            "ok": bool(input_tree.get("ok") and expected.get("ok")),
+            "input_tree": input_tree,
+            "expected_tree": expected,
+            "text_previews": previews,
+        }
+    except (OSError, StopIteration, TypeError, ValueError, json.JSONDecodeError, yaml.YAMLError) as exc:
+        return {"ok": False, "error": f"WORKSPACE_CANDIDATE_STATE_INVALID: {exc}"}
+
+
+def workspace_candidate_zip(
+    draft_dir: Path,
+    *,
+    candidate_token: str,
+) -> dict:
+    """Create deterministic transport bytes without treating ZIP as evidence."""
+
+    from repoproof.execution.workspace_bundle import write_deterministic_zip
+
+    checked_dir, path_error = _validated_draft_dir(Path(draft_dir), require_existing=True)
+    if checked_dir is None:
+        return {"ok": False, "error": path_error}
+    try:
+        state = json.loads((checked_dir / _WORKSPACE_FIXTURE_STATE).read_text(encoding="utf-8"))
+        record = next(
+            item
+            for item in state.get("records") or []
+            if item.get("candidate_token") == candidate_token
+        )
+        _input_path, expected_dir = _workspace_candidate_record_paths(
+            checked_dir,
+            state,
+            record,
+        )
+        actual_tree = _workspace_tree_projection(expected_dir)
+        if (
+            not actual_tree.get("ok")
+            or actual_tree.get("tree_sha256") != record.get("expected_tree_sha256")
+        ):
+            raise ValueError("WORKSPACE_CANDIDATE_TREE_DRIFT")
+        with tempfile.TemporaryDirectory(prefix="rp-workspace-zip-") as temp:
+            archive = write_deterministic_zip(
+                expected_dir,
+                Path(temp) / "workspace.zip",
+            )
+            payload = archive.read_bytes()
+        return {
+            "ok": True,
+            "filename": f"{record['blueprint_id']}.workspace.zip",
+            "bytes": payload,
+            "tree_sha256": record["expected_tree_sha256"],
+            "note": "ZIP 仅用于传输；可信判定继续绑定解包前的目录树哈希。",
+        }
+    except (OSError, StopIteration, ValueError, json.JSONDecodeError) as exc:
+        return {"ok": False, "error": f"WORKSPACE_ZIP_FAILED: {exc}"}
+
+
+def _validated_installed_workspace_artifact(
+    tool_name: str,
+    *,
+    artifact_dir: Path,
+    dest_root: Path,
+) -> tuple[Path, object]:
+    """Bind a user-selected output directory to one current Core package."""
+
+    from repoproof.domain.models import WorkspaceArtifactContractV1
+    from repoproof.ui.services.product_mode import list_tools
+
+    name = validate_tool_name(tool_name)
+    checked_root, path_error = _validated_dest_root(Path(dest_root))
+    if checked_root is None:
+        raise ValueError(path_error)
+    library = list_tools(checked_root)
+    if library.get("registry_error") or library.get("release_error"):
+        raise ValueError("TOOL_REGISTRY_UNREADABLE")
+    entry = next(
+        (row for row in library.get("tools") or [] if row.get("name") == name),
+        None,
+    )
+    if entry is None or entry.get("health") != "OK":
+        raise ValueError("PACKAGE_IDENTITY_UNHEALTHY")
+    if entry.get("operational_status") != "ACTIVE":
+        raise ValueError("WORKSPACE_TOOL_NOT_ACTIVE")
+    if entry.get("delivery_profile_id") != "workspace_bundle_v1":
+        raise ValueError("WORKSPACE_PROFILE_REQUIRED")
+    package = Path(str(entry.get("path") or ""))
+    if package.resolve() != canonical_tool_path(checked_root, name).resolve():
+        raise ValueError("PACKAGE_IDENTITY_UNHEALTHY")
+    ensure_safe_package_tree(package)
+    manifest_path = package / "tool.json"
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise ValueError("PACKAGE_IDENTITY_UNHEALTHY")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    contract = WorkspaceArtifactContractV1.model_validate(
+        manifest.get("workspace_contract")
+    )
+    candidate = Path(artifact_dir).expanduser().absolute()
+    if _path_has_symlink(candidate):
+        raise ValueError("WORKSPACE_ARTIFACT_PATH_UNSAFE")
+    resolved = candidate.resolve(strict=True)
+    if not resolved.is_dir():
+        raise ValueError("WORKSPACE_ARTIFACT_DIRECTORY_MISSING")
+    return resolved, contract
+
+
+def inspect_workspace_artifact(
+    tool_name: str,
+    *,
+    artifact_dir: Path,
+    dest_root: Path,
+) -> dict:
+    """Validate and preview a completed workspace with the installed contract."""
+
+    try:
+        resolved, contract = _validated_installed_workspace_artifact(
+            tool_name,
+            artifact_dir=artifact_dir,
+            dest_root=dest_root,
+        )
+        projection = _workspace_tree_projection(resolved, contract=contract)
+        if not projection.get("ok"):
+            return {
+                **projection,
+                "failure_owner": "HARNESS",
+                "recommended_action": "不要使用或打包该目录；按 Core 原因修复后重新生成。",
+            }
+        return {
+            **projection,
+            "artifact_dir": str(resolved),
+            "note": "预览来自当前目录的重新校验，不读取旧 UI 状态。",
+        }
+    except (
+        OSError,
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+        ToolPathError,
+    ) as exc:
+        return {"ok": False, "error": f"WORKSPACE_ARTIFACT_INVALID: {exc}"}
+
+
+def workspace_artifact_zip(
+    tool_name: str,
+    *,
+    artifact_dir: Path,
+    dest_root: Path,
+) -> dict:
+    """Return a deterministic transport ZIP after a fresh contract check."""
+
+    from repoproof.execution.workspace_bundle import write_deterministic_zip
+
+    inspected = inspect_workspace_artifact(
+        tool_name,
+        artifact_dir=artifact_dir,
+        dest_root=dest_root,
+    )
+    if not inspected.get("ok"):
+        return inspected
+    try:
+        source = Path(str(inspected["artifact_dir"]))
+        with tempfile.TemporaryDirectory(prefix="rp-installed-workspace-zip-") as temp:
+            archive = write_deterministic_zip(
+                source,
+                Path(temp) / "workspace.zip",
+            )
+            payload = archive.read_bytes()
+        return {
+            "ok": True,
+            "filename": f"{validate_tool_name(tool_name)}.workspace.zip",
+            "bytes": payload,
+            "tree_sha256": inspected["tree_sha256"],
+            "note": "ZIP 仅用于传输；可信状态仍绑定目录树、语义证据与 ledger。",
+        }
+    except (OSError, ValueError, ToolPathError) as exc:
+        return {"ok": False, "error": f"WORKSPACE_ZIP_FAILED: {exc}"}
+
+
+def open_workspace_artifact(
+    tool_name: str,
+    *,
+    artifact_dir: Path,
+    dest_root: Path,
+) -> dict:
+    """Open a freshly validated directory in the local file manager."""
+
+    inspected = inspect_workspace_artifact(
+        tool_name,
+        artifact_dir=artifact_dir,
+        dest_root=dest_root,
+    )
+    if not inspected.get("ok"):
+        return inspected
+    if sys.platform != "darwin":
+        return {"ok": False, "error": "WORKSPACE_OPEN_PLATFORM_UNSUPPORTED"}
+    try:
+        process = subprocess.run(  # noqa: S603 - fixed local opener argv
+            ["open", str(inspected["artifact_dir"])],
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"ok": False, "error": f"WORKSPACE_OPEN_FAILED: {type(exc).__name__}"}
+    if process.returncode != 0:
+        return {"ok": False, "error": "WORKSPACE_OPEN_FAILED"}
+    return {"ok": True, "note": "已在 Finder 中打开重新校验过的工作区。"}
+
+
+def confirm_workspace_fixture_candidate(
+    draft_dir: Path,
+    *,
+    candidate_token: str,
+) -> dict:
+    """Copy one exact input/output directory pair into frozen-example staging."""
+
+    import shutil
+
+    from repoproof.adoption.assembly.workspace_tool_assembler import (
+        WorkspaceGoldenExampleV1,
+        workspace_truth_binding_sha256,
+    )
+    from repoproof.execution.core_execution import atomic_write_json
+    from repoproof.execution.workspace_bundle import (
+        WorkspaceBundleError,
+        build_artifact_manifest,
+        identify_input_path,
+        snapshot_admitted_path,
+        validate_workspace,
+    )
+
+    checked_dir, path_error = _validated_draft_dir(Path(draft_dir), require_existing=True)
+    if checked_dir is None:
+        return {"ok": False, "error": path_error}
+    draft_dir = checked_dir
+    created: list[Path] = []
+    original_workspace_examples: bytes | None = None
+    original_state: bytes | None = None
+    original_draft: bytes | None = None
+    try:
+        draft = yaml.safe_load((draft_dir / "draft.yaml").read_text(encoding="utf-8")) or {}
+        readiness = _core_draft_readiness(draft, draft_dir)
+        if not readiness.compatible or not readiness.current:
+            return _readiness_rejection(readiness, action="确认目录样例")
+        tool = _workspace_tool_from_draft(draft)
+        contract = tool.workspace_contract
+        assert contract is not None
+        state_path = draft_dir / _WORKSPACE_FIXTURE_STATE
+        original_state = state_path.read_bytes()
+        state = json.loads(original_state.decode("utf-8"))
+        records = state.get("records") or []
+        record = next(
+            item
+            for item in records
+            if item.get("candidate_token") == candidate_token
+        )
+        if record.get("confirmed"):
+            return {"ok": True, "note": "该目录样例已经确认，无需重复写入。"}
+        if _workspace_candidate_token(record) != candidate_token:
+            raise ValueError("WORKSPACE_CANDIDATE_BINDING_INVALID")
+        input_source, expected_source = _workspace_candidate_record_paths(
+            draft_dir,
+            state,
+            record,
+        )
+        actual_input = identify_input_path(input_source)
+        actual_expected = build_artifact_manifest(expected_source, contract.limits)
+        if (
+            actual_input.sha256 != record.get("input_sha256")
+            or actual_expected.tree_sha256 != record.get("expected_tree_sha256")
+        ):
+            raise ValueError("WORKSPACE_CANDIDATE_CONTENT_DRIFT")
+        if validate_workspace(expected_source, contract).ok is not True:
+            raise ValueError("WORKSPACE_EXPECTED_CONTRACT_DRIFT")
+        slug = str(record["blueprint_id"])
+        examples_root = draft_dir / "examples"
+        input_destination = examples_root / "workspace-inputs" / slug
+        expected_destination = examples_root / "workspace-expected" / slug
+        input_identity = snapshot_admitted_path(input_source, input_destination)
+        created.append(input_destination)
+        snapshot_admitted_path(
+            expected_source,
+            expected_destination,
+            limits=contract.limits,
+        )
+        created.append(expected_destination)
+        expected_manifest = build_artifact_manifest(
+            expected_destination,
+            contract.limits,
+        )
+        binding = workspace_truth_binding_sha256(
+            input_identity.sha256,
+            expected_manifest.tree_sha256,
+        )
+        example = WorkspaceGoldenExampleV1(
+            example_id=slug,
+            input_path=input_destination.relative_to(examples_root).as_posix(),
+            expected_dir=expected_destination.relative_to(examples_root).as_posix(),
+            truth_provenance="UPSTREAM_DERIVED_USER_CONFIRMED",
+            truth_binding_sha256=binding,
+        )
+        examples_path = draft_dir / "workspace_examples.yaml"
+        original_workspace_examples = examples_path.read_bytes()
+        document = yaml.safe_load(
+            original_workspace_examples.decode("utf-8")
+        ) or {"examples": []}
+        if not isinstance(document, dict) or not isinstance(document.get("examples"), list):
+            raise TypeError("workspace_examples.yaml root")
+        if any(item.get("example_id") == slug for item in document["examples"]):
+            raise ValueError("WORKSPACE_EXAMPLE_ID_EXISTS")
+        document["examples"].append(example.model_dump(mode="json"))
+        draft_fd = _open_absolute_directory(draft_dir)
+        try:
+            _replace_file_at(
+                draft_fd,
+                "workspace_examples.yaml",
+                yaml.safe_dump(document, allow_unicode=True, sort_keys=False).encode("utf-8"),
+            )
+        finally:
+            os.close(draft_fd)
+        record["confirmed"] = True
+        atomic_write_json(state_path, state)
+        original_draft = (draft_dir / "draft.yaml").read_bytes()
+        invalidate_intent_confirmation(draft)
+        draft_fd = _open_absolute_directory(draft_dir)
+        try:
+            _replace_file_at(
+                draft_fd,
+                "draft.yaml",
+                yaml.safe_dump(draft, allow_unicode=True, sort_keys=False).encode("utf-8"),
+            )
+        finally:
+            os.close(draft_fd)
+        return {
+            "ok": True,
+            "note": f"已确认目录样例：{slug}",
+            "truth_binding_sha256": binding,
+        }
+    except (
+        WorkspaceBundleError,
+        OSError,
+        StopIteration,
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+        yaml.YAMLError,
+    ) as exc:
+        for path in reversed(created):
+            if path.is_dir():
+                shutil.rmtree(path, ignore_errors=True)
+            else:
+                path.unlink(missing_ok=True)
+        restore_fd: int | None = None
+        try:
+            restore_fd = _open_absolute_directory(draft_dir)
+            if original_workspace_examples is not None:
+                _replace_file_at(
+                    restore_fd,
+                    "workspace_examples.yaml",
+                    original_workspace_examples,
+                )
+            if original_draft is not None:
+                _replace_file_at(restore_fd, "draft.yaml", original_draft)
+        except OSError:
+            pass
+        finally:
+            if restore_fd is not None:
+                os.close(restore_fd)
+        if original_state is not None:
+            try:
+                (draft_dir / _WORKSPACE_FIXTURE_STATE).write_bytes(original_state)
+            except OSError:
+                pass
+        return {"ok": False, "error": f"目录样例确认失败：{exc}"}
 
 
 def product_tool_commands() -> set[str]:
@@ -1346,11 +2262,7 @@ def _verify_pinned_upstream_tree(upstream: Path, expected_commit: str) -> None:
             continue  # tracked changes were rejected by git diff above
         relative = line[3:].strip().strip('"')
         parts = Path(relative).parts
-        cache_only = (
-            "__pycache__" in parts
-            or ".pytest_cache" in parts
-            or relative.endswith((".pyc", ".pyo"))
-        )
+        cache_only = "__pycache__" in parts or ".pytest_cache" in parts or relative.endswith((".pyc", ".pyo"))
         if not cache_only:
             raise ValueError("钉版上游树含未跟踪内容漂移")
 
@@ -1387,19 +2299,11 @@ def _verify_frozen_reference_identity(
     if provenance.get("tool") != tool_name or provenance.get("task_id") != task_id:
         raise ValueError("受管包 provenance 与当前工具/task 不一致")
 
-    package_identity = validate_reference_identity(
-        provenance.get("reference_identity"), required=True
-    )
-    registry_identity = validate_reference_identity(
-        registry_entry.get("reference_identity"), required=True
-    )
+    package_identity = validate_reference_identity(provenance.get("reference_identity"), required=True)
+    registry_identity = validate_reference_identity(registry_entry.get("reference_identity"), required=True)
 
     reference_dir = ref_impl.parent
-    if (
-        reference_dir.is_symlink()
-        or not reference_dir.is_dir()
-        or reference_dir.resolve() != reference_dir.absolute()
-    ):
+    if reference_dir.is_symlink() or not reference_dir.is_dir() or reference_dir.resolve() != reference_dir.absolute():
         raise ValueError("冻结 reference 目录缺失或包含符号链接")
 
     def regular_digest(path: Path) -> str:
@@ -1425,9 +2329,7 @@ def _reference_identity_error(exc: Exception) -> dict:
         "error": f"冻结 reference 身份核验失败：{exc}",
         "failure_owner": "HARNESS",
         "reason_codes": ["REFERENCE_IDENTITY_MISMATCH"],
-        "recommended_action": (
-            "不要改写旧 reference；创建新的 task version 并重新构建、导出后再做 Fresh audit。"
-        ),
+        "recommended_action": ("不要改写旧 reference；创建新的 task version 并重新构建、导出后再做 Fresh audit。"),
     }
 
 
@@ -1446,6 +2348,510 @@ def _audit_candidate_context(
         sort_keys=True,
         separators=(",", ":"),
     )
+
+
+def _workspace_audit_candidate_store(
+    *,
+    tool_name: str,
+    task_id: str,
+    dest_root: Path,
+) -> Path:
+    context = _audit_candidate_context(
+        tool_name=tool_name,
+        task_id=task_id,
+        dest_root=dest_root,
+    ).replace("audit-v1:", "workspace-audit-v1:", 1)
+    key = hashlib.sha256(context.encode("utf-8")).hexdigest()
+    root = ui_state_root() / "workspace-audit-candidates" / key
+    root.mkdir(parents=True, exist_ok=True)
+    if root.is_symlink() or _path_has_symlink(root):
+        raise ValueError("WORKSPACE_AUDIT_STORE_UNSAFE")
+    return root
+
+
+def _workspace_audit_record_paths(
+    store: Path,
+    state: dict,
+    record: dict,
+) -> tuple[Path, Path]:
+    generation_id = str(state.get("generation_id") or "")
+    if not re.fullmatch(r"generation-[0-9]+-[0-9a-f]{8}", generation_id):
+        raise ValueError("WORKSPACE_AUDIT_GENERATION_INVALID")
+    generation = store / generation_id
+    if generation.is_symlink() or not generation.is_dir() or _path_has_symlink(generation):
+        raise ValueError("WORKSPACE_AUDIT_GENERATION_UNSAFE")
+    root = generation.resolve()
+    result: list[Path] = []
+    for key in ("input_path", "expected_dir"):
+        path = Path(str(record.get(key) or ""))
+        if not path.is_absolute() or _path_has_symlink(path):
+            raise ValueError("WORKSPACE_AUDIT_PATH_UNSAFE")
+        resolved = path.resolve(strict=True)
+        try:
+            resolved.relative_to(root)
+        except ValueError as exc:
+            raise ValueError("WORKSPACE_AUDIT_PATH_ESCAPE") from exc
+        result.append(resolved)
+    return result[0], result[1]
+
+
+def _propose_workspace_audit_candidates(
+    *,
+    name: str,
+    task_id: str,
+    checked_root: Path,
+    root: Path,
+    contract,
+    ref_impl: Path,
+    ref_lock: Path,
+    upstream: Path,
+    n: int,
+    offline: bool,
+) -> dict:
+    """Generate directory Fresh-audit inputs from the frozen task builder."""
+
+    import shutil
+    from contextlib import ExitStack
+
+    from pydantic import ValidationError
+
+    from repoproof.adoption.intake.example_proposer import (
+        ReferenceEnvironmentError,
+        prepared_reference_environment,
+    )
+    from repoproof.adoption.intake.tool_drafter import (
+        DraftError,
+        normalize_workspace_fixture_blueprints_document,
+        online_drafter,
+    )
+    from repoproof.adoption.intake.workspace_fixtures import (
+        FixtureBlueprintV1,
+        FixtureBuilderError,
+        build_fixture_candidate,
+    )
+    from repoproof.execution.core_execution import atomic_write_json
+    from repoproof.execution.workspace_bundle import (
+        WorkspaceBundleError,
+        identify_input_path,
+    )
+    from repoproof.harness.task_package import load_and_verify
+
+    tool = contract.tool
+    if (
+        tool is None
+        or tool.schema_version != 4
+        or tool.delivery_profile_id != "workspace_bundle_v1"
+        or tool.workspace_contract is None
+    ):
+        return {
+            "ok": False,
+            "error": "冻结任务不是 workspace_bundle_v1。",
+            "failure_owner": "CONTRACT",
+            "reason_codes": ["WORKSPACE_PROFILE_REQUIRED"],
+        }
+    generation_root: Path | None = None
+    try:
+        load_and_verify(root, root / "contracts" / f"{task_id}.yaml")
+        oracle = root / "oracle" / task_id
+        builder = oracle / "fixture_builder.py"
+        blueprint_path = oracle / "fixture_blueprints.json"
+        if (
+            builder.is_symlink()
+            or not builder.is_file()
+            or blueprint_path.is_symlink()
+            or not blueprint_path.is_file()
+        ):
+            raise ValueError("FROZEN_FIXTURE_ASSETS_MISSING")
+        document = json.loads(blueprint_path.read_text(encoding="utf-8"))
+        raw_seeds = document.get("blueprints") if isinstance(document, dict) else None
+        if not isinstance(raw_seeds, list):
+            raise ValueError("FROZEN_FIXTURE_BLUEPRINTS_INVALID")
+        seeds = [FixtureBlueprintV1.model_validate(item) for item in raw_seeds]
+        fixture_root = oracle / "fixtures"
+        existing_input_hashes = {
+            identify_input_path(path).sha256
+            for path in fixture_root.glob("*/input")
+            if not path.is_symlink() and (path.is_file() or path.is_dir())
+        }
+        requested = max(1, min(int(n), 4))
+        if offline:
+            proposed = seeds
+            drafter_name = "frozen-unused-blueprints"
+        else:
+            drafter = online_drafter()
+            response = drafter.propose_workspace_fixture_blueprints(
+                {
+                    "how_many": requested,
+                    "capability_goal": str(contract.capability.statement or ""),
+                    "input_kind": tool.interface.input.kind,
+                    "seed_blueprints": [
+                        {
+                            **item.model_dump(mode="json", exclude={"parameters"}),
+                            "parameters_json": json.dumps(
+                                item.parameters,
+                                ensure_ascii=False,
+                                sort_keys=True,
+                            ),
+                        }
+                        for item in seeds
+                    ],
+                    "excluded_blueprint_ids": [item.blueprint_id for item in seeds],
+                    "excluded_parameter_fingerprints": [
+                        hashlib.sha256(
+                            json.dumps(
+                                item.parameters,
+                                ensure_ascii=False,
+                                sort_keys=True,
+                                separators=(",", ":"),
+                            ).encode("utf-8")
+                        ).hexdigest()
+                        for item in seeds
+                    ],
+                }
+            )
+            proposed = [
+                FixtureBlueprintV1.model_validate(item)
+                for item in normalize_workspace_fixture_blueprints_document(
+                    response,
+                    input_kind=tool.interface.input.kind,
+                    expected_count=requested,
+                )
+            ]
+            drafter_name = getattr(drafter, "name", type(drafter).__name__)
+        store = _workspace_audit_candidate_store(
+            tool_name=name,
+            task_id=task_id,
+            dest_root=checked_root,
+        )
+        generation_id = f"generation-{int(time.time())}-{secrets.token_hex(4)}"
+        generation_root = store / generation_id
+        generation_root.mkdir(parents=True, exist_ok=False)
+        temporary_draft = generation_root / "reference-environment"
+        temporary_draft.mkdir()
+        shutil.copy2(ref_lock, temporary_draft / "reference.lock.txt")
+        records: list[dict[str, object]] = []
+        stack = ExitStack()
+        try:
+            reference_python = stack.enter_context(
+                prepared_reference_environment(
+                    temporary_draft,
+                    wheelhouse_cache_root=ui_state_root() / "reference-wheelhouses",
+                )
+            ) or _product_python()
+            for blueprint in proposed:
+                candidate = build_fixture_candidate(
+                    blueprint=blueprint,
+                    builder_id=f"{task_id}-fixture-builder-v1",
+                    builder_source=builder,
+                    fixture_root=generation_root / "inputs",
+                    python_exe=reference_python,
+                    isolation_required=True,
+                )
+                if candidate.fixture_identity.sha256 in existing_input_hashes:
+                    continue
+                expected_dir = generation_root / "expected" / blueprint.blueprint_id
+                expected = _run_workspace_reference_candidate(
+                    reference_source=ref_impl,
+                    input_path=Path(candidate.fixture_path),
+                    expected_dir=expected_dir,
+                    contract=tool.workspace_contract,
+                    python_exe=reference_python,
+                    upstream_dir=upstream,
+                )
+                record: dict[str, object] = {
+                    "blueprint_id": blueprint.blueprint_id,
+                    "title": blueprint.title,
+                    "scenario": blueprint.scenario,
+                    "input_kind": blueprint.input_kind,
+                    "builder_source_sha256": candidate.builder_source_sha256,
+                    "input_path": candidate.fixture_path,
+                    "input_sha256": candidate.fixture_identity.sha256,
+                    "input_file_count": candidate.fixture_identity.file_count,
+                    "input_total_bytes": candidate.fixture_identity.total_bytes,
+                    "expected_dir": str(expected_dir.resolve()),
+                    "expected_tree_sha256": expected["tree_sha256"],
+                    "expected_file_count": expected["file_count"],
+                    "expected_total_bytes": expected["total_bytes"],
+                    "generation_id": generation_id,
+                    "confirmed": False,
+                }
+                record["candidate_token"] = _workspace_candidate_token(record)
+                records.append(record)
+                if len(records) >= requested:
+                    break
+        finally:
+            stack.close()
+        if not records:
+            raise ValueError("FRESH_WORKSPACE_BLUEPRINT_MISSING")
+        state = {
+            "schema_version": 1,
+            "tool_name": name,
+            "task_id": task_id,
+            "dest_root": str(checked_root),
+            "generation_id": generation_id,
+            "records": records,
+        }
+        atomic_write_json(store / "state.json", state)
+        return {
+            "ok": True,
+            "tool_name": name,
+            "task_id": task_id,
+            "dest_root": str(checked_root),
+            "artifact_kind": "directory",
+            "delivery_profile_id": "workspace_bundle_v1",
+            "drafter": drafter_name,
+            "candidates": [
+                {
+                    key: record[key]
+                    for key in (
+                        "blueprint_id",
+                        "title",
+                        "scenario",
+                        "input_kind",
+                        "input_sha256",
+                        "input_file_count",
+                        "input_total_bytes",
+                        "expected_tree_sha256",
+                        "expected_file_count",
+                        "expected_total_bytes",
+                        "candidate_token",
+                    )
+                }
+                for record in records
+            ],
+            "note": (
+                "新鲜输入由模型场景或冻结未用场景提出，真实字节来自冻结 builder；"
+                "期望目录来自冻结 reference，且输入身份未出现在构建/held-out fixtures 中。"
+            ),
+        }
+    except ReferenceEnvironmentError as exc:
+        code = exc.reason_code
+        owner = "HARNESS"
+    except DraftError as exc:
+        code = str(exc)
+        owner = "EXTERNAL"
+    except (
+        FixtureBuilderError,
+        WorkspaceBundleError,
+        ValidationError,
+        OSError,
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+    ) as exc:
+        code = str(getattr(exc, "code", str(exc) or type(exc).__name__))
+        owner = "HARNESS"
+    if generation_root is not None:
+        shutil.rmtree(generation_root, ignore_errors=True)
+    return {
+        "ok": False,
+        "error": f"Fresh workspace 候选生成失败：{code}",
+        "failure_owner": owner,
+        "reason_codes": [code],
+        "recommended_action": (
+            "修复网关、冻结 fixture 资产或依赖环境后重试；本次不进入 Agent repair。"
+        ),
+    }
+
+
+def _load_workspace_audit_candidate(
+    tool_name: str,
+    *,
+    dest_root: Path,
+    expected_task_id: str,
+    candidate_token: str,
+) -> tuple[Path, Path, dict[str, object], object]:
+    """Reload one server-owned directory candidate and recheck every binding."""
+
+    from repoproof.domain.models import TaskContract
+    from repoproof.execution.workspace_bundle import (
+        identify_input_path,
+        validate_workspace,
+    )
+    from repoproof.harness.task_package import load_and_verify
+    from repoproof.ui.services.product_mode import list_tools, project_root
+
+    name = validate_tool_name(tool_name)
+    task_id = validate_tool_task_id(name, expected_task_id)
+    checked_root, path_error = _validated_dest_root(Path(dest_root))
+    if checked_root is None:
+        raise ValueError(path_error)
+    library = list_tools(checked_root)
+    if library.get("registry_error") or library.get("release_error"):
+        raise ValueError("TOOL_REGISTRY_UNREADABLE")
+    entry = next(
+        (row for row in library.get("tools") or [] if row.get("name") == name),
+        None,
+    )
+    if entry is None or str(entry.get("task_id") or "") != task_id:
+        raise ValueError("TASK_IDENTITY_MISMATCH")
+    if str(entry.get("health") or "") != "OK":
+        raise ValueError("PACKAGE_IDENTITY_UNHEALTHY")
+    package_path = entry.get("path")
+    if not isinstance(package_path, str) or not package_path:
+        raise ValueError("PACKAGE_IDENTITY_UNHEALTHY")
+    package_dir = Path(package_path)
+    if package_dir.resolve() != canonical_tool_path(checked_root, name).resolve():
+        raise ValueError("PACKAGE_IDENTITY_UNHEALTHY")
+    ensure_safe_package_tree(package_dir)
+
+    project = project_root()
+    contract_path = project / "contracts" / f"{task_id}.yaml"
+    load_and_verify(project, contract_path)
+    contract, _contract_sha = TaskContract.load_frozen(
+        contract_path,
+        require_sidecar=True,
+    )
+    tool = contract.tool
+    if (
+        tool is None
+        or tool.schema_version != 4
+        or tool.delivery_profile_id != "workspace_bundle_v1"
+        or tool.workspace_contract is None
+    ):
+        raise ValueError("WORKSPACE_PROFILE_REQUIRED")
+
+    store = _workspace_audit_candidate_store(
+        tool_name=name,
+        task_id=task_id,
+        dest_root=checked_root,
+    )
+    state_path = store / "state.json"
+    if state_path.is_symlink() or not state_path.is_file():
+        raise ValueError("WORKSPACE_AUDIT_STATE_MISSING")
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    if not isinstance(state, dict):
+        raise ValueError("WORKSPACE_AUDIT_STATE_INVALID")
+    if (
+        state.get("tool_name") != name
+        or state.get("task_id") != task_id
+        or state.get("dest_root") != str(checked_root)
+    ):
+        raise ValueError("WORKSPACE_AUDIT_CONTEXT_MISMATCH")
+    records = state.get("records")
+    if not isinstance(records, list):
+        raise ValueError("WORKSPACE_AUDIT_STATE_INVALID")
+    record = next(
+        item
+        for item in records
+        if isinstance(item, dict) and item.get("candidate_token") == candidate_token
+    )
+    if _workspace_candidate_token(record) != candidate_token:
+        raise ValueError("WORKSPACE_AUDIT_BINDING_INVALID")
+    input_path, expected_dir = _workspace_audit_record_paths(store, state, record)
+    input_identity = identify_input_path(input_path)
+    validation = validate_workspace(expected_dir, tool.workspace_contract)
+    if not validation.ok or validation.manifest is None:
+        raise ValueError("WORKSPACE_AUDIT_EXPECTED_CONTRACT_DRIFT")
+    if (
+        input_identity.sha256 != record.get("input_sha256")
+        or validation.manifest.tree_sha256 != record.get("expected_tree_sha256")
+    ):
+        raise ValueError("WORKSPACE_AUDIT_CONTENT_DRIFT")
+    return input_path, expected_dir, record, tool.workspace_contract
+
+
+def workspace_audit_candidate_preview(
+    tool_name: str,
+    *,
+    dest_root: Path,
+    expected_task_id: str,
+    candidate_token: str,
+) -> dict:
+    """Project a bounded input/output tree without exposing managed paths."""
+
+    try:
+        input_path, expected_dir, record, contract = _load_workspace_audit_candidate(
+            tool_name,
+            dest_root=dest_root,
+            expected_task_id=expected_task_id,
+            candidate_token=candidate_token,
+        )
+        input_tree = (
+            _workspace_tree_projection(input_path)
+            if input_path.is_dir()
+            else {
+                "ok": True,
+                "entries": [
+                    {"path": input_path.name, "size": input_path.stat().st_size}
+                ],
+                "file_count": 1,
+                "total_bytes": input_path.stat().st_size,
+                "tree_sha256": str(record["input_sha256"]),
+            }
+        )
+        expected_tree = _workspace_tree_projection(expected_dir, contract=contract)
+        previews: list[dict[str, str]] = []
+        entries = expected_tree.get("entries")
+        for item in entries if isinstance(entries, list) else []:
+            if len(previews) >= 8 or int(item.get("size") or 0) > 16_384:
+                continue
+            path = expected_dir / str(item.get("path") or "")
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeError):
+                continue
+            previews.append({"path": str(item["path"]), "text": text[:2000]})
+        return {
+            "ok": bool(input_tree.get("ok") and expected_tree.get("ok")),
+            "input_tree": input_tree,
+            "expected_tree": expected_tree,
+            "text_previews": previews,
+        }
+    except (
+        OSError,
+        StopIteration,
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+        ToolPathError,
+    ) as exc:
+        return {
+            "ok": False,
+            "error": f"WORKSPACE_AUDIT_CANDIDATE_INVALID: {exc}",
+            "failure_owner": "HARNESS",
+            "reason_codes": ["WORKSPACE_AUDIT_CANDIDATE_INVALID"],
+        }
+
+
+def materialize_workspace_audit_candidate(
+    tool_name: str,
+    *,
+    dest_root: Path,
+    expected_task_id: str,
+    candidate_token: str,
+) -> dict:
+    """Return an exact managed directory pair after revalidating frozen truth."""
+
+    try:
+        input_path, expected_dir, record, _contract = _load_workspace_audit_candidate(
+            tool_name,
+            dest_root=dest_root,
+            expected_task_id=expected_task_id,
+            candidate_token=candidate_token,
+        )
+        return {
+            "ok": True,
+            "input": str(input_path),
+            "expected": str(expected_dir),
+            "input_sha256": record["input_sha256"],
+            "expected_tree_sha256": record["expected_tree_sha256"],
+        }
+    except (
+        OSError,
+        StopIteration,
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+        ToolPathError,
+    ) as exc:
+        return {
+            "ok": False,
+            "error": f"Fresh workspace 候选受管证据核验失败：{exc}",
+            "failure_owner": "HARNESS",
+            "reason_codes": ["WORKSPACE_AUDIT_CANDIDATE_INVALID"],
+            "recommended_action": "丢弃旧候选并重新生成；不要手工搬运期望目录。",
+        }
 
 
 def propose_audit_candidates(
@@ -1556,10 +2962,7 @@ def propose_audit_candidates(
     if entry is not None and str(entry.get("health") or "") != "OK":
         return {
             "ok": False,
-            "error": (
-                f"工具包健康状态为 {entry.get('health') or 'UNKNOWN'}，"
-                "拒绝生成 Fresh audit 真值。"
-            ),
+            "error": (f"工具包健康状态为 {entry.get('health') or 'UNKNOWN'}，拒绝生成 Fresh audit 真值。"),
             "failure_owner": "HARNESS",
             "reason_codes": ["PACKAGE_IDENTITY_UNHEALTHY"],
             "recommended_action": "先修复或重新导出受管工具包，再生成 Fresh audit 候选。",
@@ -1584,6 +2987,24 @@ def propose_audit_candidates(
         capability_goal = str(contract.capability.statement or "").strip()
         if not capability_goal:
             raise ValueError("冻结合同没有 capability statement")
+        contract_tool = getattr(contract, "tool", None)
+        if (
+            contract_tool is not None
+            and contract_tool.schema_version == 4
+            and contract_tool.delivery_profile_id == "workspace_bundle_v1"
+        ):
+            return _propose_workspace_audit_candidates(
+                name=name,
+                task_id=task_id,
+                checked_root=checked_root,
+                root=root,
+                contract=contract,
+                ref_impl=ref_impl,
+                ref_lock=ref_lock,
+                upstream=upstream,
+                n=n,
+                offline=offline,
+            )
         frozen_intent = contract.capability.intent_contract
         if frozen_intent is None or not frozen_intent.commitments:
             return {
@@ -1591,9 +3012,7 @@ def propose_audit_candidates(
                 "error": "冻结合同缺少候选所需的公开承诺目录。",
                 "failure_owner": "CONTRACT",
                 "reason_codes": ["AUDIT_CANDIDATE_COMMITMENTS_MISSING"],
-                "recommended_action": (
-                    "创建新的 task version；不要为历史合同静默补写行为绑定。"
-                ),
+                "recommended_action": ("创建新的 task version；不要为历史合同静默补写行为绑定。"),
             }
         public_commitments = (
             [
@@ -1700,11 +3119,7 @@ def propose_audit_candidates(
 
     # 候选是 pydantic 对象(CandidateExample),不是 dict —— 按 dict 取值会
     # 全部读空,于是"有候选"被悄悄变成"没候选"(2026-08-28 自查发现)。
-    usable_objects = [
-        candidate
-        for candidate in cands.candidates
-        if candidate.usable_as_golden
-    ]
+    usable_objects = [candidate for candidate in cands.candidates if candidate.usable_as_golden]
     context = _audit_candidate_context(
         tool_name=name,
         task_id=task_id,
@@ -1853,11 +3268,14 @@ def materialize_audit_candidate(
                 ref_lock,
                 cache_root=ui_state_root() / "reference-wheelhouses",
             )
-            if upstream_runtime_identity(
-                upstream,
-                import_module=import_module,
-                runtime_artifact_sha256=runtime_artifact_sha256,
-            ) != evidence.upstream_identity_sha256:
+            if (
+                upstream_runtime_identity(
+                    upstream,
+                    import_module=import_module,
+                    runtime_artifact_sha256=runtime_artifact_sha256,
+                )
+                != evidence.upstream_identity_sha256
+            ):
                 raise ValueError("CANDIDATE_UPSTREAM_IDENTITY_CHANGED")
 
         safe_input = Path(stored.input_name).name
@@ -1890,7 +3308,8 @@ def materialize_audit_candidate(
                 ensure_ascii=False,
                 indent=2,
                 sort_keys=True,
-            ) + "\n",
+            )
+            + "\n",
             encoding="utf-8",
         )
         return {
@@ -1978,8 +3397,6 @@ def start_tool_audit(
     expected_task_id: str,
     journey_id: str = "",
 ) -> dict:
-    if not input_path.is_file() or not expected_path.is_file():
-        return {"ok": False, "error": "新鲜输入和期望输出文件都必须存在。"}
     checked_root, path_error = _validated_dest_root(Path(dest_root))
     if checked_root is None:
         return {"ok": False, "error": path_error}
@@ -1990,6 +3407,26 @@ def start_tool_audit(
         validate_tool_task_id(name, expected_task_id)
     except ToolPathError as exc:
         return {"ok": False, "error": str(exc)}
+    try:
+        manifest_path = dest_root / name / "tool.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        workspace_profile = bool(
+            isinstance(manifest, dict)
+            and manifest.get("contract_schema_version") == 4
+            and manifest.get("delivery_profile_id") == "workspace_bundle_v1"
+        )
+    except (OSError, UnicodeError, ValueError):
+        return {"ok": False, "error": "无法确认已安装工具的交付 profile。"}
+    input_ok = not input_path.is_symlink() and (input_path.is_file() or (workspace_profile and input_path.is_dir()))
+    expected_ok = not expected_path.is_symlink() and (
+        expected_path.is_dir() if workspace_profile else expected_path.is_file()
+    )
+    if not input_ok or not expected_ok:
+        expected_kind = "目录" if workspace_profile else "文件"
+        return {
+            "ok": False,
+            "error": f"新鲜输入或期望{expected_kind}不存在/类型不安全。",
+        }
     root = _product_root()
     return _start_product_job(
         [
@@ -2102,24 +3539,17 @@ def _public_reference_environment_error(reason_code: str) -> str:
     """Project a stable error without subprocess output or private paths."""
 
     messages = {
-        "REFERENCE_RUNTIME_ISOLATION_UNAVAILABLE": (
-            "当前主机没有受支持的离线 reference 隔离后端；本次没有调用模型。"
-        ),
+        "REFERENCE_RUNTIME_ISOLATION_UNAVAILABLE": ("当前主机没有受支持的离线 reference 隔离后端；本次没有调用模型。"),
         "REFERENCE_WHEELHOUSE_MATERIALIZATION_FAILED": (
-            "参考依赖 wheelhouse 暂时无法建立；请检查包索引网络后重试。"
-            "本次没有调用模型。"
+            "参考依赖 wheelhouse 暂时无法建立；请检查包索引网络后重试。本次没有调用模型。"
         ),
         "REFERENCE_WHEELHOUSE_INTEGRITY_FAILED": (
-            "参考依赖 wheelhouse 身份校验失败；请人工检查受管缓存。"
-            "本次没有调用模型。"
+            "参考依赖 wheelhouse 身份校验失败；请人工检查受管缓存。本次没有调用模型。"
         ),
         "REFERENCE_OFFLINE_INSTALL_FAILED": (
-            "参考依赖无法从已验证 wheelhouse 离线安装；"
-            "请检查依赖锁的完整性。本次没有调用模型。"
+            "参考依赖无法从已验证 wheelhouse 离线安装；请检查依赖锁的完整性。本次没有调用模型。"
         ),
-        "REFERENCE_ENVIRONMENT_SETUP_FAILED": (
-            "参考环境无法安全建立；本次没有调用模型。"
-        ),
+        "REFERENCE_ENVIRONMENT_SETUP_FAILED": ("参考环境无法安全建立；本次没有调用模型。"),
     }
     return messages.get(
         str(reason_code),
@@ -2186,8 +3616,7 @@ def _candidate_generation_error_result(exc: Exception) -> dict[str, object]:
         "failure_owner": "HARNESS",
         "reason_codes": ["CANDIDATE_GENERATION_FAILED"],
         "recommended_action": (
-            "查看 Studio 活动日志并修复候选生成链路后重试；"
-            "不要把本次失败计入 Coding Agent repair。"
+            "查看 Studio 活动日志并修复候选生成链路后重试；不要把本次失败计入 Coding Agent repair。"
         ),
     }
 
@@ -2237,9 +3666,7 @@ def summarize_repo_overview(
         )
         # Summary-only stubs and persisted fixtures predate structured advice.
         # Keep their display path alive, but never synthesize an adoptable brief.
-        doc = validate_repo_summary_document(
-            doc, allow_legacy=True, allow_projected=True
-        )
+        doc = validate_repo_summary_document(doc, allow_legacy=True, allow_projected=True)
     except DraftError as exc:
         code = str(exc).split(":", 1)[0]
         if code in {
@@ -2251,19 +3678,14 @@ def summarize_repo_overview(
             return {
                 "ok": False,
                 "error": _provider_hint(code),
-                "failure_owner": (
-                    "HARNESS"
-                    if code == "DRAFTER_TIMEOUT_CONFIG_INVALID"
-                    else "EXTERNAL"
-                ),
+                "failure_owner": ("HARNESS" if code == "DRAFTER_TIMEOUT_CONFIG_INVALID" else "EXTERNAL"),
                 "reason_codes": [code],
                 "recommended_action": (
                     "为默认网关启用 JSON Schema structured output，或显式切换"
                     "到支持同一 schema 的起草通道；本次没有创建 Journey，"
                     "也不消耗 Agent repair 轮次。"
                     if code == "DRAFTER_STRUCTURED_OUTPUT_UNSUPPORTED"
-                    else "检查默认 API 网关连通性后重试；本次没有创建 Journey，"
-                    "也不消耗 Agent repair 轮次。"
+                    else "检查默认 API 网关连通性后重试；本次没有创建 Journey，也不消耗 Agent repair 轮次。"
                 ),
             }
         return {"ok": False, "error": _provider_hint(str(exc))}
@@ -2342,9 +3764,7 @@ def _confirmed_public_success_controls(
         raw_expected = item.get("expected_file")
         has_inline_expected = isinstance(item.get("expected"), str)
         has_file_expected = isinstance(raw_expected, str)
-        if not isinstance(raw_input, str) or (
-            has_inline_expected == has_file_expected
-        ):
+        if not isinstance(raw_input, str) or (has_inline_expected == has_file_expected):
             continue
         relative = Path(raw_input)
         if (
@@ -2355,11 +3775,7 @@ def _confirmed_public_success_controls(
         ):
             continue
         input_path = examples_root / relative
-        if (
-            input_path.is_symlink()
-            or _path_has_symlink(input_path)
-            or not input_path.is_file()
-        ):
+        if input_path.is_symlink() or _path_has_symlink(input_path) or not input_path.is_file():
             continue
         if has_file_expected:
             assert isinstance(raw_expected, str)
@@ -2372,25 +3788,17 @@ def _confirmed_public_success_controls(
             ):
                 continue
             expected_path = examples_root / expected_relative
-            if (
-                expected_path.is_symlink()
-                or _path_has_symlink(expected_path)
-                or not expected_path.is_file()
-            ):
+            if expected_path.is_symlink() or _path_has_symlink(expected_path) or not expected_path.is_file():
                 continue
         try:
             input_bytes = input_path.read_bytes()
             input_text = input_bytes.decode("utf-8")
             expected_bytes = (
-                str(item["expected"]).encode("utf-8")
-                if has_inline_expected
-                else expected_path.read_bytes()
+                str(item["expected"]).encode("utf-8") if has_inline_expected else expected_path.read_bytes()
             )
             recorded_binding = str(item.get("truth_binding_sha256") or "")
-            if (
-                re.fullmatch(r"[0-9a-f]{64}", recorded_binding) is None
-                or recorded_binding
-                != truth_binding_sha256(input_bytes, expected_bytes)
+            if re.fullmatch(r"[0-9a-f]{64}", recorded_binding) is None or recorded_binding != truth_binding_sha256(
+                input_bytes, expected_bytes
             ):
                 continue
 
@@ -2416,9 +3824,7 @@ def _confirmed_public_success_controls(
                     )
                 ):
                     continue
-            controls.append(
-                (relative.name, input_text, expected_bytes.decode("utf-8"))
-            )
+            controls.append((relative.name, input_text, expected_bytes.decode("utf-8")))
         except (OSError, UnicodeError):
             continue
     return controls
@@ -2500,10 +3906,7 @@ def _persist_managed_candidate_evidence_records(
                 raise ValueError("CANDIDATE_TRUTH_EVIDENCE_MISSING")
             ledger = str(managed.get("ledger") or "")
             secret = str(managed.get("secret") or "")
-            if (
-                hashlib.sha256(ledger.encode("utf-8")).hexdigest()
-                != evidence.runtime_receipt_sha256
-            ):
+            if hashlib.sha256(ledger.encode("utf-8")).hexdigest() != evidence.runtime_receipt_sha256:
                 raise ValueError("CANDIDATE_RUNTIME_RECEIPT_HASH_MISMATCH")
             if candidate.usable_as_golden:
                 validate_candidate_truth_evidence(candidate)
@@ -2530,9 +3933,7 @@ def _persist_managed_candidate_evidence_records(
             try:
                 record = {
                     "schema_version": 1,
-                    "context_identity_sha256": hashlib.sha256(
-                        context_identity.encode("utf-8")
-                    ).hexdigest(),
+                    "context_identity_sha256": hashlib.sha256(context_identity.encode("utf-8")).hexdigest(),
                     "candidate": candidate.model_dump(mode="json"),
                     "receipt_secret": secret,
                 }
@@ -2582,9 +3983,7 @@ def _load_managed_candidate_evidence_record(
     record = json.loads(raw_record.decode("utf-8"))
     if not isinstance(record, dict) or record.get("schema_version") != 1:
         raise ValueError("CANDIDATE_TRUTH_EVIDENCE_RECORD_INVALID")
-    if record.get("context_identity_sha256") != hashlib.sha256(
-        context_identity.encode("utf-8")
-    ).hexdigest():
+    if record.get("context_identity_sha256") != hashlib.sha256(context_identity.encode("utf-8")).hexdigest():
         raise ValueError("CANDIDATE_TRUTH_EVIDENCE_CONTEXT_MISMATCH")
     stored = CandidateExample.model_validate(record.get("candidate"))
     evidence = stored.truth_evidence
@@ -2602,11 +4001,7 @@ def _load_managed_candidate_evidence_record(
         evidence.import_module,
         1,
     )
-    if (
-        not verified["ok"]
-        or int(verified["imports"]) != evidence.imports
-        or int(verified["calls"]) != evidence.calls
-    ):
+    if not verified["ok"] or int(verified["imports"]) != evidence.imports or int(verified["calls"]) != evidence.calls:
         raise ValueError("CANDIDATE_RUNTIME_RECEIPT_INVALID")
     validate_candidate_truth_evidence(stored)
     return stored
@@ -2720,9 +4115,7 @@ def _load_managed_candidate_for_confirmation(
     evidence = stored.truth_evidence
     if evidence is None:  # pragma: no cover - generic loader already rejects it
         raise ValueError("CANDIDATE_TRUTH_EVIDENCE_MISSING")
-    current_reference = hashlib.sha256(
-        (checked_dir / "reference_impl.py").read_bytes()
-    ).hexdigest()
+    current_reference = hashlib.sha256((checked_dir / "reference_impl.py").read_bytes()).hexdigest()
     if current_reference != evidence.reference_sha256:
         raise ValueError("CANDIDATE_REFERENCE_IDENTITY_CHANGED")
     draft = yaml.safe_load((checked_dir / "draft.yaml").read_text(encoding="utf-8")) or {}
@@ -2741,11 +4134,14 @@ def _load_managed_candidate_for_confirmation(
             checked_dir / "reference.lock.txt",
             cache_root=ui_state_root() / "reference-wheelhouses",
         )
-        if upstream_runtime_identity(
-            upstream,
-            import_module=import_module,
-            runtime_artifact_sha256=runtime_artifact_sha256,
-        ) != evidence.upstream_identity_sha256:
+        if (
+            upstream_runtime_identity(
+                upstream,
+                import_module=import_module,
+                runtime_artifact_sha256=runtime_artifact_sha256,
+            )
+            != evidence.upstream_identity_sha256
+        ):
             raise ValueError("CANDIDATE_UPSTREAM_IDENTITY_CHANGED")
     return stored
 
@@ -2767,8 +4163,7 @@ def example_input_mode(draft_dir: Path) -> dict:
             "failure_owner": "CONTRACT",
             "reason_codes": [code],
             "recommended_action": (
-                "重新从当前 Studio 创建任务，让交付合同明确声明输入表示；"
-                "不要根据文件名或格式文字猜测。"
+                "重新从当前 Studio 创建任务，让交付合同明确声明输入表示；不要根据文件名或格式文字猜测。"
             ),
         }
 
@@ -2779,11 +4174,7 @@ def example_input_mode(draft_dir: Path) -> dict:
         return incompatible("DRAFT_DOCUMENT_UNREADABLE", f"草稿输入合同不可读:{exc}")
     raw_schema_version = (doc.get("tool") or {}).get("schema_version")
     try:
-        tool_schema_version = (
-            int(raw_schema_version)
-            if isinstance(raw_schema_version, (str, int))
-            else 0
-        )
+        tool_schema_version = int(raw_schema_version) if isinstance(raw_schema_version, (str, int)) else 0
     except ValueError:
         tool_schema_version = 0
     if tool_schema_version != 3:
@@ -2905,10 +4296,7 @@ def _source_defines_sync_function(source: str, name: str) -> bool:
         tree = ast.parse(source)
     except SyntaxError:
         return False
-    return any(
-        isinstance(node, ast.FunctionDef) and node.name == name
-        for node in tree.body
-    )
+    return any(isinstance(node, ast.FunctionDef) and node.name == name for node in tree.body)
 
 
 def _uniform_internal_reference_failure(
@@ -2927,24 +4315,15 @@ def _uniform_internal_reference_failure(
     errors = [str(candidate.upstream_error or "") for candidate in candidates]
     if any(not error for error in errors):
         return None
-    exception_types = {
-        error.partition(":")[0].strip().rsplit(".", 1)[-1]
-        for error in errors
-    }
+    exception_types = {error.partition(":")[0].strip().rsplit(".", 1)[-1] for error in errors}
     if len(exception_types) != 1 or exception_types == {"UserInputError"}:
         return None
     exception_type = next(iter(exception_types))
     if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", exception_type) is None:
         exception_type = "UNKNOWN"
-    fingerprints = {
-        str(getattr(candidate, "upstream_error_fingerprint", "") or "")
-        for candidate in candidates
-    }
+    fingerprints = {str(getattr(candidate, "upstream_error_fingerprint", "") or "") for candidate in candidates}
     fingerprint = next(iter(fingerprints), "")
-    if (
-        len(fingerprints) != 1
-        or re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None
-    ):
+    if len(fingerprints) != 1 or re.fullmatch(r"[0-9a-f]{64}", fingerprint) is None:
         return None
     return exception_type, fingerprint
 
@@ -3031,9 +4410,7 @@ def _reference_batch_control_failure(
             ),
         )
 
-    control_verdict, control_exception_type = _positive_control_verdict(
-        positive_control_batch
-    )
+    control_verdict, control_exception_type = _positive_control_verdict(positive_control_batch)
     control_failure = (
         _uniform_internal_reference_failure(positive_control_batch.batch)
         if isinstance(positive_control_batch, _PositiveControlRun)
@@ -3055,10 +4432,7 @@ def _reference_batch_control_failure(
             ),
             diagnostics=(
                 f"all_candidates_exception_type={exception_type}",
-                (
-                    "positive_control_verdict="
-                    f"{_CONTROL_ALL_SAME_INTERNAL_EXCEPTION}"
-                ),
+                (f"positive_control_verdict={_CONTROL_ALL_SAME_INTERNAL_EXCEPTION}"),
             ),
         )
     if control_verdict == _CONTROL_ALL_SUCCEEDED:
@@ -3079,10 +4453,7 @@ def _reference_batch_control_failure(
     return _CandidateAdmissionError(
         owner="CONTRACT",
         reason_codes=["REFERENCE_POSITIVE_CONTROL_FAILED_OR_MIXED"],
-        message=(
-            "已确认的公开成功正控未全部成功，且没有全部复现"
-            "候选的同一种内部异常；当前无法安全授权控制面 repair。"
-        ),
+        message=("已确认的公开成功正控未全部成功，且没有全部复现候选的同一种内部异常；当前无法安全授权控制面 repair。"),
         diagnostics=(
             f"all_candidates_exception_type={exception_type}",
             f"positive_control_verdict={control_verdict}",
@@ -3217,7 +4588,7 @@ def _repair_draft_controls_after_contract_mismatch(
         )
     current_reference = reference_path.read_text(encoding="utf-8")
     current_verifier = verifier_path.read_text(encoding="utf-8")
-    output = (((overview_doc.get("tool") or {}).get("interface") or {}).get("output") or {})
+    output = ((overview_doc.get("tool") or {}).get("interface") or {}).get("output") or {}
     intent = IntentContractDraftV1.model_validate(overview_doc.get("_intent_contract"))
     if intent.delivery is None:
         raise _CandidateAdmissionError(
@@ -3237,13 +4608,9 @@ def _repair_draft_controls_after_contract_mismatch(
         )
     public_contract = {
         "user_goal": intent.user_goal,
-        "semantic_commitments": [
-            item.model_dump(mode="json") for item in intent.commitments
-        ],
+        "semantic_commitments": [item.model_dump(mode="json") for item in intent.commitments],
         "artifact_protocol": (
-            intent.artifact_protocol.model_dump(mode="json")
-            if intent.artifact_protocol is not None
-            else None
+            intent.artifact_protocol.model_dump(mode="json") if intent.artifact_protocol is not None else None
         ),
         "delivery_requirements": intent.delivery.requirements.model_dump(mode="json"),
         "output_contract": output.get("contract") or {},
@@ -3266,10 +4633,8 @@ def _repair_draft_controls_after_contract_mismatch(
         public_validation_profile_spec,
     )
 
-    public_contract["output_validation_profile_spec"] = (
-        public_validation_profile_spec(
-            (output.get("contract") or {}).get("validation_profile")
-        )
+    public_contract["output_validation_profile_spec"] = public_validation_profile_spec(
+        (output.get("contract") or {}).get("validation_profile")
     )
     from repoproof.adoption.intake.tool_drafter import DraftError
 
@@ -3299,28 +4664,21 @@ def _repair_draft_controls_after_contract_mismatch(
                         ),
                     }
                 reference_result = drafter.repair_reference(reference_context)
-                repaired_reference = str(
-                    reference_result.get("reference_impl") or ""
-                )
+                repaired_reference = str(reference_result.get("reference_impl") or "")
                 if not _source_defines_sync_function(repaired_reference, "extract"):
                     raise _CandidateAdmissionError(
                         owner="CONTRACT",
                         reason_codes=["DRAFT_REFERENCE_REPAIR_INVALID"],
                         message="修复后的 reference 没有有效的同步 extract。",
                     )
-                after_reference = hashlib.sha256(
-                    repaired_reference.encode("utf-8")
-                ).hexdigest()
+                after_reference = hashlib.sha256(repaired_reference.encode("utf-8")).hexdigest()
                 if after_reference != before_reference:
                     break
             else:
                 raise _CandidateAdmissionError(
                     owner="CONTRACT",
                     reason_codes=["DRAFT_REFERENCE_REPAIR_NO_PROGRESS"],
-                    message=(
-                        "责任生产者 reference 连续两次没有产生代码变化，"
-                        "已停止且未改写独立 verifier。"
-                    ),
+                    message=("责任生产者 reference 连续两次没有产生代码变化，已停止且未改写独立 verifier。"),
                 )
         else:
             # Core already admitted the producer's output contract. The judge
@@ -3344,28 +4702,21 @@ def _repair_draft_controls_after_contract_mismatch(
                         ),
                     }
                 verifier_result = drafter.repair_verifier(verifier_context)
-                repaired_verifier = str(
-                    verifier_result.get("semantic_verifier") or ""
-                )
+                repaired_verifier = str(verifier_result.get("semantic_verifier") or "")
                 if not _source_defines_sync_function(repaired_verifier, "verify"):
                     raise _CandidateAdmissionError(
                         owner="CONTRACT",
                         reason_codes=["DRAFT_VERIFIER_REPAIR_INVALID"],
                         message="修复后的 verifier 没有有效的同步 verify。",
                     )
-                after_verifier = hashlib.sha256(
-                    repaired_verifier.encode("utf-8")
-                ).hexdigest()
+                after_verifier = hashlib.sha256(repaired_verifier.encode("utf-8")).hexdigest()
                 if after_verifier != before_verifier:
                     break
             else:
                 raise _CandidateAdmissionError(
                     owner="CONTRACT",
                     reason_codes=["DRAFT_VERIFIER_REPAIR_NO_PROGRESS"],
-                    message=(
-                        "责任判卷器 verifier 连续两次没有产生代码变化，"
-                        "已停止且未改写 reference。"
-                    ),
+                    message=("责任判卷器 verifier 连续两次没有产生代码变化，已停止且未改写 reference。"),
                 )
     except _CandidateAdmissionError:
         raise
@@ -3395,7 +4746,7 @@ def _repair_draft_controls_after_contract_mismatch(
         )
     after_reference = hashlib.sha256(repaired_reference.encode("utf-8")).hexdigest()
     after_verifier = hashlib.sha256(repaired_verifier.encode("utf-8")).hexdigest()
-    interface = ((overview_doc.get("tool") or {}).get("interface") or {})
+    interface = (overview_doc.get("tool") or {}).get("interface") or {}
     source_repo = overview_doc.get("source_repo") or {}
     save_result = save_draft_review(
         draft_dir,
@@ -3465,10 +4816,7 @@ def _admit_candidate_pair(
         raise _CandidateAdmissionError(
             owner="CONTRACT",
             reason_codes=["REFERENCE_OUTPUT_CONTRACT_MISMATCH"],
-            message=(
-                "固定上游 reference 返回成功，但产物违反机器输出合同；"
-                "这是草稿控制面故障，不是候选输入失败。"
-            ),
+            message=("固定上游 reference 返回成功，但产物违反机器输出合同；这是草稿控制面故障，不是候选输入失败。"),
             diagnostics=_public_output_contract_diagnostics(
                 contract_errors,
                 output_text=candidate.upstream_output,
@@ -3511,16 +4859,12 @@ def _admit_candidate_pair(
     if not screen.mechanism_ok:
         raise _CandidateAdmissionError(
             owner="CONTRACT",
-            reason_codes=list(screen.reason_codes) or [
-                "SEMANTIC_VERIFIER_MECHANISM_INVALID"
-            ],
+            reason_codes=list(screen.reason_codes) or ["SEMANTIC_VERIFIER_MECHANISM_INVALID"],
             message="独立语义验证器无法完整证明自己声明的检查。",
         )
     if not screen.passed:
         public_reasons = tuple(
-            str(code)
-            for code in screen.reason_codes
-            if re.fullmatch(r"[A-Z][A-Z0-9_]{0,79}", str(code)) is not None
+            str(code) for code in screen.reason_codes if re.fullmatch(r"[A-Z][A-Z0-9_]{0,79}", str(code)) is not None
         )
         raise _CandidateAdmissionError(
             owner="CONTRACT",
@@ -3572,8 +4916,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
             "failure_owner": "HARNESS",
             "reason_codes": ["DRAFT_CONTROL_REPAIR_INCOMPLETE"],
             "recommended_action": (
-                "从 repair 前快照恢复该草稿，或创建新 task version；"
-                "不要在混合控制束上继续调用模型。"
+                "从 repair 前快照恢复该草稿，或创建新 task version；不要在混合控制束上继续调用模型。"
             ),
         }
 
@@ -3605,9 +4948,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
             "suggestions": list(mode.get("suggestions") or []),
             "candidates": [],
         }
-    reference_import_module = str(
-        (overview_doc.get("source_repo") or {}).get("import_module") or ""
-    ).strip()
+    reference_import_module = str((overview_doc.get("source_repo") or {}).get("import_module") or "").strip()
     if not reference_import_module:
         return {
             "ok": False,
@@ -3620,10 +4961,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
     if upstream is None:
         return {"ok": False, "error": up_err}
 
-    output_contract = (
-        (((overview_doc.get("tool") or {}).get("interface") or {}).get("output") or {})
-        .get("contract")
-    )
+    output_contract = (((overview_doc.get("tool") or {}).get("interface") or {}).get("output") or {}).get("contract")
     if not isinstance(output_contract, dict):
         return {
             "ok": False,
@@ -3633,9 +4971,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
         }
     raw_intent = overview_doc.get("_intent_contract") or {}
     required_commitment_ids = tuple(
-        str(item.get("commitment_id") or "")
-        for item in (raw_intent.get("commitments") or [])
-        if isinstance(item, dict)
+        str(item.get("commitment_id") or "") for item in (raw_intent.get("commitments") or []) if isinstance(item, dict)
     )
     public_commitments = [
         {
@@ -3648,11 +4984,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
         and str(item.get("public_text") or "").strip()
     ]
     verifier_path = draft_dir / "semantic_verifier.py"
-    semantic_verifier = (
-        verifier_path
-        if verifier_path.is_file() and not verifier_path.is_symlink()
-        else None
-    )
+    semantic_verifier = verifier_path if verifier_path.is_file() and not verifier_path.is_symlink() else None
 
     persisted_inputs = existing_example_inputs(draft_dir)
     persisted_names = _existing_example_names(draft_dir)
@@ -3681,9 +5013,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
             raise _CandidateAdmissionError(
                 owner="HARNESS",
                 reason_codes=["DEPENDENCY_LOCK_MISSING"],
-                message=(
-                    "固定上游依赖锁尚未成立；候选生成已在模型调用前停止。"
-                ),
+                message=("固定上游依赖锁尚未成立；候选生成已在模型调用前停止。"),
             )
         reference_python = stack.enter_context(
             prepared_reference_environment(
@@ -3728,8 +5058,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                             input_text=input_text,
                             why="manifest-bound public success control",
                         )
-                        for name, input_text, _expected_text
-                        in confirmed_success_controls
+                        for name, input_text, _expected_text in confirmed_success_controls
                     ],
                     drafter="confirmed-public-success-control",
                     note="manifest-bound public success controls",
@@ -3744,9 +5073,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
             return _PositiveControlRun(
                 batch=batch,
                 expected_outputs=tuple(
-                    expected_text
-                    for _name, _input_text, expected_text
-                    in confirmed_success_controls
+                    expected_text for _name, _input_text, expected_text in confirmed_success_controls
                 ),
             )
 
@@ -3772,22 +5099,13 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                 )
                 post_controls = run_confirmed_success_controls()
                 if confirmed_success_controls:
-                    verdict, _exception_type = _positive_control_verdict(
-                        post_controls
-                    )
+                    verdict, _exception_type = _positive_control_verdict(post_controls)
                     if verdict != _CONTROL_ALL_SUCCEEDED:
                         raise _CandidateAdmissionError(
                             owner="CONTRACT",
-                            reason_codes=[
-                                "REFERENCE_POSITIVE_CONTROL_POST_REPAIR_FAILED"
-                            ],
-                            message=(
-                                "控制面 repair 后，已确认的公开成功正控"
-                                "没有全部成功；本轮修复已撤销。"
-                            ),
-                            diagnostics=(
-                                f"positive_control_verdict={verdict}",
-                            ),
+                            reason_codes=["REFERENCE_POSITIVE_CONTROL_POST_REPAIR_FAILED"],
+                            message=("控制面 repair 后，已确认的公开成功正控没有全部成功；本轮修复已撤销。"),
+                            diagnostics=(f"positive_control_verdict={verdict}",),
                         )
                 _finish_draft_control_repair(draft_dir)
                 return repaired, post_controls
@@ -3798,30 +5116,22 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                 except (OSError, TypeError, ValueError) as rollback_exc:
                     raise _CandidateAdmissionError(
                         owner="HARNESS",
-                        reason_codes=[
-                            "DRAFT_CONTROL_REPAIR_ROLLBACK_FAILED"
-                        ],
+                        reason_codes=["DRAFT_CONTROL_REPAIR_ROLLBACK_FAILED"],
                         message=(
-                            "控制面修复失败，且无法安全恢复 repair 前状态；"
-                            "事务标记已保留，后续操作将 fail closed。"
+                            "控制面修复失败，且无法安全恢复 repair 前状态；事务标记已保留，后续操作将 fail closed。"
                         ),
                     ) from rollback_exc
                 raise
 
         positive_control_batch = None
-        reference_source = (draft_dir / "reference_impl.py").read_text(
-            encoding="utf-8"
-        )
+        reference_source = (draft_dir / "reference_impl.py").read_text(encoding="utf-8")
         source_policy_errors = reference_source_policy_errors(reference_source)
         if source_policy_errors:
             if offline:
                 raise _CandidateAdmissionError(
                     owner="CONTRACT",
                     reason_codes=["REFERENCE_ERROR_MASKING_INVALID"],
-                    message=(
-                        "reference 使用了会掩盖内部故障的异常处理；"
-                        "离线模板不能自动修复。"
-                    ),
+                    message=("reference 使用了会掩盖内部故障的异常处理；离线模板不能自动修复。"),
                     diagnostics=tuple(source_policy_errors),
                 )
             fingerprint = hashlib.sha256(
@@ -3881,37 +5191,31 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                 )
                 while True:
                     try:
-                        if (
-                            _uniform_internal_reference_exception(batch)
-                            is not None
-                            and positive_control_batch is None
-                        ):
-                            positive_control_batch = (
-                                run_confirmed_success_controls()
-                            )
+                        if _uniform_internal_reference_exception(batch) is not None and positive_control_batch is None:
+                            positive_control_batch = run_confirmed_success_controls()
                         reference_failure = _reference_batch_control_failure(
                             batch,
                             positive_control_batch=positive_control_batch,
                         )
                         if reference_failure is not None:
                             raise reference_failure
-                        batch = batch.model_copy(update={
-                            "candidates": [
-                                _admit_candidate_pair(
-                                    candidate,
-                                    output_contract=output_contract,
-                                    semantic_verifier=semantic_verifier,
-                                    required_commitment_ids=required_commitment_ids,
-                                    reference_python=reference_python,
-                                    upstream=upstream,
-                                    import_module=reference_import_module,
-                                    execute_installed_upstream=(
-                                        runtime_artifact_sha256 is not None
-                                    ),
-                                )
-                                for candidate in batch.candidates
-                            ]
-                        })
+                        batch = batch.model_copy(
+                            update={
+                                "candidates": [
+                                    _admit_candidate_pair(
+                                        candidate,
+                                        output_contract=output_contract,
+                                        semantic_verifier=semantic_verifier,
+                                        required_commitment_ids=required_commitment_ids,
+                                        reference_python=reference_python,
+                                        upstream=upstream,
+                                        import_module=reference_import_module,
+                                        execute_installed_upstream=(runtime_artifact_sha256 is not None),
+                                    )
+                                    for candidate in batch.candidates
+                                ]
+                            }
+                        )
                         break
                     except _CandidateAdmissionError as exc:
                         repairable = (
@@ -3938,13 +5242,8 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                         if fingerprint == last_control_failure_fingerprint:
                             raise _CandidateAdmissionError(
                                 owner="CONTRACT",
-                                reason_codes=[
-                                    "DRAFT_CONTROL_REPAIR_REPEATED_FAILURE"
-                                ],
-                                message=(
-                                    "草稿控制面修复后再次出现相同公开失败，"
-                                    "已按无进展规则停止。"
-                                ),
+                                reason_codes=["DRAFT_CONTROL_REPAIR_REPEATED_FAILURE"],
+                                message=("草稿控制面修复后再次出现相同公开失败，已按无进展规则停止。"),
                             ) from exc
                         # Control authoring is separate from Coding-Agent repair.
                         # One task may legitimately expose, in order: error
@@ -3958,11 +5257,9 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                                 reason_codes=["DRAFT_CONTROL_REPAIR_LIMIT_REACHED"],
                                 message="草稿控制面达到有界修复上限。",
                             ) from exc
-                        event, positive_control_batch = (
-                            repair_controls_with_postcheck(
+                        event, positive_control_batch = repair_controls_with_postcheck(
                             failure_reason_code=exc.reason_codes[0],
                             diagnostics=exc.diagnostics,
-                            )
                         )
                         event["failure_fingerprint"] = fingerprint
                         control_repair_events.append(event)
@@ -3978,9 +5275,7 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                                         input_text=item.input_text,
                                         why=item.why,
                                         expected_behavior=item.expected_behavior,
-                                        covered_commitment_ids=(
-                                            item.covered_commitment_ids
-                                        ),
+                                        covered_commitment_ids=(item.covered_commitment_ids),
                                     )
                                     for item in batch.candidates
                                 ],
@@ -4007,13 +5302,10 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
                     usable.append(candidate)
                 else:
                     rejected.append(candidate)
-                    failed_attempts.append(
-                        public_candidate_failure(candidate)
-                    )
+                    failed_attempts.append(public_candidate_failure(candidate))
     except _CandidateAdmissionError as exc:
         prior_repair_note = (
-            f"此前已完成 {len(control_repair_events)} 次控制面 repair；"
-            "当前停止未新增修改。"
+            f"此前已完成 {len(control_repair_events)} 次控制面 repair；当前停止未新增修改。"
             if control_repair_events
             else "当前停止前没有修改 reference/verifier。"
         )
@@ -4024,32 +5316,22 @@ def propose_example_candidates(draft_dir: Path, *, n: int, offline: bool) -> dic
             )
         elif "REFERENCE_OR_INPUT_DOMAIN_REVIEW_REQUIRED" in exc.reason_codes:
             recommended_action = (
-                "先确认至少一条公开成功样例，或人工核对候选输入是否"
-                f"属于公开有效域。{prior_repair_note}"
+                f"先确认至少一条公开成功样例，或人工核对候选输入是否属于公开有效域。{prior_repair_note}"
             )
         elif "CANDIDATE_INPUT_DOMAIN_REVIEW_REQUIRED" in exc.reason_codes:
             recommended_action = (
-                "已确认正控未复现异常；请检查候选输入是否属于公开"
-                f"有效域并重新生成。{prior_repair_note}"
+                f"已确认正控未复现异常；请检查候选输入是否属于公开有效域并重新生成。{prior_repair_note}"
             )
         elif "REFERENCE_POSITIVE_CONTROL_FAILED_OR_MIXED" in exc.reason_codes:
             recommended_action = (
-                "已确认正控自身不是全成功，也未与候选复现同一"
-                f"内部异常；请人工检查草稿与输入域。{prior_repair_note}"
+                f"已确认正控自身不是全成功，也未与候选复现同一内部异常；请人工检查草稿与输入域。{prior_repair_note}"
             )
-        elif (
-            "REFERENCE_POSITIVE_CONTROL_POST_REPAIR_FAILED"
-            in exc.reason_codes
-        ):
+        elif "REFERENCE_POSITIVE_CONTROL_POST_REPAIR_FAILED" in exc.reason_codes:
             recommended_action = (
-                "repair 后正控未全部成功，本轮控制面写入已恢复；"
-                f"请人工审查，不要继续自动 repair。{prior_repair_note}"
+                f"repair 后正控未全部成功，本轮控制面写入已恢复；请人工审查，不要继续自动 repair。{prior_repair_note}"
             )
         else:
-            recommended_action = (
-                "修正通用输出合同或独立 verifier 后创建新任务版本；"
-                "不要确认当前浏览器中的候选。"
-            )
+            recommended_action = "修正通用输出合同或独立 verifier 后创建新任务版本；不要确认当前浏览器中的候选。"
         return {
             "ok": False,
             "error": str(exc),
@@ -4162,13 +5444,9 @@ def confirm_candidate_as_example(draft_dir: Path, candidate: dict, *, expected_t
         expected_name=f"{stem}.expected.txt",
         expected_bytes=(done.upstream_output or "").encode("utf-8"),
         truth_provenance="UPSTREAM_DERIVED_USER_CONFIRMED",
-        candidate_evidence_id=(
-            done.truth_evidence.evidence_id if done.truth_evidence is not None else None
-        ),
+        candidate_evidence_id=(done.truth_evidence.evidence_id if done.truth_evidence is not None else None),
         candidate_truth_binding_sha256=(
-            done.truth_evidence.truth_binding_sha256
-            if done.truth_evidence is not None
-            else None
+            done.truth_evidence.truth_binding_sha256 if done.truth_evidence is not None else None
         ),
     )
     if result.get("ok"):

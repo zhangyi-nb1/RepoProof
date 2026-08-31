@@ -91,6 +91,7 @@ st.dataframe(
 name = st.selectbox("查看工具详情", [row["name"] for row in filtered])
 tool = next(row for row in filtered if row["name"] == name)
 status = tool["operational_status"]
+workspace_profile = tool.get("delivery_profile_id") == "workspace_bundle_v1"
 st.markdown(f"### {tool['name']} &nbsp; {status_badge(status)}", unsafe_allow_html=True)
 st.write(tool["summary"] or "尚无摘要。")
 
@@ -115,13 +116,26 @@ with facts:
         st.caption("想让它下架停用？到下方「管理这个工具」→「停用」。")
 with usage:
     st.markdown("#### 使用方式")
-    st.code(tool_command(tool["name"]), language="bash")
-    st.code(mcp_command(tool["name"]), language="bash")
+    st.code(
+        (
+            f"{tool['name']} <input-file-or-directory> --out-dir <new-directory>"
+            if workspace_profile
+            else tool_command(tool["name"])
+        ),
+        language="bash",
+    )
+    if not workspace_profile:
+        st.code(mcp_command(tool["name"]), language="bash")
     # 适配器状态以磁盘为准(Core 事实源),不依赖会话内的按钮反馈——
     # st.success 是单次渲染的瞬态提示,切页/切工具回来就没了,曾让用户
     # 误以为任务被重置、只能去运行历史里确认(M6 预览验证 P1 实录)。
     mcp_server = Path(tool["path"]) / "mcp_server.py"
-    if status == "ACTIVE":
+    if workspace_profile:
+        st.info(
+            "该工具交付多文件工作区；本阶段 MCP 固定拒绝目录调用"
+            "（WORKSPACE_BUNDLE_MCP_NOT_SUPPORTED）。请用上面的统一 CLI。"
+        )
+    elif status == "ACTIVE":
         if mcp_server.is_file():
             st.success("AI 助手接入文件已生成（以磁盘为准，切换页面不会丢失）。")
             st.caption(f"`{mcp_server}`")
@@ -143,11 +157,79 @@ with usage:
         st.warning(
             "这个工具当前已停用，不能接入 AI 助手。停用原因见左侧「状态原因」。"
         )
-    if status != "ACTIVE" and mcp_server.is_file():
+    if not workspace_profile and status != "ACTIVE" and mcp_server.is_file():
         st.caption(
             "磁盘上残留着一份旧的接入文件——不用担心：它每次被调用时都会"
             "自己核对状态账，发现工具已停用会直接拒绝工作。"
         )
+    if workspace_profile and status == "ACTIVE":
+        st.markdown("##### 查看已生成的工作区")
+        artifact_path = st.text_input(
+            "工作区目录",
+            placeholder="例如 /Users/me/Documents/my-study-workspace",
+            key=f"workspace_artifact_path_{tool['name']}",
+        )
+        inspect_key = f"workspace_artifact_inspection_{tool['name']}"
+        if st.button(
+            "重新校验并预览目录",
+            disabled=not artifact_path.strip(),
+            key=f"workspace_artifact_inspect_{tool['name']}",
+        ):
+            st.session_state[inspect_key] = product_jobs.inspect_workspace_artifact(
+                tool["name"],
+                artifact_dir=Path(artifact_path),
+                dest_root=Path(library["root"]),
+            )
+        inspection = st.session_state.get(inspect_key) or {}
+        if inspection and inspection.get("artifact_dir") != str(
+            Path(artifact_path).expanduser().absolute()
+        ):
+            inspection = {}
+        if inspection and not inspection.get("ok"):
+            st.error(str(inspection.get("error") or "工作区未通过重新校验。"))
+        elif inspection.get("ok"):
+            st.success(
+                f"结构合同通过 · {inspection.get('file_count')} 个文件 · "
+                f"tree {str(inspection.get('tree_sha256') or '')[:12]}"
+            )
+            st.dataframe(
+                inspection.get("entries") or [],
+                hide_index=True,
+                width="stretch",
+            )
+            actions = st.columns(2)
+            if actions[0].button(
+                "在 Finder 打开",
+                key=f"workspace_artifact_open_{tool['name']}",
+            ):
+                opened = product_jobs.open_workspace_artifact(
+                    tool["name"],
+                    artifact_dir=Path(artifact_path),
+                    dest_root=Path(library["root"]),
+                )
+                (st.success if opened.get("ok") else st.error)(
+                    opened.get("note") or opened.get("error")
+                )
+            zip_key = f"workspace_artifact_zip_{tool['name']}"
+            if actions[1].button(
+                "准备确定性 ZIP",
+                key=f"{zip_key}_prepare",
+            ):
+                st.session_state[zip_key] = product_jobs.workspace_artifact_zip(
+                    tool["name"],
+                    artifact_dir=Path(artifact_path),
+                    dest_root=Path(library["root"]),
+                )
+            archive = st.session_state.get(zip_key) or {}
+            if archive.get("ok"):
+                st.download_button(
+                    "下载工作区 ZIP（仅传输）",
+                    data=archive["bytes"],
+                    file_name=str(archive["filename"]),
+                    mime="application/zip",
+                    key=f"{zip_key}_download",
+                )
+                st.caption(str(archive.get("note") or ""))
 
 expand_manage = status == "REVIEW_REQUIRED"       # 待抽查时默认展开引导
 with st.expander("🔧 管理这个工具（做抽查 / 停用 / 查证据）", expanded=expand_manage):
@@ -156,7 +238,13 @@ with st.expander("🔧 管理这个工具（做抽查 / 停用 / 查证据）", 
         "也不改写历史验证结论。"
     )
     available = product_jobs.product_tool_commands()
-    if "audit" in available:
+    if workspace_profile:
+        st.markdown("##### 新输入抽查")
+        st.info(
+            "目录工具的 Fresh audit 必须绑定冻结 fixture builder、reference 和完整目录树。"
+            "请回到对应的 Product Journey 生成并确认新鲜场景；这里不提供两个普通文件的回退入口。"
+        )
+    elif "audit" in available:
         _audit_identity = {
             "tool_name": str(tool["name"]),
             "task_id": str(tool.get("task_id") or ""),

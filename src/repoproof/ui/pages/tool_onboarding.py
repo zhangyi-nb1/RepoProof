@@ -76,7 +76,19 @@ _SERVICE_EXPECTATIONS = (
     ("read_repo_overview", ()),
     ("summarize_repo_overview", ("capability_goal",)),
     ("propose_example_candidates", ()),
+    ("propose_workspace_fixture_candidates", ("n", "offline")),
+    ("workspace_candidate_preview", ("candidate_token",)),
+    ("workspace_candidate_zip", ("candidate_token",)),
+    ("confirm_workspace_fixture_candidate", ("candidate_token",)),
     ("propose_audit_candidates", ("dest_root", "expected_task_id", "n", "offline")),
+    (
+        "workspace_audit_candidate_preview",
+        ("dest_root", "expected_task_id", "candidate_token"),
+    ),
+    (
+        "materialize_workspace_audit_candidate",
+        ("dest_root", "expected_task_id", "candidate_token"),
+    ),
     (
         "materialize_audit_candidate",
         ("candidate", "dest_root", "expected_task_id"),
@@ -92,6 +104,7 @@ _SERVICE_EXPECTATIONS = (
             "semantic_commitments",
             "artifact_protocol",
             "input_representation",
+            "workspace_contract",
         ),
     ),
     ("confirm_draft_intent", ()),
@@ -540,6 +553,268 @@ def _render_draft_readiness_summary(readiness: dict) -> None:
             st.caption("Core readiness：" + "、".join(reasons))
 
 
+def _render_workspace_examples(
+    *,
+    prefix: str,
+    draft_dir: Path,
+    review: dict,
+) -> dict:
+    """Render the v4 fixture-builder journey without pretending directories are text."""
+
+    st.markdown("#### 2. 生成并确认真实输入与期望工作区")
+    st.caption(
+        "模型只提出自然场景蓝图；冻结前的 task fixture builder 生成真实文件/目录，"
+        "固定版本上游 reference 再生成期望工作区。模型不会直接伪造 PDF、SQLite 或目录字节。"
+    )
+    controls = st.columns([1, 1, 2])
+    count = controls[0].number_input(
+        "场景数量",
+        min_value=1,
+        max_value=4,
+        value=4,
+        key=f"{prefix}_workspace_candidate_count",
+    )
+    offline = controls[1].checkbox(
+        "不追加模型调用",
+        value=True,
+        key=f"{prefix}_workspace_candidate_offline",
+        help="使用创建草稿时已经由 LLM 提出的场景蓝图；真实字节仍由冻结 builder 和上游 reference 产生。",
+    )
+    generate = controls[2].button(
+        "按模型场景生成真实目录样例",
+        type="primary",
+        key=f"{prefix}_workspace_candidate_generate",
+    )
+    state_key = f"{prefix}_workspace_candidates"
+    generation_key = f"{prefix}_workspace_candidate_generation"
+    if generate and _require_service(
+        "propose_workspace_fixture_candidates",
+        "n",
+        "offline",
+    ):
+        with st.spinner("冻结 fixture builder 生成输入 → 固定上游生成期望工作区 → 校验目录合同……"):
+            result = product_jobs.propose_workspace_fixture_candidates(
+                draft_dir,
+                n=int(count),
+                offline=bool(offline),
+            )
+        if result.get("ok"):
+            st.session_state[generation_key] = int(
+                st.session_state.get(generation_key) or 0
+            ) + 1
+        result["generation"] = int(st.session_state.get(generation_key) or 0)
+        result["draft_dir"] = str(draft_dir.resolve(strict=False))
+        st.session_state[state_key] = result
+
+    result = st.session_state.get(state_key) or {}
+    if result.get("draft_dir") != str(draft_dir.resolve(strict=False)):
+        result = {}
+    if result and not result.get("ok"):
+        st.error(str(result.get("error") or "目录样例生成失败。"))
+        owner = str(result.get("failure_owner") or "")
+        reasons = [str(item) for item in result.get("reason_codes") or []]
+        if owner or reasons:
+            st.caption(
+                " · ".join(
+                    item
+                    for item in (
+                        f"责任方：{owner}" if owner else "",
+                        f"原因码：{', '.join(reasons)}" if reasons else "",
+                    )
+                    if item
+                )
+            )
+        if result.get("recommended_action"):
+            st.info(str(result["recommended_action"]))
+    elif result.get("ok"):
+        st.success(
+            f"已得到 {result.get('usable_count')} / {result.get('requested')} 组可审阅目录样例。"
+        )
+        st.caption(str(result.get("note") or ""))
+        generation = int(result.get("generation") or 0)
+        for index, candidate in enumerate(result.get("candidates") or []):
+            token = str(candidate.get("candidate_token") or "")
+            with st.container(border=True):
+                st.markdown(
+                    f"**场景 {index + 1} · {candidate.get('title') or candidate.get('blueprint_id')}**"
+                )
+                st.write(str(candidate.get("scenario") or ""))
+                summary_columns = st.columns(2)
+                summary_columns[0].metric(
+                    "真实输入",
+                    f"{candidate.get('input_file_count')} 个文件",
+                    f"{candidate.get('input_total_bytes')} bytes",
+                )
+                summary_columns[1].metric(
+                    "期望工作区",
+                    f"{candidate.get('expected_file_count')} 个文件",
+                    f"tree {str(candidate.get('expected_tree_sha256') or '')[:12]}",
+                )
+                preview = product_jobs.workspace_candidate_preview(
+                    draft_dir,
+                    candidate_token=token,
+                )
+                if not preview.get("ok"):
+                    st.error(str(preview.get("error") or "目录预览校验失败。"))
+                else:
+                    input_entries = (preview.get("input_tree") or {}).get("entries") or []
+                    expected_entries = (preview.get("expected_tree") or {}).get("entries") or []
+                    tree_columns = st.columns(2)
+                    tree_columns[0].markdown("**输入文件树**")
+                    tree_columns[0].dataframe(
+                        input_entries,
+                        hide_index=True,
+                        width="stretch",
+                    )
+                    tree_columns[1].markdown("**期望工作区树**")
+                    tree_columns[1].dataframe(
+                        expected_entries,
+                        hide_index=True,
+                        width="stretch",
+                    )
+                    previews = list(preview.get("text_previews") or [])
+                    if previews:
+                        with st.expander("查看关键文本文件预览", expanded=False):
+                            for item in previews:
+                                st.markdown(f"`{item.get('path')}`")
+                                st.code(str(item.get("text") or ""))
+                actions = st.columns(2)
+                if actions[0].button(
+                    "确认这组真实样例",
+                    key=f"{prefix}_workspace_confirm_{generation}_{index}",
+                    disabled=not bool(preview.get("ok")),
+                ):
+                    confirmed = product_jobs.confirm_workspace_fixture_candidate(
+                        draft_dir,
+                        candidate_token=token,
+                    )
+                    if confirmed.get("ok"):
+                        st.session_state[f"{prefix}_flash"] = {
+                            "ok": True,
+                            "message": confirmed.get("note") or "目录样例已确认。",
+                        }
+                        st.rerun()
+                    st.error(str(confirmed.get("error") or "目录样例确认失败。"))
+                zip_key = f"{prefix}_workspace_zip_{generation}_{index}"
+                if actions[1].button(
+                    "准备确定性 ZIP 预览",
+                    key=f"{zip_key}_prepare",
+                    disabled=not bool(preview.get("ok")),
+                ):
+                    st.session_state[zip_key] = product_jobs.workspace_candidate_zip(
+                        draft_dir,
+                        candidate_token=token,
+                    )
+                zip_result = st.session_state.get(zip_key) or {}
+                if zip_result.get("ok"):
+                    st.download_button(
+                        "下载工作区 ZIP（仅传输）",
+                        data=zip_result["bytes"],
+                        file_name=str(zip_result["filename"]),
+                        mime="application/zip",
+                        key=f"{zip_key}_download",
+                    )
+                    st.caption(str(zip_result.get("note") or ""))
+
+    fresh_review = product_jobs.read_managed_draft_review(draft_dir)
+    if fresh_review.get("ok"):
+        review = fresh_review
+    examples = list(review.get("examples") or [])
+    st.metric("当前已确认目录样例", len(examples), help="冻结前至少需要三组")
+    if examples:
+        st.dataframe(examples, hide_index=True, width="stretch")
+    return review
+
+
+def _render_workspace_audit_candidates(
+    *,
+    prefix: str,
+    generation: int,
+    candidates: list[dict],
+    tool_name: str,
+    task_id: str,
+    journey: dict,
+) -> None:
+    """Render directory Fresh-audit truth without browser-owned paths or bytes."""
+
+    if not candidates:
+        st.warning("这一批没有形成可核验的新鲜目录输入，请修复网关或冻结 fixture 资产后重试。")
+        return
+    for index, candidate in enumerate(candidates):
+        token = str(candidate.get("candidate_token") or "")
+        with st.container(border=True):
+            st.markdown(
+                f"**新鲜场景 {index + 1} · {candidate.get('title') or candidate.get('blueprint_id')}**"
+            )
+            st.write(str(candidate.get("scenario") or ""))
+            metrics = st.columns(2)
+            metrics[0].metric(
+                "真实输入",
+                f"{candidate.get('input_file_count')} 个文件",
+                f"{candidate.get('input_total_bytes')} bytes",
+            )
+            metrics[1].metric(
+                "参考工作区",
+                f"{candidate.get('expected_file_count')} 个文件",
+                f"tree {str(candidate.get('expected_tree_sha256') or '')[:12]}",
+            )
+            preview = product_jobs.workspace_audit_candidate_preview(
+                tool_name,
+                dest_root=Path(journey["dest_root"]),
+                expected_task_id=task_id,
+                candidate_token=token,
+            )
+            if not preview.get("ok"):
+                st.error(str(preview.get("error") or "Fresh workspace 预览校验失败。"))
+            else:
+                columns = st.columns(2)
+                columns[0].markdown("**新鲜输入文件树**")
+                columns[0].dataframe(
+                    (preview.get("input_tree") or {}).get("entries") or [],
+                    hide_index=True,
+                    width="stretch",
+                )
+                columns[1].markdown("**冻结 reference 的期望工作区**")
+                columns[1].dataframe(
+                    (preview.get("expected_tree") or {}).get("entries") or [],
+                    hide_index=True,
+                    width="stretch",
+                )
+                text_previews = list(preview.get("text_previews") or [])
+                if text_previews:
+                    with st.expander("查看期望工作区关键文本", expanded=False):
+                        for item in text_previews:
+                            st.markdown(f"`{item.get('path')}`")
+                            st.code(str(item.get("text") or ""))
+            if st.button(
+                "确认新鲜目录与参考真值并运行 Fresh audit",
+                key=f"{prefix}_workspace_run_{generation}_{index}",
+                disabled=not bool(preview.get("ok")),
+            ):
+                files = product_jobs.materialize_workspace_audit_candidate(
+                    tool_name,
+                    dest_root=Path(journey["dest_root"]),
+                    expected_task_id=task_id,
+                    candidate_token=token,
+                )
+                if not files.get("ok"):
+                    st.error(str(files.get("error") or "无法核验 Fresh workspace 材料。"))
+                    continue
+                started = product_jobs.start_tool_audit(
+                    tool_name,
+                    Path(files["input"]),
+                    Path(files["expected"]),
+                    Path(journey["dest_root"]),
+                    expected_task_id=task_id,
+                    journey_id=str(journey["journey_id"]),
+                )
+                (st.success if started.get("ok") else st.error)(
+                    started.get("note") or started.get("error")
+                )
+                if started.get("ok"):
+                    st.rerun()
+
+
 def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) -> dict:
     """Render the complete stage-2 workbench in the primary Product Journey.
 
@@ -560,6 +835,10 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
     draft_dir = Path(review["draft_dir"])
     draft = review["draft"]
     tool = draft.get("tool") or {}
+    workspace_profile = (
+        int(tool.get("schema_version") or 1) == 4
+        and tool.get("delivery_profile_id") == "workspace_bundle_v1"
+    )
     interface = tool.get("interface") or {}
     capability = draft.get("capability") or {}
     intent_contract = draft.get("_intent_contract") or {}
@@ -576,9 +855,12 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
     dependency_lock = review.get("dependency_lock") or {}
     draft_readiness = review.get("draft_readiness") or {}
     saved_output_format = str((interface.get("output") or {}).get("format") or "")
-    existing_contract = (interface.get("output") or {}).get("contract") or default_output_contract(
-        saved_output_format
-    )
+    existing_contract = None
+    if not workspace_profile:
+        existing_contract = (interface.get("output") or {}).get("contract") or default_output_contract(
+            saved_output_format
+        )
+    existing_workspace_contract = tool.get("workspace_contract") or {}
     raw_signature = hashlib.sha256(str(review.get("raw_draft") or "").encode("utf-8")).hexdigest()[:12]
     flash = st.session_state.pop(f"{prefix}_flash", None)
     if flash:
@@ -630,21 +912,28 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
             value=saved_output_format,
             key=f"{prefix}_output_format_{raw_signature}",
         )
-        input_representation = st.selectbox(
-            "样例输入表示",
-            options=["utf8_text", "binary"],
-            index=1 if saved_input_representation == "binary" else 0,
-            format_func=lambda value: (
-                "UTF-8 文本（可由 LLM 起草候选）"
-                if value == "utf8_text"
-                else "二进制文件（需要上传真实文件）"
-            ),
-            key=f"{prefix}_input_representation_{raw_signature}",
-            help=(
-                "这是交付合同的一部分，不由 .pdf/.docx 等名称猜测。"
-                "选择变化后需要重新确认合同。"
-            ),
-        )
+        if workspace_profile:
+            input_representation = saved_input_representation
+            st.info(
+                "当前交付拓扑：一个本地文件或目录 → 一个新的离线工作区目录。"
+                "样例字节由冻结 fixture builder 生成，不在文本框里伪造。"
+            )
+        else:
+            input_representation = st.selectbox(
+                "样例输入表示",
+                options=["utf8_text", "binary"],
+                index=1 if saved_input_representation == "binary" else 0,
+                format_func=lambda value: (
+                    "UTF-8 文本（可由 LLM 起草候选）"
+                    if value == "utf8_text"
+                    else "二进制文件（需要上传真实文件）"
+                ),
+                key=f"{prefix}_input_representation_{raw_signature}",
+                help=(
+                    "这是交付合同的一部分，不由 .pdf/.docx 等名称猜测。"
+                    "选择变化后需要重新确认合同。"
+                ),
+            )
         output_schema = st.text_input(
             "输出结构名称",
             value=str(capability.get("output_schema") or ""),
@@ -676,13 +965,31 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
                 "example-package==1.2.3；允许写完整的精确版本闭包。"
             ),
         )
-        output_contract_text = st.text_area(
-            "可执行输出合同",
-            value=json.dumps(existing_contract, ensure_ascii=False, indent=2),
-            height=150,
-            key=f"{prefix}_output_contract_{raw_signature}",
-            help="所有输出（包括上游参考输出与最终工具 stdout）都会由同一 ToolOutputContract 校验。",
-        )
+        if workspace_profile:
+            workspace_contract_text = st.text_area(
+                "可执行工作区结构合同",
+                value=json.dumps(
+                    existing_workspace_contract,
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                height=300,
+                key=f"{prefix}_workspace_contract_{raw_signature}",
+                help=(
+                    "公开列出允许路径、文件角色、媒体类型、通用格式校验、"
+                    "入口点、离线运行命令和资源上限。冻结后改变语义必须新建 task version。"
+                ),
+            )
+            output_contract_text = ""
+        else:
+            workspace_contract_text = ""
+            output_contract_text = st.text_area(
+                "可执行输出合同",
+                value=json.dumps(existing_contract, ensure_ascii=False, indent=2),
+                height=150,
+                key=f"{prefix}_output_contract_{raw_signature}",
+                help="所有输出（包括上游参考输出与最终工具 stdout）都会由同一 ToolOutputContract 校验。",
+            )
         with st.expander("高级：产物协议、reference 与独立 verifier", expanded=False):
             artifact_protocol_text = st.text_area(
                 "公开产物定位协议（JSON）",
@@ -734,10 +1041,24 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
                     artifact_protocol_errors.append("公开产物定位协议的 JSON 根节点必须是对象。")
                 else:
                     parsed_artifact_protocol = raw_artifact_protocol
-        parsed_contract, contract_errors = parse_output_contract(
-            output_contract_text,
-            output_format=output_format,
-        )
+        parsed_contract = None
+        parsed_workspace_contract: dict | None = None
+        contract_errors: list[str] = []
+        if workspace_profile:
+            try:
+                raw_workspace_contract = json.loads(workspace_contract_text)
+            except json.JSONDecodeError:
+                contract_errors.append("工作区结构合同不是合法 JSON。")
+            else:
+                if not isinstance(raw_workspace_contract, dict):
+                    contract_errors.append("工作区结构合同的 JSON 根节点必须是对象。")
+                else:
+                    parsed_workspace_contract = raw_workspace_contract
+        else:
+            parsed_contract, contract_errors = parse_output_contract(
+                output_contract_text,
+                output_format=output_format,
+            )
         if contract_errors or artifact_protocol_errors:
             save_result = {
                 "ok": False,
@@ -751,9 +1072,10 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
             "reference_lock",
             "artifact_protocol",
             "input_representation",
+            "workspace_contract",
         ):
             save_result = {"ok": False, "error": "请重启 Studio 后再保存合同。"}
-        elif parsed_contract is not None:
+        elif workspace_profile or parsed_contract is not None:
             save_result = product_jobs.save_draft_review(
                 draft_dir,
                 tool_name=tool_name,
@@ -770,7 +1092,12 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
                 output_schema=output_schema,
                 reference_impl=reference,
                 semantic_verifier=semantic_verifier,
-                output_contract=parsed_contract.model_dump(mode="json"),
+                output_contract=(
+                    parsed_contract.model_dump(mode="json")
+                    if parsed_contract is not None
+                    else None
+                ),
+                workspace_contract=parsed_workspace_contract,
                 artifact_protocol=parsed_artifact_protocol,
                 distribution=distribution,
                 import_module=import_module,
@@ -807,6 +1134,14 @@ def _render_primary_contract_and_examples(journey: dict, fallback_review: dict) 
             lock_text += f"：`{lock_pins}`"
         lock_text += f"\n\n{dependency_lock.get('note') or ''}"
         (st.error if dependency_lock.get("source") == "missing" else st.info)(lock_text)
+
+    if workspace_profile:
+        return _render_workspace_examples(
+            prefix=prefix,
+            draft_dir=draft_dir,
+            review=review,
+        )
+    assert isinstance(existing_contract, dict)
 
     st.markdown("#### 2. 生成并确认代表性样例")
     input_mode = product_jobs.example_input_mode(draft_dir)
@@ -1157,6 +1492,45 @@ def _render_journey_card(snapshot: dict) -> None:
     c3.metric("Operational", operational)
     c4.metric("Package", health)
     st.caption(f"冻结任务：{task_id}。三类状态独立展示；Worker 成功不等于 Pipeline READY 或当前 ACTIVE。")
+    draft_tool = (snapshot.get("draft_review") or {}).get("draft") or {}
+    draft_tool = draft_tool.get("tool") or {}
+    workspace_profile = (
+        result.get("delivery_profile_id") == "workspace_bundle_v1"
+        or (
+            int(draft_tool.get("schema_version") or 1) == 4
+            and draft_tool.get("delivery_profile_id") == "workspace_bundle_v1"
+        )
+    )
+    if workspace_profile:
+        structure = result.get("workspace_structure_passed")
+        semantic = result.get("semantic_verifier_passed")
+
+        def evidence_label(value: object) -> str:
+            if value is True:
+                return "通过"
+            if value is False:
+                return "失败"
+            return "待形成"
+
+        evidence_columns = st.columns(5)
+        evidence_columns[0].metric("结构", evidence_label(structure))
+        evidence_columns[1].metric("语义", evidence_label(semantic))
+        evidence_columns[2].metric(
+            "运行",
+            "通过" if operational == "ACTIVE" else "待审计",
+        )
+        evidence_columns[3].metric(
+            "Replay",
+            (
+                "通过"
+                if pipeline in {"VERIFIED_TOOL_READY", "READY"}
+                else "待形成"
+            ),
+        )
+        evidence_columns[4].metric("运营", operational)
+        st.caption(
+            "工作区证据分层展示：后层状态不能补成前层成功；ACTIVE 仍以 Core registry 与 append-only ledger 为准。"
+        )
 
     if phase == "RUNNING":
         st.info("任务正在后台执行。离开本页不会中断；活动页会显示结构化结论。")
@@ -1370,9 +1744,23 @@ def _render_journey_card(snapshot: dict) -> None:
         elif audit_candidates.get("ok"):
             candidates = list(audit_candidates.get("candidates") or [])
             st.caption(f"候选来源：{audit_candidates.get('drafter')} · {audit_candidates.get('note')}")
+            generation = int(audit_candidates.get("generation") or 0)
+            if audit_candidates.get("artifact_kind") == "directory":
+                _render_workspace_audit_candidates(
+                    prefix=audit_prefix,
+                    generation=generation,
+                    candidates=candidates,
+                    tool_name=tool_name,
+                    task_id=task_id,
+                    journey=journey,
+                )
+                st.caption(
+                    "目录工具不接受浏览器上传一对文件作为回退；Fresh audit 必须绑定冻结 builder、"
+                    "reference 和完整目录树。"
+                )
+                return
             if not candidates:
                 st.warning("这一批输入没有一条能被冻结参考实现接住，请重新生成或改用下方文件回退。")
-            generation = int(audit_candidates.get("generation") or 0)
             for index, candidate in enumerate(candidates):
                 input_text = str(candidate.get("input_text") or "")
                 expected_text = str(candidate.get("upstream_output") or "")

@@ -3,7 +3,35 @@
 > Purpose: the single in-repo status anchor for AI/human handoff.
 > Update ONLY at gate boundaries; history below is append-only.
 
-## Current status (2026-08-31, M6.1 alternate-workflow qualification closed locally)
+## Current status (2026-08-31, M6.2 engineering candidate complete; qualification not started)
+
+**主产品定位不变：GitHub 单能力 → 经独立验证的本地工具。M6.2 只新增
+一种实验性交付拓扑 `workspace_bundle_v1`，让受控输入生成离线多文件工作区；
+没有启动 M7 sidecar，也没有恢复旧宿主适配产品线。**
+
+| Anchor | Value |
+|---|---|
+| 本地状态 | `codex/m6-2-workspace-bundle-qualification`，基线 `main @ 0a8034a`；本节描述未提交工作区，未推送、未发布 |
+| 工程身份 | 当前 Git HEAD 仍为基线 `0a8034a`（实现尚未提交）；可执行 `src/repoproof` 工作树哈希 `aefa606f9dd1fb06dc06b31b300f9d5766e70b4b17c4a69622e76b0e47140fd5` |
+| Profile 状态 | `workspace_bundle_v1 = EXPERIMENTAL`；`cli_v2` 旧语义不变；MCP 稳定拒绝 `WORKSPACE_BUNDLE_MCP_NOT_SUPPORTED` |
+| 合同与执行 | additive ToolSpec v4 + `WorkspaceArtifactContractV1`；一个本地文件/目录 → 一个调用前不存在的新目录；临时构建、四层验证通过后原子落位，失败清理半成品 |
+| 可信证据 | Harness 在 Agent 外生成 `ArtifactManifestV1` 和目录树哈希；结构、通用格式、task-owned 语义 verifier、可运行 smoke 四层独立；输入/产物目录/upstream-result 三项反事实；clean replay 与 fresh audit 重新取证 |
+| Product/UI | `ProductActionResultV2` 仍将 Worker/Pipeline/Operational 分开；Studio 支持蓝图 → 冻结 builder → 输入/期望树预览与确认 → 目录 fresh audit；工具库可重新验证、打开目录和生成确定性 ZIP |
+| 事故与 repair | 每个失败 Agent 轮及每个失败 v4 Product action 追加 public-only `ProductIncidentV1`；只有公开 `AGENT_ADAPTER` + 实际 diff 可 repair；Harness 变更证据 writer 会校验真实 incident、同一指纹及两个独立 task version（安全/false-success 首例例外仍需匿名负控） |
+| 特例门 | 自动扫描九个 prereg case id、仓库身份和 commit；M6.2 新通用模块为零命中。旧 Lab 已有 `browser-use`/`pdfplumber` 命中被显式列为冻结基线，不冒充本次新增 |
+| 预注册 | `docs/m6_2_workspace_bundle_qualification.yaml` 固定 N0 → B1/B2 → C1–C6；状态 `BLOCKED_BEFORE_EXECUTION`，wheel 名/大小/SHA 尚待在新冻结版本物化 |
+| 真实执行事实 | **0 次正式八仓 Agent 发次、0 次本阶段真实模型调用**；计划明确未授权真实模型、推送和发布，故没有任何新增 ACTIVE 或成功率结论 |
+| 本地质量线 | 2059 tests collected，全量 pytest 退出 0；Ruff 按 CI 边界 `src tests scripts` 为 0；mypy 186 个源码文件 0；`git diff --check` 通过。`ruff check .` 会包含 CI 排除的冻结/生成/本地材料，不能作为现行口径 |
+
+关闭边界：工程候选完成不等于资格关闭。只有冻结 wheel manifest 后另行授权
+真实批次，且 B1/B2 + 至少四个复杂案例 `ACTIVE`（含 SQLite/二进制工作区
+与可运行应用）时，profile 才可升级为 `SUPPORTED`。
+
+不变铁律：Agent 自述不算成功；冻结合同、历史 run、旧 ledger 与旧指标不
+改写；held-out 只隐藏实例字节，不隐藏规范；Product 发次不计 Benchmark；
+本地工作树与远端 GitHub 严格区分。
+
+## Previous status (2026-08-31, M6.1 alternate-workflow qualification closed locally)
 
 **主产品线仍是“GitHub 单能力 → 经独立验证的本地工具”。本次没有扩展
 M7 或旧宿主适配线，而是用四个不同工作场景、输入和可读文本产物，验证

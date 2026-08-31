@@ -270,7 +270,7 @@ def evaluate_adequacy(
                   "upstream) — rename the tool (e.g. add a -tool suffix)")
             # T6–T9 are v2-only.  Historical ToolSpec v1 contracts (including
             # JSON-labelled tools) retain their frozen adequacy semantics.
-            if tool.schema_version >= 2:
+            if 2 <= tool.schema_version < 4:
                 output = tool.interface.output
                 output_contract = output.contract
                 check(
@@ -325,6 +325,55 @@ def evaluate_adequacy(
                     schema_agree,
                     "; ".join(schema_reasons) or "schema projection differs",
                 )
+            elif tool.schema_version == 4:
+                workspace_ok = (
+                    tool.delivery_profile_id == "workspace_bundle_v1"
+                    and tool.workspace_contract is not None
+                )
+                workspace_reasons: list[str] = []
+                manifest_path = tool_manifest_path
+                if manifest_path is None and contract_path is not None:
+                    manifest_path = (
+                        contract_path.parent.parent
+                        / contract.target_project.path
+                        / "tool.json"
+                    )
+                if manifest_path is None or not manifest_path.is_file():
+                    workspace_ok = False
+                    workspace_reasons.append("tool.json projection missing")
+                else:
+                    try:
+                        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError) as exc:
+                        workspace_ok = False
+                        workspace_reasons.append(
+                            f"tool.json invalid: {type(exc).__name__}"
+                        )
+                    else:
+                        if manifest.get("contract_schema_version") != 4:
+                            workspace_ok = False
+                            workspace_reasons.append("manifest schema is not v4")
+                        if manifest.get("delivery_profile_id") != "workspace_bundle_v1":
+                            workspace_ok = False
+                            workspace_reasons.append("delivery profile projection differs")
+                        expected_workspace = (
+                            tool.workspace_contract.model_dump(mode="json")
+                            if tool.workspace_contract is not None
+                            else None
+                        )
+                        if manifest.get("workspace_contract") != expected_workspace:
+                            workspace_ok = False
+                            workspace_reasons.append("workspace contract projection differs")
+                check(
+                    "tool_workspace_contract_present",
+                    tool.workspace_contract is not None,
+                    "v4 ToolSpec missing workspace_contract",
+                )
+                check(
+                    "tool_workspace_schema_fields_agree",
+                    workspace_ok,
+                    "; ".join(workspace_reasons) or "workspace projection differs",
+                )
             if tool.schema_version >= 3:
                 semantic = contract.acceptance.semantic_verifier
                 semantic_ok = semantic is not None
@@ -364,17 +413,31 @@ def evaluate_adequacy(
             pub = _examples("public_documents.json")
             held = _examples("held_out_documents.json")
             # T3 example files are part of the task statement — all must exist
-            missing_files = sorted(
-                rel for e in [*pub, *held]
-                for rel in (e.get("input_file"), e.get("expected_file"))
-                if rel and not (tool_example_docs_dir / rel).is_file())
+            if tool is not None and tool.schema_version == 4:
+                missing_files = sorted(
+                    rel
+                    for example in [*pub, *held]
+                    for rel in (
+                        f"{example.get('example_id')}/input",
+                        f"{example.get('example_id')}/expected",
+                    )
+                    if not (
+                        (tool_example_docs_dir / rel).is_file()
+                        or (tool_example_docs_dir / rel).is_dir()
+                    )
+                )
+            else:
+                missing_files = sorted(
+                    rel for e in [*pub, *held]
+                    for rel in (e.get("input_file"), e.get("expected_file"))
+                    if rel and not (tool_example_docs_dir / rel).is_file())
             check("tool_example_fixtures_exist", not missing_files,
                   f"referenced example files missing: {missing_files}")
             # T4 anti-hardcode layer must exist: >=2 public, >=1 held-out
             check("tool_examples_sufficient", len(pub) >= 2 and len(held) >= 1,
                   f"public={len(pub)} held_out={len(held)} (need >=2 / >=1)")
 
-            if tool is not None and tool.schema_version >= 2:
+            if tool is not None and 2 <= tool.schema_version < 4:
                 output = tool.interface.output
                 parse_errors: list[str] = []
                 exact_count = 0

@@ -19,7 +19,10 @@ from pathlib import Path
 import pytest
 import yaml
 
-from repoproof.runner.tool_mcp import write_mcp_server
+from repoproof.runner.tool_mcp import (
+    WORKSPACE_BUNDLE_MCP_NOT_SUPPORTED,
+    write_mcp_server,
+)
 from repoproof.runner.tool_registry import list_tools, register_tool
 from repoproof.runner.tool_release import ACTIVE, append_release_decision
 from tests.conftest import isolate_protected_dirs
@@ -134,6 +137,19 @@ def test_mcp_refuses_unverified_tool(tmp_path):
     d = _fake_tool(tmp_path, "nover", verified=False)
     with pytest.raises(RuntimeError):
         write_mcp_server(d)
+
+
+def test_mcp_stably_refuses_workspace_bundle_profile(tmp_path: Path) -> None:
+    tool_dir = _fake_tool(tmp_path, "workspace-demo")
+    manifest_path = tool_dir / "tool.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["schema_version"] = 4
+    manifest["delivery_profile_id"] = "workspace_bundle_v1"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match=WORKSPACE_BUNDLE_MCP_NOT_SUPPORTED):
+        write_mcp_server(tool_dir)
+    assert not (tool_dir / "mcp_server.py").exists()
 
 
 def test_mcp_server_protocol_and_call(tmp_path):

@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import argparse
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
 
+from repoproof import cli
 from repoproof.execution.product_action import (
     ProductActionResultV1,
+    ProductActionResultV2,
     action_result_from_payload,
     read_product_action_result,
+    workspace_action_result_from_payload,
     write_product_action_result,
 )
 from repoproof.ui.services import product_jobs, product_journeys, product_mode
@@ -271,6 +276,11 @@ def test_studio_fresh_audit_rebuilds_export_before_invocation(
     expected_path = tmp_path / "fresh.expected.json"
     input_path.write_text("# Fresh\n", encoding="utf-8")
     expected_path.write_text('{"headings":[]}\n', encoding="utf-8")
+    tool_dir = tmp_path / "tools" / "markdown-it-py-tool"
+    tool_dir.mkdir(parents=True)
+    (tool_dir / "tool.json").write_text(
+        json.dumps({"contract_schema_version": 3}), encoding="utf-8"
+    )
     captured: dict = {}
 
     def _capture(argv, **kwargs):
@@ -306,6 +316,134 @@ def test_action_result_rejects_unknown_schema(tmp_path: Path) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ValueError, match="ProductActionResultV1"):
         read_product_action_result(path)
+
+
+def test_workspace_action_result_v2_round_trip(tmp_path: Path) -> None:
+    result = workspace_action_result_from_payload(
+        job_id="a" * 32,
+        journey_id="b" * 32,
+        action="tool-build-real",
+        ok=True,
+        payload={
+            "ok": True,
+            "task_id": "tool-workspace-demo-v1",
+            "verdict": "VERIFIED_TOOL_READY",
+        },
+        artifact_root=tmp_path / "workspace",
+        artifact_tree_sha256="1" * 64,
+        artifact_manifest_sha256="2" * 64,
+        workspace_structure_passed=True,
+    )
+
+    assert isinstance(result, ProductActionResultV2)
+    assert result.delivery_profile_id == "workspace_bundle_v1"
+    assert result.artifact_kind == "directory"
+    assert result.artifacts["workspace_bundle"] == str(
+        (tmp_path / "workspace").resolve()
+    )
+    path = write_product_action_result(tmp_path / "workspace-result.json", result)
+    assert read_product_action_result(path) == result
+
+
+def test_workspace_build_may_precede_user_artifact_evidence() -> None:
+    result = ProductActionResultV2(
+        job_id="a" * 32,
+        action="tool-build-real",
+        ok=True,
+        delivery_profile_id="workspace_bundle_v1",
+        artifact_kind="directory",
+    )
+    assert result.artifact_tree_sha256 is None
+
+
+def test_workspace_evidence_cannot_be_partial() -> None:
+    with pytest.raises(ValueError, match="requires both tree and manifest"):
+        ProductActionResultV2(
+            job_id="a" * 32,
+            action="tool-audit",
+            ok=True,
+            delivery_profile_id="workspace_bundle_v1",
+            artifact_kind="directory",
+            artifact_tree_sha256="1" * 64,
+        )
+
+
+def test_workspace_cli_failure_writes_result_and_append_only_incident(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    (project / "src" / "repoproof").mkdir(parents=True)
+    (project / "src" / "repoproof" / "module.py").write_text(
+        "VALUE = 1\n", encoding="utf-8"
+    )
+    contracts = project / "contracts"
+    contracts.mkdir()
+    (contracts / "tool-anonymous-v1.yaml").write_text(
+        "tool:\n  delivery_profile_id: workspace_bundle_v1\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
+    subprocess.run(
+        ["git", "-C", str(project), "config", "user.email", "test@local"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(project), "config", "user.name", "RepoProof Test"],
+        check=True,
+    )
+    subprocess.run(["git", "-C", str(project), "add", "."], check=True)
+    subprocess.run(
+        ["git", "-C", str(project), "commit", "-q", "-m", "fixture"],
+        check=True,
+    )
+    monkeypatch.setattr(cli, "PROJECT_ROOT", project)
+    result_path = tmp_path / "result.json"
+    args = argparse.Namespace(
+        result_json=result_path,
+        job_id="job-workspace-failure",
+        journey_id="journey-one",
+    )
+
+    exit_code = cli._emit_tool_action(
+        args,
+        action="tool-build",
+        payload={
+            "ok": False,
+            "task_id": "tool-anonymous-v1",
+            "verdict": "BLOCKED",
+            "failure_owner": "HARNESS",
+            "reason_codes": ["UPSTREAM_IMPORT_FAILED"],
+            "product_stop_code": "STOP_HARNESS_OR_EXTERNAL",
+            "recommended_action": "Repair the environment.",
+        },
+        exit_code=3,
+    )
+
+    assert exit_code == 3
+    assert read_product_action_result(result_path).ok is False
+    incident_paths = list((project / "runs" / "product-incidents").glob("*.json"))
+    assert len(incident_paths) == 1
+    incident = json.loads(incident_paths[0].read_text(encoding="utf-8"))
+    assert incident["stage"] == "PREFLIGHT_UPSTREAM"
+    assert incident["owner"] == "HARNESS"
+    assert incident["reason_codes"] == [
+        "STOP_HARNESS_OR_EXTERNAL",
+        "UPSTREAM_IMPORT_FAILED",
+    ]
+    assert "Repair the environment." not in json.dumps(incident)
+
+
+def test_failed_workspace_action_may_have_no_artifact() -> None:
+    result = ProductActionResultV2(
+        job_id="a" * 32,
+        action="tool-build-real",
+        ok=False,
+        delivery_profile_id="workspace_bundle_v1",
+        artifact_kind="directory",
+        product_stop_code="STOP_HARNESS_OR_EXTERNAL",
+    )
+    assert result.artifact_root is None
 
 
 def test_job_result_is_bound_to_job_id_and_managed_root(

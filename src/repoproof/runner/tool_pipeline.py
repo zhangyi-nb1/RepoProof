@@ -81,8 +81,7 @@ def _install_error_projection(exc: BaseException) -> tuple[str, str]:
         )
     return (
         "TOOL_INSTALL_PREFLIGHT_FAILED",
-        "检查目标工具目录、registry、package identity 与 release ledger 后重试；"
-        "本次不得进入 Agent repair。",
+        "检查目标工具目录、registry、package identity 与 release ledger 后重试；本次不得进入 Agent repair。",
     )
 
 
@@ -91,10 +90,7 @@ def tool_build_completed(result: dict, *, rehearsal_only: bool) -> bool:
 
     if rehearsal_only:
         return result.get("verdict") == "REHEARSAL_PASS_ONLY"
-    return bool(
-        result.get("exported")
-        and is_historical_tool_ready(result.get("historical_verdict"))
-    )
+    return bool(result.get("exported") and is_historical_tool_ready(result.get("historical_verdict")))
 
 
 def ensure_pinned_upstream(url: str, commit: str, project_root: Path) -> Path:
@@ -105,8 +101,7 @@ def ensure_pinned_upstream(url: str, commit: str, project_root: Path) -> Path:
     dest = project_root / "upstream-cache" / f"upstream-{commit[:12]}"
 
     def _head(p: Path) -> str:
-        r = subprocess.run(["git", "-C", str(p), "rev-parse", "HEAD"],
-                           capture_output=True, text=True)
+        r = subprocess.run(["git", "-C", str(p), "rev-parse", "HEAD"], capture_output=True, text=True)
         return r.stdout.strip()
 
     if dest.is_dir():
@@ -123,30 +118,35 @@ def ensure_pinned_upstream(url: str, commit: str, project_root: Path) -> Path:
                 # checkout fail its own provenance-integrity check.
                 shutil.copytree(cand, dest, symlinks=True)
                 return dest
-    r = subprocess.run(["git", "clone", "--quiet", url, str(dest)],
-                       capture_output=True, text=True, timeout=600)
+    r = subprocess.run(["git", "clone", "--quiet", url, str(dest)], capture_output=True, text=True, timeout=600)
     if r.returncode != 0:
         raise PipelineError(f"clone 失败:{r.stderr[-300:]}")
-    r = subprocess.run(["git", "-C", str(dest), "checkout", "-q", "--detach", commit],
-                       capture_output=True, text=True)
+    r = subprocess.run(["git", "-C", str(dest), "checkout", "-q", "--detach", commit], capture_output=True, text=True)
     if r.returncode != 0 or _head(dest) != commit:
         raise PipelineError(f"checkout {commit[:12]} 失败:{r.stderr[-200:]}")
     return dest
 
 
 def _reference_pins(project_root: Path, task_id: str) -> list[str]:
-    lock = (Path(project_root) / "controls" / task_id / "reference"
-            / "requirements.lock.txt")
+    lock = Path(project_root) / "controls" / task_id / "reference" / "requirements.lock.txt"
     if not lock.is_file():
         return []
-    return [ln.strip() for ln in lock.read_text(encoding="utf-8").splitlines()
-            if ln.strip() and not ln.strip().startswith("#")]
+    return [
+        ln.strip()
+        for ln in lock.read_text(encoding="utf-8").splitlines()
+        if ln.strip() and not ln.strip().startswith("#")
+    ]
 
 
-def resolve_upstream_pins(project_root: Path, task_id: str, *,
-                          distribution: str, upstream_dir: Path,
-                          requested_revision: str = "",
-                          resolved_commit: str = "") -> list[str]:
+def resolve_upstream_pins(
+    project_root: Path,
+    task_id: str,
+    *,
+    distribution: str,
+    upstream_dir: Path,
+    requested_revision: str = "",
+    resolved_commit: str = "",
+) -> list[str]:
     """备轮用的 pin 集合 —— **必须含上游本体**,否则当场拒发。
 
     `reference.lock.txt` 一旦缺席，旧路径中的 `_reference_pins`
@@ -178,20 +178,225 @@ def resolve_upstream_pins(project_root: Path, task_id: str, *,
             "requirements.lock.txt 没有它,钉版树里也读不出声明版本。"
             f"请在 draft 束的 reference.lock.txt 写上 `{distribution}==<版本>`"
             " —— 没有它,会话里 import 不到上游,所有能力测试都会以 "
-            "ModuleNotFoundError 失败。")
+            "ModuleNotFoundError 失败。"
+        )
     return [*pins, f"{distribution}=={version}"]
 
 
 def _build_preflight_venv(task_dir: Path, pins: list[str]) -> Path:
     """conformance 预检解释器:一次性 venv,装 reference 锁定集(联网)。"""
     venv = task_dir / "_preflight_venv"
-    subprocess.run(["python3", "-m", "venv", str(venv)], check=True,
-                   capture_output=True)
+    subprocess.run(["python3", "-m", "venv", str(venv)], check=True, capture_output=True)
     py = venv / "bin" / "python"
-    subprocess.run([str(py), "-m", "pip", "install", "--disable-pip-version-check",
-                    "-q", "pytest", *pins], check=True, capture_output=True,
-                   timeout=600)
+    subprocess.run(
+        [str(py), "-m", "pip", "install", "--disable-pip-version-check", "-q", "pytest", *pins],
+        check=True,
+        capture_output=True,
+        timeout=600,
+    )
     return py
+
+
+def _stage_workspace_wheelhouse(
+    *, host_contract_path: Path, tool_contract_path: Path, wheelhouse: Path
+) -> dict[str, object] | None:
+    """Copy the frozen offline wheel set into a v4 delivery package skeleton.
+
+    The build Harness may use an external wheelhouse, but an exported workspace
+    must remain rebuildable after that Harness tree disappears.  Only regular
+    wheel files are accepted, and the destination is the immutable host copy
+    from which clean replay and export are reconstructed.
+    """
+    tool_doc = yaml.safe_load(Path(tool_contract_path).read_text(encoding="utf-8")) or {}
+    tool = tool_doc.get("tool") or {}
+    if tool.get("delivery_profile_id") != "workspace_bundle_v1":
+        return None
+    host_doc = yaml.safe_load(Path(host_contract_path).read_text(encoding="utf-8")) or {}
+    host_copy = Path(str((host_doc.get("host") or {}).get("copy_path") or ""))
+    if host_copy.is_symlink() or not host_copy.is_dir():
+        raise PipelineError("workspace export host copy is missing or unsafe")
+    source = Path(wheelhouse)
+    if source.is_symlink() or not source.is_dir():
+        raise PipelineError("workspace wheelhouse is missing or unsafe")
+    wheels = sorted(source.iterdir(), key=lambda item: item.name)
+    if not wheels:
+        raise PipelineError("workspace wheelhouse is empty")
+    for item in wheels:
+        if item.is_symlink() or not item.is_file() or item.suffix != ".whl":
+            raise PipelineError(f"workspace wheelhouse contains a non-wheel or unsafe path:{item.name}")
+    destination = host_copy / "vendor" / "wheels"
+    if destination.is_symlink():
+        raise PipelineError("workspace package-local wheelhouse is a symlink")
+    destination.mkdir(parents=True, exist_ok=True)
+    for existing in destination.iterdir():
+        if existing.name == ".gitkeep" and existing.is_file():
+            existing.unlink()
+            continue
+        raise PipelineError(f"workspace package-local wheelhouse is not pristine:{existing.name}")
+    for item in wheels:
+        shutil.copy2(item, destination / item.name)
+    return {
+        "path": str(destination),
+        "wheel_count": len(wheels),
+        "self_contained": True,
+    }
+
+
+def _record_workspace_repair_incidents(
+    *,
+    project_root: Path,
+    task_id: str,
+    run_id: str,
+) -> list[str]:
+    """Append one public-only incident for every failing workspace Agent round."""
+
+    import json
+
+    from repoproof.persistence.product_incidents import (
+        IncidentDisposition,
+        IncidentOwner,
+        ProductIncidentV1,
+        public_incident_fingerprint,
+        write_product_incident,
+    )
+    from repoproof.persistence.qualification_records import (
+        qualification_framework_tree_sha256,
+    )
+
+    contract_path = Path(project_root) / "contracts" / f"{task_id}.yaml"
+    document = yaml.safe_load(contract_path.read_text(encoding="utf-8")) or {}
+    if ((document.get("tool") or {}).get("delivery_profile_id")) != "workspace_bundle_v1":
+        return []
+    if not run_id or Path(run_id).name != run_id or run_id in {".", ".."}:
+        raise PipelineError("workspace run did not publish a safe run_id for incidents")
+    commit = subprocess.run(
+        ["git", "-C", str(project_root), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    framework_tree = qualification_framework_tree_sha256(
+        Path(project_root) / "src" / "repoproof"
+    )
+    repair_root = Path(project_root) / "runs" / run_id / "repair"
+    written: list[str] = []
+    if repair_root.is_symlink() or not repair_root.is_dir():
+        return written
+    owner_map = {
+        "AGENT": "AGENT_ADAPTER",
+        "AGENT_ADAPTER": "AGENT_ADAPTER",
+        "USER": "USER_INPUT",
+        "USER_INPUT": "USER_INPUT",
+        "CONTRACT": "CONTRACT",
+        "HARNESS": "HARNESS",
+        "UPSTREAM": "UPSTREAM",
+        "EXTERNAL": "EXTERNAL",
+    }
+    for path in sorted(repair_root.glob("round-*/record.json")):
+        if path.is_symlink() or not path.is_file():
+            raise PipelineError("workspace repair incident source is unsafe")
+        row = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(row, dict):
+            raise PipelineError("workspace repair incident source is invalid")
+        public_failed = int(row.get("public_failed") or 0)
+        policy_violations = int(row.get("policy_violations") or 0)
+        reason_codes = [
+            str(item)
+            for item in row.get("reason_codes") or []
+            if str(item).strip()
+        ]
+        adapter_diff_present = bool(row.get("adapter_diff_present", True))
+        if not adapter_diff_present:
+            reason_codes.append("NO_ADAPTER_DIFF")
+        if public_failed <= 0 and policy_violations <= 0 and not reason_codes:
+            continue
+        packets = row.get("failure_packets")
+        packet_rows = packets if isinstance(packets, list) else []
+        public_nodes = tuple(
+            sorted(
+                {
+                    str(packet.get("type") or "PUBLIC_FAILURE")[:160]
+                    for packet in packet_rows
+                    if isinstance(packet, dict)
+                }
+            )
+        )
+        if not public_nodes and public_failed > 0:
+            public_nodes = ("PUBLIC_FAILURE",)
+        if not public_nodes and policy_violations > 0:
+            public_nodes = ("POLICY_VIOLATION",)
+        from typing import cast
+
+        owner = cast(
+            IncidentOwner,
+            owner_map.get(
+                str(row.get("failure_owner") or "AGENT_ADAPTER"),
+                "HARNESS",
+            ),
+        )
+        repair_eligible = bool(
+            owner == "AGENT_ADAPTER"
+            and adapter_diff_present
+            and public_nodes
+            and str(row.get("recommended_action") or "REPAIR") == "REPAIR"
+        )
+        if repair_eligible:
+            disposition = "REPAIR_AGENT"
+        elif owner == "CONTRACT":
+            disposition = "NEW_TASK_VERSION"
+        elif owner in {"HARNESS", "UPSTREAM", "EXTERNAL"}:
+            disposition = "RETRY_INFRASTRUCTURE"
+        elif owner == "USER_INPUT":
+            disposition = "STOP_NEEDS_HUMAN"
+        else:
+            disposition = "STOP_NEEDS_HUMAN"
+        disposition = cast(IncidentDisposition, disposition)
+        fingerprint = str(row.get("public_failure_fingerprint") or "")
+        if re.fullmatch(r"[0-9a-f]{16}", fingerprint) is None:
+            fingerprint = public_incident_fingerprint(
+                stage="AGENT_ADAPTER",
+                owner=owner,
+                reason_codes=reason_codes,
+                public_failed_nodes=public_nodes,
+            )
+        round_index = int(row.get("round_index") or 0)
+        identity = hashlib.sha256(
+            f"{run_id}\0{round_index}".encode()
+        ).hexdigest()[:24]
+        incident = ProductIncidentV1(
+            incident_id=f"incident-{identity}",
+            framework_git_commit=commit,
+            framework_tree_sha256=framework_tree,
+            profile_id="workspace_bundle_v1",
+            task_version=task_id,
+            stage="AGENT_ADAPTER",
+            owner=owner,
+            normalized_fingerprint=fingerprint,
+            public_failed_nodes=public_nodes,
+            reason_codes=tuple(sorted(set(reason_codes))),
+            artifact_tree_diff={
+                "changed_file_count": len(row.get("changed_files") or []),
+                "diff_lines": int(row.get("diff_lines") or 0),
+                "public_failed": public_failed,
+                "regression_failed": int(row.get("regression_failed") or 0),
+                "policy_violations": policy_violations,
+            },
+            agent_diff_present=adapter_diff_present,
+            repair_eligible=repair_eligible,
+            disposition=disposition,
+            created_at=datetime.datetime.now(datetime.UTC).isoformat().replace(
+                "+00:00", "Z"
+            ),
+        )
+        written.append(
+            str(
+                write_product_incident(
+                    Path(project_root) / "runs" / "product-incidents",
+                    incident,
+                )
+            )
+        )
+    return written
 
 
 def tool_build_real_from_frozen(
@@ -234,11 +439,7 @@ def tool_build_real_from_frozen(
             return tool_build(
                 Path(draft_dir),
                 project_root,
-                bench_root=(
-                    Path(bench_root)
-                    if bench_root is not None
-                    else Path("~/RepoProofBench").expanduser()
-                ),
+                bench_root=(Path(bench_root) if bench_root is not None else Path("~/RepoProofBench").expanduser()),
                 dest_root=dest_root,
                 run_real=not rehearsal_only,
                 agent_backend=agent_backend,
@@ -246,11 +447,15 @@ def tool_build_real_from_frozen(
                 resume_task_id=task_id,
             )
         raise PipelineError(
-            f"找不到物化的宿主合同:{host_contract} —— 该任务尚未物化"
-            "(或 tool_tasks 目录被清理过),无法续跑真发。")
-    stages: dict = {"resumed_from_frozen": {
-        "task_id": task_id, "tool_contract": str(tool_contract),
-        "host_contract": str(host_contract)}}
+            f"找不到物化的宿主合同:{host_contract} —— 该任务尚未物化(或 tool_tasks 目录被清理过),无法续跑真发。"
+        )
+    stages: dict = {
+        "resumed_from_frozen": {
+            "task_id": task_id,
+            "tool_contract": str(tool_contract),
+            "host_contract": str(host_contract),
+        }
+    }
 
     # Resuming reaches the same install boundary as the original build.  Run
     # the read-only install preflight before spending real-model budget;
@@ -258,12 +463,8 @@ def tool_build_real_from_frozen(
     # after an otherwise verified Agent run.
     if not rehearsal_only:
         try:
-            tool_doc = yaml.safe_load(
-                tool_contract.read_text(encoding="utf-8")
-            ) or {}
-            tool_name = str(
-                ((tool_doc.get("tool") or {}).get("name")) or ""
-            ).strip()
+            tool_doc = yaml.safe_load(tool_contract.read_text(encoding="utf-8")) or {}
+            tool_name = str(((tool_doc.get("tool") or {}).get("name")) or "").strip()
             if not tool_name:
                 raise ToolExportError("冻结工具合同缺少 tool.name")
             current = preflight_tool_install(Path(dest_root), tool_name, task_id)
@@ -328,20 +529,14 @@ def tool_build_real_from_frozen(
     from repoproof.runner.host_guided import run_host_guided_cli
 
     if rehearsal_only:
-        fake = run_host_guided_cli(
-            host_contract, project_root, fake="positive", batch=batch
-        )
+        fake = run_host_guided_cli(host_contract, project_root, fake="positive", batch=batch)
         rp = fake.get("report") or {}
         stages["rehearsal"] = {
             "verdict": rp.get("verdict"),
             "run_id": rp.get("run_id"),
             "gate_reasons": rp.get("gate_reasons"),
         }
-        verdict = (
-            "REHEARSAL_PASS_ONLY"
-            if rp.get("verdict") == "PASS_ADAPTED"
-            else f"REHEARSAL_{rp.get('verdict')}"
-        )
+        verdict = "REHEARSAL_PASS_ONLY" if rp.get("verdict") == "PASS_ADAPTED" else f"REHEARSAL_{rp.get('verdict')}"
         return {
             "task_id": task_id,
             "stages": stages,
@@ -349,24 +544,30 @@ def tool_build_real_from_frozen(
             "exported": None,
         }
 
-    real = run_host_guided_cli(host_contract, project_root, fake=None,
-                               batch=batch, backend=agent_backend)
+    real = run_host_guided_cli(host_contract, project_root, fake=None, batch=batch, backend=agent_backend)
     if real.get("blocked"):
         stages["real"] = real
-        return {"task_id": task_id, "stages": stages,
-                "verdict": "REAL_BLOCKED", "exported": None}
+        return {"task_id": task_id, "stages": stages, "verdict": "REAL_BLOCKED", "exported": None}
     rp = real.get("report") or {}
+    stages["product_incidents"] = {
+        "records": _record_workspace_repair_incidents(
+            project_root=project_root,
+            task_id=task_id,
+            run_id=str(rp.get("run_id") or ""),
+        )
+    }
     metrics = derive_repair_metrics(rp)
-    stages["real"] = {"verdict": rp.get("verdict"),
-                      "verdict_public": rp.get("verdict_public"),
-                      "run_id": rp.get("run_id"),
-                      "gate_reasons": rp.get("gate_reasons"),
-                      "repair_metrics": metrics,
-                      "product_stop_code": metrics["product_stop_code"]}
+    stages["real"] = {
+        "verdict": rp.get("verdict"),
+        "verdict_public": rp.get("verdict_public"),
+        "run_id": rp.get("run_id"),
+        "gate_reasons": rp.get("gate_reasons"),
+        "repair_metrics": metrics,
+        "product_stop_code": metrics["product_stop_code"],
+    }
     if rp.get("verdict") not in ("PASS_ADAPTED", "PASS_DIRECT"):
         stages["real"]["failure_assessment"] = assess_report(rp).model_dump()
-        return {"task_id": task_id, "stages": stages,
-                "verdict": rp.get("verdict"), "exported": None}
+        return {"task_id": task_id, "stages": stages, "verdict": rp.get("verdict"), "exported": None}
 
     historical_verdict = rp.get("verdict_public") or rp.get("verdict")
     try:
@@ -375,8 +576,7 @@ def tool_build_real_from_frozen(
             host_contract_path=host_contract,
             tool_contract_path=tool_contract,
             dest_root=Path(dest_root),
-            exported_at=datetime.datetime.now(datetime.UTC).strftime(
-                "%Y-%m-%dT%H:%M:%SZ"),
+            exported_at=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         )
     except (ToolExportError, ReleaseLedgerError, OSError, ValueError) as exc:
         stages["export"] = {"ok": False, "error": str(exc)}
@@ -394,14 +594,19 @@ def tool_build_real_from_frozen(
             },
         ) from exc
     release_status = operational_status(Path(dest_root), dest.name, task_id=task_id)
-    stages["export"] = {"dest": str(dest),
-                        "historical_verdict": historical_verdict,
-                        "operational_status": release_status}
-    return {"task_id": task_id, "stages": stages,
-            "verdict": historical_verdict,
-            "historical_verdict": historical_verdict,
-            "operational_status": release_status,
-            "exported": str(dest)}
+    stages["export"] = {
+        "dest": str(dest),
+        "historical_verdict": historical_verdict,
+        "operational_status": release_status,
+    }
+    return {
+        "task_id": task_id,
+        "stages": stages,
+        "verdict": historical_verdict,
+        "historical_verdict": historical_verdict,
+        "operational_status": release_status,
+        "exported": str(dest),
+    }
 
 
 def rehearsed_tasks(project_root: Path) -> list[dict]:
@@ -426,14 +631,12 @@ def rehearsed_tasks(project_root: Path) -> list[dict]:
             if not tid.startswith("tool-"):
                 continue
             if model.startswith("fake-scripted"):
-                rehearsed[tid] = {"task_id": tid,
-                                  "last_rehearsal": row.get("run_id"),
-                                  "verdict": row.get("verdict")}
+                rehearsed[tid] = {"task_id": tid, "last_rehearsal": row.get("run_id"), "verdict": row.get("verdict")}
             else:
                 exported.add(tid)
-    out = [v for k, v in rehearsed.items()
-           if k not in exported
-           and (project_root / "contracts" / f"{k}.yaml").is_file()]
+    out = [
+        v for k, v in rehearsed.items() if k not in exported and (project_root / "contracts" / f"{k}.yaml").is_file()
+    ]
     return sorted(out, key=lambda r: str(r["task_id"]), reverse=True)
 
 
@@ -447,8 +650,8 @@ def tool_build(
     agent_backend: str = "mini-swe",
     conformance_symbols: list[str] | None = None,
     batch: str = "EXPLORATORY_UNPREREGISTERED",
-    setup_commands: list[list[str]] | None = None,   # 测试注入(E2E shim)
-    wheelhouse_cmd: list[str] | None = None,          # 测试注入(跳过备轮)
+    setup_commands: list[list[str]] | None = None,  # 测试注入(E2E shim)
+    wheelhouse_cmd: list[str] | None = None,  # 测试注入(跳过备轮)
     resume_task_id: str | None = None,
 ) -> dict:
     """→ {task_id, stages, verdict, historical_verdict,
@@ -458,21 +661,14 @@ def tool_build(
     from repoproof.runner.host_guided import run_host_guided_cli
 
     if agent_backend not in {"codex-cli", "mini-swe"}:
-        raise PipelineError(
-            f"Product Mode 不支持 agent backend={agent_backend!r};"
-            "可选 codex-cli / mini-swe"
-        )
+        raise PipelineError(f"Product Mode 不支持 agent backend={agent_backend!r};可选 codex-cli / mini-swe")
 
     project_root = Path(project_root)
     draft_dir = Path(draft_dir)
     stages: dict = {}
 
     draft_path = draft_dir / "draft.yaml"
-    draft = (
-        yaml.safe_load(draft_path.read_text(encoding="utf-8"))
-        if draft_path.is_file()
-        else None
-    )
+    draft = yaml.safe_load(draft_path.read_text(encoding="utf-8")) if draft_path.is_file() else None
     predicted_task_id: str | None = None
     if run_real and isinstance(draft, dict):
         # D checks are read-only.  Once they pass, reject an impossible or
@@ -489,9 +685,7 @@ def tool_build(
                     if resume_task_id is not None
                     else next_tool_task_id(project_root, draft["tool"]["name"])
                 )
-                current = preflight_tool_install(
-                    Path(dest_root), draft["tool"]["name"], predicted_task_id
-                )
+                current = preflight_tool_install(Path(dest_root), draft["tool"]["name"], predicted_task_id)
             except (ToolExportError, ReleaseLedgerError, OSError, ValueError) as exc:
                 stages["install_preflight"] = {"ok": False, "error": str(exc)}
                 reason_code, action = _install_error_projection(exc)
@@ -525,30 +719,40 @@ def tool_build(
         )
         from repoproof.adoption.planning.capability_plan import (
             CapabilityPlanV1,
+            CapabilityPlanV2,
             assert_may_execute,
             assert_plan_matches_source,
         )
 
-        plan_obj = CapabilityPlanV1.model_validate(
-            yaml.safe_load(plan_path.read_text(encoding="utf-8")))
+        plan_document = yaml.safe_load(plan_path.read_text(encoding="utf-8")) or {}
+        plan_type = CapabilityPlanV2 if plan_document.get("schema_version") == 2 else CapabilityPlanV1
+        plan_obj = plan_type.model_validate(plan_document)
         assert_may_execute(plan_obj)
         # plan 与 draft 上游身份绑定:拿别的仓/别的版本的计划冒充即拒
         # (外部审计 P0 实证的补丁之二)。
         if isinstance(draft, dict):
             _sr = draft.get("source_repo") or {}
             assert_plan_matches_source(
-                plan_obj, url=str(_sr.get("url") or ""),
-                commit=str(_sr.get("resolved_commit") or ""))
+                plan_obj, url=str(_sr.get("url") or ""), commit=str(_sr.get("resolved_commit") or "")
+            )
         route = plan_obj.implementation_route
+        if (
+            isinstance(draft, dict)
+            and ((draft.get("tool") or {}).get("delivery_profile_id")) == "workspace_bundle_v1"
+            and route != "AGENT_ADAPT"
+        ):
+            raise PipelineError("workspace composition must use the frozen AGENT_ADAPT route")
         if route == "DIRECT_WRAP":
             spec = derive_adapter_spec(plan_obj)
             adapter_src = compile_direct_adapter(spec)
-            stages["route"] = {"route": route, "locator": spec.locator,
-                               "agent_invoked": False,
-                               "plan_sha256": plan_obj.plan_sha256}
+            stages["route"] = {
+                "route": route,
+                "locator": spec.locator,
+                "agent_invoked": False,
+                "plan_sha256": plan_obj.plan_sha256,
+            }
         else:
-            stages["route"] = {"route": route, "agent_invoked": True,
-                               "plan_sha256": plan_obj.plan_sha256}
+            stages["route"] = {"route": route, "agent_invoked": True, "plan_sha256": plan_obj.plan_sha256}
 
     # 1) 人闸后的确认:D 闸 → 装配 → T 闸 → 冻结。若上一次在冻结后、
     # 物化前因 Harness 预检停止，只允许对身份完全一致的冻结合同续跑；
@@ -574,12 +778,11 @@ def tool_build(
             raise PipelineError("预物化续跑冻结合同不是对象")
         frozen_source = frozen.get("source_repo") or {}
         draft_source = draft.get("source_repo") or {}
-        frozen_intent = ((frozen.get("capability") or {}).get("intent_contract") or {})
+        frozen_intent = (frozen.get("capability") or {}).get("intent_contract") or {}
         draft_intent = draft.get("_intent_contract") or {}
         identity_matches = (
             frozen.get("task_id") == task_id
-            and ((frozen.get("tool") or {}).get("name"))
-            == ((draft.get("tool") or {}).get("name"))
+            and ((frozen.get("tool") or {}).get("name")) == ((draft.get("tool") or {}).get("name"))
             and all(
                 frozen_source.get(key) == draft_source.get(key)
                 for key in (
@@ -593,12 +796,13 @@ def tool_build(
             == ((draft_intent.get("confirmation") or {}).get("semantics_sha256"))
         )
         if not identity_matches:
-            raise PipelineError(
-                "冻结合同与预物化草稿身份不一致；拒绝续跑或重写旧版本"
-            )
-        examples_doc = yaml.safe_load(
-            (draft_dir / "examples.yaml").read_text(encoding="utf-8")
-        ) or {}
+            raise PipelineError("冻结合同与预物化草稿身份不一致；拒绝续跑或重写旧版本")
+        example_file = (
+            draft_dir / "workspace_examples.yaml"
+            if ((draft.get("tool") or {}).get("delivery_profile_id")) == "workspace_bundle_v1"
+            else draft_dir / "examples.yaml"
+        )
+        examples_doc = yaml.safe_load(example_file.read_text(encoding="utf-8")) or {}
         total_examples = len(examples_doc.get("examples") or [])
         info = {
             "task_id": task_id,
@@ -612,21 +816,14 @@ def tool_build(
             "contract_rewritten": False,
         }
     if predicted_task_id is not None and task_id != predicted_task_id:
-        raise PipelineError(
-            f"安装预检 task_id={predicted_task_id} 与冻结结果 {task_id} 分叉"
-        )
-    stages["confirm"] = {"task_id": task_id, "public": info["public"],
-                         "held": info["held"]}
+        raise PipelineError(f"安装预检 task_id={predicted_task_id} 与冻结结果 {task_id} 分叉")
+    stages["confirm"] = {"task_id": task_id, "public": info["public"], "held": info["held"]}
 
-    frozen_reference_path = (
-        project_root / "controls" / task_id / "reference" / "impl.py"
-    )
+    frozen_reference_path = project_root / "controls" / task_id / "reference" / "impl.py"
     try:
         reference_source = frozen_reference_path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
-        raise PipelineError(
-            "冻结任务缺少可读取的 reference implementation"
-        ) from exc
+        raise PipelineError("冻结任务缺少可读取的 reference implementation") from exc
 
     if not isinstance(draft, dict):
         draft = yaml.safe_load(draft_path.read_text(encoding="utf-8"))
@@ -649,9 +846,7 @@ def tool_build(
     selection_basis = {
         "schema_version": 1,
         "kind": "REFERENCE_UPSTREAM_SYMBOLS",
-        "reference_sha256": hashlib.sha256(
-            reference_source.encode("utf-8")
-        ).hexdigest(),
+        "reference_sha256": hashlib.sha256(reference_source.encode("utf-8")).hexdigest(),
         "import_module": str(sr["import_module"]),
         "symbols": symbols,
     }
@@ -660,28 +855,29 @@ def tool_build(
     # 2b) DIRECT_WRAP:受信模板 adapter + 确定 lock **在装配骨架里落位**
     # (materialize 之前 —— 任务包/bench 副本由骨架拷出)。S0 即完整交付,
     # agent 零 diff,completion gate 的既有 PASS_DIRECT 语义自然成立。
-    pins = resolve_upstream_pins(project_root, task_id,
-                                 distribution=sr["distribution"], upstream_dir=up,
-                                 requested_revision=str(sr.get("revision") or ""),
-                                 resolved_commit=str(sr.get("resolved_commit") or ""))
+    pins = resolve_upstream_pins(
+        project_root,
+        task_id,
+        distribution=sr["distribution"],
+        upstream_dir=up,
+        requested_revision=str(sr.get("revision") or ""),
+        resolved_commit=str(sr.get("resolved_commit") or ""),
+    )
     if route == "DIRECT_WRAP":
-        skel = (Path(project_root) / "fixtures"
-                / f"tool_skeleton_{draft['tool']['name']}")
+        skel = Path(project_root) / "fixtures" / f"tool_skeleton_{draft['tool']['name']}"
         pkg = str(draft["tool"]["name"]).replace("-", "_")
         impl_p = skel / "src" / pkg / "impl.py"
         if not impl_p.is_file():
             raise PipelineError(f"DIRECT_WRAP 找不到骨架能力位:{impl_p}")
-        if adapter_src is None:    # route=DIRECT_WRAP 时路由段必已编译;防失配
+        if adapter_src is None:  # route=DIRECT_WRAP 时路由段必已编译;防失配
             raise PipelineError("DIRECT_WRAP 路由却没有已编译的适配器源 —— 路由段状态失配")
         impl_p.write_text(adapter_src, encoding="utf-8")
         (skel / "requirements.lock.txt").write_text(
-            ("\n".join(pins) + "\n") if pins
-            else "# DIRECT_WRAP:上游经会话环境提供,无第三方 pins\n",
-            encoding="utf-8")
+            ("\n".join(pins) + "\n") if pins else "# DIRECT_WRAP:上游经会话环境提供,无第三方 pins\n", encoding="utf-8"
+        )
     task_dir = Path(project_root) / "tool_tasks" / task_id
     if task_dir.exists() or (Path(bench_root) / task_id).exists():
-        raise PipelineError(
-            f"物化目标已存在:{task_id}(改题面请先重出 draft → 新版本号)")
+        raise PipelineError(f"物化目标已存在:{task_id}(改题面请先重出 draft → 新版本号)")
     conf_py = None
     conf_record = {
         "selected": selected,
@@ -715,17 +911,15 @@ def tool_build(
                 "failure_owner": "HARNESS",
                 "reason_codes": ["UPSTREAM_CONFORMANCE_ENVIRONMENT"],
                 "product_stop_code": "STOP_HARNESS_OR_EXTERNAL",
-                "recommended_action": (
-                    "检查钉版上游的测试依赖或所选公开测试节点；"
-                    "该环境故障不得进入 Agent repair。"
-                ),
+                "recommended_action": ("检查钉版上游的测试依赖或所选公开测试节点；该环境故障不得进入 Agent repair。"),
             }
         finally:
             shutil.rmtree(conf_py.parents[1], ignore_errors=True)
             conf_py = None
     try:
         contract = materialize_tool_task(
-            project_root, Path(project_root) / "contracts" / f"{task_id}.yaml",
+            project_root,
+            Path(project_root) / "contracts" / f"{task_id}.yaml",
             out_root=Path(project_root) / "tool_tasks",
             host_copy_root=Path(bench_root),
             setup_commands=setup_commands,
@@ -742,10 +936,7 @@ def tool_build(
             "failure_owner": "HARNESS",
             "reason_codes": ["TASK_MATERIALIZATION_FAILED"],
             "product_stop_code": "STOP_HARNESS_OR_EXTERNAL",
-            "recommended_action": (
-                "检查冻结任务骨架、控制组和物化目标；"
-                "该故障不得进入 Agent repair。"
-            ),
+            "recommended_action": ("检查冻结任务骨架、控制组和物化目标；该故障不得进入 Agent repair。"),
         }
     stages["materialize"] = {"ok": True, "contract": str(contract)}
 
@@ -762,25 +953,48 @@ def tool_build(
     # 4) wheelhouse 备轮(reference 锁定集 + 测量工具链)
     wheelhouse = Path(bench_root) / task_id / "wheelhouse"
     r = subprocess.run(
-        wheelhouse_cmd or
-        ["python3", "-m", "pip", "download", "--disable-pip-version-check", "-q",
-         *pins, "pytest", "setuptools", "wheel", "-d", str(wheelhouse)],
-        capture_output=True, text=True, timeout=900)
+        wheelhouse_cmd
+        or [
+            "python3",
+            "-m",
+            "pip",
+            "download",
+            "--disable-pip-version-check",
+            "-q",
+            *pins,
+            "pytest",
+            "setuptools",
+            "wheel",
+            "-d",
+            str(wheelhouse),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=900,
+    )
     if r.returncode != 0:
         raise PipelineError(f"wheelhouse 备轮失败:{r.stderr[-300:]}")
     # 事后核账只在**真备轮**时成立:`wheelhouse_cmd` 是测试注入口(E2E 用
     # `true` 跳过下载、改由 PYTHONPATH shim 提供上游),那种情况下这里没有
     # 东西可核 —— 核一个没发生的动作只会得出假结论。生产侧无人传此参数。
-    downloaded = ([f.name for f in wheelhouse.iterdir() if f.is_file()]
-                  if wheelhouse_cmd is None else [])
+    downloaded = [f.name for f in wheelhouse.iterdir() if f.is_file()] if wheelhouse_cmd is None else []
     want = normalize_dist_name(sr["distribution"]) if wheelhouse_cmd is None else ""
     if want and not any(normalize_dist_name(n.split("-")[0]) == want for n in downloaded):
         # 事后核账:pip 说成功不等于上游真躺在那儿。不量一次就等于假设。
         raise PipelineError(
             f"备轮完成但 wheelhouse 里没有上游 {sr['distribution']!r}:"
-            f"{sorted(downloaded)[:8]} —— 会话将 import 不到上游,拒绝继续。")
-    stages["wheelhouse"] = {"wheels": len(list(wheelhouse.glob('*.whl'))),
-                            "upstream_present": True}
+            f"{sorted(downloaded)[:8]} —— 会话将 import 不到上游,拒绝继续。"
+        )
+    stages["wheelhouse"] = {"wheels": len(list(wheelhouse.glob("*.whl"))), "upstream_present": True}
+
+    if wheelhouse_cmd is None:
+        staged_wheelhouse = _stage_workspace_wheelhouse(
+            host_contract_path=Path(contract),
+            tool_contract_path=project_root / "contracts" / f"{task_id}.yaml",
+            wheelhouse=wheelhouse,
+        )
+        if staged_wheelhouse is not None:
+            stages["package_wheelhouse"] = staged_wheelhouse
 
     # ToolSpec v3 Fresh audit executes the task-authored semantic verifier in
     # the same exact dependency/source context that existed before the Coding
@@ -804,8 +1018,7 @@ def tool_build(
                 "ToolSpec v3 冻结证据束无法生成；不得进入 Agent",
                 reason_code="FROZEN_TASK_PACKAGE_INVALID",
                 recommended_action=(
-                    "检查冻结合同、oracle、目标骨架、钉版上游和 wheelhouse；"
-                    "修复 Harness 后创建新 task version。"
+                    "检查冻结合同、oracle、目标骨架、钉版上游和 wheelhouse；修复 Harness 后创建新 task version。"
                 ),
                 partial_result={
                     "task_id": task_id,
@@ -854,35 +1067,34 @@ def tool_build(
         # 确定性快路径:骨架已含受信模板交付,零 Agent、零真发 ——
         # 一发 fake="direct"(零动作提交)走完整验证链;零 diff + 全门过
         # = PASS_DIRECT(completion gate 既有语义,零改动)。
-        d = run_host_guided_cli(contract, project_root, fake="direct",
-                                batch=batch)
+        d = run_host_guided_cli(contract, project_root, fake="direct", batch=batch)
         if d.get("blocked"):
             stages["direct"] = d
-            return {"task_id": task_id, "stages": stages,
-                    "verdict": "DIRECT_BLOCKED", "exported": None}
+            return {"task_id": task_id, "stages": stages, "verdict": "DIRECT_BLOCKED", "exported": None}
         rp = d.get("report") or {}
-        stages["direct"] = {"verdict": rp.get("verdict"),
-                            "run_id": rp.get("run_id"),
-                            "gate_reasons": rp.get("gate_reasons"),
-                            "agent_invoked": False, "route": route}
+        stages["direct"] = {
+            "verdict": rp.get("verdict"),
+            "run_id": rp.get("run_id"),
+            "gate_reasons": rp.get("gate_reasons"),
+            "agent_invoked": False,
+            "route": route,
+        }
         # DIRECT_WRAP 失败不得自动切 AGENT_ADAPT(RFC-013 §4):换路线
         # 必须重新生成并确认计划。
     else:
         # 5) fake 彩排门:不 PASS 不许烧真预算
-        fake = run_host_guided_cli(contract, project_root, fake="positive",
-                                   batch=batch)
-        fk = (fake.get("report") or {})
-        stages["rehearsal"] = {"verdict": fk.get("verdict"),
-                               "run_id": fk.get("run_id"),
-                               "gate_reasons": fk.get("gate_reasons")}
+        fake = run_host_guided_cli(contract, project_root, fake="positive", batch=batch)
+        fk = fake.get("report") or {}
+        stages["rehearsal"] = {
+            "verdict": fk.get("verdict"),
+            "run_id": fk.get("run_id"),
+            "gate_reasons": fk.get("gate_reasons"),
+        }
         if fk.get("verdict") != "PASS_ADAPTED":
-            return {"task_id": task_id, "stages": stages,
-                    "verdict": f"REHEARSAL_{fk.get('verdict')}",
-                    "exported": None}
+            return {"task_id": task_id, "stages": stages, "verdict": f"REHEARSAL_{fk.get('verdict')}", "exported": None}
 
         if not run_real:
-            return {"task_id": task_id, "stages": stages,
-                    "verdict": "REHEARSAL_PASS_ONLY", "exported": None}
+            return {"task_id": task_id, "stages": stages, "verdict": "REHEARSAL_PASS_ONLY", "exported": None}
 
         # 6) 真模型单发(provider 从 env;未配置由 preflight 如实拦)
         real = run_host_guided_cli(
@@ -894,9 +1106,15 @@ def tool_build(
         )
         if real.get("blocked"):
             stages["real"] = real
-            return {"task_id": task_id, "stages": stages,
-                    "verdict": "REAL_BLOCKED", "exported": None}
+            return {"task_id": task_id, "stages": stages, "verdict": "REAL_BLOCKED", "exported": None}
         rp = real.get("report") or {}
+        stages["product_incidents"] = {
+            "records": _record_workspace_repair_incidents(
+                project_root=project_root,
+                task_id=task_id,
+                run_id=str(rp.get("run_id") or ""),
+            )
+        }
         stages["agent_backend"] = {
             "id": agent_backend,
             "product_mode_only": agent_backend == "codex-cli",
@@ -911,19 +1129,19 @@ def tool_build(
 
     proj_key = "direct" if route == "DIRECT_WRAP" else "real"
     metrics = derive_repair_metrics(rp)
-    stages[proj_key] = {**stages.get(proj_key, {}),
-                        "verdict": rp.get("verdict"),
-                        "verdict_public": rp.get("verdict_public"),
-                        "run_id": rp.get("run_id"),
-                        "gate_reasons": rp.get("gate_reasons"),
-                        "repair_metrics": metrics,
-                        "product_stop_code": metrics["product_stop_code"]}
-    expected = ("PASS_DIRECT",) if route == "DIRECT_WRAP" \
-        else ("PASS_ADAPTED", "PASS_DIRECT")
+    stages[proj_key] = {
+        **stages.get(proj_key, {}),
+        "verdict": rp.get("verdict"),
+        "verdict_public": rp.get("verdict_public"),
+        "run_id": rp.get("run_id"),
+        "gate_reasons": rp.get("gate_reasons"),
+        "repair_metrics": metrics,
+        "product_stop_code": metrics["product_stop_code"],
+    }
+    expected = ("PASS_DIRECT",) if route == "DIRECT_WRAP" else ("PASS_ADAPTED", "PASS_DIRECT")
     if rp.get("verdict") not in expected:
         stages[proj_key]["failure_assessment"] = assess_report(rp).model_dump()
-        return {"task_id": task_id, "stages": stages,
-                "verdict": rp.get("verdict"), "exported": None}
+        return {"task_id": task_id, "stages": stages, "verdict": rp.get("verdict"), "exported": None}
 
     # 7) export + 注册
     historical_verdict = rp.get("verdict_public") or rp.get("verdict")
@@ -933,9 +1151,7 @@ def tool_build(
             host_contract_path=contract,
             tool_contract_path=Path(project_root) / "contracts" / f"{task_id}.yaml",
             dest_root=Path(dest_root),
-            exported_at=datetime.datetime.now(datetime.UTC).strftime(
-                "%Y-%m-%dT%H:%M:%SZ"
-            ),
+            exported_at=datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         )
     except (ToolExportError, ReleaseLedgerError, OSError, ValueError) as exc:
         stages["export"] = {"ok": False, "error": str(exc)}
@@ -952,16 +1168,17 @@ def tool_build(
                 "exported": None,
             },
         ) from exc
-    release_status = operational_status(
-        Path(dest_root), dest.name, task_id=task_id
-    )
+    release_status = operational_status(Path(dest_root), dest.name, task_id=task_id)
     stages["export"] = {
         "dest": str(dest),
         "historical_verdict": historical_verdict,
         "operational_status": release_status,
     }
-    return {"task_id": task_id, "stages": stages,
-            "verdict": historical_verdict,
-            "historical_verdict": historical_verdict,
-            "operational_status": release_status,
-            "exported": str(dest)}
+    return {
+        "task_id": task_id,
+        "stages": stages,
+        "verdict": historical_verdict,
+        "historical_verdict": historical_verdict,
+        "operational_status": release_status,
+        "exported": str(dest),
+    }

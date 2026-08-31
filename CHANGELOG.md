@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased — 2026-08-31 · M6.2 verified offline workspace candidate
+
+- Added additive ToolSpec v4 and experimental `workspace_bundle_v1`: one local
+  file or directory produces one new atomic offline workspace directory.
+- Added no-follow path/resource enforcement, deterministic directory manifests
+  and tree hashes, generic format checks, task-owned semantic verification,
+  bounded runnable smoke checks and input/artifact/upstream-result
+  counterfactual controls.
+- Extended clean replay, fresh audit, package identity, registry projection and
+  Studio to directory artifacts. MCP refuses the profile; deterministic ZIP is
+  transport only.
+- Added frozen fixture builders and scenario blueprints so LLMs propose cases
+  but cannot author trusted PDF/SQLite/directory truth bytes.
+- Added public-only `ProductIncidentV1`, evidence-gated generic Harness changes
+  and preregistered case-identity scans. Non-safety changes require matching
+  incidents from two independent task versions.
+- Added the RFC, execution runbook and nine-case preregistration. Real model
+  execution, wheel-manifest freeze, pushing and publishing remain unauthorized;
+  no M6.2 qualification outcome is claimed.
+
 ## v0.2.0 — 2026-08-26 · GitHub capability → verified local tool
 
 产品定位收敛的第一个发布:主线从"任意 Repository Adaptation"改为
