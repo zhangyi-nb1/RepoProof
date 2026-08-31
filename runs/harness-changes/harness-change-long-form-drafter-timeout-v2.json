@@ -1,0 +1,21 @@
+{
+  "affected_component": "Bounded provider timeout for large strict-schema contract and verifier requests",
+  "after_control_sha256": "2b8798ad0a05740745c7f87934f6e95ffc91ea8689bf4b98232930af90392cc2",
+  "anonymous_fixture_id": "anonymous-slow-long-form-structured-transport-v2",
+  "before_control_sha256": "80d3481045b3a9c17f52ca55da49a325d753ec8ad7ab45cb3aebb23d414b4d14",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-08-31T15:40:00Z",
+  "evidence_id": "harness-change-long-form-drafter-timeout-v2",
+  "incident_ids": [
+    "incident-contract-drafter-timeout-d0e3a19-v1",
+    "incident-long-form-drafter-timeout-c3-d07c7ce"
+  ],
+  "invariant": "A long strict-schema contract or verifier request remains bounded and has no implicit transport retry, but its request budget must cover the observed response envelope of supported workspace tasks. Repeated timeout at the former 180-second ceiling across independent repositories is not an Agent failure and must not consume Agent repair.",
+  "normalized_fingerprint": "37abdf3ac05c2015",
+  "regression_tests": [
+    "tests/test_tool_drafter.py::test_long_form_request_allows_anonymous_slow_structured_transport",
+    "tests/test_tool_drafter.py::test_litellm_rejects_invalid_timeout_before_network"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

@@ -806,7 +806,7 @@ def test_long_form_request_allows_anonymous_slow_structured_transport(
 
     def slow_structured_completion(**kwargs):
         calls.append(kwargs)
-        if float(kwargs["timeout"]) < 180.0:
+        if float(kwargs["timeout"]) < 300.0:
             raise TimeoutError("anonymous long-form response exceeded request budget")
         return _Response()
 
@@ -814,7 +814,7 @@ def test_long_form_request_allows_anonymous_slow_structured_transport(
 
     assert LiteLLMDrafter()._once("{}") == _GOOD
     assert len(calls) == 1
-    assert calls[0]["timeout"] == 180.0
+    assert calls[0]["timeout"] == 300.0
     assert calls[0]["max_retries"] == 0
 
 
@@ -902,7 +902,7 @@ def test_litellm_timeout_is_classified_without_echoing_diagnostics(
     assert "/Users" not in str(raised.value)
 
 
-@pytest.mark.parametrize("value", ["abc", "0", "4.9", "181"])
+@pytest.mark.parametrize("value", ["abc", "0", "4.9", "301"])
 def test_litellm_rejects_invalid_timeout_before_network(
     monkeypatch: pytest.MonkeyPatch,
     value: str,

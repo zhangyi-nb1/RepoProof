@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "configured_timeout_seconds": 180,
+    "elapsed_seconds": 185,
+    "journey_created": 1,
+    "repair_consumed": 0
+  },
+  "created_at": "2026-08-31T15:37:34.566692Z",
+  "disposition": "GENERIC_BOUNDED_TIMEOUT_EXPANSION_IMPLEMENTED",
+  "framework_git_commit": "d07c7ced7490723de144908b52baf432869c078c",
+  "incident_id": "incident-long-form-drafter-timeout-c3-d07c7ce",
+  "normalized_fingerprint": "37abdf3ac05c2015",
+  "owner": "EXTERNAL",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "contract_authoring::gateway-timeout"
+  ],
+  "reason_codes": [
+    "DRAFTER_TIMEOUT"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}
