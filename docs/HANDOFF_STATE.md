@@ -3,7 +3,7 @@
 > Purpose: the single in-repo status anchor for AI/human handoff.
 > Update ONLY at gate boundaries; history below is append-only.
 
-## Current status (2026-08-31, M6.2 qualification v2 frozen; N0/B1 terminal, B2 next)
+## Current status (2026-08-31, M6.2 qualification v2 frozen; N0/B1/B2/C1/C2 terminal, C3 next)
 
 **主产品定位不变：GitHub 单能力 → 经独立验证的本地工具。M6.2 只新增
 一种实验性交付拓扑 `workspace_bundle_v1`，让受控输入生成离线多文件工作区；
@@ -11,8 +11,8 @@
 
 | Anchor | Value |
 |---|---|
-| 本地状态 | `codex/m6-2-workspace-bundle-qualification`，基线 `main @ 0a8034a`；当前工程 HEAD `0e6d325`，本节列出的提交均仅在本地，未推送、未发布 |
-| 工程身份 | 当前可执行 `src/repoproof` 树哈希 `2233ea4e951b1a59f0722b3b60e99a1fe786cc1147b85e79eaa41c9e05610e8c`；B1 正式 rehearsal 绑定 `framework_git_commit=d475b43`、树哈希 `243ddcbd5538090d38e611ba10c39f679e37ccb45fcf75a3ccda17032093df0b`，后续安全分类提交不改写该历史身份 |
+| 本地状态 | `codex/m6-2-workspace-bundle-qualification`，基线 `main @ 0a8034a`；当前工程 HEAD `38b1b10`，本节列出的提交均仅在本地，未推送、未发布 |
+| 工程身份 | 当前可执行 `src/repoproof` 树哈希 `4ec8f553aa66ab7592861cad202342bde59417d6af996a0fb6666d22d4a78ea9`；每个既有终态继续绑定产生它时的 framework commit/树哈希，后续通用修复不改写历史身份 |
 | Profile 状态 | `workspace_bundle_v1 = EXPERIMENTAL`；`cli_v2` 旧语义不变；MCP 稳定拒绝 `WORKSPACE_BUNDLE_MCP_NOT_SUPPORTED` |
 | 合同与执行 | additive ToolSpec v4 + `WorkspaceArtifactContractV1`；一个本地文件/目录 → 一个调用前不存在的新目录；临时构建、四层验证通过后原子落位，失败清理半成品 |
 | 可信证据 | Harness 在 Agent 外生成 `ArtifactManifestV1` 和目录树哈希；结构、通用格式、task-owned 语义 verifier、可运行 smoke 四层独立；输入/产物目录/upstream-result 三项反事实；clean replay 与 fresh audit 重新取证 |
@@ -24,9 +24,12 @@
 | 零模型 canary | `workspace_assembler` 完整链已通过装配、四层公共控制、导出和 fresh audit 到 `ACTIVE`；JUnit SHA-256 `b61e615a1b1a6d8b743c1b3d773df782eefe9b86a5170b2cb174be50b384a572`，只证明通用 fixture，不代替八仓资格 |
 | N0 终态 | `n0-credentialled-browser-side-effect = EXPECTED_REJECTION`；原因 `UNSUPPORTED_CREDENTIALLED_EXTERNAL_SIDE_EFFECT`，责任 `USER_INPUT`，0 仓库执行、0 Agent、0 repair、0 导出。随后匿名矩阵补齐在线 API、持续监控和可撤销外部写入表达，仍保护本地离线账单处理不被关键词误拒 |
 | B1 终态 | `b1-cookiecutter-research-project = FAILED`；Journey `6ecd00052933496f8f665b8ce410118f` 已完成仓库分析、口语需求采用、v4 合同审核、三组真实输入/期望工作区确认与冻结装配。正式 rehearsal 在上游 conformance 预检因冻结 wheelhouse 缺少所选公开测试节点需要的 `pytest-mock` 而 `BLOCKED`：责任 `HARNESS`，原因 `UPSTREAM_CONFORMANCE_ENVIRONMENT`，0 Agent、0 repair、0 导出。冻结任务不补依赖、不换节点、不改写 |
-| 已记录待复现单例 | B1 暴露 `workspace_bundle` 的 `output_schema` UI/Core 投影不一致，以及 fixture builder 参数键投影差异；均只有一个仓库证据，已用任务冻结前的诚实修正继续，但未修改 Core。B2 若出现同一规范化指纹，才进入通用修复证据门 |
-| 真实执行事实 | 当前正式批次为 **N0 1 个预期拒绝、B1 1 个唯一失败终态、0 个真实 Agent 发次、0 个新增 ACTIVE workspace**。B1 模型起草经历可恢复的网关超时/严格 schema 兼容修复，但最终停止点是零模型上游环境预检；不得据此产生成功率或模型能力结论 |
-| 本地质量线 | `0e6d325` 的意图拓扑定向 pytest、Ruff、mypy 与 `git diff --check` 通过；此前 `a5108b7` 全量 pytest、Ruff、mypy 为 0。B1 结算提交后以及批次关闭前仍必须重跑全量质量线 |
+| B2 终态 | `b2-csvkit-reconciliation-workspace = FAILED`；Journey `a90d320c1d5c47aeaacf85295ca1f108` 在一次起草与一次公开投影修正后仍未形成合法 workspace 合同，责任 `EXTERNAL`、原因 `DRAFTER_INVALID_MODEL_OUTPUT`，0 Agent、0 repair、0 导出；没有为了案例通过而放宽协议 |
+| C1 终态 | `c1-pdf-evidence-review = FAILED`；Journey `0259b595a5e84815bb6e02ef9642d3f9` 的三种自然场景被 builder 生成成同一精确输入，通用唯一性门以 `FIXTURE_INPUT_DUPLICATE` 停止，责任 `CONTRACT`，0 Agent、0 repair |
+| C2 终态 | `c2-offline-web-briefing = FAILED`；Journey `264d21c622ee4dd9be1b97739a7ec942` 的 builder 未遵守 `FixtureBlueprintV1.parameters` 协议，以 `FIXTURE_BUILDER_FAILED` 停止，责任 `CONTRACT`，0 Agent、0 repair |
+| 通用 authoring 修复 | C1 与 C2 两个独立仓库形成同一 `FIXTURE_BLUEPRINT_PARAMETER_BINDING_MISMATCH` 公开指纹。匿名负控先失败、修复后通过；`tool_drafter` 现明确蓝图只有五个顶层字段，并在合同起草期拒绝未显式绑定 `blueprint['parameters']` 的 builder。证据见 `HarnessChangeEvidenceV1`，Core 特例扫描零新增命中；C1/C2 历史终态不重跑、不改写 |
+| 真实执行事实 | 当前正式批次为 **N0 1 个预期拒绝、B1/B2/C1/C2 4 个唯一失败终态、0 个真实 Agent 发次、0 个新增 ACTIVE workspace**。这些事实首先暴露准入、合同和 fixture 层问题，尚未形成 workspace Agent 成功率或模型能力结论 |
+| 本地质量线 | `38b1b10` 的 fixture authoring 定向 pytest、资格协议特例扫描、Ruff 与 `git diff --check` 通过；此前 `a5108b7` 全量 pytest、Ruff、mypy 为 0。批次关闭前仍必须重跑全量质量线 |
 
 关闭边界：工程候选与冻结协议都不等于资格关闭。只有 B1/B2 + 至少四个复杂案例 `ACTIVE`（含 SQLite/二进制工作区
 与可运行应用）时，profile 才可升级为 `SUPPORTED`。
