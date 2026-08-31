@@ -97,6 +97,29 @@ def test_input_representation_is_typed_not_inferred_from_format_words() -> None:
     assert "meaningful unicode text serialization" in description.lower()
 
 
+def test_new_drafter_delivery_schema_requires_every_declared_dimension() -> None:
+    """Compatibility defaults must never become model-authored safe claims."""
+
+    def assert_strict_objects(node: object) -> None:
+        if isinstance(node, list):
+            for item in node:
+                assert_strict_objects(item)
+            return
+        if not isinstance(node, dict):
+            return
+        properties = node.get("properties")
+        if node.get("type") == "object" and isinstance(properties, dict):
+            assert set(node.get("required") or ()) == set(properties), (
+                "provider-enforced model schemas must require every declared "
+                "property; compatibility defaults are read-only history semantics"
+            )
+            assert node.get("additionalProperties") is False
+        for value in node.values():
+            assert_strict_objects(value)
+
+    assert_strict_objects(delivery_requirements_json_schema())
+
+
 def test_output_selection_ignores_format_and_repository_words_in_prose() -> None:
     """Only the typed format_id may select a delivery representation."""
 

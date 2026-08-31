@@ -271,6 +271,8 @@ def test_typed_directory_need_compiles_a_v4_workspace_draft(world) -> None:
                         "credentials": "none",
                         "lifecycle": "per_invocation",
                         "runtime": "local_cpu",
+                        "browser": "none",
+                        "external_side_effects": "none",
                     },
                     "output_required_fields": [],
                     "output_schema": "ResearchWorkspace",
@@ -438,6 +440,8 @@ def _delivery(input_format: str, output_format_id: str) -> dict:
         "credentials": "none",
         "lifecycle": "per_invocation",
         "runtime": "local_cpu",
+        "browser": "none",
+        "external_side_effects": "none",
     }
 
 

@@ -410,7 +410,14 @@ def _normalize_artifact_label(value: str) -> str:
 
 
 def delivery_requirements_json_schema() -> dict:
-    """Return a self-contained schema generated from the Core domain model."""
+    """Return a self-contained strict schema for newly model-authored claims.
+
+    Pydantic defaults are retained when loading historical records, but a new
+    model response must state every delivery dimension.  Treating an omitted
+    risk field as its compatibility default (for example ``browser=none``)
+    would turn absence of evidence into a safe claim.  Provider-enforced strict
+    JSON schemas also require every object property to appear in ``required``.
+    """
 
     schema = DeliveryRequirements.model_json_schema()
     definitions = schema.pop("$defs", {})
@@ -431,14 +438,23 @@ def delivery_requirements_json_schema() -> dict:
         return {key: inline(item) for key, item in value.items()}
 
     result = inline(schema)
-    # Compatibility models accept historical rows that predate the typed input
-    # representation.  New LLM advice must nevertheless state it explicitly so
-    # the example workflow never guesses from words such as a suffix or MIME.
-    input_items = result["properties"]["inputs"]["items"]
-    required = list(input_items.get("required") or [])
-    if "representation" not in required:
-        required.append("representation")
-    input_items["required"] = required
+
+    def require_every_object_property(value):
+        if isinstance(value, list):
+            return [require_every_object_property(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        normalized = {
+            key: require_every_object_property(item)
+            for key, item in value.items()
+        }
+        properties = normalized.get("properties")
+        if normalized.get("type") == "object" and isinstance(properties, dict):
+            normalized["required"] = list(properties)
+            normalized["additionalProperties"] = False
+        return normalized
+
+    result = require_every_object_property(result)
     return result
 
 

@@ -257,6 +257,7 @@ def test_repo_summary_projects_structured_requirement_briefs(
             }],
             "network": "offline", "credentials": "none",
             "lifecycle": "per_invocation", "runtime": "local_cpu",
+            "browser": "none", "external_side_effects": "none",
         }
 
     class _Drafter:

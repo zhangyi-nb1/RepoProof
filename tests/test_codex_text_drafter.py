@@ -71,6 +71,7 @@ def _delivery(input_format: str, output_format_id: str) -> dict:
         }],
         "network": "offline", "credentials": "none",
         "lifecycle": "per_invocation", "runtime": "local_cpu",
+        "browser": "none", "external_side_effects": "none",
     }
 
 

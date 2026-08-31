@@ -11,6 +11,10 @@
   a no-follow `wheelhouse/` plus hash manifest; Product build verifies the
   complete file set and hashes, copies it atomically into the execution
   wheelhouse and refuses to re-resolve equivalent packages from an index.
+- Made every property in newly model-authored delivery requirements mandatory
+  in the provider-enforced JSON schema. Compatibility defaults still load old
+  records, but can no longer turn an omitted browser or external-side-effect
+  declaration into a new safe claim.
 - Added additive ToolSpec v4 and experimental `workspace_bundle_v1`: one local
   file or directory produces one new atomic offline workspace directory.
 - Added no-follow path/resource enforcement, deterministic directory manifests
@@ -25,9 +29,10 @@
 - Added public-only `ProductIncidentV1`, evidence-gated generic Harness changes
   and preregistered case-identity scans. Non-safety changes require matching
   incidents from two independent task versions.
-- Added the RFC, execution runbook and nine-case preregistration. Real model
-  execution, wheel-manifest freeze, pushing and publishing remain unauthorized;
-  no M6.2 qualification outcome is claimed.
+- Added the RFC, execution runbook and nine-case preregistration. Protocol v2
+  freezes 178 exact wheel files for B1/B2/C1-C6 and authorizes the fixed default
+  gateway + mini-swe batch; pushing and publishing remain unauthorized. N0 has
+  the expected zero-Agent rejection, but no workspace case is yet qualified.
 
 ## v0.2.0 — 2026-08-26 · GitHub capability → verified local tool
 

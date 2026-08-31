@@ -508,6 +508,7 @@ def test_primary_journey_adopts_safe_llm_brief_without_creating_a_task(
             }],
             "network": "offline", "credentials": "none",
             "lifecycle": "per_invocation", "runtime": "local_cpu",
+            "browser": "none", "external_side_effects": "none",
         }
 
     advice = validate_repo_summary_document({
@@ -711,6 +712,7 @@ def test_primary_journey_rejects_stale_or_technical_brief_adoption(
                         }],
                         "network": "offline", "credentials": "none",
                         "lifecycle": "per_invocation", "runtime": "local_cpu",
+                        "browser": "none", "external_side_effects": "none",
                     },
                     "boundary": "请 import demo 并调用 src/demo.py 里的函数",
                     "reason": "模型给出了过多实现细节。",
@@ -731,6 +733,7 @@ def test_primary_journey_rejects_stale_or_technical_brief_adoption(
                         }],
                         "network": "offline", "credentials": "none",
                         "lifecycle": "per_invocation", "runtime": "local_cpu",
+                        "browser": "none", "external_side_effects": "none",
                     },
                     "boundary": "无法处理的内容要明确保留",
                     "reason": "便于普通用户阅读。",
