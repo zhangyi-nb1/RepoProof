@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"><head><meta charset="utf-8" /><title>现场准备单</title></head><body><h1>现场准备单</h1><p id="summary">总行数：2；成功数：2；失败数：0</p><table id="preparation-list"><thead><tr><th>item</th><th>per_group_amount</th><th>groups</th><th>total_amount</th><th>status</th></tr></thead><tbody><tr data-input-row="1"><td>flour</td><td>250 gram</td><td>4</td><td>1 kg</td><td>OK</td></tr><tr data-input-row="2"><td>water</td><td>1.5 liter</td><td>3</td><td>4500 ml</td><td>OK</td></tr></tbody></table></body></html>

@@ -1,0 +1,8 @@
+[project]
+name = "rispy_tool"
+version = "1.0.0"
+description = '将本地 UTF-8 RIS 文献去除完全重复项后导出为可导回文献软件的 RIS 文件，不联网补全资料。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

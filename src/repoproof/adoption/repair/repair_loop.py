@@ -10,6 +10,8 @@ Completion Gate,循环永不宣布成功。
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Callable
 
 from pydantic import BaseModel
@@ -26,6 +28,44 @@ STOP_MAX_ROUNDS = "max_rounds"
 STOP_BUDGET = "budget_exhausted"
 STOP_STAGNATION = "stagnation"
 STOP_SCOPE_CHANGE = "scope_change_pending_user"
+STOP_NO_ADAPTER_DIFF = "no_adapter_diff"
+STOP_REPEATED_PUBLIC_FAILURE = "repeated_public_failure"
+STOP_NON_REPAIRABLE = "non_repairable_failure"
+
+
+def classify_agent_exit_status(exit_status: str) -> tuple[str, str, str] | None:
+    """Project an agent-runtime exit into a public responsibility class.
+
+    Only unambiguous provider/runtime failures are classified here.  Ordinary
+    agent exits (including budget exhaustion) remain the caller's responsibility
+    to assess against public tests and policy.  The returned reason contains no
+    provider response body, URL, account detail, or held-out information.
+    """
+
+    status = str(exit_status or "").casefold()
+    if any(
+        marker in status
+        for marker in (
+            "serviceunavailable",
+            "apiconnection",
+            "apitimeout",
+            "ratelimit",
+            "internalservererror",
+        )
+    ):
+        return "EXTERNAL", "PROVIDER_UNAVAILABLE", "RETRY_INFRASTRUCTURE"
+    if any(
+        marker in status
+        for marker in (
+            "authenticationerror",
+            "permissiondenied",
+            "notfounderror",
+            "badrequesterror",
+            "unsupportedparamserror",
+        )
+    ):
+        return "HARNESS", "PROVIDER_CONFIGURATION_INVALID", "RETRY_INFRASTRUCTURE"
+    return None
 
 
 class RoundResult(BaseModel):
@@ -52,6 +92,29 @@ class RoundResult(BaseModel):
     # (patch 超限/依赖不可解析)——非空时全绿也不许停轮,留轮修剪。
     violation_packets: list[FailurePacket] = []
     fatal_violations: list[str] = []
+    # M6.1 Product Mode responsibility gate. Legacy/Lab callers retain the
+    # defaults and therefore their historical loop semantics.
+    failure_owner: str = "AGENT_ADAPTER"
+    reason_codes: list[str] = []
+    recommended_action: str = "REPAIR"
+    adapter_diff_present: bool = True
+    public_failure_fingerprint: str = ""
+    failure_class: str = ""
+
+
+def compute_public_failure_fingerprint(result: RoundResult) -> str:
+    """Hash public-only round facts; never include details or hidden values."""
+
+    basis = {
+        "failure_owner": result.failure_owner,
+        "reason_codes": sorted(set(result.reason_codes)),
+        "failed_public_nodes": sorted(set(result.failed_nodes)),
+        "failure_class": result.failure_class,
+        "regression_failed": int(result.regression_failed),
+    }
+    return hashlib.sha256(
+        json.dumps(basis, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()[:16]
 
 
 class Checkpoint(BaseModel):
@@ -66,6 +129,11 @@ class Checkpoint(BaseModel):
     # details,agent 收到 9 个"该检查项断言失败"的空壳。
     failure_details: dict[str, str] = {}
     violation_packets: list[FailurePacket] = []
+    failure_owner: str = "AGENT_ADAPTER"
+    reason_codes: list[str] = []
+    recommended_action: str = "REPAIR"
+    adapter_diff_present: bool = True
+    public_failure_fingerprint: str = ""
 
 
 def full_score(r: RoundResult) -> list[float]:
@@ -92,6 +160,10 @@ class RepairOutcome(BaseModel):
     rolled_back_rounds: list[int] = []
     checkpoints: list[Checkpoint] = []
     pending_scope_change: str | None = None
+    failure_owner: str = "AGENT_ADAPTER"
+    reason_codes: list[str] = []
+    recommended_action: str = "STOP"
+    public_failure_fingerprint: str = ""
     note: str = "循环不产生最终结论;必须继续走冻结+独立验证+干净重放+最终判定"
 
     def to_dict(self) -> dict:
@@ -105,11 +177,13 @@ class RepairLoop:
         *,
         budget: RepairBudget | None = None,
         score_fn: Callable[[RoundResult], list[float]] | None = None,
+        responsibility_gating: bool = False,
     ) -> None:
         self._run_round = run_round
         self._budget = budget or RepairBudget()
         # 默认 = 旧行为(只看通过数);产品模式传 full_score(§11.3)
         self._score = score_fn or (lambda r: [float(r.passed)])
+        self._responsibility_gating = responsibility_gating
 
     def run(self) -> RepairOutcome:
         budget = self._budget
@@ -121,12 +195,18 @@ class RepairLoop:
         stop = STOP_MAX_ROUNDS
         no_improve_streak = 0
         pending_scope: str | None = None
+        previous_fingerprint = ""
+        previous_passed = -1
+        terminal: RoundResult | None = None
 
         if budget.max_rounds < 1:
             raise ValueError("max_rounds 必须 >= 1")
         for i in range(budget.max_rounds):
             # F3: 把当前最佳快照传给执行方——回滚后从最佳状态继续
             result = self._run_round(i + 1, packets, best.adapter_snapshot if best else None)
+            terminal = result
+            if not result.public_failure_fingerprint:
+                result.public_failure_fingerprint = compute_public_failure_fingerprint(result)
             tokens += result.tokens_used
             commands += result.commands_used
             cp = Checkpoint(
@@ -138,6 +218,11 @@ class RepairLoop:
                 score=list(self._score(result)),
                 failure_details=dict(result.failure_details),
                 violation_packets=list(result.violation_packets),
+                failure_owner=result.failure_owner,
+                reason_codes=list(result.reason_codes),
+                recommended_action=result.recommended_action,
+                adapter_diff_present=result.adapter_diff_present,
+                public_failure_fingerprint=result.public_failure_fingerprint,
             )
             checkpoints.append(cp)
 
@@ -157,6 +242,28 @@ class RepairLoop:
                 if cp.score < best.score:
                     rolled_back.append(cp.round_index)
                 no_improve_streak += 1
+
+            if self._responsibility_gating:
+                if result.failure_owner != "AGENT_ADAPTER":
+                    stop = STOP_NON_REPAIRABLE
+                    break
+                if not result.adapter_diff_present:
+                    result.reason_codes = sorted(
+                        {*result.reason_codes, "NO_ADAPTER_DIFF"}
+                    )
+                    stop = STOP_NO_ADAPTER_DIFF
+                    break
+                if (
+                    previous_fingerprint == result.public_failure_fingerprint
+                    and result.passed <= previous_passed
+                ):
+                    result.reason_codes = sorted(
+                        {*result.reason_codes, "REPEATED_PUBLIC_FAILURE"}
+                    )
+                    stop = STOP_REPEATED_PUBLIC_FAILURE
+                    break
+                previous_fingerprint = result.public_failure_fingerprint
+                previous_passed = result.passed
 
             # F2: 空 failed_nodes 不等于全绿——必须收集成功、非零且不劣于历史最佳。
             # H3(LESSONS #33):还挂着最终闸门必杀的违规时禁止"全绿即停"
@@ -209,6 +316,8 @@ class RepairLoop:
 
         if best is None:  # F9: 显式错误,不依赖 assert
             raise RuntimeError("repair loop ended without any round result")
+        if terminal is None:
+            raise RuntimeError("repair loop ended without terminal responsibility")
         return RepairOutcome(
             rounds_run=len(checkpoints),
             best_round=best.round_index,
@@ -218,4 +327,8 @@ class RepairLoop:
             rolled_back_rounds=rolled_back,
             checkpoints=checkpoints,
             pending_scope_change=pending_scope,
+            failure_owner=terminal.failure_owner,
+            reason_codes=sorted(set(terminal.reason_codes)),
+            recommended_action=terminal.recommended_action,
+            public_failure_fingerprint=terminal.public_failure_fingerprint,
         )

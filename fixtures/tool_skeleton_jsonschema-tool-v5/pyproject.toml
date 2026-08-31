@@ -1,0 +1,8 @@
+[project]
+name = "jsonschema_tool"
+version = "1.0.0"
+description = '将含规则与待检数据的 JSON 离线校验为稳定排序的完整问题清单，支持受限的本地引用且绝不联网。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

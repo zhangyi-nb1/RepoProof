@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>  Café  新闻  </title>
+    <link>https://example.test/feed</link>
+    <description>示例 RSS</description>
+    <managingEditor>editor@example.test (编辑者)</managingEditor>
+    <category>技术</category>
+    <category>Python</category>
+    <pubDate>Tue, 03 Jun 2008 11:05:30 GMT</pubDate>
+    <lastBuildDate>Tue, 03 Jun 2008 12:00:00 +0000</lastBuildDate>
+    <item>
+      <title>第一 篇   文章</title>
+      <link>https://example.test/posts/1</link>
+      <guid isPermaLink="false">post-1</guid>
+      <author>alice@example.test (Alice 张)</author>
+      <category>公告</category>
+      <category>Python</category>
+      <pubDate>Tue, 03 Jun 2008 11:05:30 GMT</pubDate>
+      <description>内容</description>
+    </item>
+    <item>
+      <title>Second entry</title>
+      <link>https://example.test/posts/2</link>
+      <guid>https://example.test/posts/2</guid>
+      <author>bob@example.test (Bob)</author>
+      <pubDate>not-a-real-date</pubDate>
+      <description>Second content</description>
+    </item>
+  </channel>
+</rss>

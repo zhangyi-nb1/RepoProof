@@ -1,0 +1,1 @@
+{"schema":{"type":"object","$defs":{"标签":{"type":"string","minLength":3}},"properties":{"名称":{"$ref":"#/$defs/标签"},"数量":{"oneOf":[{"type":"integer","minimum":10},{"type":"string","pattern":"^[A-Z]+$"}]},"邮箱":{"type":"string","format":"email"}},"required":["名称","数量","邮箱"],"additionalProperties":false},"instance":{"名称":42,"数量":"两","邮箱":"无效邮箱","额外":true}}

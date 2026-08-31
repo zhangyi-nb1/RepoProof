@@ -1,0 +1,45 @@
+{
+ "manifest_version": 1,
+ "name": "networkx-tool",
+ "version": "1.0.0",
+ "summary": "将 UTF-8 GraphML 网络整理为可放进项目笔记的 Markdown 摘要，说明规模、分组、关键节点和落单节点。",
+ "source": {
+  "url": "https://github.com/networkx/networkx",
+  "resolved_commit": "7530809bfa1ea7ed6fdf918a4d1431488953cb1f",
+  "license": "BSD",
+  "distribution": "networkx"
+ },
+ "contract_schema_version": 3,
+ "interface": {
+  "usage": "networkx-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "UTF-8 GraphML 网络文件",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "Markdown",
+   "contract": {
+    "media_type": "text/markdown",
+    "root_type": "text",
+    "required": {},
+    "validation_profile": "markdown_document_v1"
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "GraphNetworkSummaryMarkdown"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

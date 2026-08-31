@@ -11,6 +11,7 @@ control results are mutually adequate. Pure functions, no LLM.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass, field
@@ -18,9 +19,11 @@ from pathlib import Path
 
 from repoproof.adoption.assembly.output_contract import (
     is_capability_output_invocation,
-    is_structured_output_format,
     output_contract_matches_format,
     validate_output_text,
+)
+from repoproof.adoption.intake.intent_contract import (
+    validate_frozen_intent_projection,
 )
 from repoproof.domain.models import TaskContract
 from repoproof.harness.requirement_spec import RequirementSpec
@@ -58,7 +61,7 @@ def evaluate_adequacy(
     rendered_prompt: str,
     contract_path: Path | None = None,
     controls_summary: dict[str, str] | None = None,
-    held_out_markers: tuple[str, ...] = ("[held",),
+    held_out_markers: tuple[str, ...] = ("[held", "::test_held_", "test_held_"),
     forbidden_prompt_tokens: tuple[str, ...] = (),
     contract: TaskContract | None = None,
     tool_example_docs_dir: Path | None = None,
@@ -173,6 +176,75 @@ def evaluate_adequacy(
         # T1 tool section present with a complete exit-code contract
         check("tool_section_present", tool is not None,
               "LOCAL-TOOL contract missing the `tool` section")
+        intent = contract.capability.intent_contract
+        if intent is not None:
+            public_requirement_text = {
+                _normalize(requirement.public_text)
+                for requirement in spec.requirements
+            }
+            missing_intent = sorted(
+                commitment.commitment_id
+                for commitment in intent.commitments
+                if _normalize(commitment.public_text) not in public_requirement_text
+            )
+            check(
+                "tool_intent_commitments_public",
+                not missing_intent,
+                (
+                    "confirmed semantic commitments absent from public RequirementSpec: "
+                    f"{missing_intent}"
+                ),
+            )
+            commitment_requirements = {
+                _normalize(requirement.public_text): requirement
+                for requirement in spec.requirements
+            }
+            semantic_verifier = contract.acceptance.semantic_verifier
+            expected_verifier = (
+                f"semantic-verifier:{semantic_verifier.verifier_id}"
+                if semantic_verifier is not None
+                else None
+            )
+            weak_bindings = sorted(
+                commitment.commitment_id
+                for commitment in intent.commitments
+                if (
+                    (requirement := commitment_requirements.get(
+                        _normalize(commitment.public_text)
+                    )) is None
+                    or expected_verifier is None
+                    or requirement.verified_by != expected_verifier
+                    or bool(requirement.oracle_nodes)
+                )
+            )
+            check(
+                "tool_intent_commitments_independent_verifier",
+                not weak_bindings,
+                (
+                    "confirmed commitments need the frozen independent verifier "
+                    "binding (not assembler-claimed blanket test nodes): "
+                    f"{weak_bindings}"
+                ),
+            )
+            projection_problems = (
+                ["INTENT_TOOL_INTERFACE_MISSING"]
+                if tool is None
+                else validate_frozen_intent_projection(
+                    intent_contract=intent.model_dump(mode="json"),
+                    compiled_statement=contract.capability.statement,
+                    input_contract=tool.interface.input.model_dump(mode="json"),
+                    output_contract=tool.interface.output.model_dump(mode="json"),
+                    output_schema=contract.capability.output_schema,
+                )
+            )
+            check(
+                "tool_intent_confirmation_matches_frozen_contract",
+                not projection_problems,
+                (
+                    "intent projection does not bind the frozen statement/interface: "
+                    f"{projection_problems}"
+                ),
+            )
         if tool is not None:
             missing_codes = sorted({"0", "1", "2"} - set(tool.interface.exit_codes))
             check("tool_exit_codes_complete", not missing_codes,
@@ -209,8 +281,14 @@ def evaluate_adequacy(
 
                 schema_agree = output_contract is not None
                 schema_reasons: list[str] = []
-                if output_contract is not None and not output_contract_matches_format(
-                        output.format, output_contract):
+                if (
+                    output_contract is not None
+                    and contract.capability.intent_contract is None
+                    and not output_contract_matches_format(
+                        output.format,
+                        output_contract,
+                    )
+                ):
                     schema_agree = False
                     schema_reasons.append("output.format differs from contract root")
 
@@ -246,6 +324,35 @@ def evaluate_adequacy(
                     "tool_schema_fields_agree",
                     schema_agree,
                     "; ".join(schema_reasons) or "schema projection differs",
+                )
+            if tool.schema_version >= 3:
+                semantic = contract.acceptance.semantic_verifier
+                semantic_ok = semantic is not None
+                semantic_reason = "v3 ToolSpec missing acceptance.semantic_verifier"
+                if semantic is not None:
+                    root = (
+                        contract_path.parent.parent
+                        if contract_path is not None
+                        else None
+                    )
+                    source = root / semantic.source_file if root is not None else None
+                    if (
+                        source is None
+                        or source.is_symlink()
+                        or not source.is_file()
+                    ):
+                        semantic_ok = False
+                        semantic_reason = "semantic verifier source missing or unsafe"
+                    else:
+                        observed = hashlib.sha256(source.read_bytes()).hexdigest()
+                        semantic_ok = observed == semantic.source_sha256
+                        semantic_reason = (
+                            "semantic verifier source hash differs from frozen identity"
+                        )
+                check(
+                    "tool_semantic_verifier_frozen",
+                    semantic_ok,
+                    semantic_reason,
                 )
         if tool_example_docs_dir is not None:
             def _examples(name: str) -> list[dict]:
@@ -298,7 +405,10 @@ def evaluate_adequacy(
                     output.contract is not None and not parse_errors,
                     f"golden parse errors: {parse_errors[:5]}",
                 )
-                structured = is_structured_output_format(output.format)
+                structured = bool(
+                    output.contract is not None
+                    and output.contract.root_type != "text"
+                )
                 check(
                     "tool_exact_structured_golden_exists",
                     not structured or exact_count >= 1,

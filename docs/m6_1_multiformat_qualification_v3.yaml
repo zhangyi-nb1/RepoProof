@@ -1,0 +1,249 @@
+schema_version: 3
+batch_id: m6.1-alternate-workflows-multiformat-qualification-v3
+extends_recorded_support_from: m6.1-natural-requirements-multiformat-qualification-v2
+purpose: >-
+  Re-run the same four pinned public repositories through different human-shaped
+  Product journeys, application environments, input formats, output artifacts,
+  and difficulty levels. These are four recorded Product cases, not an estimate
+  of arbitrary-repository or model success.
+
+intent_policy:
+  initial_request_is_intentionally_vague: true
+  repository_analysis_precedes_drafting: true
+  llm_requirement_briefs_minimum: 2
+  llm_requirement_briefs_maximum: 3
+  adoption_only_refills_user_request: true
+  user_may_make_one_plain_language_edit_after_adoption: true
+  model_proposes_public_semantic_commitments: true
+  user_confirms_every_commitment_before_freeze: true
+  confirmation_binds:
+    - exact_user_goal
+    - public_semantic_commitments
+    - input_interface
+    - output_interface
+    - output_schema
+  hidden_information_is_limited_to:
+    - held_out_input_bytes
+    - held_out_expected_output_bytes
+  hidden_normative_rules_forbidden: true
+  missing_commitment_is_contract_drafting_failure: true
+  missing_commitment_is_not_agent_repair_work: true
+
+journey_policy:
+  ui_only: true
+  example_candidates_are_llm_proposed: true
+  expected_outputs_are_upstream_derived: true
+  requested_example_candidate_count: 4
+  minimum_confirmed_success_examples: 3
+  confirmed_example_provenance_required: UPSTREAM_DERIVED_USER_CONFIRMED
+  confirmed_example_binding_hash_required: true
+  confirmed_examples_survive_regeneration: true
+  fresh_audit_candidate_is_generated_in_journey: true
+  prepared_user_upload_required: false
+
+execution_policy:
+  order_is_fixed: true
+  fixed_drafter_backend: litellm
+  fixed_agent_backend: mini-swe
+  backend_is_fixed_during_batch: true
+  required_terminal_status: ACTIVE
+  json_user_artifact_forbidden: true
+  binary_output_out_of_scope: true
+  product_results_never_count_toward_benchmark_metrics: true
+  real_model_launch_is_authorized_by_this_user_requested_execution: true
+  generic_harness_repairs_are_allowed: true
+  repository_or_case_specific_core_patches_are_forbidden: true
+  completed_cases_are_not_restarted_after_a_generic_repair: true
+  affected_case_resumes_only_from_a_valid_immutable_checkpoint: true
+  contract_or_harness_failures_do_not_consume_agent_repair_rounds: true
+  agent_adapter_attempt_budget: 3
+
+verification_policy:
+  semantic_truth_source: frozen_reference_calling_pinned_upstream
+  actual_output_compared_with_reference: true
+  every_commitment_has_public_and_held_out_bindings: true
+  independent_semantic_verifier_required: true
+  semantic_verifier_protocol: repoproof-semantic-verifier-v1
+  verifier_logic_is_task_authored_not_harness_hardcoded: true
+  verifier_pass_requires_signed_runtime_upstream_call: true
+  semantic_counterfactual_controls_required:
+    - input_substitution_rejected
+    - artifact_substitution_rejected
+    - upstream_result_substitution_rejected
+  clean_replay_required: true
+  fresh_audit_required: true
+
+cases:
+  - order: 1
+    name: rispy-literature-screening-csv
+    intended_tool_name: rispy-screening-table
+    complexity: basic_to_medium
+    application_environment: collaborative_literature_screening
+    repository: https://github.com/MrTango/rispy
+    package_version: 0.10.0
+    ui_revision: v0.10.0
+    resolved_commit: b7aae3b2069ced3fb75287711300f2edf0bcac21
+    distribution: rispy
+    import_module: rispy
+    initial_user_request: >-
+      同事把检索结果导成了 RIS，别的 AI 说这个仓库能读。我不想马上导回
+      文献软件，想先整理成大家都能筛选的表格，也看看哪些记录缺信息。
+    adoption_instruction: >-
+      采用最接近“团队筛选表”的模型建议，再只补充：保留标题、作者、年份、
+      DOI 和缺失项，不联网猜或补书目信息。
+    input_artifact:
+      format: RIS
+      representation: utf8_text
+    expected_artifact:
+      media_type: text/csv
+      extension: .csv
+      validation_profile: csv_table_v1
+    public_commitments_required_before_freeze:
+      - 使用固定版本 RISpy 解析输入中的每条 RIS 记录。
+      - 每条输入记录对应一行输出并保持输入顺序；本工具不去重、不合并记录。
+      - CSV 固定列为 record_index、title、authors、year、doi、type、missing_fields。
+      - 多位作者按 RISpy 返回顺序用分号连接；缺失项按 title、authors、year、doi 的固定顺序列出。
+      - 缺失值保持为空，不根据其他字段或网络信息猜测；Unicode 与逗号、引号必须由标准 CSV 转义。
+      - 格式损坏且无法由 RISpy 解析的输入以用户错误终止，不输出看似完整的部分结果。
+      - 不联网查询、补全或修改书目数据。
+    candidate_coverage:
+      - complete_ascii_records
+      - unicode_and_quoted_fields
+      - missing_metadata
+      - malformed_ris
+    semantic_verifier: strict_csv_parser_plus_pinned_rispy_record_recomputation
+
+  - order: 2
+    name: pint-field-kit-html
+    intended_tool_name: pint-field-kit
+    complexity: medium
+    application_environment: offline_field_sampling_preparation
+    repository: https://github.com/hgrecco/pint
+    package_version: 0.25.3
+    ui_revision: 0.25.3
+    resolved_commit: 5e79411e1be2dc39c52a536168338773b49fd512
+    distribution: Pint
+    import_module: pint
+    initial_user_request: >-
+      下周要带几组同学去采样，别人说这个库能避免单位算错。我有一张每组
+      耗材用量，想按实际组数放大后做成现场能直接看的准备单。
+    adoption_instruction: >-
+      采用模型推荐的离线准备单方案，再只补充：按表里的目标单位换算，算不了
+      的行也保留并说明，页面里不要有联网资源。
+    input_artifact:
+      format: TSV
+      representation: utf8_text
+    expected_artifact:
+      media_type: text/html
+      extension: .html
+      validation_profile: safe_self_contained_xhtml_v1
+    public_commitments_required_before_freeze:
+      - 输入 TSV 固定读取 item、per_group_amount、target_unit、groups 四列并保持行顺序。
+      - 使用固定版本 Pint 解析每组用量、判断量纲，并在乘以正整数 groups 后换算到目标单位。
+      - 每行独立成功或失败；一行错误不得阻止其他行进入报告。
+      - 成功数值使用最多六位有效数字；失败使用 INVALID_GROUPS、INVALID_QUANTITY、UNKNOWN_UNIT 或 DIMENSION_MISMATCH 稳定错误码。
+      - 报告固定展示总行数、成功数、失败数以及 item、每组用量、组数、总用量、状态五列表格。
+      - 输出为确定性、自包含、无 JavaScript、无外部资源、无时间戳的 XHTML，并正确转义用户文本。
+      - 不执行货币换算、外部单位查询或网络请求。
+    candidate_coverage:
+      - ordinary_metric_scaling
+      - compound_units_and_unicode_items
+      - incompatible_or_unknown_units
+      - invalid_groups
+    semantic_verifier: xhtml_dom_parser_plus_pinned_pint_scaling_recomputation
+
+  - order: 3
+    name: networkx-dependency-risk-tsv
+    intended_tool_name: networkx-dependency-risk
+    complexity: higher
+    application_environment: project_dependency_handoff
+    repository: https://github.com/networkx/networkx
+    package_version: 3.6.1
+    ui_revision: networkx-3.6.1
+    resolved_commit: 7530809bfa1ea7ed6fdf918a4d1431488953cb1f
+    distribution: networkx
+    import_module: networkx
+    initial_user_request: >-
+      我接手了一份“任务依赖谁”的表，AI 推荐用这个仓库。我想快速找出哪些
+      可以先做、哪些互相绕圈，以及谁卡住的后续最多，方便交接排期。
+    adoption_instruction: >-
+      采用最接近“依赖风险清单”的建议，再只补充：结果要能粘进表格软件，
+      不需要画图，也不要使用随机算法。
+    input_artifact:
+      format: CSV edge list
+      representation: utf8_text
+    expected_artifact:
+      media_type: text/tab-separated-values
+      extension: .tsv
+      validation_profile: tsv_table_v1
+    public_commitments_required_before_freeze:
+      - 输入 CSV 固定读取 task、depends_on 两列；空 depends_on 声明独立任务，非空行建立 depends_on 指向 task 的有向边。
+      - 使用固定版本 NetworkX 构建 DiGraph，并由它计算入度、出度、后继集合和强连通分量。
+      - 每个唯一任务输出一行，固定列为 task、direct_dependencies、direct_dependents、downstream_count、ready_now、in_cycle。
+      - ready_now 仅在入度为零时为 true；in_cycle 对多节点强连通分量或 self-loop 为 true。
+      - downstream_count 是 NetworkX descendants 的唯一后继节点数；重复边不重复计数。
+      - 输出按任务标识的 Unicode 码点顺序稳定排序，并使用标准 TSV 转义。
+      - 不计算 PageRank、随机社区、布局或图片；缺少表头或空 task 以用户错误终止。
+    candidate_coverage:
+      - acyclic_dependencies_with_ready_tasks
+      - multi_node_cycle
+      - self_loop_duplicate_edges_and_isolate
+      - unicode_task_names
+    semantic_verifier: strict_tsv_parser_plus_pinned_networkx_graph_recomputation
+
+  - order: 4
+    name: biopython-fasta-shortlist-markdown
+    intended_tool_name: biopython-fasta-shortlist
+    complexity: medium_to_high
+    application_environment: pre_lab_sequence_screening
+    repository: https://github.com/biopython/biopython
+    package_version: "1.88"
+    ui_revision: biopython-188
+    resolved_commit: d7e4b8b19399668b09442a5b35765d9186b5f665
+    distribution: biopython
+    import_module: Bio
+    initial_user_request: >-
+      同事给了我一批候选 DNA 序列，AI 说这个仓库适合先做检查。我想开会前
+      快速筛一下哪些值得继续做实验，并把原因整理给大家看。
+    adoption_instruction: >-
+      采用模型推荐的本地筛选报告，再只补充：长度 150 到 1000 bp、GC 35% 到
+      65%、非 ACGT 字符不超过 1% 才算通过；不要改动或修剪序列。
+    input_artifact:
+      format: multi-record FASTA
+      representation: utf8_text
+    expected_artifact:
+      media_type: text/markdown
+      extension: .md
+      validation_profile: markdown_document_v1
+    public_commitments_required_before_freeze:
+      - 使用固定版本 Biopython SeqIO 读取多记录 FASTA，并保持记录顺序。
+      - 使用 Biopython gc_fraction 的 ambiguous=ignore 语义计算 GC 百分比，并计算非 A/C/G/T 字符比例。
+      - 仅当长度在 150 到 1000 bp、GC 在 35% 到 65% 且非 ACGT 比例不超过 1% 时标记为 PASS，边界值包含在内。
+      - 每条记录固定报告 id、length_bp、gc_percent、ambiguous_percent、decision、reasons；百分比保留两位小数。
+      - Markdown 固定包含摘要、通过序列、未通过序列和警告区域，并正确转义会破坏表格的标识符。
+      - 不修改、修剪、翻译或比对序列，不查询远程数据库；损坏 FASTA 以用户错误终止。
+    candidate_coverage:
+      - passing_and_rejected_records
+      - inclusive_threshold_boundaries
+      - ambiguous_bases_and_unicode_ids
+      - malformed_fasta
+    semantic_verifier: markdown_table_parser_plus_pinned_biopython_fasta_recomputation
+
+closure_requirements:
+  - every required public commitment is visible and user-confirmed before freeze
+  - at least three upstream-derived representative examples are confirmed
+  - confirmed examples survive candidate regeneration
+  - zero-model rehearsal passes without an Agent call
+  - real build, bounded repair, independent verification, and clean replay pass
+  - unseen in-journey fresh audit reaches ACTIVE with package health OK
+  - saved CSV, XHTML, TSV, or Markdown artifact passes independent semantic recomputation
+  - UI, CLI, and Core agree on Worker, Pipeline, and Operational status
+
+result:
+  status: NOT_RUN
+  record_schema: QualificationExecutionRecordV1
+  append_only_record_directory: docs/qualification_runs/m6_1_multiformat_v3
+  evidence_scope: >-
+    The protocol is frozen before the first model call. Every Product run keeps
+    all Benchmark scoring fields false. Historical contracts, runs, ledgers, and
+    earlier qualification protocols are never rewritten.

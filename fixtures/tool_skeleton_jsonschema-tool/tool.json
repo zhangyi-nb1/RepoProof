@@ -1,0 +1,48 @@
+{
+ "manifest_version": 1,
+ "name": "jsonschema-tool",
+ "version": "1.0.0",
+ "summary": "校验同一 JSON 文档中的 JSON Schema 与数据，收集全部错误并以稳定的 JSON 指针路径输出，支持仅限本地文件的引用。",
+ "source": {
+  "url": "https://github.com/python-jsonschema/jsonschema",
+  "resolved_commit": "331c38425519b69118d22ebe467ad230fb83a010",
+  "license": "MIT",
+  "distribution": "jsonschema"
+ },
+ "contract_schema_version": 2,
+ "interface": {
+  "usage": "jsonschema-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "JSON",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON",
+   "contract": {
+    "media_type": "application/json",
+    "root_type": "object",
+    "required": {
+     "valid": "boolean",
+     "error_count": "integer",
+     "errors": "array"
+    }
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "JsonSchemaValidationReport"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

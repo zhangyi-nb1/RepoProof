@@ -1,0 +1,45 @@
+{
+ "manifest_version": 1,
+ "name": "rispy-tool",
+ "version": "1.0.0",
+ "summary": "将本地 UTF-8 RIS 文献导出文件稳定去除完全重复记录，输出可重新导入文献软件的 RIS 文献文件，不联网补充资料。",
+ "source": {
+  "url": "https://github.com/MrTango/rispy",
+  "resolved_commit": "b7aae3b2069ced3fb75287711300f2edf0bcac21",
+  "license": "MIT",
+  "distribution": "rispy"
+ },
+ "contract_schema_version": 3,
+ "interface": {
+  "usage": "rispy-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "UTF-8 编码的 RIS 文献导出文件",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "RIS",
+   "contract": {
+    "media_type": "application/x-research-info-systems",
+    "root_type": "text",
+    "required": {},
+    "validation_profile": "ris_interchange_v1"
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "RisDeduplicatedExport"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

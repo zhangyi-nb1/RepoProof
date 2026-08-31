@@ -16,12 +16,23 @@ import re
 import shutil
 import subprocess
 import sys
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
 
-from repoproof.adoption.assembly.example_compiler import CompileError
+from repoproof.adoption.assembly.example_compiler import (
+    CompileError,
+    truth_binding_sha256,
+)
 from repoproof.adoption.assembly.tool_assembler import assemble_tool_task
+from repoproof.adoption.intake.intent_contract import (
+    confirm_intent_contract,
+    install_artifact_protocol,
+    install_delivery_intent_from_interface,
+    install_semantic_commitments,
+    new_intent_contract,
+)
 from repoproof.domain.models import TaskContract, ToolInterface, ToolInterfaceIO, ToolSpec
 from repoproof.verification.provenance import check_upstream_provenance
 
@@ -106,6 +117,12 @@ def test_held_out_example_files_only_in_oracle(assembled):
     pub_fix = root / "fixtures" / "tool_skeleton_pdf-table" / "public_tests" / "fixtures"
     assert (pub_fix / "inputs" / "a.pdf").is_file()
     assert not (pub_fix / "inputs" / "c.pdf").exists(), "held-out 样例文件泄进公开区"
+    exported_inputs = (
+        root / "fixtures" / "tool_skeleton_pdf-table" / "public_examples" / "inputs"
+    )
+    assert (exported_inputs / "inputs" / "a.pdf").is_file()
+    assert not (exported_inputs / "inputs" / "c.pdf").exists()
+    assert not (exported_inputs / "expected" / "b.md").exists()
     ora_fix = root / "oracle" / info["task_id"] / "fixtures"
     assert (ora_fix / "inputs" / "c.pdf").is_file()
     pub_reg = root / "fixtures" / "tool_skeleton_pdf-table" / "public_tests"
@@ -173,6 +190,260 @@ def test_refuses_when_no_file_example_or_no_held_out(tmp_path):
             distribution="d", import_module="d", license_id="MIT", tool=_SPEC,
             examples=[{"input": "--help", "expected": "contains:u"}] * 3,
             example_src_dir=src, reference_impl=_REFERENCE_IMPL)
+
+
+def test_current_product_assembly_replays_confirmed_delivery_profile_before_writes(
+    tmp_path: Path,
+) -> None:
+    """A traced Product task cannot bypass profile validation via direct assembly."""
+
+    draft = {
+        "_intent_contract": new_intent_contract(
+            "把一份输入整理成方便同事阅读的文档"
+        ),
+        "tool": {
+            "schema_version": 2,
+            "name": "notes-tool",
+            "summary": "整理记录",
+            "interface": {
+                "usage": "notes-tool <input>",
+                "input": {"kind": "file", "format": "notes"},
+                "output": {
+                    "kind": "stdout",
+                    "format": "plain text",
+                    "contract": {
+                        "media_type": "text/plain",
+                        "root_type": "text",
+                        "required": {},
+                        "validation_profile": "plain_text_v1",
+                    },
+                },
+                "exit_codes": {
+                    "0": "success",
+                    "1": "user_error",
+                    "2": "internal_error",
+                },
+            },
+        },
+        "capability": {"statement": "", "output_schema": "TextArtifact"},
+    }
+    install_delivery_intent_from_interface(draft, profile_id="cli_v2")
+    install_semantic_commitments(draft, [{
+        "commitment_id": "preserve-content",
+        "public_text": "保留输入中的有效内容并以稳定顺序输出。",
+        "rationale": "这是用户需要继续工作的核心结果。",
+    }])
+    install_artifact_protocol(draft, {
+        "schema_version": 1,
+        "protocol_id": "preserved-text-v1",
+        "observations": [{
+            "observation_id": "preserved-body",
+            "commitment_ids": ["preserve-content"],
+            "locator": "完整 UTF-8 文本正文",
+            "value_encoding": "按公开承诺排序的 UTF-8 文本",
+        }],
+    })
+    confirm_intent_contract(draft, confirmed_at="2026-08-30T00:00:00Z")
+
+    weakened_tool = deepcopy(draft["tool"])
+    weakened_tool["interface"]["output"]["contract"].pop("validation_profile")
+    output_root = tmp_path / "assembled"
+    with pytest.raises(
+        CompileError,
+        match="CURRENT_PRODUCT_INTENT_INVALID:DELIVERY_INTENT_INTERFACE_MISMATCH",
+    ):
+        assemble_tool_task(
+            output_root,
+            goal=draft["capability"]["statement"],
+            repo_url="https://example.invalid/upstream",
+            resolved_commit="a" * 40,
+            distribution="upstream",
+            import_module="upstream",
+            license_id="MIT",
+            tool=ToolSpec.model_validate(weakened_tool),
+            examples=_EXAMPLES,
+            example_src_dir=_make_src(tmp_path),
+            reference_impl=_REFERENCE_IMPL,
+            capability_output_schema=draft["capability"]["output_schema"],
+            intent_contract=draft["_intent_contract"],
+        )
+    assert not (output_root / "contracts").exists()
+
+
+def test_confirmed_commitments_bind_to_independent_verifier_not_blanket_nodes(
+    tmp_path: Path,
+) -> None:
+    from repoproof.harness.contract_adequacy import evaluate_adequacy
+    from repoproof.harness.requirement_spec import load_requirement_spec
+
+    draft = {
+        "_intent_contract": new_intent_contract("整理一份本地材料并保留原有内容"),
+        "tool": {
+            "schema_version": 3,
+            "name": "notes-tool",
+            "summary": "整理记录",
+            "interface": {
+                "usage": "notes-tool <input>",
+                "input": {"kind": "file", "format": "notes"},
+                "output": {
+                    "kind": "stdout",
+                    "format": "plain text",
+                    "contract": {
+                        "media_type": "text/plain",
+                        "root_type": "text",
+                        "required": {},
+                        "validation_profile": "plain_text_v1",
+                    },
+                },
+                "exit_codes": {
+                    "0": "success",
+                    "1": "user_error",
+                    "2": "internal_error",
+                },
+            },
+        },
+        "capability": {"statement": "", "output_schema": "TextArtifact"},
+    }
+    install_delivery_intent_from_interface(draft, profile_id="cli_v2")
+    install_semantic_commitments(draft, [{
+        "commitment_id": "preserve-content",
+        "public_text": "保留输入中的有效内容并以稳定顺序输出。",
+        "rationale": "这是用户确认的核心结果。",
+    }])
+    install_artifact_protocol(draft, {
+        "schema_version": 1,
+        "protocol_id": "preserved-text-v1",
+        "observations": [{
+            "observation_id": "preserved-body",
+            "commitment_ids": ["preserve-content"],
+            "locator": "完整 UTF-8 文本正文",
+            "value_encoding": "按公开承诺排序的 UTF-8 文本",
+        }],
+    })
+    confirm_intent_contract(draft, confirmed_at="2026-08-30T00:00:00Z")
+    verifier = (
+        "from pathlib import Path\n"
+        "import pdfplumber\n"
+        "def verify(input_path: Path, artifact_path: Path) -> dict:\n"
+        "    _ = pdfplumber.open\n"
+        "    return {'ok': artifact_path.is_file(), 'reason_codes': [], "
+        "'checked_commitment_ids': ['preserve-content']}\n"
+    )
+    info = assemble_tool_task(
+        tmp_path,
+        goal=draft["capability"]["statement"],
+        repo_url="https://example.invalid/upstream",
+        resolved_commit="a" * 40,
+        distribution="pdfplumber",
+        import_module="pdfplumber",
+        license_id="MIT",
+        tool=ToolSpec.model_validate(draft["tool"]),
+        examples=_EXAMPLES,
+        example_src_dir=_make_src(tmp_path),
+        reference_impl=_REFERENCE_IMPL,
+        reference_lock="pdfplumber==0.11.0\n",
+        semantic_verifier_source=verifier,
+        capability_output_schema=draft["capability"]["output_schema"],
+        intent_contract=draft["_intent_contract"],
+    )
+    contract_path = tmp_path / "contracts" / f"{info['task_id']}.yaml"
+    contract, _ = TaskContract.load_frozen(contract_path, require_sidecar=True)
+    requirement_path = (
+        tmp_path / "contracts" / f"{info['task_id']}.requirements.yaml"
+    )
+    requirement_spec, _ = load_requirement_spec(requirement_path)
+    semantic_requirement = requirement_spec.by_id()["intent-preserve-content"]
+    assert semantic_requirement.oracle_nodes == []
+    assert semantic_requirement.verified_by == (
+        "semantic-verifier:notes-tool-semantic-v1"
+    )
+
+    all_nodes = sorted(requirement_spec.all_oracle_nodes())
+    rendered_prompt = "\n".join(
+        requirement.public_text for requirement in requirement_spec.requirements
+    )
+    adequate = evaluate_adequacy(
+        spec=requirement_spec,
+        capability_nodes=all_nodes,
+        regression_nodes=[],
+        rendered_prompt=rendered_prompt,
+        contract_path=contract_path,
+        contract=contract,
+    )
+    assert adequate.checked["tool_intent_commitments_independent_verifier"]
+
+    semantic_requirement.verified_by = "semantic-verifier:unbound"
+    weakened = evaluate_adequacy(
+        spec=requirement_spec,
+        capability_nodes=all_nodes,
+        regression_nodes=[],
+        rendered_prompt=rendered_prompt,
+        contract_path=contract_path,
+        contract=contract,
+    )
+    assert not weakened.checked["tool_intent_commitments_independent_verifier"]
+
+
+def test_upstream_confirmed_example_provenance_is_persisted_and_bound(
+    tmp_path: Path,
+) -> None:
+    src = _make_src(tmp_path)
+    bound = truth_binding_sha256(
+        (src / "inputs" / "b.pdf").read_bytes(),
+        (src / "expected" / "b.md").read_bytes(),
+    )
+    examples = [dict(row) for row in _EXAMPLES]
+    examples[2].update({
+        "truth_provenance": "UPSTREAM_DERIVED_USER_CONFIRMED",
+        "truth_binding_sha256": bound,
+    })
+    good_root = tmp_path / "good"
+    info = assemble_tool_task(
+        good_root,
+        goal="g",
+        repo_url="u",
+        resolved_commit="c",
+        distribution="d",
+        import_module="d",
+        license_id="MIT",
+        tool=_SPEC,
+        examples=examples,
+        example_src_dir=src,
+        reference_impl=_REFERENCE_IMPL,
+    )
+    public_truth = json.loads(
+        (
+            good_root
+            / "fixtures"
+            / "tool_skeleton_pdf-table"
+            / "public_examples"
+            / "truth_table.json"
+        ).read_text(encoding="utf-8")
+    )
+    persisted = next(
+        row
+        for row in public_truth["examples"]
+        if row.get("input_file") == "inputs/b.pdf"
+    )
+    assert persisted["truth_provenance"] == "UPSTREAM_DERIVED_USER_CONFIRMED"
+    assert persisted["truth_binding_sha256"] == bound
+    assert info["task_id"].startswith("tool-pdf-table-v")
+
+    (src / "expected" / "b.md").write_text("tampered", encoding="utf-8")
+    with pytest.raises(CompileError, match="输入/输出绑定已漂移"):
+        assemble_tool_task(
+            tmp_path / "bad",
+            goal="g",
+            repo_url="u",
+            resolved_commit="c",
+            distribution="d",
+            import_module="d",
+            license_id="MIT",
+            tool=_SPEC,
+            examples=examples,
+            example_src_dir=src,
+            reference_impl=_REFERENCE_IMPL,
+        )
 
 
 # ------------------------------------------------- 真跑:五变体红绿落点

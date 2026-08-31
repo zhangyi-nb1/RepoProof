@@ -1,0 +1,6 @@
+sample_name	value	source_unit	target_unit	converted_value	status	reason
+样品α	1234.567	meter	centimeter	123457	converted	
+温度样本	25	degC	kelvin	298.15	converted	
+未知单位	7	mystery_unit	meter		unconverted	UndefinedUnitError: 'mystery_unit' is not defined in the unit registry
+量纲不符	3	second	meter		unconverted	DimensionalityError: Cannot convert from 'second' ([time]) to 'meter' ([length])
+微量	0.0000001234567	meter	micrometer	0.123457	converted	

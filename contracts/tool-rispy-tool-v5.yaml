@@ -1,0 +1,51 @@
+task_id: tool-rispy-tool-v5
+
+source_repo:
+  url: https://github.com/MrTango/rispy
+  revision: guided
+  resolved_commit: b7aae3b2069ced3fb75287711300f2edf0bcac21
+  license: MIT
+  distribution: rispy
+  import_module: rispy
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_rispy-tool-v5
+  package: rispy_tool
+  entry_point: rispy-tool
+
+requirement_spec_file: tool-rispy-tool-v5.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 3, "name": "rispy-tool", "summary": "离线将 UTF-8 RIS 文献导出按完全相同的解析记录去重，并生成可重新导入文献软件的 RIS 文件。", "interface": {"usage": "rispy-tool <input> [--out FILE]", "input": {"kind": "file", "format": "UTF-8 编码的 RIS 文献导出文件", "contract": null}, "output": {"kind": "stdout", "format": "RIS", "contract": {"media_type": "application/x-research-info-systems", "root_type": "text", "required": {}, "validation_profile": "ris_interchange_v1"}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: "用户目标：把这份文献导出整理成还能导回文献软件的文件，去掉明确重复，中文别乱码，也别联网补资料。\n公开行为承诺：\n- [exact-parsed-record-deduplication] 使用固定版本 rispy 解析输入后，输出解析得到的记录按输入首次出现顺序，恰好保留每种完整解析记录的一条；后续与此前保留记录完全相等的记录会被移除。\n- [retain-nonidentical-records] 任意两条完整解析记录只要存在一个字段、字段值或值列表不同，输出中仍分别保留它们，即使标题相同。\n- [preserve-retained-record-semantics] 每条被保留记录在输出经固定版本 rispy 解析后的字段和值，与其在输入中首次出现时的解析结果相同。\n- [preserve-chinese-unicode] 被保留记录中的中文 Unicode 字段值（例如标题、作者和摘要）在输出重新解析后与输入首次出现记录中的对应值相同。\n- [ris-record-only-output] 输出只含完整的 RIS 记录内容：每条记录以 TY 字段开始、以 ER 字段结束，且不保留上游序列化可能附加在记录外的编号或标题行。\n统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。"
+  output_schema: "RisInterchange"
+  intent_contract: {"schema_version": 1, "user_goal": "把这份文献导出整理成还能导回文献软件的文件，去掉明确重复，中文别乱码，也别联网补资料。", "user_goal_sha256": "3d526dfa0fb7fe957f9cf2e575ce03b0c72fa70663103f97c879e0cd44197a87", "commitments": [{"commitment_id": "exact-parsed-record-deduplication", "public_text": "使用固定版本 rispy 解析输入后，输出解析得到的记录按输入首次出现顺序，恰好保留每种完整解析记录的一条；后续与此前保留记录完全相等的记录会被移除。", "rationale": "将“明确重复”限定为完整解析字段和值均相同，避免仅因标题相同而误删不同文献。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "retain-nonidentical-records", "public_text": "任意两条完整解析记录只要存在一个字段、字段值或值列表不同，输出中仍分别保留它们，即使标题相同。", "rationale": "确保去重不会合并信息不同的文献条目。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "preserve-retained-record-semantics", "public_text": "每条被保留记录在输出经固定版本 rispy 解析后的字段和值，与其在输入中首次出现时的解析结果相同。", "rationale": "保证整理只删除明确重复项，不改写保留文献的书目信息。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "preserve-chinese-unicode", "public_text": "被保留记录中的中文 Unicode 字段值（例如标题、作者和摘要）在输出重新解析后与输入首次出现记录中的对应值相同。", "rationale": "保证 UTF-8 中文文献文本不会因整理而乱码或丢失。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "ris-record-only-output", "public_text": "输出只含完整的 RIS 记录内容：每条记录以 TY 字段开始、以 ER 字段结束，且不保留上游序列化可能附加在记录外的编号或标题行。", "rationale": "生成可直接重新导入文献软件的标准 RIS 交换文件。", "origin": "MODEL_PROPOSED"}], "delivery": {"profile_id": "cli_v2", "support_status": "SUPPORTED", "origin": "USER_EDITED", "requirements": {"inputs": [{"kind": "file", "location": "local", "representation": "utf8_text", "format_label": "UTF-8 编码的 RIS 文献导出文件", "role": "user-confirmed primary input"}], "outputs": [{"kind": "text_artifact", "format_id": "ris", "format_label": "RIS 文献文件", "role": "user-confirmed primary artifact"}], "network": "offline", "credentials": "none", "lifecycle": "per_invocation", "runtime": "local_cpu"}, "admitted_output_format_id": "ris"}, "confirmation": {"confirmed_by": "USER", "confirmed_at": "2026-08-30T12:19:07.658856Z", "semantics_sha256": "a8556830ce08b4c8dcd3cd89de9279a1e294700a1f9730eaee14ca6f4d84dbf3"}}
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py
+  semantic_verifier: {"protocol": "repoproof-semantic-verifier-v1", "verifier_id": "rispy-tool-semantic-v1", "source_file": "oracle/tool-rispy-tool-v5/semantic_verifier.py", "source_sha256": "188748e1e3baec2176f660af0728e073a2b43071bb6bed779694552d1e8b0417", "required_for_operational_active": true}

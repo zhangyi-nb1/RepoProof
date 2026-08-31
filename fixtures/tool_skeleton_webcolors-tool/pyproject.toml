@@ -1,0 +1,8 @@
+[project]
+name = "webcolors_tool"
+version = "1.0.0"
+description = '我要根据编号就能识别颜色(fake 起草)'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

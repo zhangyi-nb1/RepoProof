@@ -1,0 +1,96 @@
+task_id: tool-networkx-dependency-risk-v1
+
+controls:
+  positive: controls/tool-networkx-dependency-risk-v1/positive
+  negatives:
+    - path: controls/tool-networkx-dependency-risk-v1/negative_empty
+      label: NC_empty
+      must_fail_nodes: ["test_example"]
+    - path: controls/tool-networkx-dependency-risk-v1/negative_hardcode
+      label: NC_hardcode
+      must_fail_nodes: ["test_held_example"]
+    - path: controls/tool-networkx-dependency-risk-v1/negative_badexit
+      label: NC_badexit
+      must_fail_nodes: ["test_malformed_input_is_user_error"]
+  # NC_reimpl(零 import 上游)不在此表:它在 oracle 上全绿,判死属
+  # provenance 层(runner 验证阶段执法;harness 测试喂它自证查得出)。
+  # 见 TOOL_READY_GATE §五。目录:controls/tool-networkx-dependency-risk-v1/negative_reimpl
+
+requirements:
+  - id: satisfy-user-examples
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      调用 pinned networkx 实现能力,使全部用户样例断言通过
+      (行为以公开样例为准,例:networkx-dependency-risk inputs/复杂依赖、重复边、环与非ASCII任务 -> 见 expected/复杂依赖、重复边、环与非ASCII任务.expected.txt; networkx-dependency-risk inputs/典型依赖、重复边与环 -> 见 expected/典型依赖、重复边与环.expected.txt; networkx-dependency-risk inputs/非ASCII和保留空白任务名 -> 见 expected/非ASCII和保留空白任务名.expected.txt)。
+    examples:
+      - "networkx-dependency-risk inputs/复杂依赖、重复边、环与非ASCII任务 -> 见 expected/复杂依赖、重复边、环与非ASCII任务.expected.txt; networkx-dependency-risk inputs/典型依赖、重复边与环 -> 见 expected/典型依赖、重复边与环.expected.txt; networkx-dependency-risk inputs/非ASCII和保留空白任务名 -> 见 expected/非ASCII和保留空白任务名.expected.txt"
+    oracle_nodes:
+      - "test_capability::test_example_1"
+      - "test_capability::test_example_2"
+      - "test_capability::test_example_3"
+      - "test_capability::test_held_example_1"
+  - id: interface-contract
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      坏输入内容抛 UserInputError(骨架转 exit 1);不得让异常裸奔到
+      兜底层(exit 2);重复调用同一输入输出逐字节一致;成功路径不向
+      stderr 泄漏 traceback。
+    examples:
+      - "exit: 0=成功 1=用户错误 2=内部错误"
+    oracle_nodes:
+      - "test_capability::test_malformed_input_is_user_error"
+      - "test_capability::test_deterministic_output"
+      - "test_capability::test_stdout_purity_on_success"
+  - id: skeleton-anchors-untouched
+    owner: HOST_INPUT_GUARD
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      骨架锚定件(main.py / bin/ / build.sh / tool.json / pyproject.toml)
+      与其 argparse/输入存在检查/exit 语义由 harness 预置,不可修改,
+      不计 agent 能力。
+    examples:
+      - "networkx-dependency-risk --help -> usage"
+    oracle_nodes:
+      - "test_interface_contract::test_help_reachable"
+      - "test_interface_contract::test_missing_input_is_user_error"
+  - id: intent-task-universe-and-order
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "输入是 UTF-8 CSV，表头必须依次为 task、depends_on，每行恰有两列且 task 非空；空 depends_on 只声明独立任务，非空 depends_on 建立 depends_on 指向 task 的边。工具使用固定版本 NetworkX 的 DiGraph，重复边按一条边处理；所有在 task 或非空 depends_on 中出现的任务各输出一行，按 Python 字符串的 Unicode 码点顺序升序，并用标准 TSV 转义。"
+    examples: []
+    verified_by: semantic-verifier:networkx-dependency-risk-semantic-v1
+  - id: intent-startable-status
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "每行 direct_dependencies 等于该任务在 NetworkX DiGraph 中的入度；ready_now 仅当该入度为 0 时为 true，否则为 false。"
+    examples: []
+    verified_by: semantic-verifier:networkx-dependency-risk-semantic-v1
+  - id: intent-cycle-status-and-group
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "每行 in_cycle 仅当该任务属于多节点强连通分量，或存在指向自身的 self-loop 时为 true，否则为 false；判定使用固定版本 NetworkX 的 strongly_connected_components 与图边语义。"
+    examples: []
+    verified_by: semantic-verifier:networkx-dependency-risk-semantic-v1
+  - id: intent-direct-dependencies
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "每行 direct_dependents 等于该任务在 NetworkX DiGraph 中的出度，即不同直接后继任务数；输出表头依次且仅为 task、direct_dependencies、direct_dependents、downstream_count、ready_now、in_cycle。"
+    examples: []
+    verified_by: semantic-verifier:networkx-dependency-risk-semantic-v1
+  - id: intent-downstream-impact
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "每行 downstream_count 等于固定版本 NetworkX descendants 返回的不同可达后继任务数，不包含任务自身；不计算 PageRank、随机社区、布局或图片，也不进行网络请求。"
+    examples: []
+    verified_by: semantic-verifier:networkx-dependency-risk-semantic-v1
+

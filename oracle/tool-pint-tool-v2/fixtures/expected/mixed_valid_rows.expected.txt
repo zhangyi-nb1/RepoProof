@@ -1,0 +1,5 @@
+样本名	原数值	目标单位	换算结果	状态	说明
+普通样本	1.23456789 meter	centimeter	123.456789	已换算	
+咖啡样品α	 2 kilogram 	gram	2000	已换算	
+坏单位	3 meter	not_a_unit		未换算	无法换算：UndefinedUnitError: 'not_a_unit' is not defined in the unit registry
+非有限	NaN meter	centimeter		未换算	无法换算：结果不是有限实数

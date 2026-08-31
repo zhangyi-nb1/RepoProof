@@ -1,0 +1,5 @@
+样本名	原数值	目标单位
+样品α	1.23456789 meter	centimeter
+质量检查	2 kilogram	gram
+不兼容	5 second	meter
+解析失败	abc	meter

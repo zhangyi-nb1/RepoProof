@@ -176,7 +176,7 @@ def test_missing_manifest_overrides_a_stale_active_decision(tmp_path: Path) -> N
     assert row["operational_reason_code"] == "PACKAGE_MISSING"
 
 
-def test_core_unverified_package_overrides_stale_active_decision(
+def test_package_verdict_tampering_preserves_history_and_blocks_stale_active(
     tmp_path: Path,
 ) -> None:
     package = _register_ready_tool(tmp_path)
@@ -197,15 +197,14 @@ def test_core_unverified_package_overrides_stale_active_decision(
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     core_row = tool_registry.list_tools(tmp_path, scan=False)[0]
-    assert core_row["status"] == "UNVERIFIED"
+    assert core_row["historical_verdict"] == "VERIFIED_TOOL_READY"
+    assert core_row["package_observed_historical_verdict"] == "FAIL"
+    assert core_row["status"] == "INVALID_IDENTITY"
     assert core_row["operational_status"] == "REVIEW_REQUIRED"
-    assert (
-        core_row["operational_reason_code"]
-        == "HISTORICAL_VERIFICATION_NOT_READY"
-    )
+    assert core_row["operational_reason_code"] == "INVALID_PACKAGE_IDENTITY"
     assert product_mode.list_tools(tmp_path)["tools"][0][
         "operational_reason_code"
-    ] == "HISTORICAL_VERIFICATION_NOT_READY"
+    ] == "INVALID_PACKAGE_IDENTITY"
 
 
 def test_core_reason_code_is_shown_without_rewriting_history(tmp_path: Path) -> None:
@@ -269,6 +268,7 @@ def test_text_default_is_a_complete_tool_output_contract() -> None:
         "media_type": "text/plain",
         "root_type": "text",
         "required": {},
+        "validation_profile": "plain_text_v1",
     }
     parsed, errors = product_mode.parse_output_contract(
         default, output_format="TXT"
@@ -283,7 +283,58 @@ def test_output_contract_rejects_human_and_machine_format_split() -> None:
         output_format="JSON object",
     )
     assert parsed is None
-    assert errors[0].startswith("OUTPUT_CONTRACT_FORMAT_MISMATCH")
+    assert errors[0].startswith("OUTPUT_CONTRACT_PROFILE_MISMATCH")
+
+
+def test_known_product_text_contract_rejects_missing_validation_profile() -> None:
+    parsed, errors = product_mode.parse_output_contract(
+        {"media_type": "text/markdown", "root_type": "text", "required": {}},
+        output_format="Markdown",
+    )
+
+    assert parsed is None
+    assert errors[0].startswith("OUTPUT_CONTRACT_PROFILE_MISMATCH")
+
+
+@pytest.mark.parametrize(
+    ("format_name", "media_type", "validation_profile"),
+    [
+        ("RIS", "application/x-research-info-systems", "ris_interchange_v1"),
+        ("Research Info System", "application/x-research-info-systems", "ris_interchange_v1"),
+        ("Research Info Systems", "application/x-research-info-systems", "ris_interchange_v1"),
+        ("Research Information System", "application/x-research-info-systems", "ris_interchange_v1"),
+        ("Research Information Systems", "application/x-research-info-systems", "ris_interchange_v1"),
+        ("TSV table", "text/tab-separated-values", "tsv_table_v1"),
+        ("Markdown", "text/markdown", "markdown_document_v1"),
+        ("HTML report", "text/html", "safe_self_contained_xhtml_v1"),
+        ("XHTML report", "application/xhtml+xml", "safe_self_contained_xhtml_v1"),
+    ],
+)
+def test_known_text_artifacts_bind_to_their_dedicated_media_contract(
+    format_name: str,
+    media_type: str,
+    validation_profile: str,
+) -> None:
+    default = product_mode.default_output_contract(format_name)
+    assert default == {
+        "media_type": media_type,
+        "root_type": "text",
+        "required": {},
+        "validation_profile": validation_profile,
+    }
+    parsed, errors = product_mode.parse_output_contract(
+        default,
+        output_format=format_name,
+    )
+    assert errors == []
+    assert parsed is not None and parsed.media_type == media_type
+
+    bypassed, bypass_errors = product_mode.parse_output_contract(
+        {"media_type": "text/plain", "root_type": "text", "required": {}},
+        output_format=format_name,
+    )
+    assert bypassed is None
+    assert bypass_errors[0].startswith("OUTPUT_CONTRACT_PROFILE_MISMATCH")
 
 
 def test_structured_golden_uses_core_validator_before_build(tmp_path: Path) -> None:

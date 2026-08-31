@@ -1,0 +1,52 @@
+{
+ "manifest_version": 1,
+ "name": "webcolors-tool",
+ "version": "1.0.0",
+ "summary": "将十六进制颜色转换为适配 MSP432 小车常规数字灰度模块接口的确定性明暗状态。",
+ "source": {
+  "url": "https://github.com/ubernostrum/webcolors",
+  "resolved_commit": "e6392ba6eeba81b02e666eb3ed02ef2e006344c0",
+  "license": "BSD",
+  "distribution": "webcolors"
+ },
+ "contract_schema_version": 2,
+ "interface": {
+  "usage": "webcolors-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "JSON",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON",
+   "contract": {
+    "media_type": "application/json",
+    "root_type": "object",
+    "required": {
+     "source_hex": "string",
+     "red": "integer",
+     "green": "integer",
+     "blue": "integer",
+     "grayscale": "integer",
+     "digital_level": "integer",
+     "sensor_state": "string"
+    }
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "Msp432GrayscaleState"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

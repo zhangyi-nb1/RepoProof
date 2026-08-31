@@ -1,0 +1,21 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input_file": "inputs/duplicate_and_near_duplicate.ris",
+   "expected_file": "expected/duplicate_and_near_duplicate.expected.txt",
+   "truth_provenance": "UPSTREAM_DERIVED_USER_CONFIRMED",
+   "truth_binding_sha256": "52c09744b6225cb98cad243d25c462b4cfba7792c021ee97b566a7ae5a3a27aa",
+   "candidate_evidence_id": "8aaf5a6fef47e95f92f820f3a358d306027576c93acab1b863e250c689c043ef",
+   "candidate_truth_binding_sha256": "47ad3b7ea6f1f96c78c1cca2b670f3670395843a2b7afb4b295f0df427f4e607"
+  },
+  {
+   "input_file": "inputs/same_title_different_metadata.ris",
+   "expected_file": "expected/same_title_different_metadata.expected.txt",
+   "truth_provenance": "UPSTREAM_DERIVED_USER_CONFIRMED",
+   "truth_binding_sha256": "1b6d5fd7a52ede1f4d15512da4b68b80879918c517735b946ce2aaa2877b3aec",
+   "candidate_evidence_id": "6cf579e9095f4fcd8cfb4b4e48a668aa5297a1416666fd51921588a6fa3a4a28",
+   "candidate_truth_binding_sha256": "ed5cb05aee57314b0d71491fecd7670554f6f42fed6d8f0f7d157fff12b9ac69"
+  }
+ ]
+}

@@ -298,8 +298,8 @@ def test_every_run_level_usage_hook_shares_the_deduping_implementation() -> None
     # 已在入口去重)。多一处 = 复制一份未去重的旧病。
     # 行号钉随 host_guided 头部变动翻新(2026-08-25:SelfWriteWindow 导入
     # +1;FROZEN 宣言段 +13);四个落点仍是同两个去重实现的内部。
-    assert accum_files == {"runner/host_guided.py:162", "runner/host_guided.py:163",
-                           "runner/host_guided.py:176", "runner/host_guided.py:177"}, (
+    assert accum_files == {"runner/host_guided.py:167", "runner/host_guided.py:168",
+                           "runner/host_guided.py:181", "runner/host_guided.py:182"}, (
         f"run 级用量累加出现在 {sorted(accum_files)} —— 允许的落点只有"
         " make_usage_cb 与 absorb_dsh_usage 两个去重实现的内部"
     )

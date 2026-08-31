@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/rss_unicode_whitespace.xml", "expected_file": "expected/rss_unicode_whitespace.expected.txt"}, {"input_file": "inputs/atom_ordered_authors_tags.xml", "expected_file": "expected/atom_ordered_authors_tags.expected.txt"}]}

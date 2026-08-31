@@ -1,0 +1,44 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "public_tests/test_interface_contract.py"
+  ],
+  "collection_manifest_sha256": null,
+  "consumer_fixture_tree_sha256": "81ccd977b478bf5b7ee8823d5a7f37bfcdc2c6c6480ec65b67603a37085cc70c",
+  "contract_sha256": "04458755ea532ca97c6ea3a841e7be25903f4dbd6edbbcca005d3088072da810",
+  "controls_summary": null,
+  "environment_constraints": null,
+  "expected_capability_nodes": null,
+  "expected_regression_nodes": null,
+  "held_out_fixture_sha256": "d07ab8d20a6819611fec2bb11ac010f058f1e1a072b3c163b9242f3f57d97316",
+  "image_digest": null,
+  "oracle_tree_sha256": "26d84eb883c93dcb0f51a9967ae1b3d619199614c00311b8ceced52e370c9ecb",
+  "prompt_manifest_sha256": null,
+  "public_examples_sha256": null,
+  "public_fixture_sha256": "bfdaf73a7ff8f3a3f8b9f0cbc4cd946a36eae2e5fb76718a547f8c60dbb1fab0",
+  "public_tests_tree_sha256": null,
+  "requirement_spec_sha256": null,
+  "responsibility_matrix": null,
+  "root_hash": "f51b4cfaa1e32df2bf72969e31dd763e72fd89cccdb72d9a0444f88c6d0fe89a",
+  "source_commit": "d7e4b8b19399668b09442a5b35765d9186b5f665",
+  "source_git_tree_hash": "7994b52c8d05e172986dffbfb65669e2cd2a8fdd",
+  "task_id": "tool-biopython-fasta-shortlist-v1",
+  "wheelhouse_root": "f75457e47b523329b0f57d234baea9539230d2dd38264596005c623059ce5653",
+  "wheelhouse_wheels": {
+    "biopython-1.88-cp312-cp312-macosx_11_0_arm64.whl": "43ce1fbed01c0ddb903fa426fa0f836062d973a09df15560ac8e895da24c1350",
+    "iniconfig-2.3.0-py3-none-any.whl": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12",
+    "numpy-2.5.2-cp312-cp312-macosx_14_0_arm64.whl": "6e8172ddfcf5cf74b811d372b570b83c60bd2de87a6fbfbebdadb4a9bd9c6cbb",
+    "packaging-26.3-py3-none-any.whl": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+    "pluggy-1.6.0-py3-none-any.whl": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+    "pygments-2.21.0-py3-none-any.whl": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9",
+    "pytest-9.1.1-py3-none-any.whl": "37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c",
+    "setuptools-84.0.0-py3-none-any.whl": "51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670",
+    "wheel-0.48.0-py3-none-any.whl": "3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab"
+  }
+}

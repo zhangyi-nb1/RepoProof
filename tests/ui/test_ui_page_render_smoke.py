@@ -20,40 +20,1071 @@ import pytest
 PAGES = Path(__file__).resolve().parents[2] / "src" / "repoproof" / "ui" / "pages"
 
 
-def _stub_jobs(monkeypatch: pytest.MonkeyPatch, job: dict) -> None:
+def _stub_jobs(
+    monkeypatch: pytest.MonkeyPatch,
+    job: dict,
+    *,
+    action_result: dict | None = None,
+) -> None:
     from repoproof.ui.services import product_jobs
 
     monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: job)
-    monkeypatch.setattr(product_jobs, "read_product_job_log",
-                        lambda *a, **k: {"ok": False, "error": "stub"})
+    monkeypatch.setattr(product_jobs, "read_product_job_log", lambda *a, **k: {"ok": False, "error": "stub"})
+    monkeypatch.setattr(
+        product_jobs,
+        "product_job_action_result",
+        lambda *a, **k: (
+            action_result
+            or {
+                "ok": False,
+                "error_code": "ACTION_RESULT_UNAVAILABLE",
+                "error": "stub",
+            }
+        ),
+    )
+
+
+def test_onboarding_fails_closed_when_loaded_services_are_semantically_stale(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_jobs, product_journeys
+
+    state = tmp_path / "state"
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_journeys, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(product_journeys, "list_journeys", lambda: [])
+    monkeypatch.setattr(product_journeys, "synthesized_read_only_cards", lambda: [])
+    monkeypatch.setattr(
+        product_jobs,
+        "product_runtime_source_freshness",
+        lambda: {
+            "fresh": False,
+            "reason_code": "PRODUCT_RUNTIME_SOURCE_STALE",
+        },
+    )
+    monkeypatch.setattr(
+        product_jobs,
+        "online_drafter_status",
+        lambda: {"ready": True, "backend": "litellm", "label": "ready"},
+    )
+
+    at = AppTest.from_file(
+        str(PAGES / "tool_onboarding.py"), default_timeout=60
+    ).run()
+
+    assert not [str(item.value) for item in at.exception]
+    rendered = " ".join(str(item.value) for item in at.error)
+    assert "旧版服务模块" in rendered
+    assert "PRODUCT_RUNTIME_SOURCE_STALE" in rendered
+    assert not at.button
 
 
 @pytest.mark.parametrize(
     ("label", "job"),
     [
-        ("running", {"status": "RUNNING", "alive": True, "kind": "tool-build",
-                     "action": "build", "label": "demo", "pid": 4242}),
-        ("succeeded", {"status": "SUCCEEDED", "alive": False, "ok": True,
-                       "kind": "tool-build", "action": "build",
-                       "label": "demo", "pid": 4242, "note": "done"}),
-        ("failed", {"status": "FAILED", "alive": False, "ok": False,
-                    "kind": "tool-build", "action": "build", "label": "demo",
-                    "pid": 4242, "note": "boom", "error_code": "X1"}),
+        (
+            "running",
+            {"status": "RUNNING", "alive": True, "kind": "tool-build", "action": "build", "label": "demo", "pid": 4242},
+        ),
+        (
+            "succeeded",
+            {
+                "status": "SUCCEEDED",
+                "alive": False,
+                "ok": True,
+                "kind": "tool-build",
+                "action": "build",
+                "label": "demo",
+                "pid": 4242,
+                "note": "done",
+            },
+        ),
+        (
+            "failed",
+            {
+                "status": "FAILED",
+                "alive": False,
+                "ok": False,
+                "kind": "tool-build",
+                "action": "build",
+                "label": "demo",
+                "pid": 4242,
+                "note": "boom",
+                "error_code": "X1",
+            },
+        ),
         ("no-job", {}),
     ],
 )
-def test_activity_page_renders_every_state(
-    label: str, job: dict, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_activity_page_renders_every_state(label: str, job: dict, monkeypatch: pytest.MonkeyPatch) -> None:
     from streamlit.testing.v1 import AppTest
 
     _stub_jobs(monkeypatch, job)
     at = AppTest.from_file(str(PAGES / "product_activity.py"), default_timeout=60).run()
-    assert not [str(e.value) for e in at.exception], (
-        f"{label} 分支渲染抛异常:{[str(e.value) for e in at.exception]}")
+    assert not [str(e.value) for e in at.exception], f"{label} 分支渲染抛异常:{[str(e.value) for e in at.exception]}"
 
 
-def test_onboarding_page_renders_with_repo_overview(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_activity_page_uses_structured_stop_instead_of_log_guess(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_mode
+
+    job = {
+        "job_id": "a" * 32,
+        "status": "FAILED",
+        "alive": False,
+        "ok": False,
+        "kind": "tool-build",
+        "action": "build",
+        "label": "demo",
+        "pid": 4242,
+        "note": "NONZERO_EXIT",
+    }
+    _stub_jobs(
+        monkeypatch,
+        job,
+        action_result={
+            "ok": True,
+            "result": {
+                "tool_name": "demo-tool",
+                "pipeline_verdict": "BLOCKED",
+                "product_stop_code": "STOP_HARNESS_OR_EXTERNAL",
+                "failure_owner": "HARNESS",
+                "reason_codes": ["UPSTREAM_WHEEL_MISSING"],
+                "recommended_action": "修复 wheelhouse 后重试",
+                "route": "AGENT_ADAPT",
+                "agent_invoked": False,
+            },
+        },
+    )
+    monkeypatch.setattr(
+        product_mode,
+        "list_tools",
+        lambda *_a, **_k: {
+            "tools": [],
+            "registry_error": None,
+            "release_error": None,
+        },
+    )
+    at = AppTest.from_file(str(PAGES / "product_activity.py"), default_timeout=60).run()
+    assert not [str(e.value) for e in at.exception]
+    rendered = " ".join(str(item.value) for group in (at.markdown, at.error, at.info, at.caption) for item in group)
+    assert "STOP_HARNESS_OR_EXTERNAL" in rendered
+    assert "UPSTREAM_WHEEL_MISSING" in rendered
+    assert "修复 wheelhouse 后重试" in rendered
+    metrics = {metric.label: metric.value for metric in at.metric}
+    assert metrics["Worker"] == "失败"
+    assert metrics["Pipeline"] == "BLOCKED"
+    assert metrics["Operational"] == "尚未形成"
+
+
+def test_activity_page_projects_exported_tool_from_fresh_core_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_mode
+
+    job = {
+        "job_id": "a" * 32,
+        "status": "SUCCEEDED",
+        "alive": False,
+        "ok": True,
+        "kind": "tool-build",
+        "action": "tool-build-real",
+        "label": "markdown build",
+        "pid": 4242,
+        "note": "done",
+        "dest_root": "/managed/tools",
+    }
+    _stub_jobs(
+        monkeypatch,
+        job,
+        action_result={
+            "ok": True,
+            "result": {
+                "tool_name": "markdown-it-py-tool",
+                "pipeline_verdict": "VERIFIED_TOOL_READY",
+                "exported_path": "/managed/tools/markdown-it-py-tool",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        product_mode,
+        "list_tools",
+        lambda *_a, **_k: {
+            "tools": [{
+                "name": "markdown-it-py-tool",
+                "operational_status": "REVIEW_REQUIRED",
+                "health": "OK",
+            }],
+            "registry_error": None,
+            "release_error": None,
+        },
+    )
+
+    at = AppTest.from_file(str(PAGES / "product_activity.py"), default_timeout=60).run()
+
+    assert not [str(e.value) for e in at.exception]
+    metrics = {metric.label: metric.value for metric in at.metric}
+    assert metrics["Pipeline"] == "VERIFIED_TOOL_READY"
+    assert metrics["Operational"] == "REVIEW_REQUIRED"
+    assert metrics["Package"] == "OK"
+
+
+def test_onboarding_keeps_historical_pipeline_visible_after_active_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_jobs, product_journeys
+
+    journey = product_journeys.ProductJourneyRefV1(
+        journey_id="a" * 32,
+        tool_name="markdown-it-py-tool",
+        source_repo_url="https://github.com/executablebooks/markdown-it-py",
+        draft_dir=str(tmp_path / "draft"),
+        task_id="tool-markdown-it-py-tool-v2",
+        dest_root=str(tmp_path / "tools"),
+        updated_at="2026-08-29T00:00:00Z",
+    )
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(product_journeys, "list_journeys", lambda: [journey])
+    monkeypatch.setattr(
+        product_journeys,
+        "journey_snapshot",
+        lambda _journey: {
+            "journey": journey.model_dump(mode="json"),
+            "phase": "ACTIVE",
+            "worker": {"status": "SUCCEEDED", "action": "tool-audit"},
+            "action_result": {
+                "action": "tool-audit",
+                "ok": True,
+                "pipeline_verdict": None,
+                "reason_codes": ["FRESH_INPUT_PASS"],
+            },
+            "task_id": journey.task_id,
+            "tool_name": journey.tool_name,
+            "historical_verdict": "VERIFIED_TOOL_READY",
+            "operational_status": "ACTIVE",
+            "package_health": "OK",
+        },
+    )
+
+    at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=60).run()
+
+    assert not [str(e.value) for e in at.exception]
+    metrics = {metric.label: metric.value for metric in at.metric}
+    assert metrics["Pipeline"] == "VERIFIED_TOOL_READY"
+    assert metrics["Operational"] == "ACTIVE"
+
+
+def test_failed_tool_add_stays_at_repository_step(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A drafting failure must not visually claim contract/rehearsal completion."""
+
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_jobs, product_journeys
+
+    journey = product_journeys.ProductJourneyRefV1(
+        journey_id="c" * 32,
+        tool_name="",
+        source_repo_url="https://github.com/example/research-tool",
+        draft_dir=str(tmp_path / "draft"),
+        dest_root=str(tmp_path / "tools"),
+        last_job_id="d" * 32,
+        updated_at="2026-08-30T00:00:00Z",
+    )
+    snapshot = {
+        "journey": journey.model_dump(mode="json"),
+        "phase": "FAILED",
+        "worker": {"status": "FAILED", "action": "tool-add"},
+        "action_result": {
+            "action": "tool-add",
+            "ok": False,
+            "product_stop_code": "STOP_HARNESS_OR_EXTERNAL",
+            "failure_owner": "EXTERNAL",
+            "reason_codes": ["DRAFTER_TIMEOUT"],
+            "recommended_action": "恢复网关后重试。",
+        },
+        "task_id": None,
+        "tool_name": "",
+        "historical_verdict": None,
+        "operational_status": "UNVERIFIED",
+        "package_health": "NOT_EXPORTED",
+    }
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(product_journeys, "list_journeys", lambda: [journey])
+    monkeypatch.setattr(
+        product_journeys,
+        "journey_snapshot",
+        lambda *_a, **_k: snapshot,
+    )
+    monkeypatch.setattr(
+        product_journeys,
+        "synthesized_read_only_cards",
+        lambda: [],
+    )
+
+    at = AppTest.from_file(
+        str(PAGES / "tool_onboarding.py"), default_timeout=60
+    ).run()
+
+    assert not [str(e.value) for e in at.exception]
+    rendered = " ".join(str(item.value) for item in at.markdown)
+    assert "1 · 当前" in rendered
+    assert "2 · 待进行" in rendered
+    assert "2 · 已完成" not in rendered
+    assert any("DRAFTER_TIMEOUT" in str(item.value) for item in at.markdown)
+
+
+def test_primary_journey_has_no_raw_draft_path_dead_end(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_jobs, product_journeys
+
+    state = tmp_path / "state"
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_journeys, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+
+    at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=60).run()
+    assert not [str(e.value) for e in at.exception]
+    labels = [field.label for field in at.text_input]
+    assert "草稿保存位置" not in labels
+    assert "草稿目录" not in labels
+    assert any("固定版本" in label for label in labels)
+    assert any("LLM 分析仓库和这项能力" in button.label for button in at.button)
+    assert any(button.label == "创建任务并生成草稿" for button in at.button)
+    backend = next(radio for radio in at.radio if radio.label == "真实构建 Agent")
+    assert backend.value == "mini-swe（API 网关）"
+
+
+def test_primary_journey_uses_codex_as_the_configured_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_jobs, product_journeys
+
+    state = tmp_path / "state"
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+    monkeypatch.setenv("REPOPROOF_DEFAULT_AGENT_BACKEND", "codex-cli")
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_journeys, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(
+        product_jobs,
+        "online_drafter_status",
+        lambda: {
+            "ready": True,
+            "backend": "codex-cli",
+            "label": "Codex CLI 已登录 · test-model",
+        },
+    )
+
+    at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=60).run()
+
+    assert not [str(e.value) for e in at.exception]
+    backend = next(radio for radio in at.radio if radio.label == "真实构建 Agent")
+    assert backend.value == "Codex CLI（ChatGPT 订阅）"
+
+
+def test_primary_journey_renders_llm_repo_analysis(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """仓库+能力分析必须出现在主任务卡，而不是只留在高级编辑器。"""
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_jobs, product_journeys
+
+    state = tmp_path / "state"
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_journeys, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(
+        product_jobs,
+        "online_drafter_status",
+        lambda: {"ready": True, "backend": "litellm", "label": "API provider 已配置"},
+    )
+    overview = {
+        "repository": "https://github.com/example/demo",
+        "headline": "demo repository",
+        "surfaces": [{"kind": "公开符号", "value": "merge", "evidence": "src/demo.py"}],
+        "risks": [],
+    }
+    monkeypatch.setattr(
+        product_jobs,
+        "read_repo_overview",
+        lambda *_a, **_k: {"ok": True, "overview": overview},
+    )
+    seen: dict[str, str] = {}
+
+    def _summarize(_overview, *, offline, capability_goal=""):
+        assert offline is False
+        seen["goal"] = capability_goal
+        return {"ok": True, "summary": "该入口可以支撑合并能力。", "drafter": "gateway"}
+
+    monkeypatch.setattr(product_jobs, "summarize_repo_overview", _summarize)
+
+    at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=60)
+    at.session_state["rp_journey_repo"] = "https://github.com/example/demo"
+    at.session_state["rp_journey_capability"] = "合并多份报告并输出 JSON"
+    at.run()
+    button = next(b for b in at.button if "LLM 分析仓库和这项能力" in b.label)
+    button.click().run()
+
+    assert not [str(e.value) for e in at.exception]
+    assert seen["goal"] == "合并多份报告并输出 JSON"
+    rendered = " ".join(str(item.value) for group in (at.markdown, at.info, at.caption) for item in group)
+    assert "该入口可以支撑合并能力" in rendered
+    assert any("merge" in frame.value.to_string() for frame in at.dataframe)
+
+
+def test_primary_journey_adopts_safe_llm_brief_without_creating_a_task(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One-click adoption only edits the intent widget; every trust gate stays ahead."""
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.adoption.intake.tool_drafter import validate_repo_summary_document
+    from repoproof.ui.services import product_jobs, product_journeys
+
+    state = tmp_path / "state"
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_journeys, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(product_journeys, "list_journeys", lambda: [])
+    monkeypatch.setattr(product_journeys, "synthesized_read_only_cards", lambda: [])
+    monkeypatch.setattr(
+        product_jobs,
+        "online_drafter_status",
+        lambda: {"ready": True, "backend": "litellm", "label": "API provider 已配置"},
+    )
+    monkeypatch.setattr(
+        product_jobs,
+        "read_repo_overview",
+        lambda *_a, **_k: {
+            "ok": True,
+            "overview": {
+                "repository": "https://github.com/example/demo",
+                "headline": "demo repository",
+                "surfaces": [],
+                "risks": [],
+            },
+        },
+    )
+
+    def delivery(output_format_id: str) -> dict:
+        return {
+            "inputs": [{
+                "kind": "file", "location": "local",
+                "format_label": "CSV", "role": "实验记录",
+                "representation": "utf8_text",
+            }],
+            "outputs": [{
+                "kind": "text_artifact", "format_id": output_format_id,
+                "format_label": output_format_id, "role": "整理结果",
+            }],
+            "network": "offline", "credentials": "none",
+            "lifecycle": "per_invocation", "runtime": "local_cpu",
+        }
+
+    advice = validate_repo_summary_document({
+        "summary": "这个仓库适合整理表格型实验记录。",
+        "recommended_brief_id": "table",
+        "requirement_briefs": [
+            {
+                "brief_id": "table",
+                "title": "整理成共享表格",
+                "scenario": "把实验记录整理后交给同事查看",
+                "delivery_requirements": delivery("csv"),
+                "boundary": "看不懂的内容要明确保留",
+                "reason": "便于继续在常见表格工具中查看。",
+            },
+            {
+                "brief_id": "note",
+                "title": "整理成阅读摘要",
+                "scenario": "把实验记录整理后放进项目笔记",
+                "delivery_requirements": delivery("markdown"),
+                "boundary": "无法判断的内容保持原样",
+                "reason": "适合快速阅读和讨论。",
+            },
+        ],
+    })
+    recommended_text = advice["requirement_briefs"][0]["text"]
+
+    def _summarize(_overview, *, offline: bool, capability_goal: str = "") -> dict:
+        assert offline is False
+        assert capability_goal == "我想整理实验记录，但还不知道具体怎么做。"
+        return {
+            "ok": True,
+            "drafter": "gateway",
+            **advice,
+        }
+
+    monkeypatch.setattr(product_jobs, "summarize_repo_overview", _summarize)
+    created: list[str] = []
+    monkeypatch.setattr(
+        product_journeys,
+        "create_journey",
+        lambda **_kwargs: created.append("journey"),
+    )
+    monkeypatch.setattr(
+        product_jobs,
+        "start_tool_add",
+        lambda **_kwargs: created.append("draft"),
+    )
+
+    at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=60)
+    at.session_state["rp_journey_repo"] = "https://github.com/example/demo"
+    at.session_state["rp_journey_revision"] = "v1.0.0"
+    at.session_state["rp_journey_capability"] = "我想整理实验记录，但还不知道具体怎么做。"
+    at.run()
+    next(button for button in at.button if button.label == "让 LLM 分析仓库和这项能力").click().run()
+
+    labels = [button.label for button in at.button]
+    assert labels.count("采用推荐描述") == 1
+    assert labels.count("采用这个描述") == 1
+    assert "保留原想法" in labels
+    rendered = " ".join(
+        str(item.value)
+        for group in (at.markdown, at.info, at.caption)
+        for item in group
+    )
+    assert "模型建议，尚未验证" in rendered
+    assert "不会创建任务、生成草稿或冻结合同" in rendered
+
+    next(button for button in at.button if button.label == "采用推荐描述").click().run()
+
+    capability = next(field for field in at.text_area if field.label == "希望落地的单一能力")
+    assert capability.value == recommended_text
+    assert created == []
+    assert "rp_pending_capability_adoption" not in at.session_state
+
+
+def test_primary_journey_launches_only_the_explicitly_confirmed_final_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Adopt/edit/create cannot race a stale capability across the UI→Core seam."""
+    from types import SimpleNamespace
+
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_jobs, product_journeys
+
+    state = tmp_path / "state"
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_journeys, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(product_journeys, "list_journeys", lambda: [])
+    monkeypatch.setattr(product_journeys, "synthesized_read_only_cards", lambda: [])
+    monkeypatch.setattr(
+        product_jobs,
+        "online_drafter_status",
+        lambda: {"ready": True, "backend": "litellm", "label": "ready"},
+    )
+    monkeypatch.setattr(
+        product_journeys,
+        "create_journey",
+        lambda **_kwargs: SimpleNamespace(journey_id="a" * 32),
+    )
+    seen: dict[str, str] = {}
+
+    def _start_tool_add(**kwargs):
+        seen["capability"] = kwargs["capability"]
+        return {"ok": False, "error": "test stop"}
+
+    monkeypatch.setattr(product_jobs, "start_tool_add", _start_tool_add)
+
+    at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=60)
+    at.session_state["rp_journey_repo"] = "https://github.com/example/demo"
+    at.session_state["rp_journey_revision"] = "v1"
+    at.session_state["rp_journey_capability"] = "先按模型建议整理资料。"
+    at.run()
+
+    next(
+        button for button in at.button if button.label == "确认当前需求描述"
+    ).click().run()
+    create = next(
+        button for button in at.button if button.label == "创建任务并生成草稿"
+    )
+    assert create.disabled is False
+
+    capability = next(
+        field for field in at.text_area if field.label == "希望落地的单一能力"
+    )
+    capability.set_value("把资料整理好，明确重复去掉，中文别乱码。 ").run()
+    create = next(
+        button for button in at.button if button.label == "创建任务并生成草稿"
+    )
+    assert create.disabled is True
+    assert seen == {}
+
+    next(
+        button for button in at.button if button.label == "确认当前需求描述"
+    ).click().run()
+    next(
+        button for button in at.button if button.label == "创建任务并生成草稿"
+    ).click().run()
+
+    assert seen["capability"] == "把资料整理好，明确重复去掉，中文别乱码。"
+
+
+def test_primary_journey_rejects_stale_or_technical_brief_adoption(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A changed repository and implementation-heavy model prose both fail closed."""
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_jobs, product_journeys
+
+    state = tmp_path / "state"
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_journeys, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(product_journeys, "list_journeys", lambda: [])
+    monkeypatch.setattr(product_journeys, "synthesized_read_only_cards", lambda: [])
+    monkeypatch.setattr(
+        product_jobs,
+        "online_drafter_status",
+        lambda: {"ready": True, "backend": "litellm", "label": "API provider 已配置"},
+    )
+    monkeypatch.setattr(
+        product_jobs,
+        "read_repo_overview",
+        lambda *_a, **_k: {
+            "ok": True,
+            "overview": {
+                "repository": "https://github.com/example/new",
+                "headline": "demo repository",
+                "surfaces": [],
+                "risks": [],
+            },
+        },
+    )
+
+    def _summarize(_overview, *, offline: bool, capability_goal: str = "") -> dict:
+        return {
+            "ok": True,
+            "summary": "仓库摘要仍然可以阅读。",
+            "drafter": "gateway",
+            "recommended_brief_id": "bad",
+            "requirement_briefs": [
+                {
+                    "brief_id": "bad",
+                    "title": "直接调用实现",
+                    "scenario": "整理一份资料",
+                        "delivery_requirements": {
+                            "inputs": [{
+                                "kind": "file", "location": "local",
+                                "representation": "utf8_text",
+                                "format_label": "文本", "role": "待整理资料",
+                            }],
+                        "outputs": [{
+                            "kind": "text_artifact", "format_id": "markdown",
+                            "format_label": "Markdown", "role": "整理结果",
+                        }],
+                        "network": "offline", "credentials": "none",
+                        "lifecycle": "per_invocation", "runtime": "local_cpu",
+                    },
+                    "boundary": "请 import demo 并调用 src/demo.py 里的函数",
+                    "reason": "模型给出了过多实现细节。",
+                },
+                {
+                    "brief_id": "other",
+                    "title": "另一种做法",
+                    "scenario": "把输入整理成方便阅读的内容",
+                        "delivery_requirements": {
+                            "inputs": [{
+                                "kind": "file", "location": "local",
+                                "representation": "utf8_text",
+                                "format_label": "文本", "role": "待整理资料",
+                            }],
+                        "outputs": [{
+                            "kind": "text_artifact", "format_id": "markdown",
+                            "format_label": "Markdown", "role": "整理结果",
+                        }],
+                        "network": "offline", "credentials": "none",
+                        "lifecycle": "per_invocation", "runtime": "local_cpu",
+                    },
+                    "boundary": "无法处理的内容要明确保留",
+                    "reason": "便于普通用户阅读。",
+                },
+            ],
+        }
+
+    monkeypatch.setattr(product_jobs, "summarize_repo_overview", _summarize)
+
+    at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=60)
+    at.session_state["rp_journey_repo"] = "https://github.com/example/new"
+    at.session_state["rp_journey_revision"] = "v2"
+    at.session_state["rp_journey_capability"] = "我想先看看这个仓库能不能帮我整理资料。"
+    at.session_state["rp_pending_capability_adoption"] = {
+        "signature": "stale-signature",
+        "text": "这条旧仓库建议绝不能被采用。",
+    }
+    at.run()
+    capability = next(field for field in at.text_area if field.label == "希望落地的单一能力")
+    assert capability.value == "我想先看看这个仓库能不能帮我整理资料。"
+    rendered = " ".join(str(item.value) for item in at.warning)
+    assert "仓库或版本已经变化" in rendered
+
+    next(button for button in at.button if button.label == "让 LLM 分析仓库和这项能力").click().run()
+    adoption_buttons = [
+        button for button in at.button if button.label.startswith("采用")
+    ]
+    # The technical recommendation remains visible and its delivery shape is
+    # still SUPPORTED, but it cannot enter the user's wording in one click.  A
+    # separate plain-language suggestion stays usable instead of making the
+    # whole model response disappear.
+    assert [button.label for button in adoption_buttons] == ["采用这个描述"]
+    rendered_info = " ".join(str(item.value) for item in at.info)
+    rendered_warning = " ".join(str(item.value) for item in at.warning)
+    assert "仓库摘要仍然可以阅读" in rendered_info
+    assert "实现层表达" in rendered_warning
+
+
+def test_exported_journey_runs_fresh_audit_from_llm_input_and_frozen_reference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The main Journey owns the candidate-first audit flow; upload is only fallback."""
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_jobs, product_journeys
+
+    journey = product_journeys.ProductJourneyRefV1(
+        journey_id="b" * 32,
+        tool_name="research-report",
+        source_repo_url="https://github.com/example/research-report",
+        draft_dir=str(tmp_path / "draft"),
+        task_id="tool-research-report-v1",
+        dest_root=str(tmp_path / "tools"),
+        updated_at="2026-08-29T00:00:00Z",
+    )
+    snapshot = {
+        "journey": journey.model_dump(mode="json"),
+        "phase": "EXPORTED",
+        "worker": {"status": "SUCCEEDED", "action": "tool-build-real"},
+        "action_result": {"ok": True, "pipeline_verdict": "VERIFIED_TOOL_READY"},
+        "task_id": journey.task_id,
+        "tool_name": journey.tool_name,
+        "historical_verdict": "VERIFIED_TOOL_READY",
+        "operational_status": "REVIEW_REQUIRED",
+        "package_health": "OK",
+    }
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(product_journeys, "list_journeys", lambda: [journey])
+    monkeypatch.setattr(product_journeys, "journey_snapshot", lambda *_a, **_k: snapshot)
+    monkeypatch.setattr(product_journeys, "synthesized_read_only_cards", lambda: [])
+    monkeypatch.setattr(
+        product_jobs,
+        "online_drafter_status",
+        lambda: {"ready": True, "backend": "litellm", "label": "API provider 已配置"},
+    )
+    proposed: list[tuple[str, str, str, int, bool]] = []
+
+    def _propose(
+        tool_name: str,
+        *,
+        dest_root: Path,
+        expected_task_id: str,
+        n: int,
+        offline: bool,
+    ) -> dict:
+        proposed.append((tool_name, str(dest_root), expected_task_id, n, offline))
+        return {
+            "ok": True,
+            "tool_name": tool_name,
+            "task_id": expected_task_id,
+            "dest_root": str(dest_root),
+            "drafter": "gateway",
+            "note": "期望值来自冻结参考实现。",
+            "candidates": [
+                {
+                        "input_name": "fresh.graphml",
+                        "input_text": "<graphml><graph/></graphml>",
+                        "why": "新的边界输入",
+                        "upstream_output": "# Network report\n\nNo nodes.\n",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(product_jobs, "propose_audit_candidates", _propose)
+    materialized: dict[str, object] = {}
+
+    def _materialize(
+        tool_name: str,
+        *,
+        candidate: object,
+        dest_root: Path,
+        expected_task_id: str,
+    ) -> dict:
+        materialized.update({
+            "tool_name": tool_name,
+            "candidate": candidate,
+            "dest_root": dest_root,
+            "expected_task_id": expected_task_id,
+        })
+        return {"ok": True, "input": str(tmp_path / "fresh.graphml"), "expected": str(tmp_path / "expected.md")}
+
+    monkeypatch.setattr(product_jobs, "materialize_audit_candidate", _materialize)
+    started: dict[str, object] = {}
+
+    def _start(
+        name: str,
+        input_path: Path,
+        expected_path: Path,
+        dest_root: Path,
+        *,
+        expected_task_id: str,
+        journey_id: str = "",
+    ) -> dict:
+        started.update(
+            {
+                "name": name,
+                "input": input_path,
+                "expected": expected_path,
+                "dest_root": dest_root,
+                "expected_task_id": expected_task_id,
+                "journey_id": journey_id,
+            }
+        )
+        return {"ok": True, "note": "audit started"}
+
+    monkeypatch.setattr(product_jobs, "start_tool_audit", _start)
+
+    at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=60).run()
+    assert not [str(e.value) for e in at.exception]
+    labels = [button.label for button in at.button]
+    assert "让 LLM 生成 Fresh audit 候选" in labels
+    assert "用上传文件运行 Fresh audit" in labels
+    assert {uploader.label for uploader in at.file_uploader} == {"新鲜输入", "独立确认的期望输出"}
+
+    next(button for button in at.button if button.label == "让 LLM 生成 Fresh audit 候选").click().run()
+    assert proposed == [(
+        "research-report",
+        str(tmp_path / "tools"),
+        "tool-research-report-v1",
+        4,
+        False,
+    )]
+    assert [field.label for field in at.text_area].count("模型提议的输入") == 1
+    assert [field.label for field in at.text_area].count("冻结参考实现的实际输出") == 1
+
+    next(
+        button
+        for button in at.button
+        if button.label == "确认这组输入与参考真值并运行 Fresh audit"
+    ).click().run()
+    assert materialized["candidate"] == {
+        "input_name": "fresh.graphml",
+        "input_text": "<graphml><graph/></graphml>",
+        "why": "新的边界输入",
+        "upstream_output": "# Network report\n\nNo nodes.\n",
+    }
+    assert materialized["dest_root"] == Path(journey.dest_root)
+    assert materialized["expected_task_id"] == "tool-research-report-v1"
+    assert started["name"] == "research-report"
+    assert started["expected_task_id"] == "tool-research-report-v1"
+    assert started["journey_id"] == journey.journey_id
+
+
+def test_draft_journey_exposes_readiness_contract_and_samples_with_source_advanced(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stage 2 shows Core readiness while keeping oracle source in advanced UI."""
+    from streamlit.testing.v1 import AppTest
+
+    from repoproof.ui.services import product_jobs, product_journeys
+
+    state = tmp_path / "state"
+    draft_dir = state / "drafts" / "journey-demo"
+    draft_dir.mkdir(parents=True)
+    draft_text = """tool:
+  name: demo-tool
+  summary: demo
+  interface:
+    input: {format: TXT}
+    output:
+      format: TEXT
+      contract: {media_type: text/plain, root_type: text, required: {}}
+capability: {statement: convert one input, output_schema: DemoText}
+source_repo:
+  distribution: demo
+  import_module: demo
+  license: MIT
+"""
+    (draft_dir / "draft.yaml").write_text(draft_text, encoding="utf-8")
+    (draft_dir / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+    (draft_dir / "reference_impl.py").write_text("import demo\n", encoding="utf-8")
+    review = {
+        "ok": True,
+        "draft_dir": draft_dir,
+        "draft": {
+            "tool": {
+                "name": "demo-tool",
+                "summary": "demo",
+                "interface": {
+                    "input": {"format": "TXT"},
+                    "output": {
+                        "format": "TEXT",
+                        "contract": {
+                            "media_type": "text/plain",
+                            "root_type": "text",
+                            "required": {},
+                        },
+                    },
+                },
+            },
+            "capability": {"statement": "convert one input", "output_schema": "DemoText"},
+            "source_repo": {"distribution": "demo", "import_module": "demo", "license": "MIT"},
+        },
+        "raw_draft": draft_text,
+        "examples": [],
+        "reference_impl": "import demo\n",
+        "semantic_verifier": "import demo\n",
+        "gaps": "",
+        "dependency_lock": {"source": "derived", "pins": ["demo==1.0"], "note": "locked"},
+        "draft_readiness": {
+            "schema_version": 1,
+            "status": "INCOMPLETE",
+            "compatible": True,
+            "current": True,
+            "ready": False,
+            "ready_to_confirm": False,
+            "reason_codes": ["EXAMPLES_INSUFFICIENT"],
+            "public_summary": {
+                "tool_schema_version": 3,
+                "semantic_verifier_ready": True,
+                "semantic_commitment_count": 1,
+                "verifier_declared_commitment_count": 1,
+                "commitment_coverage": "COMPLETE",
+                "dependency_lock_ready": True,
+                "dependency_lock_source": "derived",
+                "example_count": 0,
+                "minimum_examples": 3,
+            },
+            "recommended_action": "补齐样例后由 Core 复核。",
+        },
+    }
+    journey = product_journeys.ProductJourneyRefV1(
+        journey_id="a" * 32,
+        tool_name="demo-tool",
+        source_repo_url="https://github.com/example/demo",
+        draft_dir=str(draft_dir),
+        dest_root=str(tmp_path / "tools"),
+        agent_backend="mini-swe",
+    )
+    snapshot = {
+        "journey": journey.model_dump(mode="json"),
+        "phase": "DRAFT",
+        "worker": None,
+        "action_result": None,
+        "task_id": None,
+        "tool_name": "demo-tool",
+        "draft_review": review,
+        "operational_status": "UNVERIFIED",
+        "package_health": "NOT_EXPORTED",
+    }
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(product_jobs, "read_managed_draft_review", lambda *_a, **_k: review)
+    monkeypatch.setattr(
+        product_jobs,
+        "online_drafter_status",
+        lambda: {"ready": True, "backend": "litellm", "label": "API provider 已配置"},
+    )
+    proposed: dict[str, object] = {}
+
+    def _propose(_draft_dir: Path, *, n: int, offline: bool) -> dict:
+        proposed.update({"n": n, "offline": offline})
+        return {
+            "ok": True,
+            "drafter": "gateway",
+            "note": "four upstream outputs",
+            "requested": n,
+            "usable_count": n,
+            "confirmed_count": 0,
+            "shortfall": False,
+            "candidates": [
+                {
+                    "input_name": f"case-{index}.txt",
+                    "input_text": f"input {index}",
+                    "upstream_output": f"output {index}",
+                    "upstream_error": None,
+                    "why": "boundary",
+                    "expected_behavior": "success",
+                    "covered_commitment_ids": ["transform-input"],
+                }
+                for index in range(n)
+            ],
+        }
+
+    monkeypatch.setattr(product_jobs, "propose_example_candidates", _propose)
+    monkeypatch.setattr(product_journeys, "list_journeys", lambda: [journey])
+    monkeypatch.setattr(product_journeys, "journey_snapshot", lambda *_a, **_k: snapshot)
+    monkeypatch.setattr(product_journeys, "synthesized_read_only_cards", lambda: [])
+
+    at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=90).run()
+
+    assert not [str(e.value) for e in at.exception], [str(e.value) for e in at.exception]
+    assert at.session_state["rp_advanced_editor"] is False
+    text_inputs = [field.label for field in at.text_input]
+    text_areas = [field.label for field in at.text_area]
+    buttons = [button.label for button in at.button]
+    uploaders = [uploader.label for uploader in at.file_uploader]
+    assert "工具名" in text_inputs
+    assert "固定依赖锁（每行一个 包名==精确版本）" in text_areas
+    assert "可执行输出合同" in text_areas
+    assert "公开产物定位协议（JSON）" in text_areas
+    assert "上游参考实现（必须真实 import 固定版本）" in text_areas
+    assert any(
+        expander.label == "高级：产物协议、reference 与独立 verifier"
+        for expander in at.expander
+    )
+    assert any(metric.label == "独立语义验证器" for metric in at.metric)
+    assert any(metric.label == "公开承诺覆盖" for metric in at.metric)
+    assert "让 LLM 生成样例候选" in buttons
+    assert "样例输入内容" in text_areas
+    assert "你核实过的期望输出" in text_areas
+    assert "输入文件" in uploaders
+    assert "期望输出文件（UTF-8）" in uploaders
+
+    next(button for button in at.button if button.label == "让 LLM 生成样例候选").click().run()
+    assert not [str(e.value) for e in at.exception], [str(e.value) for e in at.exception]
+    assert proposed == {"n": 4, "offline": False}
+    assert len([button for button in at.button if button.label == "确认这一条并加入样例"]) == 4
+
+
+def test_onboarding_page_renders_with_repo_overview(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """新建工具页 + 仓库简介面板真渲染一次。
 
     2026-08-27 新增「仓库简介」与「样例助手」两块都在这一页;它们含表格、
@@ -62,6 +1093,58 @@ def test_onboarding_page_renders_with_repo_overview(monkeypatch: pytest.MonkeyPa
     """
     from repoproof.ui.services import product_jobs
 
+    # The page must not depend on whichever draft the developer happens to
+    # have under ~/.repoproof.  In particular, a successful confirm moves that
+    # directory into tool_tasks/_drafts, which used to make this render test
+    # disappear with the user's draft.
+    state_root = tmp_path / "state"
+    draft_dir = state_root / "drafts" / "my-tool-draft"
+    draft_dir.mkdir(parents=True)
+    (draft_dir / "draft.yaml").write_text(
+        """tool:
+  name: demo-tool
+  summary: demo
+  interface:
+    input: {format: TXT}
+    output:
+      format: TEXT
+      contract: {media_type: text/plain, root_type: text, required: {}}
+capability: {statement: demo, output_schema: DemoText}
+""",
+        encoding="utf-8",
+    )
+    (draft_dir / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
+    (draft_dir / "reference_impl.py").write_text("# demo\n", encoding="utf-8")
+    monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state_root))
+    monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state_root)
+    review = {
+        "ok": True,
+        "draft_dir": draft_dir,
+        "draft": {
+            "tool": {
+                "name": "demo-tool",
+                "summary": "demo",
+                "interface": {
+                    "input": {"format": "TXT"},
+                    "output": {
+                        "format": "TEXT",
+                        "contract": {
+                            "media_type": "text/plain",
+                            "root_type": "text",
+                            "required": {},
+                        },
+                    },
+                },
+            },
+            "capability": {"statement": "demo", "output_schema": "DemoText"},
+        },
+        "raw_draft": (draft_dir / "draft.yaml").read_text(encoding="utf-8"),
+        "examples": [],
+        "reference_impl": "# demo\n",
+        "gaps": "",
+    }
+    monkeypatch.setattr(product_jobs, "read_managed_draft_review", lambda *_args, **_kwargs: review)
+
     overview = {
         "repository": "https://example.invalid/demo",
         "headline": "demo does one thing well",
@@ -69,20 +1152,19 @@ def test_onboarding_page_renders_with_repo_overview(monkeypatch: pytest.MonkeyPa
         "prose_source": "README 原文摘录(未经模型改写)",
         "quickstart": "import demo",
         "quickstart_evidence": "README.md 首个代码块",
-        "facts": [{"label": "许可证", "value": "MIT",
-                   "evidence": "LICENSE", "provenance": "FACT"}],
+        "facts": [{"label": "许可证", "value": "MIT", "evidence": "LICENSE", "provenance": "FACT"}],
         "surfaces": [{"kind": "公开符号", "value": "convert", "evidence": "__all__"}],
         "risks": ["无测试目录"],
         "sources": ["README.md"],
     }
     monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
-    monkeypatch.setattr(product_jobs, "read_repo_overview",
-                        lambda *a, **k: {"ok": True, "overview": overview})
+    monkeypatch.setattr(product_jobs, "read_repo_overview", lambda *a, **k: {"ok": True, "overview": overview})
 
     from streamlit.testing.v1 import AppTest
 
     at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=90)
     at.session_state["rp_overview"] = {"ok": True, "overview": overview}
+    at.session_state["rp_advanced_editor"] = True
     at.run()
     assert not [str(e.value) for e in at.exception], [str(e.value) for e in at.exception]
     labels = [b.label for b in at.button]
@@ -91,7 +1173,7 @@ def test_onboarding_page_renders_with_repo_overview(monkeypatch: pytest.MonkeyPa
 
 
 def test_stale_service_process_gets_a_readable_warning(monkeypatch: pytest.MonkeyPatch) -> None:
-    """**负控**:运行中的 Studio 进程缺少新接口时,给人话提示而不是 AttributeError。
+    """**负控**:旧服务立即阻断并给人话提示,而不是留下可点击动作。
 
     LESSONS #50(第二次咬人):Streamlit 只重新 exec 页面文件,不重载它
     import 的 services 模块 —— 刚加的函数"磁盘上有、进程里没有",用户点
@@ -106,9 +1188,52 @@ def test_stale_service_process_gets_a_readable_warning(monkeypatch: pytest.Monke
 
     at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=90)
     at.session_state["rp_repo_url"] = "https://github.com/example/demo"
+    at.session_state["rp_advanced_editor"] = True
     at.run()
-    btn = [b for b in at.button if "仓库简介" in b.label][0]
-    btn.click().run()
 
     assert not [str(e.value) for e in at.exception], [str(e.value) for e in at.exception]
-    assert any("重启" in w.value for w in at.warning), [w.value for w in at.warning]
+    assert not at.button
+    assert any("重启" in item.value for item in at.error), [
+        item.value for item in at.error
+    ]
+
+
+def test_stale_service_signature_is_caught_before_the_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """**负控 · 同一坑第三次**:接口还在、但**签名旧了**,也要给人话提示。
+
+    LESSONS #50 的第一版守卫只查 `hasattr` —— 而 2026-08-28 用户吃到的是
+    `TypeError: save_draft_review() got an unexpected keyword argument
+    'distribution'`:函数在,参数不认。所以守卫必须连参数一起查,并且在
+    **页面顶部**就体检,而不是等用户点了保存才炸。
+    """
+    from repoproof.ui.services import product_jobs
+
+    def _old_save(
+        draft_dir,
+        *,
+        tool_name,
+        summary,
+        statement,
+        input_format,
+        output_format,
+        output_schema,
+        reference_impl,
+        output_contract=None,
+    ):  # 旧签名:不收上游身份三件
+        return {"ok": True}
+
+    monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+    monkeypatch.setattr(product_jobs, "save_draft_review", _old_save)
+
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=90)
+    at.session_state["rp_advanced_editor"] = True
+    at.run()
+
+    assert not [str(e.value) for e in at.exception], [str(e.value) for e in at.exception]
+    said = [m.value for m in at.error] + [m.value for m in at.warning]
+    assert any("重启" in m for m in said), said
+    assert any("distribution" in m for m in said), said  # 点名到具体参数

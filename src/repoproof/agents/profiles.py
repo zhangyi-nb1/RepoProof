@@ -174,6 +174,8 @@ _FACE_MAP: tuple[tuple[str, str], ...] = (
     ("agents/backend.py", "executor_semantics"),             # agent 循环
     ("agents/dsh_worker.py", "executor_semantics"),          # DSH 外来循环(阶段 3)
     ("agents/dsh_backend.py", "executor_semantics"),         # DSH 预算长牙处(阶段 4)
+    ("agents/codex_cli_backend.py", "executor_semantics"),   # Product Codex 原生 harness 连接器
+    ("agents/codex_hook_guard.py", "executor_semantics"),    # Codex 命令策略钩子
     # 桥接件归 executor 面的裁决点:bridge_budget 决定 H1 臂跑在什么总额下
     # (= 改运行预算)。fidelity/指纹虽是量具,F1 一模一面,按主导语义归。
     ("agents/dsh_bridge.py", "executor_semantics"),          # 等总额映射(阶段 8)
@@ -190,6 +192,7 @@ _FACE_MAP: tuple[tuple[str, str], ...] = (
     ("agents/provider_gate.py", "model_profile"),
     ("agents/deepseek_native.py", "model_profile"),   # P-D 直连协议层(§6)
     ("agents/dsh_gpt_shim.py", "model_profile"),      # DSH→openai 协议适配层(GPT×DSH)
+    ("agents/codex_text_client.py", "model_profile"), # Product 起草的订阅/结构化协议
     # ---- 验证面:独立验证与完整性扫描 ----
     ("verification/", "verifier"),
     # 上游执行回执(A0):它判定"什么算真的用了上游",是判据不是执行器。

@@ -130,6 +130,21 @@ def apply_product_theme() -> None:
         }
         .rp-step strong { display: block; margin: .7rem 0 .3rem; color: var(--rp-ink); }
         .rp-step span { color: var(--rp-muted); font-size: .84rem; line-height: 1.55; }
+        .rp-journey-steps {
+          display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: .55rem; margin: .75rem 0 1.25rem;
+        }
+        .rp-journey-step {
+          padding: .72rem .7rem; border: 1px solid var(--rp-line);
+          border-radius: 13px; background: rgba(255,255,255,.86);
+          color: var(--rp-muted); font-size: .76rem; font-weight: 700;
+          line-height: 1.35;
+        }
+        .rp-journey-step b {
+          display: block; color: inherit; font-size: .68rem; margin-bottom: .18rem;
+        }
+        .rp-journey-step-done { color: #047857; border-color: #a7f3d0; background: #ecfdf5; }
+        .rp-journey-step-current { color: #3730a3; border-color: #c7d2fe; background: #eef2ff; }
         .rp-status {
           display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .62rem;
           border-radius: 999px; font-size: .75rem; font-weight: 800;
@@ -157,6 +172,7 @@ def apply_product_theme() -> None:
           [data-testid="stMainBlockContainer"] { padding-top: 1.2rem; }
           .rp-hero { padding: 1.6rem 1.35rem; border-radius: 20px; }
           .rp-hero h1 { font-size: 2.15rem; }
+          .rp-journey-steps { grid-template-columns: 1fr; }
         }
         </style>
         """,
@@ -199,6 +215,30 @@ def flow_step(number: int, title: str, body: str) -> None:
           <span>{escape(body)}</span>
         </div>
         """,
+        unsafe_allow_html=True,
+    )
+
+
+def journey_stepper(current: int) -> None:
+    """Render the five Product stages with text, not color alone."""
+
+    labels = (
+        "仓库与能力",
+        "合同与样例",
+        "零模型演练",
+        "真实构建与验证",
+        "Fresh audit 与启用",
+    )
+    parts: list[str] = []
+    for index, label in enumerate(labels, start=1):
+        state = "done" if index < current else "current" if index == current else "pending"
+        state_label = "已完成" if state == "done" else "当前" if state == "current" else "待进行"
+        parts.append(
+            f'<div class="rp-journey-step rp-journey-step-{state}">'
+            f"<b>{index} · {state_label}</b>{escape(label)}</div>"
+        )
+    st.markdown(
+        '<div class="rp-journey-steps">' + "".join(parts) + "</div>",
         unsafe_allow_html=True,
     )
 

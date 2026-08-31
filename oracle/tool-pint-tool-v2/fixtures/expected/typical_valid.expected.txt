@@ -1,0 +1,3 @@
+样本名	原数值	目标单位	换算结果	状态	说明
+样品A	12.5 meter	centimeter	1250	已换算	
+样品B	3 kilogram	gram	3000	已换算	

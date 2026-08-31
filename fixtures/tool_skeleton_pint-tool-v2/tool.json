@@ -1,0 +1,45 @@
+{
+ "manifest_version": 1,
+ "name": "pint-tool",
+ "version": "1.0.0",
+ "summary": "将带样本名、原数值和目标单位的 UTF-8 TSV 表格用 Pint 换算为可直接粘贴到 Excel 的 TSV，并保留无法换算的行及其说明。",
+ "source": {
+  "url": "https://github.com/hgrecco/pint",
+  "resolved_commit": "5e79411e1be2dc39c52a536168338773b49fd512",
+  "license": "BSD",
+  "distribution": "Pint"
+ },
+ "contract_schema_version": 3,
+ "interface": {
+  "usage": "pint-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "UTF-8 TSV 表格：列名必须为“样本名”“原数值”“目标单位”；“原数值”为 Pint 可解析的带单位数量表达式",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "TSV",
+   "contract": {
+    "media_type": "text/tab-separated-values",
+    "root_type": "text",
+    "required": {},
+    "validation_profile": "tsv_table_v1"
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "UnitConversionTsv"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>未闭合 Atom</title>
+  <id>urn:example:broken</id>
+  <updated>2024-01-02T03:04:05Z</updated>
+  <entry>
+    <title>条目 &amp; 内容</title>
+    <id>urn:example:entry:1</id>
+    <link href="relative/item"/>
+    <author><name>李雷</name><email>li@example.test</email></author>
+    <category term="新闻" scheme="urn:tag" label=" 新闻 "/>
+    <published>2024-01-02T03:04:05+08:00</published>
+  </entry>

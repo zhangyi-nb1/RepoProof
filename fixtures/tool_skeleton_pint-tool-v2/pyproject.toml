@@ -1,0 +1,8 @@
+[project]
+name = "pint_tool"
+version = "1.0.0"
+description = '将带样本名、原数值和目标单位的 UTF-8 TSV 表格用 Pint 换算为可直接粘贴到 Excel 的 TSV，并保留无法换算的行及其说明。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,95 @@
+task_id: tool-rispy-screening-table-v1
+
+controls:
+  positive: controls/tool-rispy-screening-table-v1/positive
+  negatives:
+    - path: controls/tool-rispy-screening-table-v1/negative_empty
+      label: NC_empty
+      must_fail_nodes: ["test_example"]
+    - path: controls/tool-rispy-screening-table-v1/negative_hardcode
+      label: NC_hardcode
+      must_fail_nodes: ["test_held_example"]
+    - path: controls/tool-rispy-screening-table-v1/negative_badexit
+      label: NC_badexit
+      must_fail_nodes: ["test_malformed_input_is_user_error"]
+  # NC_reimpl(零 import 上游)不在此表:它在 oracle 上全绿,判死属
+  # provenance 层(runner 验证阶段执法;harness 测试喂它自证查得出)。
+  # 见 TOOL_READY_GATE §五。目录:controls/tool-rispy-screening-table-v1/negative_reimpl
+
+requirements:
+  - id: satisfy-user-examples
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      调用 pinned rispy 实现能力,使全部用户样例断言通过
+      (行为以公开样例为准,例:rispy-screening-table inputs/typical_two_records_with_duplicate -> 见 expected/typical_two_records_with_duplicate.expected.txt; rispy-screening-table inputs/非ASCII与空字段 -> 见 expected/非ASCII与空字段.expected.txt)。
+    examples:
+      - "rispy-screening-table inputs/typical_two_records_with_duplicate -> 见 expected/typical_two_records_with_duplicate.expected.txt; rispy-screening-table inputs/非ASCII与空字段 -> 见 expected/非ASCII与空字段.expected.txt"
+    oracle_nodes:
+      - "test_capability::test_example_1"
+      - "test_capability::test_example_2"
+      - "test_capability::test_held_example_1"
+  - id: interface-contract
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      坏输入内容抛 UserInputError(骨架转 exit 1);不得让异常裸奔到
+      兜底层(exit 2);重复调用同一输入输出逐字节一致;成功路径不向
+      stderr 泄漏 traceback。
+    examples:
+      - "exit: 0=成功 1=用户错误 2=内部错误"
+    oracle_nodes:
+      - "test_capability::test_malformed_input_is_user_error"
+      - "test_capability::test_deterministic_output"
+      - "test_capability::test_stdout_purity_on_success"
+  - id: skeleton-anchors-untouched
+    owner: HOST_INPUT_GUARD
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      骨架锚定件(main.py / bin/ / build.sh / tool.json / pyproject.toml)
+      与其 argparse/输入存在检查/exit 语义由 harness 预置,不可修改,
+      不计 agent 能力。
+    examples:
+      - "rispy-screening-table --help -> usage"
+    oracle_nodes:
+      - "test_interface_contract::test_help_reachable"
+      - "test_interface_contract::test_missing_input_is_user_error"
+  - id: intent-fixed-csv-header
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "输出是严格 CSV 表格，且唯一表头依次且仅为 record_index、title、authors、year、doi、type、missing_fields。"
+    examples: []
+    verified_by: semantic-verifier:rispy-screening-table-semantic-v1
+  - id: intent-record-order-and-index
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "对 rispy 从有效输入解析出的每一条记录，输出恰好一条数据行，不删除或合并重复记录；数据行顺序与解析记录顺序相同，record_index 从 1 起按该顺序连续编号。"
+    examples: []
+    verified_by: semantic-verifier:rispy-screening-table-semantic-v1
+  - id: intent-bibliographic-column-mapping
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "每条数据行的 title、year、doi、type 单元格分别等于 rispy 解析记录的 title、year、doi、type_of_reference 键的文本值；缺失或值为 null 时写为空字符串，其他值不作额外清洗。"
+    examples: []
+    verified_by: semantic-verifier:rispy-screening-table-semantic-v1
+  - id: intent-authors-serialization
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "每条数据行的 authors 单元格取 rispy 解析记录的 authors 值：列表值按其原有顺序以“; ”连接；缺失或 null 值写为空字符串；非列表值写为其文本值。"
+    examples: []
+    verified_by: semantic-verifier:rispy-screening-table-semantic-v1
+  - id: intent-missing-fields-encoding
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "每条数据行的 missing_fields 仅检查渲染后的 title、authors、year、doi 四个单元格；其中为空字符串的字段名按 title、authors、year、doi 顺序以英文分号连接，若均非空则写为空字符串。"
+    examples: []
+    verified_by: semantic-verifier:rispy-screening-table-semantic-v1
+

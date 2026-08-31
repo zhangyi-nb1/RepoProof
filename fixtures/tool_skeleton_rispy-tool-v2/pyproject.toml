@@ -1,0 +1,8 @@
+[project]
+name = "rispy_tool"
+version = "1.0.0"
+description = '离线整理一份 UTF-8 RIS 文献导出文件，去除明确重复记录并输出可重新导入的 RIS 文献文件。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

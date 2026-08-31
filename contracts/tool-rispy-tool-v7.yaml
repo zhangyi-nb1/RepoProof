@@ -1,0 +1,51 @@
+task_id: tool-rispy-tool-v7
+
+source_repo:
+  url: https://github.com/MrTango/rispy
+  revision: guided
+  resolved_commit: b7aae3b2069ced3fb75287711300f2edf0bcac21
+  license: MIT
+  distribution: rispy
+  import_module: rispy
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_rispy-tool-v7
+  package: rispy_tool
+  entry_point: rispy-tool
+
+requirement_spec_file: tool-rispy-tool-v7.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 3, "name": "rispy-tool", "summary": "将本地 UTF-8 RIS 文献导出文件稳定去除完全重复记录，输出可重新导入文献软件的 RIS 文献文件，不联网补充资料。", "interface": {"usage": "rispy-tool <input> [--out FILE]", "input": {"kind": "file", "format": "UTF-8 编码的 RIS 文献导出文件", "contract": null}, "output": {"kind": "stdout", "format": "RIS", "contract": {"media_type": "application/x-research-info-systems", "root_type": "text", "required": {}, "validation_profile": "ris_interchange_v1"}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: "用户目标：把这份文献导出整理成还能导回文献软件的文件，去掉明确重复，中文别乱码，也别联网补资料。\n公开行为承诺：\n- [stable-exact-record-deduplication] 将输入和输出均用固定版本 rispy 的 RIS 解析器解析后，输出记录序列等于输入记录序列按原始顺序进行稳定去重的结果：字段键和值完全相等的记录只保留首次出现的一条，其余记录均保留且顺序不变。\n- [unicode-field-preservation] 对于保留的每条记录，输出经固定版本 rispy 解析得到的字段文本值与输入中该首次出现记录的字段文本值相同，包括中文及其他 Unicode 字符；不会转写、翻译或补充字段。\n统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。"
+  output_schema: "RisDeduplicatedExport"
+  intent_contract: {"schema_version": 1, "user_goal": "把这份文献导出整理成还能导回文献软件的文件，去掉明确重复，中文别乱码，也别联网补资料。", "user_goal_sha256": "3d526dfa0fb7fe957f9cf2e575ce03b0c72fa70663103f97c879e0cd44197a87", "commitments": [{"commitment_id": "stable-exact-record-deduplication", "public_text": "将输入和输出均用固定版本 rispy 的 RIS 解析器解析后，输出记录序列等于输入记录序列按原始顺序进行稳定去重的结果：字段键和值完全相等的记录只保留首次出现的一条，其余记录均保留且顺序不变。", "rationale": "以解析后的完整记录映射进行相等性判断，能够只删除明确的完全重复项，而不会根据题名、作者等局部字段误删不同文献。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "unicode-field-preservation", "public_text": "对于保留的每条记录，输出经固定版本 rispy 解析得到的字段文本值与输入中该首次出现记录的字段文本值相同，包括中文及其他 Unicode 字符；不会转写、翻译或补充字段。", "rationale": "输入按 UTF-8 文本读取并直接交由 rispy 解析和序列化，可保持可导入 RIS 记录中的 Unicode 文本语义。", "origin": "MODEL_PROPOSED"}], "delivery": {"profile_id": "cli_v2", "support_status": "SUPPORTED", "origin": "USER_EDITED", "requirements": {"inputs": [{"kind": "file", "location": "local", "representation": "utf8_text", "format_label": "UTF-8 编码的 RIS 文献导出文件", "role": "user-confirmed primary input"}], "outputs": [{"kind": "text_artifact", "format_id": "ris", "format_label": "RIS 文献文件", "role": "user-confirmed primary artifact"}], "network": "offline", "credentials": "none", "lifecycle": "per_invocation", "runtime": "local_cpu"}, "admitted_output_format_id": "ris"}, "confirmation": {"confirmed_by": "USER", "confirmed_at": "2026-08-30T13:21:31.311015Z", "semantics_sha256": "6a10849073d669e7eef87a0e9d6509a33486052b4f34b9c48889d8d665c495a6"}}
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py
+  semantic_verifier: {"protocol": "repoproof-semantic-verifier-v1", "verifier_id": "rispy-tool-semantic-v1", "source_file": "oracle/tool-rispy-tool-v7/semantic_verifier.py", "source_sha256": "8e13633d3577976a53467bda85217d91d53bc3363d01b20143abb8b23657dfae", "required_for_operational_active": true}

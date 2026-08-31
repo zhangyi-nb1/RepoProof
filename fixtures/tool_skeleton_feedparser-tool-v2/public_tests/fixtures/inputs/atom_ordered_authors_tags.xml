@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Atom 示例</title>
+  <id>urn:example:feed</id>
+  <updated>2024-03-05T10:15:30+02:00</updated>
+  <link rel="self" href="https://example.test/atom.xml" />
+  <author><name>Alice</name><email>alice@example.test</email></author>
+  <category term="release" label="发布" />
+  <entry>
+    <title>Entry 一</title>
+    <id>urn:example:entry:1</id>
+    <link href="https://example.test/e/1" />
+    <published>2024-03-01T09:00:00Z</published>
+    <updated>2024-03-02T09:30:00Z</updated>
+    <author><name>Bob</name></author>
+    <author><name>李四</name></author>
+    <category term="alpha" />
+    <category term="beta" />
+  </entry>
+</feed>

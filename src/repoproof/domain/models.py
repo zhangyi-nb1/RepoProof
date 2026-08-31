@@ -81,6 +81,96 @@ class CapabilityParams(BaseModel):
     chunk_overlap: int = 0
 
 
+class FrozenSemanticCommitment(BaseModel):
+    """One public behaviour bound before a Product task is frozen."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    commitment_id: str
+    public_text: str
+    rationale: str
+    origin: Literal["MODEL_PROPOSED", "USER_EDITED"]
+
+
+class FrozenArtifactObservation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    observation_id: str
+    commitment_ids: list[str]
+    locator: str
+    value_encoding: str
+
+
+class FrozenArtifactProtocol(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1]
+    protocol_id: str
+    observations: list[FrozenArtifactObservation]
+
+
+class FrozenIntentConfirmation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    confirmed_by: Literal["USER"]
+    confirmed_at: str
+    semantics_sha256: str
+
+
+class FrozenDeliveryInputRequirement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["file", "url", "directory", "stdin", "other"]
+    location: Literal["local", "remote", "not_applicable"]
+    representation: Literal["utf8_text", "binary"] = "utf8_text"
+    format_label: str
+    role: str
+
+
+class FrozenDeliveryOutputRequirement(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["text_artifact", "binary_artifact", "directory", "service", "other"]
+    format_id: str
+    format_label: str
+    role: str
+
+
+class FrozenDeliveryRequirements(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    inputs: list[FrozenDeliveryInputRequirement]
+    outputs: list[FrozenDeliveryOutputRequirement]
+    network: Literal["offline", "required"]
+    credentials: Literal["none", "required"]
+    lifecycle: Literal["per_invocation", "long_running"]
+    runtime: Literal["local_cpu", "gpu", "remote_service"]
+
+
+class FrozenDeliveryIntent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    profile_id: str
+    support_status: Literal["SUPPORTED"]
+    origin: Literal["MODEL_PROPOSED", "USER_EDITED"]
+    requirements: FrozenDeliveryRequirements
+    admitted_output_format_id: str
+
+
+class FrozenIntentContract(BaseModel):
+    """Trace from the exact user goal to the public frozen semantics."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1]
+    user_goal: str
+    user_goal_sha256: str
+    commitments: list[FrozenSemanticCommitment]
+    artifact_protocol: FrozenArtifactProtocol | None = None
+    delivery: FrozenDeliveryIntent | None = None
+    confirmation: FrozenIntentConfirmation
+
+
 class Capability(BaseModel):
     statement: str
     output_schema: str
@@ -90,6 +180,9 @@ class Capability(BaseModel):
     """PUBLIC coverage-ledger requirements ({id, source_field,
     source_quote}); quotes must be verbatim public-contract text.
     None -> the frozen chonkie-task fallback list."""
+    intent_contract: FrozenIntentContract | None = None
+    """Product-mode provenance for task semantics. Historical contracts omit it;
+    new traced drafts must bind it before freeze."""
 
 
 class Environment(BaseModel):
@@ -120,10 +213,42 @@ class Budgets(BaseModel):
     monetary_soft_cap_usd: float = 5.0
 
 
+class SemanticVerifierSpec(BaseModel):
+    """Frozen identity of a task-authored semantic oracle.
+
+    Domain logic belongs to the task file named here. Core only freezes its
+    identity and enforces the repository-agnostic execution/evidence protocol.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    protocol: Literal["repoproof-semantic-verifier-v1"]
+    verifier_id: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]{0,255}$")
+    source_file: str
+    source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    required_for_operational_active: Literal[True] = True
+
+    @field_validator("source_file")
+    @classmethod
+    def _safe_source_file(cls, value: str) -> str:
+        candidate = Path(value)
+        if (
+            candidate.is_absolute()
+            or not candidate.parts
+            or any(part in {"", ".", ".."} for part in candidate.parts)
+            or candidate.suffix != ".py"
+        ):
+            raise ValueError(
+                "semantic verifier source_file must be a safe relative .py path"
+            )
+        return candidate.as_posix()
+
+
 class Acceptance(BaseModel):
     capability_command: list[str]
     regression_command: list[str]
     probe_script: str = "direct_chonkie_probe.py"
+    semantic_verifier: SemanticVerifierSpec | None = None
     """Diagnostic direct-adoption probe under src/repoproof/probes/
     (portability: task-selected, defaulting to the v1–v3 probe)."""
 
@@ -131,6 +256,23 @@ class Acceptance(BaseModel):
 OutputFieldType = Literal[
     "any", "string", "integer", "number", "boolean", "object", "array", "null"
 ]
+TextValidationProfile = Literal[
+    "plain_text_v1",
+    "csv_table_v1",
+    "tsv_table_v1",
+    "markdown_document_v1",
+    "safe_self_contained_xhtml_v1",
+    "ris_interchange_v1",
+]
+
+_TEXT_PROFILE_MEDIA_TYPES: dict[str, set[str]] = {
+    "plain_text_v1": {"text/plain"},
+    "csv_table_v1": {"text/csv"},
+    "tsv_table_v1": {"text/tab-separated-values"},
+    "markdown_document_v1": {"text/markdown"},
+    "safe_self_contained_xhtml_v1": {"text/html", "application/xhtml+xml"},
+    "ris_interchange_v1": {"application/x-research-info-systems"},
+}
 
 
 class ToolOutputContract(BaseModel):
@@ -148,6 +290,14 @@ class ToolOutputContract(BaseModel):
     media_type: str
     root_type: Literal["text", "json", "object", "array", "json_lines"]
     required: dict[str, OutputFieldType] = Field(default_factory=dict)
+    validation_profile: TextValidationProfile | None = None
+    """Explicit executable rules for a text artifact.
+
+    ``media_type`` identifies the representation; it must not silently select
+    policy or producer-specific behavior.  Historical contracts omit this
+    field and retain the legacy root-only text check.  New Product contracts
+    compile a versioned profile from the delivery support registry.
+    """
 
     @field_validator("media_type")
     @classmethod
@@ -177,6 +327,14 @@ class ToolOutputContract(BaseModel):
             raise ValueError("text root_type cannot declare a JSON media_type")
         if self.root_type != "text" and not json_media:
             raise ValueError("JSON root_type requires a JSON media_type")
+        if self.root_type != "text" and self.validation_profile is not None:
+            raise ValueError("validation_profile is only valid for text output")
+        if self.validation_profile is not None:
+            allowed_media = _TEXT_PROFILE_MEDIA_TYPES[self.validation_profile]
+            if self.media_type not in allowed_media:
+                raise ValueError(
+                    "validation_profile does not match the declared media_type"
+                )
         if any(not field.strip() for field in self.required):
             raise ValueError("required field names must not be empty")
         return self
@@ -217,7 +375,8 @@ class ToolSpec(BaseModel):
     target_project.entry_point 一致(adequacy T2 执法)。"""
 
     schema_version: int = Field(default=1, ge=1)
-    """1 = historical ToolSpec semantics; 2 = RFC-011 output-contract gates."""
+    """1 = historical semantics; 2 = output-contract gates; 3 = frozen
+    task-authored semantic verification required before operational ACTIVE."""
     name: str = Field(
         pattern=r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$"
     )

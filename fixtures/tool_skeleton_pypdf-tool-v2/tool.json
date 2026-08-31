@@ -1,0 +1,48 @@
+{
+ "manifest_version": 1,
+ "name": "pypdf-tool",
+ "version": "1.0.0",
+ "summary": "将 PDF 离线转换为稳定、可检索的 JSON 清单：逐页保留文字与空页，并包含标题、作者和书签层级；加密、损坏或空文件会明确报错。",
+ "source": {
+  "url": "https://github.com/py-pdf/pypdf",
+  "resolved_commit": "efad421b12fe47b269593ffca8e79a71c7aae065",
+  "license": "BSD-3-Clause",
+  "distribution": "pypdf"
+ },
+ "contract_schema_version": 2,
+ "interface": {
+  "usage": "pypdf-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "PDF",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON",
+   "contract": {
+    "media_type": "application/json",
+    "root_type": "object",
+    "required": {
+     "metadata": "object",
+     "outlines": "array",
+     "pages": "array"
+    }
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "PdfSearchableManifest"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

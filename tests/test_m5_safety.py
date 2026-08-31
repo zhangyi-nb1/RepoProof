@@ -214,10 +214,19 @@ def _prepare_upgrade_world(
     )
     tool_contract = tmp_path / "tool-alpha-v2.yaml"
     tool_contract.write_text("synthetic: true\n", encoding="utf-8")
+    reference = tmp_path / "controls" / "tool-alpha-v2" / "reference"
+    reference.mkdir(parents=True)
+    (reference / "impl.py").write_text(
+        "def extract(path):\n    return path.read_text()\n", encoding="utf-8"
+    )
+    (reference / "requirements.lock.txt").write_text(
+        "alpha-dist==2.0.0\n", encoding="utf-8"
+    )
     contract = SimpleNamespace(
         task_family="LOCAL-TOOL",
         task_id="tool-alpha-v2",
-        tool=SimpleNamespace(name="alpha"),
+        tool=SimpleNamespace(name="alpha", schema_version=1),
+        acceptance=SimpleNamespace(semantic_verifier=None),
         source_repo=SimpleNamespace(
             url="https://example.invalid/tool.git",
             resolved_commit="c",
@@ -536,6 +545,11 @@ def test_audit_build_revalidates_package_before_executing_launcher(
     assert result["ok"] is False
     assert result["operational_status"] == REVOKED
     assert result["reason_code"] == "BUILD_FAILED"
+    assert result["failure_owner"] == "HARNESS"
+    assert result["failure_stage"] == "BUILD"
+    assert result["failure_class"] == "HARNESS_ENVIRONMENT"
+    assert result["retry_policy"] == "RETRY_AFTER_ENVIRONMENT_REPAIR"
+    assert result["requires_new_task_version"] is False
     assert not external_effect.exists()
     assert load_release_decisions(dest_root)[-1]["decision"] == REVOKED
 
@@ -726,6 +740,39 @@ def test_audit_and_upgrade_serialize_on_shared_install_lock(
     assert (dest_root / "alpha" / "version.txt").read_text(encoding="utf-8") == "v2\n"
 
 
+def test_stale_fresh_audit_truth_cannot_activate_upgraded_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A candidate made for v1 fails closed if v2 wins the install race."""
+
+    dest_root, _current, context = _prepare_upgrade_world(tmp_path, monkeypatch)
+    fresh = tmp_path / "fresh-v1.txt"
+    expected = tmp_path / "expected-v1.txt"
+    fresh.write_text("truth generated for v1\n", encoding="utf-8")
+    expected.write_text("truth generated for v1\n", encoding="utf-8")
+
+    # Candidate generation happened while v1 was current. The competing
+    # upgrade settles v2 before the delayed audit acquires the install lock.
+    _install_upgrade(dest_root, context)
+    ledger_before = (dest_root / RELEASE_LEDGER_NAME).read_bytes()
+
+    with pytest.raises(ToolAuditError) as caught:
+        audit_tool(
+            dest_root,
+            "alpha",
+            input_path=fresh,
+            expected_file=expected,
+            expected_task_id="tool-alpha-v1",
+            run_build=True,
+        )
+
+    assert caught.value.reason_code == "AUDIT_TASK_IDENTITY_MISMATCH"
+    assert "registry 当前为 tool-alpha-v2" in str(caught.value)
+    assert (dest_root / RELEASE_LEDGER_NAME).read_bytes() == ledger_before
+    assert list_tools(dest_root)[0]["task_id"] == "tool-alpha-v2"
+    assert list_tools(dest_root)[0]["operational_status"] == REVIEW_REQUIRED
+
+
 def test_mcp_generation_and_upgrade_serialize_on_shared_install_lock(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -881,3 +928,26 @@ def test_generated_mcp_holds_release_lock_from_active_check_through_execution(
     assert reply["result"]["content"][0]["text"] == "authorized-before-revoke\n"
     assert revoke_rows[0]["decision"] == REVOKED
     assert load_release_decisions(dest_root)[-1]["reason_code"] == "CONCURRENT_REVOKE"
+
+def test_audit_uses_the_same_yardstick_as_the_contract(tmp_path: Path):
+    """抽查的比对口径必须与**合同自己的验收测试**一致。
+
+    2026-08-28 实录:抽查用裸字节比对,而 example_compiler 生成的能力测试
+    用 `_norm`(去首尾空白 + 行尾空白)。金标准样例文件不以换行结尾、工具
+    stdout 带 `\\n` —— 工具通过了全部 6 条能力测试,却被抽查判 MISMATCH
+    并**自动撤回**。用户照着实际输出原样粘贴,同样被撤回。
+
+    抽查是"拿没见过的输入再验一次同一份合同",判据就该是合同的判据。
+    比合同更严不是更严谨,是换了一把尺子 —— 那样"通过合同"推不出
+    "通过抽查",两个结论各说各话。
+    """
+    from repoproof.verification.output_match import compare_output
+
+    stdout, golden = '{"a":1}\n', '{"a":1}'   # 金标准文件不以换行结尾
+    assert stdout != golden                     # 裸字节:不等(旧口径判撤回)
+    assert compare_output(stdout, golden, root_type="object")[0]   # 合同口径:相等
+    assert compare_output(stdout, golden, root_type="text")[0]
+
+    # 真正的不一致仍然必须被抓住
+    assert not compare_output('{"a":1}', '{"a":2}', root_type="object")[0]
+    assert not compare_output("red\n", "blue\n", root_type="text")[0]

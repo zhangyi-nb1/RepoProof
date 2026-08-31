@@ -1,0 +1,47 @@
+{
+ "manifest_version": 1,
+ "name": "webcolors-tool",
+ "version": "1.0.0",
+ "summary": "从网页 HTML 中提取并规范化常见颜色，同时生成适合灰度模块使用的灰度信息。",
+ "source": {
+  "url": "https://github.com/ubernostrum/webcolors",
+  "resolved_commit": "e6392ba6eeba81b02e666eb3ed02ef2e006344c0",
+  "license": "BSD",
+  "distribution": "webcolors"
+ },
+ "contract_schema_version": 2,
+ "interface": {
+  "usage": "webcolors-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "HTML",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON",
+   "contract": {
+    "media_type": "application/json",
+    "root_type": "object",
+    "required": {
+     "colors": "array",
+     "count": "integer"
+    }
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "WebColorExtraction"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

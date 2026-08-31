@@ -21,6 +21,7 @@ from repoproof.runner.host_guided import (
     apply_integrity_to_verdict,
     build_host_prompt,
     integrity_scope,
+    product_integrity_scope,
 )
 
 T1_CONTRACT = (
@@ -190,6 +191,48 @@ def test_integrity_scope_excludes_repoproof_itself(tmp_path: Path, monkeypatch) 
     # DEFAULT_PROTECTED 允许含本机不存在的目录,故不对全表断 isdir)
     assert any(d.lower() == norm_b and os.path.isdir(d)
                for d in integrity_scope(a))
+
+
+def test_product_integrity_scope_ignores_unrelated_sibling_but_watches_task(
+    tmp_path: Path,
+) -> None:
+    from repoproof.harness.host_guard import (
+        snapshot_protected,
+        verify_protected_unchanged,
+    )
+
+    project = tmp_path / "RepoProof"
+    task_id = "tool-demo-v1"
+    task_dir = project / "tool_tasks" / task_id
+    host_copy = tmp_path / "bench" / task_id / "host"
+    upstream = project / "upstream-cache" / "upstream-aaaaaaaaaaaa"
+    controls = project / "controls" / task_id
+    contracts = project / "contracts"
+    sibling = tmp_path / "OfferClaw"
+    for directory in (task_dir, host_copy, upstream, controls, contracts, sibling):
+        directory.mkdir(parents=True, exist_ok=True)
+    contract = contracts / f"{task_id}.yaml"
+    contract.write_text("task_id: tool-demo-v1\n", encoding="utf-8")
+    (task_dir / "contract.yaml").write_text("frozen\n", encoding="utf-8")
+    (host_copy / "tool.json").write_text("{}\n", encoding="utf-8")
+    (upstream / "module.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (controls / "impl.py").write_text("pass\n", encoding="utf-8")
+    (sibling / "live.log").write_text("before\n", encoding="utf-8")
+
+    scope = product_integrity_scope(
+        project,
+        task_id=task_id,
+        task_dir=task_dir,
+        host_copy=host_copy,
+        upstream_src=upstream,
+    )
+    assert str(sibling.resolve()) not in scope
+    before = snapshot_protected(scope)
+    (sibling / "live.log").write_text("unrelated writer changed this\n", encoding="utf-8")
+    assert verify_protected_unchanged(before, scope)["ok"] is True
+
+    contract.write_text("task_id: tampered\n", encoding="utf-8")
+    assert verify_protected_unchanged(before, scope)["ok"] is False
 
 
 # ---------------------------------------------------------------- 冒烟脚本
@@ -1014,3 +1057,26 @@ def test_integrity_external_only_still_blocks_agent_run() -> None:
     assert out["verdict"] == "BLOCKED"
     assert out["state"] == "MAIN_DIR_INTEGRITY_EXTERNAL_ONLY"
     assert "外部" in reasons[0] and "external=2" in reasons[0]
+
+
+def test_integrity_block_names_the_files_and_says_what_to_do() -> None:
+    """完整性覆盖判定时,必须**点名文件**并说明人该做什么。
+
+    2026-08-28 实录:用户在构建期间编辑了邻仓的一个源文件(mtime 正落在
+    19.5 秒的会话窗内),一发四道门全过的彩排被覆盖成 BLOCKED,而消息只
+    说"无法排除本链" —— 用户无从判断是自己动了什么还是系统坏了,只能
+    问"你半天改了啥"。判定不变(证明不了就是证明不了),但**必须说清楚**。
+    """
+    out, reasons = apply_integrity_to_verdict(
+        {"verdict": "PASS_ADAPTED"}, [],
+        {"ok": False, "self_ok": False, "mismatches": [{
+            "dir": "/x/offerclaw", "field": "tree",
+            "attribution": {"verdict": "SELF", "n_self": 1, "n_external": 4,
+                            "self_changes": [{"path": "scripts/build_x.py"}],
+                            "external_changes": []}}]})
+
+    assert out["verdict"] == "BLOCKED"          # 判定不许因为"可读"而放松
+    said = reasons[0]
+    assert "scripts/build_x.py" in said, "没点名到具体文件"
+    assert "重跑" in said, "没告诉人下一步怎么办"
+    assert "真事故" in said, "没说明'我没动过'时意味着什么"

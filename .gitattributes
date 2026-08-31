@@ -1,0 +1,27 @@
+# Binary qualification inputs must never be treated as text by diff/check tools.
+*.docx binary
+*.pdf binary
+*.zip binary
+
+# Frozen qualification inputs intentionally exercise whitespace-sensitive behavior.
+# Do not rewrite them after contract freeze merely to satisfy whitespace linting.
+fixtures/**/public_tests/fixtures/inputs/*.md -whitespace
+oracle/**/fixtures/inputs/*.md -whitespace
+oracle/tool-jsonschema-tool-v3/fixtures/inputs/* -whitespace
+oracle/tool-webcolors-tool-v5/fixtures/inputs/*.txt -whitespace
+
+# Generated public-contract tests are frozen task material; the generator leaves
+# one terminal blank line that is semantically inert but must remain byte-stable.
+fixtures/**/public_tests/test_public_contract.py -whitespace
+
+# Frozen product-journey vectors preserve exact artifact bytes.  Trailing tabs,
+# RIS terminators, and whitespace-only empty documents are intentional test data.
+fixtures/**/public_examples/inputs/inputs/* -whitespace
+fixtures/**/public_tests/fixtures/inputs/* -whitespace
+fixtures/**/public_tests/fixtures/expected/* -whitespace
+oracle/**/fixtures/inputs/* -whitespace
+oracle/**/fixtures/expected/* -whitespace
+
+# Generated requirement sidecars are frozen alongside their task contracts.  The
+# generator's terminal blank line is inert but must remain byte-stable.
+contracts/*.requirements.yaml -whitespace

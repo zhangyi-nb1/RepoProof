@@ -78,6 +78,15 @@ def _candidate_world(
         )
         contract_path = root / f"{task_id}.yaml"
         contract_path.write_text("synthetic: true\n", encoding="utf-8")
+        reference = root / "controls" / task_id / "reference"
+        reference.mkdir(parents=True)
+        (reference / "impl.py").write_text(
+            f"def extract(path):\n    return 'reference-v{version}'\n",
+            encoding="utf-8",
+        )
+        (reference / "requirements.lock.txt").write_text(
+            f"alpha-dist=={version}.0.0\n", encoding="utf-8"
+        )
         run = root / f"run-v{version}"
         run.mkdir()
         (run / "report.json").write_text(
@@ -95,7 +104,8 @@ def _candidate_world(
         contract = SimpleNamespace(
             task_family="LOCAL-TOOL",
             task_id=task_id,
-            tool=SimpleNamespace(name="alpha"),
+            tool=SimpleNamespace(name="alpha", schema_version=1),
+            acceptance=SimpleNamespace(semantic_verifier=None),
             source_repo=SimpleNamespace(
                 url="u",
                 resolved_commit="c",
@@ -162,6 +172,14 @@ def test_revoked_v1_upgrades_to_archived_v1_and_review_required_v2(
     provenance = json.loads(
         (upgraded / "evidence" / "provenance.json").read_text(encoding="utf-8")
     )
+    reference = tmp_path / "controls" / "tool-alpha-v2" / "reference"
+    expected_reference_identity = {
+        "impl_sha256": hashlib.sha256((reference / "impl.py").read_bytes()).hexdigest(),
+        "lock_sha256": hashlib.sha256(
+            (reference / "requirements.lock.txt").read_bytes()
+        ).hexdigest(),
+    }
+    assert provenance["reference_identity"] == expected_reference_identity
     archive = dest_root / provenance["replaces"]["archive_path"]
     assert archive.is_dir()
     assert _tree_digest(archive) == old_digest
@@ -181,6 +199,7 @@ def test_revoked_v1_upgrades_to_archived_v1_and_review_required_v2(
         (dest_root / ".repoproof-registry.json").read_text(encoding="utf-8")
     )["tools"]["alpha"]
     assert registry["task_id"] == "tool-alpha-v2"
+    assert registry["reference_identity"] == expected_reference_identity
     assert registry["previous_versions"] == [
         {
             "archive_path": provenance["replaces"]["archive_path"],
@@ -627,11 +646,12 @@ def test_pipeline_preflights_upgrade_before_models_and_uses_safe_installer(
     (draft / "draft.yaml").write_text(
         json.dumps(
             {
-                "source_repo": {
-                    "url": "u",
-                    "resolved_commit": "c",
-                    "distribution": "alpha-dist",
-                },
+                    "source_repo": {
+                        "url": "u",
+                        "resolved_commit": "c",
+                        "distribution": "alpha-dist",
+                        "import_module": "alpha",
+                    },
                 "tool": {
                     "name": "alpha",
                     "interface": {"input": {"format": "TXT"}},
@@ -644,12 +664,23 @@ def test_pipeline_preflights_upgrade_before_models_and_uses_safe_installer(
     contract = project / "contracts" / f"{task_id}.yaml"
     events: list[str] = []
 
+    def confirm(_draft: Path, _project: Path) -> dict:
+        frozen_reference = (
+            project / "controls" / task_id / "reference" / "impl.py"
+        )
+        frozen_reference.parent.mkdir(parents=True)
+        frozen_reference.write_text(
+            "import alpha\n\ndef extract(path):\n    return alpha.transform(path)\n",
+            encoding="utf-8",
+        )
+        return {"task_id": task_id, "public": 3, "held": 1}
+
+    monkeypatch.setattr(tool_pipeline, "confirm_tool_draft", confirm)
     monkeypatch.setattr(
         tool_pipeline,
-        "confirm_tool_draft",
-        lambda _draft, _project: {"task_id": task_id, "public": 3, "held": 1},
+        "check_draft_complete",
+        lambda *_args, **_kwargs: [],
     )
-    monkeypatch.setattr(tool_pipeline, "check_draft_complete", lambda *_args: [])
     monkeypatch.setattr(
         tool_pipeline, "next_tool_task_id", lambda *_args: task_id
     )
@@ -661,10 +692,18 @@ def test_pipeline_preflights_upgrade_before_models_and_uses_safe_installer(
     )
     upstream = tmp_path / "upstream"
     upstream.mkdir()
+    # 真实的钉版树都声明版本;备轮要靠它派生上游 pin(2026-08-28:锁文件
+    # 缺席 + 派生不出版本 = 会话装不上上游,现在会当场拒发而不是三轮后炸)。
+    (upstream / "pyproject.toml").write_text(
+        '[project]\nname = "alpha-dist"\nversion = "1.0.0"\n', encoding="utf-8")
     monkeypatch.setattr(
         tool_pipeline, "ensure_pinned_upstream", lambda *_args: upstream
     )
-    monkeypatch.setattr(tool_pipeline, "select_upstream_tests", lambda *_args: [])
+    monkeypatch.setattr(
+        tool_pipeline,
+        "select_upstream_test_nodes",
+        lambda *_args: [],
+    )
 
     def materialize(*_args: object, **_kwargs: object) -> Path:
         (project / "tool_tasks" / task_id).mkdir(parents=True)
@@ -680,8 +719,11 @@ def test_pipeline_preflights_upgrade_before_models_and_uses_safe_installer(
         *,
         fake: str | None,
         batch: str,
+        backend: str = "mini-swe",
     ) -> dict:
         assert batch == "TEST"
+        if fake is None:
+            assert backend == "mini-swe"
         events.append("rehearsal" if fake else "real")
         return {
             "report": {
@@ -736,7 +778,11 @@ def test_pipeline_rejects_unsafe_upgrade_before_confirm_freezes_version(
     (draft / "draft.yaml").write_text(
         json.dumps({"tool": {"name": "alpha"}}), encoding="utf-8"
     )
-    monkeypatch.setattr(tool_pipeline, "check_draft_complete", lambda *_args: [])
+    monkeypatch.setattr(
+        tool_pipeline,
+        "check_draft_complete",
+        lambda *_args, **_kwargs: [],
+    )
     monkeypatch.setattr(
         tool_pipeline,
         "next_tool_task_id",

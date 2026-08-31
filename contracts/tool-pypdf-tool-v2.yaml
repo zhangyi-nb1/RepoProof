@@ -1,0 +1,50 @@
+task_id: tool-pypdf-tool-v2
+
+source_repo:
+  url: https://github.com/py-pdf/pypdf
+  revision: guided
+  resolved_commit: efad421b12fe47b269593ffca8e79a71c7aae065
+  license: BSD-3-Clause
+  distribution: pypdf
+  import_module: pypdf
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_pypdf-tool-v2
+  package: pypdf_tool
+  entry_point: pypdf-tool
+
+requirement_spec_file: tool-pypdf-tool-v2.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 2, "name": "pypdf-tool", "summary": "将 PDF 离线转换为稳定、可检索的 JSON 清单：逐页保留文字与空页，并包含标题、作者和书签层级；加密、损坏或空文件会明确报错。", "interface": {"usage": "pypdf-tool <input> [--out FILE]", "input": {"kind": "file", "format": "PDF", "contract": null}, "output": {"kind": "stdout", "format": "JSON", "contract": {"media_type": "application/json", "root_type": "object", "required": {"metadata": "object", "outlines": "array", "pages": "array"}}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    使用固定版本的 pypdf 将单个本地 PDF 转换为 JSON 清单。输出包含 metadata、outlines 和 pages：metadata 固定包含 title 与 author，缺失或不可读时为 null；pages 按 PDF 的原始页序从 1 开始，每项包含 page_number 与 text，text 是该页通过 pypdf PageObject.extract_text() 得到的原始文本，绝不与相邻页拼接，提取结果为 None 的页面输出空字符串，从而保留空页；outlines 按 PDF 书签的文档顺序扁平化，每项包含 level、title 和 page_number，level 从 0 开始，无法解析目标页的书签 page_number 为 null。文本不进行翻译、重排、去重、跨页合并或额外空白规范化，JSON 以稳定键排序和固定分隔符序列化。加密 PDF 一律拒绝，不尝试密码；损坏、无法解析、空文件、路径不可读及文字/书签提取失败均抛出 UserInputError（CLI 退出码 1）。相同输入在相同固定依赖版本下重复运行产生确定性输出。处理完全离线，不访问网络服务。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/pypdf_tool/impl.py 实现 extract(),必须调用 pinned pypdf;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:pypdf-tool inputs/two-pages-with-empty.pdf -> 见 expected/two-pages-with-empty.expected.json; pypdf-tool inputs/single-page.pdf -> 见 expected/single-page.expected.json);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: "PdfSearchableManifest"
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

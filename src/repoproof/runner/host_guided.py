@@ -57,7 +57,12 @@ from pydantic import BaseModel, Field, field_validator
 
 from repoproof.adoption.repair.failure_packet import FailurePacket, build_failure_packets
 from repoproof.adoption.repair.repair_budget import RepairBudget
-from repoproof.adoption.repair.repair_loop import RepairLoop, RoundResult
+from repoproof.adoption.repair.repair_loop import (
+    RepairLoop,
+    RoundResult,
+    classify_agent_exit_status,
+    compute_public_failure_fingerprint,
+)
 from repoproof.agents.provider_gate import PreflightResult, ProviderConfig
 from repoproof.domain.models import (
     AdaptationManifest,
@@ -302,7 +307,20 @@ def _exec_profile_fields(contract, preflight, budgets=None, *,
     # —— 与本函数开头那条纪律同一条;记契约值就等于两臂指纹相同,消融
     # 分不了池。
     b = budgets if budgets is not None else contract.budgets
-    if backend == "dsh":
+    if backend == "codex-cli":
+        tool = {
+            "action_protocol": "codex-exec-jsonl-v1",
+            "tools": ["codex-native-shell", "apply_patch"],
+            "obs_char_cap": None,
+            "pretool_policy": "repoproof-codex-pretool-v1",
+        }
+        context = {
+            "policy": "codex-native-harness+repoproof-pretool",
+            "repair_context": "fresh-codex-exec-per-round",
+            "model_call_counter": "logical_codex_invocations",
+            "benchmark_eligible": False,
+        }
+    elif backend == "dsh":
         # B-dsh 臂:不读 mini-swe 的 obs_cap/投影/引导旋钮 —— 那些机制不在
         # 这条臂上,读了就是把别的臂的配置记成自己的(两臂必须分池,
         # M-DSH-14 的指纹面)。composition 指纹整份入 context 面哈希:
@@ -329,7 +347,7 @@ def _exec_profile_fields(contract, preflight, budgets=None, *,
             "obs_char_cap": cap,
         }
     hmode = harness_mode()
-    if backend != "dsh":
+    if backend not in ("dsh", "codex-cli"):
         if hmode != "guided":
             # 只在非默认臂**加键**(同投影那条的写法):guided 臂的三面指纹
             # 与历史发次逐字节相同,不追溯改写(判据 F5);最小臂天然分池。
@@ -514,8 +532,20 @@ def apply_integrity_to_verdict(verdict_record: dict, gate_reasons: list[str],
                   f"证据供人工复核:{summary}")
     else:
         vr["state"] = "MAIN_DIR_INTEGRITY_UNATTRIBUTED"
+        # 说清楚**是哪几个文件**、以及人该做什么。2026-08-28 实录:用户在
+        # 构建期间编辑了邻仓的一个源文件(mtime 正落在 19.5 秒的会话窗内),
+        # 四道门全过的一发被覆盖成 BLOCKED,而消息只说"无法排除本链"——
+        # 用户完全无从判断是自己动了什么,还是系统坏了。
+        selfies = [c.get("path") for m in integrity.get("mismatches", [])
+                   for c in (m.get("attribution") or {}).get("self_changes", [])
+                   if c.get("path")][:3]
+        named = ("(改动的是:" + "、".join(selfies) + ")") if selfies else ""
         reason = ("MAIN_DIR_INTEGRITY: 保护目录改动无法排除本链"
-                  f"(self_ok=false)—— 判定覆盖为 BLOCKED:{summary}")
+                  f"(self_ok=false)—— 判定覆盖为 BLOCKED{named}。"
+                  "这些文件在会话存在期内被改过、之后不再变动,所以系统"
+                  "**证明不了**它们不是本次运行写的。若是你自己在编辑那个"
+                  "仓库,请在构建期间避开它,然后重跑(彩排零成本);"
+                  f"若你并未改动它,那是真事故,须人工追查。证据:{summary}")
     new_reasons = [*gate_reasons, reason]
     if "gate_reasons" in vr:
         vr["gate_reasons"] = new_reasons
@@ -1257,6 +1287,42 @@ def integrity_scope(project_root: Path) -> list[str]:
     # 比较用 lower(与 host_guard._norm 同律);列表元素保留真实大小写,
     # 快照/指纹要拿它们访问大小写敏感的文件系统。
     return [d for d in protected_dirs() if d.lower() != self_norm]
+
+
+def product_integrity_scope(
+    project_root: Path,
+    *,
+    task_id: str,
+    task_dir: Path,
+    host_copy: Path,
+    upstream_src: Path | None,
+) -> list[str]:
+    """Exact immutable facts watched after a Product Mode run.
+
+    Command-time write protection still covers RepoProof and every sibling git
+    repository.  This narrower list changes only the post-run fingerprint:
+    unrelated sibling activity cannot redefine a Local Tool outcome.
+    """
+
+    candidates = [
+        Path(task_dir),
+        Path(host_copy),
+        Path(project_root) / "contracts" / f"{task_id}.yaml",
+        Path(project_root) / "contracts" / f"{task_id}.yaml.sha256",
+        Path(project_root) / "controls" / task_id,
+    ]
+    if upstream_src is not None:
+        candidates.append(Path(upstream_src))
+    seen: set[str] = set()
+    result: list[str] = []
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        resolved = str(candidate.resolve())
+        if resolved not in seen:
+            seen.add(resolved)
+            result.append(resolved)
+    return result
 
 
 def _read_substitutes(host_copy: Path) -> dict[str, str]:
@@ -2442,7 +2508,18 @@ class HostGuidedRunner:
         # **之前**是保守方向:窗宽只会把更多改动判成 SELF(继续红)。
         # t0 是 monotonic,量时长的;归因要对上文件 mtime,必须 time.time()。
         self._self_wall_t0 = time.time()
-        integrity_before = snapshot_protected(integrity_scope(self.project_root))
+        self._postflight_integrity_scope = (
+            product_integrity_scope(
+                self.project_root,
+                task_id=contract.task_id,
+                task_dir=self.task_dir,
+                host_copy=self.host_copy,
+                upstream_src=self.upstream_src,
+            )
+            if contract.task_family == "LOCAL-TOOL"
+            else integrity_scope(self.project_root)
+        )
+        integrity_before = snapshot_protected(self._postflight_integrity_scope)
         # 会话根不得落在保护目录内(RepoProof 自身也是保护目录),
         # 放 RepoProofBench 工作区;产物/trace 仍在 runs/<id>/ 下。
         sessions_root = Path("~/RepoProofBench/_sessions").expanduser() / self.run_id
@@ -2477,6 +2554,7 @@ class HostGuidedRunner:
         # H9-b(LESSONS #41):全会话累计的越界引用。一轮碰过答案树,后续
         # 轮次也洗不白 —— 这一发整体不再是干净测量。
         out_of_workspace: set[str] = set()
+        codex_policy_audit_missing_rounds: list[int] = []
 
         try:
             # 环境卫生门(批 1 教训):bench 根白名单外条目 → 零预算 BLOCKED。
@@ -2542,7 +2620,15 @@ class HostGuidedRunner:
             )
             token_totals = {"in": 0, "out": 0, "seen": False}   # 累计(记账)
             make_budget_model = None
-            if model_factory is None and getattr(self, "_backend", "mini-swe") == "dsh":
+            if (model_factory is None
+                    and getattr(self, "_backend", "mini-swe") == "codex-cli"):
+                # Product Mode connector:Codex owns the inner agent loop and
+                # ChatGPT-subscription auth.  RepoProof owns the outer repair,
+                # verification and release state; no LiteLLM/API-key object is
+                # constructed in this branch.
+                assert provider is not None and preflight is not None
+                model = None
+            elif model_factory is None and getattr(self, "_backend", "mini-swe") == "dsh":
                 # B-dsh 臂(阶段 8):宿主侧不建模型对象 —— agent 环归封存
                 # worker,预算由父侧 watchdog 执法(dsh_backend),token 记账
                 # 从可信 events 汇回填。provider 准入照走(模型身份与费率面
@@ -2720,7 +2806,72 @@ class HostGuidedRunner:
                 # H1(LESSONS #33):env.denied_count 是会话生命周期累计值;
                 # 排序只许看**本轮增量**,否则一轮违规拖累后续所有轮。
                 denied_before = env.denied_count
-                if getattr(self, "_backend", "mini-swe") == "dsh":
+                active_backend = getattr(self, "_backend", "mini-swe")
+                if active_backend == "codex-cli":
+                    from repoproof.agents.codex_cli_backend import CodexCLIBackend
+
+                    command_limit = (
+                        b.max_commands
+                        if b.per_round
+                        else b.max_commands - metrics_acc["commands"]
+                    )
+                    if command_limit <= 0:
+                        return RoundResult(
+                            adapter_snapshot=base_hash, passed=0,
+                            failed_nodes=["budget::commands"],
+                            failure_details={}, diff_lines=0,
+                            tokens_used=token_totals["in"] + token_totals["out"],
+                            commands_used=0, collected_ok=False, within_budget=False)
+                    elapsed = time.monotonic() - t_agent
+                    remaining_wall = max(1.0, b.max_wall_time_minutes * 60 - elapsed)
+                    policy_log = self.store.run_dir / f"codex_policy_round{idx}.jsonl"
+                    cback = CodexCLIBackend(
+                        config=provider,
+                        workspace=s.root / "host",
+                        allowed_root=s.root,
+                        output_path=self.store.run_dir / f"trajectory_round{idx}.jsonl",
+                        policy_log_path=policy_log,
+                        command_limit=command_limit,
+                        timeout_s=remaining_wall,
+                    )
+                    result = cback.run_task(round_prompt)
+                    if not result.policy_audit_complete:
+                        codex_policy_audit_missing_rounds.append(idx)
+                    for seq, decision in enumerate(cback.policy_records, 1):
+                        ev("codex.policy.decision", actor="harness", payload={
+                            "round": idx,
+                            "sequence": seq,
+                            "allowed": bool(decision.get("allowed")),
+                            "reasons": decision.get("reasons") or [],
+                            "command": str(decision.get("command") or "")[:2000],
+                            "policy_version": decision.get("policy_version"),
+                        })
+                    env.denied_count += result.denied_count
+                    env.policy_denials.extend(result.policy_denials)
+                    if b.per_round:
+                        env.commands_used = result.commands_used
+                    else:
+                        env.commands_used += result.commands_used
+                    if result.input_tokens is not None and result.output_tokens is not None:
+                        # Codex usage is already one normalized turn total, so
+                        # assign the delta explicitly instead of introducing a
+                        # fourth copy of the LiteLLM callback accumulator.
+                        round_totals["in"] = round_totals["in"] + result.input_tokens
+                        round_totals["out"] = round_totals["out"] + result.output_tokens
+                        round_totals["seen"] = True
+                        if b.per_round:
+                            token_totals["in"] = token_totals["in"] + result.input_tokens
+                            token_totals["out"] = token_totals["out"] + result.output_tokens
+                            token_totals["seen"] = True
+                    if result.cached_input_tokens is not None:
+                        token_totals["cache_read_in"] = (
+                            int(token_totals.get("cache_read_in", 0))
+                            + result.cached_input_tokens)
+                        token_totals["cache_seen"] = True
+                    if (round_totals["in"] > b.max_input_tokens_total
+                            or round_totals["out"] > b.max_output_tokens_total):
+                        result.exit_status = "TokenBudgetExhausted"
+                elif active_backend == "dsh":
                     # B-dsh 臂:agent 环归封存 worker;token 记账回填自可信
                     # events 汇(worker 自述不算数)。dsh 臂只走 total 语义
                     # (准入时 bridge_budget 已把 per_round 拒了),故写
@@ -2739,6 +2890,12 @@ class HostGuidedRunner:
                     result = mback.run_task(round_prompt)
                 last_exit["status"] = result.exit_status
                 last_exit["exhausted"] = getattr(round_model, "exhausted", None)
+                if active_backend == "codex-cli" and result.exit_status == "TokenBudgetExhausted":
+                    last_exit["exhausted"] = {
+                        "kind": "codex_reported_tokens",
+                        "used": max(round_totals["in"], round_totals["out"]),
+                        "limit": max(b.max_input_tokens_total, b.max_output_tokens_total),
+                    }
                 metrics_acc["model_calls"] += result.n_model_calls
                 if b.per_round:
                     metrics_acc["commands"] += env.commands_used
@@ -2847,6 +3004,44 @@ class HostGuidedRunner:
                     upstream_touched=upstream_touched,
                     answer_key_hits=answer_keys,
                 )
+                if active_backend == "codex-cli" and not result.policy_audit_complete:
+                    fatal.append("codex_policy_audit")
+                    violation_packets.append(FailurePacket(
+                        type="CODEX_POLICY_AUDIT_MISSING",
+                        summary="Codex reported command execution without a matching policy record",
+                        expected="every observed command has a RepoProof PreToolUse audit record",
+                        actual="the command/policy record counts do not reconcile",
+                        suggestion="stop this run; restore the trusted hook before retrying",
+                    ))
+                reason_codes: list[str] = []
+                exit_responsibility = classify_agent_exit_status(
+                    str(result.exit_status or "")
+                )
+                if exit_responsibility is not None:
+                    failure_owner, reason_code, recommended_action = exit_responsibility
+                    reason_codes.append(reason_code)
+                elif not collected_ok:
+                    failure_owner = "HARNESS"
+                    recommended_action = "RETRY_INFRASTRUCTURE"
+                    reason_codes.append("PUBLIC_TEST_COLLECTION_FAILED")
+                elif pol_count or fatal:
+                    failure_owner = "SAFETY_POLICY"
+                    recommended_action = "STOP"
+                    reason_codes.append("PROTECTED_SURFACE_OR_POLICY_VIOLATION")
+                else:
+                    failure_owner = "AGENT_ADAPTER"
+                    recommended_action = "REPAIR"
+                    if failed_nodes:
+                        reason_codes.append("PUBLIC_CONTRACT_FAILURE")
+                    if reg_failed:
+                        reason_codes.append("HOST_REGRESSION_FAILED")
+                    if probe_failed:
+                        reason_codes.append("DEPENDENCY_CHANGE_UNRESOLVABLE")
+                if scope_req:
+                    failure_owner = "USER_INPUT"
+                    recommended_action = "ASK_USER"
+                    reason_codes.append("SCOPE_CHANGE_REQUESTED")
+
                 rr = RoundResult(
                     adapter_snapshot=head,
                     passed=passed,
@@ -2864,7 +3059,13 @@ class HostGuidedRunner:
                     ("TokenBudgetExhausted", "LimitsExceeded"),
                     violation_packets=violation_packets,
                     fatal_violations=fatal,
+                    failure_owner=failure_owner,
+                    reason_codes=sorted(set(reason_codes)),
+                    recommended_action=recommended_action,
+                    adapter_diff_present=bool(diff["files"]),
+                    failure_class=str(result.exit_status or ""),
                 )
+                rr.public_failure_fingerprint = compute_public_failure_fingerprint(rr)
                 hard = hard_signals(collected_ok=collected_ok,
                                     policy_violations=rr.policy_violations,
                                     regression_failed=reg_failed, passed=passed)
@@ -2896,6 +3097,11 @@ class HostGuidedRunner:
                                      for p in (*packets_next, *violation_packets)],
                     scope_change_request=scope_req,
                     score=host_score(rr),
+                    failure_owner=rr.failure_owner,
+                    public_failure_fingerprint=rr.public_failure_fingerprint,
+                    reason_codes=list(rr.reason_codes),
+                    adapter_diff_present=rr.adapter_diff_present,
+                    recommended_action=rr.recommended_action,
                 )
                 records.append(record)
                 public_by_round.append(passed)
@@ -2933,6 +3139,10 @@ class HostGuidedRunner:
                     # 首要执法者是 fatal 违规包 + 最终政策闸。
                     max_diff_lines=b.max_patch_lines * b.max_rounds),
                 score_fn=host_score,
+                responsibility_gating=(
+                    self.contract.task_family == "LOCAL-TOOL"
+                    and self._fake_mode is None
+                ),
             )
             outcome = loop.run()
             cur = self._git(s, "rev-parse", "HEAD").stdout.decode().strip()
@@ -2951,6 +3161,10 @@ class HostGuidedRunner:
                 "stop_reason": outcome.stop_reason,
                 "rolled_back_rounds": outcome.rolled_back_rounds,
                 "pending_scope_change": outcome.pending_scope_change,
+                "failure_owner": outcome.failure_owner,
+                "reason_codes": outcome.reason_codes,
+                "recommended_action": outcome.recommended_action,
+                "public_failure_fingerprint": outcome.public_failure_fingerprint,
             }
             (repair_dir / "summary.json").write_text(
                 json.dumps(repair_summary, ensure_ascii=False, indent=2,
@@ -2964,6 +3178,15 @@ class HostGuidedRunner:
                 "output_tokens": token_totals["out"] if token_totals["seen"] else "UNKNOWN",
                 "agent_wall_s": round(time.monotonic() - t_agent, 1),
             }
+            if getattr(self, "_backend", "mini-swe") == "codex-cli":
+                agent_metrics.update({
+                    "model_call_counter": "logical_codex_invocations",
+                    "internal_model_calls": "UNKNOWN",
+                    "native_harness": "codex-cli",
+                    "benchmark_eligible": False,
+                    "policy_audit_complete": not codex_policy_audit_missing_rounds,
+                    "policy_audit_missing_rounds": codex_policy_audit_missing_rounds,
+                })
             # 缓存细目(R5 仪器):H0 同步记账(权威)或 B-dsh events 汇,
             # 谁报了记谁;都没报不落键 —— report.json 老形状不变,不造零。
             _cached = getattr(model, "cached_in", None)
@@ -2982,7 +3205,8 @@ class HostGuidedRunner:
                     _cached = _shim_cached
             if _cached is not None:
                 agent_metrics["cache_read_input_tokens"] = int(_cached)
-            if model_factory is None:
+            if (model_factory is None
+                    and getattr(self, "_backend", "mini-swe") != "codex-cli"):
                 import litellm as _litellm
                 _litellm.success_callback = []
                 for traj in self.store.run_dir.glob("trajectory_round*.json"):
@@ -2990,8 +3214,12 @@ class HostGuidedRunner:
                         "API key leaked into trajectory"
             # per_round:早先轮次的耗尽会被下一轮满额"复活",只有**终轮**
             # 耗尽才把整个 run 标为额度收束;total:沿用全程单额度语义。
-            final_ex = (last_exit.get("exhausted") if b.per_round
-                        else getattr(model, "exhausted", None))
+            final_ex = (
+                last_exit.get("exhausted")
+                if (b.per_round
+                    or getattr(self, "_backend", "mini-swe") == "codex-cli")
+                else getattr(model, "exhausted", None)
+            )
             if final_ex:
                 scope = "final_round" if b.per_round else "total"
                 budget_exhausted = (f"{final_ex['kind']} "
@@ -3183,6 +3411,16 @@ class HostGuidedRunner:
                 adaptation_recheck_detail="session HEAD == frozen best commit",
                 budgets=self.budgets,
                 evidence=[])
+            if codex_policy_audit_missing_rounds:
+                pol = VerificationResult(
+                    verifier="PolicyVerifier", passed=False,
+                    detail=(pol.detail + "; CODEX_POLICY_AUDIT_MISSING: "
+                            f"rounds={codex_policy_audit_missing_rounds}"),
+                    evidence=pol.evidence,
+                    extra={**pol.extra,
+                           "codex_policy_audit_missing_rounds":
+                               codex_policy_audit_missing_rounds},
+                )
             # 公开验收面 = public_tests + fixtures(LESSONS #40):隐藏 oracle
             # 的假模型量具就在 fixtures 里,被测者改得动它,结论就不独立。
             pub_ok, pub_diff = trees_equal(
@@ -3465,6 +3703,7 @@ class HostGuidedRunner:
         wall_t0 = getattr(self, "_self_wall_t0", None)
         integrity = verify_protected_unchanged(
             integrity_before,
+            self._postflight_integrity_scope,
             self_window=(SelfWriteWindow(start=wall_t0, end=time.time())
                          if wall_t0 is not None else None))
         if not integrity["ok"]:
@@ -3739,8 +3978,17 @@ def run_host_guided_cli(
                                    "看不见不等于干净。常见是 ~/.Trash(macOS TCC):"
                                    "倒空废纸篓,或给运行终端授予完全磁盘访问权限后重试"}
 
-        provider = provider_from_env()
-        pf = run_preflight(provider)
+        if backend == "codex-cli":
+            from repoproof.agents.codex_cli_backend import (
+                run_subscription_preflight,
+                subscription_config,
+            )
+
+            provider = subscription_config()
+            pf = run_subscription_preflight(provider)
+        else:
+            provider = provider_from_env()
+            pf = run_preflight(provider)
         if not pf.ready:
             return {"blocked": True, "preflight": pf.summary(),
                     "agent_model_call_count": 0}

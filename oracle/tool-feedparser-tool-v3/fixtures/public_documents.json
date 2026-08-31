@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/typical_rss_nonascii.xml", "expected_file": "expected/typical_rss_nonascii.expected.txt"}, {"input_file": "inputs/malformed_atom_invalid_dates.xml", "expected_file": "expected/malformed_atom_invalid_dates.expected.txt"}]}

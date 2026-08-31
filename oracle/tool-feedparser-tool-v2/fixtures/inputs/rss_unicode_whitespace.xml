@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>  新闻　聚合  </title>
+    <link>https://example.test/feed</link>
+    <description>包含   连续空白 的 RSS</description>
+    <item>
+      <title>第一条　新闻</title>
+      <link>https://example.test/posts/1</link>
+      <guid isPermaLink="false">post-001</guid>
+      <author>张三 &lt;zhangsan@example.test&gt;</author>
+      <category>技术</category>
+      <category>Python</category>
+      <pubDate>Tue, 05 Mar 2024 08:30:00 +0800</pubDate>
+      <description>正文   含有
+多行空白。</description>
+    </item>
+    <item>
+      <title>Second item</title>
+      <guid>https://example.test/posts/2</guid>
+      <pubDate>2024-03-04T12:00:00Z</pubDate>
+    </item>
+  </channel>
+</rss>

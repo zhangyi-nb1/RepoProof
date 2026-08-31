@@ -1,0 +1,102 @@
+task_id: tool-rispy-tool-v4
+
+controls:
+  positive: controls/tool-rispy-tool-v4/positive
+  negatives:
+    - path: controls/tool-rispy-tool-v4/negative_empty
+      label: NC_empty
+      must_fail_nodes: ["test_example"]
+    - path: controls/tool-rispy-tool-v4/negative_hardcode
+      label: NC_hardcode
+      must_fail_nodes: ["test_held_example"]
+    - path: controls/tool-rispy-tool-v4/negative_badexit
+      label: NC_badexit
+      must_fail_nodes: ["test_malformed_input_is_user_error"]
+  # NC_reimpl(零 import 上游)不在此表:它在 oracle 上全绿,判死属
+  # provenance 层(runner 验证阶段执法;harness 测试喂它自证查得出)。
+  # 见 TOOL_READY_GATE §五。目录:controls/tool-rispy-tool-v4/negative_reimpl
+
+requirements:
+  - id: satisfy-user-examples
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      调用 pinned rispy 实现能力,使全部用户样例断言通过
+      (行为以公开样例为准,例:rispy-tool inputs/unicode_duplicate_and_distinct.ris -> 见 expected/unicode_duplicate_and_distinct.expected.txt; rispy-tool inputs/unicode_exact_duplicate_and_near_duplicate.ris -> 见 expected/unicode_exact_duplicate_and_near_duplicate.expected.txt)。
+    examples:
+      - "rispy-tool inputs/unicode_duplicate_and_distinct.ris -> 见 expected/unicode_duplicate_and_distinct.expected.txt; rispy-tool inputs/unicode_exact_duplicate_and_near_duplicate.ris -> 见 expected/unicode_exact_duplicate_and_near_duplicate.expected.txt"
+    oracle_nodes:
+      - "test_capability::test_example_1"
+      - "test_capability::test_example_2"
+      - "test_capability::test_held_example_1"
+  - id: interface-contract
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      坏输入内容抛 UserInputError(骨架转 exit 1);不得让异常裸奔到
+      兜底层(exit 2);重复调用同一输入输出逐字节一致;成功路径不向
+      stderr 泄漏 traceback。
+    examples:
+      - "exit: 0=成功 1=用户错误 2=内部错误"
+    oracle_nodes:
+      - "test_capability::test_malformed_input_is_user_error"
+      - "test_capability::test_deterministic_output"
+      - "test_capability::test_stdout_purity_on_success"
+  - id: skeleton-anchors-untouched
+    owner: HOST_INPUT_GUARD
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      骨架锚定件(main.py / bin/ / build.sh / tool.json / pyproject.toml)
+      与其 argparse/输入存在检查/exit 语义由 harness 预置,不可修改,
+      不计 agent 能力。
+    examples:
+      - "rispy-tool --help -> usage"
+    oracle_nodes:
+      - "test_interface_contract::test_help_reachable"
+      - "test_interface_contract::test_missing_input_is_user_error"
+  - id: intent-parse-and-export-ris
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "输出是可由固定版本 rispy 解析的 RIS 记录集合，可重新导入支持 RIS 的文献软件。"
+    examples: []
+    verified_by: semantic-verifier:rispy-tool-semantic-v1
+  - id: intent-first-occurrence-order
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "输出记录按其首次出现在输入解析结果中的顺序排列。"
+    examples: []
+    verified_by: semantic-verifier:rispy-tool-semantic-v1
+  - id: intent-exact-parsed-record-deduplication
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "若两条输入记录经固定版本 rispy 解析后具有完全相同的字段名、字段值及列表值顺序，则它们视为明确重复；输出只保留其中首次出现的一条。"
+    examples: []
+    verified_by: semantic-verifier:rispy-tool-semantic-v1
+  - id: intent-retain-distinct-records
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "任意两条经 rispy 解析后不完全相同的输入记录都会分别保留在输出中，即使它们的题名、作者、年份或其他部分字段相同。"
+    examples: []
+    verified_by: semantic-verifier:rispy-tool-semantic-v1
+  - id: intent-surviving-record-semantics
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "对每条保留记录，输出经 rispy 解析所得的记录字段和值与对应首次出现的输入解析记录一致。"
+    examples: []
+    verified_by: semantic-verifier:rispy-tool-semantic-v1
+  - id: intent-unicode-text-preservation
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "保留记录中的中文及其他 Unicode 文本字段，在输入和输出分别经 rispy 解析后具有相同的字符值，不以替换字符或转义文本替代。"
+    examples: []
+    verified_by: semantic-verifier:rispy-tool-semantic-v1
+

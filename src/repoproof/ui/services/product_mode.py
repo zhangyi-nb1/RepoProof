@@ -21,12 +21,16 @@ from pydantic import ValidationError
 from repoproof.adoption.assembly.example_compiler import CONTAINS, Example
 from repoproof.adoption.assembly.output_contract import (
     is_capability_output_invocation,
-    is_structured_output_format,
     normalize_output_format,
     output_contract_matches_format,
     validate_output_text,
 )
 from repoproof.adoption.assembly.tool_assembler import next_tool_task_id
+from repoproof.adoption.delivery.product_profile import (
+    ProductProfileError,
+    product_delivery_profile,
+)
+from repoproof.adoption.intake.intent_contract import IntentContractDraftV1
 from repoproof.domain.models import ToolOutputContract, ToolSpec
 from repoproof.runner import tool_registry
 from repoproof.runner.tool_paths import ToolPathError
@@ -178,11 +182,23 @@ def dashboard_snapshot(
 
 
 def default_output_contract(format_name: str) -> dict[str, Any]:
-    """Return a complete v2 contract, including for ordinary text output."""
+    """Compile a default through the same Core registry used at freeze."""
+
+    try:
+        _, contract = product_delivery_profile().contract_for_label(format_name)
+        return contract.model_dump(mode="json")
+    except ProductProfileError:
+        # Preserve the historical editor preview for an unknown custom label.
+        # Save/freeze still fails closed in ProductDeliveryProfile.assert_interface;
+        # this fallback never grants admission or a specialized validator.
+        pass
 
     family = normalize_output_format(format_name)
     if family == "text":
-        contract = ToolOutputContract(media_type="text/plain", root_type="text")
+        contract = ToolOutputContract(
+            media_type="text/plain",
+            root_type="text",
+        )
     elif family == "json_lines":
         contract = ToolOutputContract(
             media_type="application/x-ndjson", root_type="json_lines"
@@ -212,7 +228,24 @@ def parse_output_contract(
         contract = ToolOutputContract.model_validate(raw)
     except (json.JSONDecodeError, ValidationError, ValueError) as exc:
         return None, [f"OUTPUT_CONTRACT_INVALID: {exc}"]
-    if not output_contract_matches_format(output_format, contract):
+    profile = product_delivery_profile()
+    try:
+        artifact = profile.artifact_for_label(output_format)
+    except ProductProfileError:
+        artifact = None
+    if artifact is not None:
+        try:
+            profile.assert_compiled_output(
+                format_id=artifact.format_id,
+                format_name=artifact.format_name,
+                contract=contract,
+            )
+        except ProductProfileError as exc:
+            return None, [
+                "OUTPUT_CONTRACT_PROFILE_MISMATCH: "
+                f"合同不是当前支持面编译结果（{exc}）"
+            ]
+    elif not output_contract_matches_format(output_format, contract):
         return None, [
             "OUTPUT_CONTRACT_FORMAT_MISMATCH: "
             "output.format 与可执行输出合同的 root_type 不一致"
@@ -267,14 +300,33 @@ def validate_draft_output_examples(draft_dir: Path) -> dict[str, Any]:
     if spec.schema_version >= 2 and output.contract is None:
         errors.append("OUTPUT_CONTRACT_MISSING: v2 工具必须声明完整输出合同")
     contract = output.contract
-    if contract is not None and not output_contract_matches_format(
+    if contract is not None and spec.schema_version >= 3:
+        try:
+            intent = IntentContractDraftV1.model_validate(
+                draft.get("_intent_contract")
+            )
+            if intent.delivery is None:
+                raise ProductProfileError("DELIVERY_INTENT_MISSING")
+            profile = product_delivery_profile(intent.delivery.profile_id)
+            profile.assert_compiled_output(
+                format_id=intent.delivery.admitted_output_format_id,
+                format_name=output.format,
+                contract=contract,
+            )
+        except (ProductProfileError, ValueError) as exc:
+            errors.append(f"OUTPUT_CONTRACT_PROFILE_MISMATCH: {exc}")
+    elif contract is not None and not output_contract_matches_format(
         output.format, contract
     ):
+        # Historical v1/v2 drafts predate the typed delivery intent.  Keep the
+        # old label bridge read-only; it never admits a new v3 Product task.
         errors.append(
             "OUTPUT_CONTRACT_FORMAT_MISMATCH: output.format 与输出合同不一致"
         )
 
-    structured = is_structured_output_format(output.format)
+    # Executable structure is a contract property.  Human labels are allowed to
+    # vary without changing whether a complete exact golden is required.
+    structured = contract is not None and contract.root_type != "text"
     exact_structured = False
     try:
         examples_doc = yaml.safe_load(
@@ -377,7 +429,7 @@ PRODUCT_STOP_LABELS: dict[str, str] = {
 
 ROUTE_LABELS: dict[str, str] = {
     "DIRECT_WRAP": "确定性直连包装 —— 本次不需要 Agent",
-    "AGENT_ADAPT": "受限 Coding Agent 适配(mini-swe,含最多两次有界修复)",
+    "AGENT_ADAPT": "受限 Coding Agent 适配(可插拔 backend,含有界失败修复)",
     "NONE": "不进入实现路线",
 }
 
@@ -476,8 +528,12 @@ REASON_CODE_LABELS: dict[str, str] = {
     "MIGRATED_AUDIT_FAIL":
         "历史抽查未通过(记录经完整性校验后一次性导入),已停用",
     "BUILD_FAILED": "构建失败",
+    "AUDIT_TASK_IDENTITY_MISMATCH":
+        "Fresh audit 候选属于旧任务版本；已拒绝运行，请刷新后重新生成候选",
     "LEGACY_SERVER_MUST_BE_DETACHED":
         "旧版 AI 接入文件已失效:请先从你的 AI 助手里移除它,再重新生成",
+    "LEGACY_MCP_MUST_BE_DETACHED":
+        "旧版 MCP 文件不具备发布状态闸门：先从 AI 助手解绑并移入备份，再重试升级",
 }
 
 

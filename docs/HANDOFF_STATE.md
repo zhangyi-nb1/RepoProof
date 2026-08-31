@@ -3,7 +3,58 @@
 > Purpose: the single in-repo status anchor for AI/human handoff.
 > Update ONLY at gate boundaries; history below is append-only.
 
-## Current status (2026-08-25, M0–M6 closed; Verified Tool Onboarding harness Gate 0–4 closed)
+## Current status (2026-08-31, M6.1 alternate-workflow qualification closed locally)
+
+**主产品线仍是“GitHub 单能力 → 经独立验证的本地工具”。本次没有扩展
+M7 或旧宿主适配线，而是用四个不同工作场景、输入和可读文本产物，验证
+Studio → Core → Agent → 独立语义验证 → clean replay → fresh audit 的完整旅程。**
+
+| Anchor | Value |
+|---|---|
+| 本地分支 | `codex/second-multiformat-qualification`；本节只描述本地事实，未授权推送或发布 |
+| 框架锚点 | `4740e84d19c12afe69101667abe60da83a968f09`；可执行 `src/repoproof` 树哈希 `18ce970e463e51c3e101fa48eaabe54adb6e299744f22b95e7d09862dc3473fc` |
+| 冻结协议 | `docs/m6_1_multiformat_qualification_v3.yaml`，SHA-256 `5def32f80d8c3f614d81726b1dbcb52c002934ef72d91004eb08da21d7729da4`；已完成案例不因后续通用修复重跑，只从受影响案例的合法断点继续 |
+| Append-only 结算 | `docs/qualification_runs/m6_1_multiformat_v3/m6-1-multiformat-v3-20260831.json`；记录状态 `PASSED`，内嵌四份 `SemanticVerifierEvidenceV1` 完整证据并绑定协议、框架、task、run 和 artifact |
+| RISpy | `tool-rispy-screening-table-v1` / `tool-rispy-screening-table-v1-20260831-013002`；CSV；历史 `VERIFIED_TOOL_READY`、clean replay PASS、fresh audit PASS、当前 `ACTIVE`、package `OK` |
+| Pint | `tool-pint-field-kit-v1` / `tool-pint-field-kit-v1-20260831-015804`；自包含 XHTML；同上五项全部成立 |
+| NetworkX | `tool-networkx-dependency-risk-v1` / `tool-networkx-dependency-risk-v1-20260831-022622`；TSV；同上五项全部成立 |
+| Biopython | `tool-biopython-fasta-shortlist-v1` / `tool-biopython-fasta-shortlist-v1-20260831-030612`；Markdown；同上五项全部成立 |
+| 语义可信边界 | 每仓 task-authored verifier 均通过实际输入、artifact 和 upstream-result 三项反事实控制；Core 只执行统一协议、隔离、身份绑定和上游调用取证，不含四仓领域特判 |
+| Repair 加固 | candidate/reference 内部异常按不含消息和输入的安全代码位点指纹分类；只有 manifest + 回执绑定的公开成功样例可作正控；reference 执行故障不再自动改写 truth；四文件控制束 repair 有 durable marker、完整回滚和 fail-closed 恢复 |
+| 指标边界 | 四仓真实发与彩排均为 Product 事实，四个 `counts_toward_*` 字段为 false；不能当作 Benchmark Lab 模型能力成绩，也不能外推为任意仓库成功率 |
+| 本地质量线 | 1972 tests collected，全量 pytest 退出 0；Ruff 全仓 0 错；mypy 180 个源码文件 0 错；公开 claim 检查、`git diff --check` 与资格定向回归全部通过 |
+
+不变铁律：Agent 自述不算成功；冻结合同、历史 run、旧 ledger 与旧指标不
+改写；held-out 不向 Agent 泄漏；fresh audit 决定当前运营状态；本地提交与
+远端 GitHub 状态严格区分。
+
+## Previous status (2026-08-29, M6.1 Product Journey Reliability closed locally)
+
+**主产品线仍是 GitHub 单能力 → 经独立验证的本地工具。M6.1 没有扩展
+M7，也没有恢复旧宿主适配路线；本批只修复 Studio → Core 的产品旅程，
+使受支持任务稳定到达 ACTIVE，或以唯一责任、原因码和下一步停止。**
+
+| Anchor | Value |
+|---|---|
+| 本地分支 | `codex/product-journey-stabilization`，从 `29c3156` 开始；本节描述本地关闭状态，不代表已推送 GitHub |
+| 状态事实源 | UI 不再从日志猜结论：`ProductJobStateV2` 只描述进程事实，`ProductActionResultV1` 描述动作结果，运营状态每次从 Core registry + append-only release ledger 重算 |
+| Journey | `ProductJourneyRefV1` 原子保存导航关系；Studio 默认恢复未结束任务，普通用户不再手工复制草稿路径、task id 或结果 JSON |
+| 预检 | 合同/版本/commit、锁文件、wheelhouse、离线安装、upstream import、公开 reference 样例和输出合同在 Agent 前执行；Harness/Upstream/Contract/User Input 故障零模型停止 |
+| Repair | 首次实现 + 最多两轮 repair；仅 `AGENT_ADAPTER` 的公开失败可修复；无 diff、重复指纹无进展、范围漂移、环境故障和预算耗尽均有确定性 stop code |
+| Product/Lab 隔离 | Product 完整性只覆盖任务拥有的合同、oracle、固定 upstream、adapter 和产物；实际越界写仍阻止；Lab/legacy 保留全局宿主完整性规则 |
+| 原三仓资格 | `junitparser v1`、`markdown-it-py v4`、`python-docx v2` 均为历史 `VERIFIED_TOOL_READY`、clean replay PASS、当前 `ACTIVE`、package `OK` |
+| 扩展三仓资格 | `jsonschema v8`、`feedparser v7`、`pypdf v2` 均从 Studio 完成合同确认、三样例、零模型演练、真实 Agent 构建、独立验证、clean replay 与 fresh audit；最终同样为 `ACTIVE` + package `OK` |
+| Conformance 加固 | 上游 pytest 改为能力相关的模块级 node 选择，忽略 upstream pytest 插件配置；仅从上游自有 exact-pinned test/dev requirements 有界补依赖。pypdf 实录选 3 个节点，补 `pyyaml==6.0.2` 与 `pillow==12.2.0`，3/3 PASS 后才调用 Agent |
+| 指标边界 | 本批所有 `PRODUCT` / `HARNESS_SELFCHECK` 与 `PRODUCT_ONBOARDING` 行的四个 `counts_toward_*` 字段均为 false；共享台账记录案例，但绝不计 Benchmark Lab 模型能力 |
+| 资格事实源 | `docs/m6_1_qualification.yaml` 与 `docs/m6_1_extended_qualification.yaml`；每例钉住 task id、run id、历史结论、clean replay 和当前运营状态 |
+| 本地质量线 | 1664 tests collected；全量 pytest 退出 0（1604 passed + 60 skipped），显式 Product journey/Streamlit smoke 17/17；Ruff 全仓 0 错；mypy 170 个源码文件 0 错；`git diff --check` 通过 |
+| 对外 claim | 仅可说“六个记录过的、受支持范围内的 UI Product Journey 达到 ACTIVE”；不得外推为任意仓库成功率，也不得把 Product 发次写成模型能力成绩 |
+
+不变铁律：Agent 自述不算成功；冻结合同、历史 run、旧 ledger 与旧指标不
+改写；held-out 不向 Agent 泄漏；fresh audit 决定当前运营状态；本地提交与
+远端 GitHub 状态严格区分。
+
+## Previous status (2026-08-25, M0–M6 closed; Verified Tool Onboarding harness Gate 0–4 closed)
 
 **RepoProof 的主产品线已从任意 Repository Adaptation 收敛为
 GitHub Capability → Verified Local Tool。RFC-010 的章程、首个工具闭环、
@@ -35,9 +86,9 @@ FailureAssessmentV1 九码;REPAIR-VALIDATION-1(terra/luna)已按预注册
 | MCP 执法 | 仅历史 READY + 当前 ACTIVE 可生成；M5 adapter 每次 list/call 复核 ledger；pre-M5 非 ACTIVE adapter 明示 `LEGACY_SERVER_MUST_BE_DETACHED` |
 | M6 整合锚点 | 工程实现 `d7c1278`；`3818ccb` no-ff 保留 UI 历史；2026-08-24 项目方三固定案例预览通过(P0=0,P1=5 全修复)并合回 `main`；**2026-08-25 两名目标用户三案例理解测试完成(P0=0,P1+2 条已修复并经复验)——M6 关门**。目标用户测试为项目方自报,原始记录表归档位 `docs/evidence/m6_user_tests/` 尚待投入(见该目录 README);在归档落位前,只可声明「项目方报告测试完成」,不可声明「仓库内证据可独立审计」 |
 | M6 可信整合 | Core-only registry 投影；historical/operational/package health 三栏；ProductJobStateV2；Studio/Lab 共享 Core 写锁；Product/Lab 原生分账 |
-| 当前质量基线 | 本机全量 `1463 passed + 48 skipped + 0 failed`(2026-08-27,docker 起时形态;docker 停时 12 个隔离测试转 skip,总量 1511 守恒);**CI 三 job 全绿**(.github/workflows/ci.yml:ruff 全仓 0 错 + mypy 0 错 + pytest 全量);**mypy 覆盖除 Lab 冻结区外的全部源码**(2026-08-26 摘在役 runner 七件 19 错;2026-08-27 摘 ui/agents/cli 63 错 —— 其中两枚真崩溃:`tool plan --repo` 漏传必填 cache_root、运行活动页 `st.progress(None)` 抛 StreamlitAPIException,均已补回归钉);渐进队列清空,豁免只剩冻结区逐文件列名(棘轮只减不增) |
+| 当前质量基线 | 本机全量 `1493 passed + 60 skipped + 0 failed`(2026-08-28,docker 停时形态;共收集 1553 项);**CI 三 job 全绿**(.github/workflows/ci.yml:ruff 全仓 0 错 + mypy 0 错 + pytest 全量);**mypy 覆盖除 Lab 冻结区外的全部源码**(2026-08-26 摘在役 runner 七件 19 错;2026-08-27 摘 ui/agents/cli 63 错 —— 其中两枚真崩溃:`tool plan --repo` 漏传必填 cache_root、运行活动页 `st.progress(None)` 抛 StreamlitAPIException,均已补回归钉);渐进队列清空,豁免只剩冻结区逐文件列名(棘轮只减不增) |
 | 代码分区 | `docs/PROJECT_MAP.md`(单页地图):产品可信链 vs **Lab 冻结区(FROZEN 2026-08-25)**;host_guided 功能面冻结但仍是产品彩排/真发执行引擎,判定/安全缺陷照修 |
-| 后端资格 | Product Mode 缺省 mini-swe；DSH 旗标保留但工具谱系未资格化 |
+| 后端资格 | Product Mode 缺省 mini-swe + LiteLLM/API 网关；Codex CLI/ChatGPT 订阅路径完整保留为显式回退（仅产品不计分）；DSH 仅冻结 Lab |
 | M7 分支现状 | `codex/m7-managed-sidecar-tools @ 7ac1a09` 已推送；强 U1–U4 回执已落地(取证会话+攻击矩阵自证);仍缺 v3 全链 E2E、OS 级隔离、导出包 replay、授权真仓 —— EXPERIMENTAL,功能面冻结 |
 | 下一阶段基准 | `docs/VERIFIED_TOOL_ONBOARDING_NEXT_STAGE_GUIDE.md`(2026-08-25):Verified Tool Onboarding Harness;Gate 0 事实收口 → Gate 1 CapabilityPlanV1+确定性路由 → Gate 2 有界修复控制器产品化 → Gate 3 DIRECT_WRAP → Gate 4 Studio 收口 |
 | 当前阶段门 | **M6 Preview Validated 已关闭(2026-08-25:项目方预览+2 名目标用户三案例测试完成,P0=0;P1 计 7 条全部修复并经用户复验)。M7 强 receipt 已落地/OS 隔离未关闭**;发布、第三批真仓或任何新真实模型发次仍需授权 |

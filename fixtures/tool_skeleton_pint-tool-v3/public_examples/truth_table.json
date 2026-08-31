@@ -1,0 +1,21 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input_file": "inputs/typical_nonascii.tsv",
+   "expected_file": "expected/typical_nonascii.expected.txt",
+   "truth_provenance": "UPSTREAM_DERIVED_USER_CONFIRMED",
+   "truth_binding_sha256": "020219738478040bfe94c5405d3780de5dd81d451395432f5dfa4ebaeb08b45f",
+   "candidate_evidence_id": "95ecd072e6fdb72b99988e70f8def9bc15d02ac5b46f526d72e6993428b20443",
+   "candidate_truth_binding_sha256": "01c4feab43e4ee1c4a3d466b658f7a6b43587a8da1266b694c5ee7e2291f742a"
+  },
+  {
+   "input_file": "inputs/mixed_valid_unicode_and_pint_errors.tsv",
+   "expected_file": "expected/mixed_valid_unicode_and_pint_errors.expected.txt",
+   "truth_provenance": "UPSTREAM_DERIVED_USER_CONFIRMED",
+   "truth_binding_sha256": "a04566a418d9caa09a41048585d2644099e8b6b531e6c9c6a264655d1c6c5349",
+   "candidate_evidence_id": "d90a962d0e3fe55cd86d2fc3ac8cca7ecbb98525fe0a3c5c88dfdd66e251ad7b",
+   "candidate_truth_binding_sha256": "fc2fd2379ca351b16278b5a338ff28a3722ec86de320563d0614dca86fd6c4ef"
+  }
+ ]
+}

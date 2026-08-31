@@ -1,0 +1,10 @@
+TY  - JOUR
+AU  - Smith, Jane
+TI  - Stable deduplication example
+PY  - 2024
+ER  - 
+TY  - JOUR
+AU  - Smith, Jane
+TI  - Stable deduplication example
+PY  - 2025
+ER  - 

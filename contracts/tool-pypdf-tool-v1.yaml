@@ -1,0 +1,50 @@
+task_id: tool-pypdf-tool-v1
+
+source_repo:
+  url: https://github.com/py-pdf/pypdf
+  revision: guided
+  resolved_commit: efad421b12fe47b269593ffca8e79a71c7aae065
+  license: BSD-3-Clause
+  distribution: pypdf
+  import_module: pypdf
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_pypdf-tool
+  package: pypdf_tool
+  entry_point: pypdf-tool
+
+requirement_spec_file: tool-pypdf-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 2, "name": "pypdf-tool", "summary": "将本地 PDF 离线转换为保留逐页文本、空页、文档标题作者及层级书签的可检索 JSON 清单。", "interface": {"usage": "pypdf-tool <input> [--out FILE]", "input": {"kind": "file", "format": "PDF", "contract": null}, "output": {"kind": "stdout", "format": "JSON", "contract": {"media_type": "application/json", "root_type": "object", "required": {"author": "any", "bookmarks": "array", "page_count": "integer", "pages": "array", "title": "any"}}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取单个本地 PDF，输出 PdfSearchableManifest JSON 对象。title 与 author 分别来自 PDF 文档信息中的标题和作者；缺失时输出 null。pages 按 PDF 的原始页码顺序输出，每个元素均为对象 {"page_number": 正整数, "text": 字符串}，页码从 1 开始；每一页独立调用文字提取，不与相邻页面拼接；未提取到文字的空页必须保留，并以空字符串作为 text。bookmarks 按 PDF 书签的文档顺序输出为层级数组；每个书签对象为 {"title": 字符串, "page_number": 整数或 null, "children": 数组}，page_number 为可解析目标页的 1 基页码，无法解析目标页时为 null。page_count 等于 pages 的元素数量。JSON 使用稳定键排序、紧凑分隔符和 Unicode 原样输出，以保证相同输入的重复运行结果完全确定。不会访问网络或依赖联网服务。输入路径不存在、不可读、为空、不是有效 PDF、PDF 损坏、PDF 加密，或任何导致无法安全读取页面、元数据或书签的情况，均抛出 UserInputError，并由 CLI 以退出码 1 报告；加密 PDF 的错误信息必须明确说明文件已加密。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/pypdf_tool/impl.py 实现 extract(),必须调用 pinned pypdf;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:pypdf-tool inputs/two-pages-with-empty.pdf -> 见 expected/two-pages-with-empty.expected.json; pypdf-tool inputs/single-page.pdf -> 见 expected/single-page.expected.json);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: "PdfSearchableManifest"
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

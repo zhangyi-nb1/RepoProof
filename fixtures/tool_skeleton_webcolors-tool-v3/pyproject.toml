@@ -1,0 +1,8 @@
+[project]
+name = "webcolors_tool"
+version = "1.0.0"
+description = '将 CSS3 颜色名称或十六进制颜色识别为 RGB，并确定性转换为适配 MSP432 灰度识别接口的 3 位灰度模式。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,8 @@
+[project]
+name = "jsonschema_tool"
+version = "1.0.0"
+description = '将 UTF-8 JSON Schema Draft 2020-12 验证结果导出为确定性的紧凑 JSON 错误报告。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

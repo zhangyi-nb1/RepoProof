@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 from repoproof.adoption.analysis.host_analyzer import FACT, INFERENCE, UNKNOWN
@@ -115,6 +116,33 @@ def test_clone_rejects_non_github_urls(tmp_path: Path) -> None:
         assert dest is None and "GitHub" in err
 
 
+def test_clone_fetches_exact_commit_instead_of_treating_it_as_a_branch(
+        tmp_path: Path, monkeypatch) -> None:
+    """完整 commit 必须走 fetch + detached checkout，不能传给 clone --branch。"""
+    commit = "d98bdb70fbde4d08e191df17bd51576102c19d6a"
+    calls: list[list[str]] = []
+    timeouts: list[int | None] = []
+
+    def _git(cmd, **_kwargs):
+        calls.append(list(cmd))
+        timeouts.append(_kwargs.get("timeout"))
+        if cmd[:3] == ["git", "init", "--quiet"]:
+            (Path(cmd[3]) / ".git").mkdir()
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", _git)
+    dest, err = clone_for_analysis(
+        "https://github.com/weiwei/junitparser", commit, tmp_path)
+
+    assert err == "" and dest is not None and (dest / ".git").is_dir()
+    assert not any("--branch" in cmd for cmd in calls)
+    fetch = next(cmd for cmd in calls if "fetch" in cmd)
+    assert fetch[-1] == commit
+    checkout = next(cmd for cmd in calls if "checkout" in cmd)
+    assert checkout[-2:] == ["--quiet", "FETCH_HEAD"]
+    assert timeouts == [300, 300, 300, 300]
+
+
 def test_unknown_fields_never_fabricated(tmp_path: Path) -> None:
     r = analyze_repository_dir(tmp_path)  # 空目录
     for f in (r.license, r.python_version, r.quickstart, r.tests, r.commit):
@@ -127,9 +155,11 @@ def test_analyzer_module_static_bans() -> None:
     for banned in ("litellm", "openai.", "docker", "importlib", "exec(", "eval(",
                    "os.system", '"pip",', "'pip',"):
         assert banned not in src, banned
-    # subprocess 只允许 git 用途:恰好三处调用,命令列表全部以 "git" 开头
+    # subprocess 只允许 git 用途:恰好三处调用；checkout 命令也全部显式以 git 开头。
     assert src.count("subprocess.run") == 3
-    assert src.count('["git"') == 3  # clone 的 cmd 构造 + rev-parse 内联 + ls-remote(Tag 检测)
+    assert '["git", "init"' in src
+    assert '["git", "-C", str(repo), "rev-parse"' in src
+    assert '["git", "ls-remote"' in src
 
 
 # ---- 真实仓库自测(本地 pinned 快照,零网络) ----

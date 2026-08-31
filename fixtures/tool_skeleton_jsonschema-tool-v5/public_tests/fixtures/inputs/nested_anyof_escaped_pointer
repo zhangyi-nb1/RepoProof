@@ -1,0 +1,1 @@
+{"schema":{"type":"object","properties":{"a/b~c":{"anyOf":[{"type":"integer","minimum":10},{"type":"string","pattern":"^[A-Z]+$"}]}}},"instance":{"a/b~c":"é"}}

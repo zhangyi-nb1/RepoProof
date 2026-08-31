@@ -1,0 +1,1 @@
+{"schema":{"type":"object","properties":{"a/b":{"oneOf":[{"type":"string","minLength":3},{"type":"integer","minimum":10}]},"~key":{"type":"array","items":{"type":"number"}}},"required":["a/b","~key"],"additionalProperties":false},"instance":{"a/b":true,"~key":[1,"x"],"extra":0}}

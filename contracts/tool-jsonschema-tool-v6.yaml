@@ -1,0 +1,50 @@
+task_id: tool-jsonschema-tool-v6
+
+source_repo:
+  url: https://github.com/python-jsonschema/jsonschema
+  revision: guided
+  resolved_commit: 331c38425519b69118d22ebe467ad230fb83a010
+  license: MIT
+  distribution: jsonschema
+  import_module: jsonschema
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_jsonschema-tool-v6
+  package: jsonschema_tool
+  entry_point: jsonschema-tool
+
+requirement_spec_file: tool-jsonschema-tool-v6.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 2, "name": "jsonschema-tool", "summary": "检查单个 JSON 中的 JSON Schema 与待验证数据，一次返回全部稳定排序的问题；支持显式提供的本地引用，绝不联网获取规则。", "interface": {"usage": "jsonschema-tool <input> [--out FILE]", "input": {"kind": "file", "format": "JSON", "contract": null}, "output": {"kind": "stdout", "format": "JSON", "contract": {"media_type": "application/json", "root_type": "object", "required": {"valid": "boolean", "error_count": "integer", "errors": "array"}}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    输入是一个 UTF-8 JSON 对象，且只包含 schema 与 instance 两个字段。schema 必须是 JSON Schema Draft 2020-12 的对象或布尔 schema；未写 $schema 时也按 Draft 2020-12 处理。只允许 schema 内部以 # 开头的 fragment $ref，任何文件、HTTP 或其他外部引用都作为 UserInputError 拒绝，运行时绝不联网。使用固定版本 jsonschema 4.25.1 的 Draft202012Validator、FormatChecker 与 iter_errors 收集全部错误，并递归展开 oneOf/anyOf 等组合关键字的 context。每条错误输出 depth、instance_path、instance_pointer、schema_path、schema_pointer、validator、message；JSON Pointer 按 RFC 6901 转义。错误按 instance_pointer、schema_pointer、depth、validator、message 排序。输出固定包含 valid、error_count、errors；空白、无效 JSON、错误 schema、额外或缺少字段、非 2020-12 dialect 或外部引用抛出 UserInputError（CLI 退出码 1）。输出为 UTF-8 紧凑排序 JSON，相同输入字节一致。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/jsonschema_tool/impl.py 实现 extract(),必须调用 pinned jsonschema;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:jsonschema-tool inputs/typical_non_ascii_valid.json -> 见 expected/typical_non_ascii_valid.expected.txt; jsonschema-tool inputs/nested_combinator_pointer.json -> 见 expected/nested_combinator_pointer.expected.txt);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: "JsonSchemaValidationReport"
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

@@ -1,0 +1,13 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input_file": "inputs/typical_unicode_features.md",
+   "expected_file": "expected/typical_unicode_features.expected.txt"
+  },
+  {
+   "input_file": "inputs/malformed_markdown.md",
+   "expected_file": "expected/malformed_markdown.expected.txt"
+  }
+ ]
+}

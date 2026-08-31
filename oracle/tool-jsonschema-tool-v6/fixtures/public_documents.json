@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/typical_non_ascii_valid.json", "expected_file": "expected/typical_non_ascii_valid.expected.txt"}, {"input_file": "inputs/nested_combinator_pointer.json", "expected_file": "expected/nested_combinator_pointer.expected.txt"}]}

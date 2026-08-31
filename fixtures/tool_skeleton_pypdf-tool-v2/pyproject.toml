@@ -1,0 +1,8 @@
+[project]
+name = "pypdf_tool"
+version = "1.0.0"
+description = '将 PDF 离线转换为稳定、可检索的 JSON 清单：逐页保留文字与空页，并包含标题、作者和书签层级；加密、损坏或空文件会明确报错。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

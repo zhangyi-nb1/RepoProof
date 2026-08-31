@@ -39,7 +39,11 @@ from repoproof.runner.tool_paths import (
     tool_install_lock,
     validate_tool_task_id,
 )
-from repoproof.runner.tool_registry import load_registry, register_tool
+from repoproof.runner.tool_registry import (
+    load_registry,
+    register_tool,
+    release_audit_trust_identity_from_contract,
+)
 from repoproof.runner.tool_release import (
     ensure_initial_review_decision,
     is_historical_tool_ready,
@@ -115,7 +119,7 @@ def _export_context(
     *,
     host_contract_path: Path,
     tool_contract_path: Path,
-) -> tuple[dict[str, Any], TaskContract, str, Path]:
+) -> tuple[dict[str, Any], TaskContract, str, Path, dict[str, str]]:
     run_dir = Path(run_dir)
     report_p = run_dir / "report.json"
     if not report_p.is_file():
@@ -144,7 +148,27 @@ def _export_context(
     host_copy = Path(host_doc["host"]["copy_path"])
     if not host_copy.is_dir():
         raise ToolExportError(f"骨架副本不存在:{host_copy}")
-    return report, tc, tc_digest, host_copy
+    contract_file = Path(tool_contract_path).resolve()
+    project_root = (
+        contract_file.parent.parent
+        if contract_file.parent.name == "contracts"
+        else contract_file.parent
+    )
+    reference_dir = project_root / "controls" / tc.task_id / "reference"
+
+    def _reference_digest(name: str) -> str:
+        path = reference_dir / name
+        if path.is_symlink() or not path.is_file():
+            raise ToolExportError(
+                f"冻结 reference 身份文件缺失或不是普通文件:{path}"
+            )
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    reference_identity = {
+        "impl_sha256": _reference_digest("impl.py"),
+        "lock_sha256": _reference_digest("requirements.lock.txt"),
+    }
+    return report, tc, tc_digest, host_copy, reference_identity
 
 
 def _materialize_verified_tool(
@@ -153,6 +177,7 @@ def _materialize_verified_tool(
     report: dict[str, Any],
     contract: TaskContract,
     contract_digest: str,
+    reference_identity: dict[str, str],
     host_copy: Path,
     dest: Path,
 ) -> Path:
@@ -217,6 +242,7 @@ def _materialize_verified_tool(
         ver_dir = Path(run_dir) / "verification"
         if ver_dir.is_dir():
             shutil.copytree(ver_dir, ev / "verification")
+        release_audit_identity = release_audit_trust_identity_from_contract(contract)
         (ev / "provenance.json").write_text(
             json.dumps(
                 {
@@ -230,6 +256,17 @@ def _materialize_verified_tool(
                         "distribution": contract.source_repo.distribution,
                     },
                     "tool_contract_sha256": contract_digest,
+                    "reference_identity": reference_identity,
+                    "semantic_verifier_identity": (
+                        contract.acceptance.semantic_verifier.model_dump(mode="json")
+                        if contract.acceptance.semantic_verifier is not None
+                        else None
+                    ),
+                    "release_audit_trust_identity": (
+                        release_audit_identity.model_dump(mode="json")
+                        if release_audit_identity is not None
+                        else None
+                    ),
                     "final_trace_sha256": report.get("final_trace_sha256"),
                 },
                 ensure_ascii=False,
@@ -260,7 +297,7 @@ def export_verified_tool(
 ) -> Path:
     """Export a first installation; an existing command is never overwritten."""
 
-    report, contract, digest, host_copy = _export_context(
+    report, contract, digest, host_copy, reference_identity = _export_context(
         run_dir,
         host_contract_path=host_contract_path,
         tool_contract_path=tool_contract_path,
@@ -284,6 +321,7 @@ def export_verified_tool(
                 report=report,
                 contract=contract,
                 contract_digest=digest,
+                reference_identity=reference_identity,
                 host_copy=host_copy,
                 dest=candidate,
             )
@@ -488,7 +526,7 @@ def install_verified_tool(
 ) -> Path:
     """Install or upgrade with fail-closed release state and preserved history."""
 
-    report, contract, digest, host_copy = _export_context(
+    report, contract, digest, host_copy, reference_identity = _export_context(
         run_dir,
         host_contract_path=host_contract_path,
         tool_contract_path=tool_contract_path,
@@ -514,6 +552,7 @@ def install_verified_tool(
                 report=report,
                 contract=contract,
                 contract_digest=digest,
+                reference_identity=reference_identity,
                 host_copy=host_copy,
                 dest=candidate,
             )

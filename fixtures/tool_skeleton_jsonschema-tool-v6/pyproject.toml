@@ -1,0 +1,8 @@
+[project]
+name = "jsonschema_tool"
+version = "1.0.0"
+description = '检查单个 JSON 中的 JSON Schema 与待验证数据，一次返回全部稳定排序的问题；支持显式提供的本地引用，绝不联网获取规则。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

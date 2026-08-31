@@ -1,0 +1,47 @@
+{
+ "manifest_version": 1,
+ "name": "python-docx-tool",
+ "version": "1.0.0",
+ "summary": "读取 DOCX 文档并按正文顺序输出段落、标题层级和表格的确定性 JSON。",
+ "source": {
+  "url": "https://github.com/python-openxml/python-docx",
+  "resolved_commit": "e45454602b53e8e572b179ccf1c91093ec9f4ed7",
+  "license": "MIT",
+  "distribution": "python-docx"
+ },
+ "contract_schema_version": 2,
+ "interface": {
+  "usage": "python-docx-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "DOCX",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON",
+   "contract": {
+    "media_type": "application/json",
+    "root_type": "object",
+    "required": {
+     "blocks": "array",
+     "metadata": "object"
+    }
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "DocxBlocks"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

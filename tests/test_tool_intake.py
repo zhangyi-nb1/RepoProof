@@ -175,11 +175,28 @@ def test_intake_draft_fills_deterministic_fields(tmp_path):
     assert d["source_repo"]["license"] == "MIT"
     assert d["task_family"] == "LOCAL-TOOL"
     assert d["tool"]["name"] == "acme-lib-tool"   # 避撞:acme_lib==import 名
-    assert d["tool"]["schema_version"] == 2
+    assert d["tool"]["schema_version"] == 3
     assert d["tool"]["interface"]["output"]["contract"] == {}
+    assert d["_delivery_profile"] == {
+        "schema_version": 1,
+        "profile_id": "cli_v2",
+    }
     assert d["tool"]["interface"]["exit_codes"] == {
         "0": "success", "1": "user_error", "2": "internal_error"}
     assert d["_draft"]["status"] == "DRAFT"
+
+
+def test_intake_preserves_user_requested_revision(tmp_path):
+    root = _mini_repo(tmp_path)
+    rep = run_tool_intake(
+        "https://github.com/a/acme-lib",
+        "把 run 能力做成工具",
+        cache_root=tmp_path / "cache",
+        revision="v1.2.3",
+        local_path=root,
+    )
+    assert rep.repo.requested_revision == "v1.2.3"
+    assert rep.draft["source_repo"]["revision"] == "v1.2.3"
 
 
 def test_intake_gaps_route_truth_to_user_and_prose_to_llm(tmp_path):

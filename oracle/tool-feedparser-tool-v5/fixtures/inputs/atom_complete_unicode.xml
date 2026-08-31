@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:base="https://example.test/base/">
+  <title>  Café　更新  </title>
+  <id>urn:example:feed:complete</id>
+  <updated>2024-06-01T12:30:45+09:00</updated>
+  <author><name> Feed Owner </name><email>owner@example.test</email><uri>https://example.test/owner</uri></author>
+  <category term=" release " scheme="urn:kind" label=" 发布 "/>
+  <entry>
+    <title>  Résumé   第１篇  </title>
+    <id>urn:example:entry:one</id>
+    <link rel="alternate" href="posts/one"/>
+    <author><name> 山田 太郎 </name><email>taro@example.test</email><uri>/people/taro</uri></author>
+    <author><name>Renée</name></author>
+    <published>2024-06-01T01:02:03-05:00</published>
+    <updated>invalid-date</updated>
+    <category term=" 技术 " label=" 技術ニュース "/>
+  </entry>
+</feed>

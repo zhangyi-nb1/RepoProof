@@ -1,0 +1,13 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input_file": "inputs/典型_组合错误_非ASCII_指针转义.json",
+   "expected_file": "expected/典型_组合错误_非ASCII_指针转义.expected.txt"
+  },
+  {
+   "input_file": "inputs/典型-UTF8-有效对象.json",
+   "expected_file": "expected/典型-UTF8-有效对象.expected.txt"
+  }
+ ]
+}

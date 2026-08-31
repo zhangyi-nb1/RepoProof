@@ -1,0 +1,17 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input_file": "inputs/typical_hex.txt",
+   "expected_file": "expected/typical_hex.expected.txt"
+  },
+  {
+   "input_file": "inputs/upstream-evidence-6.txt",
+   "expected_file": "expected/upstream-evidence-6.expected.txt"
+  },
+  {
+   "input_file": "inputs/basic_red_hex.txt",
+   "expected_file": "expected/basic_red_hex.expected.txt"
+  }
+ ]
+}

@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/typical_valid_non_ascii", "expected_file": "expected/typical_valid_non_ascii.expected.txt"}, {"input_file": "inputs/invalid_instance_value", "expected_file": "expected/invalid_instance_value.expected.txt"}]}

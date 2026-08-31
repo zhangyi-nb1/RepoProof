@@ -19,6 +19,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
@@ -45,6 +46,42 @@ EXECUTION_ERROR = "EXECUTION_ERROR"
 
 class CoreExecutionConflictError(RuntimeError):
     """A Core mutation could not obtain or safely release the shared lease."""
+
+
+def _start_process_reaper(proc: subprocess.Popen[str]) -> None:
+    """Reap a detached worker when its long-lived launcher stays alive.
+
+    ``start_new_session`` separates signal/session ownership, but it does not
+    re-parent the worker.  Studio's Streamlit process can therefore outlive a
+    completed worker and retain it as a zombie unless somebody calls
+    ``wait()``.  A daemon thread keeps the durable worker independent from UI
+    reruns while still collecting its process-table entry.  The durable state
+    file remains the outcome authority; this thread does not interpret it.
+    """
+
+    def _reap() -> None:
+        try:
+            proc.wait()
+        except (OSError, subprocess.SubprocessError):
+            # State validation remains fail-closed even if the platform can no
+            # longer expose the child to this launcher.
+            return
+
+    reaper = threading.Thread(
+        target=_reap,
+        name=f"repoproof-worker-reaper-{proc.pid}",
+        daemon=True,
+    )
+    try:
+        reaper.start()
+    except RuntimeError:
+        # A worker that cannot be reaped must not be handed a real command.
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            pass
+        raise
 
 _SENSITIVE_OPTION = re.compile(
     r"(?:api[-_]?key|token|secret|password|passwd|credential|authorization)",
@@ -579,6 +616,12 @@ def _state_validation_error(state: Mapping[str, Any]) -> str | None:
     for field in ("artifact_before", "artifact_after"):
         if state.get(field) is not None and not isinstance(state.get(field), dict):
             return f"后台任务状态字段 {field} 无效"
+    result_json_sha256 = state.get("result_json_sha256")
+    if result_json_sha256 is not None and (
+        not isinstance(result_json_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", result_json_sha256) is None
+    ):
+        return "后台任务状态字段 result_json_sha256 无效"
 
     if status == RUNNING:
         if state.get("finished_at") is not None or state.get("exit_code") is not None:
@@ -739,12 +782,15 @@ def start_durable_job(
     expected_artifact_glob: str | None = None,
     env: Mapping[str, str] | None = None,
     metadata: Mapping[str, Any] | None = None,
+    job_id: str | None = None,
 ) -> dict[str, Any]:
     """Acquire the repo mutex and launch one detached durable worker."""
     root = Path(root)
     state_path = Path(state_path)
     log_path = Path(log_path)
-    job_id = uuid.uuid4().hex
+    job_id = job_id or uuid.uuid4().hex
+    if re.fullmatch(r"[0-9a-f]{32}", job_id) is None:
+        return {"ok": False, "error": "job_id 必须是 32 位小写十六进制标识。"}
     lease_id = secrets.token_hex(24)
     lock_path, conflict = _acquire_core_lock(
         root,
@@ -814,6 +860,11 @@ def start_durable_job(
     reserved = set(state)
     if metadata:
         state.update({key: value for key, value in metadata.items() if key not in reserved})
+    # Product jobs bind their semantic result path through metadata.  The
+    # worker fills the hash only after the child has stopped, so JobState stays
+    # a process observation while still making result replacement detectable.
+    if isinstance(state.get("result_json"), str):
+        state.setdefault("result_json_sha256", None)
     try:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         proc = subprocess.Popen(
@@ -833,6 +884,7 @@ def start_durable_job(
             start_new_session=True,
             text=True,
         )
+        _start_process_reaper(proc)
         identity = process_identity(proc.pid)
         if identity is None or proc.stdin is None:
             proc.terminate()
@@ -960,6 +1012,15 @@ def _worker(request: Mapping[str, Any]) -> int:
         return 2
     expectation = _state_expectation(state)
     after = artifact_snapshot(expectation)
+    result_signature = None
+    if isinstance(state.get("result_json"), str):
+        result_signature = _path_signature(Path(state["result_json"]))
+    result_json_sha256 = (
+        result_signature.get("sha256")
+        if isinstance(result_signature, dict)
+        and result_signature.get("kind") == "file"
+        else None
+    )
     if interrupted_by:
         status = INTERRUPTED
         error = f"worker 收到信号 {interrupted_by[-1]}"
@@ -986,6 +1047,7 @@ def _worker(request: Mapping[str, Any]) -> int:
             "finished_at": _utc_now(),
             "exit_code": exit_code,
             "artifact_after": after,
+            "result_json_sha256": result_json_sha256,
             "error": error,
             "error_code": error_code,
         },

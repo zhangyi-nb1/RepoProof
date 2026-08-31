@@ -147,18 +147,44 @@ def read_control_file(path: Path, *, missing_ok: bool = False) -> bytes | None:
 
 
 def append_control_file(path: Path, data: bytes) -> None:
-    """Append one already-encoded record without following links."""
+    """Durably append one record without following links.
+
+    ``write(2)`` may legally short-write.  Treating that as an exception after
+    bytes have reached an append-only ledger would leave a permanently torn
+    record.  While the caller's control-file lock excludes other writers, keep
+    writing until complete and roll back to the original size on any failure.
+    """
 
     path = Path(path)
     fd = _open_regular_nofollow(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT)
+    start = os.lseek(fd, 0, os.SEEK_END)
     try:
-        written = os.write(fd, data)
-        if written != len(data):
-            raise ToolPathError(
-                f"受管控制文件 append 不完整:{path}:{written}/{len(data)}"
-            )
+        remaining = memoryview(data)
+        while remaining:
+            written = os.write(fd, remaining)
+            if written <= 0:
+                raise OSError("append made no progress")
+            remaining = remaining[written:]
+        os.fsync(fd)
+    except BaseException:
+        try:
+            os.ftruncate(fd, start)
+            os.fsync(fd)
+        except OSError:
+            # The original failure remains authoritative.  A rollback failure
+            # will be detected by the strict next-read before any later append.
+            pass
+        raise
     finally:
         os.close(fd)
+    parent_fd = os.open(
+        path.parent,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    try:
+        os.fsync(parent_fd)
+    finally:
+        os.close(parent_fd)
 
 
 def validate_control_target(path: Path, *, missing_ok: bool = False) -> None:

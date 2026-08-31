@@ -1,0 +1,8 @@
+TY  - JOUR
+TI  - Étude sur 中文　空格
+AU  - García, Ana
+AU  - 陈, 美
+PY  - 2022
+DO  - 10.1000/exemple.中文
+N1  - 含有制表符	与全角空格　的备注
+ER  - 

@@ -73,7 +73,16 @@ Completion Gate，也不把 Agent 的自述转成成功结论。
 - 历史 run、旧 ledger 与 M4 指标不回填、不迁移、不改写；
 - 产品构建结果不能充当模型能力成绩，Lab 的研究流程也不阻塞普通产品任务。
 
-默认执行 backend 为 mini-swe；DSH 只标记为 optional/experimental。
+默认执行 backend 为 mini-swe（使用项目 API/provider 网关）；官方 Codex CLI
+（复用本机 ChatGPT 订阅登录）保留为显式回退选项。DSH 属冻结的 Benchmark Lab 研究线，
+不作为 Studio Product Mode 选项。Codex 内部 agent loop 不参与 RepoProof
+的模型能力评分，最终判定仍只来自 RepoProof 独立验证与 clean replay。
+仓库摘要、在线合同起草和样例候选缺省走 LiteLLM/API 网关。Codex 回退
+使用独立的 `read-only + deny-all-tools + output-schema` 文本通道；两条路径的输出都只能进入
+展示/草稿层。样例 expected output 仍由 pinned upstream 真跑并经用户逐条确认。
+候选数量是“可确认的上游输出”目标：模型首轮失败后先探测上游 README/
+测试中的现成输入，再最多做两轮定向补候选；达上限仍不足时显式报告缺口。
+重新生成候选不得改写 `examples.yaml` 或已确认样例文件。
 Agent 只有在用户确认合同与代表性样例后才尝试构建；只有独立验证、clean
 replay 与 fresh audit 均成立，当前 task version 才能成为 `ACTIVE`。
 
@@ -83,7 +92,7 @@ replay 与 fresh audit 均成立，当前 task version 才能成为 `ACTIVE`。
 
 | 应用 | 普通启动 | 带模型连接 | 地址 |
 |---|---|---|---|
-| RepoProof Studio | `scripts/run_ui.sh` | `scripts/run_ui_live.sh` | `127.0.0.1:8501` |
+| RepoProof Studio | `scripts/run_ui.sh` (API 网关) | `scripts/run_ui_codex.sh` (Codex 回退) | `127.0.0.1:8501` |
 | RepoProof Benchmark Lab | `scripts/run_lab_ui.sh` | `scripts/run_lab_ui_live.sh` | `127.0.0.1:8502` |
 
 密钥只从各自进程环境读取。旧历史记录留在原目录，不迁移、不复制、不改写。

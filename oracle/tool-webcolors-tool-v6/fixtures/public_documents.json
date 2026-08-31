@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/典型多来源颜色", "expected_file": "expected/典型多来源颜色.expected.txt"}, {"input_file": "inputs/含非ASCII文本的HTML", "expected_file": "expected/含非ASCII文本的HTML.expected.txt"}, {"input_file": "inputs/多元素颜色来源与重复顺序.html", "expected_file": "expected/多元素颜色来源与重复顺序.expected.txt"}]}

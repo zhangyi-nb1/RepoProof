@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/all-statuses-duplicate-suites.zip", "expected_file": "expected/all-statuses-duplicate-suites.expected.json"}, {"input_file": "inputs/failed-and-skipped-filter.zip", "expected_file": "expected/failed-and-skipped-filter.expected.json"}]}

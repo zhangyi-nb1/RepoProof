@@ -1,0 +1,1 @@
+{"schema":{"type":"object","properties":{"price":{"type":"number"},"name":{"type":"string"}},"required":["price","name"]},"instance":{"price":"免费","name":42}}

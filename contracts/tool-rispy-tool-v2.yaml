@@ -1,0 +1,51 @@
+task_id: tool-rispy-tool-v2
+
+source_repo:
+  url: https://github.com/MrTango/rispy
+  revision: guided
+  resolved_commit: b7aae3b2069ced3fb75287711300f2edf0bcac21
+  license: MIT
+  distribution: rispy
+  import_module: rispy
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_rispy-tool-v2
+  package: rispy_tool
+  entry_point: rispy-tool
+
+requirement_spec_file: tool-rispy-tool-v2.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 3, "name": "rispy-tool", "summary": "离线整理一份 UTF-8 RIS 文献导出文件，去除明确重复记录并输出可重新导入的 RIS 文献文件。", "interface": {"usage": "rispy-tool <input> [--out FILE]", "input": {"kind": "file", "format": "UTF-8 RIS 文献导出文件", "contract": null}, "output": {"kind": "stdout", "format": "RIS", "contract": {"media_type": "application/x-research-info-systems", "root_type": "text", "required": {}, "validation_profile": "ris_interchange_v1"}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: "用户目标：就按这个思路，把这份文献导出整理成还能导回文献软件的文件，去掉明确重复，中文别乱码，也别联网补资料。\n公开行为承诺：\n- [ris-upstream-parse-and-write] 对于有效的 UTF-8 RIS 输入，输出必须严格等于：先由固定版本 rispy 的 `loads` 解析输入，再按本工具的去重规则筛选记录，最后由同一 rispy 的 `dumps` 序列化筛选结果所得到的 RIS 文本。\n- [parsed-record-exact-deduplication] 按输入顺序处理 rispy 解析出的记录；若某条记录与任一较早已保留记录按 Python 字典相等性完全相等，则不输出该条记录，否则保留它。因此每组完全相等的解析后记录只保留首次出现的一条。\n- [utf8-chinese-text-preservation] 输入以 UTF-8 解码，并将其中首次保留记录交给 rispy 原样的 Unicode 字符串值进行序列化；例如中文题名、作者、摘要等字段不会被转换为其他字符编码或替换为乱码。\n统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。"
+  output_schema: "RisDeduplicatedBibliography"
+  intent_contract: {"schema_version": 1, "user_goal": "就按这个思路，把这份文献导出整理成还能导回文献软件的文件，去掉明确重复，中文别乱码，也别联网补资料。", "user_goal_sha256": "7c6a3d2a7ccbb6239c38e0938e0d8c66fe0174357b8c09af35ae7ae1106c8ff1", "commitments": [{"commitment_id": "ris-upstream-parse-and-write", "public_text": "对于有效的 UTF-8 RIS 输入，输出必须严格等于：先由固定版本 rispy 的 `loads` 解析输入，再按本工具的去重规则筛选记录，最后由同一 rispy 的 `dumps` 序列化筛选结果所得到的 RIS 文本。", "rationale": "明确以固定上游库完成 RIS 解析和可重新导入的 RIS 写出，而不是自行实现另一种格式转换。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "parsed-record-exact-deduplication", "public_text": "按输入顺序处理 rispy 解析出的记录；若某条记录与任一较早已保留记录按 Python 字典相等性完全相等，则不输出该条记录，否则保留它。因此每组完全相等的解析后记录只保留首次出现的一条。", "rationale": "将“明确重复”限定为可客观判定的完整解析记录相等，避免基于标题相似等猜测性规则误删文献。", "origin": "MODEL_PROPOSED"}, {"commitment_id": "utf8-chinese-text-preservation", "public_text": "输入以 UTF-8 解码，并将其中首次保留记录交给 rispy 原样的 Unicode 字符串值进行序列化；例如中文题名、作者、摘要等字段不会被转换为其他字符编码或替换为乱码。", "rationale": "直接满足中文文献文本在整理和 RIS 导出过程中的可读性要求。", "origin": "MODEL_PROPOSED"}], "delivery": {"profile_id": "cli_v2", "support_status": "SUPPORTED", "origin": "USER_EDITED", "requirements": {"inputs": [{"kind": "file", "location": "local", "representation": "utf8_text", "format_label": "UTF-8 RIS 文献导出文件", "role": "user-confirmed primary input"}], "outputs": [{"kind": "text_artifact", "format_id": "ris", "format_label": "RIS 文献文件", "role": "user-confirmed primary artifact"}], "network": "offline", "credentials": "none", "lifecycle": "per_invocation", "runtime": "local_cpu"}, "admitted_output_format_id": "ris"}, "confirmation": {"confirmed_by": "USER", "confirmed_at": "2026-08-30T10:14:25.499520Z", "semantics_sha256": "88fc949e7535e0fd668274f5a3e89e65eaf899b1850afda78732aa5b6702291c"}}
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py
+  semantic_verifier: {"protocol": "repoproof-semantic-verifier-v1", "verifier_id": "rispy-tool-semantic-v1", "source_file": "oracle/tool-rispy-tool-v2/semantic_verifier.py", "source_sha256": "79191777ddc27575300a63cd612740420488692ee62e1bf2f5e83afc90bf9ecd", "required_for_operational_active": true}

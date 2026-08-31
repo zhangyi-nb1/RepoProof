@@ -1,0 +1,15 @@
+TY  - JOUR
+TI  - 中文文献：机器学习在医学中的应用
+AU  - 张伟
+AU  - 李娜
+PY  - 2023
+JO  - 科学与技术
+DO  - 10.1000/example.中文
+ER  - 
+
+TY  - JOUR
+TI  - A distinct English record
+AU  - Smith, Jane
+PY  - 2022
+JO  - Example Journal
+ER  - 

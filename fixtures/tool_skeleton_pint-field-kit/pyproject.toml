@@ -1,0 +1,8 @@
+[project]
+name = "pint_field_kit"
+version = "1.0.0"
+description = '将实验耗材 TSV 按组数与目标单位换算为可离线打开、逐行保留成功和稳定错误状态的现场准备单。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,1 @@
+{"schema":{"type":"object","required":["a/b~c","选项"],"properties":{"a/b~c":{"type":"array","minItems":2,"items":{"type":"integer","minimum":1}},"选项":{"anyOf":[{"type":"string","minLength":4},{"type":"object","required":["值"],"properties":{"值":{"type":"boolean"}}}]}}},"instance":{"a/b~c":[0,"二"],"选项":null}}

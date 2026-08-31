@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/structured-headings.docx", "expected_file": "expected/structured-headings.expected.json"}, {"input_file": "inputs/merged-and-empty-cells.docx", "expected_file": "expected/merged-and-empty-cells.expected.json"}]}

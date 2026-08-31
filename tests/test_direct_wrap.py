@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 import sys
 import sysconfig
@@ -25,6 +26,12 @@ from repoproof.adoption.delivery.direct_adapter import (
     DirectAdapterSpec,
     compile_direct_adapter,
     derive_adapter_spec,
+)
+from repoproof.adoption.intake.intent_contract import (
+    confirm_intent_contract,
+    install_artifact_protocol,
+    install_delivery_intent_from_interface,
+    install_semantic_commitments,
 )
 from repoproof.adoption.planning.capability_plan import (
     CapabilityPlanV1,
@@ -70,6 +77,38 @@ def extract(input_path: Path) -> str:
         return minilib.rows_to_markdown(text)
     except minilib.FormatError as e:
         raise UserInputError(str(e)) from e
+'''
+
+_SEMANTIC_VERIFIER = '''"""Independent semantic check for the frozen task."""
+from pathlib import Path
+
+import minilib
+
+
+def verify(input_path: Path, artifact_path: Path) -> dict:
+    try:
+        expected = minilib.rows_to_markdown(
+            input_path.read_text(encoding="utf-8")
+        )
+    except (UnicodeDecodeError, minilib.FormatError):
+        return {
+            "ok": False,
+            "reason_codes": ["INPUT_OUT_OF_DOMAIN"],
+            "checked_commitment_ids": [
+                "render-rows",
+                "reject-invalid-header",
+            ],
+        }
+    actual = artifact_path.read_text(encoding="utf-8").rstrip("\\n")
+    ok = actual == expected
+    return {
+        "ok": ok,
+        "reason_codes": [] if ok else ["VALUE_MISMATCH"],
+        "checked_commitment_ids": [
+            "render-rows",
+            "reject-invalid-header",
+        ],
+    }
 '''
 
 
@@ -165,11 +204,46 @@ def _world(tmp_path, monkeypatch, *, locator: str):
     doc["source_repo"]["resolved_commit"] = head
     doc["tool"]["summary"] = "MINI→MD"
     doc["tool"]["interface"]["input"]["format"] = "TXT"
-    doc["tool"]["interface"]["output"]["format"] = "markdown-table"
+    doc["tool"]["interface"]["output"]["format"] = "Markdown"
     doc["tool"]["interface"]["output"]["contract"] = {
-        "media_type": "text/markdown", "root_type": "text", "required": {}}
-    doc["capability"]["statement"] = "MINI 文本转 Markdown 行表;坏输入 UserInputError。"
+        "media_type": "text/markdown",
+        "root_type": "text",
+        "required": {},
+        "validation_profile": "markdown_document_v1",
+    }
     doc["capability"]["output_schema"] = "MdRows"
+    install_delivery_intent_from_interface(doc, profile_id="cli_v2")
+    install_semantic_commitments(doc, [
+        {
+            "commitment_id": "render-rows",
+            "public_text": "使用固定版本上游把 MINI 文本的非空行按原顺序转为 Markdown 行表。",
+            "rationale": "用户需要的主能力。",
+        },
+        {
+            "commitment_id": "reject-invalid-header",
+            "public_text": "缺少 MINI 头的输入不属于有效域，应返回用户输入错误。",
+            "rationale": "固定上游对无效格式有明确边界。",
+        },
+    ])
+    install_artifact_protocol(doc, {
+        "schema_version": 1,
+        "protocol_id": "mini-markdown-v1",
+        "observations": [
+            {
+                "observation_id": "rendered-rows",
+                "commitment_ids": ["render-rows"],
+                "locator": "Markdown table body rows in document order",
+                "value_encoding": "UTF-8 Markdown table rows",
+            },
+            {
+                "observation_id": "invalid-header-result",
+                "commitment_ids": ["reject-invalid-header"],
+                "locator": "process exit status and stderr category",
+                "value_encoding": "user-input error",
+            },
+        ],
+    })
+    confirm_intent_contract(doc, confirmed_at="2026-08-30T00:00:00Z")
     (dest / "draft.yaml").write_text(
         yaml.safe_dump(doc, allow_unicode=True, sort_keys=False), encoding="utf-8")
     for n, txt in (("a", "MINI\nalpha"), ("b", "MINI\nbeta"), ("c", "MINI\ngamma")):
@@ -181,6 +255,10 @@ def _world(tmp_path, monkeypatch, *, locator: str):
         {"input_file": "c.txt", "expected": "contains:| gamma |"},
     ]}, allow_unicode=True), encoding="utf-8")
     (dest / "reference_impl.py").write_text(_REFERENCE, encoding="utf-8")
+    (dest / "semantic_verifier.py").write_text(
+        _SEMANTIC_VERIFIER,
+        encoding="utf-8",
+    )
     # DIRECT_WRAP 计划(已确认)入束 —— 路由的唯一驱动源。commit 必须
     # 用 draft 的真 head:执行闸现在把 plan 绑定到 draft 上游身份
     # (外部审计 P0),异源 commit 在路由段即拒。
@@ -212,6 +290,13 @@ def test_direct_wrap_full_chain_reaches_pass_direct(tmp_path, monkeypatch):
                      setup_commands=setup, wheelhouse_cmd=["true"])
     assert out["stages"]["route"]["route"] == "DIRECT_WRAP"
     assert out["stages"]["route"]["agent_invoked"] is False
+    assert out["stages"]["conformance_selection_basis"] == {
+        "schema_version": 1,
+        "kind": "REFERENCE_UPSTREAM_SYMBOLS",
+        "reference_sha256": hashlib.sha256(_REFERENCE.encode("utf-8")).hexdigest(),
+        "import_module": "minilib",
+        "symbols": ["rows_to_markdown"],
+    }
     d = out["stages"]["direct"]
     assert d["verdict"] == "PASS_DIRECT", out["stages"]
     assert d["product_stop_code"] == "NO_REPAIR_NEEDED"

@@ -1,0 +1,6 @@
+sample_name	value	source_unit	target_unit
+样品α	1234.567	meter	centimeter
+温度样本	25	degC	kelvin
+未知单位	7	mystery_unit	meter
+量纲不符	3	second	meter
+微量	0.0000001234567	meter	micrometer

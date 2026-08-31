@@ -80,6 +80,24 @@ def test_harness_side_receipt_error_is_external_bucket():
     assert assess_report(rep).recommended_action == "RETRY_INFRASTRUCTURE"
 
 
+def test_provider_outage_does_not_masquerade_as_hidden_or_agent_failure():
+    rep = _report(
+        gate_reasons=["CapabilityVerifier: failing: test_held_example_1"],
+        repair={
+            "rounds_run": 1,
+            "stop_reason": "non_repairable_failure",
+            "failure_owner": "EXTERNAL",
+            "reason_codes": ["PROVIDER_UNAVAILABLE"],
+        },
+    )
+    a = assess_report(rep)
+    assert a.product_stop_code == "STOP_HARNESS_OR_EXTERNAL"
+    assert a.failure_owner == "EXTERNAL"
+    assert a.recommended_action == "RETRY_INFRASTRUCTURE"
+    assert "PROVIDER_UNAVAILABLE" in a.reason_codes
+    assert "HIDDEN_ACCEPTANCE_FAILED" not in a.reason_codes
+
+
 def test_output_contract_mismatch_is_contract_owner():
     rep = _report(gate_reasons=["[tool-output-contract] mismatch"],
                   repair={"rounds_run": 3, "stop_reason": "max_rounds"})

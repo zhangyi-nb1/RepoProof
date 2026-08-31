@@ -1,0 +1,50 @@
+{
+ "manifest_version": 1,
+ "name": "webcolors-tool",
+ "version": "1.0.0",
+ "summary": "将 CSS3 颜色名称或十六进制颜色识别为 RGB，并确定性转换为适配 MSP432 灰度识别接口的 3 位灰度模式。",
+ "source": {
+  "url": "https://github.com/ubernostrum/webcolors",
+  "resolved_commit": "e6392ba6eeba81b02e666eb3ed02ef2e006344c0",
+  "license": "BSD",
+  "distribution": "webcolors"
+ },
+ "contract_schema_version": 2,
+ "interface": {
+  "usage": "webcolors-tool <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "TXT",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "JSON",
+   "contract": {
+    "media_type": "application/json",
+    "root_type": "object",
+    "required": {
+     "input": "string",
+     "rgb": "object",
+     "luma": "integer",
+     "gray_level": "integer",
+     "msp432_pattern": "string"
+    }
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "Msp432GrayscaleColor"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

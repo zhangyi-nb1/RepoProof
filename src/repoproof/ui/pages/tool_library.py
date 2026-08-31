@@ -8,6 +8,7 @@ STATUS_EXPLAINERS / REASON_CODE_LABELS / AUDIT_EXPLAINER —— 页面不许
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import streamlit as st
@@ -156,17 +157,131 @@ with st.expander("🔧 管理这个工具（做抽查 / 停用 / 查证据）", 
     )
     available = product_jobs.product_tool_commands()
     if "audit" in available:
+        _audit_identity = {
+            "tool_name": str(tool["name"]),
+            "task_id": str(tool.get("task_id") or ""),
+            "dest_root": str(Path(library["root"]).resolve()),
+        }
+        _audit_token = hashlib.sha256(
+            "\n".join(_audit_identity.values()).encode("utf-8")
+        ).hexdigest()[:16]
+        _props_key = f"audit_props_{_audit_token}"
+        # Streamlit removes widget-owned session keys while that widget is not
+        # rendered (for example, after switching to another tool).  Keep a
+        # separate, identity-bound draft so returning to a tool restores only
+        # that tool/task/root's fresh-audit inputs.
+        _draft_key = f"audit_draft_{_audit_token}"
+        _draft = dict(st.session_state.get(_draft_key) or {})
+        _input_text_key = f"audit_input_text_{_audit_token}"
+        _expected_text_key = f"audit_expected_text_{_audit_token}"
+        _input_path_key = f"audit_input_{_audit_token}"
+        _expected_path_key = f"audit_expected_{_audit_token}"
         st.markdown("##### 新输入抽查")
         st.caption(AUDIT_EXPLAINER)
+        # 两种给法都收(2026-08-28 实录):字段原来只收**路径**,而用户很自然
+        # 地直接填了值(`#000080` / `navy`),只得到一句"文件必须存在" ——
+        # 界面要什么、人给什么,对不上时该由界面兼容,而不是让人猜。
+        # 抽查助手:模型出输入、**冻结的参考实现**出期望值(不是被测工具
+        # 自己 —— 那样抽查会自证)。人仍然逐条确认,只是不必从零创造。
+        with st.expander("🧪 不知道期望输出?让系统给候选", expanded=False):
+            st.caption(
+                "输入由模型提议;**期望值由出题期冻结的参考实现真跑上游得出**，"
+                "与被测工具是两条独立实现路径，所以这次比较仍然有判别力。"
+                "选中的候选会填进下面两栏，请你过目后再运行。")
+            _ac1, _ac2 = st.columns([1, 2])
+            _a_offline = _ac2.checkbox("用离线模板（零模型调用）", value=False,
+                                       key=f"audit_prop_offline_{_audit_token}")
+            if _ac1.button("给我候选", key=f"audit_propose_{_audit_token}"):
+                with st.spinner("生成候选并真跑参考实现……"):
+                    st.session_state[_props_key] = (
+                        product_jobs.propose_audit_candidates(
+                            tool["name"],
+                            dest_root=Path(library["root"]),
+                            expected_task_id=str(tool.get("task_id") or ""),
+                            n=5,
+                            offline=_a_offline,
+                        ))
+            _props = st.session_state.get(_props_key) or {}
+            if _props.get("ok") and any(
+                str(_props.get(key) or "") != expected
+                for key, expected in _audit_identity.items()
+            ):
+                st.session_state.pop(_props_key, None)
+                _props = {
+                    "ok": False,
+                    "error": "候选属于另一个工具、任务版本或工具根目录，已失效；请重新生成。",
+                }
+            if _props and not _props.get("ok"):
+                st.error(_props.get("error"))
+            elif _props.get("ok"):
+                _cands = _props.get("candidates") or []
+                if not _cands:
+                    st.warning(
+                        "这一批候选参考实现都接不住（多半是输入形态不对）。"
+                        "取消勾选「离线模板」用模型再试一次通常更准。")
+                for _i, _c in enumerate(_cands):
+                    st.code(f"输入：{_c['input_text']}\n期望：{_c['expected']}",
+                            language="text")
+                    if st.button("用这一条", key=f"use_cand_{_audit_token}_{_i}"):
+                        st.session_state[_input_text_key] = _c["input_text"]
+                        st.session_state[_expected_text_key] = _c["expected"]
+                        _draft["input_text"] = _c["input_text"]
+                        _draft["expected_text"] = _c["expected"]
+                        st.session_state[_draft_key] = _draft
+                        st.rerun()
+
+        _mode = st.radio("怎么给这次抽查的输入", ["直接填内容", "给文件路径"],
+                         horizontal=True, key=f"audit_mode_{_audit_token}")
         a, b = st.columns(2)
-        audit_input = a.text_input(
-            "输入文件路径（一份这个工具从没见过的输入）", key="audit_input")
-        audit_expected = b.text_input(
-            "正确结果文件路径（你自己核实过的期望输出）", key="audit_expected")
-        if st.button("运行新输入抽查", disabled=not (audit_input and audit_expected)):
+        if _mode == "直接填内容":
+            if _input_text_key not in st.session_state:
+                st.session_state[_input_text_key] = str(_draft.get("input_text") or "")
+            if _expected_text_key not in st.session_state:
+                st.session_state[_expected_text_key] = str(
+                    _draft.get("expected_text") or ""
+                )
+            audit_input = a.text_area(
+                "输入内容（一份这个工具从没见过的输入）", key=_input_text_key,
+                height=90)
+            audit_expected = b.text_area(
+                "期望输出（你自己核实过的正确结果，逐字节比对）",
+                key=_expected_text_key, height=90)
+            _draft["input_text"] = audit_input
+            _draft["expected_text"] = audit_expected
+        else:
+            if _input_path_key not in st.session_state:
+                st.session_state[_input_path_key] = str(_draft.get("input_path") or "")
+            if _expected_path_key not in st.session_state:
+                st.session_state[_expected_path_key] = str(
+                    _draft.get("expected_path") or ""
+                )
+            audit_input = a.text_input(
+                "输入文件路径（一份这个工具从没见过的输入）",
+                key=_input_path_key)
+            audit_expected = b.text_input(
+                "正确结果文件路径（你自己核实过的期望输出）",
+                key=_expected_path_key)
+            _draft["input_path"] = audit_input
+            _draft["expected_path"] = audit_expected
+        st.session_state[_draft_key] = _draft
+        if st.button(
+            "运行新输入抽查",
+            disabled=not (audit_input and audit_expected),
+            key=f"audit_run_{_audit_token}",
+        ):
+            if _mode == "直接填内容":
+                _paths = product_jobs.materialize_audit_pair(
+                    tool["name"], audit_input, audit_expected)
+                if not _paths.get("ok"):
+                    st.error(_paths.get("error"))
+                    st.stop()
+                in_path, exp_path = Path(_paths["input"]), Path(_paths["expected"])
+            else:
+                in_path = Path(audit_input).expanduser()
+                exp_path = Path(audit_expected).expanduser()
             result = product_jobs.start_tool_audit(
-                tool["name"], Path(audit_input).expanduser(),
-                Path(audit_expected).expanduser(), Path(library["root"]),
+                tool["name"], in_path, exp_path, Path(library["root"]),
+                expected_task_id=str(tool.get("task_id") or ""),
             )
             (st.success if result.get("ok") else st.error)(result.get("note") or result.get("error"))
     else:

@@ -11,6 +11,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import re
+from typing import Literal
+
 from pydantic import BaseModel, model_validator
 
 from repoproof.adoption.assembly.output_contract import (
@@ -18,8 +22,27 @@ from repoproof.adoption.assembly.output_contract import (
     render_pytest_validator,
 )
 from repoproof.domain.models import ToolOutputContract
+from repoproof.verification.output_match import canonical_source
 
 CONTAINS = "contains:"
+UPSTREAM_CONFIRMED = "UPSTREAM_DERIVED_USER_CONFIRMED"
+TruthProvenance = Literal[
+    "UPSTREAM_DERIVED_USER_CONFIRMED",
+    "USER_SUPPLIED",
+    "USER_OVERRIDDEN",
+]
+
+
+def truth_binding_sha256(input_bytes: bytes, expected_bytes: bytes) -> str:
+    """Bind one exact input/output byte pair without ambiguous concatenation."""
+
+    digest = hashlib.sha256()
+    digest.update(b"repoproof-example-truth-binding-v1\0")
+    for label, payload in ((b"input", input_bytes), (b"expected", expected_bytes)):
+        digest.update(label + b"\0")
+        digest.update(len(payload).to_bytes(8, "big"))
+        digest.update(payload)
+    return digest.hexdigest()
 
 
 class Example(BaseModel):
@@ -35,6 +58,15 @@ class Example(BaseModel):
     input_file: str | None = None
     expected: str | None = None
     expected_file: str | None = None
+    # Optional for historical examples. New Studio writes always distinguish
+    # upstream-derived candidate truth from manually supplied truth.
+    truth_provenance: TruthProvenance | None = None
+    truth_binding_sha256: str | None = None
+    # v3 Studio candidates additionally preserve the identity of the signed,
+    # candidate-scoped reference execution.  Optionality is historical-read
+    # compatibility; new confirmations fail closed before writing without it.
+    candidate_evidence_id: str | None = None
+    candidate_truth_binding_sha256: str | None = None
 
     @model_validator(mode="after")
     def _exactly_one_each(self) -> Example:
@@ -42,6 +74,24 @@ class Example(BaseModel):
             raise ValueError("input 与 input_file 必须恰好给一个")
         if (self.expected is None) == (self.expected_file is None):
             raise ValueError("expected 与 expected_file 必须恰好给一个")
+        if self.truth_provenance == UPSTREAM_CONFIRMED:
+            if (
+                self.truth_binding_sha256 is None
+                or re.fullmatch(r"[0-9a-f]{64}", self.truth_binding_sha256) is None
+            ):
+                raise ValueError("上游派生样例必须携带小写 SHA-256 输入/输出绑定")
+            present = (
+                self.candidate_evidence_id is not None,
+                self.candidate_truth_binding_sha256 is not None,
+            )
+            if any(present) and not all(present):
+                raise ValueError("候选证据身份与扩展真值绑定必须同时出现")
+            for value in (
+                self.candidate_evidence_id,
+                self.candidate_truth_binding_sha256,
+            ):
+                if value is not None and re.fullmatch(r"[0-9a-f]{64}", value) is None:
+                    raise ValueError("候选证据身份必须是小写 SHA-256")
         return self
 
 
@@ -88,8 +138,6 @@ def _run(args):
     return subprocess.run([_TOOL, *args], capture_output=True, text=True, timeout=120)
 
 
-def _norm(s):
-    return "\\n".join(line.rstrip() for line in s.strip().splitlines())
 '''
 
 
@@ -109,9 +157,10 @@ def _cli_test(e: Example, idx: int, *, validate_output: bool = False) -> str:
         head += "    _assert_output_contract(r.stdout)\n"
     if e.expected_file is not None:
         return head + (
-            f"    want = _norm((_FIX / {e.expected_file!r}).read_text(encoding=\"utf-8\"))\n"
-            f"    assert _norm(r.stdout) == want, "
-            f"f\"输出与期望文件 {e.expected_file} 不符(规范化行尾后);"
+            f"    want = (_FIX / {e.expected_file!r}).read_text(encoding=\"utf-8\")\n"
+            f"    ok, mode = compare_output(r.stdout, want, root_type=_ROOT_TYPE)\n"
+            f"    assert ok, "
+            f"f\"输出与期望文件 {e.expected_file} 不符(判据={{mode}});"
             f"实际前 200 字: {{r.stdout[:200]}}\"\n")
     assert e.expected is not None   # 模型校验:expected/expected_file 恰一
     if e.expected.startswith(CONTAINS):
@@ -154,5 +203,15 @@ def compile_pytest(
         )
         validator = (render_pytest_validator(output_contract)
                      if output_contract is not None else "")
-        return doc + _CLI_PRELUDE + validator + "\n\n" + body + "\n"
+        # 判据源**内联同一份实现**(会话 venv 装不了 repoproof)。照着再写
+        # 一份的话,两把尺子迟早分家 —— 那正是 LESSONS #57 的病根。
+        root_type = "text"
+        if output_contract is not None:
+            rt = (output_contract.root_type
+                  if isinstance(output_contract, ToolOutputContract)
+                  else (output_contract or {}).get("root_type"))
+            root_type = str(rt or "text")
+        judge = (f"_ROOT_TYPE = {root_type!r}\n\n\n"
+                 + canonical_source() + "\n")
+        return doc + _CLI_PRELUDE + judge + validator + "\n\n" + body + "\n"
     raise CompileError(f"未知编译模式:{mode!r}(支持 seam / cli)")

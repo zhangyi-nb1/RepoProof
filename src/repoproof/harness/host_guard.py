@@ -187,6 +187,20 @@ def dir_fingerprint(root: str | Path) -> dict:
     rootp = Path(os.path.expanduser(str(root)))
     lines: list[str] = []
     entries: dict[str, tuple[int, int]] = {}
+    if rootp.is_file() and not rootp.is_symlink():
+        try:
+            st = rootp.stat()
+        except OSError:
+            st = None
+        if st is not None:
+            entries["."] = (st.st_size, st.st_mtime_ns)
+            lines.append(f".\0{st.st_size}\0{st.st_mtime_ns}")
+        return {
+            "tree": hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest(),
+            "git_refs": "",
+            "files": len(entries),
+            "entries": entries,
+        }
     for p in sorted(rootp.rglob("*")):
         rel = p.relative_to(rootp)
         if any(part in _SKIP for part in rel.parts):
@@ -211,7 +225,7 @@ def snapshot_protected(protected: list[str] | None = None) -> dict[str, dict]:
     """对全部存在的保护目录拍指纹(run 前调用)。"""
     out: dict[str, dict] = {}
     for d in (protected if protected is not None else protected_dirs()):
-        if Path(d).is_dir():
+        if Path(d).exists():
             out[d] = dir_fingerprint(d)
     return out
 

@@ -740,8 +740,19 @@ def provider_from_env() -> ProviderConfig:
     missing = [n for n, v in pairs if not v]
     if missing:
         raise RuntimeError(f"provider env vars missing: {missing}")
+    temperature_policy = os.environ.get(
+        "REPOPROOF_TEMPERATURE_POLICY", "0"
+    ).strip()
+    if temperature_policy not in {"0", "provider_default"}:
+        raise RuntimeError(
+            "REPOPROOF_TEMPERATURE_POLICY must be 0 or provider_default"
+        )
     return ProviderConfig(
-        provider="openai-compatible", model_name=model, api_base=base.rstrip("/"), api_key=key
+        provider="openai-compatible",
+        model_name=model,
+        api_base=base.rstrip("/"),
+        api_key=key,
+        temperature_policy=temperature_policy,
     )
 
 

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Café　更新</title>
+  <id>urn:example:unicode-feed</id>
+  <updated>2024-06-01T12:30:00-04:00</updated>
+  <author><name>  Zoë   Wang  </name><email>zoe@example.test</email></author>
+  <category term="release" label=" 发布 "/>
+  <category term="café"/>
+  <entry>
+    <title>  第一　篇   Café  </title>
+    <id>urn:example:unicode:1</id>
+    <link rel="alternate" href="https://example.test/articles/1"/>
+    <link rel="self" href="https://example.test/feed.xml"/>
+    <published>2024-06-01T10:00:00-04:00</published>
+    <updated>2024-06-01T14:30:00Z</updated>
+    <author><name>甲</name></author>
+    <author><name>乙</name></author>
+    <category term="alpha"/><category term="beta"/>
+  </entry>
+  <entry>
+    <title>第二篇</title>
+    <id>urn:example:unicode:2</id>
+    <updated>2024-06-02T00:00:00Z</updated>
+  </entry>
+</feed>

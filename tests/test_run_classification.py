@@ -394,7 +394,16 @@ def test_k11_the_heldout_prose_is_derived_from_data_not_written_down():
     # 台账 append-only,弃置任务的行不消失)。
     # 2026-08-23 M4 批次二:11 个构建宿主入账(10 READY + num2words
     # 真发 FAIL);tldextract admission 放弃且没有 run,不占宿主。
+    # 2026-08-29 M6.1 UI 资格测试:markdown-it-py、python-docx、
+    # junitparser、jsonschema 与 pypdf 的
+    # PRODUCT/HARNESS_SELFCHECK 和 PRODUCT_ONBOARDING 发次入账。四项
+    # counts_toward_* 均为 false,不计 Benchmark Lab 模型能力,但共享台账的
+    # hosts_covered 仍按 append-only 事实增加这些本地工具宿主。
     assert d["hosts_covered"] == [
+        # 2026-08-30/31 M6.1 两轮多格式 Product Journey 入账；均为
+        # PRODUCT 或 HARNESS_SELFCHECK，不计 Benchmark Lab 模型能力。
+        "local-tool/biopython-fasta-shortlist",
+        "local-tool/biopython-tool",
         "local-tool/chardet-tool",
         "local-tool/emoji-tool",
         "local-tool/feedparser-tool",
@@ -406,22 +415,37 @@ def test_k11_the_heldout_prose_is_derived_from_data_not_written_down():
         "local-tool/jieba-tool",
         "local-tool/json5-tool",
         "local-tool/jsonschema-report",
+        "local-tool/jsonschema-tool",
+        "local-tool/junitparser-tool",
+        "local-tool/markdown-it-py-tool",
         "local-tool/markdown-tool",
+        "local-tool/networkx-dependency-risk",
+        "local-tool/networkx-tool",
         "local-tool/num2words-tool",
         "local-tool/opencc-tool",
         "local-tool/pdf-table",
         "local-tool/phonenumbers-tool",
+        "local-tool/pint-field-kit",
+        "local-tool/pint-tool",
         "local-tool/pygments-tool",
+        "local-tool/pypdf-tool",
         "local-tool/pypinyin-tool",
         "local-tool/pyspellchecker-tool",
         "local-tool/python-dateutil-tool",
+        "local-tool/python-docx-tool",
         "local-tool/python-slugify",
         "local-tool/python-slugify-tool",
         "local-tool/pyyaml-tool",
+        "local-tool/rispy-screening-table",
+        "local-tool/rispy-tool",
         "local-tool/rrule-expand",
         "local-tool/tabulate-tool",
         "local-tool/tomli-tool",
         "local-tool/unidecode-tool",
+        # 2026-08-28 再翻一页:用户在 Studio 里实测 webcolors(v1/v2 两发
+        # **零模型离线彩排**,fake-scripted:positive,均 FAIL,批次
+        # EXPLORATORY_UNPREREGISTERED)。台账 append-only,彩排发同样占宿主。
+        "local-tool/webcolors-tool",
         "local-tool/xmltodict-tool",
         "pallets/click",
         "tobymao/sqlglot",

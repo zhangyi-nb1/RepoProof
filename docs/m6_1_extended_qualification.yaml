@@ -1,0 +1,121 @@
+schema_version: 1
+batch_id: m6.1-extended-product-journey-qualification
+purpose: >-
+  Test three new, moderately complex user-shaped capabilities after the original
+  qualification batch. These are recorded cases, not an arbitrary-repository
+  success rate.
+execution_policy:
+  order_is_fixed: true
+  ui_only: true
+  framework_changes_during_batch: false
+  restart_from_first_case_after_framework_fix: true
+  required_terminal_status: ACTIVE
+  real_model_launch_authority: user_authorized_for_this_batch
+cases:
+  - order: 1
+    repository: https://github.com/python-jsonschema/jsonschema
+    version: 4.25.1
+    resolved_commit: 331c38425519b69118d22ebe467ad230fb83a010
+    distribution: jsonschema
+    import_module: jsonschema
+    user_request: >-
+      我有一份 JSON，里面同时放着规则和要检查的数据。别只告诉我第一个错，
+      帮我把所有问题一次找全，路径说清楚、顺序稳定；本地引用可以，别偷偷上网找规则。
+    normalized_capability: >-
+      Validate one JSON instance against an embedded Draft 2020-12 schema,
+      reject remote references, and emit every validation error as deterministic
+      structured JSON with instance and schema paths.
+    output_contract:
+      media_type: application/json
+      root_type: object
+      required:
+        valid: boolean
+        error_count: integer
+        errors: array
+  - order: 2
+    repository: https://github.com/kurtmckee/feedparser
+    version: 6.0.14
+    resolved_commit: 14425f6851790184fbf7bbd8076de237d5f444f9
+    distribution: feedparser
+    import_module: feedparser
+    user_request: >-
+      给我一个别人导出的 RSS 或 Atom 文件，不管是哪一种，都整理成同一份文章清单。
+      标题、链接、作者、时间和标签尽量保住；有小毛病但还能读时别整份崩掉，结果每次一样。
+    normalized_capability: >-
+      Parse a local RSS or Atom byte stream, preserve source entry order, normalize
+      feed and entry identity fields, authors, timestamps and tags, and report
+      deterministic parser warnings without performing network requests.
+    output_contract:
+      media_type: application/json
+      root_type: object
+      required:
+        format: string
+        feed: object
+        entries: array
+        warnings: array
+  - order: 3
+    repository: https://github.com/py-pdf/pypdf
+    version: 6.12.2
+    resolved_commit: efad421b12fe47b269593ffca8e79a71c7aae065
+    distribution: pypdf
+    import_module: pypdf
+    user_request: >-
+      我想把 PDF 变成一份可检索清单：每页文字别串页，空页也保留，再把标题、作者和书签层级带上。
+      加密或损坏的文件要直接说明，不能偶尔换顺序，也不要依赖联网服务。
+    normalized_capability: >-
+      Extract page-scoped text, selected document metadata and a flattened outline
+      with levels and page numbers from one local PDF while preserving empty pages
+      and producing deterministic JSON.
+    output_contract:
+      media_type: application/json
+      root_type: object
+      required:
+        page_count: integer
+        metadata: object
+        pages: array
+        outline: array
+closure_requirements:
+  - contract confirmed in Studio
+  - at least three representative examples confirmed
+  - zero-model rehearsal passed without invoking an Agent
+  - real build and independent verification passed
+  - clean replay passed
+  - unseen fresh audit produced ACTIVE
+  - exported CLI output matched independently generated truth
+result:
+  completed_at: 2026-08-29
+  status: PASSED
+  cases:
+    - task_id: tool-jsonschema-tool-v8
+      run_id: tool-jsonschema-tool-v8-20260829-201140
+      historical_verdict: VERIFIED_TOOL_READY
+      clean_replay: PASS
+      operational_status: ACTIVE
+      operational_reason_code: FRESH_INPUT_PASS
+      package_health: OK
+      conformance_record: tool_tasks/tool-jsonschema-tool-v8/conformance.json
+    - task_id: tool-feedparser-tool-v7
+      run_id: tool-feedparser-tool-v7-20260829-202219
+      historical_verdict: VERIFIED_TOOL_READY
+      clean_replay: PASS
+      operational_status: ACTIVE
+      operational_reason_code: FRESH_INPUT_PASS
+      package_health: OK
+      conformance_record: tool_tasks/tool-feedparser-tool-v7/conformance.json
+    - task_id: tool-pypdf-tool-v2
+      run_id: tool-pypdf-tool-v2-20260829-203643
+      historical_verdict: VERIFIED_TOOL_READY
+      clean_replay: PASS
+      operational_status: ACTIVE
+      operational_reason_code: FRESH_INPUT_PASS
+      package_health: OK
+      conformance_record: tool_tasks/tool-pypdf-tool-v2/conformance.json
+      conformance_note: >-
+        Selected three capability-related pytest nodes and installed only the
+        upstream-owned exact pins pyyaml==6.0.2 and pillow==12.2.0; all three
+        nodes passed before the Coding Agent was invoked.
+  evidence_scope: >-
+    These are three recorded Product-mode UI journeys restarted from the first
+    case after the last generic Harness fix. Every corresponding ledger row has
+    all four counts_toward_* benchmark fields set to false; the result is not a
+    model capability score or an arbitrary-repository success rate.

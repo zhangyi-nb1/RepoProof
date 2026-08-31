@@ -1,0 +1,8 @@
+[project]
+name = "biopython_fasta_shortlist"
+version = "1.0.0"
+description = '使用 Biopython 离线筛选多记录 FASTA，并生成可直接用于会议的确定性 Markdown 通过/未通过报告。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

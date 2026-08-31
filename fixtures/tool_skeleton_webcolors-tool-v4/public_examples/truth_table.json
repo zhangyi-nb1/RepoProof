@@ -1,0 +1,17 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input_file": "inputs/typical_hex.json",
+   "expected_file": "expected/typical_hex.expected.txt"
+  },
+  {
+   "input_file": "inputs/shorthand_mixed_case.json",
+   "expected_file": "expected/shorthand_mixed_case.expected.txt"
+  },
+  {
+   "input_file": "inputs/valid_goldenrod.json",
+   "expected_file": "expected/valid_goldenrod.expected.txt"
+  }
+ ]
+}

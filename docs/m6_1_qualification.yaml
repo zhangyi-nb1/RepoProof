@@ -1,0 +1,108 @@
+schema_version: 1
+batch_id: m6.1-product-journey-qualification
+purpose: >-
+  Validate the supported Product Journey through Studio. These three cases are
+  recorded examples, not an estimate of arbitrary-repository success.
+execution_policy:
+  order_is_fixed: true
+  ui_only: true
+  framework_changes_during_batch: false
+  restart_from_first_case_after_framework_fix: true
+  required_terminal_status: ACTIVE
+  real_model_launch_authority: user_authorized_for_this_batch
+cases:
+  - order: 1
+    repository: https://github.com/weiwei/junitparser
+    version: 5.0.1
+    resolved_commit: d98bdb70fbde4d08e191df17bd51576102c19d6a
+    distribution: junitparser
+    import_module: junitparser
+    capability: >-
+      Merge multiple JUnit XML files, optionally filter testcases by status,
+      and emit a deterministic JSON summary grouped by suite and final status.
+    public_examples:
+      - two XML reports with passed, failed, skipped, and duplicate suite names
+      - one malformed XML document that must terminate as invalid user input
+      - repeated input in a different file order to prove deterministic output
+    output_contract:
+      media_type: application/json
+      root_type: object
+      required:
+        suites: array
+        totals: object
+  - order: 2
+    repository: https://github.com/executablebooks/markdown-it-py
+    version: 4.2.0
+    resolved_commit: 36c5f547144df2d01970a5792d68c71a3380b227
+    distribution: markdown-it-py
+    import_module: markdown_it
+    capability: >-
+      Parse Markdown and emit deterministic structured JSON containing heading
+      hierarchy, links, and fenced code blocks while preserving source order.
+    public_examples:
+      - nested headings with skipped levels and inline emphasis
+      - relative and absolute links with duplicate labels
+      - fenced code blocks with and without language information
+    output_contract:
+      media_type: application/json
+      root_type: object
+      required:
+        headings: array
+        links: array
+        code_blocks: array
+  - order: 3
+    repository: https://github.com/python-openxml/python-docx
+    version: 1.2.0
+    resolved_commit: e45454602b53e8e572b179ccf1c91093ec9f4ed7
+    distribution: python-docx
+    import_module: docx
+    capability: >-
+      Extract a DOCX document into deterministic structured JSON containing
+      paragraphs, heading levels, and tables in document order.
+    public_examples:
+      - a locally authored document with title, headings, and plain paragraphs
+      - a document containing merged cells and an empty table cell
+      - a document mixing paragraphs and multiple tables
+    output_contract:
+      media_type: application/json
+      root_type: object
+      required:
+        blocks: array
+        metadata: object
+closure_requirements:
+  - contract confirmed in Studio
+  - zero-model rehearsal passed
+  - real build completed from Studio
+  - independent verification passed
+  - clean replay passed
+  - fresh audit produced ACTIVE
+  - local CLI invocation matched the confirmed contract
+result:
+  completed_at: 2026-08-29
+  status: PASSED
+  cases:
+    - task_id: tool-junitparser-tool-v1
+      run_id: tool-junitparser-tool-v1-20260829-154250
+      historical_verdict: VERIFIED_TOOL_READY
+      clean_replay: PASS
+      operational_status: ACTIVE
+      operational_reason_code: FRESH_INPUT_PASS
+      package_health: OK
+    - task_id: tool-markdown-it-py-tool-v4
+      run_id: tool-markdown-it-py-tool-v4-20260829-155653
+      historical_verdict: VERIFIED_TOOL_READY
+      clean_replay: PASS
+      operational_status: ACTIVE
+      operational_reason_code: FRESH_INPUT_PASS
+      package_health: OK
+    - task_id: tool-python-docx-tool-v2
+      run_id: tool-python-docx-tool-v2-20260829-160746
+      historical_verdict: VERIFIED_TOOL_READY
+      clean_replay: PASS
+      operational_status: ACTIVE
+      operational_reason_code: FRESH_INPUT_PASS
+      package_health: OK
+  evidence_scope: >-
+    These are three recorded Product-mode UI journeys. Every corresponding
+    ledger row has all four counts_toward_* benchmark fields set to false; the
+    result is not a model capability score or an arbitrary-repository success rate.

@@ -1,0 +1,4 @@
+sample_name	value	source_unit	target_unit	converted_value	status	reason
+样本α	1234.56789	meter	kilometer	1.23457	converted	
+cache01	2.5	meter	second		unconverted	DimensionalityError: Cannot convert from 'meter' ([length]) to 'second' ([time])
+未知单位	7	uc_%s	meter		unconverted	UndefinedUnitError: 'uc_' is not defined in the unit registry

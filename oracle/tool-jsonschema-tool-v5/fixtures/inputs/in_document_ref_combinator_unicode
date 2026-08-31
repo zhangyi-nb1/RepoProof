@@ -1,0 +1,1 @@
+{"schema":{"$defs":{"positiveId":{"type":"integer","minimum":1},"contact":{"oneOf":[{"type":"string","format":"email"},{"type":"string","pattern":"^\\+?[0-9 -]+$"}]}},"type":"object","properties":{"用户":{"$ref":"#/$defs/positiveId"},"联系":{"$ref":"#/$defs/contact"}},"required":["用户","联系"],"additionalProperties":false},"instance":{"用户":0,"联系":"无效☎"}}

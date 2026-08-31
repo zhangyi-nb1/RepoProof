@@ -23,6 +23,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import re
@@ -30,17 +31,19 @@ import shutil
 from pathlib import Path
 
 from repoproof.adoption.assembly.example_compiler import (
+    UPSTREAM_CONFIRMED,
     CompileError,
     Example,
     compile_pytest,
     split_examples,
+    truth_binding_sha256,
 )
 from repoproof.adoption.assembly.output_contract import (
     is_capability_output_invocation,
-    is_structured_output_format,
     output_contract_matches_format,
     validate_output_text,
 )
+from repoproof.adoption.intake.intent_contract import validate_frozen_intent_projection
 from repoproof.domain.models import ToolSpec
 
 # ------------------------------------------------------------------ 骨架模板
@@ -365,10 +368,12 @@ def assemble_tool_task(
     examples: list[dict],
     example_src_dir: Path,
     reference_impl: str,
+    semantic_verifier_source: str = "",
     reference_lock: str = "",
     input_ext: str = ".pdf",
     malformed_applicable: bool = True,
     capability_output_schema: str | None = None,
+    intent_contract: dict | None = None,
 ) -> dict:
     """生成 LOCAL-TOOL 全部任务文件;返回 {task_id, files, next}。不冻结、不运行。
 
@@ -377,6 +382,23 @@ def assemble_tool_task(
     文件样例的 held-out 隐藏 = 文件本体只进 oracle(SCHEMA §四第一层)。
     """
     exs = [Example(**e) for e in examples]
+    for idx, example in enumerate(exs, start=1):
+        if example.truth_provenance != UPSTREAM_CONFIRMED:
+            continue
+        if example.input_file is None or example.expected_file is None:
+            raise CompileError(
+                f"样例 {idx}:上游派生真值必须使用精确 input_file/expected_file 绑定"
+            )
+        try:
+            input_bytes = (example_src_dir / example.input_file).read_bytes()
+            expected_bytes = (example_src_dir / example.expected_file).read_bytes()
+        except OSError as exc:
+            raise CompileError(f"样例 {idx}:上游派生真值文件无法读取") from exc
+        actual_binding = truth_binding_sha256(input_bytes, expected_bytes)
+        if actual_binding != example.truth_binding_sha256:
+            raise CompileError(
+                f"样例 {idx}:上游派生输入/输出绑定已漂移，拒绝冒充确认时真值"
+            )
     if not any(e.input_file for e in exs):
         raise CompileError("LOCAL-TOOL 任务至少需要一个文件输入样例(确定性锚)")
     public, held = split_examples(exs)
@@ -392,7 +414,14 @@ def assemble_tool_task(
     if tool.schema_version >= 2:
         if output.contract is None:
             raise CompileError("T6 output contract present: v2 工具缺 output.contract")
-        if not output_contract_matches_format(output.format, output.contract):
+        # Historical v2 contracts did not freeze a typed delivery identity, so
+        # their human label remains the only compatibility bridge.  Current
+        # Product contracts carry ``intent_contract.delivery`` and are checked
+        # below against the profile's exact format_id/media/root identity.
+        if intent_contract is None and not output_contract_matches_format(
+            output.format,
+            output.contract,
+        ):
             raise CompileError("T9 schema fields agree: output.format 与 contract 分叉")
         if capability_output_schema is None or not output_schema.strip():
             raise CompileError("T9 schema fields agree: capability.output_schema 为空")
@@ -415,15 +444,64 @@ def assemble_tool_task(
                 if errors:
                     raise CompileError(
                         f"T7 golden output parseable: example={idx} {'; '.join(errors)}")
-        if is_structured_output_format(output.format) and not exact_structured:
+        if output.contract.root_type != "text" and not exact_structured:
             raise CompileError(
                 "T8 exact structured golden exists: JSON 家族至少需一组完整精确真值")
+
+    # Current Product semantics carry an explicit user-confirmed intent trace.
+    # Re-run the complete projection *before* allocating a task version or
+    # writing generated files.  Historical/direct callers without an intent
+    # contract retain their frozen behavior; presence of the new trace opts in
+    # to the stricter, profile-owned semantics and cannot bypass it.
+    if intent_contract is not None:
+        intent_problems = validate_frozen_intent_projection(
+            intent_contract=intent_contract,
+            compiled_statement=goal.strip(),
+            input_contract=tool.interface.input.model_dump(mode="json"),
+            output_contract=tool.interface.output.model_dump(mode="json"),
+            output_schema=output_schema,
+        )
+        if intent_problems:
+            raise CompileError(f"CURRENT_PRODUCT_INTENT_INVALID:{intent_problems[0]}")
+
+    semantic_verifier_spec: dict[str, object] | None = None
+    if tool.schema_version >= 3:
+        if not semantic_verifier_source.strip():
+            raise CompileError(
+                "T10 semantic verifier present: v3 工具缺 task-authored verifier"
+            )
+        try:
+            semantic_tree = ast.parse(semantic_verifier_source)
+        except SyntaxError as exc:
+            raise CompileError(
+                "T10 semantic verifier protocol: verifier 不是合法 Python"
+            ) from exc
+        if not any(
+            isinstance(node, ast.FunctionDef)
+            and node.name == "verify"
+            and len(node.args.args) == 2
+            for node in semantic_tree.body
+        ):
+            raise CompileError(
+                "T10 semantic verifier protocol: 缺同步 verify(input_path, artifact_path)"
+            )
 
     task_id = next_tool_task_id(root, tool.name)
     slug, version_text = task_id.removeprefix("tool-").rsplit("-v", maxsplit=1)
     n = int(version_text)
     skel_rel = f"fixtures/tool_skeleton_{slug}" if n == 1 else f"fixtures/tool_skeleton_{slug}-v{n}"
     package = tool.name.replace("-", "_")
+    if tool.schema_version >= 3:
+        semantic_rel = f"oracle/{task_id}/semantic_verifier.py"
+        semantic_verifier_spec = {
+            "protocol": "repoproof-semantic-verifier-v1",
+            "verifier_id": f"{tool.name}-semantic-v1",
+            "source_file": semantic_rel,
+            "source_sha256": hashlib.sha256(
+                semantic_verifier_source.encode("utf-8")
+            ).hexdigest(),
+            "required_for_operational_active": True,
+        }
 
     files: dict[str, str] = {}
     copies: list[tuple[Path, str]] = []   # (源文件, 仓内相对目标)
@@ -441,16 +519,28 @@ def assemble_tool_task(
     #   折叠块内冒号+引号本安全,但去掉换行防折叠语义意外。
     ex_lines_json = _json_mod.dumps(ex_lines, ensure_ascii=False)
     ex_lines_folded = " ".join(ex_lines.split())
-    statement = (
-        f"{goal.strip()} 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 "
-        f"src/{package}/impl.py 实现 extract(),必须调用 pinned {distribution};"
-        f"依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准"
-        f"(例:{ex_lines});坏输入抛 UserInputError(→exit 1);重复调用确定;"
-        "完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)"
-        "不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。"
-    )
+    if intent_contract is not None:
+        # The human confirmation hashes this exact statement.  Assembly may add
+        # delivery mechanics elsewhere, but it must not append new task rules.
+        statement = goal.strip()
+    else:
+        # Historical/direct assembler callers retain their original semantics.
+        statement = (
+            f"{goal.strip()} 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 "
+            f"src/{package}/impl.py 实现 extract(),必须调用 pinned {distribution};"
+            f"依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准"
+            f"(例:{ex_lines});坏输入抛 UserInputError(→exit 1);重复调用确定;"
+            "完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)"
+            "不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。"
+        )
     tool_yaml = json.dumps(tool.model_dump(), ensure_ascii=False)  # 单行 JSON 即合法 YAML
     output_schema_json = _json_mod.dumps(output_schema, ensure_ascii=False)
+    intent_contract_json = _json_mod.dumps(intent_contract, ensure_ascii=False)
+    semantic_verifier_json = _json_mod.dumps(
+        semantic_verifier_spec,
+        ensure_ascii=False,
+    )
+    statement_json = _json_mod.dumps(statement, ensure_ascii=False)
     files[f"contracts/{task_id}.yaml"] = f"""task_id: {task_id}
 
 source_repo:
@@ -474,9 +564,9 @@ adoption_shape: TOOL_ONBOARDING
 tool: {tool_yaml}
 
 capability:
-  statement: >
-    {statement}
+  statement: {statement_json}
   output_schema: {output_schema_json}
+  intent_contract: {intent_contract_json}
 
 environment: {{os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}}
 
@@ -501,6 +591,7 @@ acceptance:
   capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
   regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
   probe_script: direct_tool_probe.py
+  semantic_verifier: {semantic_verifier_json}
 """
 
     # ---- RequirementSpec(NC_reimpl 不进 battery:判死在 provenance 层)----
@@ -513,6 +604,30 @@ acceptance:
       label: NC_badexit
       must_fail_nodes: ["test_malformed_input_is_user_error"]
 """ if malformed_applicable else "")
+    semantic_blocks = ""
+    if intent_contract:
+        if semantic_verifier_spec is None:
+            raise CompileError(
+                "T10 semantic verifier identity missing for confirmed commitments"
+            )
+        semantic_verifier_binding = (
+            "semantic-verifier:"
+            f"{semantic_verifier_spec['verifier_id']}"
+        )
+        for commitment in intent_contract.get("commitments") or []:
+            commitment_id = str(commitment.get("commitment_id") or "")
+            public_text = _json_mod.dumps(
+                str(commitment.get("public_text") or ""),
+                ensure_ascii=False,
+            )
+            semantic_blocks += f"""  - id: intent-{commitment_id}
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: {public_text}
+    examples: []
+    verified_by: {semantic_verifier_binding}
+"""
     files[f"contracts/{task_id}.requirements.yaml"] = f"""task_id: {task_id}
 
 controls:
@@ -567,6 +682,7 @@ requirements:
     oracle_nodes:
       - "test_interface_contract::test_help_reachable"
       - "test_interface_contract::test_missing_input_is_user_error"
+{semantic_blocks}
 """
 
     # ---- 工具骨架 ----
@@ -609,6 +725,13 @@ requirements:
         public, header="公开合同测试 — agent 可运行自测", mode="cli",
         output_contract=output.contract)
     for e in public:
+        # Fresh audit needs to exclude inputs that the Agent already saw.  The
+        # exported package deliberately omits ``public_tests/``; keep a second,
+        # input-only copy below ``public_examples/`` so the Product Journey can
+        # deduplicate without exporting expected files or any held-out fixture.
+        if e.input_file:
+            copies.append((example_src_dir / e.input_file,
+                           f"{skel_rel}/public_examples/inputs/{e.input_file}"))
         for rel in (e.input_file, e.expected_file):
             if rel:
                 copies.append((example_src_dir / rel,
@@ -634,6 +757,8 @@ requirements:
         cap_iface = cap_iface[:head_mal] + cap_iface[tail_det:]
     files[f"oracle/{task_id}/test_capability.py"] = (
         pub_src + "\n\n" + held_tests + cap_iface)
+    if semantic_verifier_spec is not None:
+        files[f"oracle/{task_id}/semantic_verifier.py"] = semantic_verifier_source
     files[f"{skel_rel}/public_tests/test_interface_contract.py"] = _REGRESSION_TMPL.format(
         ext=input_ext, det_input=first_file)
     for e in [*public, *held]:
@@ -703,7 +828,7 @@ requirements:
             if (example.expected is not None
                     and example.expected.startswith("contains:")
                     and output.contract is not None
-                    and is_structured_output_format(output.format)):
+                    and output.contract.root_type != "text"):
                 value = _structured_contains_output(value)
             mapped[Path(example.input_file).name] = value
         return mapped

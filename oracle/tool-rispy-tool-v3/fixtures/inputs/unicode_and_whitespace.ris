@@ -1,0 +1,16 @@
+TY  - JOUR
+TI  - 中文题名：文献去重与 Unicode 保真
+AU  - 王, 小明
+AU  - García, María
+JO  - 测试期刊
+PY  - 2022
+AB  - 包含中文、é、β、😀 与末尾空格   
+KW  - 中文关键词
+KW  - naïve café
+ER  - 
+
+TY  - JOUR
+TI  - Second record
+AU  - Müller, Jörg
+PY  - 2021
+ER  - 

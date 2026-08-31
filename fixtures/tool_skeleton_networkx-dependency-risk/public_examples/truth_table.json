@@ -1,0 +1,29 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input_file": "inputs/复杂依赖、重复边、环与非ASCII任务",
+   "expected_file": "expected/复杂依赖、重复边、环与非ASCII任务.expected.txt",
+   "truth_provenance": "UPSTREAM_DERIVED_USER_CONFIRMED",
+   "truth_binding_sha256": "cede127cf4b046e454ce599e46622d92523a7043980446f4debbb70c1659a771",
+   "candidate_evidence_id": "029561d219fb65ff1b5ac264f5e3f7cef6dbf276fb874a67e98ceddcfb1e360c",
+   "candidate_truth_binding_sha256": "e4cc8ccf5f6a37a276a36845a245caf301542f60b4c963cb4af100560061f559"
+  },
+  {
+   "input_file": "inputs/典型依赖、重复边与环",
+   "expected_file": "expected/典型依赖、重复边与环.expected.txt",
+   "truth_provenance": "UPSTREAM_DERIVED_USER_CONFIRMED",
+   "truth_binding_sha256": "70cd2c97dbcf004cd19ef151f0fc41265460ded88ce29b0a33fe9407861720a2",
+   "candidate_evidence_id": "42842770941064aebab04ebb1b0ac7426d7e67322ce9676d02e57c5aeb5106c9",
+   "candidate_truth_binding_sha256": "b64c4e49cedabbfce0c74d946ade540d1875d942d2591e975c92b22178f21102"
+  },
+  {
+   "input_file": "inputs/非ASCII和保留空白任务名",
+   "expected_file": "expected/非ASCII和保留空白任务名.expected.txt",
+   "truth_provenance": "UPSTREAM_DERIVED_USER_CONFIRMED",
+   "truth_binding_sha256": "f96c2d95f50f956cfcd033659e70fad10804177502c809c1ecc56f006038f4b4",
+   "candidate_evidence_id": "c3fdd65b49a7b2fcdc6e2839d53b38806567b0b9c9365f0a7daa4e0947affdd5",
+   "candidate_truth_binding_sha256": "a36d585c17d66315d6ab37bf765baa28bddb8c1681a42e947526435c1d9800cd"
+  }
+ ]
+}

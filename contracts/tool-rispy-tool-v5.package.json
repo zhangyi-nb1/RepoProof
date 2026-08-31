@@ -1,0 +1,43 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "public_tests/test_interface_contract.py"
+  ],
+  "collection_manifest_sha256": null,
+  "consumer_fixture_tree_sha256": "87750acd777cc2660f551e066e9dc2b4f9a16cd9630ce66e53053b2e34d41282",
+  "contract_sha256": "31f384fe61f239591ebdc501c35eb0515e668bc8223694dddbcd22b7a85b3d36",
+  "controls_summary": null,
+  "environment_constraints": null,
+  "expected_capability_nodes": null,
+  "expected_regression_nodes": null,
+  "held_out_fixture_sha256": "8305895a7c03a0c912a8a737476005f9e37259db4fba88e081bc78d2efb73fe6",
+  "image_digest": null,
+  "oracle_tree_sha256": "fa311b11e928e7442beda8d5437290deb7a61efb39678b0f9b5c6075689280d7",
+  "prompt_manifest_sha256": null,
+  "public_examples_sha256": null,
+  "public_fixture_sha256": "bf521f8a95a838d4c59fca6325ac6620152565d3ee80b3838b5650c969495e89",
+  "public_tests_tree_sha256": null,
+  "requirement_spec_sha256": null,
+  "responsibility_matrix": null,
+  "root_hash": "89cd213e6dab35da4cbe03cadba2d61efcf427ff4e9fcbbf1acffd060eae659a",
+  "source_commit": "b7aae3b2069ced3fb75287711300f2edf0bcac21",
+  "source_git_tree_hash": "b07d643d8df8e16e40dd4d685120cf8647363ae6",
+  "task_id": "tool-rispy-tool-v5",
+  "wheelhouse_root": "65603a2c3c46f875db0160229f59e927a32a8c137d25afaabb8ff5f691cd8981",
+  "wheelhouse_wheels": {
+    "iniconfig-2.3.0-py3-none-any.whl": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12",
+    "packaging-26.3-py3-none-any.whl": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+    "pluggy-1.6.0-py3-none-any.whl": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+    "pygments-2.21.0-py3-none-any.whl": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9",
+    "pytest-9.1.1-py3-none-any.whl": "37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c",
+    "rispy-0.10.0-py3-none-any.whl": "acc8b941ab5e7b65b5365e468af2e00f0cb031a9e5c5a6b06538d856151e61be",
+    "setuptools-84.0.0-py3-none-any.whl": "51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670",
+    "wheel-0.48.0-py3-none-any.whl": "3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab"
+  }
+}

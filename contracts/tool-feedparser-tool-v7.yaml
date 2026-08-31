@@ -1,0 +1,50 @@
+task_id: tool-feedparser-tool-v7
+
+source_repo:
+  url: https://github.com/kurtmckee/feedparser
+  revision: guided
+  resolved_commit: 14425f6851790184fbf7bbd8076de237d5f444f9
+  license: BSD-2-Clause
+  distribution: feedparser
+  import_module: feedparser
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_feedparser-tool-v7
+  package: feedparser_tool
+  entry_point: feedparser-tool
+
+requirement_spec_file: tool-feedparser-tool-v7.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 2, "name": "feedparser-tool", "summary": "将本地 RSS 或 Atom XML 文件离线整理为顺序稳定、字段规范化的订阅文章清单，并报告可恢复的解析警告。", "interface": {"usage": "feedparser-tool <input> [--out FILE]", "input": {"kind": "file", "format": "RSS/Atom XML", "contract": null}, "output": {"kind": "stdout", "format": "JSON", "contract": {"media_type": "application/json", "root_type": "object", "required": {"format": "string", "feed": "object", "entries": "array", "warnings": "array"}}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    读取一个本地 RSS 或 Atom 字节文件，只用固定版本 feedparser 6.0.14 的 feedparser.parse(data, resolve_relative_uris=False, sanitize_html=False) 解析原始字节；不接受 URL、运行时不联网。输出是 UTF-8 紧凑排序 JSON，根对象固定包含 format、feed、entries、warnings。format 为 feedparser 的 version，缺失时为 unknown。feed 与每个 entry 固定包含 title、link、id、authors、published、updated、tags：title/link/id 为经 Unicode NFC、连续空白压缩及首尾去空白后的字符串，缺失为空字符串；authors 按上游顺序，每项固定为 {name,email,href} 三个字符串，若 authors 为空但存在 author，则使用 author_detail 或 author 形成一项；tags 按上游顺序，每项固定为 {term,scheme,label} 三个字符串；published 与 updated 固定为 {raw,utc} 两个字符串，raw 为上游字段文本，utc 从对应 *_parsed 以 UTC 转成 YYYY-MM-DDTHH:MM:SSZ，缺失或不可转换为空字符串。entries 严格保持上游顺序。bozo 为真但仍能识别 version、feed 或 entries 时继续输出，并在 warnings 放一项 {type,message}：type 必须是 type(bozo_exception).__name__（无对象时为 FeedParseWarning），message 是异常字符串经相同文本归一化后的值（为空时为 recoverable malformed feed）。空白文件、不可读文件、完全无法识别的输入抛出 UserInputError，CLI 退出码 1。相同输入字节输出完全一致。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/feedparser_tool/impl.py 实现 extract(),必须调用 pinned feedparser;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:feedparser-tool inputs/atom_unicode_typical.xml -> 见 expected/atom_unicode_typical.expected.txt; feedparser-tool inputs/recoverable_malformed_rss.xml -> 见 expected/recoverable_malformed_rss.expected.txt);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: "FeedSubscriptionList"
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

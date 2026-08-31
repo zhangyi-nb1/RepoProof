@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>  Café　新闻  </title>
+  <id>urn:example:feed</id>
+  <updated>2024-02-03T04:05:06+08:00</updated>
+  <link rel="alternate" href="/首页" />
+  <author><name> 张　三 </name><email>zhang@example.com</email><uri>/作者</uri></author>
+  <category term="技术" scheme="/分类" label=" 技术资讯 "/>
+  <entry>
+    <title>  第一　篇 Café  </title>
+    <id>urn:example:entry:1</id>
+    <link href="posts/1" />
+    <published>2024-02-01T12:30:00Z</published>
+    <updated>2024-02-02T00:00:00Z</updated>
+    <author><name>李四</name></author>
+    <category term="Python" label=" 编程 "/>
+  </entry>
+</feed>

@@ -1,0 +1,8 @@
+[project]
+name = "jsonschema_tool"
+version = "1.0.0"
+description = '离线校验本地 JSON Schema 与数据，稳定返回全部可定位的校验问题及组合关键字的子错误。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

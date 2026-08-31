@@ -1,0 +1,264 @@
+schema_version: 1
+batch_id: m6.1-natural-requirements-multiformat-qualification
+purpose: >-
+  Validate a human-shaped Product Journey in which a user arrives with a vague
+  research or study need, asks the LLM for repository-grounded suggestions,
+  keeps the adopted brief in ordinary language, and receives a useful UTF-8
+  file rather than a JSON-only machine artifact. These are preregistered cases,
+  not an estimate of arbitrary-repository success.
+journey_policy:
+  initial_request_is_intentionally_vague: true
+  repository_analysis_precedes_drafting: true
+  requirement_brief_count:
+    minimum: 2
+    maximum: 3
+  adopted_brief_remains_user_language: true
+  adoption_does_not_freeze_contract: true
+  example_candidates_are_llm_proposed: true
+  expected_outputs_are_upstream_derived: true
+  confirmed_examples_survive_regeneration: true
+  minimum_confirmed_success_examples: 3
+  confirmed_example_provenance_required: UPSTREAM_DERIVED_USER_CONFIRMED
+  confirmed_example_binding_hash_required: true
+  fresh_audit_candidate_is_generated_in_journey: true
+  prepared_user_upload_required: false
+execution_policy:
+  order_is_fixed: true
+  ui_only: true
+  fixed_agent_backend: mini-swe
+  framework_changes_during_batch: false
+  restart_from_first_case_after_framework_fix: true
+  backend_is_fixed_during_batch: true
+  required_terminal_status: ACTIVE
+  real_model_launch_policy: user_initiated_from_studio_only
+  json_user_artifact_forbidden: true
+  binary_output_out_of_scope: true
+  reference_runtime_network: none
+  reference_runtime_writes: disposable_directory_only
+  reference_isolation_fail_closed: true
+verification_policy:
+  generic_media_contract_parsers:
+    - application/x-research-info-systems
+    - text/tab-separated-values
+    - text/markdown
+    - text/html
+  semantic_truth_source: frozen_reference_calling_pinned_upstream
+  actual_output_compared_with_reference: true
+  held_out_examples_required: true
+  case_specific_semantic_requirements_are_closure_gates: true
+implementation_status:
+  structured_requirement_briefs: IMPLEMENTED
+  editable_one_click_adoption: IMPLEMENTED
+  in_journey_fresh_audit_candidates: IMPLEMENTED
+  multiformat_media_contract_floor: IMPLEMENTED
+  case_specific_semantic_verifier_receipts: PENDING_FROZEN_TASKS
+  four_repository_real_qualification: NOT_RUN
+cases:
+  - order: 1
+    name: rispy-reference-cleanup
+    repository: https://github.com/MrTango/rispy
+    package_version: 0.10.0
+    ui_revision: v0.10.0
+    ui_revision_kind: tag
+    resolved_commit: b7aae3b2069ced3fb75287711300f2edf0bcac21
+    distribution: rispy
+    import_module: rispy
+    initial_user_request: >-
+      别的 AI 说这个仓库可以帮我处理文献导出。我把几个地方导出来的内容
+      混在一起了，想整理干净后继续用。
+    expected_adopted_brief: >-
+      把这份文献导出整理成还能导回文献软件的文件，去掉明确重复，中文别
+      乱码，也别联网补资料。
+    adoption_mode: adopt_recommended_without_technical_rewrite
+    input_format: RIS text
+    output_contract:
+      media_type: application/x-research-info-systems
+      root_type: text
+      required: {}
+    deliverable:
+      extension: .ris
+      transport: utf8_stdout_and_out_file
+      intended_use: reimport into a reference manager
+    hidden_acceptance_rules:
+      - parse and reserialize every accepted record with RISpy
+      - treat equal normalized DOI values as duplicates
+      - without a DOI, deduplicate only equal title, authors, and year
+      - preserve the first record and first-seen record order
+      - prove the emitted RIS can be parsed again and round-tripped
+      - perform no network lookup or metadata enrichment
+    candidate_scenarios:
+      - role: success
+        description: ordinary records with distinct DOI values
+      - role: success
+        description: Unicode author names and titles
+      - role: success
+        description: explicit DOI duplicates and field-equal duplicates
+      - role: rejected_or_error
+        description: malformed tags or a missing record terminator
+    semantic_verifier_requirements:
+      - independently parse the emitted file with pinned RISpy
+      - compare record order and normalized fields with the reference result
+      - prove parse-serialize-parse round-trip stability
+
+  - order: 2
+    name: pint-lab-unit-table
+    repository: https://github.com/hgrecco/pint
+    package_version: 0.25.3
+    ui_revision: 0.25.3
+    ui_revision_kind: tag
+    resolved_commit: 5e79411e1be2dc39c52a536168338773b49fd512
+    distribution: Pint
+    import_module: pint
+    initial_user_request: >-
+      AI 说这个库适合处理单位。我的实验记录单位很乱，想整理以后发给同学
+      继续用。
+    expected_adopted_brief: >-
+      把带样本名、原数值和目标单位的表格换算成能粘到 Excel 的结果；换不
+      了的保留并说明，小数别太长。
+    adoption_mode: adopt_then_add_one_output_preference
+    input_format: TSV text
+    output_contract:
+      media_type: text/tab-separated-values
+      root_type: text
+      required: {}
+    deliverable:
+      extension: .tsv
+      transport: utf8_stdout_and_out_file
+      intended_use: continue in Excel, R, or pandas
+    hidden_acceptance_rules:
+      - parse sample name, original quantity, and target unit from TSV
+      - use Pint for parsing, dimensionality checks, and conversion
+      - keep one invalid row from failing otherwise valid rows
+      - emit a fixed column order and stable error codes
+      - use a fixed finite number format for successful conversions
+      - perform no currency conversion or external unit lookup
+    candidate_scenarios:
+      - role: success
+        description: common length and mass conversions
+      - role: success
+        description: compound units and mixed row order
+      - role: success
+        description: Celsius and Fahrenheit conversions
+      - role: success_with_row_error
+        description: valid rows mixed with dimensionally incompatible units
+      - role: rejected_or_error
+        description: a misspelled or unknown unit
+    semantic_verifier_requirements:
+      - parse the emitted TSV with the standard csv module
+      - independently recalculate every successful row with pinned Pint
+      - verify fixed columns, row identity, stable errors, and numeric tolerance
+
+  - order: 3
+    name: networkx-project-note
+    repository: https://github.com/networkx/networkx
+    package_version: 3.6.1
+    ui_revision: networkx-3.6.1
+    ui_revision_kind: tag
+    resolved_commit: 7530809bfa1ea7ed6fdf918a4d1431488953cb1f
+    distribution: networkx
+    import_module: networkx
+    initial_user_request: >-
+      AI 说这个仓库可以分析关系数据。我有一些“谁和谁有关”的数据，想快
+      速看一下大概结构，之后放进项目记录。
+    expected_adopted_brief: >-
+      做成能放进项目笔记的摘要，告诉我规模、分组、关键和落单节点，不需
+      要复杂绘图。
+    adoption_mode: adopt_then_add_one_presentation_preference
+    input_format: GraphML text
+    output_contract:
+      media_type: text/markdown
+      root_type: text
+      required: {}
+    deliverable:
+      extension: .md
+      transport: utf8_stdout_and_out_file
+      intended_use: paste into a project note or research report
+    hidden_acceptance_rules:
+      - parse GraphML and calculate graph facts with NetworkX
+      - report size, density, isolates, and connected or weakly connected groups
+      - define key nodes only as the top five nodes by degree
+      - order ties by stable node identifier
+      - emit fixed overview, metrics, groups, key-nodes, and warnings sections
+      - do not add random communities, layout, PageRank, or plotting
+    candidate_scenarios:
+      - role: success
+        description: an undirected graph with multiple groups and an isolate
+      - role: success
+        description: a directed citation-like graph
+      - role: success
+        description: self-loops, multi-edges, and tied degree ranks
+      - role: rejected_or_error
+        description: malformed or unsupported mixed GraphML
+    semantic_verifier_requirements:
+      - parse the fixed Markdown sections and tables independently
+      - recompute all reported graph facts with pinned NetworkX
+      - compare ordered groups and degree rankings with deterministic truth
+
+  - order: 4
+    name: biopython-fastq-qc-report
+    repository: https://github.com/biopython/biopython
+    package_version: "1.88"
+    ui_revision: biopython-188
+    ui_revision_kind: tag
+    resolved_commit: d7e4b8b19399668b09442a5b35765d9186b5f665
+    distribution: biopython
+    import_module: Bio
+    initial_user_request: >-
+      AI 说这个仓库能处理测序文件。同学给了我一份 FASTQ，我想先知道质量
+      大概怎么样，最好能点开直接看。
+    expected_adopted_brief: >-
+      把这份 FASTQ 做成一个本地能直接打开的小报告，能看到数量、长度、GC
+      和明显的质量问题，不做比对，也不联网。
+    adoption_mode: adopt_recommended_without_technical_rewrite
+    input_format: Sanger FASTQ text
+    output_contract:
+      media_type: text/html
+      root_type: text
+      required: {}
+    deliverable:
+      extension: .html
+      transport: utf8_stdout_and_out_file
+      intended_use: open directly in a local browser
+    hidden_acceptance_rules:
+      - parse Sanger FASTQ and quality scores with Biopython
+      - report read count, length range, GC, mean Phred, and Q20 base ratio
+      - count GC only over A, C, G, and T bases
+      - classify a read as low quality when its mean Phred is below 20
+      - emit deterministic self-contained XHTML with no script or remote resource
+      - escape user-controlled identifiers and omit timestamps
+      - perform no trimming, alignment, identification, plotting, or network access
+    candidate_scenarios:
+      - role: success
+        description: equal-length high-quality reads
+      - role: success
+        description: mixed lengths and quality values
+      - role: success
+        description: reads containing N and one single-read input
+      - role: rejected_or_error
+        description: empty input or mismatched sequence and quality lengths
+    semantic_verifier_requirements:
+      - parse the emitted XHTML with an XML parser
+      - reject scripts, external resources, timestamps, and unescaped identifiers
+      - independently recompute displayed metrics with pinned Biopython
+closure_requirements:
+  - repository analysis produced two or three natural-language briefs
+  - the adopted brief remained editable and did not freeze the contract
+  - contract confirmed in Studio without requiring the advanced editor
+  - at least three upstream-derived representative examples confirmed
+  - confirmed examples survived candidate regeneration
+  - zero-model rehearsal passed without invoking an Agent
+  - real build and independent semantic verification passed
+  - clean replay passed
+  - unseen in-journey fresh audit produced ACTIVE
+  - the CLI out-file matched the declared media type and semantic truth
+result:
+  status: NOT_RUN
+  append_only_execution_record_required:
+    - framework_git_commit
+    - framework_tree_sha256
+    - case_to_journey_task_run_mapping
+    - invalidated_batch_and_restart_reason
+  evidence_scope: >-
+    This file preregisters four Product-mode UI journeys. No model call, build,
+    verification run, ledger transition, or general success-rate claim is
+    implied by the presence of this manifest.

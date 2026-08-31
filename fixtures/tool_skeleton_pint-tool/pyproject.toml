@@ -1,0 +1,8 @@
+[project]
+name = "pint_tool"
+version = "1.0.0"
+description = '将含样本名、原数值和目标单位的 UTF-8 表格用 Pint 换算为可粘贴到 Excel 的 TSV，保留失败行并说明，结果最多显示 6 位有效数字。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -183,6 +183,7 @@ def materialize_tool_task(
     max_rounds: int = 3,
     upstream_conformance: list[str] | None = None,
     conformance_python: Path | None = None,
+    upstream_conformance_record: dict | None = None,
 ) -> Path:
     """装配产物 → host_guided 任务包 + 宿主副本。返回合成 contract.yaml 路径。
 
@@ -285,8 +286,16 @@ def materialize_tool_task(
                 if e.get("input_file"))
     # M2-e 物化期预检:选中子集在 harness 侧解释器上必须绿(供给问题
     # 早暴露);记录落任务包 conformance.json。未给解释器 = 只记选取。
-    conf_record = {"selected": upstream_conformance or [], "status": "SKIPPED"}
-    if upstream_conformance and conformance_python is not None:
+    conf_record = (
+        dict(upstream_conformance_record)
+        if upstream_conformance_record is not None
+        else {"selected": upstream_conformance or [], "status": "SKIPPED"}
+    )
+    if (
+        upstream_conformance_record is None
+        and upstream_conformance
+        and conformance_python is not None
+    ):
         up_dir = (project_root / "upstream-cache"
                   / f"upstream-{tc.source_repo.resolved_commit[:12]}")
         try:

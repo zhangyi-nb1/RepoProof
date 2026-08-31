@@ -1,0 +1,45 @@
+{
+ "manifest_version": 1,
+ "name": "rispy-screening-table",
+ "version": "1.0.0",
+ "summary": "把 UTF-8 RIS 按 rispy 解析顺序且不去重地整理为固定列的团队筛选 CSV，并标出 title、authors、year、doi 的空项。",
+ "source": {
+  "url": "https://github.com/MrTango/rispy",
+  "resolved_commit": "b7aae3b2069ced3fb75287711300f2edf0bcac21",
+  "license": "MIT",
+  "distribution": "rispy"
+ },
+ "contract_schema_version": 3,
+ "interface": {
+  "usage": "rispy-screening-table <input> [--out FILE]",
+  "input": {
+   "kind": "file",
+   "format": "UTF-8 RIS 文献文本",
+   "contract": null
+  },
+  "output": {
+   "kind": "stdout",
+   "format": "CSV",
+   "contract": {
+    "media_type": "text/csv",
+    "root_type": "text",
+    "required": {},
+    "validation_profile": "csv_table_v1"
+   }
+  },
+  "exit_codes": {
+   "0": "success",
+   "1": "user_error",
+   "2": "internal_error"
+  }
+ },
+ "capability": {
+  "output_schema": "RisScreeningCsv"
+ },
+ "runtime": {
+  "python": "3.12",
+  "cpu_only": true,
+  "offline": true
+ },
+ "verification": null
+}

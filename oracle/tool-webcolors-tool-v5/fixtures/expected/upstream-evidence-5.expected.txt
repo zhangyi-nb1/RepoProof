@@ -1,0 +1,1 @@
+{"color_name":"white","rgb":{"blue":255,"green":255,"red":255}}

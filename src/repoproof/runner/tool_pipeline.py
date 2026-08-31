@@ -17,6 +17,8 @@
 from __future__ import annotations
 
 import datetime
+import hashlib
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -28,7 +30,15 @@ from repoproof.adoption.intake.tool_confirm import (
     check_draft_complete,
     confirm_tool_draft,
 )
-from repoproof.adoption.intake.upstream_conformance import select_upstream_tests
+from repoproof.adoption.intake.upstream_conformance import (
+    precheck_upstream_conformance,
+    reference_upstream_symbols,
+    select_upstream_test_nodes,
+)
+from repoproof.adoption.intake.upstream_pin import (
+    normalize_dist_name,
+    upstream_version,
+)
 from repoproof.runner.tool_export import (
     ToolExportError,
     install_verified_tool,
@@ -43,7 +53,37 @@ from repoproof.runner.tool_release import (
 
 
 class PipelineError(RuntimeError):
-    pass
+    """A Product pipeline stop with a stable, user-actionable projection."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason_code: str = "FROZEN_TASK_RESUME_FAILED",
+        recommended_action: str | None = None,
+        partial_result: dict | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.reason_code = reason_code
+        self.recommended_action = recommended_action
+        self.partial_result = dict(partial_result or {})
+
+
+def _install_error_projection(exc: BaseException) -> tuple[str, str]:
+    """Keep exact install blockers instead of collapsing them to wheelhouse errors."""
+
+    message = str(exc)
+    if "LEGACY_MCP_MUST_BE_DETACHED" in message:
+        return (
+            "LEGACY_MCP_MUST_BE_DETACHED",
+            "先在 AI 助手中解绑旧版 MCP server，再把旧 mcp_server.py 移到"
+            "可恢复备份目录；随后重试。不要删除旧工具包或改写 release ledger。",
+        )
+    return (
+        "TOOL_INSTALL_PREFLIGHT_FAILED",
+        "检查目标工具目录、registry、package identity 与 release ledger 后重试；"
+        "本次不得进入 Agent repair。",
+    )
 
 
 def tool_build_completed(result: dict, *, rehearsal_only: bool) -> bool:
@@ -77,7 +117,11 @@ def ensure_pinned_upstream(url: str, commit: str, project_root: Path) -> Path:
     if analysis.is_dir():
         for cand in analysis.iterdir():
             if cand.is_dir() and _head(cand) == commit:
-                shutil.copytree(cand, dest)
+                # The analysis checkout is already the pinned Git tree. Preserve
+                # tracked symlinks as symlinks when promoting it; dereferencing a
+                # link changes the worktree type and makes the freshly promoted
+                # checkout fail its own provenance-integrity check.
+                shutil.copytree(cand, dest, symlinks=True)
                 return dest
     r = subprocess.run(["git", "clone", "--quiet", url, str(dest)],
                        capture_output=True, text=True, timeout=600)
@@ -99,6 +143,45 @@ def _reference_pins(project_root: Path, task_id: str) -> list[str]:
             if ln.strip() and not ln.strip().startswith("#")]
 
 
+def resolve_upstream_pins(project_root: Path, task_id: str, *,
+                          distribution: str, upstream_dir: Path,
+                          requested_revision: str = "",
+                          resolved_commit: str = "") -> list[str]:
+    """备轮用的 pin 集合 —— **必须含上游本体**,否则当场拒发。
+
+    `reference.lock.txt` 一旦缺席，旧路径中的 `_reference_pins`
+    会**静默返回空** ——
+    wheelhouse 只装 pytest 那套,会话里根本没有上游,于是每条能力测试都
+    炸 `ModuleNotFoundError`,再被包装成 `DEPENDENCY_ERROR` +
+    `REGRESSION_FAILURE`,在**三轮修复之后**才浮出来,离病因十万八千里。
+    "可选"是假的:不写就必崩。
+
+    两件事:①锁文件缺上游时,从**钉版上游树自己**声明的版本派生
+    `dist==version`(陷阱消灭);②派生不出来就抛错,绝不建一个注定装不上
+    上游的 wheelhouse(静默降级 → 当场拒发)。
+    """
+    pins = _reference_pins(project_root, task_id)
+    want = normalize_dist_name(distribution)
+    if not want:
+        return pins
+    if any(normalize_dist_name(re.split(r"[=<>!~\[]", p, maxsplit=1)[0]) == want for p in pins):
+        return pins
+    version = upstream_version(
+        upstream_dir,
+        distribution=distribution,
+        requested_revision=requested_revision,
+        resolved_commit=resolved_commit,
+    )
+    if not version:
+        raise PipelineError(
+            f"备轮缺上游 {distribution!r}:controls/{task_id}/reference/"
+            "requirements.lock.txt 没有它,钉版树里也读不出声明版本。"
+            f"请在 draft 束的 reference.lock.txt 写上 `{distribution}==<版本>`"
+            " —— 没有它,会话里 import 不到上游,所有能力测试都会以 "
+            "ModuleNotFoundError 失败。")
+    return [*pins, f"{distribution}=={version}"]
+
+
 def _build_preflight_venv(task_dir: Path, pins: list[str]) -> Path:
     """conformance 预检解释器:一次性 venv,装 reference 锁定集(联网)。"""
     venv = task_dir / "_preflight_venv"
@@ -111,6 +194,249 @@ def _build_preflight_venv(task_dir: Path, pins: list[str]) -> Path:
     return py
 
 
+def tool_build_real_from_frozen(
+    task_id: str,
+    project_root: Path,
+    *,
+    dest_root: Path,
+    agent_backend: str = "mini-swe",
+    batch: str = "EXPLORATORY_UNPREREGISTERED",
+    rehearsal_only: bool = False,
+    draft_dir: Path | None = None,
+    bench_root: Path | None = None,
+) -> dict:
+    """Resume a frozen task at rehearsal or real build without re-freezing it.
+
+    为什么必须有(2026-08-28 用户实测):`tool_build` 在**彩排之前**就把
+    草稿 `shutil.move` 进了 `tool_tasks/_drafts`(冻结即消耗,这本身是对的
+    —— 题面已冻结,草稿不该再被编辑)。但 UI 只有"从草稿构建"一个入口,
+    于是**彩排通过之后无路可走**:回到构建页只会看到"草稿目录不存在",
+    用户只能重建一份新草稿再来 —— 那会冻出 v2、v3、v4…(用户手上那串
+    版本号就是这么来的),而且每次都要重新准备样例。
+
+    "先彩排、通过再真发"是对的流程;缺的是它的下半程。这里补上:
+    题面不重冻(冻结是不可改写的),直接对同一份合同跑真发 → 独立验证
+    → 导出 + 注册,与 `tool_build` 的后半段同一条路径。
+    """
+    project_root = Path(project_root)
+    # 两份合同别混:`contracts/<task>.yaml` 是**工具合同**(TaskContract),
+    # 而 run_host_guided_cli 要的是物化出来的**宿主合同**
+    # (`tool_tasks/<task>/contract.yaml`,HostContract schema)。
+    # 2026-08-28 实测:传错那份会在加载时抛一串 pydantic
+    # "Field required: budgets.max_rounds / acceptance.hidden_oracle_command",
+    # 看起来像题面缺字段,其实是拿错了文件。
+    tool_contract = project_root / "contracts" / f"{task_id}.yaml"
+    host_contract = project_root / "tool_tasks" / task_id / "contract.yaml"
+    if not tool_contract.is_file():
+        raise PipelineError(f"找不到已冻结的任务合同:{tool_contract}")
+    if not host_contract.is_file():
+        if draft_dir is not None and (Path(draft_dir) / "draft.yaml").is_file():
+            return tool_build(
+                Path(draft_dir),
+                project_root,
+                bench_root=(
+                    Path(bench_root)
+                    if bench_root is not None
+                    else Path("~/RepoProofBench").expanduser()
+                ),
+                dest_root=dest_root,
+                run_real=not rehearsal_only,
+                agent_backend=agent_backend,
+                batch=batch,
+                resume_task_id=task_id,
+            )
+        raise PipelineError(
+            f"找不到物化的宿主合同:{host_contract} —— 该任务尚未物化"
+            "(或 tool_tasks 目录被清理过),无法续跑真发。")
+    stages: dict = {"resumed_from_frozen": {
+        "task_id": task_id, "tool_contract": str(tool_contract),
+        "host_contract": str(host_contract)}}
+
+    # Resuming reaches the same install boundary as the original build.  Run
+    # the read-only install preflight before spending real-model budget;
+    # otherwise a legacy MCP file or damaged registry is discovered only
+    # after an otherwise verified Agent run.
+    if not rehearsal_only:
+        try:
+            tool_doc = yaml.safe_load(
+                tool_contract.read_text(encoding="utf-8")
+            ) or {}
+            tool_name = str(
+                ((tool_doc.get("tool") or {}).get("name")) or ""
+            ).strip()
+            if not tool_name:
+                raise ToolExportError("冻结工具合同缺少 tool.name")
+            current = preflight_tool_install(Path(dest_root), tool_name, task_id)
+        except (
+            ToolExportError,
+            ReleaseLedgerError,
+            OSError,
+            TypeError,
+            ValueError,
+            yaml.YAMLError,
+        ) as exc:
+            reason_code, action = _install_error_projection(exc)
+            stages["install_preflight"] = {
+                "ok": False,
+                "error": str(exc),
+                "reason_code": reason_code,
+            }
+            raise PipelineError(
+                f"工具安装预检失败:{exc}",
+                reason_code=reason_code,
+                recommended_action=action,
+                partial_result={
+                    "task_id": task_id,
+                    "stages": stages,
+                    "verdict": "BLOCKED",
+                    "exported": None,
+                },
+            ) from exc
+        stages["install_preflight"] = {
+            "ok": True,
+            "mode": "upgrade" if current is not None else "first_install",
+            "previous_task_id": current.get("task_id") if current else None,
+        }
+
+    from repoproof.runner.product_preflight import run_product_preflight
+
+    try:
+        host_doc = yaml.safe_load(host_contract.read_text(encoding="utf-8")) or {}
+        wheelhouse = Path(str((host_doc.get("host") or {}).get("wheelhouse_path") or ""))
+    except (OSError, TypeError, yaml.YAMLError) as exc:
+        raise PipelineError(f"无法读取冻结宿主合同的 wheelhouse：{exc}") from exc
+    preflight = run_product_preflight(
+        project_root=project_root,
+        task_id=task_id,
+        tool_contract_path=tool_contract,
+        host_contract_path=host_contract,
+        wheelhouse=wheelhouse,
+    )
+    stages["preflight"] = preflight.model_dump(mode="json")
+    if not preflight.ok:
+        return {
+            "task_id": task_id,
+            "stages": stages,
+            "verdict": "BLOCKED",
+            "exported": None,
+        }
+
+    from repoproof.adoption.repair.failure_assessment import (
+        assess_report,
+        derive_repair_metrics,
+    )
+    from repoproof.runner.host_guided import run_host_guided_cli
+
+    if rehearsal_only:
+        fake = run_host_guided_cli(
+            host_contract, project_root, fake="positive", batch=batch
+        )
+        rp = fake.get("report") or {}
+        stages["rehearsal"] = {
+            "verdict": rp.get("verdict"),
+            "run_id": rp.get("run_id"),
+            "gate_reasons": rp.get("gate_reasons"),
+        }
+        verdict = (
+            "REHEARSAL_PASS_ONLY"
+            if rp.get("verdict") == "PASS_ADAPTED"
+            else f"REHEARSAL_{rp.get('verdict')}"
+        )
+        return {
+            "task_id": task_id,
+            "stages": stages,
+            "verdict": verdict,
+            "exported": None,
+        }
+
+    real = run_host_guided_cli(host_contract, project_root, fake=None,
+                               batch=batch, backend=agent_backend)
+    if real.get("blocked"):
+        stages["real"] = real
+        return {"task_id": task_id, "stages": stages,
+                "verdict": "REAL_BLOCKED", "exported": None}
+    rp = real.get("report") or {}
+    metrics = derive_repair_metrics(rp)
+    stages["real"] = {"verdict": rp.get("verdict"),
+                      "verdict_public": rp.get("verdict_public"),
+                      "run_id": rp.get("run_id"),
+                      "gate_reasons": rp.get("gate_reasons"),
+                      "repair_metrics": metrics,
+                      "product_stop_code": metrics["product_stop_code"]}
+    if rp.get("verdict") not in ("PASS_ADAPTED", "PASS_DIRECT"):
+        stages["real"]["failure_assessment"] = assess_report(rp).model_dump()
+        return {"task_id": task_id, "stages": stages,
+                "verdict": rp.get("verdict"), "exported": None}
+
+    historical_verdict = rp.get("verdict_public") or rp.get("verdict")
+    try:
+        dest = install_verified_tool(
+            project_root / "runs" / rp["run_id"],
+            host_contract_path=host_contract,
+            tool_contract_path=tool_contract,
+            dest_root=Path(dest_root),
+            exported_at=datetime.datetime.now(datetime.UTC).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"),
+        )
+    except (ToolExportError, ReleaseLedgerError, OSError, ValueError) as exc:
+        stages["export"] = {"ok": False, "error": str(exc)}
+        reason_code, action = _install_error_projection(exc)
+        raise PipelineError(
+            f"工具安装结算失败:{exc}",
+            reason_code=reason_code,
+            recommended_action=action,
+            partial_result={
+                "task_id": task_id,
+                "stages": stages,
+                "verdict": historical_verdict,
+                "historical_verdict": historical_verdict,
+                "exported": None,
+            },
+        ) from exc
+    release_status = operational_status(Path(dest_root), dest.name, task_id=task_id)
+    stages["export"] = {"dest": str(dest),
+                        "historical_verdict": historical_verdict,
+                        "operational_status": release_status}
+    return {"task_id": task_id, "stages": stages,
+            "verdict": historical_verdict,
+            "historical_verdict": historical_verdict,
+            "operational_status": release_status,
+            "exported": str(dest)}
+
+
+def rehearsed_tasks(project_root: Path) -> list[dict]:
+    """已冻结、彩排过、但**还没导出**的任务 —— 构建页的"待续跑"清单。
+
+    判据全部来自盘上事实:合同存在 + 台账里有该任务的彩排发次
+    (`fake-scripted:*`)+ 尚无真发导出。
+    """
+    import json
+
+    project_root = Path(project_root)
+    ledger = project_root / "benchmarks" / "v2" / "runs.jsonl"
+    rehearsed: dict[str, dict] = {}
+    exported: set[str] = set()
+    if ledger.is_file():
+        for line in ledger.read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            tid, model = str(row.get("task_id") or ""), str(row.get("model") or "")
+            if not tid.startswith("tool-"):
+                continue
+            if model.startswith("fake-scripted"):
+                rehearsed[tid] = {"task_id": tid,
+                                  "last_rehearsal": row.get("run_id"),
+                                  "verdict": row.get("verdict")}
+            else:
+                exported.add(tid)
+    out = [v for k, v in rehearsed.items()
+           if k not in exported
+           and (project_root / "contracts" / f"{k}.yaml").is_file()]
+    return sorted(out, key=lambda r: str(r["task_id"]), reverse=True)
+
+
 def tool_build(
     draft_dir: Path,
     project_root: Path,
@@ -118,16 +444,24 @@ def tool_build(
     bench_root: Path,
     dest_root: Path,
     run_real: bool = True,
-    conformance_keywords: list[str] | None = None,
+    agent_backend: str = "mini-swe",
+    conformance_symbols: list[str] | None = None,
     batch: str = "EXPLORATORY_UNPREREGISTERED",
     setup_commands: list[list[str]] | None = None,   # 测试注入(E2E shim)
     wheelhouse_cmd: list[str] | None = None,          # 测试注入(跳过备轮)
+    resume_task_id: str | None = None,
 ) -> dict:
     """→ {task_id, stages, verdict, historical_verdict,
     operational_status, exported};任一门不过即返回(stages 记录到
     哪一步、为何停)。兼容字段 ``verdict`` 仍表示历史验证结论。
     """
     from repoproof.runner.host_guided import run_host_guided_cli
+
+    if agent_backend not in {"codex-cli", "mini-swe"}:
+        raise PipelineError(
+            f"Product Mode 不支持 agent backend={agent_backend!r};"
+            "可选 codex-cli / mini-swe"
+        )
 
     project_root = Path(project_root)
     draft_dir = Path(draft_dir)
@@ -144,17 +478,33 @@ def tool_build(
         # D checks are read-only.  Once they pass, reject an impossible or
         # unsafe install before confirm freezes a new task version, and long
         # before either rehearsal or real-model budget is spent.
-        if not check_draft_complete(draft, draft_dir):
+        if not check_draft_complete(
+            draft,
+            draft_dir,
+            project_root=project_root,
+        ):
             try:
-                predicted_task_id = next_tool_task_id(
-                    project_root, draft["tool"]["name"]
+                predicted_task_id = (
+                    str(resume_task_id)
+                    if resume_task_id is not None
+                    else next_tool_task_id(project_root, draft["tool"]["name"])
                 )
                 current = preflight_tool_install(
                     Path(dest_root), draft["tool"]["name"], predicted_task_id
                 )
             except (ToolExportError, ReleaseLedgerError, OSError, ValueError) as exc:
                 stages["install_preflight"] = {"ok": False, "error": str(exc)}
-                raise PipelineError(f"工具安装预检失败:{exc}") from exc
+                reason_code, action = _install_error_projection(exc)
+                raise PipelineError(
+                    f"工具安装预检失败:{exc}",
+                    reason_code=reason_code,
+                    recommended_action=action,
+                    partial_result={
+                        "stages": stages,
+                        "verdict": "BLOCKED",
+                        "exported": None,
+                    },
+                ) from exc
             stages["install_preflight"] = {
                 "ok": True,
                 "mode": "upgrade" if current is not None else "first_install",
@@ -200,12 +550,67 @@ def tool_build(
             stages["route"] = {"route": route, "agent_invoked": True,
                                "plan_sha256": plan_obj.plan_sha256}
 
-    # 1) 人闸后的确认:D 闸 → 装配 → T 闸 → 冻结
-    try:
-        info = confirm_tool_draft(draft_dir, project_root)
-    except ValueError as exc:
-        raise PipelineError(f"任务版本谱系或草稿装配无效:{exc}") from exc
-    task_id = info["task_id"]
+    # 1) 人闸后的确认:D 闸 → 装配 → T 闸 → 冻结。若上一次在冻结后、
+    # 物化前因 Harness 预检停止，只允许对身份完全一致的冻结合同续跑；
+    # 不删除、不重冻，也不分配 v2。
+    if resume_task_id is None:
+        try:
+            info = confirm_tool_draft(draft_dir, project_root)
+        except ValueError as exc:
+            raise PipelineError(f"任务版本谱系或草稿装配无效:{exc}") from exc
+        task_id = info["task_id"]
+    else:
+        task_id = str(resume_task_id).strip()
+        if re.fullmatch(r"tool-[a-z0-9][a-z0-9-]*-v[1-9][0-9]*", task_id) is None:
+            raise PipelineError("预物化续跑 task_id 非法")
+        if not isinstance(draft, dict):
+            raise PipelineError("预物化续跑缺少可验证的草稿合同")
+        frozen_path = project_root / "contracts" / f"{task_id}.yaml"
+        sidecar = frozen_path.with_suffix(frozen_path.suffix + ".sha256")
+        if not frozen_path.is_file() or not sidecar.is_file():
+            raise PipelineError("预物化续跑缺少冻结合同或哈希 sidecar")
+        frozen = yaml.safe_load(frozen_path.read_text(encoding="utf-8")) or {}
+        if not isinstance(frozen, dict):
+            raise PipelineError("预物化续跑冻结合同不是对象")
+        frozen_source = frozen.get("source_repo") or {}
+        draft_source = draft.get("source_repo") or {}
+        frozen_intent = ((frozen.get("capability") or {}).get("intent_contract") or {})
+        draft_intent = draft.get("_intent_contract") or {}
+        identity_matches = (
+            frozen.get("task_id") == task_id
+            and ((frozen.get("tool") or {}).get("name"))
+            == ((draft.get("tool") or {}).get("name"))
+            and all(
+                frozen_source.get(key) == draft_source.get(key)
+                for key in (
+                    "url",
+                    "resolved_commit",
+                    "distribution",
+                    "import_module",
+                )
+            )
+            and ((frozen_intent.get("confirmation") or {}).get("semantics_sha256"))
+            == ((draft_intent.get("confirmation") or {}).get("semantics_sha256"))
+        )
+        if not identity_matches:
+            raise PipelineError(
+                "冻结合同与预物化草稿身份不一致；拒绝续跑或重写旧版本"
+            )
+        examples_doc = yaml.safe_load(
+            (draft_dir / "examples.yaml").read_text(encoding="utf-8")
+        ) or {}
+        total_examples = len(examples_doc.get("examples") or [])
+        info = {
+            "task_id": task_id,
+            "public": max(0, total_examples - 1),
+            "held": 1 if total_examples else 0,
+        }
+        stages["resumed_pre_materialization"] = {
+            "task_id": task_id,
+            "frozen_contract": str(frozen_path),
+            "identity_matched": True,
+            "contract_rewritten": False,
+        }
     if predicted_task_id is not None and task_id != predicted_task_id:
         raise PipelineError(
             f"安装预检 task_id={predicted_task_id} 与冻结结果 {task_id} 分叉"
@@ -213,22 +618,52 @@ def tool_build(
     stages["confirm"] = {"task_id": task_id, "public": info["public"],
                          "held": info["held"]}
 
+    frozen_reference_path = (
+        project_root / "controls" / task_id / "reference" / "impl.py"
+    )
+    try:
+        reference_source = frozen_reference_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise PipelineError(
+            "冻结任务缺少可读取的 reference implementation"
+        ) from exc
+
     if not isinstance(draft, dict):
         draft = yaml.safe_load(draft_path.read_text(encoding="utf-8"))
     sr = draft["source_repo"]
 
-    # 2) 钉版上游 + conformance 选取(确定性)
+    # 2) 钉版上游 + conformance 选取(确定性)。选择依据来自已审阅
+    # reference 的实际 upstream call AST，不从用户措辞抽词，也不维护
+    # 仓库/格式别名表。
     up = ensure_pinned_upstream(sr["url"], sr["resolved_commit"], project_root)
-    kws = conformance_keywords or [sr["distribution"],
-                                   (draft["tool"]["interface"]["input"]
-                                    .get("format", "")).lower()]
-    selected = select_upstream_tests(up, [k for k in kws if k])
+    symbols = (
+        list(conformance_symbols)
+        if conformance_symbols is not None
+        else reference_upstream_symbols(
+            reference_source,
+            import_module=str(sr["import_module"]),
+        )
+    )
+    selected = select_upstream_test_nodes(up, symbols)
     stages["conformance_selected"] = selected
+    selection_basis = {
+        "schema_version": 1,
+        "kind": "REFERENCE_UPSTREAM_SYMBOLS",
+        "reference_sha256": hashlib.sha256(
+            reference_source.encode("utf-8")
+        ).hexdigest(),
+        "import_module": str(sr["import_module"]),
+        "symbols": symbols,
+    }
+    stages["conformance_selection_basis"] = selection_basis
 
     # 2b) DIRECT_WRAP:受信模板 adapter + 确定 lock **在装配骨架里落位**
     # (materialize 之前 —— 任务包/bench 副本由骨架拷出)。S0 即完整交付,
     # agent 零 diff,completion gate 的既有 PASS_DIRECT 语义自然成立。
-    pins = _reference_pins(project_root, task_id)
+    pins = resolve_upstream_pins(project_root, task_id,
+                                 distribution=sr["distribution"], upstream_dir=up,
+                                 requested_revision=str(sr.get("revision") or ""),
+                                 resolved_commit=str(sr.get("resolved_commit") or ""))
     if route == "DIRECT_WRAP":
         skel = (Path(project_root) / "fixtures"
                 / f"tool_skeleton_{draft['tool']['name']}")
@@ -248,24 +683,70 @@ def tool_build(
         raise PipelineError(
             f"物化目标已存在:{task_id}(改题面请先重出 draft → 新版本号)")
     conf_py = None
+    conf_record = {
+        "selected": selected,
+        "status": "SKIPPED",
+        "selection_basis": selection_basis,
+    }
     if selected and pins:
         tmp_task = Path(project_root) / "tool_tasks"
         tmp_task.mkdir(exist_ok=True)
         conf_py = _build_preflight_venv(tmp_task / f"_{task_id}_pf", pins)
+        try:
+            conf_record = precheck_upstream_conformance(
+                up,
+                selected,
+                conf_py,
+            )
+            conf_record["selection_basis"] = selection_basis
+            stages["conformance_preflight"] = conf_record
+        except RuntimeError as exc:
+            stages["conformance_preflight"] = {
+                "ok": False,
+                "error": str(exc),
+                "selected": selected,
+                "agent_model_call_count": 0,
+            }
+            return {
+                "task_id": task_id,
+                "stages": stages,
+                "verdict": "BLOCKED",
+                "exported": None,
+                "failure_owner": "HARNESS",
+                "reason_codes": ["UPSTREAM_CONFORMANCE_ENVIRONMENT"],
+                "product_stop_code": "STOP_HARNESS_OR_EXTERNAL",
+                "recommended_action": (
+                    "检查钉版上游的测试依赖或所选公开测试节点；"
+                    "该环境故障不得进入 Agent repair。"
+                ),
+            }
+        finally:
+            shutil.rmtree(conf_py.parents[1], ignore_errors=True)
+            conf_py = None
     try:
         contract = materialize_tool_task(
             project_root, Path(project_root) / "contracts" / f"{task_id}.yaml",
             out_root=Path(project_root) / "tool_tasks",
             host_copy_root=Path(bench_root),
             setup_commands=setup_commands,
-            upstream_conformance=selected, conformance_python=conf_py)
+            upstream_conformance=selected,
+            upstream_conformance_record=conf_record,
+        )
     except ToolBridgeError as e:
         stages["materialize"] = {"ok": False, "error": str(e)}
-        return {"task_id": task_id, "stages": stages, "verdict": "BLOCKED",
-                "exported": None}
-    finally:
-        if conf_py is not None:
-            shutil.rmtree(conf_py.parents[1], ignore_errors=True)
+        return {
+            "task_id": task_id,
+            "stages": stages,
+            "verdict": "BLOCKED",
+            "exported": None,
+            "failure_owner": "HARNESS",
+            "reason_codes": ["TASK_MATERIALIZATION_FAILED"],
+            "product_stop_code": "STOP_HARNESS_OR_EXTERNAL",
+            "recommended_action": (
+                "检查冻结任务骨架、控制组和物化目标；"
+                "该故障不得进入 Agent repair。"
+            ),
+        }
     stages["materialize"] = {"ok": True, "contract": str(contract)}
 
     # 3b) draft 束归档进任务区(真值留痕;移出 H9-a 扫描面 —— 束里的
@@ -287,7 +768,85 @@ def tool_build(
         capture_output=True, text=True, timeout=900)
     if r.returncode != 0:
         raise PipelineError(f"wheelhouse 备轮失败:{r.stderr[-300:]}")
-    stages["wheelhouse"] = {"wheels": len(list(wheelhouse.glob('*.whl')))}
+    # 事后核账只在**真备轮**时成立:`wheelhouse_cmd` 是测试注入口(E2E 用
+    # `true` 跳过下载、改由 PYTHONPATH shim 提供上游),那种情况下这里没有
+    # 东西可核 —— 核一个没发生的动作只会得出假结论。生产侧无人传此参数。
+    downloaded = ([f.name for f in wheelhouse.iterdir() if f.is_file()]
+                  if wheelhouse_cmd is None else [])
+    want = normalize_dist_name(sr["distribution"]) if wheelhouse_cmd is None else ""
+    if want and not any(normalize_dist_name(n.split("-")[0]) == want for n in downloaded):
+        # 事后核账:pip 说成功不等于上游真躺在那儿。不量一次就等于假设。
+        raise PipelineError(
+            f"备轮完成但 wheelhouse 里没有上游 {sr['distribution']!r}:"
+            f"{sorted(downloaded)[:8]} —— 会话将 import 不到上游,拒绝继续。")
+    stages["wheelhouse"] = {"wheels": len(list(wheelhouse.glob('*.whl'))),
+                            "upstream_present": True}
+
+    # ToolSpec v3 Fresh audit executes the task-authored semantic verifier in
+    # the same exact dependency/source context that existed before the Coding
+    # Agent ran.  Freeze that trusted context now, while the target skeleton is
+    # still pristine and before either rehearsal or a real model can consume
+    # budget.  The Agent works in an isolated worktree, so its legitimate
+    # adapter patch never rewrites this source-side package manifest.
+    if wheelhouse_cmd is None:
+        from repoproof.harness import task_package
+        from repoproof.harness.wheelhouse import compute_manifest
+
+        try:
+            package_manifest = task_package.freeze(
+                project_root,
+                project_root / "contracts" / f"{task_id}.yaml",
+                upstream_dir=up,
+                wheelhouse_manifest=compute_manifest(wheelhouse),
+            )
+        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+            raise PipelineError(
+                "ToolSpec v3 冻结证据束无法生成；不得进入 Agent",
+                reason_code="FROZEN_TASK_PACKAGE_INVALID",
+                recommended_action=(
+                    "检查冻结合同、oracle、目标骨架、钉版上游和 wheelhouse；"
+                    "修复 Harness 后创建新 task version。"
+                ),
+                partial_result={
+                    "task_id": task_id,
+                    "stages": stages,
+                    "verdict": "BLOCKED",
+                    "exported": None,
+                },
+            ) from exc
+        stages["task_package"] = {
+            "root_hash": package_manifest.root_hash,
+            "wheelhouse_root": package_manifest.wheelhouse_root,
+            "frozen_before_agent": True,
+        }
+
+    # 4b) 预算前强制预检:仅使用冻结合同、wheelhouse 与第一个确认样例。
+    # 这里失败不会创建 Agent run,也不会进入 RepairLoop。
+    if wheelhouse_cmd is None:
+        from repoproof.runner.product_preflight import run_product_preflight
+
+        preflight = run_product_preflight(
+            project_root=project_root,
+            task_id=task_id,
+            tool_contract_path=project_root / "contracts" / f"{task_id}.yaml",
+            host_contract_path=Path(contract),
+            wheelhouse=wheelhouse,
+        )
+        stages["preflight"] = preflight.model_dump(mode="json")
+        if not preflight.ok:
+            return {
+                "task_id": task_id,
+                "stages": stages,
+                "verdict": "BLOCKED",
+                "exported": None,
+            }
+    else:
+        stages["preflight"] = {
+            "schema_version": 1,
+            "ok": True,
+            "test_injected": True,
+            "checks": [],
+        }
 
     # 5/6) 路由执行器(Gate 3):两条路线共享前段(confirm/pin/物化/备轮)
     # 与后段(投影/export/注册);中段按 Capability Plan 分道。
@@ -326,13 +885,23 @@ def tool_build(
                     "verdict": "REHEARSAL_PASS_ONLY", "exported": None}
 
         # 6) 真模型单发(provider 从 env;未配置由 preflight 如实拦)
-        real = run_host_guided_cli(contract, project_root, fake=None,
-                                   batch=batch)
+        real = run_host_guided_cli(
+            contract,
+            project_root,
+            fake=None,
+            batch=batch,
+            backend=agent_backend,
+        )
         if real.get("blocked"):
             stages["real"] = real
             return {"task_id": task_id, "stages": stages,
                     "verdict": "REAL_BLOCKED", "exported": None}
         rp = real.get("report") or {}
+        stages["agent_backend"] = {
+            "id": agent_backend,
+            "product_mode_only": agent_backend == "codex-cli",
+            "benchmark_eligible": False,
+        }
     # Gate 2:修复循环事实的产品投影(纯读取侧派生,历史/新 run 同函,
     # 不回写 report 与任何台账)。两条路线共用。
     from repoproof.adoption.repair.failure_assessment import (
@@ -370,7 +939,19 @@ def tool_build(
         )
     except (ToolExportError, ReleaseLedgerError, OSError, ValueError) as exc:
         stages["export"] = {"ok": False, "error": str(exc)}
-        raise PipelineError(f"工具安装结算失败:{exc}") from exc
+        reason_code, action = _install_error_projection(exc)
+        raise PipelineError(
+            f"工具安装结算失败:{exc}",
+            reason_code=reason_code,
+            recommended_action=action,
+            partial_result={
+                "task_id": task_id,
+                "stages": stages,
+                "verdict": historical_verdict,
+                "historical_verdict": historical_verdict,
+                "exported": None,
+            },
+        ) from exc
     release_status = operational_status(
         Path(dest_root), dest.name, task_id=task_id
     )

@@ -1,0 +1,1 @@
+{"schema":{"type":"object","properties":{"a/b":{"anyOf":[{"type":"string","minLength":3},{"type":"integer","minimum":10}]},"~code":{"type":"array","items":{"type":"boolean"}}},"required":["a/b","~code"]},"instance":{"a/b":false,"~code":[true,"否"]}}

@@ -1,0 +1,8 @@
+[project]
+name = "jsonschema_tool"
+version = "1.0.0"
+description = '校验同一 JSON 文档中的 JSON Schema 与数据，收集全部错误并以稳定的 JSON 指针路径输出，支持仅限本地文件的引用。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

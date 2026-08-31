@@ -1,0 +1,1 @@
+{"schema":{"type":"object","required":["姓名","age"],"properties":{"姓名":{"$ref":"#/$defs/name"},"age":{"anyOf":[{"type":"integer","minimum":18},{"type":"string","pattern":"^[0-9]+$"}]}},"additionalProperties":false,"$defs":{"name":{"type":"string","minLength":2}}},"instance":{"姓名":"甲","age":true,"备注":"测试"}}

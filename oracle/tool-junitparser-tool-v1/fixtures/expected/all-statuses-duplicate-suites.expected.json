@@ -1,0 +1,1 @@
+{"filter":["passed","failed","error","skipped"],"suites":[{"errors":1,"failures":0,"name":"same-suite","passed":0,"skipped":1,"source":"alpha.xml","tests":2,"time":0.7},{"errors":0,"failures":1,"name":"same-suite","passed":1,"skipped":0,"source":"zeta.xml","tests":2,"time":0.30000000000000004}],"totals":{"errors":1,"failures":1,"passed":1,"skipped":1,"tests":4,"time":1.0}}

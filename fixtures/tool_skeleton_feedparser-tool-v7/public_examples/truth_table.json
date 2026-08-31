@@ -1,0 +1,13 @@
+{
+ "note": "用户样例(公开子集)。文件样例的 held-out 本体只在 oracle 区。",
+ "examples": [
+  {
+   "input_file": "inputs/atom_unicode_typical.xml",
+   "expected_file": "expected/atom_unicode_typical.expected.txt"
+  },
+  {
+   "input_file": "inputs/recoverable_malformed_rss.xml",
+   "expected_file": "expected/recoverable_malformed_rss.expected.txt"
+  }
+ ]
+}

@@ -1,0 +1,8 @@
+[project]
+name = "junitparser_tool"
+version = "1.0.0"
+description = '合并 ZIP 中的多份测试报告，并可按通过、失败、错误或跳过状态筛选后输出确定性 JSON 汇总。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

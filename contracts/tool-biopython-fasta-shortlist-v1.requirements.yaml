@@ -1,0 +1,102 @@
+task_id: tool-biopython-fasta-shortlist-v1
+
+controls:
+  positive: controls/tool-biopython-fasta-shortlist-v1/positive
+  negatives:
+    - path: controls/tool-biopython-fasta-shortlist-v1/negative_empty
+      label: NC_empty
+      must_fail_nodes: ["test_example"]
+    - path: controls/tool-biopython-fasta-shortlist-v1/negative_hardcode
+      label: NC_hardcode
+      must_fail_nodes: ["test_held_example"]
+    - path: controls/tool-biopython-fasta-shortlist-v1/negative_badexit
+      label: NC_badexit
+      must_fail_nodes: ["test_malformed_input_is_user_error"]
+  # NC_reimpl(零 import 上游)不在此表:它在 oracle 上全绿,判死属
+  # provenance 层(runner 验证阶段执法;harness 测试喂它自证查得出)。
+  # 见 TOOL_READY_GATE §五。目录:controls/tool-biopython-fasta-shortlist-v1/negative_reimpl
+
+requirements:
+  - id: satisfy-user-examples
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      调用 pinned biopython 实现能力,使全部用户样例断言通过
+      (行为以公开样例为准,例:biopython-fasta-shortlist inputs/typical_duplicate_ids_pass_and_reject -> 见 expected/typical_duplicate_ids_pass_and_reject.expected.txt; biopython-fasta-shortlist inputs/多记录含重复ID及多种筛选结果 -> 见 expected/多记录含重复ID及多种筛选结果.expected.txt)。
+    examples:
+      - "biopython-fasta-shortlist inputs/typical_duplicate_ids_pass_and_reject -> 见 expected/typical_duplicate_ids_pass_and_reject.expected.txt; biopython-fasta-shortlist inputs/多记录含重复ID及多种筛选结果 -> 见 expected/多记录含重复ID及多种筛选结果.expected.txt"
+    oracle_nodes:
+      - "test_capability::test_example_1"
+      - "test_capability::test_example_2"
+      - "test_capability::test_held_example_1"
+  - id: interface-contract
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      坏输入内容抛 UserInputError(骨架转 exit 1);不得让异常裸奔到
+      兜底层(exit 2);重复调用同一输入输出逐字节一致;成功路径不向
+      stderr 泄漏 traceback。
+    examples:
+      - "exit: 0=成功 1=用户错误 2=内部错误"
+    oracle_nodes:
+      - "test_capability::test_malformed_input_is_user_error"
+      - "test_capability::test_deterministic_output"
+      - "test_capability::test_stdout_purity_on_success"
+  - id: skeleton-anchors-untouched
+    owner: HOST_INPUT_GUARD
+    severity: HARD
+    source_field: capability.statement
+    public_text: >
+      骨架锚定件(main.py / bin/ / build.sh / tool.json / pyproject.toml)
+      与其 argparse/输入存在检查/exit 语义由 harness 预置,不可修改,
+      不计 agent 能力。
+    examples:
+      - "biopython-fasta-shortlist --help -> usage"
+    oracle_nodes:
+      - "test_interface_contract::test_help_reachable"
+      - "test_interface_contract::test_missing_input_is_user_error"
+  - id: intent-record-coverage-and-order
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "输入必须是非空 UTF-8 多记录 FASTA，由固定版本 Biopython 的 SeqIO.parse(..., \"fasta\") 读取，至少包含一条记录且每条 SeqRecord.id 和序列均非空；按解析记录顺序处理，重复 id 不去重且逐条保留；通过表和未通过表各自保持输入中的相对顺序。"
+    examples: []
+    verified_by: semantic-verifier:biopython-fasta-shortlist-semantic-v1
+  - id: intent-sequence-preservation
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "工具只读取输入序列，不修改、修剪、翻译或比对序列，也不查询远程数据库；FASTA 序列字符必须为 ASCII，非 A/C/G/T 的 ASCII 字符计入 ambiguous_percent；空文件、无有效记录、空 id、空序列、含非 ASCII 序列字符、无法由固定版本 Biopython FASTA parser 解析的输入或非 UTF-8 输入以 UserInputError 终止，不生成部分报告。"
+    examples: []
+    verified_by: semantic-verifier:biopython-fasta-shortlist-semantic-v1
+  - id: intent-length-and-composition-metrics
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "每条记录的 length_bp 等于 SeqRecord.seq 长度；gc_percent 使用固定版本 Bio.SeqUtils.gc_fraction(sequence, ambiguous=\"ignore\") 乘 100；ambiguous_percent 是不区分大小写的非 A/C/G/T 字符数除以序列长度乘 100。显示值按十进制 ROUND_HALF_UP 保留两位小数，但筛选使用未舍入值。"
+    examples: []
+    verified_by: semantic-verifier:biopython-fasta-shortlist-semantic-v1
+  - id: intent-screening-decision
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "decision 仅当 length_bp 在 150 到 1000（含边界）、未舍入 gc_percent 在 35 到 65（含边界）且未舍入 ambiguous_percent 不超过 1 时为 PASS，否则为 REJECT。"
+    examples: []
+    verified_by: semantic-verifier:biopython-fasta-shortlist-semantic-v1
+  - id: intent-failure-reasons
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "每条记录固定报告 id、length_bp、gc_percent、ambiguous_percent、decision、reasons 六列；PASS 的 reasons 恰为 NONE，REJECT 按长度、GC、非 ACGT 的顺序列出适用的 LENGTH_BELOW_MIN、LENGTH_ABOVE_MAX、GC_BELOW_MIN、GC_ABOVE_MAX、AMBIGUOUS_ABOVE_MAX，以分号连接。"
+    examples: []
+    verified_by: semantic-verifier:biopython-fasta-shortlist-semantic-v1
+  - id: intent-behavior-6
+    owner: ADAPTER
+    severity: HARD
+    source_field: capability.intent_contract.commitments
+    public_text: "Markdown 依次且仅包含标题、摘要、通过序列、未通过序列和警告区域；摘要固定报告总记录数、PASS 数和 REJECT 数，两张表使用相同固定六列表头且空表也保留表头；id 先编码为 JSON 字符串再采用可逆 HTML entity 转义以防破坏表格；警告区域固定说明处理边界，并报告重复 id 值的数量；输出不含时间戳且逐字节确定。"
+    examples: []
+    verified_by: semantic-verifier:biopython-fasta-shortlist-semantic-v1
+

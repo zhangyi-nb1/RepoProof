@@ -1,0 +1,50 @@
+task_id: tool-python-docx-tool-v2
+
+source_repo:
+  url: https://github.com/python-openxml/python-docx
+  revision: guided
+  resolved_commit: e45454602b53e8e572b179ccf1c91093ec9f4ed7
+  license: MIT
+  distribution: python-docx
+  import_module: docx
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_python-docx-tool-v2
+  package: python_docx_tool
+  entry_point: python-docx-tool
+
+requirement_spec_file: tool-python-docx-tool-v2.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 2, "name": "python-docx-tool", "summary": "将本地 DOCX 的正文段落、标题级别和表格按真实文档顺序提取为稳定 JSON，并保留合并与空单元格语义。", "interface": {"usage": "python-docx-tool <input> [--out FILE]", "input": {"kind": "file", "format": "DOCX", "contract": null}, "output": {"kind": "stdout", "format": "JSON", "contract": {"media_type": "application/json", "root_type": "object", "required": {"blocks": "array", "metadata": "object"}}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    使用固定版本 python-docx 1.2.0 离线读取单个 DOCX 文件，并输出对象 {"blocks": [...], "metadata": {...}}。blocks 严格按正文 XML 中直接段落与直接表格的原始交错顺序排列。段落块包含 type=paragraph、text 和 heading_level；标题层级从 Heading N 或 标题 N 样式识别，否则为 null。表格块包含 type=table 和二维 rows；合并区域左上角输出 text、row_span、col_span，被覆盖网格输出 {"covered":true}；未合并空单元格必须保留。单元格内多个段落用换行连接；页眉页脚、批注、文本框与嵌套表格不输出。metadata 固定包含 block_count、paragraph_count、heading_count、table_count。不存在、目录、零字节、不可读或无法解析的 DOCX 抛出 UserInputError（CLI 退出码 1）。JSON 使用 UTF-8 紧凑格式，相同输入必须字节一致，运行时完全离线。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/python_docx_tool/impl.py 实现 extract(),必须调用 pinned python-docx;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:python-docx-tool inputs/structured-headings.docx -> 见 expected/structured-headings.expected.json; python-docx-tool inputs/merged-and-empty-cells.docx -> 见 expected/merged-and-empty-cells.expected.json);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: "DocxBlocks"
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py

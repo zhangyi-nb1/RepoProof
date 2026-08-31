@@ -1,0 +1,1 @@
+{"headings":[{"level":1,"text":"项目 Alpha"},{"level":2,"text":"安装"}],"links":[{"href":"https://example.com/docs","text":"官方文档"},{"href":"/guide","text":"本地页"}],"code_blocks":[{"language":"python","code":"print(\"你好\")\n"}]}

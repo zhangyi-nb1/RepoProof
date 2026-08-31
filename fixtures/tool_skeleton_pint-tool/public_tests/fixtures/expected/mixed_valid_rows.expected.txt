@@ -1,0 +1,5 @@
+样本名	原数值	目标单位	换算结果	状态	说明
+样品α	1.23456789 meter	centimeter	123.457 centimeter	已换算	
+质量检查	2 kilogram	gram	2000 gram	已换算	
+不兼容	5 second	meter		未换算	无法换算：DimensionalityError
+解析失败	abc	meter		未换算	无法换算：UndefinedUnitError

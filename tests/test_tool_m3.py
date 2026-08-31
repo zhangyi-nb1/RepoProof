@@ -28,6 +28,46 @@ _REPO_PY = sys.executable
 _REPO_SITE = sysconfig.get_paths()["purelib"]
 
 
+def test_analysis_checkout_promotion_preserves_tracked_symlink(tmp_path: Path) -> None:
+    from repoproof.runner.tool_pipeline import ensure_pinned_upstream
+
+    analysis = tmp_path / "upstream-cache" / "analysis" / "source"
+    analysis.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(analysis)], check=True)
+    subprocess.run(
+        ["git", "-C", str(analysis), "config", "user.email", "test@example.invalid"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(analysis), "config", "user.name", "RepoProof Test"],
+        check=True,
+    )
+    (analysis / "LICENSE.txt").write_text("license\n", encoding="utf-8")
+    (analysis / "LICENSE").symlink_to("LICENSE.txt")
+    subprocess.run(["git", "-C", str(analysis), "add", "."], check=True)
+    subprocess.run(
+        ["git", "-C", str(analysis), "commit", "-qm", "fixture"],
+        check=True,
+    )
+    commit = subprocess.run(
+        ["git", "-C", str(analysis), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    promoted = ensure_pinned_upstream("https://example.invalid/repo", commit, tmp_path)
+
+    assert (promoted / "LICENSE").is_symlink()
+    assert (promoted / "LICENSE").readlink() == Path("LICENSE.txt")
+    assert not subprocess.run(
+        ["git", "-C", str(promoted), "status", "--porcelain"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+
 def _fake_tool(dest: Path, name: str, *, verified: bool = True) -> Path:
     d = dest / name
     (d / "bin").mkdir(parents=True)
@@ -170,9 +210,32 @@ _REFERENCE = ('"""reference:真调 minilib。"""\nfrom pathlib import Path\n\n'
               '    except minilib.FormatError as e:\n'
               '        raise UserInputError(str(e)) from e\n')
 
+_SEMANTIC_VERIFIER = (
+    '"""Independent semantic verifier for the synthetic minilib task."""\n'
+    'from pathlib import Path\n\n'
+    'import minilib\n\n\n'
+    'def verify(input_path: Path, artifact_path: Path) -> dict:\n'
+    '    expected = minilib.rows_to_markdown(input_path.read_text(encoding="utf-8"))\n'
+    '    actual = artifact_path.read_text(encoding="utf-8")\n'
+    '    return {\n'
+    '        "ok": actual == expected,\n'
+    '        "reason_codes": [] if actual == expected else ["SEMANTIC_MISMATCH"],\n'
+    '        "checked_commitment_ids": [\n'
+    '            "render-rows",\n'
+    '            "reject-invalid-header",\n'
+    '        ],\n'
+    '    }\n'
+)
+
 
 @pytest.mark.slow
 def test_pipeline_runs_to_rehearsal_gate_offline(tmp_path, monkeypatch):
+    from repoproof.adoption.intake.intent_contract import (
+        confirm_intent_contract,
+        install_artifact_protocol,
+        install_delivery_intent_from_interface,
+        install_semantic_commitments,
+    )
     from repoproof.adoption.intake.tool_confirm import (
         ConfirmError,
         confirm_tool_draft,
@@ -218,11 +281,46 @@ def test_pipeline_runs_to_rehearsal_gate_offline(tmp_path, monkeypatch):
     doc["source_repo"]["resolved_commit"] = head
     doc["tool"]["summary"] = "MINI→MD"
     doc["tool"]["interface"]["input"]["format"] = "TXT"
-    doc["tool"]["interface"]["output"]["format"] = "markdown-table"
+    doc["tool"]["interface"]["output"]["format"] = "Markdown"
     doc["tool"]["interface"]["output"]["contract"] = {
-        "media_type": "text/markdown", "root_type": "text", "required": {}}
-    doc["capability"]["statement"] = "MINI 文本转 Markdown 行表;坏输入 UserInputError。"
+        "media_type": "text/markdown",
+        "root_type": "text",
+        "required": {},
+        "validation_profile": "markdown_document_v1",
+    }
     doc["capability"]["output_schema"] = "MdRows"
+    install_delivery_intent_from_interface(doc, profile_id="cli_v2")
+    install_semantic_commitments(doc, [
+        {
+            "commitment_id": "render-rows",
+            "public_text": "使用固定版本上游把 MINI 文本的非空行按原顺序转为 Markdown 行表。",
+            "rationale": "用户需要的主能力。",
+        },
+        {
+            "commitment_id": "reject-invalid-header",
+            "public_text": "缺少 MINI 头的输入不属于有效域，应返回用户输入错误。",
+            "rationale": "固定上游对无效格式有明确边界。",
+        },
+    ])
+    install_artifact_protocol(doc, {
+        "schema_version": 1,
+        "protocol_id": "mini-markdown-v1",
+        "observations": [
+            {
+                "observation_id": "rendered-rows",
+                "commitment_ids": ["render-rows"],
+                "locator": "Markdown table body rows in document order",
+                "value_encoding": "UTF-8 Markdown table rows",
+            },
+            {
+                "observation_id": "invalid-header-result",
+                "commitment_ids": ["reject-invalid-header"],
+                "locator": "process exit status and stderr category",
+                "value_encoding": "user-input error",
+            },
+        ],
+    })
+    confirm_intent_contract(doc, confirmed_at="2026-08-30T00:00:00Z")
     (dest / "draft.yaml").write_text(
         yaml.safe_dump(doc, allow_unicode=True, sort_keys=False), encoding="utf-8")
     for n, txt in (("a", "MINI\nalpha"), ("b", "MINI\nbeta"), ("c", "MINI\ngamma")):
@@ -234,6 +332,9 @@ def test_pipeline_runs_to_rehearsal_gate_offline(tmp_path, monkeypatch):
         {"input_file": "c.txt", "expected": "contains:| gamma |"},
     ]}, allow_unicode=True), encoding="utf-8")
     (dest / "reference_impl.py").write_text(_REFERENCE, encoding="utf-8")
+    (dest / "semantic_verifier.py").write_text(
+        _SEMANTIC_VERIFIER, encoding="utf-8"
+    )
 
     shim = (
         "import os, pathlib\n"
@@ -279,3 +380,288 @@ def test_pipeline_runs_to_rehearsal_gate_offline(tmp_path, monkeypatch):
     (dest / "examples.yaml").write_text("examples: []\n", encoding="utf-8")
     with pytest.raises(ConfirmError):
         confirm_tool_draft(dest, project)
+
+# ---------------- 备轮必须含上游(2026-08-28 webcolors 三发白跑的根因) ----------------
+
+def _pinned_tree(tmp_path: Path, *, version: str | None) -> Path:
+    up = tmp_path / "upstream-e6392ba6eeba"
+    up.mkdir(parents=True)
+    body = '[project]\nname = "webcolors"\n'
+    if version:
+        body += f'version = "{version}"\n'
+    (up / "pyproject.toml").write_text(body, encoding="utf-8")
+    return up
+
+
+def test_missing_lock_derives_upstream_pin_from_the_pinned_tree(tmp_path: Path):
+    """锁文件缺席时,从**钉版树自己**声明的版本派生上游 pin。
+
+    实录:`reference.lock.txt` 在人务清单里写着"(可选)",而它一旦缺席,
+    `_reference_pins` 静默返回空 → wheelhouse 只装 pytest 那套 → 会话里
+    没有上游 → 每条能力测试炸 ModuleNotFoundError,再被包装成
+    DEPENDENCY_ERROR,在三轮修复之后才浮出来。"可选"是假的:不写就必崩。
+    """
+    from repoproof.runner.tool_pipeline import resolve_upstream_pins
+
+    pins = resolve_upstream_pins(
+        tmp_path, "tool-webcolors-tool-v3",
+        distribution="webcolors", upstream_dir=_pinned_tree(tmp_path, version="25.10.0"))
+    assert pins == ["webcolors==25.10.0"]
+
+
+def test_existing_lock_wins_and_is_not_duplicated(tmp_path: Path):
+    """锁文件已写了上游就以它为准 —— 派生只补缺,不覆盖人的选择。"""
+    from repoproof.runner.tool_pipeline import resolve_upstream_pins
+
+    lock = tmp_path / "controls" / "t1" / "reference"
+    lock.mkdir(parents=True)
+    (lock / "requirements.lock.txt").write_text(
+        "# 人写的\nwebcolors==24.11.1\n", encoding="utf-8")
+
+    pins = resolve_upstream_pins(
+        tmp_path, "t1", distribution="webcolors",
+        upstream_dir=_pinned_tree(tmp_path, version="25.10.0"))
+    assert pins == ["webcolors==24.11.1"]        # 不被派生版本挤掉,也不重复
+
+
+def test_underivable_pin_refuses_loudly_instead_of_building_a_doomed_wheelhouse(tmp_path: Path):
+    """**负控**:既没有锁、也读不出版本 → 当场拒发。
+
+    绝不建一个"注定装不上上游"的 wheelhouse 然后让它在三轮之后炸 ——
+    静默降级正是这个 bug 的全部危害所在。
+    """
+    from repoproof.runner.tool_pipeline import PipelineError, resolve_upstream_pins
+
+    with pytest.raises(PipelineError, match="备轮缺上游"):
+        resolve_upstream_pins(
+            tmp_path, "t2", distribution="webcolors",
+            upstream_dir=_pinned_tree(tmp_path, version=None))
+
+
+# ------------- 彩排之后的下半程(2026-08-28:用户切走再回来,草稿没了) -------------
+
+def test_rehearsed_tasks_lists_frozen_but_unexported(tmp_path: Path):
+    """彩排过、还没导出的任务要能被列出来 —— 否则彩排通过就无路可走。
+
+    实录:`tool_build` 在彩排**之前**就把草稿 `shutil.move` 进归档区
+    (冻结即消耗,本身是对的:题面已冻结,草稿不该再被编辑)。但 UI 只有
+    "从草稿构建"一个入口,于是用户彩排通过、切去看运行记录、回来一看
+    "草稿目录不存在" —— 只能重建草稿再冻一版(用户手上 v1..v5 就是这么
+    来的)。缺的不是纪律,是**流程的下半程**。
+    """
+    from repoproof.runner.tool_pipeline import rehearsed_tasks
+
+    (tmp_path / "contracts").mkdir()
+    (tmp_path / "contracts" / "tool-demo-v1.yaml").write_text("kind: x\n", encoding="utf-8")
+    (tmp_path / "contracts" / "tool-done-v1.yaml").write_text("kind: x\n", encoding="utf-8")
+    ledger = tmp_path / "benchmarks" / "v2"
+    ledger.mkdir(parents=True)
+    (ledger / "runs.jsonl").write_text("\n".join([
+        json.dumps({"task_id": "tool-demo-v1", "run_id": "r1",
+                    "model": "fake-scripted:positive", "verdict": "PASS_ADAPTED"}),
+        json.dumps({"task_id": "tool-done-v1", "run_id": "r2",
+                    "model": "fake-scripted:positive", "verdict": "PASS_ADAPTED"}),
+        json.dumps({"task_id": "tool-done-v1", "run_id": "r3",
+                    "model": "gpt-5.6-terra", "verdict": "PASS_ADAPTED"}),
+    ]) + "\n", encoding="utf-8")
+
+    got = rehearsed_tasks(tmp_path)
+    ids = [r["task_id"] for r in got]
+    assert ids == ["tool-demo-v1"]            # 已真发过的不再列
+    assert got[0]["verdict"] == "PASS_ADAPTED"
+
+
+def test_resume_refuses_when_the_task_was_never_frozen(tmp_path: Path):
+    """**负控**:没有冻结合同就没有可续跑的东西 —— 如实拒绝,不臆造。"""
+    from repoproof.runner.tool_pipeline import (
+        PipelineError,
+        tool_build_real_from_frozen,
+    )
+
+    with pytest.raises(PipelineError, match="找不到已冻结的任务合同"):
+        tool_build_real_from_frozen("tool-nope-v1", tmp_path,
+                                    dest_root=tmp_path / "tools")
+
+
+def test_resume_passes_the_host_contract_not_the_tool_contract(tmp_path: Path, monkeypatch):
+    """**续跑必须传物化出来的宿主合同** —— 传错那份会炸得像"题面缺字段"。
+
+    2026-08-28 实测:第一版续跑把 `contracts/<task>.yaml`(工具合同,
+    TaskContract)喂给了 run_host_guided_cli(它要 HostContract),于是
+    抛一串 pydantic `Field required: budgets.max_rounds /
+    acceptance.hidden_oracle_command` —— 看起来像题面写漏了字段,其实是
+    拿错了文件。两份合同同名不同 schema,这类错必须被钉住。
+    """
+    from repoproof.runner import tool_pipeline
+
+    (tmp_path / "contracts").mkdir()
+    (tmp_path / "contracts" / "tool-demo-v1.yaml").write_text(
+        "kind: tool\ntool: {name: demo}\n", encoding="utf-8"
+    )
+    host = tmp_path / "tool_tasks" / "tool-demo-v1"
+    host.mkdir(parents=True)
+    (host / "contract.yaml").write_text("kind: host_integrated\n", encoding="utf-8")
+
+    seen: dict = {}
+
+    def _spy(contract, project_root, **kwargs):
+        seen["contract"] = Path(contract)
+        return {"blocked": True, "reason": "spy"}
+
+    monkeypatch.setattr(tool_pipeline, "run_host_guided_cli", _spy, raising=False)
+    monkeypatch.setattr("repoproof.runner.host_guided.run_host_guided_cli", _spy)
+    from repoproof.runner.product_preflight import ProductPreflightResult
+    monkeypatch.setattr(
+        "repoproof.runner.product_preflight.run_product_preflight",
+        lambda **_kwargs: ProductPreflightResult(ok=True),
+    )
+
+    tool_pipeline.tool_build_real_from_frozen(
+        "tool-demo-v1", tmp_path, dest_root=tmp_path / "tools")
+
+    assert seen["contract"] == host / "contract.yaml", seen
+    assert seen["contract"].name == "contract.yaml"          # 不是 contracts/*.yaml
+
+
+def test_frozen_resume_rejects_legacy_mcp_before_real_agent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An upgrade blocker is a zero-model preflight, not a post-Agent surprise."""
+
+    from repoproof.runner import tool_pipeline
+    from repoproof.runner.tool_export import ToolExportError
+
+    task_id = "tool-demo-v2"
+    (tmp_path / "contracts").mkdir()
+    (tmp_path / "contracts" / f"{task_id}.yaml").write_text(
+        "kind: tool\ntool: {name: demo}\n", encoding="utf-8"
+    )
+    host = tmp_path / "tool_tasks" / task_id
+    host.mkdir(parents=True)
+    (host / "contract.yaml").write_text(
+        "host: {wheelhouse_path: /unused}\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        tool_pipeline,
+        "preflight_tool_install",
+        lambda *_args: (_ for _ in ()).throw(
+            ToolExportError("LEGACY_MCP_MUST_BE_DETACHED")
+        ),
+    )
+    monkeypatch.setattr(
+        "repoproof.runner.host_guided.run_host_guided_cli",
+        lambda *_args, **_kwargs: pytest.fail("real Agent must not run"),
+    )
+
+    with pytest.raises(tool_pipeline.PipelineError) as caught:
+        tool_pipeline.tool_build_real_from_frozen(
+            task_id, tmp_path, dest_root=tmp_path / "tools"
+        )
+
+    assert caught.value.reason_code == "LEGACY_MCP_MUST_BE_DETACHED"
+    assert (
+        caught.value.partial_result["stages"]["install_preflight"]["ok"]
+        is False
+    )
+
+
+def test_frozen_resume_can_repeat_rehearsal_without_real_model(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from repoproof.runner import tool_pipeline
+    from repoproof.runner.product_preflight import ProductPreflightResult
+
+    task_id = "tool-demo-v1"
+    (tmp_path / "contracts").mkdir()
+    (tmp_path / "contracts" / f"{task_id}.yaml").write_text(
+        "kind: tool\n", encoding="utf-8"
+    )
+    host = tmp_path / "tool_tasks" / task_id
+    host.mkdir(parents=True)
+    (host / "contract.yaml").write_text(
+        "host: {wheelhouse_path: /unused}\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        "repoproof.runner.product_preflight.run_product_preflight",
+        lambda **_kwargs: ProductPreflightResult(ok=True),
+    )
+    calls: list[dict] = []
+
+    def _fake(_contract, _project_root, **kwargs):
+        calls.append(kwargs)
+        return {
+            "blocked": False,
+            "report": {
+                "verdict": "PASS_ADAPTED",
+                "run_id": "fake-rehearsal",
+                "gate_reasons": [],
+            },
+        }
+
+    monkeypatch.setattr(
+        "repoproof.runner.host_guided.run_host_guided_cli", _fake
+    )
+    result = tool_pipeline.tool_build_real_from_frozen(
+        task_id,
+        tmp_path,
+        dest_root=tmp_path / "tools",
+        rehearsal_only=True,
+    )
+
+    assert result["verdict"] == "REHEARSAL_PASS_ONLY"
+    assert calls == [{"fake": "positive", "batch": "EXPLORATORY_UNPREREGISTERED"}]
+
+
+def test_resume_refuses_when_task_was_never_materialised(tmp_path: Path):
+    """**负控**:只有工具合同、没有物化产物 → 如实拒绝并说清原因。"""
+    from repoproof.runner.tool_pipeline import (
+        PipelineError,
+        tool_build_real_from_frozen,
+    )
+
+    (tmp_path / "contracts").mkdir()
+    (tmp_path / "contracts" / "tool-demo-v1.yaml").write_text("kind: tool\n", encoding="utf-8")
+    with pytest.raises(PipelineError, match="物化的宿主合同"):
+        tool_build_real_from_frozen("tool-demo-v1", tmp_path,
+                                    dest_root=tmp_path / "tools")
+
+
+def test_frozen_pre_materialization_stop_resumes_same_task_without_refreeze(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from repoproof.runner import tool_pipeline
+
+    task_id = "tool-demo-v1"
+    contracts = tmp_path / "contracts"
+    contracts.mkdir()
+    (contracts / f"{task_id}.yaml").write_text("task_id: tool-demo-v1\n")
+    draft = tmp_path / "draft"
+    draft.mkdir()
+    (draft / "draft.yaml").write_text("tool: {name: demo}\n")
+    captured: dict = {}
+
+    def fake_build(draft_dir, project_root, **kwargs):
+        captured.update({
+            "draft_dir": draft_dir,
+            "project_root": project_root,
+            **kwargs,
+        })
+        return {"task_id": task_id, "verdict": "REHEARSAL_PASS_ONLY"}
+
+    monkeypatch.setattr(tool_pipeline, "tool_build", fake_build)
+    result = tool_pipeline.tool_build_real_from_frozen(
+        task_id,
+        tmp_path,
+        dest_root=tmp_path / "tools",
+        rehearsal_only=True,
+        draft_dir=draft,
+        bench_root=tmp_path / "bench",
+    )
+
+    assert result["task_id"] == task_id
+    assert captured["resume_task_id"] == task_id
+    assert captured["run_real"] is False
+    assert captured["draft_dir"] == draft

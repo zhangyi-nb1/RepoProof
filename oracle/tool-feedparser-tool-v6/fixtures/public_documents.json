@@ -1,0 +1,1 @@
+{"examples": [{"input_file": "inputs/atom_unicode_typical.xml", "expected_file": "expected/atom_unicode_typical.expected.txt"}, {"input_file": "inputs/recoverable_malformed_rss.xml", "expected_file": "expected/recoverable_malformed_rss.expected.txt"}]}

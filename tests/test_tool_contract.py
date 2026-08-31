@@ -23,7 +23,10 @@ from repoproof.adoption.assembly.example_compiler import (
     Example,
     compile_pytest,
 )
-from repoproof.adoption.assembly.output_contract import validate_output_text
+from repoproof.adoption.assembly.output_contract import (
+    public_validation_profile_spec,
+    validate_output_text,
+)
 from repoproof.domain.models import (
     TaskContract,
     ToolInterface,
@@ -33,6 +36,16 @@ from repoproof.domain.models import (
 )
 
 REPO = Path(__file__).resolve().parents[1]
+
+
+def test_public_validation_profile_spec_exposes_rules_not_repository_logic() -> None:
+    spec = public_validation_profile_spec("ris_interchange_v1")
+
+    assert spec["profile_id"] == "ris_interchange_v1"
+    joined = " ".join(spec["representation_rules"])
+    assert "TY" in joined and "ER" in joined
+    assert "ordinal" in joined
+    assert "rispy" not in str(spec).lower()
 
 
 # ------------------------------------------------------------ ToolSpec 模型
@@ -106,6 +119,168 @@ def test_output_contract_is_additive_and_normalizes_json_root_aliases():
 
 
 @pytest.mark.parametrize(
+    ("media_type", "validation_profile", "good", "bad", "bad_reason"),
+    [
+        (
+            "application/x-research-info-systems",
+            "ris_interchange_v1",
+            "TY  - JOUR\nTI  - Unicode 标题\nER  - \n",
+            '{"title":"not RIS"}',
+            "ris:",
+        ),
+        (
+            "text/tab-separated-values",
+            "tsv_table_v1",
+            "sample\tvalue\tunit\nA\t1.5\tmm\n",
+            "sample\tvalue\nA\t1\tmm\n",
+            "tsv: inconsistent_columns",
+        ),
+        (
+            "text/markdown",
+            "markdown_document_v1",
+            "# Network summary\n\n| node | degree |\n| --- | ---: |\n| A | 2 |\n",
+            '{"nodes":["A"]}',
+            "markdown: json_document",
+        ),
+        (
+            "text/html",
+            "safe_self_contained_xhtml_v1",
+            "<html><head><title>QC</title></head><body><h1>FASTQ</h1></body></html>",
+            '<html><body><script src="https://example.test/x.js" /></body></html>',
+            "html: element_forbidden=script",
+        ),
+    ],
+)
+def test_text_output_contract_validates_declared_artifact_structure(
+    media_type: str,
+    validation_profile: str,
+    good: str,
+    bad: str,
+    bad_reason: str,
+) -> None:
+    contract = ToolOutputContract(
+        media_type=media_type,
+        root_type="text",
+        required={},
+        validation_profile=validation_profile,
+    )
+    assert validate_output_text(good, contract) == []
+    assert any(bad_reason in error for error in validate_output_text(bad, contract))
+
+
+def test_media_type_alone_never_infers_new_text_policy() -> None:
+    """Historical/root-only text contracts do not acquire hidden new rules."""
+
+    legacy = ToolOutputContract(
+        media_type="text/markdown",
+        root_type="text",
+        required={},
+    )
+
+    assert validate_output_text('{"still":"plain text"}', legacy) == []
+    assert validate_output_text("contains\x00nul", legacy) == ["text: contains_nul"]
+
+
+def test_text_validation_profile_must_match_declared_media_type() -> None:
+    with pytest.raises(ValidationError, match="validation_profile"):
+        ToolOutputContract(
+            media_type="text/html",
+            root_type="text",
+            required={},
+            validation_profile="ris_interchange_v1",
+        )
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        "1.\nTY  - JOUR\nER  - \n",
+        "TY  - JOUR\nER  - \n2.\nTY  - BOOK\nER  - \n",
+        "2.\nTY  - JOUR\nER  - \n",
+        "1.\n2.\nTY  - JOUR\nER  - \n",
+        "1.\n",
+        "TY  - JOUR\n1.\nER  - \n",
+    ],
+)
+def test_ris_contract_rejects_non_tag_record_preambles(
+    output: str,
+) -> None:
+    """A producer-specific preamble cannot silently redefine interoperable RIS."""
+
+    contract = ToolOutputContract(
+        media_type="application/x-research-info-systems",
+        root_type="text",
+        required={},
+        validation_profile="ris_interchange_v1",
+    )
+    assert validate_output_text(output, contract)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        '<html><body><object data="https://example.test/x" /></body></html>',
+        '<html><body><img srcset="https://example.test/x 1x" /></body></html>',
+        '<html><body><video poster="https://example.test/x" /></body></html>',
+        '<html><body><form action="https://example.test/x" /></body></html>',
+        '<html><head><meta http-equiv="refresh" content="0;url=https://example.test" />'
+        "</head><body /></html>",
+        '<html><head><style>@import "https://example.test/x";</style></head>'
+        "<body /></html>",
+        '<html><body><svg><script>bad()</script></svg></body></html>',
+        '<html><head><style>body{background-image:u\\72 l(https://example.test/x)}'
+        "</style></head><body /></html>",
+        '<html><body><a href="#x" ping="https://example.test/x">x</a></body></html>',
+        '<?xml version="1.0"?><?xml-stylesheet href="https://example.test/x"?>'
+        "<html><body /></html>",
+        '<!DOCTYPE html><html><body /></html>',
+    ],
+)
+def test_html_contract_rejects_active_or_external_resources(body: str) -> None:
+    contract = ToolOutputContract(
+        media_type="text/html",
+        root_type="text",
+        required={},
+        validation_profile="safe_self_contained_xhtml_v1",
+    )
+    assert validate_output_text(body, contract)
+
+
+@pytest.mark.parametrize("media_type", ["text/html", "application/xhtml+xml"])
+@pytest.mark.parametrize(
+    ("body", "reason"),
+    [
+        (
+            '<html><body><a href="#local" ping="https://tracker.invalid/p">x</a></body></html>',
+            "resource_attribute_forbidden=ping",
+        ),
+        (
+            '<?xml version="1.0"?><?xml-stylesheet href="https://tracker.invalid/x.css"?>'
+            "<html><body /></html>",
+            "processing_instruction_forbidden",
+        ),
+        (
+            r'<html><body><p style="background:\75rl(https://tracker.invalid/x)">x</p>'
+            "</body></html>",
+            "style_attribute_forbidden",
+        ),
+    ],
+)
+def test_html_and_xhtml_contract_reject_external_reference_bypasses(
+    media_type: str,
+    body: str,
+    reason: str,
+) -> None:
+    contract = ToolOutputContract(
+        media_type=media_type,
+        root_type="text",
+        required={},
+        validation_profile="safe_self_contained_xhtml_v1",
+    )
+    assert any(reason in error for error in validate_output_text(body, contract))
+
+
+@pytest.mark.parametrize(
     "name", ["../escape", "nested/tool", ".", "-leading", "trailing-"]
 )
 def test_tool_name_must_be_a_contained_lowercase_cli_slug(name: str):
@@ -159,6 +334,22 @@ def test_example_rejects_zero_and_double_input_sources():
 def test_example_legacy_string_shape_still_works():
     e = Example(input="周合", expected="contains:周会纪要")
     assert e.input_file is None and e.expected_file is None
+
+
+def test_upstream_confirmed_example_requires_a_binding_hash() -> None:
+    with pytest.raises(ValidationError, match="输入/输出绑定"):
+        Example(
+            input_file="inputs/a.txt",
+            expected_file="expected/a.txt",
+            truth_provenance="UPSTREAM_DERIVED_USER_CONFIRMED",
+        )
+    accepted = Example(
+        input_file="inputs/a.txt",
+        expected_file="expected/a.txt",
+        truth_provenance="UPSTREAM_DERIVED_USER_CONFIRMED",
+        truth_binding_sha256="a" * 64,
+    )
+    assert accepted.truth_binding_sha256 == "a" * 64
 
 
 def test_seam_mode_refuses_file_examples():
@@ -325,3 +516,92 @@ def test_generated_cli_validator_rejects_nonstandard_json_constants(
 
     tool, tdir = _materialize_json(tmp_path, bad, bad, contract=contract)
     assert _run_compiled(tool, tdir) != 0
+
+
+@pytest.mark.parametrize(
+    ("media_type", "validation_profile", "good", "bad"),
+        [
+            (
+                "application/x-research-info-systems",
+                "ris_interchange_v1",
+                "TY  - JOUR\nTI  - A title\nER  - \n",
+                '{"title":"not RIS"}',
+            ),
+        (
+            "text/tab-separated-values",
+            "tsv_table_v1",
+            "sample\tvalue\nA\t1\n",
+            "sample\tvalue\nA\t1\textra\n",
+        ),
+        (
+            "text/markdown",
+            "markdown_document_v1",
+            "# Summary\n",
+            '{"summary":"wrong artifact"}',
+        ),
+        (
+            "text/html",
+            "safe_self_contained_xhtml_v1",
+            "<html><body><p>QC</p></body></html>",
+            '<html><body><img src="https://example.test/chart.png" /></body></html>',
+        ),
+    ],
+)
+def test_generated_cli_validator_enforces_non_json_text_media_types(
+    tmp_path: Path,
+    media_type: str,
+    validation_profile: str,
+    good: str,
+    bad: str,
+) -> None:
+    contract = ToolOutputContract(
+        media_type=media_type,
+        root_type="text",
+        required={},
+        validation_profile=validation_profile,
+    )
+    (tmp_path / "good").mkdir()
+    good_tool, good_tests = _materialize_json(
+        tmp_path / "good",
+        good,
+        good,
+        contract=contract,
+    )
+    assert _run_compiled(good_tool, good_tests) == 0
+
+    (tmp_path / "bad").mkdir()
+    bad_tool, bad_tests = _materialize_json(
+        tmp_path / "bad",
+        bad,
+        bad,
+        contract=contract,
+    )
+    assert _run_compiled(bad_tool, bad_tests) != 0
+
+
+@pytest.mark.parametrize("media_type", ["text/html", "application/xhtml+xml"])
+@pytest.mark.parametrize(
+    "body",
+    [
+        '<html><body><a href="#local" ping="https://tracker.invalid/p">x</a></body></html>',
+        '<?xml version="1.0"?><?xml-stylesheet href="https://tracker.invalid/x.css"?>'
+        "<html><body /></html>",
+        r'<html><body><p style="background:\75rl(https://tracker.invalid/x)">x</p>'
+        "</body></html>",
+    ],
+)
+def test_generated_runtime_rejects_html_external_reference_bypasses(
+    tmp_path: Path,
+    media_type: str,
+    body: str,
+) -> None:
+    """Generated packages enforce the same self-contained HTML floor as Core."""
+
+    contract = ToolOutputContract(
+        media_type=media_type,
+        root_type="text",
+        required={},
+        validation_profile="safe_self_contained_xhtml_v1",
+    )
+    tool, tests = _materialize_json(tmp_path, body, body, contract=contract)
+    assert _run_compiled(tool, tests) != 0

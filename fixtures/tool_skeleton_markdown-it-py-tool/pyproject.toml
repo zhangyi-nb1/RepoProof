@@ -1,0 +1,8 @@
+[project]
+name = "markdown_it_py_tool"
+version = "1.0.0"
+description = '解析 UTF-8 Markdown，并按源码顺序生成包含标题、链接与 fenced code block 的确定性结构化 JSON。'
+requires-python = ">=3.12"
+
+[tool.setuptools.packages.find]
+where = ["src"]

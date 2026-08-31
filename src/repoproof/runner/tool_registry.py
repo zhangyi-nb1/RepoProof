@@ -15,9 +15,18 @@ import hashlib
 import json
 import math
 import os
+import re
 import tempfile
 from pathlib import Path
+from typing import Literal
 
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from repoproof.domain.models import SemanticVerifierSpec, TaskContract
+from repoproof.runner.tool_package_identity import (
+    ToolPackageIdentityError,
+    package_payload_sha256,
+)
 from repoproof.runner.tool_paths import (
     INSTALL_LOCK_NAME,
     ToolPathError,
@@ -34,11 +43,141 @@ from repoproof.runner.tool_release import (
     ensure_initial_review_decision,
     fold_release_decisions,
     is_historical_tool_ready,
+    validate_release_audit_evidence,
 )
 
 REGISTRY_NAME = ".repoproof-registry.json"
 REGISTRY_LOCK_NAME = INSTALL_LOCK_NAME
 registry_install_lock = tool_install_lock
+
+_REFERENCE_IDENTITY_KEYS = {"impl_sha256", "lock_sha256"}
+_LOWER_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
+
+class ReleaseAuditTrustIdentityV1(BaseModel):
+    """Frozen public identities required to revalidate a v3 ACTIVE decision."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal[1] = 1
+    semantic_verifier: SemanticVerifierSpec
+    output_contract_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    intent_confirmation_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    upstream_commit: str = Field(pattern=r"^[0-9a-f]{40}$")
+    import_module: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_.]*$")
+    required_commitment_ids: tuple[str, ...] = Field(min_length=1, max_length=64)
+
+    @field_validator("required_commitment_ids")
+    @classmethod
+    def _unique_commitment_ids(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        if any(re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", item) is None for item in value):
+            raise ValueError("required_commitment_ids 必须是稳定小写标识")
+        if len(value) != len(set(value)):
+            raise ValueError("required_commitment_ids 必须唯一")
+        return value
+
+
+def release_audit_trust_identity_from_contract(
+    contract: TaskContract,
+) -> ReleaseAuditTrustIdentityV1 | None:
+    """Project one typed v3 operational identity from a frozen contract."""
+
+    if contract.tool is None or contract.tool.schema_version < 3:
+        return None
+    verifier = contract.acceptance.semantic_verifier
+    output = contract.tool.interface.output.contract
+    intent = contract.capability.intent_contract
+    if verifier is None or output is None or intent is None:
+        raise ValueError("ToolSpec v3 缺 semantic verifier/output/intent identity")
+    output_sha256 = hashlib.sha256(
+        json.dumps(
+            output.model_dump(mode="json"),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    return ReleaseAuditTrustIdentityV1(
+        semantic_verifier=verifier,
+        output_contract_sha256=output_sha256,
+        intent_confirmation_sha256=intent.confirmation.semantics_sha256,
+        upstream_commit=contract.source_repo.resolved_commit,
+        import_module=contract.source_repo.import_name,
+        required_commitment_ids=tuple(
+            commitment.commitment_id for commitment in intent.commitments
+        ),
+    )
+
+
+def validate_release_audit_trust_identity(
+    value: object,
+    *,
+    required: bool = False,
+) -> ReleaseAuditTrustIdentityV1 | None:
+    """Validate the exact v3 identity persisted by export and registration."""
+
+    if value is None:
+        if required:
+            raise ValueError("release_audit_trust_identity 缺失")
+        return None
+    try:
+        return ReleaseAuditTrustIdentityV1.model_validate(value)
+    except ValueError as exc:
+        raise ValueError("release_audit_trust_identity 非法") from exc
+
+
+def validate_reference_identity(
+    value: object,
+    *,
+    required: bool = False,
+) -> dict[str, str] | None:
+    """Validate the immutable identity of a task's frozen reference pair.
+
+    Legacy exported packages do not carry this optional field.  Once present,
+    however, it is deliberately exact: accepting additional keys or permissive
+    hash spellings would create two identity dialects at the trust boundary.
+    """
+
+    if value is None:
+        if required:
+            raise ValueError("reference_identity 缺失")
+        return None
+    if not isinstance(value, dict) or set(value) != _REFERENCE_IDENTITY_KEYS:
+        raise ValueError(
+            "reference_identity 必须且只能包含 impl_sha256/lock_sha256"
+        )
+    identity: dict[str, str] = {}
+    for key in sorted(_REFERENCE_IDENTITY_KEYS):
+        digest = value.get(key)
+        if not isinstance(digest, str) or _LOWER_SHA256.fullmatch(digest) is None:
+            raise ValueError(f"reference_identity.{key} 必须是 64 位小写 SHA-256")
+        identity[key] = digest
+    return identity
+
+
+def validate_semantic_verifier_identity(
+    value: object,
+    *,
+    required: bool = False,
+) -> dict | None:
+    """Validate the exact frozen task-oracle identity projected by export."""
+
+    if value is None:
+        if required:
+            raise ValueError("semantic_verifier_identity 缺失")
+        return None
+    try:
+        parsed = SemanticVerifierSpec.model_validate(value)
+    except ValueError as exc:
+        raise ValueError("semantic_verifier_identity 非法") from exc
+    return parsed.model_dump(mode="json")
+
+
+def validate_contract_schema_version(manifest: dict) -> int:
+    value = manifest.get("contract_schema_version", 1)
+    if type(value) is not int or value not in {1, 2, 3}:
+        raise ValueError("contract_schema_version 必须为 1、2 或 3")
+    return value
 
 
 def _load(dest_root: Path) -> dict:
@@ -108,6 +247,14 @@ def _save(dest_root: Path, doc: dict) -> None:
             os.fsync(fh.fileno())
         os.replace(temp_name, target)
         temp_name = None
+        directory_fd = os.open(
+            dest_root,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+        )
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     finally:
         if temp_name is not None:
             Path(temp_name).unlink(missing_ok=True)
@@ -138,6 +285,56 @@ def _load_package_provenance(
         != verification.get("contract_sha256")
     ):
         raise ValueError(f"{name}: manifest/provenance identity 不一致")
+    if "reference_identity" in provenance:
+        # Keep legacy packages readable when the field is absent, but a package
+        # that claims the new identity must use the one exact representation.
+        provenance["reference_identity"] = validate_reference_identity(
+            provenance.get("reference_identity"), required=True
+        )
+    schema_version = validate_contract_schema_version(manifest)
+    semantic_identity = validate_semantic_verifier_identity(
+        provenance.get("semantic_verifier_identity"),
+        required=schema_version >= 3,
+    )
+    release_audit_identity = validate_release_audit_trust_identity(
+        provenance.get("release_audit_trust_identity"),
+        required=schema_version >= 3,
+    )
+    if schema_version < 3 and semantic_identity is not None:
+        raise ValueError(
+            f"{name}: legacy contract 不得声明 v3 semantic_verifier_identity"
+        )
+    if release_audit_identity is not None:
+        output_contract = (
+            ((manifest.get("interface") or {}).get("output") or {}).get("contract")
+        )
+        if not isinstance(output_contract, dict):
+            raise ValueError(f"{name}: v3 package 缺 output contract identity")
+        output_contract_sha256 = hashlib.sha256(
+            json.dumps(
+                output_contract,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        package_commit = (manifest.get("source") or {}).get("resolved_commit")
+        if (
+            semantic_identity
+            != release_audit_identity.semantic_verifier.model_dump(mode="json")
+            or output_contract_sha256
+            != release_audit_identity.output_contract_sha256
+            or package_commit != release_audit_identity.upstream_commit
+        ):
+            raise ValueError(
+                f"{name}: manifest/provenance release audit identity 不一致"
+            )
+    provenance["semantic_verifier_identity"] = semantic_identity
+    provenance["release_audit_trust_identity"] = (
+        release_audit_identity.model_dump(mode="json")
+        if release_audit_identity is not None
+        else None
+    )
     return task_id, provenance
 
 
@@ -239,7 +436,29 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
         "source": manifest.get("source", {}),
         "summary": manifest.get("summary", ""),
         "exported_at": exported_at,
+        "contract_schema_version": validate_contract_schema_version(manifest),
+        "package_payload_sha256": package_payload_sha256(tool_dir),
     }
+    reference_identity = validate_reference_identity(
+        provenance.get("reference_identity"),
+        required="reference_identity" in provenance,
+    )
+    if reference_identity is not None:
+        entry["reference_identity"] = reference_identity
+    semantic_identity = validate_semantic_verifier_identity(
+        provenance.get("semantic_verifier_identity"),
+        required=entry["contract_schema_version"] >= 3,
+    )
+    if semantic_identity is not None:
+        entry["semantic_verifier_identity"] = semantic_identity
+    release_audit_identity = validate_release_audit_trust_identity(
+        provenance.get("release_audit_trust_identity"),
+        required=entry["contract_schema_version"] >= 3,
+    )
+    if release_audit_identity is not None:
+        entry["release_audit_trust_identity"] = (
+            release_audit_identity.model_dump(mode="json")
+        )
     # Validate both existing indexes before any write.  Initial export appends
     # REVIEW_REQUIRED only once; a repeated registration never masks a revoke.
     doc = _load(dest_root)
@@ -255,6 +474,45 @@ def register_tool(dest_root: Path, tool_dir: Path, *,
             ):
                 raise ValueError(
                     f"{manifest_name}: 同一 task_id={task_id!r} 的 run/contract "
+                    "与 registry 不一致，拒绝覆盖"
+                )
+            previous_reference_identity = validate_reference_identity(
+                previous.get("reference_identity"),
+                required="reference_identity" in previous,
+            )
+            if previous_reference_identity != reference_identity:
+                raise ValueError(
+                    f"{manifest_name}: 同一 task_id={task_id!r} 的 reference_identity "
+                    "与 registry 不一致，拒绝覆盖"
+                )
+            previous_schema_version = previous.get("contract_schema_version")
+            if previous_schema_version not in (None, entry["contract_schema_version"]):
+                raise ValueError(
+                    f"{manifest_name}: 同一 task_id={task_id!r} 的 contract schema "
+                    "与 registry 不一致，拒绝覆盖"
+                )
+            previous_semantic_identity = validate_semantic_verifier_identity(
+                previous.get("semantic_verifier_identity"),
+                required=previous_schema_version == 3,
+            )
+            if previous_semantic_identity != semantic_identity:
+                raise ValueError(
+                    f"{manifest_name}: 同一 task_id={task_id!r} 的 semantic verifier "
+                    "与 registry 不一致，拒绝覆盖"
+                )
+            previous_release_identity = validate_release_audit_trust_identity(
+                previous.get("release_audit_trust_identity"),
+                required=previous_schema_version == 3,
+            )
+            if previous_release_identity != release_audit_identity:
+                raise ValueError(
+                    f"{manifest_name}: 同一 task_id={task_id!r} 的 release audit "
+                    "identity 与 registry 不一致，拒绝覆盖"
+                )
+            previous_payload = previous.get("package_payload_sha256")
+            if previous_payload not in (None, entry["package_payload_sha256"]):
+                raise ValueError(
+                    f"{manifest_name}: 同一 task_id={task_id!r} 的 package payload "
                     "与 registry 不一致，拒绝覆盖"
                 )
             entry["previous_versions"] = list(previous.get("previous_versions", []))
@@ -342,7 +600,7 @@ def list_tools(
                 continue
             historical_verdict = (m.get("verification") or {}).get("verdict")
             try:
-                task_id, _provenance = _load_package_provenance(
+                task_id, package_provenance = _load_package_provenance(
                     d,
                     m,
                     require_verification_binding=is_historical_tool_ready(
@@ -351,6 +609,7 @@ def list_tools(
                 )
             except (OSError, UnicodeError, ValueError):
                 continue
+            observed_schema_version = validate_contract_schema_version(m)
             observed = {
                 "task_id": task_id,
                 "run_id": (m.get("verification") or {}).get("run_id"),
@@ -359,7 +618,29 @@ def list_tools(
                 "contract_sha256": (m.get("verification") or {}).get(
                     "contract_sha256"
                 ),
+                "contract_schema_version": observed_schema_version,
+                "package_payload_sha256": package_payload_sha256(d),
             }
+            package_reference_identity = validate_reference_identity(
+                package_provenance.get("reference_identity"),
+                required="reference_identity" in package_provenance,
+            )
+            if package_reference_identity is not None:
+                observed["reference_identity"] = package_reference_identity
+            package_semantic_identity = validate_semantic_verifier_identity(
+                package_provenance.get("semantic_verifier_identity"),
+                required=observed_schema_version >= 3,
+            )
+            if package_semantic_identity is not None:
+                observed["semantic_verifier_identity"] = package_semantic_identity
+            package_release_identity = validate_release_audit_trust_identity(
+                package_provenance.get("release_audit_trust_identity"),
+                required=observed_schema_version >= 3,
+            )
+            if package_release_identity is not None:
+                observed["release_audit_trust_identity"] = (
+                    package_release_identity.model_dump(mode="json")
+                )
             if name not in doc["tools"]:
                 doc["tools"][name] = {
                     "path": str(d),
@@ -379,6 +660,18 @@ def list_tools(
                 # evidence. Conflicting non-empty values remain visible and
                 # make upgrade preflight fail instead of being overwritten.
                 for field, value in observed.items():
+                    # A legacy same-task row cannot acquire a trust identity
+                    # after export.  That would let a caller edit provenance and
+                    # use scan as a self-attestation mechanism.  Only an entirely
+                    # new scanned entry may record reference_identity.
+                    if field in {
+                        "reference_identity",
+                        "semantic_verifier_identity",
+                        "release_audit_trust_identity",
+                        "contract_schema_version",
+                        "package_payload_sha256",
+                    }:
+                        continue
                     if entry.get(field) in (None, "") and value not in (None, ""):
                         entry[field] = value
         _save(dest_root, doc)
@@ -386,6 +679,12 @@ def list_tools(
     out: list[dict] = []
     for name, entry in sorted(doc["tools"].items()):
         row = {"name": name, **entry}
+        registry_release_identity: ReleaseAuditTrustIdentityV1 | None = None
+        # Historical verification is an immutable registry fact.  A mutable
+        # package manifest is observed package state, not an authority allowed
+        # to rewrite that history.  Keep both facts separate so a damaged
+        # package cannot turn a recorded READY into either a new success or a
+        # rewritten historical failure.
         historical_verdict = entry.get("historical_verdict", entry.get("verdict"))
         try:
             indexed_path = entry.get("path")
@@ -422,11 +721,24 @@ def list_tools(
                 m = json.loads(mf.read_text(encoding="utf-8"))
                 if not isinstance(m, dict) or m.get("name") != name:
                     raise ValueError("manifest name 与 canonical directory 不一致")
-                historical_verdict = (m.get("verification") or {}).get("verdict")
-                row["status"] = (
-                    "OK" if is_historical_tool_ready(historical_verdict) else "UNVERIFIED"
+                observed_historical_verdict = (
+                    (m.get("verification") or {}).get("verdict")
                 )
-                provenance_task_id, _provenance = _load_package_provenance(
+                row["package_observed_historical_verdict"] = (
+                    observed_historical_verdict
+                )
+                if historical_verdict in (None, ""):
+                    historical_verdict = observed_historical_verdict
+                elif observed_historical_verdict != historical_verdict:
+                    raise ValueError(
+                        "registry/package historical verdict identity 不一致"
+                    )
+                row["status"] = (
+                    "OK"
+                    if is_historical_tool_ready(observed_historical_verdict)
+                    else "UNVERIFIED"
+                )
+                provenance_task_id, package_provenance = _load_package_provenance(
                     tool_dir,
                     m,
                     require_verification_binding=is_historical_tool_ready(
@@ -434,7 +746,52 @@ def list_tools(
                     ),
                 )
                 row["task_id"] = provenance_task_id
-            except (OSError, UnicodeError, ValueError):
+                package_reference_identity = validate_reference_identity(
+                    package_provenance.get("reference_identity"),
+                    required="reference_identity" in package_provenance,
+                )
+                registry_reference_identity = validate_reference_identity(
+                    entry.get("reference_identity"),
+                    required="reference_identity" in entry,
+                )
+                if (
+                    package_reference_identity is not None
+                    or registry_reference_identity is not None
+                ) and package_reference_identity != registry_reference_identity:
+                    raise ValueError("registry/package reference_identity 不一致")
+                package_schema_version = validate_contract_schema_version(m)
+                registry_schema_version = entry.get("contract_schema_version")
+                package_semantic_identity = validate_semantic_verifier_identity(
+                    package_provenance.get("semantic_verifier_identity"),
+                    required=package_schema_version >= 3,
+                )
+                registry_semantic_identity = validate_semantic_verifier_identity(
+                    entry.get("semantic_verifier_identity"),
+                    required=registry_schema_version == 3,
+                )
+                if package_schema_version >= 3 and registry_schema_version is None:
+                    raise ValueError("v3 package 缺受管 registry schema identity")
+                if registry_schema_version not in (None, package_schema_version):
+                    raise ValueError("registry/package contract schema 不一致")
+                if package_semantic_identity != registry_semantic_identity:
+                    raise ValueError("registry/package semantic verifier identity 不一致")
+                package_release_identity = validate_release_audit_trust_identity(
+                    package_provenance.get("release_audit_trust_identity"),
+                    required=package_schema_version >= 3,
+                )
+                registry_release_identity = validate_release_audit_trust_identity(
+                    entry.get("release_audit_trust_identity"),
+                    required=registry_schema_version == 3,
+                )
+                if package_release_identity != registry_release_identity:
+                    raise ValueError("registry/package release audit identity 不一致")
+                observed_payload = package_payload_sha256(tool_dir)
+                registered_payload = entry.get("package_payload_sha256")
+                if package_schema_version >= 3 and registered_payload is None:
+                    raise ValueError("v3 package 缺受管 payload identity")
+                if registered_payload not in (None, observed_payload):
+                    raise ValueError("registry/package payload identity 不一致")
+            except (OSError, UnicodeError, ToolPackageIdentityError, ValueError):
                 row["status"] = "MISSING"
         row["historical_verdict"] = historical_verdict
         # Preserve the legacy alias in list output while making its meaning
@@ -464,9 +821,22 @@ def list_tools(
             )
         elif release is not None and release_matches:
             # release_matches 定义即含非 None;重述一遍只为类型可证,恒等
-            row["operational_status"] = release["decision"]
-            row["operational_reason_code"] = release["reason_code"]
-            row["operational_task_id"] = release["task_id"]
+            v3_active_evidence_valid = not (
+                package_schema_version >= 3
+                and release["decision"] == "ACTIVE"
+            ) or validate_release_audit_evidence(
+                tool_dir,
+                evidence_sha256=release["evidence_sha256"],
+                require_semantic_pass=True,
+                trust_identity=registry_release_identity,
+            )
+            if not v3_active_evidence_valid:
+                row["operational_status"] = REVIEW_REQUIRED
+                row["operational_reason_code"] = "RELEASE_EVIDENCE_INVALID"
+            else:
+                row["operational_status"] = release["decision"]
+                row["operational_reason_code"] = release["reason_code"]
+                row["operational_task_id"] = release["task_id"]
         elif release is not None:
             row["operational_status"] = REVIEW_REQUIRED
             row["operational_reason_code"] = "TASK_VERSION_UNAUDITED"

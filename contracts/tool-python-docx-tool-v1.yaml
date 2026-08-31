@@ -1,0 +1,50 @@
+task_id: tool-python-docx-tool-v1
+
+source_repo:
+  url: https://github.com/python-openxml/python-docx
+  revision: guided
+  resolved_commit: e45454602b53e8e572b179ccf1c91093ec9f4ed7
+  license: MIT
+  distribution: python-docx
+  import_module: docx
+
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_python-docx-tool
+  package: python_docx_tool
+  entry_point: python-docx-tool
+
+requirement_spec_file: tool-python-docx-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: TOOL_ONBOARDING
+
+tool: {"schema_version": 2, "name": "python-docx-tool", "summary": "读取 DOCX 文档并按正文顺序输出段落、标题层级和表格的确定性 JSON。", "interface": {"usage": "python-docx-tool <input> [--out FILE]", "input": {"kind": "file", "format": "DOCX", "contract": null}, "output": {"kind": "stdout", "format": "JSON", "contract": {"media_type": "application/json", "root_type": "object", "required": {"blocks": "array", "metadata": "object"}}}, "exit_codes": {"0": "success", "1": "user_error", "2": "internal_error"}}}
+
+capability:
+  statement: >
+    使用已固定版本的 python-docx 离线读取单个 DOCX 文件，并生成一个 JSON 对象。`blocks` 按文档正文 XML 中的原始顺序包含直接正文段落和表格：段落块为 `{"type":"paragraph","text":string,"heading_level":integer|null}`；标题层级从段落样式 ID 或样式名中的 `Heading N`、`标题 N` 识别，无法识别时为 `null`。表格块为 `{"type":"table","rows":array}`；每个 `rows[r][c]` 是单元格对象。合并区域左上角单元格输出 `{"text":string,"row_span":integer,"col_span":integer}`，被该合并区域覆盖的其他网格位置输出 `{"covered":true}`。未合并的空单元格保留并输出空字符串及 `row_span: 1`、`col_span: 1`。单元格内多个段落以 `\n` 连接；段落文本中的 `\r\n` 和 `\r` 统一规范化为 `\n`，不删除空白、不跳过空段落。正文中不属于直接段落或直接表格的元素、页眉页脚、批注、文本框和嵌套表格不输出。`metadata` 固定包含 `block_count`、`paragraph_count`、`heading_count` 和 `table_count`。零字节、不存在、不可读、目录或无法由 python-docx 解析的 DOCX 都视为用户输入错误，抛出 `UserInputError`，CLI 应以退出码 1 报告。有效但没有正文块的 DOCX 输出空 `blocks` 数组。输出使用固定字段构造、紧凑 JSON 编码和固定文本规范化，因此相同输入重复运行结果确定；处理完全离线且仅使用 CPU。 交付形态为标准工具包(TOOL_PACKAGE_LAYOUT):在骨架 src/python_docx_tool/impl.py 实现 extract(),必须调用 pinned python-docx;依赖锁进 requirements.lock.txt(replay 从它重建)。行为以公开样例为准(例:python-docx-tool inputs/structured-headings.docx -> 见 expected/structured-headings.expected.json; python-docx-tool inputs/merged-and-empty-cells.docx -> 见 expected/merged-and-empty-cells.expected.json);坏输入抛 UserInputError(→exit 1);重复调用确定;完全离线 CPU-only。骨架锚定件(main.py/bin/build.sh/tool.json/pyproject)不可改。公开样例与可运行公开测试位于骨架 public_tests/ 下,是本合同的一部分。
+  output_schema: "DocxBlocks"
+
+environment: {os: linux, arch: arm64, python: "3.12", cpu_only: true, network_install: true, network_test: false}
+
+constraints:
+  forbidden: [gpu, privileged_container, oracle_write, model_download, network_at_test_time]
+  editable_zones: [tool]
+  forbidden_install_extras: []
+
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 12
+  max_patch_lines: 600
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+
+acceptance:
+  capability_command: ["pytest", "-q", "/oracle/test_capability.py"]
+  regression_command: ["pytest", "-q", "public_tests/test_interface_contract.py"]
+  probe_script: direct_tool_probe.py
