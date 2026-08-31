@@ -588,6 +588,82 @@ def test_journey_round_trip_and_restart_order(
     assert product_journeys.list_journeys()[0].journey_id == first.journey_id
 
 
+def test_new_task_version_seed_reuses_only_core_admitted_delivery_topology() -> None:
+    requirements = {
+        "inputs": [{"kind": "directory", "location": "local"}],
+        "outputs": [{"kind": "directory", "format_id": "workspace_bundle"}],
+        "network": "offline",
+        "credentials": "none",
+        "lifecycle": "per_invocation",
+        "runtime": "local_cpu",
+        "browser": "none",
+        "external_side_effects": "none",
+    }
+    snapshot = {
+        "journey": {
+            "source_repo_url": "https://github.com/acme/demo",
+            "agent_backend": "mini-swe",
+        },
+        "draft_review": {
+            "ok": True,
+            "draft": {
+                "source_repo": {
+                    "url": "https://github.com/acme/demo",
+                    "revision": "v1.2.3",
+                    "resolved_commit": "a" * 40,
+                },
+                "_intent_contract": {
+                    "user_goal": "把源码整理成离线交接工作区。",
+                    "delivery": {
+                        "support_status": "SUPPORTED",
+                        "requirements": requirements,
+                    },
+                },
+            },
+        },
+    }
+
+    seed = product_journeys.new_task_version_seed(snapshot)
+
+    assert seed == {
+        "source_repo_url": "https://github.com/acme/demo",
+        "revision": "a" * 40,
+        "capability": "把源码整理成离线交接工作区。",
+        "agent_backend": "mini-swe",
+        "authoritative_delivery_requirements": requirements,
+    }
+    # The returned launch seed must not alias the read-only old draft.
+    seed["authoritative_delivery_requirements"]["browser"] = "required"
+    assert requirements["browser"] == "none"
+
+
+def test_new_task_version_seed_does_not_reuse_unadmitted_delivery() -> None:
+    snapshot = {
+        "journey": {
+            "source_repo_url": "https://github.com/acme/demo",
+            "agent_backend": "codex-cli",
+        },
+        "draft_review": {
+            "ok": True,
+            "draft": {
+                "source_repo": {"revision": "v1"},
+                "_intent_contract": {
+                    "user_goal": "需要重新说明的任务。",
+                    "delivery": {
+                        "support_status": "REVIEW_REQUIRED",
+                        "requirements": {"browser": "none"},
+                    },
+                },
+            },
+        },
+    }
+
+    seed = product_journeys.new_task_version_seed(snapshot)
+
+    assert seed["revision"] == "v1"
+    assert seed["authoritative_delivery_requirements"] is None
+
+
 def test_unfrozen_legacy_draft_is_read_only_incompatible_not_current_draft(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

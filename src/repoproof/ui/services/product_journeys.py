@@ -11,6 +11,7 @@ import os
 import re
 import stat
 import uuid
+from copy import deepcopy
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -247,6 +248,49 @@ def journey_snapshot(journey: ProductJourneyRefV1) -> dict:
         "historical_verdict": (tool_row or {}).get("historical_verdict"),
         "operational_status": operational,
         "package_health": (tool_row or {}).get("health") or "NOT_EXPORTED",
+    }
+
+
+def new_task_version_seed(snapshot: dict) -> dict[str, object]:
+    """Seed an editable new version from facts already admitted by Core.
+
+    This is navigation convenience, not a verdict copy.  The old goal and
+    source pin remain visible for explicit human confirmation.  Delivery
+    requirements are reused only when the old intent contract records Core's
+    ``SUPPORTED`` admission, preventing a second model pass from silently
+    changing file-vs-directory, offline, browser, or side-effect boundaries.
+    """
+
+    journey = snapshot.get("journey") if isinstance(snapshot, dict) else None
+    journey = journey if isinstance(journey, dict) else {}
+    review = snapshot.get("draft_review") if isinstance(snapshot, dict) else None
+    review = review if isinstance(review, dict) and review.get("ok") else {}
+    draft = review.get("draft")
+    draft = draft if isinstance(draft, dict) else {}
+    source_repo = draft.get("source_repo")
+    source_repo = source_repo if isinstance(source_repo, dict) else {}
+    intent = draft.get("_intent_contract")
+    intent = intent if isinstance(intent, dict) else {}
+    delivery = intent.get("delivery")
+    delivery = delivery if isinstance(delivery, dict) else {}
+    raw_requirements = delivery.get("requirements")
+    admitted_requirements = (
+        deepcopy(raw_requirements)
+        if delivery.get("support_status") == "SUPPORTED"
+        and isinstance(raw_requirements, dict)
+        else None
+    )
+    revision = str(
+        source_repo.get("resolved_commit") or source_repo.get("revision") or ""
+    ).strip()
+    return {
+        "source_repo_url": str(
+            source_repo.get("url") or journey.get("source_repo_url") or ""
+        ).strip(),
+        "revision": revision,
+        "capability": str(intent.get("user_goal") or "").strip(),
+        "agent_backend": str(journey.get("agent_backend") or "mini-swe"),
+        "authoritative_delivery_requirements": admitted_requirements,
     }
 
 

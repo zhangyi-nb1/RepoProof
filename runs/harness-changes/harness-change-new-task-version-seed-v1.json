@@ -1,0 +1,20 @@
+{
+  "affected_component": "Product Studio new-task-version navigation seed",
+  "after_control_sha256": "7fdce74147fdf98c25f8fbcaaa045abc17400e684e541f55ec3bd9f5ca64e5cc",
+  "anonymous_fixture_id": "anonymous-supported-workspace-task-version-seed-v1",
+  "before_control_sha256": "47c3fd21ea1a373a097e74766ff1eebd091a6784e20c18a3ee75c3c0f684eeac",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T00:31:31+08:00",
+  "evidence_id": "harness-change-new-task-version-seed-v1",
+  "incident_ids": [
+    "incident-new-task-version-topology-loss-a058dc6"
+  ],
+  "invariant": "Creating an editable new task version must preserve only the previous intent contract's Core-admitted delivery requirements while requiring the user to reconfirm the visible goal; it must never copy a verdict, freeze a contract, or let a second model pass silently change topology.",
+  "normalized_fingerprint": "new-task-version-admitted-topology-loss-v1",
+  "regression_tests": [
+    "tests/test_product_action_and_journey.py::test_new_task_version_seed_reuses_only_core_admitted_delivery_topology",
+    "tests/test_product_action_and_journey.py::test_new_task_version_seed_does_not_reuse_unadmitted_delivery"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

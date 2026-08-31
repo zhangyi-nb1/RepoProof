@@ -569,6 +569,44 @@ def _start_new_journey() -> None:
         st.error(result.get("error") or "草稿任务未能启动。")
 
 
+def _prepare_new_task_version(snapshot: dict) -> None:
+    """Open a new editable task while preserving Core-admitted topology."""
+
+    seed = product_journeys.new_task_version_seed(snapshot)
+    repo = str(seed.get("source_repo_url") or "")
+    revision = str(seed.get("revision") or "")
+    capability = str(seed.get("capability") or "")
+    st.session_state["rp_journey_repo"] = repo
+    st.session_state["rp_journey_revision"] = revision
+    st.session_state["rp_journey_capability"] = capability
+    st.session_state.pop("rp_confirmed_capability", None)
+    st.session_state.pop("rp_pending_capability_adoption", None)
+    requirements = seed.get("authoritative_delivery_requirements")
+    if isinstance(requirements, dict):
+        signature = hashlib.sha256(f"{repo}\n{revision}".encode()).hexdigest()
+        st.session_state["rp_adopted_delivery_requirements"] = {
+            "signature": signature,
+            "brief_id": "core-admitted-task-version-seed",
+            "requirements": requirements,
+        }
+        st.session_state["rp_capability_adoption_flash"] = {
+            "ok": True,
+            "message": (
+                "已带入上一版本经 Core 准入的输入、输出与运行边界；"
+                "请重新核对需求文字并显式确认，新任务不会自动创建或冻结。"
+            ),
+        }
+    else:
+        st.session_state.pop("rp_adopted_delivery_requirements", None)
+    backend = str(seed.get("agent_backend") or "mini-swe")
+    st.session_state["rp_journey_agent_backend"] = (
+        "Codex CLI（ChatGPT 订阅）"
+        if backend == "codex-cli"
+        else "mini-swe（API 网关）"
+    )
+    st.session_state["rp_new_journey"] = True
+
+
 def _primary_golden_errors(expected_bytes: bytes, contract_doc: dict, output_format: str) -> list[str]:
     """Validate a user-confirmed expected output before it is admitted as truth."""
     contract, contract_errors = parse_output_contract(
@@ -1636,7 +1674,7 @@ def _render_journey_card(snapshot: dict) -> None:
             type="primary",
             key=f"rp_restart_incompatible_{journey['journey_id']}",
         ):
-            st.session_state["rp_new_journey"] = True
+            _prepare_new_task_version(snapshot)
             st.rerun()
         return
 
@@ -1672,14 +1710,14 @@ def _render_journey_card(snapshot: dict) -> None:
             label = "创建新任务版本" if frozen else "修正输入或合同"
             if st.button(label, type="primary", key=f"rp_fix_{journey['journey_id']}"):
                 if frozen:
-                    st.session_state["rp_new_journey"] = True
+                    _prepare_new_task_version(snapshot)
                 else:
                     st.session_state["rp_advanced_editor"] = True
                 st.rerun()
         else:
             st.warning("本次有界 repair 已终止，不会通过重新点击来无限消耗模型预算。")
             if st.button("创建新任务版本", type="primary", key=f"rp_new_version_{journey['journey_id']}"):
-                st.session_state["rp_new_journey"] = True
+                _prepare_new_task_version(snapshot)
                 st.rerun()
         return
 
