@@ -2,7 +2,7 @@
   "_denominators": {
     "all_valid_run_outcomes": "全部有效发次里的 PASS 数(含机制消融)",
     "development_baseline_runs": "开发套件上的常规发次(**全台账口径**,不限阶段;新前缀的发次也会进这个数)",
-    "heldout_model_evaluation_runs": "未见任务能力评测(已扣除冒烟/探索/无效/机制四类);台账里的宿主:['local-tool/biopython-tool', 'local-tool/chardet-tool', 'local-tool/emoji-tool', 'local-tool/feedparser-tool', 'local-tool/filetype-tool', 'local-tool/ftfy-tool', 'local-tool/html2md', 'local-tool/humanize-tool', 'local-tool/inflect-tool', 'local-tool/jieba-tool', 'local-tool/json5-tool', 'local-tool/jsonschema-report', 'local-tool/jsonschema-tool', 'local-tool/junitparser-tool', 'local-tool/markdown-it-py-tool', 'local-tool/markdown-tool', 'local-tool/networkx-tool', 'local-tool/num2words-tool', 'local-tool/opencc-tool', 'local-tool/pdf-table', 'local-tool/phonenumbers-tool', 'local-tool/pint-tool', 'local-tool/pygments-tool', 'local-tool/pypdf-tool', 'local-tool/pypinyin-tool', 'local-tool/pyspellchecker-tool', 'local-tool/python-dateutil-tool', 'local-tool/python-docx-tool', 'local-tool/python-slugify', 'local-tool/python-slugify-tool', 'local-tool/pyyaml-tool', 'local-tool/rispy-tool', 'local-tool/rrule-expand', 'local-tool/tabulate-tool', 'local-tool/tomli-tool', 'local-tool/unidecode-tool', 'local-tool/webcolors-tool', 'local-tool/xmltodict-tool', 'pallets/click', 'tobymao/sqlglot', 'zhangyi-nb1/offerclaw']",
+    "heldout_model_evaluation_runs": "未见任务能力评测(已扣除冒烟/探索/无效/机制四类);台账里的宿主:['local-tool/biopython-fasta-shortlist', 'local-tool/biopython-tool', 'local-tool/chardet-tool', 'local-tool/emoji-tool', 'local-tool/feedparser-tool', 'local-tool/filetype-tool', 'local-tool/ftfy-tool', 'local-tool/html2md', 'local-tool/humanize-tool', 'local-tool/inflect-tool', 'local-tool/jieba-tool', 'local-tool/json5-tool', 'local-tool/jsonschema-report', 'local-tool/jsonschema-tool', 'local-tool/junitparser-tool', 'local-tool/markdown-it-py-tool', 'local-tool/markdown-tool', 'local-tool/networkx-dependency-risk', 'local-tool/networkx-tool', 'local-tool/num2words-tool', 'local-tool/opencc-tool', 'local-tool/pdf-table', 'local-tool/phonenumbers-tool', 'local-tool/pint-field-kit', 'local-tool/pint-tool', 'local-tool/pygments-tool', 'local-tool/pypdf-tool', 'local-tool/pypinyin-tool', 'local-tool/pyspellchecker-tool', 'local-tool/python-dateutil-tool', 'local-tool/python-docx-tool', 'local-tool/python-slugify', 'local-tool/python-slugify-tool', 'local-tool/pyyaml-tool', 'local-tool/rispy-screening-table', 'local-tool/rispy-tool', 'local-tool/rrule-expand', 'local-tool/tabulate-tool', 'local-tool/tomli-tool', 'local-tool/unidecode-tool', 'local-tool/webcolors-tool', 'local-tool/xmltodict-tool', 'pallets/click', 'tobymao/sqlglot', 'zhangyi-nb1/offerclaw']",
     "heldout_passes": "held-out 里的通过数 —— 其余三类都有分子,只给分母会让人自己配一个",
     "mechanism_ablation_runs": "E1/AR 机制与判据实验 —— 不计能力",
     "observation_policy_qualification_runs": "WV:观测策略(投影旋钮)在线资格审 —— **不充闸门、不计模型能力**",
@@ -14,11 +14,11 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 221,
-    "assisted_repair_runs": 236,
+    "all_valid_run_outcomes": 229,
+    "assisted_repair_runs": 244,
     "development_baseline_runs": 68,
-    "exploratory": 68,
-    "exploratory_passes": 55,
+    "exploratory": 72,
+    "exploratory_passes": 59,
     "exploratory_run_ids": [
       "t3-offerclaw-browser-use-v5-20260812-024353",
       "t3-offerclaw-browser-use-v5-20260812-024503",
@@ -87,7 +87,11 @@
       "tool-rispy-tool-v7-20260830-212214",
       "tool-pint-tool-v3-20260830-213712",
       "tool-networkx-tool-v1-20260830-222601",
-      "tool-biopython-tool-v1-20260830-230345"
+      "tool-biopython-tool-v1-20260830-230345",
+      "tool-rispy-screening-table-v1-20260831-013002",
+      "tool-pint-field-kit-v1-20260831-015804",
+      "tool-networkx-dependency-risk-v1-20260831-022622",
+      "tool-biopython-fasta-shortlist-v1-20260831-030612"
     ],
     "heldout_model_evaluation_runs": 8,
     "heldout_passes": 2,
@@ -145,8 +149,8 @@
       }
     ],
     "provisional_evidence_runs": 4,
-    "smoke": 184,
-    "smoke_passes": 106,
+    "smoke": 188,
+    "smoke_passes": 110,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -331,9 +335,13 @@
       "tool-pint-tool-v3-20260830-213609",
       "tool-networkx-tool-v1-20260830-222506",
       "tool-biopython-tool-v1-20260830-225958",
-      "tool-biopython-tool-v1-20260830-230244"
+      "tool-biopython-tool-v1-20260830-230244",
+      "tool-rispy-screening-table-v1-20260831-012917",
+      "tool-pint-field-kit-v1-20260831-015701",
+      "tool-networkx-dependency-risk-v1-20260831-022525",
+      "tool-biopython-fasta-shortlist-v1-20260831-030421"
     ],
-    "total": 403,
+    "total": 411,
     "treatment_delivered_runs": 13,
     "treatment_not_delivered_runs": 4
   },
@@ -344,6 +352,7 @@
     "T4": false
   },
   "hosts_covered": [
+    "local-tool/biopython-fasta-shortlist",
     "local-tool/biopython-tool",
     "local-tool/chardet-tool",
     "local-tool/emoji-tool",
@@ -360,11 +369,13 @@
     "local-tool/junitparser-tool",
     "local-tool/markdown-it-py-tool",
     "local-tool/markdown-tool",
+    "local-tool/networkx-dependency-risk",
     "local-tool/networkx-tool",
     "local-tool/num2words-tool",
     "local-tool/opencc-tool",
     "local-tool/pdf-table",
     "local-tool/phonenumbers-tool",
+    "local-tool/pint-field-kit",
     "local-tool/pint-tool",
     "local-tool/pygments-tool",
     "local-tool/pypdf-tool",
@@ -375,6 +386,7 @@
     "local-tool/python-slugify",
     "local-tool/python-slugify-tool",
     "local-tool/pyyaml-tool",
+    "local-tool/rispy-screening-table",
     "local-tool/rispy-tool",
     "local-tool/rrule-expand",
     "local-tool/tabulate-tool",
@@ -388,7 +400,7 @@
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "dd3cac019fb371b4d9289056dd5ccb9bce2ed7eddf2c4ee3b66fe6710bab0bbe"
+    "runs_jsonl_sha256": "29af63c9c57f63c90749e7599523332091f232f3b5e0c8e0b32535f3c244e8db"
   },
   "stages": {
     "T1": {

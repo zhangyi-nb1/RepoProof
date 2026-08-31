@@ -18,6 +18,26 @@
 - Studio 运行 reference 时必须启用受支持的 OS 隔离：网络全拒绝、写入仅限一次性目录、Provider 密钥不进入子进程。隔离后端不可用时在 LLM 调用前停止，不以普通子进程降级。
 - 2026-08-30 的四条真人 Journey 已各自完成一遍；它们是在发现并修复通用 Harness 接缝的过程中依次完成的记录案例，不冒充“框架全程冻结”的模型能力成绩。旧 v1 清单保持冻结且 `NOT_RUN` 永久不变；执行事实只来自新合同、run、语义回执和 append-only release ledger。
 
+## 2026-08-31 alternate-workflow v3 结算
+
+第二轮四仓按冻结协议 `m6_1_multiformat_qualification_v3.yaml` 完成。该协议明确
+采用“已完成案例保留、只续跑受影响案例”的产品资格口径，不把中途发现通用
+Harness 接缝解释为必须从第一仓重跑。最终事实已用项目自身的 append-only
+记录 API 写入：
+
+- 记录：`qualification_runs/m6_1_multiformat_v3/m6-1-multiformat-v3-20260831.json`
+- 框架 commit：`4740e84d19c12afe69101667abe60da83a968f09`
+- 框架 Python 源码树 SHA-256：`18ce970e463e51c3e101fa48eaabe54adb6e299744f22b95e7d09862dc3473fc`
+- backend：`mini-swe`
+- RISpy → CSV、Pint → 自包含 XHTML、NetworkX → TSV、Biopython → Markdown：
+  四例均为历史 `VERIFIED_TOOL_READY`、clean replay PASS、fresh audit PASS、
+  当前 `ACTIVE`、package `OK`。
+- 每例内嵌完整 semantic-verifier evidence；证据绑定 verifier 源码、输入、产物、
+  固定 upstream commit、输出合同和用户确认语义，并要求 input、artifact、
+  upstream-result 三项反事实控制全部拒绝错误替换。
+- 记录的 Product 计分字段全部为 false。本结果只证明四个记录案例及其固定支持面，
+  不产生任意仓库成功率或模型能力 claim。
+
 ## 本轮执行口径（2026-08-30）
 
 本轮目标是完成四条真人 Product Journey 并发现通用 Harness 接缝，不结算为

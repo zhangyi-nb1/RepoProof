@@ -3,7 +3,32 @@
 > Purpose: the single in-repo status anchor for AI/human handoff.
 > Update ONLY at gate boundaries; history below is append-only.
 
-## Current status (2026-08-29, M6.1 Product Journey Reliability closed locally)
+## Current status (2026-08-31, M6.1 alternate-workflow qualification closed locally)
+
+**主产品线仍是“GitHub 单能力 → 经独立验证的本地工具”。本次没有扩展
+M7 或旧宿主适配线，而是用四个不同工作场景、输入和可读文本产物，验证
+Studio → Core → Agent → 独立语义验证 → clean replay → fresh audit 的完整旅程。**
+
+| Anchor | Value |
+|---|---|
+| 本地分支 | `codex/second-multiformat-qualification`；本节只描述本地事实，未授权推送或发布 |
+| 框架锚点 | `4740e84d19c12afe69101667abe60da83a968f09`；可执行 `src/repoproof` 树哈希 `18ce970e463e51c3e101fa48eaabe54adb6e299744f22b95e7d09862dc3473fc` |
+| 冻结协议 | `docs/m6_1_multiformat_qualification_v3.yaml`，SHA-256 `5def32f80d8c3f614d81726b1dbcb52c002934ef72d91004eb08da21d7729da4`；已完成案例不因后续通用修复重跑，只从受影响案例的合法断点继续 |
+| Append-only 结算 | `docs/qualification_runs/m6_1_multiformat_v3/m6-1-multiformat-v3-20260831.json`；记录状态 `PASSED`，内嵌四份 `SemanticVerifierEvidenceV1` 完整证据并绑定协议、框架、task、run 和 artifact |
+| RISpy | `tool-rispy-screening-table-v1` / `tool-rispy-screening-table-v1-20260831-013002`；CSV；历史 `VERIFIED_TOOL_READY`、clean replay PASS、fresh audit PASS、当前 `ACTIVE`、package `OK` |
+| Pint | `tool-pint-field-kit-v1` / `tool-pint-field-kit-v1-20260831-015804`；自包含 XHTML；同上五项全部成立 |
+| NetworkX | `tool-networkx-dependency-risk-v1` / `tool-networkx-dependency-risk-v1-20260831-022622`；TSV；同上五项全部成立 |
+| Biopython | `tool-biopython-fasta-shortlist-v1` / `tool-biopython-fasta-shortlist-v1-20260831-030612`；Markdown；同上五项全部成立 |
+| 语义可信边界 | 每仓 task-authored verifier 均通过实际输入、artifact 和 upstream-result 三项反事实控制；Core 只执行统一协议、隔离、身份绑定和上游调用取证，不含四仓领域特判 |
+| Repair 加固 | candidate/reference 内部异常按不含消息和输入的安全代码位点指纹分类；只有 manifest + 回执绑定的公开成功样例可作正控；reference 执行故障不再自动改写 truth；四文件控制束 repair 有 durable marker、完整回滚和 fail-closed 恢复 |
+| 指标边界 | 四仓真实发与彩排均为 Product 事实，四个 `counts_toward_*` 字段为 false；不能当作 Benchmark Lab 模型能力成绩，也不能外推为任意仓库成功率 |
+| 本地质量线 | 1972 tests collected，全量 pytest 退出 0；Ruff 全仓 0 错；mypy 180 个源码文件 0 错；公开 claim 检查、`git diff --check` 与资格定向回归全部通过 |
+
+不变铁律：Agent 自述不算成功；冻结合同、历史 run、旧 ledger 与旧指标不
+改写；held-out 不向 Agent 泄漏；fresh audit 决定当前运营状态；本地提交与
+远端 GitHub 状态严格区分。
+
+## Previous status (2026-08-29, M6.1 Product Journey Reliability closed locally)
 
 **主产品线仍是 GitHub 单能力 → 经独立验证的本地工具。M6.1 没有扩展
 M7，也没有恢复旧宿主适配路线；本批只修复 Studio → Core 的产品旅程，
