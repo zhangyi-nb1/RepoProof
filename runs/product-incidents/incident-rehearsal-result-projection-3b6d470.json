@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "actual_run_id_present_in_pipeline": true,
+    "projected_run_id_present": false,
+    "typed_failure_projection_present": false
+  },
+  "created_at": "2026-09-01T01:31:08+08:00",
+  "disposition": "FIX_GENERIC_PRODUCT_ACTION_STAGE_PROJECTION",
+  "framework_git_commit": "3b6d470",
+  "incident_id": "incident-rehearsal-result-projection-3b6d470",
+  "normalized_fingerprint": "rehearsal-stage-omitted-from-structured-action-result-v1",
+  "owner": "HARNESS",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "product-action-result::rehearsal-run-identity",
+    "product-action-result::typed-zero-agent-remediation"
+  ],
+  "reason_codes": [
+    "REHEARSAL_RUN_ID_DROPPED",
+    "REHEARSAL_FAILURE_UNTYPED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "RELEASE_UI",
+  "task_version": "anonymous-product-action-v1"
+}

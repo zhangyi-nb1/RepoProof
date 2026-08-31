@@ -95,6 +95,42 @@ def tool_build_completed(result: dict, *, rehearsal_only: bool) -> bool:
     return bool(result.get("exported") and is_historical_tool_ready(result.get("historical_verdict")))
 
 
+def _rehearsal_stage(report: dict) -> dict:
+    """Project the zero-model positive control as a typed Product stage."""
+
+    stage = {
+        "verdict": report.get("verdict"),
+        "run_id": report.get("run_id"),
+        "gate_reasons": report.get("gate_reasons"),
+        "agent_model_call_count": 0,
+    }
+    if report.get("verdict") == "PASS_ADAPTED":
+        return stage
+
+    from repoproof.execution.audit_failure import AuditFailureMetadata
+
+    failure = AuditFailureMetadata(
+        failure_owner="HARNESS",
+        failure_stage="SEMANTIC_VERIFICATION",
+        failure_class="CONTRACT_ORACLE_CONFLICT",
+        retry_policy="REVIEW_REQUIRED",
+        requires_new_task_version=False,
+        recommended_action_code="RESTORE_SEMANTIC_VERIFIER_AND_REVIEW",
+        recommended_action=(
+            "先检查冻结合同、oracle 与验证 Harness 的一致性；若只是 Harness "
+            "实现故障，修复后重跑同一任务；只有合同语义变化时才创建新版本。"
+        ),
+        product_stop_code="STOP_NEEDS_HUMAN",
+    )
+    stage.update(failure.as_payload())
+    stage["reason_codes"] = ["REHEARSAL_POSITIVE_CONTROL_FAILED"]
+    stage["failure_assessment"] = {
+        **failure.as_payload(),
+        "reason_codes": ["REHEARSAL_POSITIVE_CONTROL_FAILED"],
+    }
+    return stage
+
+
 def ensure_pinned_upstream(url: str, commit: str, project_root: Path) -> Path:
     """确保 upstream-cache/upstream-<commit12> 存在且 HEAD 严格等于 pinned。
 
@@ -656,11 +692,7 @@ def tool_build_real_from_frozen(
     if rehearsal_only:
         fake = run_host_guided_cli(host_contract, project_root, fake="positive", batch=batch)
         rp = fake.get("report") or {}
-        stages["rehearsal"] = {
-            "verdict": rp.get("verdict"),
-            "run_id": rp.get("run_id"),
-            "gate_reasons": rp.get("gate_reasons"),
-        }
+        stages["rehearsal"] = _rehearsal_stage(rp)
         verdict = "REHEARSAL_PASS_ONLY" if rp.get("verdict") == "PASS_ADAPTED" else f"REHEARSAL_{rp.get('verdict')}"
         return {
             "task_id": task_id,
@@ -1230,11 +1262,7 @@ def tool_build(
         # 5) fake 彩排门:不 PASS 不许烧真预算
         fake = run_host_guided_cli(contract, project_root, fake="positive", batch=batch)
         fk = fake.get("report") or {}
-        stages["rehearsal"] = {
-            "verdict": fk.get("verdict"),
-            "run_id": fk.get("run_id"),
-            "gate_reasons": fk.get("gate_reasons"),
-        }
+        stages["rehearsal"] = _rehearsal_stage(fk)
         if fk.get("verdict") != "PASS_ADAPTED":
             return {"task_id": task_id, "stages": stages, "verdict": f"REHEARSAL_{fk.get('verdict')}", "exported": None}
 

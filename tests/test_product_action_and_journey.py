@@ -56,6 +56,76 @@ def test_build_action_result_keeps_process_and_pipeline_semantics_separate(
     assert read_product_action_result(path) == result
 
 
+def test_rehearsal_success_preserves_run_identity_without_claiming_agent_use() -> None:
+    result = action_result_from_payload(
+        job_id="a" * 32,
+        journey_id="b" * 32,
+        action="tool-build",
+        ok=True,
+        payload={
+            "task_id": "tool-anonymous-v1",
+            "verdict": "REHEARSAL_PASS_ONLY",
+            "stages": {
+                "route": {"route": "AGENT_ADAPT", "agent_invoked": False},
+                "rehearsal": {
+                    "verdict": "PASS_ADAPTED",
+                    "run_id": "anonymous-rehearsal-run",
+                },
+            },
+        },
+    )
+
+    assert result.run_id == "anonymous-rehearsal-run"
+    assert result.pipeline_verdict == "REHEARSAL_PASS_ONLY"
+    assert result.agent_invoked is False
+    assert result.failure_owner is None
+
+
+def test_rehearsal_failure_preserves_typed_zero_agent_remediation() -> None:
+    result = action_result_from_payload(
+        job_id="a" * 32,
+        journey_id="b" * 32,
+        action="tool-build",
+        ok=False,
+        payload={
+            "task_id": "tool-anonymous-v1",
+            "verdict": "REHEARSAL_FAIL",
+            "stages": {
+                "route": {"route": "AGENT_ADAPT", "agent_invoked": False},
+                "rehearsal": {
+                    "verdict": "FAIL",
+                    "run_id": "anonymous-rehearsal-run",
+                    "product_stop_code": "STOP_NEEDS_HUMAN",
+                    "failure_assessment": {
+                        "failure_owner": "HARNESS",
+                        "failure_stage": "SEMANTIC_VERIFICATION",
+                        "failure_class": "CONTRACT_ORACLE_CONFLICT",
+                        "retry_policy": "REVIEW_REQUIRED",
+                        "requires_new_task_version": False,
+                        "recommended_action_code": (
+                            "RESTORE_SEMANTIC_VERIFIER_AND_REVIEW"
+                        ),
+                        "reason_codes": ["REHEARSAL_POSITIVE_CONTROL_FAILED"],
+                        "recommended_action": (
+                            "Review the frozen contract, oracle, and verification harness."
+                        ),
+                    },
+                },
+            },
+        },
+    )
+
+    assert result.run_id == "anonymous-rehearsal-run"
+    assert result.failure_owner == "HARNESS"
+    assert result.failure_stage == "SEMANTIC_VERIFICATION"
+    assert result.failure_class == "CONTRACT_ORACLE_CONFLICT"
+    assert result.retry_policy == "REVIEW_REQUIRED"
+    assert result.requires_new_task_version is False
+    assert result.reason_codes == ["REHEARSAL_POSITIVE_CONTROL_FAILED"]
+    assert result.product_stop_code == "STOP_NEEDS_HUMAN"
+    assert result.agent_invoked is False
+
+
 def test_provider_preflight_failure_preserves_owner_and_zero_agent_calls() -> None:
     result = action_result_from_payload(
         job_id="a" * 32,

@@ -272,7 +272,17 @@ def action_result_from_payload(
     stages = stages if isinstance(stages, Mapping) else {}
     route_doc = stages.get("route")
     route_doc = route_doc if isinstance(route_doc, Mapping) else {}
-    segment = stages.get("direct") or stages.get("real") or stages.get("preflight") or {}
+    # Rehearsal is a first-class, durable pipeline stage: it produces a real
+    # zero-model run and may carry typed remediation when the positive control
+    # fails.  Ignoring it loses the run identity and makes Studio invent a
+    # generic process error instead of presenting the Core result.
+    segment = (
+        stages.get("direct")
+        or stages.get("real")
+        or stages.get("rehearsal")
+        or stages.get("preflight")
+        or {}
+    )
     segment = segment if isinstance(segment, Mapping) else {}
     assessment = segment.get("failure_assessment")
     assessment = assessment if isinstance(assessment, Mapping) else segment

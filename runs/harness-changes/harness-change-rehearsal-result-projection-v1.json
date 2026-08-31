@@ -1,0 +1,21 @@
+{
+  "affected_component": "ProductActionResult rehearsal stage projection",
+  "after_control_sha256": "d94f49d3e5778a46facf35da207f3ff50e201b4161863b215e07b331e0ae57c9",
+  "anonymous_fixture_id": "anonymous-rehearsal-product-action-projection-v1",
+  "before_control_sha256": "2f9f97365c850b68c7f724df8d6d72192fd6d9436429dcbef3bfde6a34526342",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T01:31:08+08:00",
+  "evidence_id": "harness-change-rehearsal-result-projection-v1",
+  "incident_ids": [
+    "incident-rehearsal-result-projection-3b6d470"
+  ],
+  "invariant": "Every terminal pipeline stage must preserve its real run identity and typed remediation in ProductActionResult. A zero-model rehearsal failure must stop before Agent repair and must not be collapsed into a generic worker failure.",
+  "normalized_fingerprint": "rehearsal-stage-omitted-from-structured-action-result-v1",
+  "preregistered_requirement": "M6.1 requires UI and CLI to agree on worker, pipeline, and operational state; M6.2 requires one explainable terminal result for every qualification action.",
+  "regression_tests": [
+    "tests/test_product_action_and_journey.py::test_rehearsal_success_preserves_run_identity_without_claiming_agent_use",
+    "tests/test_product_action_and_journey.py::test_rehearsal_failure_preserves_typed_zero_agent_remediation"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}
