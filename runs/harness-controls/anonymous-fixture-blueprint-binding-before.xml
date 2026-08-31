@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="4" time="0.227" timestamp="2026-08-31T21:14:31.890051+08:00" hostname="ZhangrongleideMacBook-Air-3.local"><testcase classname="tests.test_tool_drafter" name="test_workspace_fixture_builder_binds_the_published_parameters_object[from pathlib import Path\ndef build(blueprint, output_path: Path):\n    output_path.write_text(blueprint.get('kind', 'text'))\n]" time="0.000"><failure message="Failed: DID NOT RAISE DraftProjectionError">source = "from pathlib import Path\ndef build(blueprint, output_path: Path):\n    output_path.write_text(blueprint.get('kind', 'text'))\n"
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            (
+                "from pathlib import Path\n"
+                "def build(blueprint, output_path: Path):\n"
+                "    output_path.write_text(blueprint.get('kind', 'text'))\n"
+            ),
+            (
+                "from pathlib import Path\n"
+                "def build(blueprint, output_path: Path):\n"
+                "    output_path.mkdir()\n"
+                "    for row in blueprint['pages']:\n"
+                "        (output_path / row['name']).write_text(row['text'])\n"
+            ),
+        ],
+    )
+    def test_workspace_fixture_builder_binds_the_published_parameters_object(
+        source: str,
+    ) -&gt; None:
+        """Anonymous builders may not invent top-level scenario parameter fields."""
+
+&gt;       with pytest.raises(
+            DraftProjectionError,
+            match="FIXTURE_BLUEPRINT_PARAMETER_BINDING_MISMATCH",
+        ):
+E       Failed: DID NOT RAISE DraftProjectionError
+
+tests/test_tool_drafter.py:96: Failed</failure></testcase><testcase classname="tests.test_tool_drafter" name="test_workspace_fixture_builder_binds_the_published_parameters_object[from pathlib import Path\ndef build(blueprint, output_path: Path):\n    output_path.mkdir()\n    for row in blueprint['pages']:\n        (output_path / row['name']).write_text(row['text'])\n]" time="0.000"><failure message="Failed: DID NOT RAISE DraftProjectionError">source = "from pathlib import Path\ndef build(blueprint, output_path: Path):\n    output_path.mkdir()\n    for row in blueprint['pages']:\n        (output_path / row['name']).write_text(row['text'])\n"
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            (
+                "from pathlib import Path\n"
+                "def build(blueprint, output_path: Path):\n"
+                "    output_path.write_text(blueprint.get('kind', 'text'))\n"
+            ),
+            (
+                "from pathlib import Path\n"
+                "def build(blueprint, output_path: Path):\n"
+                "    output_path.mkdir()\n"
+                "    for row in blueprint['pages']:\n"
+                "        (output_path / row['name']).write_text(row['text'])\n"
+            ),
+        ],
+    )
+    def test_workspace_fixture_builder_binds_the_published_parameters_object(
+        source: str,
+    ) -&gt; None:
+        """Anonymous builders may not invent top-level scenario parameter fields."""
+
+&gt;       with pytest.raises(
+            DraftProjectionError,
+            match="FIXTURE_BLUEPRINT_PARAMETER_BINDING_MISMATCH",
+        ):
+E       Failed: DID NOT RAISE DraftProjectionError
+
+tests/test_tool_drafter.py:96: Failed</failure></testcase><testcase classname="tests.test_tool_drafter" name="test_workspace_fixture_builder_accepts_explicit_parameter_binding[blueprint['parameters']]" time="0.000" /><testcase classname="tests.test_tool_drafter" name="test_workspace_fixture_builder_accepts_explicit_parameter_binding[blueprint.get('parameters', {})]" time="0.000" /></testsuite></testsuites>

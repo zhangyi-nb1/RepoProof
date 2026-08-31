@@ -1,0 +1,23 @@
+{
+  "affected_component": "adoption.intake.tool_drafter fixture-builder authoring protocol and deterministic source conformance",
+  "after_control_sha256": "ceb7a387652a0804129f8503f11b7b698f6d5f9bd732eb73f9283c907e130a54",
+  "anonymous_fixture_id": "anonymous-fixture-blueprint-parameter-binding-v1",
+  "before_control_sha256": "af2d61f278a076a7a4fade2c63179a8b96c4372972f9bf7f134774a177e18aeb",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-08-31T13:18:00.000000Z",
+  "evidence_id": "harness-change-fixture-blueprint-parameter-binding-v1",
+  "incident_ids": [
+    "incident-fixture-blueprint-binding-c1-814a6ae-v1",
+    "incident-fixture-blueprint-binding-c2-814a6ae-v1"
+  ],
+  "invariant": "A task fixture builder must consume scenario-specific values from the normalized FixtureBlueprintV1 parameters object. Human labels, scenario prose, blueprint ids, and invented top-level fields cannot substitute for binding the published parameters protocol; a mismatch must stop during contract authoring before fixture generation, Agent execution, or repair.",
+  "normalized_fingerprint": "573904a696d714b2",
+  "regression_tests": [
+    "tests/test_tool_drafter.py",
+    "tests/test_workspace_fixtures.py",
+    "tests/ui/test_workspace_ui_services.py",
+    "tests/test_m6_2_workspace_qualification_protocol.py"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

@@ -166,7 +166,11 @@ _SYSTEM = (
     "frozen smoke command and resource limits), fixture_builder (null for cli_v2; "
     "for workspace_bundle_v1, Python source defining build(blueprint, output_path) "
     "that deterministically materializes a real file or directory without network "
-    "or subprocesses), fixture_blueprints (empty for cli_v2; for workspace_bundle_v1, "
+    "or subprocesses). The builder receives the normalized FixtureBlueprintV1 object "
+    "with only blueprint_id, title, scenario, input_kind, and parameters at its top "
+    "level. All scenario-specific values are nested under blueprint['parameters']; "
+    "bind that object explicitly and never read a scenario parameter as a top-level "
+    "blueprint field. fixture_blueprints (empty for cli_v2; for workspace_bundle_v1, "
     "3-4 natural scenario objects with blueprint_id, title, scenario, input_kind, "
     "and parameters_json; parameters_json is a JSON object string consumed only by "
     "the frozen fixture builder). Never place PDF/database/archive bytes in JSON. "
@@ -1012,6 +1016,39 @@ def _validate_fixture_builder_source(source: str) -> None:
     ):
         raise DraftProjectionError(
             "tool-draft:FIXTURE_BUILDER_PROTOCOL_INVALID"
+        )
+    positional = [*build.args.posonlyargs, *build.args.args]
+    blueprint_name = positional[0].arg
+
+    def _literal_string(node: ast.expr) -> str | None:
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        return None
+
+    parameters_bound = False
+    for node in ast.walk(build):
+        if (
+            isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == blueprint_name
+            and _literal_string(node.slice) == "parameters"
+        ):
+            parameters_bound = True
+            break
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "get"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == blueprint_name
+            and node.args
+            and _literal_string(node.args[0]) == "parameters"
+        ):
+            parameters_bound = True
+            break
+    if not parameters_bound:
+        raise DraftProjectionError(
+            "tool-draft:FIXTURE_BLUEPRINT_PARAMETER_BINDING_MISMATCH"
         )
     forbidden_modules = {
         "aiohttp",

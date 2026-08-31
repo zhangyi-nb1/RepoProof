@@ -1,0 +1,28 @@
+{
+  "agent_invoked": false,
+  "artifact_manifest_sha256": null,
+  "artifact_tree_sha256": null,
+  "case_name": "c2-offline-web-briefing",
+  "clean_replay": null,
+  "delivery_profile_id": "workspace_bundle_v1",
+  "failure_owner": "CONTRACT",
+  "failure_stage": "FIXTURE_REFERENCE",
+  "fresh_audit": null,
+  "historical_verdict": null,
+  "journey_id": "264d21c622ee4dd9be1b97739a7ec942",
+  "operational_status": null,
+  "package_health": null,
+  "reason_codes": [
+    "FIXTURE_BUILDER_FAILED"
+  ],
+  "recommended_action": "冻结前 fixture builder 未遵守统一蓝图参数协议，无法生成真实输入目录。保留本 Journey、草稿和失败证据，停止在 C2 内重试，不进入 Agent repair；与另一独立仓库的同类 authoring 事故共同用于改进通用起草一致性门。",
+  "repair_attempts": 0,
+  "run_id": null,
+  "semantic_verifier_evidence": null,
+  "semantic_verifier_evidence_sha256": null,
+  "semantic_verifier_id": null,
+  "semantic_verifier_sha256": null,
+  "status": "FAILED",
+  "task_id": null,
+  "workspace_structure_passed": null
+}

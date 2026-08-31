@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "builder_consumed_published_parameters": "NO",
+    "repair_consumed": 0
+  },
+  "created_at": "2026-08-31T13:12:39.000000Z",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "814a6aee3138e9d5516e033dc6b454e6f39a580c",
+  "framework_tree_sha256": "cdcfa1508cf1961818091be69fb587c5430ef04b16d6e0de7a8e4b7e671fafec",
+  "incident_id": "incident-fixture-blueprint-binding-c2-814a6ae-v1",
+  "normalized_fingerprint": "573904a696d714b2",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "f1d8161b4265a383e5e8a12429d128fb9c5272d37331c251328db17712762330",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "fixture_builder.blueprint_parameters"
+  ],
+  "reason_codes": [
+    "FIXTURE_BLUEPRINT_PARAMETER_BINDING_MISMATCH"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

@@ -30,8 +30,10 @@ from repoproof.adoption.intake.tool_drafter import (
     CodexDrafter,
     DeliveryAdmissionError,
     DraftError,
+    DraftProjectionError,
     FakeDrafter,
     LiteLLMDrafter,
+    _validate_fixture_builder_source,
     draft_into_bundle,
     normalize_draft_document,
     reference_source_policy_errors,
@@ -67,6 +69,52 @@ def test_reference_policy_rejects_broad_error_masking() -> None:
         "REFERENCE_BROAD_EXCEPTION_MASKING"
     ]
     assert reference_source_policy_errors(explicit) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        (
+            "from pathlib import Path\n"
+            "def build(blueprint, output_path: Path):\n"
+            "    output_path.write_text(blueprint.get('kind', 'text'))\n"
+        ),
+        (
+            "from pathlib import Path\n"
+            "def build(blueprint, output_path: Path):\n"
+            "    output_path.mkdir()\n"
+            "    for row in blueprint['pages']:\n"
+            "        (output_path / row['name']).write_text(row['text'])\n"
+        ),
+    ],
+)
+def test_workspace_fixture_builder_binds_the_published_parameters_object(
+    source: str,
+) -> None:
+    """Anonymous builders may not invent top-level scenario parameter fields."""
+
+    with pytest.raises(
+        DraftProjectionError,
+        match="FIXTURE_BLUEPRINT_PARAMETER_BINDING_MISMATCH",
+    ):
+        _validate_fixture_builder_source(source)
+
+
+@pytest.mark.parametrize(
+    "parameter_expression",
+    ["blueprint['parameters']", "blueprint.get('parameters', {})"],
+)
+def test_workspace_fixture_builder_accepts_explicit_parameter_binding(
+    parameter_expression: str,
+) -> None:
+    source = (
+        "from pathlib import Path\n"
+        "def build(blueprint, output_path: Path):\n"
+        f"    parameters = {parameter_expression}\n"
+        "    output_path.write_text(str(parameters), encoding='utf-8')\n"
+    )
+
+    _validate_fixture_builder_source(source)
 
 
 def _mini_repo(tmp: Path) -> Path:
