@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.182" timestamp="2026-08-31T20:23:41.600976+08:00" hostname="ZhangrongleideMacBook-Air-3.local"><testcase classname="tests.test_product_action_and_journey" name="test_tool_add_projects_invalid_model_output_to_typed_review_stop" time="0.001"><failure message="AssertionError: assert ['DRAFT_CREATION_FAILED'] == ['DRAFTER_INV...MODEL_OUTPUT']&#10;  &#10;  At index 0 diff: 'DRAFT_CREATION_FAILED' != 'DRAFTER_INVALID_MODEL_OUTPUT'&#10;  Use -v to get more diff">def test_tool_add_projects_invalid_model_output_to_typed_review_stop() -&gt; None:
+        """Semantic model-output failure is not a gateway outage or retry hint."""
+    
+        result = action_result_from_payload(
+            job_id="a" * 32,
+            journey_id="b" * 32,
+            action="tool-add",
+            ok=False,
+            payload={"ok": False, "draft_error": "tool-draft:INVALID_MODEL_OUTPUT"},
+        )
+    
+&gt;       assert result.reason_codes == ["DRAFTER_INVALID_MODEL_OUTPUT"]
+E       AssertionError: assert ['DRAFT_CREATION_FAILED'] == ['DRAFTER_INV...MODEL_OUTPUT']
+E         
+E         At index 0 diff: 'DRAFT_CREATION_FAILED' != 'DRAFTER_INVALID_MODEL_OUTPUT'
+E         Use -v to get more diff
+
+tests/test_product_action_and_journey.py:228: AssertionError</failure></testcase></testsuite></testsuites>

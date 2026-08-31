@@ -214,6 +214,28 @@ def test_tool_add_preserves_typed_drafter_failure(
     assert result.product_stop_code == "STOP_HARNESS_OR_EXTERNAL"
 
 
+def test_tool_add_projects_invalid_model_output_to_typed_review_stop() -> None:
+    """Semantic model-output failure is not a gateway outage or retry hint."""
+
+    result = action_result_from_payload(
+        job_id="a" * 32,
+        journey_id="b" * 32,
+        action="tool-add",
+        ok=False,
+        payload={"ok": False, "draft_error": "tool-draft:INVALID_MODEL_OUTPUT"},
+    )
+
+    assert result.reason_codes == ["DRAFTER_INVALID_MODEL_OUTPUT"]
+    assert result.failure_owner == "EXTERNAL"
+    assert result.failure_stage == "DRAFTING"
+    assert result.failure_class == "MODEL_OUTPUT_INVALID"
+    assert result.retry_policy == "REVIEW_REQUIRED"
+    assert result.requires_new_task_version is False
+    assert result.recommended_action_code == "REVIEW_INVALID_DRAFTER_OUTPUT"
+    assert result.product_stop_code == "STOP_NEEDS_HUMAN"
+    assert "恢复起草通道" not in str(result.recommended_action)
+
+
 def test_tool_add_preserves_specific_intent_admission_reason() -> None:
     result = action_result_from_payload(
         job_id="a" * 32,

@@ -37,6 +37,7 @@ ProductFailureClass = AuditFailureClass | Literal[
     "PROVIDER_TRANSPORT",
     "PROVIDER_CAPABILITY",
     "HARNESS_CONFIGURATION",
+    "MODEL_OUTPUT_INVALID",
 ]
 ProductRetryPolicy = AuditRetryPolicy | Literal[
     "RETRY_AFTER_PROVIDER_RECOVERY",
@@ -46,47 +47,106 @@ ProductRecommendedActionCode = AuditRecommendedActionCode | Literal[
     "RETRY_DRAFT_AFTER_PROVIDER_RECOVERY",
     "CONFIGURE_STRUCTURED_DRAFTER",
     "REPAIR_DRAFTER_CONFIGURATION",
+    "REVIEW_INVALID_DRAFTER_OUTPUT",
 ]
 
 _DRAFTER_FAILURES: dict[
     str,
     tuple[
         str,
+        str,
         ProductFailureClass,
         ProductRetryPolicy,
+        bool,
         ProductRecommendedActionCode,
+        str,
         str,
     ],
 ] = {
     "DRAFTER_TIMEOUT": (
+        "DRAFTER_TIMEOUT",
         "EXTERNAL",
         "PROVIDER_TRANSPORT",
         "RETRY_AFTER_PROVIDER_RECOVERY",
+        False,
         "RETRY_DRAFT_AFTER_PROVIDER_RECOVERY",
+        "STOP_HARNESS_OR_EXTERNAL",
         "网关恢复稳定后重新创建任务；本次未进入 Agent 或 repair。",
     ),
     "DRAFTER_CONNECTIVITY_ERROR": (
+        "DRAFTER_CONNECTIVITY_ERROR",
         "EXTERNAL",
         "PROVIDER_TRANSPORT",
         "RETRY_AFTER_PROVIDER_RECOVERY",
+        False,
         "RETRY_DRAFT_AFTER_PROVIDER_RECOVERY",
+        "STOP_HARNESS_OR_EXTERNAL",
         "恢复网关连接后重新创建任务；本次未进入 Agent 或 repair。",
     ),
     "DRAFTER_STRUCTURED_OUTPUT_UNSUPPORTED": (
+        "DRAFTER_STRUCTURED_OUTPUT_UNSUPPORTED",
         "EXTERNAL",
         "PROVIDER_CAPABILITY",
         "RETRY_AFTER_CONFIGURATION_REPAIR",
+        False,
         "CONFIGURE_STRUCTURED_DRAFTER",
+        "STOP_HARNESS_OR_EXTERNAL",
         "为网关启用 JSON Schema structured output，或显式选择支持同一 schema 的起草通道。",
     ),
     "DRAFTER_TIMEOUT_CONFIG_INVALID": (
+        "DRAFTER_TIMEOUT_CONFIG_INVALID",
         "HARNESS",
         "HARNESS_CONFIGURATION",
         "RETRY_AFTER_CONFIGURATION_REPAIR",
+        False,
         "REPAIR_DRAFTER_CONFIGURATION",
+        "STOP_HARNESS_OR_EXTERNAL",
         "修正起草超时配置后重新创建任务；本次未进入 Agent 或 repair。",
     ),
 }
+
+_INVALID_MODEL_OUTPUT_FAILURE: tuple[
+    str,
+    str,
+    ProductFailureClass,
+    ProductRetryPolicy,
+    bool,
+    ProductRecommendedActionCode,
+    str,
+    str,
+] = (
+    "DRAFTER_INVALID_MODEL_OUTPUT",
+    "EXTERNAL",
+    "MODEL_OUTPUT_INVALID",
+    "REVIEW_REQUIRED",
+    False,
+    "REVIEW_INVALID_DRAFTER_OUTPUT",
+    "STOP_NEEDS_HUMAN",
+    "模型在一次起草和一次公开投影修正后仍未满足合同协议；已停止自动重试。"
+    "请检查需求是否可由当前交付 profile 表达，再创建任务。",
+)
+
+
+def _typed_drafter_failure(
+    draft_error: str,
+) -> tuple[
+    str,
+    str,
+    ProductFailureClass,
+    ProductRetryPolicy,
+    bool,
+    ProductRecommendedActionCode,
+    str,
+    str,
+] | None:
+    """Project stable drafter semantics without exposing private diagnostics."""
+
+    known = _DRAFTER_FAILURES.get(draft_error)
+    if known is not None:
+        return known
+    if draft_error.endswith(":INVALID_MODEL_OUTPUT"):
+        return _INVALID_MODEL_OUTPUT_FAILURE
+    return None
 
 
 def _utc_now() -> str:
@@ -355,26 +415,31 @@ def action_result_from_payload(
             ) or "收紧能力范围或选择受支持的公开 Python 仓库。"
         elif action == "tool-add":
             draft_error = _string(payload.get("draft_error"))
-            failure = _DRAFTER_FAILURES.get(draft_error or "")
+            failure = _typed_drafter_failure(draft_error or "")
             if failure is None:
                 failure_owner = "EXTERNAL"
                 reason_codes = sorted({*reason_codes, "DRAFT_CREATION_FAILED"})
                 recommended_action = (
                     recommended_action or "恢复起草通道后重新创建任务。"
                 )
+                product_stop_code = (
+                    product_stop_code or "STOP_HARNESS_OR_EXTERNAL"
+                )
             else:
                 (
+                    public_reason_code,
                     failure_owner,
                     failure_class,
                     retry_policy,
+                    requires_new_task_version,
                     recommended_action_code,
+                    typed_stop_code,
                     typed_action,
                 ) = failure
                 failure_stage = "DRAFTING"
-                requires_new_task_version = False
-                reason_codes = sorted({*reason_codes, str(draft_error)})
+                reason_codes = sorted({*reason_codes, public_reason_code})
                 recommended_action = recommended_action or typed_action
-            product_stop_code = product_stop_code or "STOP_HARNESS_OR_EXTERNAL"
+                product_stop_code = product_stop_code or typed_stop_code
         elif action == "tool-mcp":
             failure_owner = "USER_INPUT"
             reason_codes = sorted({*reason_codes, "MCP_EXPOSURE_DENIED"})

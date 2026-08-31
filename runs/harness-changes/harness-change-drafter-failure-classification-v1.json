@@ -1,0 +1,23 @@
+{
+  "affected_component": "execution.product_action typed drafter failure projection",
+  "after_control_sha256": "0e174200acdc6ab2846c7b48b482ae11cecfdc84ffbf52d82f9fa5f0d758de4a",
+  "anonymous_fixture_id": "anonymous-invalid-drafter-output-projection-v1",
+  "before_control_sha256": "ca874ad89918321502088a8fc7944cd7906adc2dd73ff5bbf5fb6d984be2f361",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-08-31T12:25:54.612341Z",
+  "evidence_id": "harness-change-drafter-failure-classification-v1",
+  "incident_ids": [
+    "incident-draft-classification-collapsed-d475b43-v1",
+    "incident-draft-classification-collapsed-78d89fa-v1"
+  ],
+  "invariant": "A semantic model-output contract failure must retain a typed DRAFTING stage, stable public reason, review stop and accurate next action; it must never be collapsed into a provider outage or invite blind infrastructure retries.",
+  "normalized_fingerprint": "0a5f0888952299fc",
+  "regression_tests": [
+    "tests/test_product_action_and_journey.py",
+    "tests/test_product_incidents.py",
+    "tests/ui/test_ui_product_mode.py",
+    "tests/ui/test_ui_page_render_smoke.py"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}
