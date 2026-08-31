@@ -35,8 +35,19 @@ def _workspace_contract() -> dict:
     }
 
 
-def test_workspace_release_executes_new_directory_and_records_active(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("reference_semantic_pass", "expected_status", "expected_reason"),
+    [
+        (True, "ACTIVE", "FRESH_INPUT_SEMANTIC_PASS"),
+        (False, "REVIEW_REQUIRED", "REFERENCE_SEMANTIC_MISMATCH"),
+    ],
+)
+def test_workspace_release_requires_reference_and_delivery_semantics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reference_semantic_pass: bool,
+    expected_status: str,
+    expected_reason: str,
 ) -> None:
     dest_root = tmp_path / "tools"
     tool_dir = dest_root / "workspace-tool"
@@ -56,7 +67,9 @@ def test_workspace_release_executes_new_directory_and_records_active(
     input_path.write_text("alpha", encoding="utf-8")
     expected = tmp_path / "expected"
     expected.mkdir()
-    (expected / "README.md").write_text("# alpha\n", encoding="utf-8")
+    # The reference may choose different presentation bytes while satisfying
+    # the same public semantic commitment.
+    (expected / "README.md").write_text("# Reference wording: alpha\n", encoding="utf-8")
     semantic_identity = {"verifier": "frozen"}
     monkeypatch.setattr(
         tool_release,
@@ -75,20 +88,28 @@ def test_workspace_release_executes_new_directory_and_records_active(
         "_managed_release_identity",
         lambda **_kwargs: (4, semantic_identity, None),
     )
-    monkeypatch.setattr(
-        tool_release,
-        "_run_required_semantic_audit",
-        lambda **_kwargs: {
+    semantic_artifacts: list[Path] = []
+
+    def semantic_pass(**kwargs):
+        artifact = Path(kwargs["artifact"])
+        semantic_artifacts.append(artifact)
+        passed = reference_semantic_pass if artifact == expected else True
+        return {
             "verifier_id": "generic-workspace-v1",
-            "artifact_tree_sha256": build_artifact_manifest(expected).tree_sha256,
+            "artifact_tree_sha256": build_artifact_manifest(artifact).tree_sha256,
             "artifact_manifest_sha256": "a" * 64,
             "evidence_sha256": "b" * 64,
             "evidence_path": "unused",
-            "passed": True,
-            "reason_codes": [],
+            "passed": passed,
+            "reason_codes": [] if passed else ["REFERENCE_RULE_MISMATCH"],
             "required_commitment_ids": ["workspace-result"],
             "checked_commitment_ids": ["workspace-result"],
-        },
+        }
+
+    monkeypatch.setattr(
+        tool_release,
+        "_run_required_semantic_audit",
+        semantic_pass,
     )
     evidence = {
         "schema_version": 2,
@@ -121,8 +142,17 @@ def test_workspace_release_executes_new_directory_and_records_active(
         required_release_identity=None,
     )
 
-    assert result["operational_status"] == "ACTIVE"
-    assert result["semantic_verifier_artifact_tree_sha256"] == evidence["execution"]["artifact_tree_sha256"]
+    assert result["operational_status"] == expected_status
+    assert result["reason_code"] == expected_reason
+    assert evidence["reference_tree_match"] is False
+    assert semantic_artifacts[0] == expected
+    if reference_semantic_pass:
+        assert len(semantic_artifacts) == 2
+        assert semantic_artifacts[1].name == "artifact"
+        assert result["semantic_verifier_artifact_tree_sha256"] == evidence["execution"]["artifact_tree_sha256"]
+    else:
+        assert len(semantic_artifacts) == 1
+        assert "semantic_verifier_artifact_tree_sha256" not in result
 
 
 def test_v2_workspace_semantic_record_is_revalidated_from_ledger_evidence(

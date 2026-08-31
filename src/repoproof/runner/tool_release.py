@@ -1618,18 +1618,11 @@ def _audit_workspace_execution(
             }
         )
         evidence["workspace_structure"] = {"ok": True}
-        if actual_manifest.tree_sha256 != expected_manifest.tree_sha256:
-            return _record_audit_decision(
-                dest_root,
-                name=name,
-                task_id=task_id,
-                run_id=run_id,
-                decision=REVOKED,
-                reason_code="FRESH_INPUT_MISMATCH",
-                reason="The fresh workspace tree did not match the confirmed reference tree.",
-                evidence=evidence,
-                failure=_REFERENCE_MISMATCH_FAILURE,
-            )
+        reference_tree_match = (
+            actual_manifest.tree_sha256 == expected_manifest.tree_sha256
+        )
+        evidence["reference_tree_match"] = reference_tree_match
+        evidence["expected_tree_sha256"] = expected_manifest.tree_sha256
 
         if workspace_contract.runnable:
             runtime = run_workspace_smoke(artifact_dir, workspace_contract)
@@ -1662,6 +1655,72 @@ def _audit_workspace_execution(
                         else _ADAPTER_EXECUTION_FAILURE
                     ),
                 )
+
+        # A workspace reference is an independent implementation, not a hidden
+        # byte-format contract.  Both the confirmed reference artifact and the
+        # delivered artifact must satisfy the same frozen semantic verifier.
+        # Only then may incidental wording/formatting bytes differ.  This keeps
+        # the reference meaningful without introducing undeclared presentation
+        # rules ahead of the semantic gate.
+        try:
+            reference_semantic = _run_required_semantic_audit(
+                project_root=project_root,
+                tool_dir=tool_dir,
+                manifest=manifest,
+                task_id=task_id,
+                input_path=input_path,
+                artifact=expected_dir,
+                required_schema_version=required_schema_version,
+                required_semantic_identity=required_semantic_identity,
+                required_release_identity=required_release_identity,
+            )
+        except ToolAuditError as exc:
+            mechanism_code = exc.reason_code or "SEMANTIC_VERIFIER_UNAVAILABLE"
+            evidence["reference_semantic_verifier"] = {
+                "passed": False,
+                "reason_codes": [mechanism_code],
+            }
+            return _record_audit_decision(
+                dest_root,
+                name=name,
+                task_id=task_id,
+                run_id=run_id,
+                decision=REVIEW_REQUIRED,
+                reason_code=mechanism_code,
+                reason="The frozen verifier could not validate the reference workspace.",
+                evidence=evidence,
+                failure=exc.failure,
+            )
+        if reference_semantic is None:
+            raise ToolAuditError(
+                "ToolSpec v4 reference semantic audit returned no evidence",
+                failure=_SEMANTIC_MECHANISM_FAILURE,
+            )
+        evidence["reference_semantic_verifier"] = reference_semantic
+        if semantic_mechanism_failure(reference_semantic["reason_codes"]):
+            return _record_audit_decision(
+                dest_root,
+                name=name,
+                task_id=task_id,
+                run_id=run_id,
+                decision=REVIEW_REQUIRED,
+                reason_code="SEMANTIC_VERIFIER_UNAVAILABLE",
+                reason="Reference semantic controls did not produce trustworthy evidence.",
+                evidence=evidence,
+                failure=_SEMANTIC_MECHANISM_FAILURE,
+            )
+        if reference_semantic["passed"] is not True:
+            return _record_audit_decision(
+                dest_root,
+                name=name,
+                task_id=task_id,
+                run_id=run_id,
+                decision=REVIEW_REQUIRED,
+                reason_code="REFERENCE_SEMANTIC_MISMATCH",
+                reason="The confirmed reference workspace failed frozen semantics.",
+                evidence=evidence,
+                failure=_SEMANTIC_ORACLE_CONFLICT_FAILURE,
+            )
 
         try:
             semantic = _run_required_semantic_audit(
@@ -1718,19 +1777,29 @@ def _audit_workspace_execution(
                 run_id=run_id,
                 decision=REVOKED,
                 reason_code="SEMANTIC_VERIFIER_MISMATCH",
-                reason="The workspace matched reference bytes but failed semantic verification.",
+                reason="The fresh workspace failed frozen semantic verification.",
                 evidence=evidence,
                 failure=_SEMANTIC_ORACLE_CONFLICT_FAILURE,
             )
+        pass_reason = (
+            "FRESH_INPUT_PASS"
+            if reference_tree_match
+            else "FRESH_INPUT_SEMANTIC_PASS"
+        )
         return _record_audit_decision(
             dest_root,
             name=name,
             task_id=task_id,
             run_id=run_id,
             decision=ACTIVE,
-            reason_code="FRESH_INPUT_PASS",
+            reason_code=pass_reason,
             reason=(
-                "Fresh workspace structure, reference tree, runtime and semantics all passed."
+                "Fresh workspace structure, runtime and frozen semantics passed; "
+                + (
+                    "the reference tree also matched exactly."
+                    if reference_tree_match
+                    else "reference and delivered presentation bytes differed without a semantic mismatch."
+                )
             ),
             evidence=evidence,
             failure=None,

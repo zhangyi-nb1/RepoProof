@@ -1,0 +1,20 @@
+{
+  "affected_component": "workspace_bundle_v1 fresh audit semantic gate ordering",
+  "after_control_sha256": "6525243ec0ea2d6bf2f2a4592f11d514fc708b38813fe06eb762bf30a4a10654",
+  "anonymous_fixture_id": "anonymous-reference-and-delivery-semantic-equivalence-v1",
+  "before_control_sha256": "da7e1c1d78ce2b7d6b1ca4f28e046d5d1647b03c544b6e42f2cc85d2f7e8d2d3",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T02:06:30+08:00",
+  "evidence_id": "harness-change-fresh-workspace-semantic-gate-v1",
+  "incident_ids": [
+    "incident-semantic-gate-preempted-v3",
+    "incident-semantic-gate-preempted-v4"
+  ],
+  "invariant": "A workspace tree hash proves deterministic identity but cannot introduce undeclared presentation semantics. Fresh audit must validate both the confirmed reference workspace and the delivered workspace with the same frozen semantic verifier; structural or semantic failure still blocks release, while a recorded presentation-only tree difference cannot preempt that verifier.",
+  "normalized_fingerprint": "647d1664a978afd5",
+  "regression_tests": [
+    "tests/test_workspace_release.py::test_workspace_release_requires_reference_and_delivery_semantics"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}
