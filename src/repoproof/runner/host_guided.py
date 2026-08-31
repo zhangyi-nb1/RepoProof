@@ -1228,6 +1228,11 @@ def reachable_answer_keys(
         for p in d.rglob("*"):
             if p.is_file():
                 raw = p.read_bytes()
+                # Empty content has no identifying information.  Treating its
+                # universal digest as provenance evidence makes every unrelated
+                # zero-byte host marker look like a copied answer key.
+                if not raw:
+                    continue
                 by_size.setdefault(len(raw), set()).add(hashlib.sha256(raw).hexdigest())
     found: list[str] = []
     for root in roots:

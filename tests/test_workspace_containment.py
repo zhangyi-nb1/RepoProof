@@ -349,3 +349,21 @@ def test_answer_key_scan_does_not_open_fifo_as_regular_content(tmp_path) -> None
         check=False,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_answer_key_scan_does_not_treat_empty_file_as_content_evidence(
+    tmp_path: Path,
+) -> None:
+    """Zero bytes contain no answer identity and match unrelated host markers."""
+    from repoproof.runner.host_guided import reachable_answer_keys
+
+    task = tmp_path / "task"
+    protected = task / "oracle"
+    protected.mkdir(parents=True)
+    (protected / "empty.bin").write_bytes(b"")
+    scan_root = tmp_path / "scan-root"
+    scan_root.mkdir()
+    unrelated = scan_root / "unrelated.empty"
+    unrelated.write_bytes(b"")
+
+    assert reachable_answer_keys(task, roots=(str(scan_root),)) == []

@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_model_call_count": 0,
+    "candidate_kind": "REGULAR_FILE",
+    "candidate_size": 0,
+    "matched_content_bytes": 0,
+    "repair_consumed": 0
+  },
+  "created_at": "2026-09-01T01:09:40+08:00",
+  "disposition": "GENERIC_EMPTY_CONTENT_CANNOT_PROVE_ANSWER_PROVENANCE",
+  "framework_git_commit": "356114b",
+  "incident_id": "incident-answer-key-empty-content-false-positive-356114b",
+  "normalized_fingerprint": "answer-key-content-scan-treats-empty-digest-as-provenance-v1",
+  "owner": "HARNESS",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "preflight::answer-key-residue-scan"
+  ],
+  "reason_codes": [
+    "ANSWER_KEY_EMPTY_CONTENT_FALSE_POSITIVE",
+    "SECURITY_GATE_PROVENANCE_UNDERDETERMINED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-networkx-tool-v3"
+}
