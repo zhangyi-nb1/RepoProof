@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.817" timestamp="2026-08-31T22:54:41.687210+08:00" hostname="ZhangrongleideMacBook-Air-3.local"><testcase classname="tests.ui.test_ui_page_render_smoke" name="test_primary_journey_rejects_stale_or_technical_brief_adoption" time="0.741"><failure message="AssertionError: assert ['采用这个描述'] == ['采用交付形状，保留我的描述', '采用这个描述']&#10;  &#10;  At index 0 diff: '采用这个描述' != '采用交付形状，保留我的描述'&#10;  Right contains one more item: '采用这个描述'&#10;  Use -v to get more diff">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-172/test_primary_journey_rejects_s0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x108e1b260&gt;
+
+    def test_primary_journey_rejects_stale_or_technical_brief_adoption(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -&gt; None:
+        """A changed repository and implementation-heavy model prose both fail closed."""
+        from streamlit.testing.v1 import AppTest
+    
+        from repoproof.ui.services import product_jobs, product_journeys
+    
+        state = tmp_path / "state"
+        monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+        monkeypatch.setattr(product_jobs, "ui_state_root", lambda: state)
+        monkeypatch.setattr(product_journeys, "ui_state_root", lambda: state)
+        monkeypatch.setattr(product_jobs, "product_job_state", lambda *a, **k: {})
+        monkeypatch.setattr(product_journeys, "list_journeys", lambda: [])
+        monkeypatch.setattr(product_journeys, "synthesized_read_only_cards", lambda: [])
+        monkeypatch.setattr(
+            product_jobs,
+            "online_drafter_status",
+            lambda: {"ready": True, "backend": "litellm", "label": "API provider 已配置"},
+        )
+        monkeypatch.setattr(
+            product_jobs,
+            "read_repo_overview",
+            lambda *_a, **_k: {
+                "ok": True,
+                "overview": {
+                    "repository": "https://github.com/example/new",
+                    "headline": "demo repository",
+                    "surfaces": [],
+                    "risks": [],
+                },
+            },
+        )
+    
+        def _summarize(_overview, *, offline: bool, capability_goal: str = "") -&gt; dict:
+            return {
+                "ok": True,
+                "summary": "仓库摘要仍然可以阅读。",
+                "drafter": "gateway",
+                "recommended_brief_id": "bad",
+                "requirement_briefs": [
+                    {
+                        "brief_id": "bad",
+                        "title": "直接调用实现",
+                        "scenario": "整理一份资料",
+                            "delivery_requirements": {
+                                "inputs": [{
+                                    "kind": "file", "location": "local",
+                                    "representation": "utf8_text",
+                                    "format_label": "文本", "role": "待整理资料",
+                                }],
+                            "outputs": [{
+                                "kind": "text_artifact", "format_id": "markdown",
+                                "format_label": "Markdown", "role": "整理结果",
+                            }],
+                            "network": "offline", "credentials": "none",
+                            "lifecycle": "per_invocation", "runtime": "local_cpu",
+                            "browser": "none", "external_side_effects": "none",
+                        },
+                        "boundary": "请 import demo 并调用 src/demo.py 里的函数",
+                        "reason": "模型给出了过多实现细节。",
+                    },
+                    {
+                        "brief_id": "other",
+                        "title": "另一种做法",
+                        "scenario": "把输入整理成方便阅读的内容",
+                            "delivery_requirements": {
+                                "inputs": [{
+                                    "kind": "file", "location": "local",
+                                    "representation": "utf8_text",
+                                    "format_label": "文本", "role": "待整理资料",
+                                }],
+                            "outputs": [{
+                                "kind": "text_artifact", "format_id": "markdown",
+                                "format_label": "Markdown", "role": "整理结果",
+                            }],
+                            "network": "offline", "credentials": "none",
+                            "lifecycle": "per_invocation", "runtime": "local_cpu",
+                            "browser": "none", "external_side_effects": "none",
+                        },
+                        "boundary": "无法处理的内容要明确保留",
+                        "reason": "便于普通用户阅读。",
+                    },
+                ],
+            }
+    
+        monkeypatch.setattr(product_jobs, "summarize_repo_overview", _summarize)
+    
+        at = AppTest.from_file(str(PAGES / "tool_onboarding.py"), default_timeout=60)
+        at.session_state["rp_journey_repo"] = "https://github.com/example/new"
+        at.session_state["rp_journey_revision"] = "v2"
+        at.session_state["rp_journey_capability"] = "我想先看看这个仓库能不能帮我整理资料。"
+        at.session_state["rp_pending_capability_adoption"] = {
+            "signature": "stale-signature",
+            "text": "这条旧仓库建议绝不能被采用。",
+        }
+        at.run()
+        capability = next(field for field in at.text_area if field.label == "希望落地的单一能力")
+        assert capability.value == "我想先看看这个仓库能不能帮我整理资料。"
+        rendered = " ".join(str(item.value) for item in at.warning)
+        assert "仓库或版本已经变化" in rendered
+    
+        next(button for button in at.button if button.label == "让 LLM 分析仓库和这项能力").click().run()
+        adoption_buttons = [
+            button for button in at.button if button.label.startswith("采用")
+        ]
+        # The technical recommendation remains visible and its delivery shape is
+        # still SUPPORTED, but it cannot enter the user's wording in one click.  A
+        # separate plain-language suggestion stays usable instead of making the
+        # whole model response disappear.
+&gt;       assert [button.label for button in adoption_buttons] == [
+            "采用交付形状，保留我的描述",
+            "采用这个描述",
+        ]
+E       AssertionError: assert ['采用这个描述'] == ['采用交付形状，保留我的描述', '采用这个描述']
+E         
+E         At index 0 diff: '采用这个描述' != '采用交付形状，保留我的描述'
+E         Right contains one more item: '采用这个描述'
+E         Use -v to get more diff
+
+tests/ui/test_ui_page_render_smoke.py:797: AssertionError</failure></testcase></testsuite></testsuites>

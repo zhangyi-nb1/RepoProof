@@ -794,7 +794,10 @@ def test_primary_journey_rejects_stale_or_technical_brief_adoption(
     # still SUPPORTED, but it cannot enter the user's wording in one click.  A
     # separate plain-language suggestion stays usable instead of making the
     # whole model response disappear.
-    assert [button.label for button in adoption_buttons] == ["采用这个描述"]
+    assert [button.label for button in adoption_buttons] == [
+        "采用交付形状，保留我的描述",
+        "采用这个描述",
+    ]
     rendered_info = " ".join(str(item.value) for item in at.info)
     rendered_warning = " ".join(str(item.value) for item in at.warning)
     assert "仓库摘要仍然可以阅读" in rendered_info

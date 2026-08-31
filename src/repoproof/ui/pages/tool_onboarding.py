@@ -250,7 +250,12 @@ def _start_new_journey() -> None:
             }
             st.session_state["rp_capability_adoption_flash"] = {
                 "ok": True,
-                "message": "已把模型建议放入需求框；你仍可继续用自己的话修改，再决定是否创建任务。",
+                "message": (
+                    "已采用 Core 判定可交付的输入、输出与运行边界，并保留你的需求描述；"
+                    "你仍可继续修改文字，再显式确认。"
+                    if pending_adoption.get("preserve_text")
+                    else "已把模型建议放入需求框；你仍可继续用自己的话修改，再决定是否创建任务。"
+                ),
             }
         else:
             st.session_state.pop("rp_adopted_delivery_requirements", None)
@@ -380,6 +385,24 @@ def _start_new_journey() -> None:
                                     f"{brief['brief_id']}:{index}".encode()
                                 ).hexdigest()[:12]
                                 label = "采用推荐描述" if is_recommended else "采用这个描述"
+                                if supported and not adoptable and st.button(
+                                    "采用交付形状，保留我的描述",
+                                    key=f"rp_adopt_shape_{brief_key}",
+                                    help=(
+                                        "只采用 Core 已判定支持的输入、输出、生命周期和安全边界；"
+                                        "不会把模型的技术措辞写进你的需求。"
+                                    ),
+                                ):
+                                    st.session_state["rp_pending_capability_adoption"] = {
+                                        "signature": analysis_signature,
+                                        "brief_id": brief["brief_id"],
+                                        "text": capability.strip(),
+                                        "delivery_requirements": brief[
+                                            "delivery_requirements"
+                                        ],
+                                        "preserve_text": True,
+                                    }
+                                    st.rerun()
                                 if adoptable and st.button(label, key=f"rp_adopt_brief_{brief_key}"):
                                     st.session_state["rp_pending_capability_adoption"] = {
                                         "signature": analysis_signature,
@@ -391,6 +414,11 @@ def _start_new_journey() -> None:
                                     }
                                     st.rerun()
                         if st.button("保留原想法", key="rp_keep_original_capability"):
+                            st.session_state.pop(
+                                "rp_adopted_delivery_requirements",
+                                None,
+                            )
+                            st.session_state.pop("rp_confirmed_capability", None)
                             st.info("已保留你原来的需求描述；你仍可参考模型建议自行修改。")
                     elif summary_result.get("requirement_briefs"):
                         st.caption("模型建议包含不完整或过于技术化的内容，因此只展示摘要，不提供一键采用。")

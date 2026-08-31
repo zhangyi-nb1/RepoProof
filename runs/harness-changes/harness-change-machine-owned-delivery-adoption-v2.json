@@ -1,0 +1,22 @@
+{
+  "affected_component": "Studio adoption of Core-supported delivery topology when model prose requires human editing",
+  "after_control_sha256": "dfc4d0782d1d4d92c0082e5a01dabeb9b037925e456b9d824d902ebe7b7a7cc1",
+  "anonymous_fixture_id": "anonymous-supported-topology-adoption-v2",
+  "before_control_sha256": "1b452e4d7705b664e3371a45b1e9f32e5d8421e25bb9d7d5d382847da5ea2fd2",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-08-31T15:02:00.000000Z",
+  "evidence_id": "harness-change-machine-owned-delivery-adoption-v2",
+  "incident_ids": [
+    "incident-machine-owned-delivery-projection-c4-1ec428a",
+    "incident-machine-owned-delivery-projection-c5-a3d61c3"
+  ],
+  "invariant": "A Core-supported delivery topology must remain explicitly adoptable even when the model's prose is too technical for one-click wording adoption. Studio must offer a separate human action that preserves the user's own description while binding only the admitted input, output, lifecycle and safety topology; it must never make unsupported topology adoptable.",
+  "normalized_fingerprint": "d6f973bd2beb43a1",
+  "regression_tests": [
+    "tests/ui/test_ui_page_render_smoke.py",
+    "tests/ui/test_ui_product_mode.py",
+    "tests/test_tool_drafter.py"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}
