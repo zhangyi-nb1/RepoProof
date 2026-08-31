@@ -1,0 +1,23 @@
+{
+  "affected_component": "workspace delivery advice and draft topology scope",
+  "after_control_sha256": "2ad0a7f4b16ed179a118737a251d1a6379ac921133d2c03229ef76a07958648d",
+  "anonymous_fixture_id": "anonymous-workspace-delivery-scope-v1",
+  "before_control_sha256": "27989cb3fd8fe5e105b90a82b14e38001171543c1accd99f0ee22d0c8acd84d4",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-08-31T18:22:00.000000Z",
+  "evidence_id": "harness-change-workspace-delivery-scope-v1",
+  "incident_ids": [
+    "incident-machine-owned-delivery-projection-c4-1ec428a",
+    "incident-machine-owned-delivery-projection-c5-a3d61c3"
+  ],
+  "invariant": "Delivery requirements describe one RepoProof generator invocation. A collection supplied as one local directory is one input path, and an application, site, UI or start script inside the generated workspace does not make that generator long-running, browser-driven or externally side-effecting unless the invocation itself performs those actions.",
+  "normalized_fingerprint": "d6f973bd2beb43a1",
+  "regression_tests": [
+    "tests/test_product_delivery_profile.py",
+    "tests/test_tool_drafter.py::test_workspace_drafter_scopes_delivery_to_generator_invocation",
+    "tests/ui/test_ui_product_mode.py",
+    "tests/ui/test_ui_page_render_smoke.py"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

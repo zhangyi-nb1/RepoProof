@@ -212,6 +212,15 @@ class ProductDeliveryProfile(BaseModel):
             return {
                 "schema_version": self.schema_version,
                 "profile_id": self.profile_id,
+                "delivery_scope": {
+                    "requirements_describe": "repoproof_tool_invocation",
+                    "local_collection_rule": (
+                        "one local directory path may contain many input files"
+                    ),
+                    "workspace_contents_rule": (
+                        "user-started workspace contents do not change generator topology"
+                    ),
+                },
                 "input": {
                     "kind": "file_or_directory",
                     "cardinality": self.input_cardinality,

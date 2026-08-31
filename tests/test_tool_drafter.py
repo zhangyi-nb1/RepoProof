@@ -1192,6 +1192,30 @@ def test_drafter_defines_text_representation_by_bytes_not_file_topology() -> Non
         assert "meaningful Unicode text serialization" in prompt
 
 
+def test_workspace_drafter_scopes_delivery_to_generator_invocation() -> None:
+    from repoproof.adoption.delivery.product_profile import (
+        WORKSPACE_BUNDLE_PROFILE_ID,
+        product_delivery_profile,
+    )
+    from repoproof.adoption.intake.tool_drafter import _SUMMARY_SYSTEM, _SYSTEM
+
+    scope = product_delivery_profile(
+        WORKSPACE_BUNDLE_PROFILE_ID
+    ).prompt_context()["delivery_scope"]
+
+    assert scope["requirements_describe"] == "repoproof_tool_invocation"
+    assert scope["local_collection_rule"] == (
+        "one local directory path may contain many input files"
+    )
+    assert scope["workspace_contents_rule"] == (
+        "user-started workspace contents do not change generator topology"
+    )
+    for prompt in (_SUMMARY_SYSTEM, _SYSTEM):
+        assert "requirements describe the RepoProof tool invocation" in prompt
+        assert "one local directory input" in prompt
+        assert "user later starts from the delivered workspace" in prompt
+
+
 def test_repo_advice_preserves_but_does_not_adopt_output_outside_profile() -> None:
     advice = json.loads(json.dumps(_GOOD_REPO_ADVICE))
     advice["requirement_briefs"][0]["delivery_requirements"]["outputs"][0][

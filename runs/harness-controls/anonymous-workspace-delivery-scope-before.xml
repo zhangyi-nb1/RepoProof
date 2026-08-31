@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.197" timestamp="2026-09-01T02:24:25.370400+08:00" hostname="ZhangrongleideMacBook-Air-3.local"><testcase classname="tests.test_tool_drafter" name="test_workspace_drafter_scopes_delivery_to_generator_invocation" time="0.000"><failure message="KeyError: 'delivery_scope'">def test_workspace_drafter_scopes_delivery_to_generator_invocation() -&gt; None:
+        from repoproof.adoption.delivery.product_profile import (
+            WORKSPACE_BUNDLE_PROFILE_ID,
+            product_delivery_profile,
+        )
+        from repoproof.adoption.intake.tool_drafter import _SUMMARY_SYSTEM, _SYSTEM
+    
+&gt;       scope = product_delivery_profile(
+            WORKSPACE_BUNDLE_PROFILE_ID
+        ).prompt_context()["delivery_scope"]
+E       KeyError: 'delivery_scope'
+
+tests/test_tool_drafter.py:1202: KeyError</failure></testcase></testsuite></testsuites>
