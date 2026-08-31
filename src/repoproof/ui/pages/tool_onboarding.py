@@ -77,6 +77,10 @@ _SERVICE_EXPECTATIONS = (
     ("summarize_repo_overview", ("capability_goal",)),
     ("propose_example_candidates", ()),
     ("propose_workspace_fixture_candidates", ("n", "offline")),
+    (
+        "repair_workspace_reference_control",
+        ("failure_code", "exception_type"),
+    ),
     ("workspace_candidate_preview", ("candidate_token",)),
     ("workspace_candidate_zip", ("candidate_token",)),
     ("confirm_workspace_fixture_candidate", ("candidate_token",)),
@@ -732,6 +736,33 @@ def _render_workspace_examples(
             )
         if result.get("recommended_action"):
             st.info(str(result["recommended_action"]))
+        if (
+            owner == "CONTRACT"
+            and reasons == ["WORKSPACE_REFERENCE_EXECUTION_FAILED"]
+        ):
+            st.caption(
+                "这是冻结前 reference 的实现故障，不会交给构建 Agent。"
+                "下面的动作会追加一次起草模型调用，只允许改 reference 生产者源码。"
+            )
+            if st.button(
+                "让模型修复 reference（不改合同）",
+                key=f"{prefix}_workspace_reference_repair",
+            ):
+                diagnostics = [
+                    str(item) for item in result.get("diagnostics") or []
+                ]
+                repaired = product_jobs.repair_workspace_reference_control(
+                    draft_dir,
+                    failure_code="WORKSPACE_REFERENCE_EXECUTION_FAILED",
+                    exception_type=(diagnostics[0] if diagnostics else "RuntimeError"),
+                )
+                st.session_state[f"{prefix}_flash"] = {
+                    "ok": bool(repaired.get("ok")),
+                    "message": repaired.get("note") or repaired.get("error"),
+                }
+                if repaired.get("ok"):
+                    st.session_state.pop(state_key, None)
+                st.rerun()
     elif result.get("ok"):
         st.success(
             f"已得到 {result.get('usable_count')} / {result.get('requested')} 组可审阅目录样例。"

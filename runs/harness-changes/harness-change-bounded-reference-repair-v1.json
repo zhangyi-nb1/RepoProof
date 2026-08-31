@@ -1,0 +1,21 @@
+{
+  "affected_component": "Workspace reference failure recovery before contract freeze",
+  "after_control_sha256": "69da391aba860661add0c577f844c07f1bca3640c657c6cd07cfacc635d7a586",
+  "anonymous_fixture_id": "anonymous-workspace-reference-repair-v1",
+  "before_control_sha256": "d500264c6b2f829229c274811f2cd463ba8ac8e91f8cf990922bd0319694d285",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T03:28:34+08:00",
+  "evidence_id": "harness-change-bounded-reference-repair-v1",
+  "incident_ids": [
+    "incident-reference-execution-networkx-v1-generalized",
+    "incident-reference-execution-datasette-v1-generalized"
+  ],
+  "invariant": "A deterministic failure in an unfrozen workspace reference must stop before Agent execution. After two independent repositories exhibit the same public failure class, the operator may explicitly request a bounded model repair that can change only build_workspace source, preserves the typed delivery contract, fixture builder, semantic verifier, upstream identity and examples, and must pass the same static policy before new truth candidates are generated.",
+  "normalized_fingerprint": "fd091eb658527855",
+  "regression_tests": [
+    "tests/test_tool_drafter.py::test_workspace_reference_repair_requires_two_argument_builder",
+    "tests/ui/test_workspace_ui_services.py::test_workspace_reference_repair_changes_only_reference_control"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

@@ -7,6 +7,7 @@ source verbatim so clean replay never depends on an external RepoProof checkout.
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 import shutil
@@ -24,6 +25,23 @@ class WorkspaceRuntimeError(RuntimeError):
     def __init__(self, code: str, detail: str = "") -> None:
         super().__init__(f"{code}: {detail}" if detail else code)
         self.code = code
+
+
+_OFFLINE_PYTHON_LAUNCHER = '''#!/bin/sh
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+RUNTIME=$(mktemp -d "${TMPDIR:-/tmp}/repoproof-python-runtime.XXXXXX")
+cleanup() {
+  rm -rf -- "$RUNTIME"
+}
+trap cleanup EXIT HUP INT TERM
+python3 -m venv "$RUNTIME/venv"
+"$RUNTIME/venv/bin/python" -m pip install \
+  --disable-pip-version-check --no-input --no-compile --no-index \
+  --find-links "$ROOT/vendor/wheels" \
+  -r "$ROOT/requirements.lock.txt" >/dev/null
+"$RUNTIME/venv/bin/python" "$ROOT/__REPOPROOF_APPLICATION__" "$@"
+'''
 
 
 class _HTML(HTMLParser):
@@ -205,6 +223,102 @@ def validate_workspace(root: Path, contract: dict) -> None:
             raise WorkspaceRuntimeError("WORKSPACE_ENTRYPOINT_INVALID", entrypoint)
 
 
+def seal_offline_python_runtime(
+    root: Path,
+    contract: dict,
+    *,
+    wheelhouse: Path,
+    requirements_lock: Path,
+) -> None:
+    """Add the Core-owned runtime closure to a generated Python workspace.
+
+    Builders own product files; they never own dependency bytes or the launcher.
+    This function accepts only regular wheels from a previously admitted
+    wheelhouse and fails on every path collision.  Both expected and actual
+    workspaces therefore contain the same independently supplied runtime.
+    """
+
+    if not contract.get("require_offline_wheelhouse"):
+        return
+    output = Path(root)
+    source = Path(wheelhouse)
+    lock = Path(requirements_lock)
+    application = str(contract.get("runtime_python_entrypoint") or "")
+    if not application:
+        raise WorkspaceRuntimeError("WORKSPACE_RUNTIME_ENTRYPOINT_MISSING")
+    application_path = output / application
+    if application_path.is_symlink() or not application_path.is_file():
+        raise WorkspaceRuntimeError("WORKSPACE_RUNTIME_APPLICATION_MISSING")
+    for relative in (
+        "run.sh",
+        "requirements.lock.txt",
+        "THIRD_PARTY_NOTICES.md",
+        "vendor",
+    ):
+        candidate = output / relative
+        if candidate.exists() or candidate.is_symlink():
+            raise WorkspaceRuntimeError(
+                "WORKSPACE_RUNTIME_OWNED_PATH_COLLISION", relative
+            )
+    if source.is_symlink() or not source.is_dir():
+        raise WorkspaceRuntimeError("WORKSPACE_RUNTIME_WHEELHOUSE_UNSAFE")
+    if lock.is_symlink() or not lock.is_file() or lock.stat().st_size > 1024 * 1024:
+        raise WorkspaceRuntimeError("WORKSPACE_RUNTIME_LOCK_UNSAFE")
+    lock_payload = lock.read_bytes()
+    try:
+        lock_payload.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise WorkspaceRuntimeError("WORKSPACE_RUNTIME_LOCK_INVALID") from exc
+
+    wheels = sorted(source.glob("*.whl"), key=lambda item: item.name)
+    if not wheels or len(wheels) > 256:
+        raise WorkspaceRuntimeError("WORKSPACE_RUNTIME_WHEEL_SET_INVALID")
+    wheel_destination = output / "vendor" / "wheels"
+    wheel_destination.mkdir(parents=True, mode=0o755)
+    inventory: list[tuple[str, str]] = []
+    for wheel in wheels:
+        if (
+            wheel.is_symlink()
+            or not wheel.is_file()
+            or wheel.name != Path(wheel.name).name
+            or wheel.stat().st_nlink != 1
+        ):
+            raise WorkspaceRuntimeError("WORKSPACE_RUNTIME_WHEEL_UNSAFE", wheel.name)
+        payload = wheel.read_bytes()
+        if not payload:
+            raise WorkspaceRuntimeError("WORKSPACE_RUNTIME_WHEEL_EMPTY", wheel.name)
+        target = wheel_destination / wheel.name
+        target.write_bytes(payload)
+        target.chmod(0o644)
+        inventory.append((wheel.name, hashlib.sha256(payload).hexdigest()))
+
+    (output / "requirements.lock.txt").write_bytes(lock_payload)
+    (output / "requirements.lock.txt").chmod(0o644)
+    notices = [
+        "# Third-party runtime inventory",
+        "",
+        "This offline runtime is sealed by RepoProof from the frozen wheel closure.",
+        "Consult each wheel's bundled metadata for its authoritative license terms.",
+        "",
+        "| Wheel | SHA-256 |",
+        "|---|---|",
+        *(f"| `{name}` | `{digest}` |" for name, digest in inventory),
+        "",
+    ]
+    (output / "THIRD_PARTY_NOTICES.md").write_text(
+        "\n".join(notices), encoding="utf-8"
+    )
+    application_path.chmod(application_path.stat().st_mode & 0o666)
+    launcher = output / "run.sh"
+    launcher.write_text(
+        _OFFLINE_PYTHON_LAUNCHER.replace(
+            "__REPOPROOF_APPLICATION__", application
+        ),
+        encoding="utf-8",
+    )
+    launcher.chmod(0o755)
+
+
 def _validate_input(path: Path) -> None:
     if path.is_symlink() or not (path.is_file() or path.is_dir()):
         raise WorkspaceRuntimeError("WORKSPACE_INPUT_UNSAFE")
@@ -226,7 +340,14 @@ def _validate_input(path: Path) -> None:
             raise WorkspaceRuntimeError("WORKSPACE_INPUT_TOO_LARGE")
 
 
-def materialize_workspace(builder, input_path: Path, output_dir: Path, contract: dict) -> None:
+def materialize_workspace(
+    builder,
+    input_path: Path,
+    output_dir: Path,
+    contract: dict,
+    *,
+    runtime_source_root: Path | None = None,
+) -> None:
     """Atomically build and validate a new directory, cleaning every failure."""
 
     input_path = Path(input_path)
@@ -242,6 +363,16 @@ def materialize_workspace(builder, input_path: Path, output_dir: Path, contract:
     )
     try:
         builder(input_path, temporary)
+        if contract.get("require_offline_wheelhouse"):
+            if runtime_source_root is None:
+                raise WorkspaceRuntimeError("WORKSPACE_RUNTIME_SOURCE_MISSING")
+            runtime_root = Path(runtime_source_root)
+            seal_offline_python_runtime(
+                temporary,
+                contract,
+                wheelhouse=runtime_root / "vendor" / "wheels",
+                requirements_lock=runtime_root / "requirements.lock.txt",
+            )
         validate_workspace(temporary, contract)
         os.replace(temporary, output_dir)
     except BaseException:

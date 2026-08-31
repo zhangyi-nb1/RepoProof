@@ -1,0 +1,27 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "exception_type": "AttributeError",
+    "repair_rounds": 0
+  },
+  "created_at": "2026-09-01T03:28:34+08:00",
+  "disposition": "NEW_TASK_VERSION",
+  "framework_git_commit": "65f58d2baee5f609783d4261e87036da2458816e",
+  "framework_tree_sha256": "4d3c56e49ccb2292a4754dd3d3dd6437f371a7505e3e758c70f9ca9bf40b1828",
+  "incident_id": "incident-reference-execution-networkx-v1-generalized",
+  "normalized_fingerprint": "fd091eb658527855",
+  "owner": "CONTRACT",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "workspace_reference::public-api-execution"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_EXECUTION_FAILED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "FIXTURE_REFERENCE",
+  "task_version": "tool-networkx-tool-v1"
+}

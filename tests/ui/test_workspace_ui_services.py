@@ -301,6 +301,53 @@ def test_workspace_reference_exception_is_a_contract_failure(
     assert caught.value.detail == "AttributeError"
 
 
+def test_workspace_reference_repair_is_bounded_and_producer_only() -> None:
+    original = (
+        "from pathlib import Path\n\n"
+        "class UserInputError(ValueError):\n    pass\n\n"
+        "def build_workspace(input_path: Path, output_dir: Path) -> None:\n"
+        "    raise TypeError('public API assumption')\n"
+    )
+    repaired = original.replace(
+        "raise TypeError('public API assumption')",
+        "output_dir.mkdir()",
+    )
+
+    class Drafter:
+        def __init__(self) -> None:
+            self.contexts: list[dict[str, object]] = []
+
+        def repair_workspace_reference(self, context: dict) -> dict[str, str]:
+            self.contexts.append(context)
+            return {"reference_impl": original if len(self.contexts) == 1 else repaired}
+
+    drafter = Drafter()
+    result = product_jobs._bounded_workspace_reference_source_repair(
+        drafter=drafter,
+        current_source=original,
+        public_context={
+            "workspace_contract": {"rules": [{"path_pattern": "README.md"}]},
+            "authoring_failure": {
+                "reason_code": "WORKSPACE_REFERENCE_EXECUTION_FAILED",
+                "exception_type": "TypeError",
+            },
+        },
+    )
+
+    assert result["repair_attempts"] == 2
+    assert result["reference_impl"] == repaired
+    assert drafter.contexts[0]["current_reference_impl"] == original
+    assert "previous_public_failure" not in drafter.contexts[0]
+    assert drafter.contexts[1]["previous_public_failure"] == {
+        "reason_code": "WORKSPACE_REFERENCE_REPAIR_NO_PROGRESS",
+        "detail": (
+            "The prior repair returned byte-identical source. Produce a real "
+            "build_workspace change without changing the public contract."
+        ),
+    }
+    assert "fixture" not in json.dumps(drafter.contexts, sort_keys=True).lower()
+
+
 def test_fresh_fixture_blueprint_gets_one_portable_path_correction() -> None:
     seed = FixtureBlueprintV1(
         blueprint_id="seed-project",

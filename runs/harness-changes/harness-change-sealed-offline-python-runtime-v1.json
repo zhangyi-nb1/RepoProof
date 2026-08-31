@@ -1,0 +1,21 @@
+{
+  "affected_component": "Runnable workspace dependency closure, launcher, preflight and replay",
+  "after_control_sha256": "484ced335c7c27efe71483bd57d617a9a6a0fda303227e70235027668ae68287",
+  "anonymous_fixture_id": "anonymous-runnable-python-workspace-v1",
+  "before_control_sha256": "690d9d1d36ed5238908f3ca594ffdc2ba7b9c2ae92fca7900f75869272ea0279",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T03:28:34+08:00",
+  "evidence_id": "harness-change-sealed-offline-python-runtime-v1",
+  "incident_ids": [
+    "incident-runnable-workspace-runtime-closure-v1"
+  ],
+  "invariant": "A runnable offline workspace that imports third-party Python dependencies must execute from the artifact's frozen dependency bytes, not from the verifier or developer environment. Core must own the launcher, exact lock, wheel closure and inventory; expected and actual workspaces must receive identical runtime sealing; smoke must run the delivered launcher under the offline sandbox; and a runtime-owned path collision must fail closed.",
+  "normalized_fingerprint": "55b49eeaff759759",
+  "regression_tests": [
+    "tests/test_portable_workspace_runtime.py::test_portable_runtime_seals_and_executes_offline_python_closure",
+    "tests/test_portable_workspace_runtime.py::test_runtime_seal_rejects_builder_collision",
+    "tests/test_tool_drafter.py::test_runnable_python_workspace_compiles_to_core_owned_offline_launcher"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

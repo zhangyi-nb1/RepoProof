@@ -498,6 +498,7 @@ class WorkspaceArtifactContractV1(BaseModel):
     smoke_command: tuple[str, ...] = Field(default_factory=tuple, max_length=32)
     smoke_timeout_seconds: int = Field(default=30, ge=1, le=120)
     require_offline_wheelhouse: bool = False
+    runtime_python_entrypoint: str | None = None
     limits: WorkspaceArtifactLimits = Field(default_factory=WorkspaceArtifactLimits)
 
     @field_validator("entrypoints")
@@ -509,6 +510,13 @@ class WorkspaceArtifactContractV1(BaseModel):
         if len(checked) != len(set(checked)):
             raise ValueError("workspace entrypoints must be unique")
         return checked
+
+    @field_validator("runtime_python_entrypoint")
+    @classmethod
+    def _safe_runtime_python_entrypoint(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return _validate_workspace_relative_path(value, pattern=False)
 
     @field_validator("smoke_command")
     @classmethod
@@ -552,17 +560,37 @@ class WorkspaceArtifactContractV1(BaseModel):
         if self.require_offline_wheelhouse and not self.runnable:
             raise ValueError("offline wheelhouse is meaningful only for runnable workspaces")
         if self.require_offline_wheelhouse:
-            required_literals = {
+            closure_required_literals = {
                 "requirements.lock.txt",
                 "THIRD_PARTY_NOTICES.md",
             }
             literal_patterns = {item for item in patterns if "*" not in item}
-            if not required_literals.issubset(literal_patterns):
+            if not closure_required_literals.issubset(literal_patterns):
                 raise ValueError(
                     "offline runnable workspace must contract-bind lock and notices"
                 )
             if not any(item.startswith("vendor/wheels/") for item in patterns):
                 raise ValueError("offline runnable workspace must contract-bind wheelhouse")
+            if self.runtime_python_entrypoint is None:
+                raise ValueError(
+                    "offline runnable workspace requires a Python application entrypoint"
+                )
+            if self.runtime_python_entrypoint not in required_literals:
+                raise ValueError(
+                    "offline Python application entrypoint must be a required literal"
+                )
+            if "run.sh" not in required_literals or "run.sh" not in self.entrypoints:
+                raise ValueError(
+                    "offline runnable workspace must use the Harness-owned run.sh launcher"
+                )
+            if not self.smoke_command or self.smoke_command[0] != "./run.sh":
+                raise ValueError(
+                    "offline runnable workspace smoke must use the sealed launcher"
+                )
+        elif self.runtime_python_entrypoint is not None:
+            raise ValueError(
+                "runtime Python entrypoint requires an offline wheelhouse closure"
+            )
         return self
 
 

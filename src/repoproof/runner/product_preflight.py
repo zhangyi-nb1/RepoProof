@@ -20,6 +20,10 @@ import yaml
 from pydantic import BaseModel, Field
 
 from repoproof.adoption.assembly.output_contract import validate_output_text
+from repoproof.adoption.delivery.portable_workspace_runtime import (
+    WorkspaceRuntimeError,
+    seal_offline_python_runtime,
+)
 from repoproof.adoption.intake.upstream_pin import normalize_dist_name
 from repoproof.domain.models import TaskPackageManifest, WorkspaceArtifactContractV1
 from repoproof.execution.workspace_bundle import (
@@ -437,6 +441,24 @@ def run_product_preflight(
         checks.append(ProductPreflightCheck(name="reference_execution", ok=True))
 
         if workspace_contract is not None:
+            if workspace_contract.require_offline_wheelhouse:
+                try:
+                    seal_offline_python_runtime(
+                        reference_output,
+                        workspace_contract.model_dump(mode="json"),
+                        wheelhouse=wheelhouse,
+                        requirements_lock=lock,
+                    )
+                except WorkspaceRuntimeError as exc:
+                    return _failure(
+                        checks,
+                        owner="HARNESS",
+                        code=exc.code,
+                        detail="冻结离线 Python runtime 无法注入 reference 工作区",
+                    )
+                checks.append(
+                    ProductPreflightCheck(name="reference_runtime_closure", ok=True)
+                )
             structure = validate_workspace(reference_output, workspace_contract)
             if not structure.ok:
                 return _failure(

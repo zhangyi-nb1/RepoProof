@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "ambient_venv_execution": "pass",
+    "artifact_only_execution": "fail",
+    "repair_rounds": 0
+  },
+  "created_at": "2026-09-01T03:28:34+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "65f58d2baee5f609783d4261e87036da2458816e",
+  "framework_tree_sha256": "4d3c56e49ccb2292a4754dd3d3dd6437f371a7505e3e758c70f9ca9bf40b1828",
+  "incident_id": "incident-runnable-workspace-runtime-closure-v1",
+  "normalized_fingerprint": "55b49eeaff759759",
+  "owner": "HARNESS",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "reference_workspace_smoke"
+  ],
+  "reason_codes": [
+    "REFERENCE_WORKSPACE_SMOKE_FAILED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-datasette-tool-v1"
+}

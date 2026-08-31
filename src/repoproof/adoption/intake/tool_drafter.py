@@ -193,6 +193,14 @@ _SYSTEM = (
     "the frozen fixture builder). Never place PDF/database/archive bytes in JSON. "
     "A runnable workspace must expose "
     "an executable entrypoint and smoke_command beginning with ./ plus that entrypoint. "
+    "For every runnable Python workspace, Core owns a sealed offline runtime closure. "
+    "Set require_offline_wheelhouse=true and runtime_python_entrypoint to the "
+    "non-executable Python application file that the generated workspace will contain. "
+    "Reserve run.sh, requirements.lock.txt, THIRD_PARTY_NOTICES.md and vendor/wheels/* "
+    "for Core: include their structural rules, declare run.sh as the only executable "
+    "entrypoint, and begin smoke_command with ./run.sh, but do not create those four "
+    "runtime-owned resources in reference_impl. User-facing instructions must invoke "
+    "./run.sh instead of executing the application file directly. "
     "semantic_commitments (1-16 public behaviour rules, each containing "
     "commitment_id, public_text, and rationale). Each semantic commitment MUST "
     "be independently decidable from one valid input path and the delivered "
@@ -314,6 +322,28 @@ _REFERENCE_REPAIR_SYSTEM = (
     "change task semantics."
 )
 
+_WORKSPACE_REFERENCE_REPAIR_SYSTEM = (
+    "You repair ONLY a pre-freeze workspace reference implementation after an "
+    "isolated Harness execution raised one public exception type. The supplied "
+    "user goal, delivery requirements, semantic commitments, artifact protocol, "
+    "WorkspaceArtifactContract and pinned upstream identity are fixed; do not "
+    "broaden, narrow, rename or reinterpret them. Use only the supplied current "
+    "reference source and the public failure code/exception type. Output STRICT "
+    "JSON with exactly one key: reference_impl. Its value is Python source that "
+    "imports and REALLY calls the pinned upstream, defines UserInputError(ValueError), "
+    "and defines synchronous build_workspace(input_path: Path, output_dir: Path) "
+    "-> None. The function must create exactly the fixed workspace contract in a "
+    "new output directory. Returning byte-identical source is invalid because the "
+    "isolated execution already proved that source cannot run. Repair only the "
+    "producer implementation; do not change fixture semantics, the independent "
+    "verifier or the public contract. Do not hardcode candidate inputs or expected "
+    "artifact bytes. Never use bare except or catch Exception/BaseException; map "
+    "only explicit input-domain exception types to UserInputError so programming "
+    "and upstream-API errors remain observable to the Harness. Do not call the "
+    "network, spawn subprocesses, inspect examples/oracles/verifiers, or change "
+    "task semantics."
+)
+
 _VERIFIER_REPAIR_SYSTEM = (
     "You repair ONLY a pre-freeze independent semantic verifier after a deterministic "
     "Harness check found a public output-contract incompatibility OR a disagreement "
@@ -333,6 +363,7 @@ _VERIFIER_REPAIR_SYSTEM = (
 )
 
 _CODEX_REFERENCE_REPAIR_SYSTEM = _REFERENCE_REPAIR_SYSTEM
+_CODEX_WORKSPACE_REFERENCE_REPAIR_SYSTEM = _WORKSPACE_REFERENCE_REPAIR_SYSTEM
 _CODEX_VERIFIER_REPAIR_SYSTEM = _VERIFIER_REPAIR_SYSTEM
 
 _DEFAULT_DRAFTER_TIMEOUT_SECONDS = 60.0
@@ -1252,6 +1283,106 @@ def _compile_workspace_contract_resource_floors(value: object) -> object:
     return compiled
 
 
+def _compile_workspace_runtime_closure(value: object) -> object:
+    """Compile one generic sealed runtime for model-authored Python workspaces.
+
+    The model decides whether the artifact is runnable and which Python file is
+    the application.  Core owns the dependency closure, launcher, inventory,
+    and wheel paths.  Compiling these machine-owned files here prevents a
+    model from accidentally producing a workspace that passes only because the
+    verifier's environment happens to contain the upstream dependency.
+    """
+
+    if not isinstance(value, dict) or not value.get("runnable"):
+        return value
+    compiled = deepcopy(value)
+    rules = compiled.get("rules")
+    if not isinstance(rules, list):
+        return compiled
+
+    application = str(compiled.get("runtime_python_entrypoint") or "").strip()
+    if not application:
+        candidates = [
+            str(item.get("path_pattern") or "")
+            for item in rules
+            if isinstance(item, dict)
+            and item.get("validation_profile") == "python_compile_v1"
+            and "*" not in str(item.get("path_pattern") or "")
+        ]
+        if len(candidates) == 1:
+            application = candidates[0]
+    if not application:
+        return compiled
+
+    compiled["require_offline_wheelhouse"] = True
+    compiled["runtime_python_entrypoint"] = application
+    compiled["entrypoints"] = ["run.sh"]
+    smoke = list(compiled.get("smoke_command") or [])
+    compiled["smoke_command"] = ["./run.sh", *smoke[1:]]
+
+    for item in rules:
+        if not isinstance(item, dict):
+            continue
+        if item.get("path_pattern") == application:
+            item["executable"] = False
+
+    machine_rules = (
+        {
+            "path_pattern": "run.sh",
+            "role": "Harness-owned offline Python launcher",
+            "media_type": "text/x-shellscript",
+            "validation_profile": "shell_v1",
+            "min_count": 1,
+            "max_count": 1,
+            "executable": True,
+        },
+        {
+            "path_pattern": "requirements.lock.txt",
+            "role": "Frozen Python dependency lock",
+            "media_type": "text/plain",
+            "validation_profile": "text_utf8_v1",
+            "min_count": 1,
+            "max_count": 1,
+            "executable": False,
+        },
+        {
+            "path_pattern": "THIRD_PARTY_NOTICES.md",
+            "role": "Frozen third-party wheel inventory",
+            "media_type": "text/markdown",
+            "validation_profile": "text_utf8_v1",
+            "min_count": 1,
+            "max_count": 1,
+            "executable": False,
+        },
+        {
+            "path_pattern": "vendor/wheels/*.whl",
+            "role": "Frozen offline Python wheel closure",
+            "media_type": "application/zip",
+            "validation_profile": "wheel_v1",
+            "min_count": 1,
+            "max_count": 256,
+            "executable": False,
+        },
+    )
+    paths = {
+        str(item.get("path_pattern") or "")
+        for item in rules
+        if isinstance(item, dict)
+    }
+    for rule in machine_rules:
+        if rule["path_pattern"] not in paths:
+            rules.append(rule)
+    limits = compiled.get("limits")
+    if isinstance(limits, dict):
+        limits["max_files"] = 512
+        limits["max_total_bytes"] = 256 * 1024 * 1024
+        limits["max_file_bytes"] = max(
+            int(limits.get("max_file_bytes") or 0), 64 * 1024 * 1024
+        )
+        limits["max_depth"] = max(int(limits.get("max_depth") or 0), 3)
+    return compiled
+
+
 def _invalid_model_output_error(exc: BaseException) -> DraftError:
     """Retain one allowlisted Core projection code without leaking model text."""
 
@@ -1311,7 +1442,9 @@ def normalize_draft_document(
         try:
             workspace_contract = WorkspaceArtifactContractV1.model_validate(
                 _compile_workspace_contract_resource_floors(
-                    document.get("workspace_contract")
+                    _compile_workspace_runtime_closure(
+                        document.get("workspace_contract")
+                    )
                 )
             )
         except ValueError as exc:
@@ -1472,6 +1605,28 @@ def normalize_reference_repair_document(document: dict) -> dict[str, str]:
     if not source.strip():
         raise DraftError("reference-repair:EMPTY_SOURCE")
     _validate_reference_source(source, prefix="reference-repair")
+    return {"reference_impl": source}
+
+
+def normalize_workspace_reference_repair_document(
+    document: dict,
+) -> dict[str, str]:
+    """Validate a workspace-reference-only repair before it enters a draft."""
+
+    try:
+        import jsonschema
+
+        jsonschema.validate(document, _REFERENCE_REPAIR_SCHEMA)
+    except jsonschema.ValidationError as exc:
+        raise DraftError("workspace-reference-repair:INVALID_DOCUMENT") from exc
+    source = str(document["reference_impl"])
+    if not source.strip():
+        raise DraftError("workspace-reference-repair:EMPTY_SOURCE")
+    _validate_reference_source(
+        source,
+        prefix="workspace-reference-repair",
+        function_name="build_workspace",
+    )
     return {"reference_impl": source}
 
 _INPUTS_SCHEMA = {
@@ -1639,6 +1794,15 @@ class CodexDrafter:
         )
         return normalize_reference_repair_document(document)
 
+    def repair_workspace_reference(self, context: dict) -> dict[str, str]:
+        document = self._structured(
+            instructions=_CODEX_WORKSPACE_REFERENCE_REPAIR_SYSTEM,
+            context=context,
+            schema=_CODEX_REFERENCE_REPAIR_SCHEMA,
+            purpose="workspace-reference-execution-repair",
+        )
+        return normalize_workspace_reference_repair_document(document)
+
     def repair_verifier(self, context: dict) -> dict[str, str]:
         document = self._structured(
             instructions=_CODEX_VERIFIER_REPAIR_SYSTEM,
@@ -1782,6 +1946,9 @@ class FakeDrafter:
         })
 
     def repair_reference(self, context: dict) -> dict[str, str]:
+        raise DraftError("DRAFT_CONTROL_REPAIR_REQUIRES_ONLINE_DRAFTER")
+
+    def repair_workspace_reference(self, context: dict) -> dict[str, str]:
         raise DraftError("DRAFT_CONTROL_REPAIR_REQUIRES_ONLINE_DRAFTER")
 
     def repair_verifier(self, context: dict) -> dict[str, str]:
@@ -2088,6 +2255,15 @@ class LiteLLMDrafter:
             normalizer=normalize_reference_repair_document,
         )
 
+    def repair_workspace_reference(self, context: dict) -> dict[str, str]:
+        return self._repair_source(
+            context=context,
+            system=_WORKSPACE_REFERENCE_REPAIR_SYSTEM,
+            schema=_REFERENCE_REPAIR_SCHEMA,
+            schema_name="workspace_reference_execution_repair",
+            normalizer=normalize_workspace_reference_repair_document,
+        )
+
     def repair_verifier(self, context: dict) -> dict[str, str]:
         return self._repair_source(
             context=context,
@@ -2247,6 +2423,7 @@ class LiteLLMDrafter:
                             "tool_draft",
                             "semantic_verifier",
                             "reference_contract_repair",
+                            "workspace_reference_execution_repair",
                             "semantic_verifier_contract_repair",
                         }
                         else _DEFAULT_DRAFTER_TIMEOUT_SECONDS

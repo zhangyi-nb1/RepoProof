@@ -435,8 +435,11 @@ def test_workspace_assembler_freezes_v4_task_and_runs_public_controls(
     runtime_python.chmod(0o755)
     trust = release_audit_trust_identity_from_contract(contract)
     assert trust is not None
+    semantic_calls = 0
 
     def semantic_stub(**kwargs):
+        nonlocal semantic_calls
+        semantic_calls += 1
         artifact = Path(kwargs["artifact"])
         input_path = Path(kwargs["input_path"])
         artifact_manifest = build_artifact_manifest(artifact)
@@ -471,7 +474,11 @@ def test_workspace_assembler_freezes_v4_task_and_runs_public_controls(
             checked_commitment_ids=trust.required_commitment_ids,
             passed=True,
         )
-        semantic_path = installed / "evidence/semantic-audits/fresh.json"
+        semantic_path = (
+            installed
+            / "evidence/semantic-audits"
+            / f"fresh-{semantic_calls}-{artifact_manifest.tree_sha256[:16]}.json"
+        )
         write_workspace_semantic_evidence(semantic_path, evidence)
         return {
             "verifier_id": evidence.verifier_id,

@@ -33,9 +33,11 @@ from repoproof.adoption.intake.tool_drafter import (
     DraftProjectionError,
     FakeDrafter,
     LiteLLMDrafter,
+    _compile_workspace_runtime_closure,
     _validate_fixture_builder_source,
     draft_into_bundle,
     normalize_draft_document,
+    normalize_workspace_reference_repair_document,
     reference_source_policy_errors,
     validate_repo_summary_document,
 )
@@ -47,6 +49,47 @@ def test_draft_prompt_distinguishes_html_and_xhtml_media_types() -> None:
     assert "product_support_profile" in _SYSTEM
     assert "media type" in _SYSTEM
     assert "HTML uses text/html" not in _SYSTEM
+
+
+def test_runnable_python_workspace_compiles_to_core_owned_offline_launcher() -> None:
+    compiled = _compile_workspace_runtime_closure(
+        {
+            "schema_version": 1,
+            "rules": [
+                {
+                    "path_pattern": "app.py",
+                    "role": "application",
+                    "media_type": "text/x-python",
+                    "validation_profile": "python_compile_v1",
+                    "min_count": 1,
+                    "max_count": 1,
+                    "executable": True,
+                }
+            ],
+            "allow_extra_files": False,
+            "entrypoints": ["app.py"],
+            "runnable": True,
+            "smoke_command": ["./app.py", "--help"],
+            "smoke_timeout_seconds": 20,
+            "require_offline_wheelhouse": False,
+            "limits": {
+                "max_files": 1,
+                "max_total_bytes": 4096,
+                "max_file_bytes": 4096,
+                "max_depth": 1,
+                "max_path_bytes": 120,
+            },
+        }
+    )
+
+    assert compiled["runtime_python_entrypoint"] == "app.py"
+    assert compiled["require_offline_wheelhouse"] is True
+    assert compiled["entrypoints"] == ["run.sh"]
+    assert compiled["smoke_command"] == ["./run.sh", "--help"]
+    by_path = {item["path_pattern"]: item for item in compiled["rules"]}
+    assert by_path["app.py"]["executable"] is False
+    assert by_path["run.sh"]["executable"] is True
+    assert "vendor/wheels/*.whl" in by_path
 
 
 def test_reference_policy_rejects_broad_error_masking() -> None:
@@ -69,6 +112,26 @@ def test_reference_policy_rejects_broad_error_masking() -> None:
         "REFERENCE_BROAD_EXCEPTION_MASKING"
     ]
     assert reference_source_policy_errors(explicit) == []
+
+
+def test_workspace_reference_repair_requires_two_argument_builder() -> None:
+    valid = (
+        "from pathlib import Path\n\n"
+        "class UserInputError(ValueError):\n    pass\n\n"
+        "def build_workspace(input_path: Path, output_dir: Path) -> None:\n"
+        "    output_dir.mkdir()\n"
+    )
+    assert normalize_workspace_reference_repair_document(
+        {"reference_impl": valid}
+    )["reference_impl"] == valid
+
+    with pytest.raises(
+        DraftError,
+        match="REFERENCE_BUILD_WORKSPACE_MISSING",
+    ):
+        normalize_workspace_reference_repair_document(
+            {"reference_impl": "def extract(path):\n    return 'wrong topology'\n"}
+        )
 
 
 @pytest.mark.parametrize(

@@ -1424,10 +1424,16 @@ def _run_workspace_reference_candidate(
     contract,
     python_exe: str,
     upstream_dir: Path,
+    runtime_wheelhouse: Path | None = None,
+    runtime_lock: Path | None = None,
     timeout_s: int = 120,
 ) -> dict[str, object]:
     """Build one expected workspace in an offline, disposable reference root."""
 
+    from repoproof.adoption.delivery.portable_workspace_runtime import (
+        WorkspaceRuntimeError,
+        seal_offline_python_runtime,
+    )
     from repoproof.execution.offline_sandbox import (
         OfflineSandboxUnavailable,
         offline_sandbox_argv,
@@ -1516,6 +1522,18 @@ def _run_workspace_reference_candidate(
                 "WORKSPACE_REFERENCE_PROCESS_FAILED",
             )
             raise WorkspaceBundleError(code, structured["exception_type"])
+        if contract.require_offline_wheelhouse:
+            if runtime_wheelhouse is None or runtime_lock is None:
+                raise WorkspaceBundleError("WORKSPACE_RUNTIME_SOURCE_MISSING")
+            try:
+                seal_offline_python_runtime(
+                    output,
+                    contract.model_dump(mode="json"),
+                    wheelhouse=runtime_wheelhouse,
+                    requirements_lock=runtime_lock,
+                )
+            except WorkspaceRuntimeError as exc:
+                raise WorkspaceBundleError(exc.code) from exc
         validation = validate_workspace(output, contract)
         if not validation.ok or validation.manifest is None:
             raise WorkspaceBundleError(
@@ -1528,6 +1546,55 @@ def _run_workspace_reference_candidate(
             "file_count": validation.manifest.file_count,
             "total_bytes": validation.manifest.total_bytes,
         }
+
+
+def _freeze_draft_runtime_wheelhouse(
+    *, draft_dir: Path, admitted_wheelhouse: Path
+) -> Path:
+    """Bind exact candidate runtime bytes into a draft before task freeze."""
+
+    import shutil
+
+    from repoproof.execution.core_execution import atomic_write_json
+    from repoproof.harness.wheelhouse import compute_manifest, verify_wheelhouse
+
+    destination = draft_dir / "wheelhouse"
+    manifest_path = draft_dir / "wheelhouse_manifest.json"
+    source_manifest = compute_manifest(admitted_wheelhouse)
+    if not source_manifest["wheels"]:
+        raise ValueError("WORKSPACE_RUNTIME_WHEEL_SET_INVALID")
+    if destination.exists() or manifest_path.exists():
+        if destination.is_symlink() or not destination.is_dir():
+            raise ValueError("PREFROZEN_WHEELHOUSE_INVALID")
+        if manifest_path.is_symlink() or not manifest_path.is_file():
+            raise ValueError("PREFROZEN_WHEELHOUSE_MANIFEST_INVALID")
+        frozen = json.loads(manifest_path.read_text(encoding="utf-8"))
+        verify_wheelhouse(
+            destination,
+            expected_wheels=frozen.get("wheels") or {},
+            expected_root=str(frozen.get("root") or ""),
+        )
+        if frozen != source_manifest:
+            raise ValueError("PREFROZEN_WHEELHOUSE_IDENTITY_CHANGED")
+        return destination
+
+    stage = Path(tempfile.mkdtemp(prefix=".workspace-wheelhouse-", dir=draft_dir))
+    try:
+        for wheel in sorted(admitted_wheelhouse.glob("*.whl"), key=lambda item: item.name):
+            if wheel.is_symlink() or not wheel.is_file() or wheel.stat().st_nlink != 1:
+                raise ValueError("WORKSPACE_RUNTIME_WHEEL_UNSAFE")
+            shutil.copy2(wheel, stage / wheel.name)
+        verify_wheelhouse(
+            stage,
+            expected_wheels=source_manifest["wheels"],
+            expected_root=source_manifest["root"],
+        )
+        os.replace(stage, destination)
+        atomic_write_json(manifest_path, source_manifest)
+    finally:
+        if stage.exists():
+            shutil.rmtree(stage, ignore_errors=True)
+    return destination
 
 
 def propose_workspace_fixture_candidates(
@@ -1549,6 +1616,7 @@ def propose_workspace_fixture_candidates(
     from pydantic import ValidationError
 
     from repoproof.adoption.intake.example_proposer import (
+        ensure_reference_wheelhouse,
         prepared_reference_environment,
     )
     from repoproof.adoption.intake.tool_drafter import DraftError
@@ -1664,6 +1732,18 @@ def propose_workspace_fixture_candidates(
                     resolved_lock_text=lock_text,
                 )
             ) or _product_python()
+            runtime_wheelhouse: Path | None = None
+            runtime_lock: Path | None = None
+            if contract.require_offline_wheelhouse:
+                runtime_lock = draft_dir / "reference.lock.txt"
+                admitted = ensure_reference_wheelhouse(
+                    runtime_lock,
+                    cache_root=ui_state_root() / "reference-wheelhouses",
+                )
+                runtime_wheelhouse = _freeze_draft_runtime_wheelhouse(
+                    draft_dir=draft_dir,
+                    admitted_wheelhouse=admitted,
+                )
             for blueprint in selected:
                 candidate = build_fixture_candidate(
                     blueprint=blueprint,
@@ -1683,6 +1763,8 @@ def propose_workspace_fixture_candidates(
                     contract=contract,
                     python_exe=reference_python,
                     upstream_dir=upstream,
+                    runtime_wheelhouse=runtime_wheelhouse,
+                    runtime_lock=runtime_lock,
                 )
                 record: dict[str, object] = {
                     "blueprint_id": blueprint.blueprint_id,
@@ -1786,6 +1868,220 @@ def propose_workspace_fixture_candidates(
                     "修复隔离环境或执行器后从当前 Journey 重试；"
                     "本次不得消耗构建 Agent repair。"
                 )
+            ),
+        }
+
+
+def _bounded_workspace_reference_source_repair(
+    *,
+    drafter,
+    current_source: str,
+    public_context: dict[str, object],
+) -> dict[str, object]:
+    """Ask the drafter for at most two real producer-only source changes."""
+
+    from repoproof.adoption.intake.tool_drafter import (
+        DraftError,
+        reference_source_policy_errors,
+    )
+
+    before = hashlib.sha256(current_source.encode("utf-8")).hexdigest()
+    for attempt in (1, 2):
+        context = {
+            **public_context,
+            "current_reference_impl": current_source,
+            "repair_attempt": attempt,
+        }
+        if attempt == 2:
+            context["previous_public_failure"] = {
+                "reason_code": "WORKSPACE_REFERENCE_REPAIR_NO_PROGRESS",
+                "detail": (
+                    "The prior repair returned byte-identical source. Produce a "
+                    "real build_workspace change without changing the public contract."
+                ),
+            }
+        repaired = str(
+            drafter.repair_workspace_reference(context).get("reference_impl") or ""
+        )
+        policy_errors = reference_source_policy_errors(
+            repaired,
+            function_name="build_workspace",
+        )
+        if policy_errors:
+            raise DraftError(
+                "workspace-reference-repair:" + policy_errors[0]
+            )
+        after = hashlib.sha256(repaired.encode("utf-8")).hexdigest()
+        if after != before:
+            return {
+                "reference_impl": repaired,
+                "reference_before_sha256": before,
+                "reference_after_sha256": after,
+                "repair_attempts": attempt,
+            }
+    raise DraftError("WORKSPACE_REFERENCE_REPAIR_NO_PROGRESS")
+
+
+def repair_workspace_reference_control(
+    draft_dir: Path,
+    *,
+    failure_code: str,
+    exception_type: str,
+) -> dict:
+    """Repair one unfrozen workspace producer without changing its public contract.
+
+    This is deliberately a separate, user-triggered model action.  Candidate
+    generation's ``offline`` switch remains honest: selecting it never causes a
+    hidden model call.  Only the producer source is replaceable here; fixture
+    blueprints, verifier, contract and pinned upstream identity are fixed inputs.
+    """
+
+    from repoproof.adoption.intake.tool_drafter import DraftError, online_drafter
+
+    checked_dir, path_error = _validated_draft_dir(
+        Path(draft_dir),
+        require_existing=True,
+    )
+    if checked_dir is None:
+        return {"ok": False, "error": path_error}
+    if failure_code != "WORKSPACE_REFERENCE_EXECUTION_FAILED" or re.fullmatch(
+        r"[A-Za-z_][A-Za-z0-9_.]{0,119}", exception_type
+    ) is None:
+        return {
+            "ok": False,
+            "error": "WORKSPACE_REFERENCE_REPAIR_REASON_UNSUPPORTED",
+            "failure_owner": "CONTRACT",
+            "reason_codes": ["WORKSPACE_REFERENCE_REPAIR_REASON_UNSUPPORTED"],
+        }
+
+    snapshot: dict[str, bytes | None] | None = None
+    marker_started = False
+    try:
+        draft = yaml.safe_load(
+            (checked_dir / "draft.yaml").read_text(encoding="utf-8")
+        ) or {}
+        if not isinstance(draft, dict):
+            raise TypeError("draft.yaml root")
+        readiness = _core_draft_readiness(draft, checked_dir)
+        if not readiness.compatible or not readiness.current:
+            return _readiness_rejection(readiness, action="修复工作区 reference")
+        tool = _workspace_tool_from_draft(draft)
+        intent = IntentContractDraftV1.model_validate(draft.get("_intent_contract"))
+        if intent.delivery is None or intent.artifact_protocol is None:
+            raise ValueError("WORKSPACE_REFERENCE_REPAIR_PUBLIC_CONTRACT_MISSING")
+        reference_path = checked_dir / "reference_impl.py"
+        verifier_path = checked_dir / "semantic_verifier.py"
+        if (
+            reference_path.is_symlink()
+            or not reference_path.is_file()
+            or verifier_path.is_symlink()
+            or not verifier_path.is_file()
+        ):
+            raise ValueError("WORKSPACE_REFERENCE_REPAIR_INPUT_MISSING")
+        current_reference = reference_path.read_text(encoding="utf-8")
+        current_verifier = verifier_path.read_text(encoding="utf-8")
+        source_repo = draft.get("source_repo") or {}
+        repair = _bounded_workspace_reference_source_repair(
+            drafter=online_drafter(),
+            current_source=current_reference,
+            public_context={
+                "user_goal": intent.user_goal,
+                "semantic_commitments": [
+                    item.model_dump(mode="json") for item in intent.commitments
+                ],
+                "artifact_protocol": intent.artifact_protocol.model_dump(mode="json"),
+                "delivery_requirements": intent.delivery.requirements.model_dump(
+                    mode="json"
+                ),
+                "workspace_contract": tool.workspace_contract.model_dump(mode="json"),
+                "upstream_public_info": {
+                    key: str(source_repo.get(key) or "")
+                    for key in (
+                        "url",
+                        "resolved_commit",
+                        "distribution",
+                        "import_module",
+                        "license",
+                    )
+                },
+                "authoring_failure": {
+                    "reason_code": failure_code,
+                    "exception_type": exception_type,
+                },
+            },
+        )
+        interface = tool.interface.model_dump(mode="json")
+        lock_text = resolved_dependency_lock(
+            draft,
+            checked_dir,
+            project_root=_product_root(),
+        )
+        if not lock_text:
+            raise ValueError("DEPENDENCY_LOCK_MISSING")
+
+        snapshot = _snapshot_draft_control_state(checked_dir)
+        _begin_draft_control_repair(checked_dir)
+        marker_started = True
+        saved = save_draft_review(
+            checked_dir,
+            tool_name=tool.name,
+            summary=tool.summary,
+            statement=str((draft.get("capability") or {}).get("statement") or ""),
+            semantic_commitments=[item.public_text for item in intent.commitments],
+            input_format=str(interface["input"]["format"]),
+            input_representation=intent.delivery.requirements.inputs[0].representation,
+            output_format=str(interface["output"]["format"]),
+            output_schema=str(
+                (draft.get("capability") or {}).get("output_schema") or ""
+            ),
+            reference_impl=str(repair["reference_impl"]),
+            semantic_verifier=current_verifier,
+            workspace_contract=tool.workspace_contract.model_dump(mode="json"),
+            artifact_protocol=intent.artifact_protocol.model_dump(mode="json"),
+            distribution=str(source_repo.get("distribution") or ""),
+            import_module=str(source_repo.get("import_module") or ""),
+            license_id=str(source_repo.get("license") or ""),
+            reference_lock=lock_text,
+            _control_repair_transaction=True,
+        )
+        if not saved.get("ok"):
+            raise ValueError("WORKSPACE_REFERENCE_REPAIR_SAVE_FAILED")
+        _finish_draft_control_repair(checked_dir)
+        marker_started = False
+        return {
+            "ok": True,
+            "note": (
+                "冻结前 reference 已按公开异常完成有界修复；合同、fixture 与独立 "
+                "verifier 未改动。请重新生成目录样例验证修复。"
+            ),
+            "reason_codes": ["WORKSPACE_REFERENCE_REPAIRED_PENDING_POSTCHECK"],
+            "reference_before_sha256": repair["reference_before_sha256"],
+            "reference_after_sha256": repair["reference_after_sha256"],
+            "repair_attempts": repair["repair_attempts"],
+        }
+    except (DraftError, IntentContractError, OSError, TypeError, ValueError) as exc:
+        if marker_started and snapshot is not None:
+            try:
+                _restore_draft_control_state(checked_dir, snapshot)
+                _finish_draft_control_repair(checked_dir)
+                marker_started = False
+            except (OSError, TypeError, ValueError):
+                return {
+                    "ok": False,
+                    "error": "WORKSPACE_REFERENCE_REPAIR_ROLLBACK_FAILED",
+                    "failure_owner": "HARNESS",
+                    "reason_codes": ["WORKSPACE_REFERENCE_REPAIR_ROLLBACK_FAILED"],
+                }
+        code = str(exc)
+        if re.fullmatch(r"[A-Z][A-Z0-9_:.-]{0,159}", code) is None:
+            code = "WORKSPACE_REFERENCE_REPAIR_FAILED"
+        return {
+            "ok": False,
+            "error": "工作区 reference 修复失败：" + code,
+            "failure_owner": "CONTRACT",
+            "reason_codes": [code.split(":", 1)[0]],
+            "recommended_action": (
+                "保留当前草稿和失败证据；不要调用构建 Agent。人工复核公开合同后再创建新任务版本。"
             ),
         }
 
@@ -2556,6 +2852,7 @@ def _propose_workspace_audit_candidates(
     contract,
     ref_impl: Path,
     ref_lock: Path,
+    tool_dir: Path,
     upstream: Path,
     n: int,
     offline: bool,
@@ -2685,6 +2982,16 @@ def _propose_workspace_audit_candidates(
                     wheelhouse_cache_root=ui_state_root() / "reference-wheelhouses",
                 )
             ) or _product_python()
+            runtime_wheelhouse = (
+                tool_dir / "vendor" / "wheels"
+                if tool.workspace_contract.require_offline_wheelhouse
+                else None
+            )
+            runtime_lock = (
+                tool_dir / "requirements.lock.txt"
+                if tool.workspace_contract.require_offline_wheelhouse
+                else None
+            )
             for blueprint in proposed:
                 candidate = build_fixture_candidate(
                     blueprint=blueprint,
@@ -2704,6 +3011,8 @@ def _propose_workspace_audit_candidates(
                     contract=tool.workspace_contract,
                     python_exe=reference_python,
                     upstream_dir=upstream,
+                    runtime_wheelhouse=runtime_wheelhouse,
+                    runtime_lock=runtime_lock,
                 )
                 record: dict[str, object] = {
                     "blueprint_id": blueprint.blueprint_id,
@@ -3148,6 +3457,7 @@ def propose_audit_candidates(
                 contract=contract,
                 ref_impl=ref_impl,
                 ref_lock=ref_lock,
+                tool_dir=tool_dir,
                 upstream=upstream,
                 n=n,
                 offline=offline,

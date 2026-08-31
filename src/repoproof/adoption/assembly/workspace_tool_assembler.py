@@ -94,7 +94,13 @@ def cli(argv=None):
         files(__package__).joinpath("workspace_contract.json").read_text(encoding="utf-8")
     )
     try:
-        materialize_workspace(impl.build_workspace, source, output, contract)
+        materialize_workspace(
+            impl.build_workspace,
+            source,
+            output,
+            contract,
+            runtime_source_root=Path(__file__).resolve().parents[2],
+        )
     except impl.UserInputError as exc:
         print(f"error: {{exc}}", file=sys.stderr)
         return 1
@@ -681,9 +687,7 @@ def assemble_workspace_tool_task(
         f"{skeleton_rel}/pyproject.toml": _PYPROJECT.format(
             package=package, summary=tool.summary
         ),
-        f"{skeleton_rel}/requirements.lock.txt": (
-            f"# agent fills exact pins; must include {distribution}\n"
-        ),
+        f"{skeleton_rel}/requirements.lock.txt": reference_lock,
         f"{skeleton_rel}/.gitignore": (
             ".venv/\n*venv*/\n__pycache__/\n*.pyc\n*.egg-info/\nevidence/\n"
         ),
