@@ -684,6 +684,23 @@ def test_litellm_all_assistant_actions_use_their_machine_schema(
         "example_inputs",
     ]
     assert all(item["strict"] is True for item in formats)
+
+    def assert_every_object_property_is_required(value: object) -> None:
+        if isinstance(value, list):
+            for item in value:
+                assert_every_object_property_is_required(item)
+            return
+        if not isinstance(value, dict):
+            return
+        properties = value.get("properties")
+        if value.get("type") == "object" and isinstance(properties, dict):
+            assert value.get("additionalProperties") is False
+            assert value.get("required") == list(properties)
+        for item in value.values():
+            assert_every_object_property_is_required(item)
+
+    for item in formats:
+        assert_every_object_property_is_required(item["schema"])
     assert [call["timeout"] for call in calls["kwargs"]] == [
         120.0,
         120.0,

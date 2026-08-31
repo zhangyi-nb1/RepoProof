@@ -409,6 +409,32 @@ def _normalize_artifact_label(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower()).strip("_")
 
 
+def strict_structured_output_schema(schema: dict) -> dict:
+    """Return a provider-strict copy where every object property is explicit.
+
+    Historical Pydantic defaults remain valid when old records are loaded.  New
+    model-authored documents must state every field, including nullable/defaulted
+    ones, so omission cannot silently become a product or safety claim.
+    """
+
+    def normalize(value):
+        if isinstance(value, list):
+            return [normalize(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        result = {key: normalize(item) for key, item in value.items()}
+        properties = result.get("properties")
+        if result.get("type") == "object" and isinstance(properties, dict):
+            result["required"] = list(properties)
+            result["additionalProperties"] = False
+        return result
+
+    normalized = normalize(deepcopy(schema))
+    if not isinstance(normalized, dict):  # pragma: no cover - signature guards this
+        raise ProductProfileError("STRICT_SCHEMA_NOT_AN_OBJECT")
+    return normalized
+
+
 def delivery_requirements_json_schema() -> dict:
     """Return a self-contained strict schema for newly model-authored claims.
 
@@ -439,23 +465,7 @@ def delivery_requirements_json_schema() -> dict:
 
     result = inline(schema)
 
-    def require_every_object_property(value):
-        if isinstance(value, list):
-            return [require_every_object_property(item) for item in value]
-        if not isinstance(value, dict):
-            return value
-        normalized = {
-            key: require_every_object_property(item)
-            for key, item in value.items()
-        }
-        properties = normalized.get("properties")
-        if normalized.get("type") == "object" and isinstance(properties, dict):
-            normalized["required"] = list(properties)
-            normalized["additionalProperties"] = False
-        return normalized
-
-    result = require_every_object_property(result)
-    return result
+    return strict_structured_output_schema(result)
 
 
 _CLI_V2 = ProductDeliveryProfile(

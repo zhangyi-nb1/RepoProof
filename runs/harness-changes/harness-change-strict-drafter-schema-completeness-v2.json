@@ -1,0 +1,22 @@
+{
+  "affected_component": "adoption.model_authored_strict_schemas",
+  "after_control_sha256": "10f66f465712937bbd0980ea7fa485ae8c5b6ab258b4ceaf744094e472dec389",
+  "anonymous_fixture_id": "anonymous-all-drafter-schemas-strict",
+  "before_control_sha256": "bfd57bc26d7e3a294fdf96db239be191e1fc70c4c4c556e5c8319d1c7f14df66",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-08-31T20:00:00+08:00",
+  "evidence_id": "harness-change-strict-drafter-schema-completeness-v2",
+  "incident_ids": [
+    "incident-drafter-strict-schema-default-omission-a523e68-v2",
+    "incident-drafter-strict-schema-default-omission-f215b76"
+  ],
+  "invariant": "Every property in every newly model-authored strict object must be explicitly required; historical defaults may load old records but cannot manufacture omitted claims.",
+  "normalized_fingerprint": "b88f7275d9e5f21a",
+  "regression_tests": [
+    "test_litellm_all_assistant_actions_use_their_machine_schema",
+    "tests/test_tool_drafter.py",
+    "tests/test_product_delivery_profile.py"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="2.550" timestamp="2026-08-31T19:21:09.591708+08:00" hostname="ZhangrongleideMacBook-Air-3.local"><testcase classname="tests.test_tool_drafter" name="test_litellm_all_assistant_actions_use_their_machine_schema" time="2.340"><failure message="AssertionError: assert ['summary', '...rotocol', ...] == ['summary', '...builder', ...]&#10;  &#10;  At index 4 diff: 'semantic_commitments' != 'workspace_contract'&#10;  Right contains 3 more items, first extra item: 'artifact_protocol'&#10;  Use -v to get more diff">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10786bbc0&gt;
+
+    def test_litellm_all_assistant_actions_use_their_machine_schema(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -&gt; None:
+        for key, value in (
+            ("REPOPROOF_DRAFTER_MODEL", "m"),
+            ("REPOPROOF_DRAFTER_BASE", "http://gateway.invalid"),
+            ("REPOPROOF_DRAFTER_KEY", "k"),
+        ):
+            monkeypatch.setenv(key, value)
+        calls = _stub_litellm(
+            monkeypatch,
+            [
+                _GOOD,
+                _GOOD_VERIFIER,
+                json.dumps(_GOOD_REPO_ADVICE, ensure_ascii=False),
+                json.dumps({
+                    "inputs": [
+                        {"input_name": "one.txt", "input_text": "x", "why": "覆盖输入"},
+                        {"input_name": "two.txt", "input_text": "y", "why": "覆盖边界"},
+                    ]
+                }, ensure_ascii=False),
+            ],
+        )
+        drafter = LiteLLMDrafter()
+        drafter.draft({"capability_goal": "处理一个本地文件"})
+        drafter.draft_verifier({"capability_goal": "处理一个本地文件"})
+        drafter.summarize_repo({"headline": "Local tool"})
+        drafter.propose_example_inputs({"how_many": 2})
+    
+        formats = [call["response_format"]["json_schema"] for call in calls["kwargs"]]
+        assert [item["name"] for item in formats] == [
+            "tool_draft",
+            "semantic_verifier",
+            "repo_summary",
+            "example_inputs",
+        ]
+        assert all(item["strict"] is True for item in formats)
+    
+        def assert_every_object_property_is_required(value: object) -&gt; None:
+            if isinstance(value, list):
+                for item in value:
+                    assert_every_object_property_is_required(item)
+                return
+            if not isinstance(value, dict):
+                return
+            properties = value.get("properties")
+            if value.get("type") == "object" and isinstance(properties, dict):
+                assert value.get("additionalProperties") is False
+                assert value.get("required") == list(properties)
+            for item in value.values():
+                assert_every_object_property_is_required(item)
+    
+        for item in formats:
+&gt;           assert_every_object_property_is_required(item["schema"])
+
+tests/test_tool_drafter.py:703: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+value = {'type': 'object', 'additionalProperties': False, '$defs': {'WorkspaceArtifactLimits': {'additionalProperties': False,...ivery_requirements', 'output_required_fields', 'output_schema', 'semantic_commitments', 'artifact_protocol', ...], ...}
+
+    def assert_every_object_property_is_required(value: object) -&gt; None:
+        if isinstance(value, list):
+            for item in value:
+                assert_every_object_property_is_required(item)
+            return
+        if not isinstance(value, dict):
+            return
+        properties = value.get("properties")
+        if value.get("type") == "object" and isinstance(properties, dict):
+            assert value.get("additionalProperties") is False
+&gt;           assert value.get("required") == list(properties)
+E           AssertionError: assert ['summary', '...rotocol', ...] == ['summary', '...builder', ...]
+E             
+E             At index 4 diff: 'semantic_commitments' != 'workspace_contract'
+E             Right contains 3 more items, first extra item: 'artifact_protocol'
+E             Use -v to get more diff
+
+tests/test_tool_drafter.py:698: AssertionError</failure></testcase></testsuite></testsuites>

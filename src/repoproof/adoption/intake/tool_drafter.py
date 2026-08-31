@@ -40,6 +40,7 @@ from repoproof.adoption.delivery.product_profile import (
     delivery_requirements_json_schema,
     product_delivery_profile,
     select_product_delivery_profile,
+    strict_structured_output_schema,
 )
 from repoproof.adoption.intake.intent_contract import (
     IntentContractError,
@@ -2063,7 +2064,7 @@ class LiteLLMDrafter:
                     "json_schema": {
                         "name": schema_name,
                         "strict": True,
-                        "schema": deepcopy(schema),
+                        "schema": strict_structured_output_schema(schema),
                     },
                 },
                 timeout=_drafter_timeout_seconds(
