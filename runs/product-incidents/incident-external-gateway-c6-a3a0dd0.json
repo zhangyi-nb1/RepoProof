@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "journey_created": 0,
+    "repair_consumed": 0
+  },
+  "created_at": "2026-08-31T14:19:43.000000Z",
+  "disposition": "RETRY_INFRASTRUCTURE",
+  "framework_git_commit": "a3a0dd0d89c9d9166c0a6eabd4d7765984b36dca",
+  "framework_tree_sha256": "bbd43df43c001d80cb82ceefd08b70fccb132dfe17470486fc8f3db881ddef87",
+  "incident_id": "incident-external-gateway-c6-a3a0dd0",
+  "normalized_fingerprint": "ecb088b5f3c9acc9",
+  "owner": "EXTERNAL",
+  "pre_task_context_sha256": "05d00ca34b2e9f5c597678e6419e917e219ec099e5bbdff7624c910bbd7ba348",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "repo_analysis::online-model"
+  ],
+  "reason_codes": [
+    "EXTERNAL_GATEWAY_UNAVAILABLE"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

@@ -1,0 +1,29 @@
+{
+  "agent_invoked": false,
+  "artifact_manifest_sha256": null,
+  "artifact_tree_sha256": null,
+  "case_name": "c6-marimo-reproducible-analysis",
+  "clean_replay": null,
+  "delivery_profile_id": "workspace_bundle_v1",
+  "failure_owner": "EXTERNAL",
+  "failure_stage": "CONTRACT_AUTHORING",
+  "fresh_audit": null,
+  "historical_verdict": null,
+  "journey_id": null,
+  "operational_status": null,
+  "package_health": null,
+  "reason_codes": [
+    "EXTERNAL_GATEWAY_UNAVAILABLE",
+    "DRAFTER_TIMEOUT"
+  ],
+  "recommended_action": "默认 API 网关恢复稳定后才可重新发起新的资格任务；本批次不切换 Codex backend。当前只获得钉版仓库静态证据，在线建议超时，未创建 Journey、合同、Coding Agent run 或 repair。",
+  "repair_attempts": 0,
+  "run_id": null,
+  "semantic_verifier_evidence": null,
+  "semantic_verifier_evidence_sha256": null,
+  "semantic_verifier_id": null,
+  "semantic_verifier_sha256": null,
+  "status": "FAILED",
+  "task_id": null,
+  "workspace_structure_passed": null
+}
