@@ -1,0 +1,23 @@
+{
+  "affected_component": "Product action projection for tool-draft semantic validation failures",
+  "after_control_sha256": "c91395b4cf1efde26e19747eca181df0a136f0913b270ba3ef8927dc066e10c1",
+  "anonymous_fixture_id": "anonymous-drafter-semantic-rejection-projection-v1",
+  "before_control_sha256": "5cc0c2255319da76452a14053b13703fd365245af77a17e780971ad400b7196a",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-08-31T14:12:00.000000Z",
+  "evidence_id": "harness-change-drafter-semantic-rejection-projection-v1",
+  "incident_ids": [
+    "incident-drafter-semantic-rejection-projection-c4-1ec428a",
+    "incident-drafter-semantic-rejection-projection-c5-a3d61c3"
+  ],
+  "invariant": "Every tool-draft semantic validation rejection is a bounded model-output contract failure, not a provider outage. ProductActionResult must retain DRAFTING, map it to a stable review stop, state that no Agent repair is eligible, and present the review action without weakening the underlying lifecycle, side-effect, interface, fixture, or verifier gate.",
+  "normalized_fingerprint": "74d29dd2d6a06f6c",
+  "regression_tests": [
+    "tests/test_product_action_and_journey.py",
+    "tests/test_product_incidents.py",
+    "tests/ui/test_ui_product_mode.py",
+    "tests/ui/test_ui_page_render_smoke.py"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

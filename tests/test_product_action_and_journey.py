@@ -236,6 +236,35 @@ def test_tool_add_projects_invalid_model_output_to_typed_review_stop() -> None:
     assert "恢复起草通道" not in str(result.recommended_action)
 
 
+@pytest.mark.parametrize(
+    "semantic_reason",
+    [
+        "LIFECYCLE_MISMATCH",
+        "EXTERNAL_SIDE_EFFECT_MISMATCH",
+        "FIXTURE_BUILDER_PROTOCOL_INVALID",
+    ],
+)
+def test_tool_add_projects_all_tool_draft_semantic_rejections_to_review(
+    semantic_reason: str,
+) -> None:
+    result = action_result_from_payload(
+        job_id="a" * 32,
+        journey_id="b" * 32,
+        action="tool-add",
+        ok=False,
+        payload={"ok": False, "draft_error": f"tool-draft:{semantic_reason}"},
+    )
+
+    assert result.reason_codes == ["DRAFTER_INVALID_MODEL_OUTPUT"]
+    assert result.failure_owner == "EXTERNAL"
+    assert result.failure_stage == "DRAFTING"
+    assert result.failure_class == "MODEL_OUTPUT_INVALID"
+    assert result.retry_policy == "REVIEW_REQUIRED"
+    assert result.recommended_action_code == "REVIEW_INVALID_DRAFTER_OUTPUT"
+    assert result.product_stop_code == "STOP_NEEDS_HUMAN"
+    assert "恢复起草通道" not in str(result.recommended_action)
+
+
 def test_tool_add_preserves_specific_intent_admission_reason() -> None:
     result = action_result_from_payload(
         job_id="a" * 32,

@@ -144,7 +144,10 @@ def _typed_drafter_failure(
     known = _DRAFTER_FAILURES.get(draft_error)
     if known is not None:
         return known
-    if draft_error.endswith(":INVALID_MODEL_OUTPUT"):
+    if (
+        draft_error.endswith(":INVALID_MODEL_OUTPUT")
+        or draft_error.startswith("tool-draft:")
+    ):
         return _INVALID_MODEL_OUTPUT_FAILURE
     return None
 

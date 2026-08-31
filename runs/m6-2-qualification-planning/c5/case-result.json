@@ -1,0 +1,29 @@
+{
+  "agent_invoked": false,
+  "artifact_manifest_sha256": null,
+  "artifact_tree_sha256": null,
+  "case_name": "c5-textual-research-task-desk",
+  "clean_replay": null,
+  "delivery_profile_id": "workspace_bundle_v1",
+  "failure_owner": "EXTERNAL",
+  "failure_stage": "DRAFTING",
+  "fresh_audit": null,
+  "historical_verdict": null,
+  "journey_id": "288a9bed5a154b5d928a43bca285bd4a",
+  "operational_status": null,
+  "package_health": null,
+  "reason_codes": [
+    "DRAFT_CREATION_FAILED",
+    "EXTERNAL_SIDE_EFFECT_MISMATCH"
+  ],
+  "recommended_action": "本次权威 ProductActionResult 将未映射的起草语义拒绝错误归为 EXTERNAL，并提示恢复通道；底层公开错误实际是 EXTERNAL_SIDE_EFFECT_MISMATCH。它与 C4 的 LIFECYCLE_MISMATCH 形成第二个独立仓库证据，授权修正通用失败投影；拒绝规则本身不放宽，也不调用 Coding Agent 或 repair。",
+  "repair_attempts": 0,
+  "run_id": null,
+  "semantic_verifier_evidence": null,
+  "semantic_verifier_evidence_sha256": null,
+  "semantic_verifier_id": null,
+  "semantic_verifier_sha256": null,
+  "status": "FAILED",
+  "task_id": null,
+  "workspace_structure_passed": null
+}
