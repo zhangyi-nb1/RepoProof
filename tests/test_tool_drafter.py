@@ -1123,6 +1123,34 @@ def test_draft_does_not_repair_a_truthful_unsupported_topology(
     assert calls["n"] == 1
 
 
+def test_drafter_context_keeps_bounded_readme_evidence_when_scan_is_truncated() -> None:
+    from repoproof.adoption.intake.tool_drafter import _drafter_context
+
+    context = _drafter_context(
+        {
+            "capability_goal": "turn a local project into a handoff workspace",
+            "repo": {
+                "repository": "https://example.invalid/anonymous/project",
+                "readme_excerpt": "Graph analysis and reporting. " * 100,
+                "quickstart": {
+                    "value": "from anonymous import Graph",
+                    "provenance": "FACT",
+                },
+                "scan_stats": {"truncated": True},
+                "public_api": [],
+                "cli_entry_points": [],
+                "capability_candidates": [],
+            },
+            "draft": {"source_repo": {}, "tool": {"name": "project-tool"}},
+        }
+    )
+
+    assert context["readme_excerpt"].startswith("Graph analysis")
+    assert len(context["readme_excerpt"]) == 1200
+    assert context["quickstart"] == "from anonymous import Graph"
+    assert context["scan_incomplete"] is True
+
+
 def test_projected_repo_advice_cannot_override_machine_owned_shape() -> None:
     projected = validate_repo_summary_document(_GOOD_REPO_ADVICE)
     projected["requirement_briefs"][0]["delivery_shape"]["output_cardinality"] = 2

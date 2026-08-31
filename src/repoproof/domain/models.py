@@ -517,6 +517,19 @@ class WorkspaceArtifactContractV1(BaseModel):
         patterns = [rule.path_pattern for rule in self.rules]
         if len(patterns) != len(set(patterns)):
             raise ValueError("workspace path rules must be unique")
+        literal_rules = [rule for rule in self.rules if "*" not in rule.path_pattern]
+        if any(rule.min_count > 1 for rule in literal_rules):
+            raise ValueError("literal workspace rule cannot require multiple files")
+        required_literals = {
+            rule.path_pattern for rule in literal_rules if rule.min_count > 0
+        }
+        if len(required_literals) > self.limits.max_files:
+            raise ValueError("required literal files exceed workspace max_files")
+        for path in required_literals:
+            if len(Path(path).parts) > self.limits.max_depth:
+                raise ValueError("required literal path exceeds workspace max_depth")
+            if len(path.encode("utf-8")) > self.limits.max_path_bytes:
+                raise ValueError("required literal path exceeds workspace max_path_bytes")
         if self.runnable and not self.entrypoints:
             raise ValueError("runnable workspace requires an entrypoint")
         if self.runnable and not self.smoke_command:

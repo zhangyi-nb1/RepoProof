@@ -168,6 +168,26 @@ def test_runnable_contract_requires_frozen_entrypoint_command() -> None:
         )
 
 
+def test_workspace_contract_rejects_impossible_literal_file_budget() -> None:
+    rules = tuple(
+        WorkspaceArtifactRule(
+            path_pattern=f"report-{index}.txt",
+            role=f"report {index}",
+            media_type="text/plain",
+            validation_profile="text_utf8_v1",
+        )
+        for index in range(3)
+    )
+    with pytest.raises(
+        ValidationError,
+        match="required literal files exceed workspace max_files",
+    ):
+        WorkspaceArtifactContractV1(
+            rules=rules,
+            limits=WorkspaceArtifactLimits(max_files=2),
+        )
+
+
 def test_workspace_smoke_reports_nonzero_without_mutating_original(tmp_path: Path) -> None:
     root = tmp_path / "workspace"
     root.mkdir()

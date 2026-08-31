@@ -1,0 +1,25 @@
+{
+  "affected_component": "Workspace contract satisfiability, reference diagnostics, failure ownership and drafter evidence context",
+  "after_control_sha256": "c5409bcfd44c862aca2c1c13c5d97ce59bd95009c0494c4b8edf0170fd472bd6",
+  "anonymous_fixture_id": "anonymous-workspace-contract-and-reference-failure-v1",
+  "before_control_sha256": "a0657a41e2fcbca4b06c027bdfa384a340e1e7d802d1b11e070d3bdcd8d70846",
+  "before_reference_control_sha256": "a01c3a2d0a6285038970a65b980a027a2239f787adcb57e69507203051ee950f",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-08-31T15:22:16Z",
+  "evidence_id": "harness-change-workspace-contract-reference-validation-v1",
+  "framework_tree_sha256_after": "68ad82d5f2c8ad7ab0ca61513c7bd332c6aeccbb2fef9dc21a13d2157e66cf5b",
+  "full_regression_junit_sha256": "da84275a4e800f0988bff1a28305e4a51505b90011aefc996daffceb4c388dca",
+  "full_regression_result": "2105 tests, 60 skipped, 0 failures, 0 errors",
+  "incident_ids": [
+    "incident-workspace-contract-reference-c3-7393792"
+  ],
+  "invariant": "Before a workspace task can solicit representative fixtures or consume Agent budget, every required literal artifact must fit within the declared file, depth and path limits. A deterministic exception raised by the unfrozen task reference is CONTRACT-owned and must expose only a stable exception class, while isolation/start/process failures remain HARNESS-owned. When static scanning is truncated, bounded README and factual quickstart evidence must remain available to drafting so an incidental API probe cannot substitute for the user's primary requested capability.",
+  "normalized_fingerprint": "18651ee2382e232de7820e1c144de467734208d58e377ad9d463bd9d02dc195c",
+  "regression_tests": [
+    "tests/test_workspace_bundle.py::test_workspace_contract_rejects_impossible_literal_file_budget",
+    "tests/ui/test_workspace_ui_services.py::test_workspace_reference_exception_is_a_contract_failure",
+    "tests/test_tool_drafter.py::test_drafter_context_keeps_bounded_readme_evidence_when_scan_is_truncated"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

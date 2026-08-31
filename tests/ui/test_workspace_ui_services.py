@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 import yaml
 
 from repoproof.adoption.intake import example_proposer, workspace_fixtures
@@ -246,6 +247,55 @@ def test_workspace_candidate_generation_rejects_duplicate_input_content(
     assert result["failure_owner"] == "CONTRACT"
     assert result["reason_codes"] == ["FIXTURE_INPUT_DUPLICATE"]
     assert not (draft / "workspace_fixture_candidates.json").exists()
+
+
+def test_workspace_reference_exception_is_a_contract_failure(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from repoproof.domain.models import WorkspaceArtifactContractV1
+    from repoproof.execution import offline_sandbox
+    from repoproof.execution.workspace_bundle import WorkspaceBundleError
+
+    source = tmp_path / "reference_impl.py"
+    source.write_text(
+        "from pathlib import Path\n\n"
+        "def build_workspace(input_path: Path, output_dir: Path) -> None:\n"
+        "    raise AttributeError('public API assumption was wrong')\n",
+        encoding="utf-8",
+    )
+    input_path = tmp_path / "input"
+    input_path.mkdir()
+    (input_path / "brief.txt").write_text("study\n", encoding="utf-8")
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    monkeypatch.setattr(
+        offline_sandbox,
+        "offline_sandbox_argv",
+        lambda argv, _root: argv,
+    )
+
+    with pytest.raises(WorkspaceBundleError) as caught:
+        product_jobs._run_workspace_reference_candidate(
+            reference_source=source,
+            input_path=input_path,
+            expected_dir=tmp_path / "expected",
+            contract=WorkspaceArtifactContractV1(
+                rules=(
+                    {
+                        "path_pattern": "README.md",
+                        "role": "guide",
+                        "media_type": "text/markdown",
+                        "validation_profile": "text_utf8_v1",
+                    },
+                )
+            ),
+            python_exe=sys.executable,
+            upstream_dir=upstream,
+        )
+
+    assert caught.value.code == "WORKSPACE_REFERENCE_EXECUTION_FAILED"
+    assert caught.value.detail == "AttributeError"
 
 
 def test_workspace_candidate_preview_zip_and_confirmation_are_tree_bound(

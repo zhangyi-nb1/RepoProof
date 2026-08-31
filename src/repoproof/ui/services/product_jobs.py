@@ -1277,26 +1277,55 @@ def add_golden_example(
 
 _WORKSPACE_FIXTURE_STATE = "workspace_fixture_candidates.json"
 _WORKSPACE_REFERENCE_RUNNER = '''import importlib.util
+import json
 import sys
 from pathlib import Path
 
 source, input_path, output_dir = sys.argv[1:4]
-spec = importlib.util.spec_from_file_location("repoproof_workspace_reference", source)
-if spec is None or spec.loader is None:
-    raise RuntimeError("workspace reference cannot be loaded")
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-build = getattr(module, "build_workspace", None)
-if not callable(build):
-    raise TypeError("reference must export build_workspace(input_path, output_dir)")
-build(Path(input_path), Path(output_dir))
+try:
+    spec = importlib.util.spec_from_file_location("repoproof_workspace_reference", source)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("workspace reference cannot be loaded")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    build = getattr(module, "build_workspace", None)
+    if not callable(build):
+        raise TypeError("reference must export build_workspace(input_path, output_dir)")
+    build(Path(input_path), Path(output_dir))
+except Exception as exc:
+    if isinstance(exc, ModuleNotFoundError):
+        kind = "dependency_missing"
+    elif type(exc).__name__ == "UserInputError":
+        kind = "fixture_rejected"
+    elif isinstance(exc, (RuntimeError, TypeError)) and "reference" in str(exc):
+        kind = "protocol_invalid"
+    else:
+        kind = "reference_exception"
+    print(
+        "REPOPROOF_WORKSPACE_REFERENCE_FAILURE="
+        + json.dumps(
+            {"failure_kind": kind, "exception_type": type(exc).__name__},
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        file=sys.stderr,
+    )
+    raise SystemExit(90) from None
 '''
+
+_WORKSPACE_REFERENCE_FAILURE_PREFIX = "REPOPROOF_WORKSPACE_REFERENCE_FAILURE="
 
 
 def _workspace_tool_from_draft(draft: dict):
-    from repoproof.domain.models import ToolSpec
+    from pydantic import ValidationError
 
-    tool = ToolSpec.model_validate(draft.get("tool"))
+    from repoproof.domain.models import ToolSpec
+    from repoproof.execution.workspace_bundle import WorkspaceBundleError
+
+    try:
+        tool = ToolSpec.model_validate(draft.get("tool"))
+    except ValidationError as exc:
+        raise WorkspaceBundleError("WORKSPACE_CONTRACT_INVALID") from exc
     if (
         tool.schema_version != 4
         or tool.delivery_profile_id != "workspace_bundle_v1"
@@ -1454,10 +1483,37 @@ def _run_workspace_reference_candidate(
         except OSError as exc:
             raise WorkspaceBundleError("WORKSPACE_REFERENCE_START_FAILED") from exc
         if process.returncode != 0:
-            raise WorkspaceBundleError(
-                "WORKSPACE_REFERENCE_FAILED",
-                f"exit={process.returncode}",
+            structured: dict[str, str] | None = None
+            for line in reversed(process.stderr.splitlines()):
+                if not line.startswith(_WORKSPACE_REFERENCE_FAILURE_PREFIX):
+                    continue
+                try:
+                    candidate = json.loads(
+                        line.removeprefix(_WORKSPACE_REFERENCE_FAILURE_PREFIX)
+                    )
+                except json.JSONDecodeError:
+                    break
+                if isinstance(candidate, dict):
+                    structured = {
+                        "failure_kind": str(candidate.get("failure_kind") or ""),
+                        "exception_type": str(candidate.get("exception_type") or ""),
+                    }
+                break
+            if structured is None:
+                raise WorkspaceBundleError(
+                    "WORKSPACE_REFERENCE_PROCESS_FAILED",
+                    f"exit={process.returncode}",
+                )
+            code = {
+                "dependency_missing": "WORKSPACE_REFERENCE_DEPENDENCY_MISSING",
+                "fixture_rejected": "WORKSPACE_REFERENCE_FIXTURE_REJECTED",
+                "protocol_invalid": "WORKSPACE_REFERENCE_PROTOCOL_INVALID",
+                "reference_exception": "WORKSPACE_REFERENCE_EXECUTION_FAILED",
+            }.get(
+                structured["failure_kind"],
+                "WORKSPACE_REFERENCE_PROCESS_FAILED",
             )
+            raise WorkspaceBundleError(code, structured["exception_type"])
         validation = validate_workspace(output, contract)
         if not validation.ok or validation.manifest is None:
             raise WorkspaceBundleError(
@@ -1702,15 +1758,32 @@ def propose_workspace_fixture_candidates(
     ) as exc:
         if generation_root is not None:
             shutil.rmtree(generation_root, ignore_errors=True)
-        code = getattr(exc, "code", type(exc).__name__.upper())
+        code = str(getattr(exc, "code", type(exc).__name__.upper()))
+        contract_owned = (
+            code.startswith("FIXTURE_")
+            or code.startswith("WORKSPACE_CONTRACT_")
+            or code.startswith("WORKSPACE_REFERENCE_EXECUTION_")
+            or code.startswith("WORKSPACE_REFERENCE_FIXTURE_")
+            or code.startswith("WORKSPACE_REFERENCE_PROTOCOL_")
+            or code.startswith("WORKSPACE_REFERENCE_DEPENDENCY_")
+        )
+        diagnostics = str(getattr(exc, "detail", "") or "")
         return {
             "ok": False,
             "error": f"目录样例生成失败：{code}",
-            "failure_owner": "CONTRACT" if str(code).startswith("FIXTURE_") else "HARNESS",
-            "reason_codes": [str(code)],
+            "failure_owner": "CONTRACT" if contract_owned else "HARNESS",
+            "reason_codes": [code],
+            "diagnostics": [diagnostics] if diagnostics else [],
             "recommended_action": (
-                "修正冻结前的 fixture builder/场景蓝图并创建新的语义确认；"
-                "不要把生成器故障交给构建 Agent 盲修。"
+                (
+                    "冻结前的合同、fixture 或 reference 不可执行；修正公共语义并创建新的任务版本，"
+                    "不要把控制面故障交给构建 Agent 盲修。"
+                )
+                if contract_owned
+                else (
+                    "修复隔离环境或执行器后从当前 Journey 重试；"
+                    "本次不得消耗构建 Agent repair。"
+                )
             ),
         }
 

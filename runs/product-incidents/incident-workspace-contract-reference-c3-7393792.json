@@ -1,0 +1,32 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "contract_required_literal_files": 7,
+    "contract_max_files": 6,
+    "repair_consumed": 0,
+    "reference_exception_type": "AttributeError"
+  },
+  "created_at": "2026-08-31T15:22:16Z",
+  "disposition": "GENERIC_FALSE_SUCCESS_GUARD_IMPLEMENTED",
+  "draft_sha256": "28bc1c6b4f114df8891ac8b76ee959455aaef136f487705afdb9fa9a9e167f74",
+  "framework_git_commit": "739379296c1a6bad91817b85b7ee775ae2df968e",
+  "incident_id": "incident-workspace-contract-reference-c3-7393792",
+  "normalized_fingerprint": "18651ee2382e232de7820e1c144de467734208d58e377ad9d463bd9d02dc195c",
+  "owner": "CONTRACT",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "workspace_contract::literal-file-budget",
+    "workspace_reference::public-api-execution"
+  ],
+  "reason_codes": [
+    "WORKSPACE_CONTRACT_UNSATISFIABLE",
+    "WORKSPACE_REFERENCE_EXECUTION_FAILED"
+  ],
+  "reference_impl_sha256": "ae2304e975e4deb73c302fb99251923a4fa75d68bf12fceeca7659c45db0bc32",
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "FIXTURE_REFERENCE",
+  "task_version": "tool-networkx-tool-v1"
+}

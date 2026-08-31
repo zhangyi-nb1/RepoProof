@@ -199,6 +199,12 @@ _SYSTEM = (
     "For workspace_bundle_v1 define build_workspace(input_path: Path, output_dir: "
     "Path) -> None and create every contracted file below output_dir. Both versions "
     "must REALLY call the upstream and "
+    "the upstream result MUST drive at least one primary user-requested semantic "
+    "commitment and its delivered artifact. Never add an incidental diagnostic, "
+    "version check, lazy-attribute check, or unrelated output only to manufacture "
+    "adoption evidence. When the pinned upstream already provides the requested "
+    "graph, parse, transform, render, query, or analysis operation, use that public "
+    "operation instead of locally reimplementing it. "
     "wraps only explicit bad-input exception types as UserInputError; never use "
     "bare except or catch Exception/BaseException because that would disguise "
     "adapter/API defects as bad user input), example_suggestions (list of "
@@ -2289,6 +2295,13 @@ def _drafter_context(report_like: dict) -> dict:
                              (repo.get("cli_entry_points") or [])[:10]],
         "capability_candidates": [str(c) for c in
                                   (repo.get("capability_candidates") or [])[:10]],
+        "readme_excerpt": str(repo.get("readme_excerpt") or "")[:1200],
+        "quickstart": (
+            str((repo.get("quickstart") or {}).get("value") or "")[:500]
+            if (repo.get("quickstart") or {}).get("provenance") == "FACT"
+            else ""
+        ),
+        "scan_incomplete": bool((repo.get("scan_stats") or {}).get("truncated")),
         "tool_name": ((report_like.get("draft") or {}).get("tool")
                       or {}).get("name", ""),
     }
