@@ -33,6 +33,11 @@ PYTHONPATH=. .venv/bin/pytest -q
 6. 运行仓库特例扫描，新增 Core 命中必须为零。已有 legacy/Lab 命中只允许按
    冻结基线报告，不得扩大。
 
+正式资格任务的草稿束同时携带只含普通 `.whl` 文件的 `wheelhouse/` 和
+`wheelhouse_manifest.json`。Product pipeline 必须显示
+`wheelhouse.source=PREREGISTERED`，逐文件复核 manifest 后消费这些确切字节；
+重新向索引解析出“版本相同但字节未冻结”的 wheel 不属于本协议执行。
+
 ## 固定顺序
 
 1. N0 Browser Use admission 负控；

@@ -2,6 +2,15 @@
 
 ## Unreleased — 2026-08-31 · M6.2 verified offline workspace candidate
 
+- Added a deterministic pre-repository intent safety gate. Explicit credentials,
+  runtime network/browser use, long-running lifecycle, GPU/remote runtime and
+  irreversible external effects now stop with stable public reasons before a
+  clone, drafter, Agent, repair round or export; the credentialled irreversible
+  combination has its own dominant reason code.
+- Added exact consumption of preregistered wheelhouse bytes. A draft may carry
+  a no-follow `wheelhouse/` plus hash manifest; Product build verifies the
+  complete file set and hashes, copies it atomically into the execution
+  wheelhouse and refuses to re-resolve equivalent packages from an index.
 - Added additive ToolSpec v4 and experimental `workspace_bundle_v1`: one local
   file or directory produces one new atomic offline workspace directory.
 - Added no-follow path/resource enforcement, deterministic directory manifests

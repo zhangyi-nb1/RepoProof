@@ -7,9 +7,11 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
+from repoproof.harness.wheelhouse import compute_manifest
 from repoproof.runner import tool_pipeline
 from repoproof.runner.tool_pipeline import (
     PipelineError,
+    _consume_prefrozen_wheelhouse,
     _record_workspace_repair_incidents,
     _stage_workspace_wheelhouse,
 )
@@ -71,6 +73,67 @@ def test_workspace_pipeline_rejects_sdist_in_portable_wheelhouse(
             tool_contract_path=tool_contract,
             wheelhouse=wheelhouse,
         )
+
+
+def test_pipeline_consumes_exact_prefrozen_wheelhouse_without_index_access(
+    tmp_path: Path,
+) -> None:
+    draft_archive = tmp_path / "draft-archive"
+    frozen = draft_archive / "wheelhouse"
+    frozen.mkdir(parents=True)
+    (frozen / "anonymous_upstream-1.0-py3-none-any.whl").write_bytes(b"upstream")
+    (frozen / "pytest-1.0-py3-none-any.whl").write_bytes(b"test runner")
+    manifest = compute_manifest(frozen)
+    (draft_archive / "wheelhouse_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+    destination = tmp_path / "execution-wheelhouse"
+
+    result = _consume_prefrozen_wheelhouse(
+        draft_archive=draft_archive,
+        destination=destination,
+    )
+
+    assert result == manifest
+    assert compute_manifest(destination) == manifest
+
+
+def test_pipeline_rejects_tampered_prefrozen_wheelhouse(tmp_path: Path) -> None:
+    draft_archive = tmp_path / "draft-archive"
+    frozen = draft_archive / "wheelhouse"
+    frozen.mkdir(parents=True)
+    wheel = frozen / "anonymous_upstream-1.0-py3-none-any.whl"
+    wheel.write_bytes(b"frozen")
+    (draft_archive / "wheelhouse_manifest.json").write_text(
+        json.dumps(compute_manifest(frozen), sort_keys=True),
+        encoding="utf-8",
+    )
+    wheel.write_bytes(b"changed after freeze")
+
+    with pytest.raises(
+        PipelineError,
+        match="字节身份与 manifest 不一致",
+    ) as caught:
+        _consume_prefrozen_wheelhouse(
+            draft_archive=draft_archive,
+            destination=tmp_path / "execution-wheelhouse",
+        )
+
+    assert caught.value.reason_code == "PREFROZEN_WHEELHOUSE_IDENTITY_MISMATCH"
+
+
+def test_pipeline_rejects_partial_prefrozen_wheelhouse_assets(tmp_path: Path) -> None:
+    draft_archive = tmp_path / "draft-archive"
+    (draft_archive / "wheelhouse").mkdir(parents=True)
+
+    with pytest.raises(PipelineError) as caught:
+        _consume_prefrozen_wheelhouse(
+            draft_archive=draft_archive,
+            destination=tmp_path / "execution-wheelhouse",
+        )
+
+    assert caught.value.reason_code == "PREFROZEN_WHEELHOUSE_MANIFEST_INVALID"
 
 
 def test_workspace_pipeline_appends_public_repair_round_incidents(

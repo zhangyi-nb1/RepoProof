@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import datetime
 import hashlib
+import json
+import os
 import re
 import shutil
 import subprocess
@@ -240,6 +242,129 @@ def _stage_workspace_wheelhouse(
         "wheel_count": len(wheels),
         "self_contained": True,
     }
+
+
+def _consume_prefrozen_wheelhouse(
+    *,
+    draft_archive: Path,
+    destination: Path,
+) -> dict:
+    """Copy a preregistered wheel set after exact manifest verification.
+
+    Re-resolving equivalent package versions from an index does not preserve
+    the bytes that a qualification protocol preregistered.  When a draft
+    explicitly carries frozen wheels, this boundary consumes those exact
+    regular files or stops before Agent execution.
+    """
+
+    from repoproof.domain.models import AdmissionError
+    from repoproof.harness.wheelhouse import verify_wheelhouse
+
+    archive = Path(draft_archive)
+    source = archive / "wheelhouse"
+    manifest_path = archive / "wheelhouse_manifest.json"
+    if source.is_symlink() or not source.is_dir():
+        raise PipelineError(
+            "预冻结 wheelhouse 缺失或不是普通目录",
+            reason_code="PREFROZEN_WHEELHOUSE_INVALID",
+        )
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise PipelineError(
+            "预冻结 wheelhouse manifest 缺失或不是普通文件",
+            reason_code="PREFROZEN_WHEELHOUSE_MANIFEST_INVALID",
+        )
+    try:
+        if manifest_path.stat().st_size > 1024 * 1024:
+            raise ValueError("manifest too large")
+        document = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if set(document) != {"root", "wheels"}:
+            raise ValueError("manifest fields differ")
+        expected_root = str(document["root"])
+        expected_wheels = document["wheels"]
+        if (
+            re.fullmatch(r"[0-9a-f]{64}", expected_root) is None
+            or not isinstance(expected_wheels, dict)
+            or not expected_wheels
+        ):
+            raise ValueError("manifest identity invalid")
+        for name, digest in expected_wheels.items():
+            if (
+                not isinstance(name, str)
+                or Path(name).name != name
+                or not name.endswith(".whl")
+                or not isinstance(digest, str)
+                or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+            ):
+                raise ValueError("manifest wheel entry invalid")
+    except (OSError, UnicodeError, ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise PipelineError(
+            "预冻结 wheelhouse manifest 无效",
+            reason_code="PREFROZEN_WHEELHOUSE_MANIFEST_INVALID",
+        ) from exc
+
+    entries = sorted(source.iterdir())
+    if any(path.is_symlink() or not path.is_file() for path in entries):
+        raise PipelineError(
+            "预冻结 wheelhouse 含非普通文件",
+            reason_code="PREFROZEN_WHEELHOUSE_INVALID",
+        )
+    if {path.name for path in entries} != set(expected_wheels):
+        raise PipelineError(
+            "预冻结 wheelhouse 文件集合与 manifest 不一致",
+            reason_code="PREFROZEN_WHEELHOUSE_IDENTITY_MISMATCH",
+        )
+    try:
+        verified = verify_wheelhouse(
+            source,
+            expected_wheels=expected_wheels,
+            expected_root=expected_root,
+        )
+    except AdmissionError as exc:
+        raise PipelineError(
+            "预冻结 wheelhouse 字节身份与 manifest 不一致",
+            reason_code="PREFROZEN_WHEELHOUSE_IDENTITY_MISMATCH",
+        ) from exc
+
+    destination = Path(destination)
+    if destination.exists() and (
+        destination.is_symlink()
+        or not destination.is_dir()
+        or any(destination.iterdir())
+    ):
+        raise PipelineError(
+            "执行 wheelhouse 目标不是安全空目录",
+            reason_code="PREFROZEN_WHEELHOUSE_DESTINATION_UNSAFE",
+        )
+    destination.mkdir(parents=True, exist_ok=True)
+    for source_wheel in entries:
+        target = destination / source_wheel.name
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        try:
+            fd = os.open(target, flags, 0o600)
+        except OSError as exc:
+            raise PipelineError(
+                "无法原子落位预冻结 wheel",
+                reason_code="PREFROZEN_WHEELHOUSE_DESTINATION_UNSAFE",
+            ) from exc
+        try:
+            with source_wheel.open("rb") as reader, os.fdopen(fd, "wb") as writer:
+                shutil.copyfileobj(reader, writer)
+                writer.flush()
+                os.fsync(writer.fileno())
+        except Exception:
+            target.unlink(missing_ok=True)
+            raise
+    try:
+        return verify_wheelhouse(
+            destination,
+            expected_wheels=verified["wheels"],
+            expected_root=verified["root"],
+        )
+    except AdmissionError as exc:
+        raise PipelineError(
+            "预冻结 wheelhouse 落位后身份漂移",
+            reason_code="PREFROZEN_WHEELHOUSE_IDENTITY_MISMATCH",
+        ) from exc
 
 
 def _record_workspace_repair_incidents(
@@ -952,28 +1077,39 @@ def tool_build(
 
     # 4) wheelhouse 备轮(reference 锁定集 + 测量工具链)
     wheelhouse = Path(bench_root) / task_id / "wheelhouse"
-    r = subprocess.run(
-        wheelhouse_cmd
-        or [
-            "python3",
-            "-m",
-            "pip",
-            "download",
-            "--disable-pip-version-check",
-            "-q",
-            *pins,
-            "pytest",
-            "setuptools",
-            "wheel",
-            "-d",
-            str(wheelhouse),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=900,
+    prefrozen_present = (
+        (archive / "wheelhouse").exists()
+        or (archive / "wheelhouse_manifest.json").exists()
     )
-    if r.returncode != 0:
-        raise PipelineError(f"wheelhouse 备轮失败:{r.stderr[-300:]}")
+    prefrozen_manifest: dict | None = None
+    if wheelhouse_cmd is None and prefrozen_present:
+        prefrozen_manifest = _consume_prefrozen_wheelhouse(
+            draft_archive=archive,
+            destination=wheelhouse,
+        )
+    else:
+        r = subprocess.run(
+            wheelhouse_cmd
+            or [
+                "python3",
+                "-m",
+                "pip",
+                "download",
+                "--disable-pip-version-check",
+                "-q",
+                *pins,
+                "pytest",
+                "setuptools",
+                "wheel",
+                "-d",
+                str(wheelhouse),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=900,
+        )
+        if r.returncode != 0:
+            raise PipelineError(f"wheelhouse 备轮失败:{r.stderr[-300:]}")
     # 事后核账只在**真备轮**时成立:`wheelhouse_cmd` 是测试注入口(E2E 用
     # `true` 跳过下载、改由 PYTHONPATH shim 提供上游),那种情况下这里没有
     # 东西可核 —— 核一个没发生的动作只会得出假结论。生产侧无人传此参数。
@@ -985,7 +1121,16 @@ def tool_build(
             f"备轮完成但 wheelhouse 里没有上游 {sr['distribution']!r}:"
             f"{sorted(downloaded)[:8]} —— 会话将 import 不到上游,拒绝继续。"
         )
-    stages["wheelhouse"] = {"wheels": len(list(wheelhouse.glob("*.whl"))), "upstream_present": True}
+    stages["wheelhouse"] = {
+        "wheels": len(list(wheelhouse.glob("*.whl"))),
+        "upstream_present": True,
+        "source": (
+            "PREREGISTERED"
+            if prefrozen_manifest is not None
+            else "INDEX_RESOLVED"
+        ),
+        "root": (prefrozen_manifest or {}).get("root"),
+    }
 
     if wheelhouse_cmd is None:
         staged_wheelhouse = _stage_workspace_wheelhouse(
