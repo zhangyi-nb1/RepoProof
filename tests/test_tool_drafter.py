@@ -155,7 +155,9 @@ def test_fake_draft_fills_llm_gaps_then_human_only_examples_remain(world):
     assert "reference_impl" in out["fields_drafted"]
     meta = json.loads((dest / "draft_meta.json").read_text(encoding="utf-8"))
     assert meta["drafter"] == "fake-drafter"
-    assert meta["verifier_context_policy"] == "public-contract-only-v1"
+    assert meta["verifier_context_policy"] == (
+        "public-contract-and-upstream-evidence-v2"
+    )
     drafted = yaml.safe_load((dest / "draft.yaml").read_text(encoding="utf-8"))
     assert drafted["capability"]["output_schema"] == "DraftedOutput"
     assert drafted["tool"]["interface"]["output"]["contract"] == {
@@ -202,9 +204,11 @@ def test_verifier_is_drafted_from_an_exact_public_context_only(world) -> None:
     class CapturingDrafter(FakeDrafter):
         def __init__(self) -> None:
             self.last_usage: dict = {}
+            self.proposal_context: dict | None = None
             self.verifier_context: dict | None = None
 
         def draft(self, context: dict) -> dict:
+            self.proposal_context = context
             document = super().draft(context)
             document["reference_impl"] += "\n# PRIVATE_REFERENCE_SOURCE_MARKER\n"
             self.last_usage = {"stage": "proposal"}
@@ -242,8 +246,21 @@ def test_verifier_is_drafted_from_an_exact_public_context_only(world) -> None:
         "public_api",
         "cli_entry_points",
         "capability_candidates",
+        "readme_excerpt",
+        "quickstart",
+        "scan_incomplete",
         "tool_name",
     }
+    assert drafter.proposal_context is not None
+    assert drafter.verifier_context["upstream_public_info"]["readme_excerpt"] == (
+        drafter.proposal_context["readme_excerpt"]
+    )
+    assert drafter.verifier_context["upstream_public_info"]["quickstart"] == (
+        drafter.proposal_context["quickstart"]
+    )
+    assert drafter.verifier_context["upstream_public_info"]["scan_incomplete"] == (
+        drafter.proposal_context["scan_incomplete"]
+    )
     serialised = json.dumps(drafter.verifier_context, ensure_ascii=False)
     assert drafter.verifier_context["artifact_protocol"]["observations"]
     assert "PRIVATE_REFERENCE_SOURCE_MARKER" not in serialised

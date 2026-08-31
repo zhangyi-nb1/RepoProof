@@ -2382,6 +2382,9 @@ def _verifier_context(public_upstream: dict, drafted: dict) -> dict:
         "public_api",
         "cli_entry_points",
         "capability_candidates",
+        "readme_excerpt",
+        "quickstart",
+        "scan_incomplete",
         "tool_name",
     )
     from repoproof.adoption.assembly.output_contract import (
@@ -2662,7 +2665,7 @@ def draft_into_bundle(
             "proposal_and_reference": proposal_usage,
             "semantic_verifier": verifier_usage,
         },
-        "verifier_context_policy": "public-contract-only-v1",
+        "verifier_context_policy": "public-contract-and-upstream-evidence-v2",
         "fields_drafted": fields,
         "skipped": skipped,
     }, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")

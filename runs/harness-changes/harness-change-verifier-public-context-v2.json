@@ -1,0 +1,20 @@
+{
+  "affected_component": "Independent semantic-verifier public upstream context",
+  "after_control_sha256": "15bea16fa07e509fbd1ad430257296981da97358992692f61654a13362d5c457",
+  "anonymous_fixture_id": "anonymous-truncated-public-api-with-readme-evidence-v2",
+  "before_control_sha256": "aac34b0cafde896f4d53d2b3abe6e3e9a6f80134ee6a059c2fbb068aeb7ec2e1",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T00:15:00+08:00",
+  "evidence_id": "harness-change-verifier-public-context-v2",
+  "incident_ids": [
+    "incident-verifier-public-upstream-evidence-c3-8a9d368"
+  ],
+  "invariant": "An independent verifier must receive the same bounded public README, factual quickstart, and scan-completeness evidence available to proposal drafting, while reference source, golden examples, held-out examples, expected outputs, and prior verifier source remain excluded.",
+  "normalized_fingerprint": "verifier-public-evidence-asymmetry-v1",
+  "regression_tests": [
+    "tests/test_tool_drafter.py::test_fake_draft_fills_llm_gaps_then_human_only_examples_remain",
+    "tests/test_tool_drafter.py::test_verifier_is_drafted_from_an_exact_public_context_only"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}
