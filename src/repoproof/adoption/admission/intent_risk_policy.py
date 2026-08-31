@@ -32,7 +32,7 @@ class IntentDeliveryRiskV1(BaseModel):
     browser: Literal["none", "required"] = "none"
     lifecycle: Literal["per_invocation", "long_running"] = "per_invocation"
     runtime: Literal["local_cpu", "gpu", "remote_service"] = "local_cpu"
-    external_side_effects: Literal["none", "irreversible"] = "none"
+    external_side_effects: Literal["none", "reversible", "irreversible"] = "none"
     reason_codes: tuple[str, ...] = ()
     blockers: tuple[str, ...] = ()
 
@@ -51,9 +51,12 @@ _CREDENTIAL_PATTERNS = (
     re.compile(r"(?:登录|登陆|身份认证|访问(?:我的|私人|私有)?(?:账户|账号)|使用(?:我的)?(?:账户|账号))"),
 )
 _NETWORK_PATTERNS = (
-    re.compile(r"\b(?:fetch|download|query)\s+.+\s+from\s+(?:the\s+)?(?:internet|web|api)\b"),
+    re.compile(r"\b(?:fetch|download|query)\s+.+\s+from\s+(?:the\s+)?(?:online\s+)?(?:internet|web|api)\b"),
     re.compile(r"\b(?:live|online)\s+(?:website|api|service|data)\b"),
-    re.compile(r"(?:联网|在线抓取|从(?:网址|网站|接口)下载|调用(?:在线|远程)?\s*api|实时查询(?:网站|接口))"),
+    re.compile(
+        r"(?:联网|在线抓取|从(?:在线|远程)?\s*(?:网址|网站|接口|api)"
+        r"\s*(?:下载|获取|读取|查询)|调用(?:在线|远程)?\s*api|实时查询(?:网站|接口))"
+    ),
 )
 _BROWSER_PATTERNS = (
     re.compile(r"\b(?:browser automation|automate (?:a |the )?browser)\b"),
@@ -63,7 +66,10 @@ _BROWSER_PATTERNS = (
 _LONG_RUNNING_PATTERNS = (
     re.compile(r"\b(?:daemon|long[- ]running|keep running|run continuously|background listener)\b"),
     re.compile(r"\b(?:watch|monitor)\s+.+\s+(?:continuously|in real time|forever)\b"),
-    re.compile(r"(?:常驻(?:服务|进程)?|持续运行|一直运行|后台监听|实时监控)"),
+    re.compile(
+        r"(?:常驻(?:服务|进程)?|持续运行|一直运行|后台监听|实时监听|"
+        r"持续监控|一直监控|实时监控)"
+    ),
 )
 _GPU_PATTERNS = (
     re.compile(r"\b(?:gpu|cuda|rocm)\b"),
@@ -77,6 +83,16 @@ _IRREVERSIBLE_PATTERNS = (
     re.compile(r"\b(?:make|execute|complete|send|submit|place|publish|delete|remove)\b.{0,48}\b(?:payment|transfer|transaction|order|message|post|record|resource|data)\b"),
     re.compile(r"\birreversible\s+(?:external\s+)?(?:action|operation|transaction|change)\b"),
     re.compile(r"(?:处理|执行|发起|完成|进行|提交|发送|发布|删除|购买|下单).{0,16}(?:付款|支付|转账|交易|订单|消息|内容|记录|资源|数据)"),
+)
+_REVERSIBLE_EXTERNAL_PATTERNS = (
+    re.compile(
+        r"\b(?:upload|sync|create|update|edit)\b.{0,48}\b(?:cloud\s+drive|"
+        r"cloud\s+storage|calendar|ticket|issue|remote\s+service|website|web\s+page)\b"
+    ),
+    re.compile(
+        r"(?:(?:上传|同步).{0,24}(?:云盘|云端|网站|远程服务)|"
+        r"在(?:云盘|网站|远程服务|日历|工单系统).{0,24}(?:创建|更新|修改))"
+    ),
 )
 
 
@@ -101,13 +117,15 @@ def classify_product_intent_risk(capability_goal: str) -> IntentDeliveryRiskV1:
         runtime = "gpu"
     elif _matches(_REMOTE_RUNTIME_PATTERNS, text):
         runtime = "remote_service"
-    external_side_effects: Literal["none", "irreversible"] = (
-        "irreversible" if _matches(_IRREVERSIBLE_PATTERNS, text) else "none"
-    )
+    external_side_effects: Literal["none", "reversible", "irreversible"] = "none"
+    if _matches(_IRREVERSIBLE_PATTERNS, text):
+        external_side_effects = "irreversible"
+    elif _matches(_REVERSIBLE_EXTERNAL_PATTERNS, text):
+        external_side_effects = "reversible"
 
     # The compound class is intentionally dominant: it communicates the real
     # safety boundary instead of presenting two weaker topology mismatches.
-    if credentials == "required" and external_side_effects == "irreversible":
+    if credentials == "required" and external_side_effects != "none":
         return IntentDeliveryRiskV1(
             credentials=credentials,
             network=network,
@@ -117,7 +135,7 @@ def classify_product_intent_risk(capability_goal: str) -> IntentDeliveryRiskV1:
             external_side_effects=external_side_effects,
             reason_codes=("UNSUPPORTED_CREDENTIALLED_EXTERNAL_SIDE_EFFECT",),
             blockers=(
-                "需求明确要求身份凭证并执行不可逆外部操作；当前 Product profile "
+                "需求明确要求身份凭证并执行外部写操作；当前 Product profile "
                 "只交付无凭证、离线、无外部副作用的本地工具。",
             ),
         )
@@ -130,6 +148,12 @@ def classify_product_intent_risk(capability_goal: str) -> IntentDeliveryRiskV1:
     if external_side_effects == "irreversible":
         reasons.append("UNSUPPORTED_IRREVERSIBLE_EXTERNAL_SIDE_EFFECT")
         blockers.append("需求明确要求不可逆外部操作；当前 Product profile 仅允许无外部副作用的本地运行。")
+    elif external_side_effects == "reversible":
+        reasons.append("UNSUPPORTED_REVERSIBLE_EXTERNAL_SIDE_EFFECT")
+        blockers.append(
+            "需求明确要求向外部系统写入；即使可以撤销，当前 Product profile "
+            "也只允许在新建的本地产物目录内写入。"
+        )
     if network == "required":
         reasons.append("UNSUPPORTED_RUNTIME_NETWORK_REQUIRED")
         blockers.append("需求明确要求运行期联网；当前 Product profile 固定为运行期离线。")

@@ -189,6 +189,45 @@ def test_intake_rejects_credentialled_irreversible_intent_before_repository_acce
     assert report.draft == {}
 
 
+@pytest.mark.parametrize(
+    ("goal", "reason_code"),
+    [
+        (
+            "从在线 API 下载最新记录并生成本地报告。",
+            "UNSUPPORTED_RUNTIME_NETWORK_REQUIRED",
+        ),
+        (
+            "持续监控本地实验目录，有新文件就生成摘要。",
+            "UNSUPPORTED_LONG_RUNNING_LIFECYCLE",
+        ),
+        (
+            "把生成的报告上传到云盘，之后允许我删除。",
+            "UNSUPPORTED_REVERSIBLE_EXTERNAL_SIDE_EFFECT",
+        ),
+    ],
+)
+def test_explicit_delivery_topology_stops_before_repository_access(
+    tmp_path, monkeypatch, goal: str, reason_code: str
+) -> None:
+    def forbidden_repository_access(*_args, **_kwargs):
+        raise AssertionError("repository access must not occur for rejected intent")
+
+    monkeypatch.setattr(
+        "repoproof.adoption.intake.tool_intake.clone_for_analysis",
+        forbidden_repository_access,
+    )
+    report = run_tool_intake(
+        "https://example.invalid/public-source",
+        goal,
+        cache_root=tmp_path / "cache",
+        revision="v1",
+    )
+
+    assert report.admission.status == "UNSUPPORTED"
+    assert report.admission.reason_codes == [reason_code]
+    assert report.draft == {}
+
+
 # ------------------------------------------------------------ 草稿与缺口
 
 def test_intake_draft_fills_deterministic_fields(tmp_path):

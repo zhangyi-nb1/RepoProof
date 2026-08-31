@@ -1,0 +1,26 @@
+{
+  "control_id": "anonymous-intent-topology-coverage-after",
+  "schema_version": 1,
+  "cases": [
+    {
+      "scenario": "explicit-online-api-read",
+      "expected_reason_codes": ["UNSUPPORTED_RUNTIME_NETWORK_REQUIRED"],
+      "actual_reason_codes": ["UNSUPPORTED_RUNTIME_NETWORK_REQUIRED"]
+    },
+    {
+      "scenario": "explicit-continuous-local-monitor",
+      "expected_reason_codes": ["UNSUPPORTED_LONG_RUNNING_LIFECYCLE"],
+      "actual_reason_codes": ["UNSUPPORTED_LONG_RUNNING_LIFECYCLE"]
+    },
+    {
+      "scenario": "explicit-reversible-external-write",
+      "expected_reason_codes": ["UNSUPPORTED_REVERSIBLE_EXTERNAL_SIDE_EFFECT"],
+      "actual_reason_codes": ["UNSUPPORTED_REVERSIBLE_EXTERNAL_SIDE_EFFECT"]
+    },
+    {
+      "scenario": "local-sensitive-data-offline-positive-control",
+      "expected_reason_codes": [],
+      "actual_reason_codes": []
+    }
+  ]
+}

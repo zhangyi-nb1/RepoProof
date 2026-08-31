@@ -1,0 +1,21 @@
+{
+  "affected_component": "Product intent admission delivery-topology classifier",
+  "after_control_sha256": "45645d88ac74087bbefbb847481f55665c206cd7b39e61e7375f5b1a3a4375ea",
+  "anonymous_fixture_id": "anonymous-intent-topology-coverage-v1",
+  "before_control_sha256": "170495def7b8cdb5b1bdc4cb30506f3312faa1708eb6d47282312a4ac434c7c3",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-08-31T11:50:06Z",
+  "evidence_id": "harness-change-intent-topology-coverage-v1",
+  "incident_ids": [
+    "incident-intent-topology-coverage-d475b43"
+  ],
+  "invariant": "Every explicit delivery dimension outside the active local, offline, per-invocation, no-external-write profile must stop before repository, model, or Agent work, while local offline processing remains admitted regardless of data sensitivity.",
+  "normalized_fingerprint": "2bb55e50ad8af28b",
+  "regression_tests": [
+    "tests/test_intent_risk_policy.py",
+    "tests/test_tool_intake.py::test_intake_rejects_credentialled_irreversible_intent_before_repository_access",
+    "tests/test_product_action_and_journey.py"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}
