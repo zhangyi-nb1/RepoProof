@@ -1,0 +1,877 @@
+schema_version: 2
+protocol_id: m6.2-workspace-bundle-qualification-v2
+status: FROZEN_READY
+baseline_commit: 0a8034a
+implementation_branch: codex/m6-2-workspace-bundle-qualification
+delivery_profile_id: workspace_bundle_v1
+profile_status_before_batch: EXPERIMENTAL
+scope:
+  public_github_only: true
+  python_first: true
+  local_cpu: true
+  credentials: none
+  runtime_network: offline
+  lifecycle: per_invocation
+  input: one_local_file_or_directory
+  output: one_new_directory
+  mcp: WORKSPACE_BUNDLE_MCP_NOT_SUPPORTED
+execution_policy:
+  order_is_fixed: true
+  fixed_drafter_backend: litellm_api_gateway
+  fixed_agent_backend: mini-swe
+  backend_switch_during_batch_forbidden: true
+  agent_attempt_budget: 3
+  completed_real_agent_cases_are_not_restarted_after_generic_repair: true
+  every_completed_case_replays_zero_model_after_generic_repair: true
+  product_results_never_count_toward_benchmark_metrics: true
+  real_model_execution_authorized: true
+  pushing_or_publishing_authorized: false
+  provider_unavailable_action: PAUSE_WITH_EXTERNAL_GATEWAY_UNAVAILABLE
+contract_policy:
+  all_normative_rules_public_before_freeze: true
+  held_out_may_hide_only:
+  - input_bytes
+  - expected_artifact_bytes
+  fixture_blueprints_minimum: 3
+  fixture_blueprints_maximum: 4
+  fixture_bytes_generated_by_frozen_builder: true
+  expected_workspace_generated_by_pinned_upstream_reference: true
+  semantic_verifier_task_owned_and_frozen: true
+incident_policy:
+  append_only_product_incident_required: true
+  repository_named_core_patch_forbidden: true
+  anonymous_before_after_control_required: true
+  first_incident_exception_only_for:
+  - false_success
+  - held_out_leak
+  - credential_leak
+  - path_escape
+  - ledger_or_manifest_identity_failure
+  - verification_or_clean_replay_bypass
+  non_safety_change_requires_same_fingerprint_in_independent_tasks: 2
+verification_policy:
+  structure_validation_required: true
+  generic_format_validation_required: true
+  semantic_verifier_required: true
+  runtime_validation_required_when_runnable: true
+  counterfactual_controls:
+  - input_substitution_rejected
+  - artifact_directory_substitution_rejected
+  - upstream_result_substitution_rejected
+  clean_replay_required: true
+  fresh_audit_required: true
+  operational_active_required_for_success: true
+  package_health_ok_required_for_success: true
+wheelhouse_freeze:
+  status: FROZEN
+  manifest_schema_version: 1
+  platform:
+    python: '3.12'
+    os: macos
+    arch: arm64
+  execution_must_stop_while_pending: false
+  execution_must_consume_preregistered_bytes: true
+  cases:
+  - case_id: b1-cookiecutter-research-project
+    requested_pins:
+    - cookiecutter==2.7.1
+    - pytest
+    - setuptools
+    - wheel
+    root: c03039cb7c5fa48307dc8e3528160956d230e5e5646cbe5fc016e87be6c6d549
+    manifest_sha256: 413062aec3e30dbd417bc03fa3ce33ae3254214ba91eef32461b0be8f92ec287
+    wheel_count: 27
+    total_bytes: 5060425
+    wheels:
+    - filename: arrow-1.4.0-py3-none-any.whl
+      sha256: 749f0769958ebdc79c173ff0b0670d59051a535fa26e8eba02953dc19eb43205
+      size: 68797
+    - filename: binaryornot-0.6.0-py3-none-any.whl
+      sha256: 900adfd5e1b821255ba7e63139b0396b14c88b9286e74e03b6f51e0200331337
+      size: 14185
+    - filename: certifi-2026.7.22-py3-none-any.whl
+      sha256: 62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775
+      size: 136983
+    - filename: charset_normalizer-3.5.1-cp312-cp312-macosx_10_13_universal2.whl
+      sha256: 5b6d1386bf0096d26d3a863dc0a487a5b4eb9aa93cf5ba69683d29dde6b9d60f
+      size: 344456
+    - filename: click-8.5.0-py3-none-any.whl
+      sha256: 255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
+      size: 125251
+    - filename: cookiecutter-2.7.1-py3-none-any.whl
+      sha256: cee50defc1eaa7ad0071ee9b9893b746c1b3201b66bf4d3686d0f127c8ed6cf9
+      size: 41317
+    - filename: idna-3.19-py3-none-any.whl
+      sha256: 815e7be7a7806d54abb586dc943addc79e8b2ee16915059658cbeff4b1b43bf4
+      size: 68550
+    - filename: iniconfig-2.3.0-py3-none-any.whl
+      sha256: f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12
+      size: 7484
+    - filename: jinja2-3.1.6-py3-none-any.whl
+      sha256: 85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
+      size: 134899
+    - filename: markdown_it_py-4.2.0-py3-none-any.whl
+      sha256: 9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a
+      size: 91687
+    - filename: markupsafe-3.0.3-cp312-cp312-macosx_11_0_arm64.whl
+      sha256: 1872df69a4de6aead3491198eaf13810b565bdbeec3ae2dc8780f14458ec73ce
+      size: 12020
+    - filename: mdurl-0.1.2-py3-none-any.whl
+      sha256: 84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8
+      size: 9979
+    - filename: packaging-26.3-py3-none-any.whl
+      sha256: d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+      size: 129956
+    - filename: pluggy-1.6.0-py3-none-any.whl
+      sha256: e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+      size: 20538
+    - filename: pygments-2.21.0-py3-none-any.whl
+      sha256: 2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
+      size: 1250147
+    - filename: pytest-9.1.1-py3-none-any.whl
+      sha256: 37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c
+      size: 386536
+    - filename: python_dateutil-2.9.0.post0-py2.py3-none-any.whl
+      sha256: a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
+      size: 229892
+    - filename: python_slugify-8.0.4-py2.py3-none-any.whl
+      sha256: 276540b79961052b66b7d116620b36518847f52d5fd9e3a70164fc8c50faa6b8
+      size: 10051
+    - filename: pyyaml-6.0.3-cp312-cp312-macosx_11_0_arm64.whl
+      sha256: fc09d0aa354569bc501d4e787133afc08552722d3ab34836a80547331bb5d4a0
+      size: 173973
+    - filename: requests-2.34.2-py3-none-any.whl
+      sha256: 2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0
+      size: 73075
+    - filename: rich-15.0.0-py3-none-any.whl
+      sha256: 33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb
+      size: 310654
+    - filename: setuptools-84.0.0-py3-none-any.whl
+      sha256: 51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+      size: 818216
+    - filename: six-1.17.0-py2.py3-none-any.whl
+      sha256: 4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
+      size: 11050
+    - filename: text_unidecode-1.3-py2.py3-none-any.whl
+      sha256: 1311f10e8b895935241623731c2ba64f4c455287888b18189350b67134a822e8
+      size: 78154
+    - filename: tzdata-2026.3-py2.py3-none-any.whl
+      sha256: dc096730c87af6cab1b171c9d532be840741ff5d459015e7f6947bd7d7e54931
+      size: 348168
+    - filename: urllib3-2.7.0-py3-none-any.whl
+      sha256: 9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897
+      size: 131087
+    - filename: wheel-0.48.0-py3-none-any.whl
+      sha256: 3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab
+      size: 33320
+  - case_id: b2-csvkit-reconciliation-workspace
+    requested_pins:
+    - csvkit==2.2.0
+    - pytest
+    - setuptools
+    - wheel
+    root: 3b9d0bb1b507948b6a306b8cb5c0a997f1c4295a98d69278fdc3e569943985f4
+    manifest_sha256: 2221a6403bc3fafc0a3483408f575af7af893345199d521d9d8e63fc0e33060e
+    wheel_count: 26
+    total_bytes: 15943469
+    wheels:
+    - filename: agate-1.14.2-py3-none-any.whl
+      sha256: e11018371d344dda5aca16a68830b6f8e86c84c531a7bb8f81456bf5014937d4
+      size: 95981
+    - filename: agate_dbf-0.2.4-py3-none-any.whl
+      sha256: 65ef9df31cf25dcf829123fde63044ee7242bca6c47cbd90cedf318e1be0ad3e
+      size: 3696
+    - filename: agate_excel-0.4.2-py3-none-any.whl
+      sha256: f93f09b3ac02489ed2ed8669c7b3ce74eab30ebf9a03038c0283211dbc3b9c1a
+      size: 7227
+    - filename: agate_sql-0.7.3-py3-none-any.whl
+      sha256: 57046f628dbffb125c36c94675716b441b40193bc18461f04e32a3153a8a0971
+      size: 7464
+    - filename: babel-2.18.0-py3-none-any.whl
+      sha256: e2b422b277c2b9a9630c1d7903c2a00d0830c409c59ac8cae9081c92f1aeba35
+      size: 10196845
+    - filename: csvkit-2.2.0-py3-none-any.whl
+      sha256: c16660ba1582e26a635577e0a060fb4c95842d07913b46bd642f1a5597ae0176
+      size: 76059
+    - filename: dbfread-2.0.7-py2.py3-none-any.whl
+      sha256: f604def58c59694fa0160d7be5d0b8d594467278d2bb6a47d46daf7162c84cec
+      size: 20018
+    - filename: et_xmlfile-2.0.0-py3-none-any.whl
+      sha256: 7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa
+      size: 18059
+    - filename: iniconfig-2.3.0-py3-none-any.whl
+      sha256: f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12
+      size: 7484
+    - filename: isodate-0.7.2-py3-none-any.whl
+      sha256: 28009937d8031054830160fce6d409ed342816b543597cece116d966c6d99e15
+      size: 22320
+    - filename: leather-0.4.1-py3-none-any.whl
+      sha256: ec61cba1ca3ccb96ed90e38b116fc58757d97d352171006b3288c47ce3fbd183
+      size: 30340
+    - filename: olefile-0.47-py2.py3-none-any.whl
+      sha256: 543c7da2a7adadf21214938bb79c83ea12b473a4b6ee4ad4bf854e7715e13d1f
+      size: 114565
+    - filename: openpyxl-3.1.5-py2.py3-none-any.whl
+      sha256: 5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2
+      size: 250910
+    - filename: packaging-26.3-py3-none-any.whl
+      sha256: d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+      size: 129956
+    - filename: parsedatetime-2.6-py3-none-any.whl
+      sha256: cb96edd7016872f58479e35879294258c71437195760746faffedb692aef000b
+      size: 42548
+    - filename: pluggy-1.6.0-py3-none-any.whl
+      sha256: e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+      size: 20538
+    - filename: pygments-2.21.0-py3-none-any.whl
+      sha256: 2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
+      size: 1250147
+    - filename: pytest-9.1.1-py3-none-any.whl
+      sha256: 37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c
+      size: 386536
+    - filename: python_slugify-8.0.4-py2.py3-none-any.whl
+      sha256: 276540b79961052b66b7d116620b36518847f52d5fd9e3a70164fc8c50faa6b8
+      size: 10051
+    - filename: pytimeparse-1.1.8-py2.py3-none-any.whl
+      sha256: 04b7be6cc8bd9f5647a6325444926c3ac34ee6bc7e69da4367ba282f076036bd
+      size: 9969
+    - filename: setuptools-84.0.0-py3-none-any.whl
+      sha256: 51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+      size: 818216
+    - filename: sqlalchemy-2.0.52-cp312-cp312-macosx_11_0_arm64.whl
+      sha256: be8c49131665dfe2cc74c498aa1240ffb548d0fd901325dd11c2c7a18956f727
+      size: 2170940
+    - filename: text_unidecode-1.3-py2.py3-none-any.whl
+      sha256: 1311f10e8b895935241623731c2ba64f4c455287888b18189350b67134a822e8
+      size: 78154
+    - filename: typing_extensions-4.16.0-py3-none-any.whl
+      sha256: 481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
+      size: 45571
+    - filename: wheel-0.48.0-py3-none-any.whl
+      sha256: 3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab
+      size: 33320
+    - filename: xlrd-2.0.2-py2.py3-none-any.whl
+      sha256: ea762c3d29f4cca48d82df517b6d89fbce4db3107f9d78713e48cd321d5c9aa9
+      size: 96555
+  - case_id: c1-pdf-evidence-review
+    requested_pins:
+    - pdfplumber==0.11.10
+    - pytest
+    - setuptools
+    - wheel
+    root: eccad562b3be8b230d65e319fcfce6a34113c7293ea5180c6393e67a02460cdb
+    manifest_sha256: c7da9f63b98ad14a9fda8b229baf97348f5dfb98280d233dd08c0c7d2585bc49
+    wheel_count: 15
+    total_bytes: 22173734
+    wheels:
+    - filename: cffi-2.1.1-cp312-cp312-macosx_11_0_arm64.whl
+      sha256: f81b3b8f3d4e343550fa4baa0e479bba9f2d29ce9c2e9b51d1ce1718d7442fcf
+      size: 184719
+    - filename: charset_normalizer-3.5.1-cp312-cp312-macosx_10_13_universal2.whl
+      sha256: 5b6d1386bf0096d26d3a863dc0a487a5b4eb9aa93cf5ba69683d29dde6b9d60f
+      size: 344456
+    - filename: cryptography-50.0.1-cp311-abi3-macosx_11_0_arm64.whl
+      sha256: b8f852c65863251b9e3a1b8c150ce21e59b522dbb6a7d4bc80e680d38388e986
+      size: 4010153
+    - filename: iniconfig-2.3.0-py3-none-any.whl
+      sha256: f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12
+      size: 7484
+    - filename: packaging-26.3-py3-none-any.whl
+      sha256: d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+      size: 129956
+    - filename: pdfminer_six-20260107-py3-none-any.whl
+      sha256: 366585ba97e80dffa8f00cebe303d2f381884d8637af4ce422f1df3ef38111a9
+      size: 6592252
+    - filename: pdfplumber-0.11.10-py3-none-any.whl
+      sha256: 7741ea81bf165b474b153e6789d10d18e06b6ddcf3ec84289c3ef2fed6802580
+      size: 60047
+    - filename: pillow-12.3.0-cp312-cp312-macosx_11_0_arm64.whl
+      sha256: ffd0c5368496f41b0944be820fcb7a838aa6e623d250b01acf2643939c3f99d7
+      size: 4780323
+    - filename: pluggy-1.6.0-py3-none-any.whl
+      sha256: e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+      size: 20538
+    - filename: pycparser-3.0-py3-none-any.whl
+      sha256: b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992
+      size: 48172
+    - filename: pygments-2.21.0-py3-none-any.whl
+      sha256: 2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
+      size: 1250147
+    - filename: pypdfium2-5.13.0-py3-none-macosx_13_0_arm64.whl
+      sha256: da5c7b74eebf40b5c1fbe1de01aa1edc8827a79fb1efd999616bc20dcaf77ba4
+      size: 3507415
+    - filename: pytest-9.1.1-py3-none-any.whl
+      sha256: 37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c
+      size: 386536
+    - filename: setuptools-84.0.0-py3-none-any.whl
+      sha256: 51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+      size: 818216
+    - filename: wheel-0.48.0-py3-none-any.whl
+      sha256: 3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab
+      size: 33320
+  - case_id: c2-offline-web-briefing
+    requested_pins:
+    - trafilatura==2.1.0
+    - pytest
+    - setuptools
+    - wheel
+    root: 0989f1daef89642962dc74d699381be4abc98b5484c2542d56aa7e1fc36bbd74
+    manifest_sha256: c7b57c60e21e1cabf48666807f8370a5912901f51bd5522c7b3d9db30808d8c6
+    wheel_count: 24
+    total_bytes: 24783198
+    wheels:
+    - filename: babel-2.18.0-py3-none-any.whl
+      sha256: e2b422b277c2b9a9630c1d7903c2a00d0830c409c59ac8cae9081c92f1aeba35
+      size: 10196845
+    - filename: certifi-2026.7.22-py3-none-any.whl
+      sha256: 62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775
+      size: 136983
+    - filename: charset_normalizer-3.5.1-cp312-cp312-macosx_10_13_universal2.whl
+      sha256: 5b6d1386bf0096d26d3a863dc0a487a5b4eb9aa93cf5ba69683d29dde6b9d60f
+      size: 344456
+    - filename: courlan-1.4.0-py3-none-any.whl
+      sha256: ad1dbdefd912ca7238d4607dc855df5df097f56bac175dd662c84eed3802f49e
+      size: 34193
+    - filename: dateparser-1.4.2-py3-none-any.whl
+      sha256: 752f3d49d477cf7f60a7a9c8bcb19c882496ede0e377d5a3d80014cdfeca7050
+      size: 316546
+    - filename: htmldate-1.10.0-py3-none-any.whl
+      sha256: 9211dae35ab94147c8ed9e5fc2c9287a5cf31d2394cb7857e7f5dd814eb2aad6
+      size: 31561
+    - filename: iniconfig-2.3.0-py3-none-any.whl
+      sha256: f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12
+      size: 7484
+    - filename: justext-3.0.2-py2.py3-none-any.whl
+      sha256: 62b1c562b15c3c6265e121cc070874243a443bfd53060e869393f09d6b6cc9a7
+      size: 837940
+    - filename: lxml-6.1.2-cp312-cp312-macosx_10_13_universal2.whl
+      sha256: 7d506bdba580ecb1a6ad2e2b5c49445e66d3e1f95894885739094393a1aad237
+      size: 8602111
+    - filename: lxml_html_clean-0.4.5-py3-none-any.whl
+      sha256: c76fcadd1e5bfb9b8bafc2200d51e4e78eb0dad67f56881c21dfb6484c7e7746
+      size: 14573
+    - filename: packaging-26.3-py3-none-any.whl
+      sha256: d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+      size: 129956
+    - filename: pluggy-1.6.0-py3-none-any.whl
+      sha256: e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+      size: 20538
+    - filename: pygments-2.21.0-py3-none-any.whl
+      sha256: 2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
+      size: 1250147
+    - filename: pytest-9.1.1-py3-none-any.whl
+      sha256: 37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c
+      size: 386536
+    - filename: python_dateutil-2.9.0.post0-py2.py3-none-any.whl
+      sha256: a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
+      size: 229892
+    - filename: pytz-2026.3.post1-py2.py3-none-any.whl
+      sha256: dd95840dd199baea12d9cc096a1d452caa6596a1c1e4b5f3dbd1541855d5e815
+      size: 508283
+    - filename: regex-2026.8.31-cp312-cp312-macosx_11_0_arm64.whl
+      sha256: caa959da9bb21394131eaf5c57698b47926ebada98c6796cfb4e754a52de001f
+      size: 292023
+    - filename: setuptools-84.0.0-py3-none-any.whl
+      sha256: 51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+      size: 818216
+    - filename: six-1.17.0-py2.py3-none-any.whl
+      sha256: 4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
+      size: 11050
+    - filename: tld-0.13.2-py2.py3-none-any.whl
+      sha256: 9b8fdbdb880e7ba65b216a4937f2c94c49a7226723783d5838fc958ac76f4e0c
+      size: 296743
+    - filename: trafilatura-2.1.0-py3-none-any.whl
+      sha256: 0eded5207a806445ddebbe36eae30b9035fe6a2f233c36f6fe82663fca8b9d30
+      size: 134600
+    - filename: tzlocal-5.4.4-py3-none-any.whl
+      sha256: aae09f0126a8a86fa736be266eb4a471380d26a0de3bc14844e7821fee3e2a15
+      size: 18115
+    - filename: urllib3-2.7.0-py3-none-any.whl
+      sha256: 9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897
+      size: 131087
+    - filename: wheel-0.48.0-py3-none-any.whl
+      sha256: 3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab
+      size: 33320
+  - case_id: c3-python-dependency-browser
+    requested_pins:
+    - networkx==3.6.1
+    - pytest
+    - setuptools
+    - wheel
+    root: 0f5e7350beb5a03b13ca93fb7070da305dc50b6d8677a34b6cb8c03774fa00d9
+    manifest_sha256: 2b51df7ce06dbe347df188d963c185b118c4f2571051eed05e35e45c2dc03256
+    wheel_count: 8
+    total_bytes: 4714701
+    wheels:
+    - filename: iniconfig-2.3.0-py3-none-any.whl
+      sha256: f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12
+      size: 7484
+    - filename: networkx-3.6.1-py3-none-any.whl
+      sha256: d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762
+      size: 2068504
+    - filename: packaging-26.3-py3-none-any.whl
+      sha256: d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+      size: 129956
+    - filename: pluggy-1.6.0-py3-none-any.whl
+      sha256: e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+      size: 20538
+    - filename: pygments-2.21.0-py3-none-any.whl
+      sha256: 2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
+      size: 1250147
+    - filename: pytest-9.1.1-py3-none-any.whl
+      sha256: 37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c
+      size: 386536
+    - filename: setuptools-84.0.0-py3-none-any.whl
+      sha256: 51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+      size: 818216
+    - filename: wheel-0.48.0-py3-none-any.whl
+      sha256: 3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab
+      size: 33320
+  - case_id: c4-readonly-data-portal
+    requested_pins:
+    - datasette==0.65.3
+    - pytest
+    - setuptools
+    - wheel
+    root: 38678bea722691cee6bdadf4f8885a8d0543ce6e04ce6dee0a6be1ab87891050
+    manifest_sha256: 5cf636c2e36dd860cf24d6b10735004e2d0f49cbe943798bbd8123f1d181bbb0
+    wheel_count: 33
+    total_bytes: 6161541
+    wheels:
+    - filename: aiofiles-25.1.0-py3-none-any.whl
+      sha256: abe311e527c862958650f9438e859c1fa7568a141b22abcd015e120e86a85695
+      size: 14668
+    - filename: anyio-4.14.2-py3-none-any.whl
+      sha256: 9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494
+      size: 125813
+    - filename: asgi_csrf-0.11-py3-none-any.whl
+      sha256: 03ac140115f39d4295288a9adf74fdc6ae607f6ef44abee8466520458207242b
+      size: 11704
+    - filename: asgiref-3.12.1-py3-none-any.whl
+      sha256: fe386d1c2bff7259ea95929266d12a8cf9a8b5a1c2598402967d8792e7a7c094
+      size: 25478
+    - filename: certifi-2026.7.22-py3-none-any.whl
+      sha256: 62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775
+      size: 136983
+    - filename: click-8.5.0-py3-none-any.whl
+      sha256: 255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
+      size: 125251
+    - filename: click_default_group-1.2.4-py2.py3-none-any.whl
+      sha256: 9b60486923720e7fc61731bdb32b617039aba820e22e1c88766b1125592eaa5f
+      size: 4123
+    - filename: datasette-0.65.3-py3-none-any.whl
+      sha256: 30ea57f672f8c8ee40fc212fd63d1bdc6bb94e5afd733732b19f0c84371483da
+      size: 397583
+    - filename: flexcache-0.3-py3-none-any.whl
+      sha256: d43c9fea82336af6e0115e308d9d33a185390b8346a017564611f1466dcd2e32
+      size: 13263
+    - filename: flexparser-0.4-py3-none-any.whl
+      sha256: 3738b456192dcb3e15620f324c447721023c0293f6af9955b481e91d00179846
+      size: 27625
+    - filename: h11-0.16.0-py3-none-any.whl
+      sha256: 63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86
+      size: 37515
+    - filename: httpcore-1.0.9-py3-none-any.whl
+      sha256: 2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55
+      size: 78784
+    - filename: httpx-0.28.1-py3-none-any.whl
+      sha256: d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
+      size: 73517
+    - filename: hupper-1.12.1-py3-none-any.whl
+      sha256: e872b959f09d90be5fb615bd2e62de89a0b57efc037bdf9637fb09cdf8552b19
+      size: 22830
+    - filename: idna-3.19-py3-none-any.whl
+      sha256: 815e7be7a7806d54abb586dc943addc79e8b2ee16915059658cbeff4b1b43bf4
+      size: 68550
+    - filename: iniconfig-2.3.0-py3-none-any.whl
+      sha256: f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12
+      size: 7484
+    - filename: itsdangerous-2.2.0-py3-none-any.whl
+      sha256: c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef
+      size: 16234
+    - filename: janus-2.0.0-py3-none-any.whl
+      sha256: 7e6449d34eab04cd016befbd7d8c0d8acaaaab67cb59e076a69149f9031745f9
+      size: 12161
+    - filename: jinja2-3.1.6-py3-none-any.whl
+      sha256: 85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
+      size: 134899
+    - filename: markupsafe-3.0.3-cp312-cp312-macosx_11_0_arm64.whl
+      sha256: 1872df69a4de6aead3491198eaf13810b565bdbeec3ae2dc8780f14458ec73ce
+      size: 12020
+    - filename: mergedeep-1.3.4-py3-none-any.whl
+      sha256: 70775750742b25c0d8f36c55aed03d24c3384d17c951b3175d898bd778ef0307
+      size: 6354
+    - filename: packaging-26.3-py3-none-any.whl
+      sha256: d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+      size: 129956
+    - filename: pip-26.2.1-py3-none-any.whl
+      sha256: 71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e
+      size: 1816632
+    - filename: platformdirs-4.11.5-py3-none-any.whl
+      sha256: 89f8d42695853b89c7170bd49bc3dc593f98a71e695ede88e06a3b247bc4563b
+      size: 23900
+    - filename: pluggy-1.6.0-py3-none-any.whl
+      sha256: e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+      size: 20538
+    - filename: pygments-2.21.0-py3-none-any.whl
+      sha256: 2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
+      size: 1250147
+    - filename: pytest-9.1.1-py3-none-any.whl
+      sha256: 37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c
+      size: 386536
+    - filename: python_multipart-0.0.32-py3-none-any.whl
+      sha256: ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23
+      size: 30042
+    - filename: pyyaml-6.0.3-cp312-cp312-macosx_11_0_arm64.whl
+      sha256: fc09d0aa354569bc501d4e787133afc08552722d3ab34836a80547331bb5d4a0
+      size: 173973
+    - filename: setuptools-84.0.0-py3-none-any.whl
+      sha256: 51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+      size: 818216
+    - filename: typing_extensions-4.16.0-py3-none-any.whl
+      sha256: 481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
+      size: 45571
+    - filename: uvicorn-0.52.4-py3-none-any.whl
+      sha256: f86e41a149d7d05a9969337e3946a9c171c06a5d42680896daaba624aeac8da1
+      size: 79871
+    - filename: wheel-0.48.0-py3-none-any.whl
+      sha256: 3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab
+      size: 33320
+  - case_id: c5-textual-research-task-desk
+    requested_pins:
+    - textual==8.2.8
+    - pytest
+    - setuptools
+    - wheel
+    root: 95e5ba46a8083242d2f6984aaaec53f9b250740be9f8d23648ae601394e91304
+    manifest_sha256: ceb80ff653649590569ae31e7b76e7610e4a6c5285f61925fa3acf542359696c
+    wheel_count: 15
+    total_bytes: 3948040
+    wheels:
+    - filename: iniconfig-2.3.0-py3-none-any.whl
+      sha256: f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12
+      size: 7484
+    - filename: linkify_it_py-2.2.0-py3-none-any.whl
+      sha256: 3adc40eb5af300b2605fcfdb968c24e1d780a90f1f2221af7c15e5111e94d443
+      size: 21971
+    - filename: markdown_it_py-4.2.0-py3-none-any.whl
+      sha256: 9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a
+      size: 91687
+    - filename: mdit_py_plugins-0.6.1-py3-none-any.whl
+      sha256: 214c82fb2ac524472ab6a5bcab1de80f73b50443e187f401bfd77efbc7c6481d
+      size: 66663
+    - filename: mdurl-0.1.2-py3-none-any.whl
+      sha256: 84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8
+      size: 9979
+    - filename: packaging-26.3-py3-none-any.whl
+      sha256: d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+      size: 129956
+    - filename: platformdirs-4.11.5-py3-none-any.whl
+      sha256: 89f8d42695853b89c7170bd49bc3dc593f98a71e695ede88e06a3b247bc4563b
+      size: 23900
+    - filename: pluggy-1.6.0-py3-none-any.whl
+      sha256: e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+      size: 20538
+    - filename: pygments-2.21.0-py3-none-any.whl
+      sha256: 2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
+      size: 1250147
+    - filename: pytest-9.1.1-py3-none-any.whl
+      sha256: 37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c
+      size: 386536
+    - filename: rich-15.0.0-py3-none-any.whl
+      sha256: 33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb
+      size: 310654
+    - filename: setuptools-84.0.0-py3-none-any.whl
+      sha256: 51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+      size: 818216
+    - filename: textual-8.2.8-py3-none-any.whl
+      sha256: 267375fd402dc8d981457212efa71f0e3365fd17bba144ba9bb3ed7563cb374a
+      size: 731418
+    - filename: typing_extensions-4.16.0-py3-none-any.whl
+      sha256: 481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
+      size: 45571
+    - filename: wheel-0.48.0-py3-none-any.whl
+      sha256: 3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab
+      size: 33320
+  - case_id: c6-marimo-reproducible-analysis
+    requested_pins:
+    - marimo==0.24.0
+    - pytest
+    - setuptools
+    - wheel
+    root: 177cc0d4bb7ed37d3d9656cb2bd73f28aac31f3aa1015ea0c2417ba587a897b6
+    manifest_sha256: 1d757a4a94b36b4e4a2bf96cf75307b08ffd87bf9856f55b70604d21fbf487ed
+    wheel_count: 30
+    total_bytes: 51274384
+    wheels:
+    - filename: anyio-4.14.2-py3-none-any.whl
+      sha256: 9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494
+      size: 125813
+    - filename: click-8.5.0-py3-none-any.whl
+      sha256: 255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
+      size: 125251
+    - filename: docutils-0.23-py3-none-any.whl
+      sha256: 25d013af9bf23bc1c7b2b093dff4208166c53a94786c9e447808335ef1185fea
+      size: 634701
+    - filename: h11-0.16.0-py3-none-any.whl
+      sha256: 63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86
+      size: 37515
+    - filename: idna-3.19-py3-none-any.whl
+      sha256: 815e7be7a7806d54abb586dc943addc79e8b2ee16915059658cbeff4b1b43bf4
+      size: 68550
+    - filename: iniconfig-2.3.0-py3-none-any.whl
+      sha256: f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12
+      size: 7484
+    - filename: itsdangerous-2.2.0-py3-none-any.whl
+      sha256: c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef
+      size: 16234
+    - filename: jedi-0.19.2-py2.py3-none-any.whl
+      sha256: a8ef22bde8490f57fe5c7681a3c83cb58874daf72b4784de3cce5b6ef6edb5b9
+      size: 1572278
+    - filename: loro-1.13.2-cp312-cp312-macosx_11_0_arm64.whl
+      sha256: 1f1e7d57ddc92a890fc8fe314b4e769d5492cd9fca0931f9be78d49eba66ac69
+      size: 3155585
+    - filename: marimo-0.24.0-py3-none-any.whl
+      sha256: a5470207ac4c228ee7c2c16f820b0ca1cdf58ec4b51074aca1a5c997422ae90a
+      size: 39517936
+    - filename: markdown-3.10.3-py3-none-any.whl
+      sha256: fa6c92a00a4a3c98b22728c64a935ae1928250ae65058a6ded814d2cc29a4cea
+      size: 110757
+    - filename: msgspec-0.21.1-cp312-cp312-macosx_11_0_arm64.whl
+      sha256: 5102c7e9b3acff82178449b85006d96310e690291bb1ea0142f1b24bcb8aabcb
+      size: 188473
+    - filename: narwhals-2.25.0-py3-none-any.whl
+      sha256: 1f0f403e8c7e4463cde9bfe78b12fdd809e3ae3dda6d9b2f802934fb9c7a6a8f
+      size: 467373
+    - filename: packaging-26.3-py3-none-any.whl
+      sha256: d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+      size: 129956
+    - filename: parso-0.8.7-py2.py3-none-any.whl
+      sha256: a8926eb2a1b915486941fdbd31e86a4baf88fe8c210f25f2f35ecec5b574ca1c
+      size: 107025
+    - filename: pluggy-1.6.0-py3-none-any.whl
+      sha256: e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+      size: 20538
+    - filename: psutil-7.2.2-cp36-abi3-macosx_11_0_arm64.whl
+      sha256: 1a7b04c10f32cc88ab39cbf606e117fd74721c831c98a27dc04578deb0c16979
+      size: 129859
+    - filename: pygments-2.21.0-py3-none-any.whl
+      sha256: 2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
+      size: 1250147
+    - filename: pymdown_extensions-11.0.2-py3-none-any.whl
+      sha256: 259910762019732caa1dfd76f3faa62c59f191d46573e80bcb1d13c0f675bbe5
+      size: 269929
+    - filename: pytest-9.1.1-py3-none-any.whl
+      sha256: 37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c
+      size: 386536
+    - filename: python_multipart-0.0.32-py3-none-any.whl
+      sha256: ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23
+      size: 30042
+    - filename: pyyaml-6.0.3-cp312-cp312-macosx_11_0_arm64.whl
+      sha256: fc09d0aa354569bc501d4e787133afc08552722d3ab34836a80547331bb5d4a0
+      size: 173973
+    - filename: pyzmq-27.2.0-cp312-abi3-macosx_10_15_universal2.whl
+      sha256: 591c8de5851c5ea372194469fe97587b97c3b641e9a70f31bb3474acbfde0241
+      size: 1431074
+    - filename: setuptools-84.0.0-py3-none-any.whl
+      sha256: 51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+      size: 818216
+    - filename: starlette-1.6.0-py3-none-any.whl
+      sha256: a86dd39d14bb45f85a3d18525215a9ef0cfd1f192ac793220e72598c90335f0c
+      size: 75969
+    - filename: tomlkit-0.15.1-py3-none-any.whl
+      sha256: 177a05aece5a8ca5266fd3c448abb47b8d352f09d477d3ca8332db4d89b24304
+      size: 49449
+    - filename: typing_extensions-4.16.0-py3-none-any.whl
+      sha256: 481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
+      size: 45571
+    - filename: uvicorn-0.52.4-py3-none-any.whl
+      sha256: f86e41a149d7d05a9969337e3946a9c171c06a5d42680896daaba624aeac8da1
+      size: 79871
+    - filename: websockets-17.1-cp312-cp312-macosx_11_0_arm64.whl
+      sha256: 87f0d5e77548b0c40c8464cdb6108792e7e53f487c6400028a4ec28a8afbe5ab
+      size: 214959
+    - filename: wheel-0.48.0-py3-none-any.whl
+      sha256: 3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab
+      size: 33320
+cases:
+- order: 0
+  case_id: n0-credentialled-browser-side-effect
+  kind: expected_rejection
+  repository: https://github.com/browser-use/browser-use
+  revision: 0.13.8
+  resolved_commit: eb4126921bea3373f91afc49fb4b59d6eda7fed6
+  initial_user_request: 帮我登录网银，整理账单并自动处理几笔付款。
+  expected_reason_code: UNSUPPORTED_CREDENTIALLED_EXTERNAL_SIDE_EFFECT
+  expected_agent_invocations: 0
+  expected_repair_attempts: 0
+- order: 1
+  case_id: b1-cookiecutter-research-project
+  kind: baseline
+  repository: https://github.com/cookiecutter/cookiecutter
+  revision: v2.7.1
+  resolved_commit: 083dd3c6104124221e2cbc3e13e0929795861ed5
+  distribution: cookiecutter
+  initial_user_request: 每次新实验的文件夹都很乱，想根据几项目信息生成一套能开工、也方便交接的项目。
+  input: project-brief.yaml
+  required_artifact_roles:
+  - readme
+  - pyproject
+  - source
+  - tests
+  - config
+  - scripts
+  - ci
+  - reproduction
+  upstream_use: frozen_cookiecutter_template_render
+  runnable: true
+- order: 2
+  case_id: b2-csvkit-reconciliation-workspace
+  kind: baseline
+  repository: https://github.com/wireservice/csvkit
+  revision: 2.2.0
+  resolved_commit: bdd6e7e25b52cb52073c1a19dd0210cd85894871
+  distribution: csvkit
+  initial_user_request: 采购、报销和分类表来自不同同事，想整理成能继续核对和交接的文件夹。
+  input: directory_with_csv_and_mapping_yaml
+  required_artifact_roles:
+  - normalized_csv
+  - matched_csv
+  - unmatched_csv
+  - conflicts_csv
+  - sqlite
+  - html
+  - sql
+  - config
+  - readme
+  public_matching_rule: normalized_invoice_id_exact_only
+  runnable: false
+- order: 3
+  case_id: c1-pdf-evidence-review
+  kind: complex
+  repository: https://github.com/jsvine/pdfplumber
+  revision: v0.11.10
+  resolved_commit: 7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62
+  distribution: pdfplumber
+  initial_user_request: 把一份长 PDF 整理成容易查证和引用的本地资料夹，不想逐页复制。
+  input: native_text_pdf
+  required_artifact_roles:
+  - review_site
+  - per_page_html
+  - markdown
+  - table_csv
+  - citation_tsv
+  - css
+  - readme
+  required_rejection: OCR_REQUIRED
+- order: 4
+  case_id: c2-offline-web-briefing
+  kind: complex
+  repository: https://github.com/adbar/trafilatura
+  revision: v2.1.0
+  resolved_commit: 2f4702d2117b0f95fabdd4ea35c9c2a4f3f39d04
+  distribution: trafilatura
+  initial_user_request: 我保存了一批网页，想整理成本周能读、以后也能查的研究资料。
+  input: directory_with_sources_yaml_and_cached_html
+  required_artifact_roles:
+  - briefing_site
+  - article_markdown
+  - article_tsv
+  - sqlite
+  - failures
+  - config
+  - readme
+  runtime_fetch_forbidden: true
+- order: 5
+  case_id: c3-python-dependency-browser
+  kind: complex
+  repository: https://github.com/networkx/networkx
+  revision: networkx-3.6.1
+  resolved_commit: 7530809bfa1ea7ed6fdf918a4d1431488953cb1f
+  distribution: networkx
+  initial_user_request: 接手一个 Python 项目，想快速看懂模块依赖、循环和影响范围，并留下交接资料。
+  input: local_python_repository_directory
+  required_artifact_roles:
+  - static_graph_browser
+  - graphml
+  - node_tsv
+  - risk_report
+  - exclusion_config
+  - readme
+  deterministic_layout_required: true
+- order: 6
+  case_id: c4-readonly-data-portal
+  kind: complex
+  repository: https://github.com/simonw/datasette
+  revision: 0.65.3
+  resolved_commit: fddbef822a7feff45dcb78ef25de007b2c71ef3c
+  distribution: datasette
+  initial_user_request: 几份实验 CSV 想整理成同事能在浏览器里查询的本地小站。
+  input: directory_with_csv_metadata_and_queries
+  required_artifact_roles:
+  - sqlite
+  - datasette_config
+  - templates
+  - static_assets
+  - scripts
+  - lock
+  - wheelhouse
+  - licenses
+  - readme
+  runnable: true
+  long_lived_service_claim_forbidden: true
+- order: 7
+  case_id: c5-textual-research-task-desk
+  kind: complex
+  repository: https://github.com/Textualize/textual
+  revision: v8.2.8
+  resolved_commit: 1d99508b928a771b51e1a527319c6b87dcff9e05
+  distribution: textual
+  initial_user_request: 想把实验任务和日志做成终端里能查看、筛选和更新的小工具，方便每天整理。
+  input: directory_with_task_yaml_event_ndjson_and_display_config
+  required_artifact_roles:
+  - python_app
+  - model
+  - tcss
+  - config
+  - samples
+  - tests
+  - launcher
+  - lock
+  - wheelhouse
+  - readme
+  runnable: true
+  required_headless_protocol: textual_run_test
+- order: 8
+  case_id: c6-marimo-reproducible-analysis
+  kind: complex
+  repository: https://github.com/marimo-team/marimo
+  revision: 0.24.0
+  resolved_commit: 854f7f2910b4bb4b6aebe650efc1f83ad40d9bef
+  distribution: marimo
+  initial_user_request: 有一份实验表和一个大概分析想法，希望得到以后还能改参数、能交给同学继续看的分析项目。
+  input: directory_with_data_table_and_analysis_brief
+  required_artifact_roles:
+  - marimo_notebook
+  - analysis_config
+  - derived_results
+  - svg
+  - static_html
+  - tests
+  - lock
+  - wheelhouse
+  - readme
+  runnable: true
+  implicit_execution_order_forbidden: true
+profile_promotion_gate:
+  baselines_active_required:
+  - b1-cookiecutter-research-project
+  - b2-csvkit-reconciliation-workspace
+  minimum_complex_active: 4
+  sqlite_or_binary_workspace_required: true
+  runnable_application_workspace_required: true
+  otherwise_profile_remains: EXPERIMENTAL
+supersedes_protocol_id: m6.2-workspace-bundle-qualification-v1
+framework_git_commit: a5108b7fc9467e2c44322bc40b6bfdd4736833bb
+framework_tree_sha256: 39565d6414a0f2586dc908c93f00814c5a320ea89e85dd547e406cdfa08fe658
+frozen_at: '2026-08-31T10:47:05.915929Z'
