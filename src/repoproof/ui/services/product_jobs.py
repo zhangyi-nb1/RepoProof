@@ -1106,6 +1106,15 @@ def save_draft_review(
                     + "、".join(invalid_pins[:3]),
                 }
             normalized_lock = "\n".join(pins) + "\n"
+            if workspace_profile and parsed_workspace_contract is not None:
+                from repoproof.adoption.delivery.portable_workspace_runtime import (
+                    close_workspace_runtime_lock,
+                )
+
+                normalized_lock = close_workspace_runtime_lock(
+                    normalized_lock,
+                    parsed_workspace_contract.model_dump(mode="json"),
+                )
         draft["capability"]["output_schema"] = output_schema.strip()
         draft["task_id"] = f"tool-{clean_name}-v1"
         target = draft.get("target_project") or {}

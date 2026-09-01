@@ -1,0 +1,23 @@
+{
+  "affected_component": "Core-owned workspace format-validator runtime dependency closure",
+  "after_control_sha256": "82903d6f4be13b51cfbfadf7e90926a8e151ee9973efb4d02e3a840427468ebd",
+  "anonymous_fixture_id": "anonymous-validator-runtime-lock-closure-v1",
+  "before_control_sha256": "1ac78bdfb92dd0fa047248fef470c1577775a254236daf07cc4275c4f03051e3",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T17:34:00+08:00",
+  "evidence_id": "harness-change-workspace-validator-runtime-closure-v1",
+  "incident_ids": [
+    "incident-action-54bcbf2a6d8c9c3d0913c194",
+    "incident-action-fbec8e34f6078a3045e54c14"
+  ],
+  "invariant": "Every Core-owned workspace format validator must have its exact runtime dependency in the same sealed lock and wheel closure as the generated application. The dependency is owned by the Harness, not by the task author or Coding Agent, and may not be satisfied accidentally by the development environment.",
+  "normalized_fingerprint": "9e9b7d4065deddd3",
+  "regression_tests": [
+    "tests/test_portable_workspace_runtime.py::test_runtime_lock_includes_core_owned_format_validator_dependencies",
+    "tests/test_portable_workspace_runtime.py::test_portable_runtime_seals_and_executes_offline_python_closure",
+    "tests/test_workspace_tool_assembler.py::test_workspace_assembler_freezes_v4_task_and_runs_public_controls"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1,
+  "second_independent_incident_required_and_present": true
+}

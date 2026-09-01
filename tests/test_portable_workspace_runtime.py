@@ -7,6 +7,7 @@ import pytest
 
 from repoproof.adoption.delivery.portable_workspace_runtime import (
     WorkspaceRuntimeError,
+    close_workspace_runtime_lock,
     materialize_workspace,
     seal_offline_python_runtime,
 )
@@ -51,6 +52,29 @@ def _contract() -> dict:
             "max_path_bytes": 120,
         },
     }
+
+
+def test_runtime_lock_includes_core_owned_format_validator_dependencies() -> None:
+    contract = _contract()
+    contract["rules"].append(
+        {
+            "path_pattern": "config.yaml",
+            "role": "configuration",
+            "media_type": "application/yaml",
+            "validation_profile": "yaml_v1",
+            "min_count": 1,
+            "max_count": 1,
+            "executable": False,
+        }
+    )
+
+    assert close_workspace_runtime_lock("demo-runtime==1.0\n", contract) == (
+        "demo-runtime==1.0\npyyaml==6.0.3\n"
+    )
+    assert close_workspace_runtime_lock(
+        "demo-runtime==1.0\nPyYAML==6.0.2\n",
+        contract,
+    ) == "demo-runtime==1.0\nPyYAML==6.0.2\n"
 
 
 def _builder(_source: Path, output: Path) -> None:

@@ -10,6 +10,7 @@ import csv
 import hashlib
 import json
 import os
+import re
 import shutil
 import sqlite3
 import stat
@@ -53,6 +54,46 @@ OFFLINE_PYTHON_RUNTIME_OWNED_PATHS = (
     "THIRD_PARTY_NOTICES.md",
     "vendor",
 )
+
+# Runtime format validators are Core-owned code, so their dependency closure
+# is also Core-owned.  A task author should not need to know that validating a
+# YAML artifact requires this distribution, and a Coding Agent must never be
+# asked to repair a missing Harness dependency.
+_VALIDATION_PROFILE_RUNTIME_PINS = {
+    "yaml_v1": "pyyaml==6.0.3",
+}
+_PIN_DISTRIBUTION_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==")
+
+
+def close_workspace_runtime_lock(lock_text: str, contract: dict) -> str:
+    """Add exact Core-owned validator pins to one workspace runtime lock."""
+
+    lines = [
+        line.strip()
+        for line in str(lock_text).splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    present = {
+        match.group(1).lower().replace("_", "-")
+        for line in lines
+        if (match := _PIN_DISTRIBUTION_RE.match(line)) is not None
+    }
+    required_profiles = {
+        str(rule.get("validation_profile") or "")
+        for rule in (contract.get("rules") or [])
+        if isinstance(rule, dict)
+    }
+    for profile in sorted(required_profiles):
+        pin = _VALIDATION_PROFILE_RUNTIME_PINS.get(profile)
+        if pin is None:
+            continue
+        match = _PIN_DISTRIBUTION_RE.match(pin)
+        assert match is not None
+        distribution = match.group(1).lower().replace("_", "-")
+        if distribution not in present:
+            lines.append(pin)
+            present.add(distribution)
+    return "\n".join(lines) + ("\n" if lines else "")
 
 
 class _HTML(HTMLParser):

@@ -449,6 +449,10 @@ def assemble_workspace_tool_task(
     if tool.workspace_contract is None:
         raise CompileError("workspace contract is required")
     workspace_contract = tool.workspace_contract
+    reference_lock = portable_workspace_runtime.close_workspace_runtime_lock(
+        reference_lock,
+        workspace_contract.model_dump(mode="json"),
+    )
     parsed = [WorkspaceGoldenExampleV1.model_validate(item) for item in examples]
     if len(parsed) < 3:
         raise CompileError("at least three workspace examples are required")
