@@ -22,7 +22,10 @@ from __future__ import annotations
 
 import difflib
 import hashlib
+import json
+import os
 import shutil
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -38,6 +41,8 @@ _DEFAULT_SETUP = [
     [".venv/bin/pip", "install", "-q", "--no-index", "-r", "requirements.lock.txt"],
     [".venv/bin/pip", "install", "-q", "--no-index", "-e", ".", "pytest"],
 ]
+
+_CONTROL_BRIDGE_PROTOCOL = "tool-host-controls-v2"
 
 
 class ToolBridgeError(RuntimeError):
@@ -177,6 +182,193 @@ def _unified_patch(rel: str, old: str, new: str) -> str:
     return "".join(lines)
 
 
+def _workspace_reference_as_staging_adapter(reference_source: str) -> str:
+    """Adapt a final-directory reference to the workspace adapter protocol.
+
+    A workspace reference owns creation of a previously absent output path.
+    The delivered adapter deliberately has a different boundary: Core creates
+    an empty staging directory first, then asks ``impl.build_workspace`` to
+    populate it before validation and atomic placement.  Reusing the reference
+    source verbatim as the fake-positive adapter therefore makes every valid
+    reference reject the Harness-owned staging directory.
+
+    Keep the frozen reference implementation intact and append a tiny protocol
+    bridge for the Harness-only positive control.  The reference still performs
+    the real upstream call inside a fresh child directory; only its children are
+    moved into the already-created staging directory afterwards.
+    """
+
+    bridge = r'''
+
+# Harness-only protocol bridge: the reference above creates a new final
+# directory, while the adapter slot receives an existing empty staging root.
+_repoproof_reference_build_workspace_v1 = build_workspace
+
+
+def build_workspace(input_path, output_dir) -> None:
+    if not output_dir.is_dir() or any(output_dir.iterdir()):
+        raise RuntimeError("REPOPROOF_WORKSPACE_STAGING_NOT_EMPTY")
+    reference_output = output_dir / ".repoproof-reference-output"
+    _repoproof_reference_build_workspace_v1(input_path, reference_output)
+    if not reference_output.is_dir():
+        raise RuntimeError("REPOPROOF_REFERENCE_OUTPUT_MISSING")
+    for child in sorted(reference_output.iterdir(), key=lambda item: item.name):
+        child.replace(output_dir / child.name)
+    reference_output.rmdir()
+'''
+    return reference_source.rstrip() + "\n" + bridge.lstrip("\n")
+
+
+def _write_host_control_groups(
+    *,
+    tc: TaskContract,
+    skeleton: Path,
+    controls_src: Path,
+    destination: Path,
+) -> None:
+    """Materialize Harness-only controls from frozen task sources."""
+
+    if destination.exists():
+        raise ToolBridgeError(f"控制组物化目标已存在:{destination}")
+    destination.mkdir(parents=True)
+    skel_impl_rel = f"src/{tc.target_project.package}/impl.py"
+    skel_impl = (skeleton / skel_impl_rel).read_text(encoding="utf-8")
+    skel_lock = (skeleton / "requirements.lock.txt").read_text(encoding="utf-8")
+    src_of = {"positive": "reference", "negative_reimpl": "positive"}
+    wanted = ["positive", "negative_empty", "negative_hardcode", "negative_reimpl"]
+    if (controls_src / "negative_badexit" / "impl.py").is_file():
+        wanted.append("negative_badexit")
+    for host_name in wanted:
+        ctrl = controls_src / src_of.get(host_name, host_name)
+        if not (ctrl / "impl.py").is_file():
+            raise ToolBridgeError(f"{tc.task_id}: 控制源缺失:{ctrl}/impl.py")
+        dst = destination / host_name
+        dst.mkdir()
+        control_source = (ctrl / "impl.py").read_text(encoding="utf-8")
+        if (
+            host_name == "positive"
+            and tc.tool is not None
+            and tc.tool.delivery_profile_id == "workspace_bundle_v1"
+        ):
+            control_source = _workspace_reference_as_staging_adapter(control_source)
+        (dst / "impl.py").write_text(control_source, encoding="utf-8")
+        patch = _unified_patch(skel_impl_rel, skel_impl, control_source)
+        ctrl_lock = ctrl / "requirements.lock.txt"
+        if ctrl_lock.is_file():
+            patch += _unified_patch(
+                "requirements.lock.txt",
+                skel_lock,
+                ctrl_lock.read_text(encoding="utf-8"),
+            )
+        (dst / "apply.patch").write_text(patch, encoding="utf-8")
+        smoke = ["# 环境由契约 host.setup_commands 建;补丁后依赖见下。"]
+        if host_name == "positive" and ctrl_lock.is_file():
+            pins = [
+                line.strip()
+                for line in ctrl_lock.read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.strip().startswith("#")
+            ]
+            if pins:
+                smoke.append(
+                    ".venv/bin/pip install -q --no-index " + " ".join(pins)
+                )
+        smoke.append("echo rp-tool-smoke-ready")
+        (dst / "smoke_setup.txt").write_text(
+            "\n".join(smoke) + "\n", encoding="utf-8"
+        )
+
+
+def _write_control_bridge_marker(
+    task_dir: Path,
+    *,
+    tool_contract_sha256: str,
+) -> None:
+    marker = task_dir / "control_materialization.json"
+    document = {
+        "schema_version": 1,
+        "protocol": _CONTROL_BRIDGE_PROTOCOL,
+        "tool_contract_sha256": tool_contract_sha256,
+        "controls_tree_sha256": _tree_sha(task_dir / "controls"),
+    }
+    temporary = marker.with_name(f".{marker.name}.tmp")
+    temporary.write_text(
+        json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(temporary, marker)
+
+
+def ensure_materialized_tool_controls_current(
+    project_root: Path,
+    tool_contract_path: Path,
+    host_contract_path: Path,
+) -> bool:
+    """Refresh stale derived controls without changing frozen task truth.
+
+    ``tool_tasks/<task>/controls`` is a disposable bridge product, not an
+    append-only contract or historical run.  A frozen-task resume used to keep
+    this directory forever, so a generic Harness fix could be silently bypassed
+    by an older materialization.  Bind it to the current bridge protocol and
+    frozen contract digest, then rebuild it atomically when either identity is
+    absent, stale, or damaged.
+    """
+
+    project_root = Path(project_root)
+    tool_contract_path = Path(tool_contract_path)
+    host_contract_path = Path(host_contract_path)
+    tc, digest = TaskContract.load_frozen(tool_contract_path, require_sidecar=True)
+    if tc.tool is None:
+        raise ToolBridgeError(f"{tc.task_id}: 缺少工具合同")
+    task_dir = host_contract_path.parent
+    controls = task_dir / "controls"
+    marker = task_dir / "control_materialization.json"
+    try:
+        current = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        current = {}
+    if (
+        current.get("protocol") == _CONTROL_BRIDGE_PROTOCOL
+        and current.get("tool_contract_sha256") == digest
+        and controls.is_dir()
+        and current.get("controls_tree_sha256") == _tree_sha(controls)
+    ):
+        return False
+
+    skeleton = project_root / tc.target_project.path
+    controls_src = project_root / "controls" / tc.task_id
+    if not skeleton.is_dir() or not controls_src.is_dir():
+        raise ToolBridgeError(
+            f"{tc.task_id}: 无法从冻结骨架和控制源刷新物化控制组"
+        )
+    temporary_root = Path(
+        tempfile.mkdtemp(prefix=f".{tc.task_id}-controls-", dir=task_dir)
+    )
+    generated = temporary_root / "controls"
+    backup = task_dir / f".controls-backup-{os.getpid()}"
+    try:
+        _write_host_control_groups(
+            tc=tc,
+            skeleton=skeleton,
+            controls_src=controls_src,
+            destination=generated,
+        )
+        if backup.exists():
+            raise ToolBridgeError(f"控制组刷新备份位已存在:{backup}")
+        if controls.exists():
+            os.replace(controls, backup)
+        os.replace(generated, controls)
+        _write_control_bridge_marker(task_dir, tool_contract_sha256=digest)
+        if backup.exists():
+            shutil.rmtree(backup)
+    except BaseException:
+        if not controls.exists() and backup.exists():
+            os.replace(backup, controls)
+        raise
+    finally:
+        shutil.rmtree(temporary_root, ignore_errors=True)
+    return True
+
+
 def materialize_tool_task(
     project_root: Path,
     contract_path: Path,
@@ -194,7 +386,9 @@ def materialize_tool_task(
     冻结纪律:只吃带 .sha256 sidecar 的 ToolContract(改题面必先重冻结)。
     幂等性:目标已存在则拒绝 —— 物化产物按任务包对待,不静默覆盖。
     """
-    tc, _digest = TaskContract.load_frozen(contract_path, require_sidecar=True)
+    tc, contract_digest = TaskContract.load_frozen(
+        contract_path, require_sidecar=True
+    )
     if tc.task_family != "LOCAL-TOOL" or tc.tool is None:
         raise ToolBridgeError(f"{tc.task_id}: 不是 LOCAL-TOOL 契约")
 
@@ -233,48 +427,15 @@ def materialize_tool_task(
     #   其余同名搬运。apply.patch 供 _fake_script 的 git-apply 形态;
     #   控制目录若带 requirements.lock.txt(reference 常带,锁上游 pinned),
     #   diff 一并入 patch —— agent 真实工作=改 impl+锁依赖,正控必须同构。
-    skel_impl_rel = f"src/{tc.target_project.package}/impl.py"
-    skel_impl = (skeleton / skel_impl_rel).read_text(encoding="utf-8")
-    skel_lock = (skeleton / "requirements.lock.txt").read_text(encoding="utf-8")
-    src_of = {"positive": "reference", "negative_reimpl": "positive"}
-    # 控制集以装配产物为准(M4 chardet 实测:malformed 豁免域不产
-    # negative_badexit;bridge 硬要五件会把合法豁免打成 BLOCKED)。
-    # positive/empty/hardcode/reimpl 四件仍强制 —— 缺了才是真装配缺陷。
-    wanted = ["positive", "negative_empty", "negative_hardcode",
-              "negative_reimpl"]
-    if (controls_src / "negative_badexit" / "impl.py").is_file():
-        wanted.append("negative_badexit")
-    for host_name in wanted:
-        ctrl = controls_src / src_of.get(host_name, host_name)
-        if not (ctrl / "impl.py").is_file():
-            raise ToolBridgeError(f"{tc.task_id}: 控制源缺失:{ctrl}/impl.py")
-        dst = task_dir / "controls" / host_name
-        dst.mkdir(parents=True)
-        shutil.copy2(ctrl / "impl.py", dst / "impl.py")
-        patch = _unified_patch(
-            skel_impl_rel, skel_impl,
-            (ctrl / "impl.py").read_text(encoding="utf-8"))
-        ctrl_lock = ctrl / "requirements.lock.txt"
-        if ctrl_lock.is_file():
-            patch += _unified_patch(
-                "requirements.lock.txt", skel_lock,
-                ctrl_lock.read_text(encoding="utf-8"))
-        (dst / "apply.patch").write_text(patch, encoding="utf-8")
-        # fake 流程 = smoke 步 → git apply → 提交:补丁改了 lock,但没人再跑
-        # pip(真 agent 是"改 lock 后自己 install",提示教了)。故 positive 的
-        # 冒烟步预装 reference 锁定集(从会话轮仓离线解析);负控不 import
-        # 上游,无须 —— 但缺清单会回落 positive 清单,装了不用亦无害。
-        smoke = ["# 环境由契约 host.setup_commands 建;补丁后依赖见下。"]
-        if host_name == "positive" and ctrl_lock.is_file():
-            pins = [ln.strip() for ln in
-                    ctrl_lock.read_text(encoding="utf-8").splitlines()
-                    if ln.strip() and not ln.strip().startswith("#")]
-            if pins:
-                smoke.append(".venv/bin/pip install -q --no-index "
-                             + " ".join(pins))
-        smoke.append("echo rp-tool-smoke-ready")
-        (dst / "smoke_setup.txt").write_text("\n".join(smoke) + "\n",
-                                             encoding="utf-8")
+    _write_host_control_groups(
+        tc=tc,
+        skeleton=skeleton,
+        controls_src=controls_src,
+        destination=task_dir / "controls",
+    )
+    _write_control_bridge_marker(
+        task_dir, tool_contract_sha256=contract_digest
+    )
 
     requirements = _hard_requirements(project_root, tc)
     # hook 最低调用数 = 文件样例数(公开+held-out;每个文件样例至少应

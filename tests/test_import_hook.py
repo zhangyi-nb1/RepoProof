@@ -138,6 +138,58 @@ def test_imported_callable_alias_is_not_wrapped(tmp_path):
     assert got["ok"] is True and got["calls"] == 1, got
 
 
+def test_wrapped_function_preserves_decorator_metadata(tmp_path):
+    """Plugin systems attach protocol markers to function ``__dict__``.
+
+    Runtime observation must not erase those markers merely because the
+    function is replaced by a call-counting proxy.
+    """
+
+    up = tmp_path / "up"
+    up.mkdir()
+    (up / "pluginapi.py").write_text(
+        "def hookspec(fn):\n"
+        "    fn.protocol_marker = {'namespace': 'anonymous'}\n"
+        "    return fn\n\n"
+        "@hookspec\n"
+        "def transform(value):\n"
+        "    return value.upper()\n",
+        encoding="utf-8",
+    )
+    hook = write_hook_dir(tmp_path / "hook")
+    ledger = tmp_path / "ledger.jsonl"
+    script = tmp_path / "child.py"
+    script.write_text(
+        "import pluginapi\n"
+        "assert pluginapi.transform.protocol_marker == "
+        "{'namespace': 'anonymous'}\n"
+        "assert pluginapi.transform('alpha') == 'ALPHA'\n",
+        encoding="utf-8",
+    )
+    env = dict(
+        os.environ,
+        PYTHONPATH=f"{hook}{os.pathsep}{up}",
+        **{
+            ENV_MODULE: "pluginapi",
+            ENV_LEDGER: str(ledger),
+            ENV_SECRET: "s3cr3t",
+        },
+    )
+    run = subprocess.run(
+        [sys.executable, str(script)],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+    assert run.returncode == 0, run.stderr
+    got = verify_import_receipts(
+        ledger, "s3cr3t", module="pluginapi", min_calls=1
+    )
+    assert got["ok"] is True and got["calls"] == 1, got
+
+
 def test_wrapped_loader_preserves_package_resource_access(tmp_path):
     """pyspellchecker 型 pkgutil.get_data 必须穿透 hook 的 loader 代理。"""
     up = tmp_path / "up"

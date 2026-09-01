@@ -1,0 +1,19 @@
+{
+  "affected_component": "Workspace fake-positive control protocol bridge",
+  "after_control_sha256": "15b2256e772260c534e9a8875783aa4c3d06502ba7b8f82c031d86eb4274d539",
+  "anonymous_fixture_id": "anonymous-final-output-reference-to-empty-staging-v1",
+  "before_control_sha256": "ab88bf2e1c2afa061d6bc39bec343f9ef737ad4c2d42be81fbb23d68ae2d4a40",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T16:04:51+08:00",
+  "evidence_id": "harness-change-workspace-positive-control-protocol-v1",
+  "incident_ids": [
+    "incident-workspace-positive-control-protocol-v1"
+  ],
+  "invariant": "A zero-model positive rehearsal must execute the frozen upstream-calling reference under the delivered adapter callable protocol. For workspace_bundle_v1, the reference owns creation of a previously absent final output path, while the adapter must populate a Harness-created empty staging directory; the bridge must preserve the upstream call and adapt only this path-ownership boundary.",
+  "normalized_fingerprint": "97d185a35945fab2",
+  "regression_tests": [
+    "tests/test_workspace_pipeline.py::test_workspace_reference_positive_control_adapts_final_path_to_staging"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

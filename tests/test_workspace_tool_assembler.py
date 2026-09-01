@@ -33,7 +33,11 @@ from repoproof.execution.workspace_bundle import (
 from repoproof.harness.requirement_spec import load_requirement_spec
 from repoproof.runner.host_guided import HostContract, build_host_prompt
 from repoproof.runner.tool_export import install_verified_tool
-from repoproof.runner.tool_host_bridge import synthesize_host_contract
+from repoproof.runner.tool_host_bridge import (
+    ensure_materialized_tool_controls_current,
+    materialize_tool_task,
+    synthesize_host_contract,
+)
 from repoproof.runner.tool_registry import (
     list_tools,
     release_audit_trust_identity_from_contract,
@@ -354,6 +358,30 @@ def test_workspace_assembler_freezes_v4_task_and_runs_public_controls(
     assert "impl.extract" not in prompt
     assert "directory manifests" in prompt
     assert "hidden tests only" in prompt
+
+    materialized_contract = materialize_tool_task(
+        project,
+        contract_path,
+        out_root=project / "tool_tasks",
+        host_copy_root=tmp_path / "bench",
+        setup_commands=[[sys.executable, "-c", "print('ready')"]],
+    )
+    materialized_positive = (
+        materialized_contract.parent / "controls" / "positive" / "impl.py"
+    )
+    assert "_repoproof_reference_build_workspace_v1" in (
+        materialized_positive.read_text(encoding="utf-8")
+    )
+    materialized_positive.write_text("stale derived control\n", encoding="utf-8")
+    assert ensure_materialized_tool_controls_current(
+        project, contract_path, materialized_contract
+    ) is True
+    assert "_repoproof_reference_build_workspace_v1" in (
+        materialized_positive.read_text(encoding="utf-8")
+    )
+    assert ensure_materialized_tool_controls_current(
+        project, contract_path, materialized_contract
+    ) is False
 
     skeleton = project / contract.target_project.path
     shutil.copy2(

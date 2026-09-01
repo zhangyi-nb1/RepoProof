@@ -1,0 +1,20 @@
+{
+  "affected_component": "Workspace fixture authoring and frozen-task zero-model preflight",
+  "after_control_sha256": "1766822e89c2106aae50ee373bdf4019794cb082427a9130b8438c790d68528c",
+  "anonymous_fixture_id": "anonymous-reference-verifier-disagreement-v1",
+  "before_control_sha256": "708762597b528f1820daadd6cb655732e0bbae1e02344ce501b606f1153960ea",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T16:23:13+08:00",
+  "evidence_id": "harness-change-reference-semantic-preflight-v1",
+  "incident_ids": [
+    "incident-reference-semantic-preflight-gap-v1"
+  ],
+  "invariant": "No workspace example may become confirmable, and no frozen workspace task may enter rehearsal or Agent execution, unless the independent semantic verifier accepts the pinned-reference artifact and its input, artifact, and upstream-result binding controls pass in the offline environment.",
+  "normalized_fingerprint": "37a6606db4df6a63",
+  "regression_tests": [
+    "tests/test_product_preflight.py::test_v4_workspace_preflight_rejects_reference_verifier_disagreement",
+    "tests/ui/test_workspace_ui_services.py::test_workspace_candidate_generation_rejects_reference_verifier_disagreement"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

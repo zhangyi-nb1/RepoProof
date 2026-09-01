@@ -630,6 +630,50 @@ def test_frozen_resume_can_repeat_rehearsal_without_real_model(
     assert calls == [{"fake": "positive", "batch": "EXPLORATORY_UNPREREGISTERED"}]
 
 
+def test_frozen_rehearsal_environment_failure_is_structured_and_zero_agent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An early Harness setup exception must still produce one Product stop."""
+
+    from repoproof.runner import tool_pipeline
+    from repoproof.runner.host_guided import HostRunError
+    from repoproof.runner.product_preflight import ProductPreflightResult
+
+    task_id = "tool-anonymous-workspace-v1"
+    (tmp_path / "contracts").mkdir()
+    (tmp_path / "contracts" / f"{task_id}.yaml").write_text(
+        "kind: tool\n", encoding="utf-8"
+    )
+    host = tmp_path / "tool_tasks" / task_id
+    host.mkdir(parents=True)
+    (host / "contract.yaml").write_text(
+        "host: {wheelhouse_path: /unused}\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        "repoproof.runner.product_preflight.run_product_preflight",
+        lambda **_kwargs: ProductPreflightResult(ok=True),
+    )
+    monkeypatch.setattr(
+        "repoproof.runner.host_guided.run_host_guided_cli",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            HostRunError("offline verifier dependency missing")
+        ),
+    )
+
+    with pytest.raises(tool_pipeline.PipelineError) as caught:
+        tool_pipeline.tool_build_real_from_frozen(
+            task_id,
+            tmp_path,
+            dest_root=tmp_path / "tools",
+            rehearsal_only=True,
+        )
+
+    assert caught.value.reason_code == "HARNESS_EXECUTION_ENVIRONMENT_FAILED"
+    assert caught.value.partial_result["verdict"] == "BLOCKED"
+    assert "没有调用 Agent" in str(caught.value.recommended_action)
+
+
 def test_resume_refuses_when_task_was_never_materialised(tmp_path: Path):
     """**负控**:只有工具合同、没有物化产物 → 如实拒绝并说清原因。"""
     from repoproof.runner.tool_pipeline import (

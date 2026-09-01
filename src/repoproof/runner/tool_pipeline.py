@@ -46,7 +46,11 @@ from repoproof.runner.tool_export import (
     install_verified_tool,
     preflight_tool_install,
 )
-from repoproof.runner.tool_host_bridge import ToolBridgeError, materialize_tool_task
+from repoproof.runner.tool_host_bridge import (
+    ToolBridgeError,
+    ensure_materialized_tool_controls_current,
+    materialize_tool_task,
+)
 from repoproof.runner.tool_release import (
     ReleaseLedgerError,
     is_historical_tool_ready,
@@ -69,6 +73,39 @@ class PipelineError(RuntimeError):
         self.reason_code = reason_code
         self.recommended_action = recommended_action
         self.partial_result = dict(partial_result or {})
+
+
+def _prepare_harness_test_toolchain(project_root: Path) -> dict:
+    """Materialize verifier/build wheels outside task runtime and Bench roots."""
+
+    from repoproof.execution.core_execution import atomic_write_json
+    from repoproof.harness.wheelhouse import materialize_harness_test_toolchain
+
+    cache_root = Path(project_root) / "upstream-cache"
+    cache_root.mkdir(parents=True, exist_ok=True)
+    supplement = cache_root / "harness-test-wheelhouse-py312-v1"
+    if supplement.is_symlink():
+        raise PipelineError(
+            "Harness 测试工具链目录是 symlink",
+            reason_code="HARNESS_TEST_TOOLCHAIN_DESTINATION_UNSAFE",
+        )
+    supplement.mkdir(parents=True, exist_ok=True)
+    try:
+        result = materialize_harness_test_toolchain(supplement)
+        atomic_write_json(
+            cache_root / "harness-test-wheelhouse-py312-v1.manifest.json",
+            result["manifest"],
+        )
+    except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+        raise PipelineError(
+            "Harness 自有测试工具链无法加入离线执行闭包",
+            reason_code="HARNESS_TEST_TOOLCHAIN_MATERIALIZATION_FAILED",
+            recommended_action=(
+                "恢复 Python package index 后重试同一冻结任务；"
+                "该环境故障不得进入 Agent repair，也不需要改合同。"
+            ),
+        ) from exc
+    return {**result, "path": str(supplement)}
 
 
 def _install_error_projection(exc: BaseException) -> tuple[str, str]:
@@ -618,6 +655,35 @@ def tool_build_real_from_frozen(
         }
     }
 
+    try:
+        resume_host_document = yaml.safe_load(
+            host_contract.read_text(encoding="utf-8")
+        ) or {}
+        if resume_host_document.get("prompt_profile") == "workspace-tool-v1":
+            controls_refreshed = ensure_materialized_tool_controls_current(
+                project_root,
+                tool_contract,
+                host_contract,
+            )
+        else:
+            controls_refreshed = False
+    except (OSError, ValueError, ToolBridgeError, yaml.YAMLError) as exc:
+        raise PipelineError(
+            f"物化控制组无法从冻结任务安全刷新:{exc}",
+            reason_code="MATERIALIZED_CONTROL_REFRESH_FAILED",
+            recommended_action=(
+                "检查冻结合同、骨架和控制源身份后重试；该 Harness 故障"
+                "不得调用 Agent 或消耗 repair。"
+            ),
+            partial_result={
+                "task_id": task_id,
+                "stages": stages,
+                "verdict": "BLOCKED",
+                "exported": None,
+            },
+        ) from exc
+    stages["resumed_from_frozen"]["controls_refreshed"] = controls_refreshed
+
     # Resuming reaches the same install boundary as the original build.  Run
     # the read-only install preflight before spending real-model budget;
     # otherwise a legacy MCP file or damaged registry is discovered only
@@ -665,8 +731,16 @@ def tool_build_real_from_frozen(
     try:
         host_doc = yaml.safe_load(host_contract.read_text(encoding="utf-8")) or {}
         wheelhouse = Path(str((host_doc.get("host") or {}).get("wheelhouse_path") or ""))
+        tool_doc_for_profile = yaml.safe_load(
+            tool_contract.read_text(encoding="utf-8")
+        ) or {}
     except (OSError, TypeError, yaml.YAMLError) as exc:
         raise PipelineError(f"无法读取冻结宿主合同的 wheelhouse：{exc}") from exc
+    if (
+        ((tool_doc_for_profile.get("tool") or {}).get("delivery_profile_id"))
+        == "workspace_bundle_v1"
+    ):
+        _prepare_harness_test_toolchain(project_root)
     preflight = run_product_preflight(
         project_root=project_root,
         task_id=task_id,
@@ -687,10 +761,28 @@ def tool_build_real_from_frozen(
         assess_report,
         derive_repair_metrics,
     )
-    from repoproof.runner.host_guided import run_host_guided_cli
+    from repoproof.runner.host_guided import HostRunError, run_host_guided_cli
 
     if rehearsal_only:
-        fake = run_host_guided_cli(host_contract, project_root, fake="positive", batch=batch)
+        try:
+            fake = run_host_guided_cli(
+                host_contract, project_root, fake="positive", batch=batch
+            )
+        except HostRunError as exc:
+            raise PipelineError(
+                f"零模型执行环境未能建立:{exc}",
+                reason_code="HARNESS_EXECUTION_ENVIRONMENT_FAILED",
+                recommended_action=(
+                    "修复或恢复 Harness 离线执行环境后重试同一冻结任务；"
+                    "本次没有调用 Agent，也不得消耗 repair。"
+                ),
+                partial_result={
+                    "task_id": task_id,
+                    "stages": stages,
+                    "verdict": "BLOCKED",
+                    "exported": None,
+                },
+            ) from exc
         rp = fake.get("report") or {}
         stages["rehearsal"] = _rehearsal_stage(rp)
         verdict = "REHEARSAL_PASS_ONLY" if rp.get("verdict") == "PASS_ADAPTED" else f"REHEARSAL_{rp.get('verdict')}"
@@ -701,7 +793,29 @@ def tool_build_real_from_frozen(
             "exported": None,
         }
 
-    real = run_host_guided_cli(host_contract, project_root, fake=None, batch=batch, backend=agent_backend)
+    try:
+        real = run_host_guided_cli(
+            host_contract,
+            project_root,
+            fake=None,
+            batch=batch,
+            backend=agent_backend,
+        )
+    except HostRunError as exc:
+        raise PipelineError(
+            f"真实构建执行环境未能建立:{exc}",
+            reason_code="HARNESS_EXECUTION_ENVIRONMENT_FAILED",
+            recommended_action=(
+                "修复或恢复 Harness 离线执行环境后重试同一冻结任务；"
+                "若 Agent 尚未启动，不得计入 repair 或模型失败。"
+            ),
+            partial_result={
+                "task_id": task_id,
+                "stages": stages,
+                "verdict": "BLOCKED",
+                "exported": None,
+            },
+        ) from exc
     if real.get("blocked"):
         stages["real"] = real
         return {"task_id": task_id, "stages": stages, "verdict": "REAL_BLOCKED", "exported": None}
@@ -1114,6 +1228,7 @@ def tool_build(
         or (archive / "wheelhouse_manifest.json").exists()
     )
     prefrozen_manifest: dict | None = None
+    harness_toolchain: dict | None = None
     if wheelhouse_cmd is None and prefrozen_present:
         prefrozen_manifest = _consume_prefrozen_wheelhouse(
             draft_archive=archive,
@@ -1142,6 +1257,17 @@ def tool_build(
         )
         if r.returncode != 0:
             raise PipelineError(f"wheelhouse 备轮失败:{r.stderr[-300:]}")
+    if wheelhouse_cmd is None:
+        tool_profile_document = yaml.safe_load(
+            (project_root / "contracts" / f"{task_id}.yaml").read_text(
+                encoding="utf-8"
+            )
+        ) or {}
+        if (
+            ((tool_profile_document.get("tool") or {}).get("delivery_profile_id"))
+            == "workspace_bundle_v1"
+        ):
+            harness_toolchain = _prepare_harness_test_toolchain(project_root)
     # 事后核账只在**真备轮**时成立:`wheelhouse_cmd` 是测试注入口(E2E 用
     # `true` 跳过下载、改由 PYTHONPATH shim 提供上游),那种情况下这里没有
     # 东西可核 —— 核一个没发生的动作只会得出假结论。生产侧无人传此参数。
@@ -1157,11 +1283,16 @@ def tool_build(
         "wheels": len(list(wheelhouse.glob("*.whl"))),
         "upstream_present": True,
         "source": (
-            "PREREGISTERED"
+            "PREREGISTERED_RUNTIME"
             if prefrozen_manifest is not None
             else "INDEX_RESOLVED"
         ),
         "root": (prefrozen_manifest or {}).get("root"),
+        "harness_toolchain": {
+            "path": (harness_toolchain or {}).get("path"),
+            "root": ((harness_toolchain or {}).get("manifest") or {}).get("root"),
+            "added_wheels": (harness_toolchain or {}).get("added_wheels") or [],
+        },
     }
 
     if wheelhouse_cmd is None:

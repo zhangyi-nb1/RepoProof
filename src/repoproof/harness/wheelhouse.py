@@ -11,9 +11,138 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 from repoproof.domain.models import AdmissionError, sha256_file
+
+HARNESS_TEST_REQUIREMENTS = ("pytest>=8.0", "setuptools", "wheel")
+
+
+def _normalise_distribution(value: str) -> str:
+    return re.sub(r"[-_.]+", "-", value).lower()
+
+
+def wheel_distributions(wheelhouse: Path) -> set[str]:
+    """Return normalized distribution names represented by regular wheels."""
+
+    return {
+        _normalise_distribution(path.name.split("-", 1)[0])
+        for path in Path(wheelhouse).iterdir()
+        if path.is_file() and not path.is_symlink() and path.suffix == ".whl"
+    }
+
+
+def materialize_harness_test_toolchain(
+    wheelhouse: Path,
+    *,
+    requirements: tuple[str, ...] = HARNESS_TEST_REQUIREMENTS,
+    python_executable: str = sys.executable,
+    timeout_s: int = 600,
+) -> dict:
+    """Add only missing Harness-owned test wheels to an execution closure.
+
+    A workspace's runtime lock describes the delivered application, whereas
+    RepoProof's public/oracle checks are executed with pytest and editable
+    build tooling.  Those are separate ownership domains.  The task runtime
+    bytes are never replaced: an admitted runtime wheel wins by distribution,
+    and the downloaded supplement contributes only distributions that were
+    absent.  Callers keep this supplement beside the immutable runtime
+    wheelhouse and record its independent byte identity.
+    """
+
+    wheelhouse = Path(wheelhouse)
+    if wheelhouse.is_symlink() or not wheelhouse.is_dir():
+        raise RuntimeError("HARNESS_TEST_WHEELHOUSE_INVALID")
+    required_names = {
+        _normalise_distribution(re.split(r"[=<>!~\[]", item, maxsplit=1)[0])
+        for item in requirements
+    }
+    present = wheel_distributions(wheelhouse)
+    missing_requirements = tuple(
+        item
+        for item in requirements
+        if _normalise_distribution(
+            re.split(r"[=<>!~\[]", item, maxsplit=1)[0]
+        )
+        not in present
+    )
+    if not missing_requirements:
+        return {
+            "manifest": compute_manifest(wheelhouse),
+            "added_wheels": [],
+            "required_distributions": sorted(required_names),
+        }
+
+    with tempfile.TemporaryDirectory(
+        prefix=".harness-test-wheels-", dir=wheelhouse.parent
+    ) as temp:
+        stage = Path(temp)
+        try:
+            downloaded = subprocess.run(  # noqa: S603 - fixed interpreter/argv
+                [
+                    python_executable,
+                    "-m",
+                    "pip",
+                    "download",
+                    "--disable-pip-version-check",
+                    "--only-binary=:all:",
+                    "--dest",
+                    str(stage),
+                    *missing_requirements,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=timeout_s,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise RuntimeError("HARNESS_TEST_TOOLCHAIN_DOWNLOAD_FAILED") from exc
+        if downloaded.returncode != 0:
+            raise RuntimeError("HARNESS_TEST_TOOLCHAIN_DOWNLOAD_FAILED")
+
+        candidates = sorted(stage.iterdir(), key=lambda item: item.name)
+        if not candidates or any(
+            item.is_symlink() or not item.is_file() or item.suffix != ".whl"
+            for item in candidates
+        ):
+            raise RuntimeError("HARNESS_TEST_TOOLCHAIN_WHEEL_INVALID")
+        added: list[str] = []
+        occupied = wheel_distributions(wheelhouse)
+        for source in candidates:
+            distribution = _normalise_distribution(source.name.split("-", 1)[0])
+            if distribution in occupied:
+                continue
+            target = wheelhouse / source.name
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+            try:
+                fd = os.open(target, flags, 0o600)
+            except OSError as exc:
+                raise RuntimeError("HARNESS_TEST_TOOLCHAIN_DESTINATION_UNSAFE") from exc
+            try:
+                with source.open("rb") as reader, os.fdopen(fd, "wb") as writer:
+                    shutil.copyfileobj(reader, writer)
+                    writer.flush()
+                    os.fsync(writer.fileno())
+            except Exception:
+                target.unlink(missing_ok=True)
+                raise
+            occupied.add(distribution)
+            added.append(target.name)
+
+    missing_after = required_names - wheel_distributions(wheelhouse)
+    if missing_after:
+        raise RuntimeError("HARNESS_TEST_TOOLCHAIN_INCOMPLETE")
+    return {
+        "manifest": compute_manifest(wheelhouse),
+        "added_wheels": sorted(added),
+        "required_distributions": sorted(required_names),
+    }
 
 
 def compute_manifest(wheelhouse: Path) -> dict:

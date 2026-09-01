@@ -1760,7 +1760,14 @@ def propose_workspace_fixture_candidates(
                     isolation_required=True,
                 )
                 input_candidates.append(candidate)
-                assert_distinct_fixture_inputs(input_candidates)
+            # Identity/admission checks precede every expensive reference or
+            # semantic-verifier execution.  One duplicate fixture invalidates
+            # the candidate batch and must not be masked by an unrelated first
+            # candidate's control-plane failure.
+            assert_distinct_fixture_inputs(input_candidates)
+            for blueprint, candidate in zip(
+                selected, input_candidates, strict=True
+            ):
                 expected_dir = generation_root / "expected" / blueprint.blueprint_id
                 expected = _run_workspace_reference_candidate(
                     reference_source=draft_dir / "reference_impl.py",
@@ -1772,6 +1779,60 @@ def propose_workspace_fixture_candidates(
                     runtime_wheelhouse=runtime_wheelhouse,
                     runtime_lock=runtime_lock,
                 )
+                verifier_source = draft_dir / "semantic_verifier.py"
+                if verifier_source.is_symlink() or not verifier_source.is_file():
+                    raise WorkspaceBundleError(
+                        "WORKSPACE_SEMANTIC_VERIFIER_MISSING"
+                    )
+                raw_intent = draft.get("_intent_contract") or {}
+                required_commitment_ids = tuple(
+                    str(item.get("commitment_id") or "")
+                    for item in (raw_intent.get("commitments") or [])
+                    if isinstance(item, dict) and item.get("commitment_id")
+                )
+                confirmation_sha = str(
+                    ((raw_intent.get("confirmation") or {}).get("semantics_sha256"))
+                    or ""
+                )
+                source_repo = draft.get("source_repo") or {}
+                from repoproof.verification.semantic_artifact import (
+                    SemanticVerifierError,
+                )
+                from repoproof.verification.workspace_semantic import (
+                    run_workspace_semantic_verifier,
+                )
+
+                try:
+                    semantic = run_workspace_semantic_verifier(
+                        verifier_id=f"{tool.name}-draft-semantic-v1",
+                        verifier_source=verifier_source,
+                        input_path=Path(candidate.fixture_path),
+                        artifact_dir=expected_dir,
+                        python_exe=reference_python,
+                        upstream_dir=upstream,
+                        import_module=str(source_repo.get("import_module") or ""),
+                        upstream_commit=str(source_repo.get("resolved_commit") or ""),
+                        workspace_contract_sha256=hashlib.sha256(
+                            json.dumps(
+                                contract.model_dump(mode="json"),
+                                sort_keys=True,
+                                separators=(",", ":"),
+                            ).encode("utf-8")
+                        ).hexdigest(),
+                        intent_confirmation_sha256=confirmation_sha,
+                        required_commitment_ids=required_commitment_ids,
+                        execute_installed_upstream=True,
+                        isolation_required=True,
+                    )
+                except SemanticVerifierError as exc:
+                    raise WorkspaceBundleError(
+                        "WORKSPACE_SEMANTIC_SCREEN_EXECUTION_FAILED"
+                    ) from exc
+                if not semantic.passed:
+                    raise WorkspaceBundleError(
+                        "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+                        ",".join(semantic.reason_codes[:4]),
+                    )
                 record: dict[str, object] = {
                     "blueprint_id": blueprint.blueprint_id,
                     "title": blueprint.title,
@@ -1947,6 +2008,8 @@ def _workspace_fixture_failure_owner(code: str) -> str:
         or code.startswith("WORKSPACE_REFERENCE_FIXTURE_")
         or code.startswith("WORKSPACE_REFERENCE_PROTOCOL_")
         or code.startswith("WORKSPACE_REFERENCE_DEPENDENCY_")
+        or code.startswith("WORKSPACE_REFERENCE_VERIFIER_")
+        or code.startswith("WORKSPACE_SEMANTIC_VERIFIER_")
         or code in WORKSPACE_REFERENCE_REPAIRABLE_FAILURE_CODES
     )
     return "CONTRACT" if contract_owned else "HARNESS"

@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "bench_root_support_assets": 2,
+    "preflight_nodes_passed": 15
+  },
+  "created_at": "2026-09-01T15:55:00+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "769cfb997715d14033e3dc5ee65cb4a95906edb2",
+  "framework_tree_sha256": "126660d86dccb0d5d91038282c62cce7555c9b2c6e5260eb1cae1666524913e4",
+  "incident_id": "incident-harness-support-asset-bench-hygiene-v1",
+  "normalized_fingerprint": "d2a760fb40a60e0f",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "rehearsal::bench-hygiene"
+  ],
+  "reason_codes": [
+    "BENCH_ROOT_CONTAMINATED",
+    "HARNESS_SUPPORT_ASSET_LOCATION_INVALID"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-datasette-tool-v2"
+}

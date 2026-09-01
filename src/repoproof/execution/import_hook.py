@@ -43,6 +43,7 @@ PROBE_MARKER = "REPOPROOF_HOOK"
 _SITECUSTOMIZE = r'''"""repoproof import-hook(harness 注入;验收期专用,交付期不存在)。"""
 import hashlib
 import hmac
+import functools
 import importlib.abc
 import importlib.machinery
 import importlib.util
@@ -124,18 +125,13 @@ def _install():
                 continue
 
             def _make(sym, fn):
+                @functools.wraps(fn)
                 def _proxy(*a, **kw):
                     digest = hashlib.sha256(
                         repr((a, sorted(kw.items())))[:2000].encode()
                     ).hexdigest()[:16]
                     _record("call", sym, {"args_sha": digest})
                     return fn(*a, **kw)
-
-                try:
-                    _proxy.__name__ = getattr(fn, "__name__", sym)
-                    _proxy.__doc__ = getattr(fn, "__doc__", None)
-                except (AttributeError, TypeError):
-                    pass
                 return _proxy
 
             try:

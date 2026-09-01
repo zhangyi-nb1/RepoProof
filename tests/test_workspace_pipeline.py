@@ -7,14 +7,48 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
-from repoproof.harness.wheelhouse import compute_manifest
+from repoproof.harness.wheelhouse import compute_manifest, materialize_harness_test_toolchain
 from repoproof.runner import tool_pipeline
+from repoproof.runner.tool_host_bridge import (
+    _workspace_reference_as_staging_adapter,
+)
 from repoproof.runner.tool_pipeline import (
     PipelineError,
     _consume_prefrozen_wheelhouse,
     _record_workspace_repair_incidents,
     _stage_workspace_wheelhouse,
 )
+
+
+def test_workspace_reference_positive_control_adapts_final_path_to_staging(
+    tmp_path: Path,
+) -> None:
+    """Anonymous reproduction of the reference/adapter protocol mismatch."""
+
+    reference_source = '''from pathlib import Path
+
+CALLED = []
+
+def build_workspace(input_path: Path, output_dir: Path) -> None:
+    assert not output_dir.exists(), "reference owns final directory creation"
+    CALLED.append(input_path.read_text(encoding="utf-8"))
+    output_dir.mkdir()
+    (output_dir / "report.txt").write_text(CALLED[-1], encoding="utf-8")
+'''
+    namespace: dict[str, object] = {}
+    exec(_workspace_reference_as_staging_adapter(reference_source), namespace)
+    staging = tmp_path / "staging"
+    staging.mkdir()
+    source = tmp_path / "input.txt"
+    source.write_text("observed upstream result\n", encoding="utf-8")
+
+    namespace["build_workspace"](source, staging)  # type: ignore[operator]
+
+    assert (staging / "report.txt").read_text(encoding="utf-8") == (
+        "observed upstream result\n"
+    )
+    assert namespace["CALLED"] == ["observed upstream result\n"]
+    assert not (staging / ".repoproof-reference-output").exists()
 
 
 def _documents(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
@@ -97,6 +131,41 @@ def test_pipeline_consumes_exact_prefrozen_wheelhouse_without_index_access(
 
     assert result == manifest
     assert compute_manifest(destination) == manifest
+
+
+def test_runtime_only_wheelhouse_gets_a_separate_harness_test_supplement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Anonymous control for the runtime-vs-verifier ownership seam."""
+
+    runtime_wheelhouse = tmp_path / "runtime-wheelhouse"
+    runtime_wheelhouse.mkdir()
+    runtime = runtime_wheelhouse / "anonymous_upstream-1.0-py3-none-any.whl"
+    runtime.write_bytes(b"runtime-byte-identity")
+    runtime_manifest = compute_manifest(runtime_wheelhouse)
+    supplement = tmp_path / "harness-test-wheelhouse"
+    supplement.mkdir()
+
+    def fake_download(argv, **_kwargs):
+        destination = Path(argv[argv.index("--dest") + 1])
+        for name in (
+            "pytest-9.1.1-py3-none-any.whl",
+            "pluggy-1.6.0-py3-none-any.whl",
+            "setuptools-84.0.0-py3-none-any.whl",
+            "wheel-0.46.3-py3-none-any.whl",
+        ):
+            (destination / name).write_bytes(name.encode())
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("repoproof.harness.wheelhouse.subprocess.run", fake_download)
+    result = materialize_harness_test_toolchain(supplement)
+
+    assert result["required_distributions"] == ["pytest", "setuptools", "wheel"]
+    assert {"pytest", "setuptools", "wheel"}.issubset(
+        {name.split("-", 1)[0] for name in result["added_wheels"]}
+    )
+    assert compute_manifest(runtime_wheelhouse) == runtime_manifest
 
 
 def test_pipeline_rejects_tampered_prefrozen_wheelhouse(tmp_path: Path) -> None:

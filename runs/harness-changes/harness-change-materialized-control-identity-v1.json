@@ -1,0 +1,19 @@
+{
+  "affected_component": "Frozen-task resume and derived control materialization identity",
+  "after_control_sha256": "68973cf2462b5f504a02b72365c0a79a21e179171d5dcd7b0803edbdb7b00dbc",
+  "anonymous_fixture_id": "anonymous-stale-derived-control-resume-v1",
+  "before_control_sha256": "29a671df868e1205b0abaa1f1b1b1ba0baf610e4f51c129aa60f09e3c4a31754",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T16:11:18+08:00",
+  "evidence_id": "harness-change-materialized-control-identity-v1",
+  "incident_ids": [
+    "incident-stale-materialized-controls-v1"
+  ],
+  "invariant": "A frozen-task resume must preserve frozen truth while executing the current Harness protocol. Disposable materialized controls must be bound to the current bridge protocol, frozen contract digest, and their own tree hash; stale or damaged controls must be regenerated from frozen sources before any Agent or repair can run.",
+  "normalized_fingerprint": "b71b549642a0c85f",
+  "regression_tests": [
+    "tests/test_workspace_tool_assembler.py::test_workspace_assembler_freezes_v4_task_and_runs_public_controls"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

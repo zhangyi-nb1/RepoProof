@@ -252,6 +252,112 @@ def test_workspace_candidate_generation_rejects_duplicate_input_content(
     assert not (draft / "workspace_fixture_candidates.json").exists()
 
 
+def test_workspace_candidate_generation_rejects_reference_verifier_disagreement(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    draft = _managed_draft(tmp_path, monkeypatch)
+    (draft / "fixture_builder.py").write_text(
+        "def build(blueprint, output_path):\n    raise AssertionError\n",
+        encoding="utf-8",
+    )
+    (draft / "fixture_blueprints.json").write_text(
+        json.dumps(
+            {
+                "blueprints": [
+                    {
+                        "blueprint_id": "ordinary-study",
+                        "title": "Ordinary study",
+                        "scenario": "An ordinary local study input.",
+                        "input_kind": "directory",
+                        "parameters": {"variant": "ordinary"},
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        product_jobs,
+        "_core_draft_readiness",
+        lambda *_a, **_k: _Readiness(compatible=True, current=True),
+    )
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    monkeypatch.setattr(
+        product_jobs,
+        "_draft_upstream_dir",
+        lambda _draft: (upstream, None),
+    )
+    monkeypatch.setattr(
+        product_jobs,
+        "resolved_dependency_lock",
+        lambda *_a, **_k: "anonymous-package==1.0",
+    )
+
+    @contextmanager
+    def prepared_environment(*_args, **_kwargs):
+        yield sys.executable
+
+    monkeypatch.setattr(
+        example_proposer,
+        "prepared_reference_environment",
+        prepared_environment,
+    )
+    fixture = tmp_path / "ordinary-input"
+    fixture.mkdir()
+    (fixture / "brief.txt").write_text("ordinary bytes", encoding="utf-8")
+    identity = identify_input_path(fixture)
+    monkeypatch.setattr(
+        workspace_fixtures,
+        "build_fixture_candidate",
+        lambda *, blueprint, **_kwargs: InputFixtureCandidateV1(
+            blueprint=blueprint,
+            builder_id="anonymous-builder-v1",
+            builder_source_sha256="a" * 64,
+            fixture_path=str(fixture),
+            fixture_identity=identity,
+        ),
+    )
+
+    def fake_reference(*, expected_dir, **_kwargs):
+        expected_dir.mkdir(parents=True)
+        (expected_dir / "README.md").write_text("# Result\n", encoding="utf-8")
+        manifest = build_artifact_manifest(expected_dir)
+        return {
+            "tree_sha256": manifest.tree_sha256,
+            "file_count": manifest.file_count,
+            "total_bytes": manifest.total_bytes,
+        }
+
+    monkeypatch.setattr(
+        product_jobs,
+        "_run_workspace_reference_candidate",
+        fake_reference,
+    )
+    monkeypatch.setattr(
+        "repoproof.verification.workspace_semantic.run_workspace_semantic_verifier",
+        lambda **_kwargs: SimpleNamespace(
+            passed=False,
+            reason_codes=("PUBLIC_SEMANTIC_MISMATCH",),
+        ),
+    )
+
+    result = product_jobs.propose_workspace_fixture_candidates(
+        draft,
+        n=1,
+        offline=True,
+    )
+
+    assert result["ok"] is False
+    assert result["failure_owner"] == "CONTRACT"
+    assert result["reason_codes"] == [
+        "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT"
+    ]
+    assert result["diagnostics"] == ["PUBLIC_SEMANTIC_MISMATCH"]
+    assert not (draft / "workspace_fixture_candidates.json").exists()
+
+
 def test_workspace_reference_exception_is_a_contract_failure(
     tmp_path: Path,
     monkeypatch,

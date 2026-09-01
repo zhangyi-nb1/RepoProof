@@ -2272,7 +2272,26 @@ class HostGuidedRunner:
         if pip_idx is None:
             venv_s = round(time.monotonic() - t0, 1)
             return {"venv_s": venv_s, "ingest_s": 0.0}
-        r2 = s.backend.exec(s.id, cmds[pip_idx], timeout_s=timeout_s, workdir="host")
+        harness_wheelhouse = (
+            self.project_root
+            / "upstream-cache"
+            / "harness-test-wheelhouse-py312-v1"
+        )
+        pip_env = None
+        if harness_wheelhouse.is_dir() and not harness_wheelhouse.is_symlink():
+            # Product workspace verification owns pytest/build tooling; the
+            # delivered runtime lock does not.  Keep the two byte closures
+            # separate while allowing pip's offline resolver to see both.
+            pip_env = {
+                "PIP_FIND_LINKS": f"{self.wheelhouse} {harness_wheelhouse}"
+            }
+        r2 = s.backend.exec(
+            s.id,
+            cmds[pip_idx],
+            timeout_s=timeout_s,
+            workdir="host",
+            env=pip_env,
+        )
         if r2.exit_code != 0:
             full = (r2.stdout + r2.stderr).decode(errors="replace")
             tail = full[-500:]
@@ -2294,7 +2313,13 @@ class HostGuidedRunner:
         venv_s = round(time.monotonic() - t0, 1)
         t1 = time.monotonic()
         for i, cmd in enumerate(cmds[pip_idx + 1:], start=pip_idx + 2):
-            r = s.backend.exec(s.id, cmd, timeout_s=600, workdir="host")
+            r = s.backend.exec(
+                s.id,
+                cmd,
+                timeout_s=600,
+                workdir="host",
+                env=(pip_env if any("pip" in part for part in cmd) else None),
+            )
             if r.exit_code != 0:
                 raise HostRunError(
                     f"建环境第 {i} 步失败({' '.join(cmd)}):"

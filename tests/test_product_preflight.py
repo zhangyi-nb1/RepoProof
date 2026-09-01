@@ -190,6 +190,21 @@ def _mark_workspace_contract_v4(world: dict[str, Path | str]) -> dict:
         "    output_dir.joinpath('data/value.txt').write_text(demo_upstream.convert(value))\n",
         encoding="utf-8",
     )
+    verifier = project / "oracle" / task_id / "semantic_verifier.py"
+    verifier.parent.mkdir(parents=True)
+    verifier.write_text(
+        "from pathlib import Path\nimport demo_upstream\n"
+        "def verify(input_path: Path, artifact_path: Path) -> dict:\n"
+        "    try:\n"
+        "        source = input_path.joinpath('brief.txt').read_text()\n"
+        "        actual = artifact_path.joinpath('data/value.txt').read_text()\n"
+        "        ok = actual == demo_upstream.convert(source)\n"
+        "    except Exception:\n"
+        "        ok = False\n"
+        "    return {'ok': ok, 'reason_codes': [] if ok else ['VALUE_MISMATCH'], "
+        "'checked_commitment_ids': ['derived-value']}\n",
+        encoding="utf-8",
+    )
     contract["tool"] = {
         "schema_version": 4,
         "delivery_profile_id": "workspace_bundle_v1",
@@ -217,6 +232,18 @@ def _mark_workspace_contract_v4(world: dict[str, Path | str]) -> dict:
         "interface": {
             "output": {"kind": "directory", "format": "offline workspace"}
         },
+    }
+    contract["capability"] = {
+        "intent_contract": {
+            "commitments": [{"commitment_id": "derived-value"}],
+            "confirmation": {"semantics_sha256": "b" * 64},
+        }
+    }
+    contract["acceptance"] = {
+        "semantic_verifier": {
+            "verifier_id": "anonymous-workspace-semantic-v1",
+            "source_file": f"oracle/{task_id}/semantic_verifier.py",
+        }
     }
     contract_path.write_text(
         yaml.safe_dump(contract, sort_keys=False), encoding="utf-8"
@@ -314,6 +341,7 @@ def test_v4_workspace_preflight_runs_reference_and_validates_exact_tree(
     names = [check.name for check in result.checks]
     assert "reference_workspace_contract" in names
     assert "reference_workspace_golden" in names
+    assert "reference_workspace_semantics" in names
     assert "reference_output_contract" not in names
 
     expected = (
@@ -324,6 +352,47 @@ def test_v4_workspace_preflight_runs_reference_and_validates_exact_tree(
     rejected = _run(world)
     assert rejected.ok is False
     assert rejected.reason_codes == ["REFERENCE_GOLDEN_MISMATCH"]
+
+
+def test_v4_workspace_preflight_rejects_reference_verifier_disagreement(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from repoproof.harness.wheelhouse import compute_manifest
+
+    world = _world(tmp_path)
+    contract = _mark_workspace_contract_v4(world)
+    wheel_manifest = compute_manifest(Path(world["wheelhouse"]))
+    monkeypatch.setattr(
+        "repoproof.harness.task_package.load_and_verify",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            source_commit=contract["source_repo"]["resolved_commit"],
+            source_git_tree_hash="a" * 40,
+            wheelhouse_root=wheel_manifest["root"],
+            wheelhouse_wheels=wheel_manifest["wheels"],
+        ),
+    )
+    verifier = (
+        Path(world["project"])
+        / "oracle"
+        / str(world["task_id"])
+        / "semantic_verifier.py"
+    )
+    verifier.write_text(
+        "from pathlib import Path\nimport demo_upstream\n"
+        "def verify(input_path: Path, artifact_path: Path) -> dict:\n"
+        "    return {'ok': False, 'reason_codes': ['PUBLIC_SEMANTIC_MISMATCH'], "
+        "'checked_commitment_ids': ['derived-value']}\n",
+        encoding="utf-8",
+    )
+
+    result = _run(world)
+
+    assert result.ok is False
+    assert result.failure_owner == "CONTRACT"
+    assert result.product_stop_code == "STOP_NEEDS_HUMAN"
+    assert result.reason_codes == ["REFERENCE_SEMANTIC_VERIFIER_MISMATCH"]
+    assert "PUBLIC_SEMANTIC_MISMATCH" in result.checks[-1].detail
 
 
 def test_missing_upstream_wheel_stops_as_harness_fault(tmp_path: Path) -> None:

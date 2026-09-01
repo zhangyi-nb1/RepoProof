@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "harness_pytest_in_runtime_wheelhouse": "MISSING",
+    "product_action_result_written": "NO"
+  },
+  "created_at": "2026-09-01T15:50:52+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "769cfb997715d14033e3dc5ee65cb4a95906edb2",
+  "framework_tree_sha256": "126660d86dccb0d5d91038282c62cce7555c9b2c6e5260eb1cae1666524913e4",
+  "incident_id": "incident-workspace-harness-test-toolchain-v1",
+  "normalized_fingerprint": "6dc8adf5dda2de1f",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "rehearsal::offline-environment"
+  ],
+  "reason_codes": [
+    "HARNESS_TEST_TOOLCHAIN_MISSING",
+    "UNSTRUCTURED_EARLY_ENVIRONMENT_EXIT"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-datasette-tool-v2"
+}

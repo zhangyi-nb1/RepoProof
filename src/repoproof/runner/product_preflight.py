@@ -7,6 +7,7 @@ before any Coding Agent or repair round can consume budget.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -32,6 +33,8 @@ from repoproof.execution.workspace_bundle import (
     validate_workspace,
 )
 from repoproof.verification.output_match import compare_output
+from repoproof.verification.semantic_artifact import SemanticVerifierError
+from repoproof.verification.workspace_semantic import run_workspace_semantic_verifier
 
 PreflightOwner = Literal["HARNESS", "UPSTREAM", "CONTRACT", "USER_INPUT"]
 
@@ -296,6 +299,36 @@ def run_product_preflight(
             detail="离线 wheelhouse 未包含冻结 upstream distribution",
         )
     checks.append(ProductPreflightCheck(name="wheelhouse_upstream", ok=True))
+    if (
+        workspace_contract is not None
+        and workspace_contract.require_offline_wheelhouse
+    ):
+        from repoproof.harness.wheelhouse import HARNESS_TEST_REQUIREMENTS
+
+        harness_wheelhouse = (
+            project_root / "upstream-cache" / "harness-test-wheelhouse-py312-v1"
+        )
+        missing_test_tools = [
+            requirement
+            for requirement in HARNESS_TEST_REQUIREMENTS
+            if not _wheelhouse_has_distribution(
+                harness_wheelhouse,
+                re.split(r"[=<>!~\[]", requirement, maxsplit=1)[0],
+            )
+        ] if harness_wheelhouse.is_dir() and not harness_wheelhouse.is_symlink() else list(
+            HARNESS_TEST_REQUIREMENTS
+        )
+        if missing_test_tools:
+            return _failure(
+                checks,
+                owner="HARNESS",
+                code="HARNESS_TEST_TOOLCHAIN_MISSING",
+                detail=(
+                    "离线执行闭包缺少 Harness 自有测试工具："
+                    + ", ".join(missing_test_tools)
+                ),
+            )
+        checks.append(ProductPreflightCheck(name="harness_test_toolchain", ok=True))
     if package_manifest is not None:
         from repoproof.harness.wheelhouse import verify_wheelhouse
 
@@ -488,6 +521,91 @@ def run_product_preflight(
                 )
             checks.append(
                 ProductPreflightCheck(name="reference_workspace_golden", ok=True)
+            )
+            semantic_spec = (tool_contract.get("acceptance") or {}).get(
+                "semantic_verifier"
+            )
+            intent_contract = (tool_contract.get("capability") or {}).get(
+                "intent_contract"
+            ) or {}
+            commitments = intent_contract.get("commitments") or []
+            confirmation = intent_contract.get("confirmation") or {}
+            required_commitment_ids = tuple(
+                str(item.get("commitment_id") or "")
+                for item in commitments
+                if isinstance(item, dict) and item.get("commitment_id")
+            )
+            if not isinstance(semantic_spec, dict) or not required_commitment_ids:
+                return _failure(
+                    checks,
+                    owner="CONTRACT",
+                    code="WORKSPACE_SEMANTIC_VERIFIER_MISSING",
+                    detail="workspace 合同缺少独立语义验证器或公开 commitment 身份",
+                )
+            verifier_relative = Path(str(semantic_spec.get("source_file") or ""))
+            verifier_path = (project_root / verifier_relative).resolve()
+            try:
+                verifier_path.relative_to(project_root.resolve())
+            except ValueError:
+                return _failure(
+                    checks,
+                    owner="CONTRACT",
+                    code="WORKSPACE_SEMANTIC_VERIFIER_INVALID",
+                    detail="冻结语义验证器路径逃逸项目根",
+                )
+            if verifier_path.is_symlink() or not verifier_path.is_file():
+                return _failure(
+                    checks,
+                    owner="CONTRACT",
+                    code="WORKSPACE_SEMANTIC_VERIFIER_INVALID",
+                    detail="冻结语义验证器文件缺失或不安全",
+                )
+            contract_sha = hashlib.sha256(
+                json.dumps(
+                    workspace_contract.model_dump(mode="json"),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
+            try:
+                semantic = run_workspace_semantic_verifier(
+                    verifier_id=str(semantic_spec.get("verifier_id") or ""),
+                    verifier_source=verifier_path,
+                    input_path=input_path,
+                    artifact_dir=reference_output,
+                    python_exe=str(python),
+                    upstream_dir=upstream,
+                    import_module=import_module,
+                    upstream_commit=commit,
+                    workspace_contract_sha256=contract_sha,
+                    intent_confirmation_sha256=str(
+                        confirmation.get("semantics_sha256") or ""
+                    ),
+                    required_commitment_ids=required_commitment_ids,
+                    execute_installed_upstream=True,
+                    isolation_required=True,
+                )
+            except (OSError, ValueError, SemanticVerifierError) as exc:
+                return _failure(
+                    checks,
+                    owner="HARNESS",
+                    code="WORKSPACE_SEMANTIC_PREFLIGHT_FAILED",
+                    detail=f"冻结语义验证器无法在离线预检环境执行：{exc}",
+                )
+            if not semantic.passed:
+                return _failure(
+                    checks,
+                    owner="CONTRACT",
+                    code="REFERENCE_SEMANTIC_VERIFIER_MISMATCH",
+                    detail=(
+                        "冻结 reference 产物被冻结语义验证器拒绝："
+                        + ",".join(semantic.reason_codes[:4])
+                    ),
+                )
+            checks.append(
+                ProductPreflightCheck(
+                    name="reference_workspace_semantics", ok=True
+                )
             )
             if workspace_contract.runnable:
                 runtime = run_workspace_smoke(reference_output, workspace_contract)

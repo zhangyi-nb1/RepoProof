@@ -1,0 +1,21 @@
+{
+  "affected_component": "Workspace runtime and Harness verifier dependency ownership",
+  "after_control_sha256": "213b62d4dbc40ce70569d79cf066a663b0eca8a440888472dff6747211bc31cc",
+  "anonymous_fixture_id": "anonymous-workspace-harness-test-toolchain-v1",
+  "before_control_sha256": "aeefd934ea5f45287e7b4d262bfb2f8d344ff8331c15a30a045e699a632a0324",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T15:50:52+08:00",
+  "evidence_id": "harness-change-workspace-harness-test-toolchain-v1",
+  "incident_ids": [
+    "incident-workspace-harness-test-toolchain-v1",
+    "incident-harness-support-asset-bench-hygiene-v1"
+  ],
+  "invariant": "A workspace runtime lock and RepoProof's own test runner are separate dependency owners. Zero-model preflight must prove both offline closures before rehearsal; pytest/build tooling must not be smuggled into or required from the upstream runtime lock; and an early environment exception must still become one structured Product stop without Agent or repair consumption.",
+  "normalized_fingerprint": "6dc8adf5dda2de1f",
+  "regression_tests": [
+    "tests/test_workspace_pipeline.py::test_runtime_only_wheelhouse_gets_a_separate_harness_test_supplement",
+    "tests/test_tool_m3.py::test_frozen_rehearsal_environment_failure_is_structured_and_zero_agent"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}
