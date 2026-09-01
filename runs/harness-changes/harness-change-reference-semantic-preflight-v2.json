@@ -1,0 +1,21 @@
+{
+  "affected_component": "Workspace Fresh-audit candidate generation and managed candidate state",
+  "after_control_sha256": "799f88f6c896a8f2d5fd8ef88f4f2ca4579630f5dfd033084de34539c3ed66f7",
+  "anonymous_fixture_id": "anonymous-fresh-audit-semantic-screen-v2",
+  "before_control_sha256": "0122964e0551366c1931780e34eae9eb00e68fb8ae49d3660c608539bb920f65",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T16:58:14+08:00",
+  "evidence_id": "harness-change-reference-semantic-preflight-v2",
+  "incident_ids": [
+    "incident-reference-semantic-preflight-gap-v1"
+  ],
+  "invariant": "Every workspace example shown for confirmation, including a Fresh-audit candidate, must be produced by the pinned reference and accepted by the frozen independent semantic verifier with input, artifact, and upstream-result controls. Managed candidate state without that bound evidence must fail closed.",
+  "normalized_fingerprint": "37a6606db4df6a63",
+  "regression_tests": [
+    "tests/ui/test_workspace_ui_services.py::test_fresh_workspace_audit_reference_requires_semantic_screen",
+    "tests/ui/test_workspace_ui_services.py::test_workspace_audit_unscreened_legacy_state_is_rejected",
+    "tests/ui/test_workspace_ui_services.py::test_workspace_audit_preview_and_materialization_recheck_tree_binding"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

@@ -748,13 +748,16 @@ def _workspace_audit_world(tmp_path: Path, monkeypatch) -> tuple[Path, str, str]
         "expected_tree_sha256": expected_manifest.tree_sha256,
         "expected_file_count": expected_manifest.file_count,
         "expected_total_bytes": expected_manifest.total_bytes,
+        "semantic_verifier_id": "anonymous-workspace-semantic-v1",
+        "semantic_verifier_evidence_sha256": "c" * 64,
+        "semantic_verifier_passed": True,
     }
-    token = product_jobs._workspace_candidate_token(record)
+    token = product_jobs._workspace_audit_candidate_token(record)
     record["candidate_token"] = token
     (store / "state.json").write_text(
         json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "tool_name": "study-workspace",
                 "task_id": "tool-study-workspace-v1",
                 "dest_root": str(tools),
@@ -765,6 +768,66 @@ def _workspace_audit_world(tmp_path: Path, monkeypatch) -> tuple[Path, str, str]
         encoding="utf-8",
     )
     return tools, token, str(expected_dir)
+
+
+def test_fresh_workspace_audit_reference_requires_semantic_screen(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """A fresh candidate cannot reach the user when frozen semantics reject it."""
+
+    from repoproof.domain.models import SemanticVerifierSpec, ToolSpec
+    from repoproof.execution.workspace_bundle import WorkspaceBundleError
+
+    verifier = tmp_path / "oracle" / "tool-study-workspace-v1" / "semantic.py"
+    verifier.parent.mkdir(parents=True)
+    verifier.write_text("def verify(input_path, artifact_dir):\n    return {}\n", encoding="utf-8")
+    input_dir = tmp_path / "input"
+    expected_dir = tmp_path / "expected"
+    upstream = tmp_path / "upstream"
+    input_dir.mkdir()
+    expected_dir.mkdir()
+    upstream.mkdir()
+    semantic_spec = SemanticVerifierSpec(
+        protocol="repoproof-workspace-semantic-verifier-v2",
+        verifier_id="anonymous-workspace-semantic-v1",
+        source_file="oracle/tool-study-workspace-v1/semantic.py",
+        source_sha256=__import__("hashlib").sha256(verifier.read_bytes()).hexdigest(),
+        required_for_operational_active=True,
+    )
+    contract = SimpleNamespace(
+        tool=ToolSpec.model_validate(_tool()),
+        acceptance=SimpleNamespace(semantic_verifier=semantic_spec),
+        capability=SimpleNamespace(
+            intent_contract=SimpleNamespace(
+                commitments=[SimpleNamespace(commitment_id="workspace-content")],
+                confirmation=SimpleNamespace(semantics_sha256="a" * 64),
+            )
+        ),
+        source_repo=SimpleNamespace(
+            import_module="anonymous_upstream",
+            resolved_commit="b" * 40,
+        ),
+    )
+    monkeypatch.setattr(
+        "repoproof.verification.workspace_semantic.run_workspace_semantic_verifier",
+        lambda **_kwargs: SimpleNamespace(
+            passed=False,
+            reason_codes=("SEMANTIC_MISMATCH",),
+        ),
+    )
+
+    with pytest.raises(WorkspaceBundleError) as raised:
+        product_jobs._screen_frozen_workspace_candidate_semantics(
+            root=tmp_path,
+            contract=contract,
+            input_path=input_dir,
+            expected_dir=expected_dir,
+            python_exe=sys.executable,
+            upstream=upstream,
+        )
+
+    assert raised.value.code == "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT"
 
 
 def test_workspace_audit_preview_and_materialization_recheck_tree_binding(
@@ -827,6 +890,32 @@ def test_workspace_audit_state_path_escape_is_rejected(
 
     assert rejected["ok"] is False
     assert "PATH_ESCAPE" in rejected["error"]
+
+
+def test_workspace_audit_unscreened_legacy_state_is_rejected(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    tools, token, _expected_dir = _workspace_audit_world(tmp_path, monkeypatch)
+    store = product_jobs._workspace_audit_candidate_store(
+        tool_name="study-workspace",
+        task_id="tool-study-workspace-v1",
+        dest_root=tools,
+    )
+    state_path = store / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["schema_version"] = 1
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    rejected = product_jobs.workspace_audit_candidate_preview(
+        "study-workspace",
+        dest_root=tools,
+        expected_task_id="tool-study-workspace-v1",
+        candidate_token=token,
+    )
+
+    assert rejected["ok"] is False
+    assert "STATE_INVALID" in rejected["error"]
 
 
 def test_installed_workspace_preview_and_zip_revalidate_current_directory(

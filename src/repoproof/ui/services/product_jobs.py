@@ -1396,6 +1396,25 @@ def _workspace_candidate_token(record: dict[str, object]) -> str:
     return digest.hexdigest()
 
 
+def _workspace_audit_candidate_token(record: dict[str, object]) -> str:
+    """Bind a fresh-audit candidate to semantic-screen evidence as well as bytes."""
+
+    digest = hashlib.sha256(b"REPOPROOF-WORKSPACE-AUDIT-CANDIDATE-v2\0")
+    for key in (
+        "blueprint_id",
+        "builder_source_sha256",
+        "input_sha256",
+        "expected_tree_sha256",
+        "semantic_verifier_id",
+        "semantic_verifier_evidence_sha256",
+        "semantic_verifier_passed",
+    ):
+        payload = str(record.get(key) or "").encode("utf-8")
+        digest.update(len(payload).to_bytes(8, "big"))
+        digest.update(payload)
+    return digest.hexdigest()
+
+
 def _workspace_candidate_record_paths(
     draft_dir: Path,
     state: dict,
@@ -2925,6 +2944,98 @@ def _propose_portable_workspace_fixture_blueprints(
     return projected
 
 
+def _screen_frozen_workspace_candidate_semantics(
+    *,
+    root: Path,
+    contract: Any,
+    input_path: Path,
+    expected_dir: Path,
+    python_exe: str,
+    upstream: Path,
+) -> dict[str, object]:
+    """Require frozen semantic agreement before exposing a workspace candidate."""
+
+    from repoproof.execution.workspace_bundle import WorkspaceBundleError
+    from repoproof.verification.semantic_artifact import SemanticVerifierError
+    from repoproof.verification.workspace_semantic import (
+        run_workspace_semantic_verifier,
+        workspace_semantic_evidence_sha256,
+    )
+
+    tool = getattr(contract, "tool", None)
+    workspace_contract = getattr(tool, "workspace_contract", None)
+    acceptance = getattr(contract, "acceptance", None)
+    semantic_spec = getattr(acceptance, "semantic_verifier", None)
+    intent = getattr(getattr(contract, "capability", None), "intent_contract", None)
+    commitments = tuple(getattr(intent, "commitments", ()) or ())
+    confirmation = getattr(intent, "confirmation", None)
+    if workspace_contract is None or semantic_spec is None or not commitments:
+        raise WorkspaceBundleError("WORKSPACE_SEMANTIC_VERIFIER_MISSING")
+    verifier_relative = Path(str(semantic_spec.source_file or ""))
+    try:
+        verifier_source = (root / verifier_relative).resolve(strict=True)
+        verifier_source.relative_to(root.resolve())
+    except (OSError, ValueError) as exc:
+        raise WorkspaceBundleError(
+            "WORKSPACE_SEMANTIC_VERIFIER_IDENTITY_MISMATCH"
+        ) from exc
+    if verifier_source.is_symlink() or not verifier_source.is_file():
+        raise WorkspaceBundleError(
+            "WORKSPACE_SEMANTIC_VERIFIER_IDENTITY_MISMATCH"
+        )
+    if hashlib.sha256(verifier_source.read_bytes()).hexdigest() != str(
+        semantic_spec.source_sha256
+    ):
+        raise WorkspaceBundleError(
+            "WORKSPACE_SEMANTIC_VERIFIER_IDENTITY_MISMATCH"
+        )
+    required_commitment_ids = tuple(
+        str(item.commitment_id) for item in commitments if item.commitment_id
+    )
+    confirmation_sha = str(getattr(confirmation, "semantics_sha256", "") or "")
+    if not required_commitment_ids or not confirmation_sha:
+        raise WorkspaceBundleError("WORKSPACE_SEMANTIC_VERIFIER_MISSING")
+    workspace_contract_sha = hashlib.sha256(
+        json.dumps(
+            workspace_contract.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    try:
+        evidence = run_workspace_semantic_verifier(
+            verifier_id=str(semantic_spec.verifier_id),
+            verifier_source=verifier_source,
+            input_path=input_path,
+            artifact_dir=expected_dir,
+            python_exe=python_exe,
+            upstream_dir=upstream,
+            import_module=str(contract.source_repo.import_module or ""),
+            upstream_commit=str(contract.source_repo.resolved_commit or ""),
+            workspace_contract_sha256=workspace_contract_sha,
+            intent_confirmation_sha256=confirmation_sha,
+            required_commitment_ids=required_commitment_ids,
+            execute_installed_upstream=True,
+            isolation_required=True,
+        )
+    except (OSError, ValueError, SemanticVerifierError) as exc:
+        raise WorkspaceBundleError(
+            "WORKSPACE_SEMANTIC_SCREEN_EXECUTION_FAILED"
+        ) from exc
+    if not evidence.passed:
+        raise WorkspaceBundleError(
+            "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+            ",".join(evidence.reason_codes[:4]),
+        )
+    return {
+        "semantic_verifier_id": str(semantic_spec.verifier_id),
+        "semantic_verifier_evidence_sha256": workspace_semantic_evidence_sha256(
+            evidence
+        ),
+        "semantic_verifier_passed": True,
+    }
+
+
 def _propose_workspace_audit_candidates(
     *,
     name: str,
@@ -3096,6 +3207,14 @@ def _propose_workspace_audit_candidates(
                     runtime_wheelhouse=runtime_wheelhouse,
                     runtime_lock=runtime_lock,
                 )
+                semantic = _screen_frozen_workspace_candidate_semantics(
+                    root=root,
+                    contract=contract,
+                    input_path=Path(candidate.fixture_path),
+                    expected_dir=expected_dir,
+                    python_exe=reference_python,
+                    upstream=upstream,
+                )
                 record: dict[str, object] = {
                     "blueprint_id": blueprint.blueprint_id,
                     "title": blueprint.title,
@@ -3110,10 +3229,11 @@ def _propose_workspace_audit_candidates(
                     "expected_tree_sha256": expected["tree_sha256"],
                     "expected_file_count": expected["file_count"],
                     "expected_total_bytes": expected["total_bytes"],
+                    **semantic,
                     "generation_id": generation_id,
                     "confirmed": False,
                 }
-                record["candidate_token"] = _workspace_candidate_token(record)
+                record["candidate_token"] = _workspace_audit_candidate_token(record)
                 records.append(record)
                 if len(records) >= requested:
                     break
@@ -3122,7 +3242,7 @@ def _propose_workspace_audit_candidates(
         if not records:
             raise ValueError("FRESH_WORKSPACE_BLUEPRINT_MISSING")
         state = {
-            "schema_version": 1,
+            "schema_version": 2,
             "tool_name": name,
             "task_id": task_id,
             "dest_root": str(checked_root),
@@ -3159,7 +3279,8 @@ def _propose_workspace_audit_candidates(
             ],
             "note": (
                 "新鲜输入由模型场景或冻结未用场景提出，真实字节来自冻结 builder；"
-                "期望目录来自冻结 reference，且输入身份未出现在构建/held-out fixtures 中。"
+                "期望目录来自冻结 reference，并已通过独立语义验证与三项反事实控制；"
+                "输入身份未出现在构建/held-out fixtures 中。"
             ),
         }
     except ReferenceEnvironmentError as exc:
@@ -3178,7 +3299,16 @@ def _propose_workspace_audit_candidates(
         json.JSONDecodeError,
     ) as exc:
         code = str(getattr(exc, "code", str(exc) or type(exc).__name__))
-        owner = "HARNESS"
+        owner = (
+            "CONTRACT"
+            if code
+            in {
+                "WORKSPACE_SEMANTIC_VERIFIER_MISSING",
+                "WORKSPACE_SEMANTIC_VERIFIER_IDENTITY_MISMATCH",
+                "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+            }
+            else "HARNESS"
+        )
     if generation_root is not None:
         shutil.rmtree(generation_root, ignore_errors=True)
     return {
@@ -3260,6 +3390,8 @@ def _load_workspace_audit_candidate(
     state = json.loads(state_path.read_text(encoding="utf-8"))
     if not isinstance(state, dict):
         raise ValueError("WORKSPACE_AUDIT_STATE_INVALID")
+    if state.get("schema_version") != 2:
+        raise ValueError("WORKSPACE_AUDIT_STATE_INVALID")
     if (
         state.get("tool_name") != name
         or state.get("task_id") != task_id
@@ -3274,7 +3406,20 @@ def _load_workspace_audit_candidate(
         for item in records
         if isinstance(item, dict) and item.get("candidate_token") == candidate_token
     )
-    if _workspace_candidate_token(record) != candidate_token:
+    if (
+        record.get("semantic_verifier_passed") is not True
+        or re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(record.get("semantic_verifier_evidence_sha256") or ""),
+        )
+        is None
+        or re.fullmatch(
+            r"[a-z0-9][a-z0-9._-]{0,255}",
+            str(record.get("semantic_verifier_id") or ""),
+        )
+        is None
+        or _workspace_audit_candidate_token(record) != candidate_token
+    ):
         raise ValueError("WORKSPACE_AUDIT_BINDING_INVALID")
     input_path, expected_dir = _workspace_audit_record_paths(store, state, record)
     input_identity = identify_input_path(input_path)
