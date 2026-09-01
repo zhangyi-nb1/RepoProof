@@ -182,7 +182,9 @@ def _mark_workspace_contract_v4(world: dict[str, Path | str]) -> dict:
     reference.write_text(
         "from pathlib import Path\nimport demo_upstream\n"
         "def build_workspace(input_path: Path, output_dir: Path) -> None:\n"
+        "    assert not output_dir.exists()\n"
         "    value = input_path.joinpath('brief.txt').read_text()\n"
+        "    output_dir.mkdir()\n"
         "    output_dir.joinpath('data').mkdir()\n"
         "    output_dir.joinpath('README.md').write_text(f'# {value}\\n')\n"
         "    output_dir.joinpath('data/value.txt').write_text(demo_upstream.convert(value))\n",

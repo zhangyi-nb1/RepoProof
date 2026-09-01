@@ -410,7 +410,10 @@ def run_product_preflight(
         runner = temp_root / "run_reference.py"
         reference_output = temp_root / "reference-output"
         if delivery_profile_id == "workspace_bundle_v1":
-            reference_output.mkdir()
+            # The public workspace profile requires a caller-supplied path that
+            # does not exist.  Pre-creating it here would both reject conforming
+            # producers and let non-conforming producers pass a different
+            # topology than the exported CLI actually uses.
             runner.write_text(_WORKSPACE_REFERENCE_RUNNER + "\n", encoding="utf-8")
             reference_command = [
                 str(python),

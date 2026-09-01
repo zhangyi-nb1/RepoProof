@@ -1,0 +1,19 @@
+{
+  "affected_component": "Zero-model workspace reference preflight topology",
+  "after_control_sha256": "44d98789bc58999c8d969c0c18955e5f8fd8f7c3422dd3049e4541590ddfb51b",
+  "anonymous_fixture_id": "anonymous-workspace-preflight-output-topology-v1",
+  "before_control_sha256": "c84da7ccb6e4961cb8af3cfdb472ef8b798d73fe8ff5214fbee95019c6f21e29",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T15:36:10+08:00",
+  "evidence_id": "harness-change-workspace-preflight-output-topology-v1",
+  "incident_ids": [
+    "incident-workspace-preflight-output-topology-v1"
+  ],
+  "invariant": "Every workspace_bundle_v1 execution path must invoke build_workspace with a caller-supplied output path that does not yet exist. Preflight must neither reject a conforming producer by pre-creating that path nor let a producer that depends on a pre-existing output directory pass a topology different from the exported CLI.",
+  "normalized_fingerprint": "bb55be78a1e87606",
+  "regression_tests": [
+    "tests/test_product_preflight.py::test_v4_workspace_preflight_runs_reference_and_validates_exact_tree"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}
