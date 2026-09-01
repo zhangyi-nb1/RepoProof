@@ -74,6 +74,41 @@ def test_stray_copy_is_matched_by_content_not_by_name(tmp_path) -> None:
     assert reachable_answer_keys(task, roots=(str(root),)) == [str(stray)]
 
 
+def test_shared_workspace_runtime_closure_is_not_answer_key_residue(
+    tmp_path: Path,
+) -> None:
+    """Shared Core runtime bytes must not hide a real copied verifier."""
+    from repoproof.runner.host_guided import reachable_answer_keys
+
+    task = tmp_path / "task"
+    expected = task / "oracle" / "fixtures" / "case" / "expected"
+    wheels = expected / "vendor" / "wheels"
+    wheels.mkdir(parents=True)
+    (wheels / "anonymous_runtime-1.0-py3-none-any.whl").write_bytes(
+        b"shared dependency archive"
+    )
+    (expected / "requirements.lock.txt").write_text(
+        "anonymous-runtime==1.0\n", encoding="utf-8"
+    )
+    oracle = task / "oracle"
+    (oracle / "verifier.py").write_text("SECRET_RULE = 7\n", encoding="utf-8")
+
+    scan_root = tmp_path / "historical-host"
+    old_wheelhouse = scan_root / "old-task" / "wheelhouse"
+    old_wheelhouse.mkdir(parents=True)
+    (old_wheelhouse / "anonymous_runtime-1.0-py3-none-any.whl").write_bytes(
+        b"shared dependency archive"
+    )
+    (scan_root / "old-task" / "requirements.lock.txt").write_text(
+        "anonymous-runtime==1.0\n", encoding="utf-8"
+    )
+    leaked = scan_root / "leaked" / "verifier.py"
+    leaked.parent.mkdir()
+    leaked.write_text("SECRET_RULE = 7\n", encoding="utf-8")
+
+    assert reachable_answer_keys(task, roots=(str(scan_root),)) == [str(leaked)]
+
+
 def test_session_workspace_is_not_residue(tmp_path) -> None:
     """会话工作区里的 fixtures 是**合法注入**,不能把每一发都拒开。
 

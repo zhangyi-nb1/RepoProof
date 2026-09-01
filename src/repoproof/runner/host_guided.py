@@ -1165,6 +1165,36 @@ PROTECTED_TASK_DIRS = ("controls", "oracle", "fixtures", "public_tests")
 _SESSION_DIR = "_sessions"
 
 
+def _is_core_owned_runtime_fixture(root_name: str, relative: Path) -> bool:
+    """Return whether a public expected file is trusted runtime scaffolding.
+
+    Runnable workspace examples contain a Core-supplied offline dependency
+    closure.  Those bytes are intentionally identical across tasks and are
+    already available to the Agent as dependencies; matching them in an old
+    host wheelhouse is not evidence that an oracle or control answer leaked.
+    Keep the exemption narrow: only files below a public or held fixture's
+    ``expected`` tree and only the shared runtime paths owned by Core qualify.
+    """
+
+    if root_name not in {"oracle", "public_tests"}:
+        return False
+    parts = relative.parts
+    try:
+        expected_index = parts.index("expected")
+    except ValueError:
+        return False
+    tail = parts[expected_index + 1 :]
+    if len(tail) == 1 and tail[0] in {
+        "run.sh",
+        "requirements.lock.txt",
+        "THIRD_PARTY_NOTICES.md",
+    }:
+        return True
+    return len(tail) == 3 and tail[:2] == ("vendor", "wheels") and tail[2].endswith(
+        ".whl"
+    )
+
+
 def _read_regular_file_nonblocking(path: Path) -> bytes | None:
     """Read one regular file without ever blocking on a special file.
 
@@ -1227,6 +1257,8 @@ def reachable_answer_keys(
             continue
         for p in d.rglob("*"):
             if p.is_file():
+                if _is_core_owned_runtime_fixture(name, p.relative_to(d)):
+                    continue
                 raw = p.read_bytes()
                 # Empty content has no identifying information.  Treating its
                 # universal digest as provenance evidence makes every unrelated
