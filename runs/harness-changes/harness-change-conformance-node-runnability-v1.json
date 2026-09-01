@@ -1,0 +1,23 @@
+{
+  "affected_component": "Deterministic upstream conformance node selection for the base-pytest runner profile",
+  "after_control_sha256": "8ffc86b6b9b197b710aff3ef10397d1adf6defca4ead91ad070ef17478b40691",
+  "anonymous_fixture_id": "anonymous-short-symbol-and-runner-profile-v1",
+  "before_control_sha256": "42ba179559919dd90b6afe403d413d891586a353625652576d064e8edd4ebdfb",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T17:28:00+08:00",
+  "evidence_id": "harness-change-conformance-node-runnability-v1",
+  "incident_ids": [
+    "incident-action-056c66a5be0ed89674b98131",
+    "incident-action-a1192146e697556267f601ae"
+  ],
+  "invariant": "A conformance runner may select only nodes compatible with its declared runner profile. Short public symbols must be present in executable test AST rather than only in filenames or test prose, asynchronous nodes must not be selected by a base-pytest-only profile, and equally relevant self-contained nodes must rank ahead of fixture-dependent nodes.",
+  "normalized_fingerprint": "7217f502846e0c2b",
+  "regression_tests": [
+    "tests/test_upstream_conformance.py::test_short_symbol_requires_executable_ast_match_and_skips_async_nodes",
+    "tests/test_upstream_conformance.py::test_selection_ranks_by_exact_ast_identifiers_and_is_deterministic",
+    "tests/test_upstream_conformance.py::test_node_selection_reads_class_method_body_and_skips_slow_marks"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1,
+  "second_independent_incident_required_and_present": true
+}

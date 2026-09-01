@@ -109,6 +109,30 @@ def test_selection_caps_and_empty_cases(tmp_path):
     assert select_upstream_test_nodes(tmp_path / "none", ["table"]) == []
 
 
+def test_short_symbol_requires_executable_ast_match_and_skips_async_nodes(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "up"
+    tests = root / "tests"
+    tests.mkdir(parents=True)
+    (tests / "test_short.py").write_text(
+        "def test_feature_on_basic():\n"
+        "    pass\n\n"
+        "def test_fixture_backed_use(custom_fixture):\n"
+        "    on(custom_fixture)\n\n"
+        "async def test_real_async_use():\n"
+        "    on('event')\n\n"
+        "def test_real_sync_use():\n"
+        "    on('event')\n",
+        encoding="utf-8",
+    )
+
+    assert select_upstream_test_nodes(root, ["on"]) == [
+        "tests/test_short.py::test_real_sync_use",
+        "tests/test_short.py::test_fixture_backed_use",
+    ]
+
+
 def test_selection_preserves_actual_test_directory_case(tmp_path) -> None:
     root = tmp_path / "up"
     base = root / "Tests"

@@ -141,25 +141,31 @@ def _test_nodes(
 ) -> list[
     tuple[
         str,
-        ast.FunctionDef | ast.AsyncFunctionDef,
+        ast.FunctionDef,
         tuple[ast.AST, ...],
     ]
 ]:
     nodes: list[
         tuple[
             str,
-            ast.FunctionDef | ast.AsyncFunctionDef,
+            ast.FunctionDef,
             tuple[ast.AST, ...],
         ]
     ] = []
     for item in tree.body:
-        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        # The conformance v1 runner deliberately carries only pytest's base
+        # toolchain.  Selecting an async node would make the result depend on
+        # an undeclared pytest-asyncio/anyio/trio plugin (and often on the
+        # upstream repository's discarded pytest configuration).  Such a node
+        # is outside this runner profile, so omit it instead of misreporting a
+        # healthy pinned distribution as broken.
+        if isinstance(item, ast.FunctionDef):
             if item.name.startswith("test_"):
                 nodes.append((item.name, item, ()))
         elif isinstance(item, ast.ClassDef):
             for method in item.body:
                 if (
-                    isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    isinstance(method, ast.FunctionDef)
                     and method.name.startswith("test_")
                 ):
                     nodes.append((
@@ -199,7 +205,7 @@ def select_upstream_test_nodes(
             wanted_paths.append(normalised)
     if not wanted_paths:
         return []
-    scored: list[tuple[int, str]] = []
+    scored: list[tuple[int, int, str]] = []
     try:
         bases = sorted(
             (
@@ -234,42 +240,60 @@ def select_upstream_test_nodes(
                 )
                 if marks & _EXCLUDED_TEST_MARKS:
                     continue
-                observed = {
+                structural_observed = {
                     _normalise_identifier(item.id)
                     for item in ast.walk(node)
                     if isinstance(item, ast.Name)
                 }
-                observed.update(
+                structural_observed.update(
                     _normalise_identifier(item.attr)
                     for item in ast.walk(node)
                     if isinstance(item, ast.Attribute)
                 )
-                observed.update(
+                lexical_observed = {
                     _normalise_identifier(part)
                     for part in node.name.removeprefix("test_").split("_")
-                )
+                }
                 # File/class names are valid structural evidence too. This
                 # lets a qualified call such as ``SeqIO.parse`` distinguish a
                 # focused test module from unrelated ``parse`` users.
-                observed.update(
+                lexical_observed.update(
                     _normalise_identifier(part)
                     for part in re.split(r"[^A-Za-z0-9]+", rel)
                     if part
                 )
-                observed.update(
+                lexical_observed.update(
                     _normalise_identifier(part)
                     for part in re.split(r"[^A-Za-z0-9]+", node_id)
                     if part
                 )
+                observed = structural_observed | lexical_observed
                 hits = sum(
                     len(path)
                     for path in wanted_paths
                     if set(path).issubset(observed)
+                    # Very short public symbols such as ``on`` are common
+                    # prose fragments in test names.  They may select a node
+                    # only when the node's executable AST actually references
+                    # them; longer capability names may still use focused file
+                    # and node names as evidence.
+                    and (
+                        all(len(part) >= 3 for part in path)
+                        or set(path).issubset(structural_observed)
+                    )
                 )
                 if hits:
-                    scored.append((hits, f"{rel}::{node_id}"))
-    scored.sort(key=lambda item: (-item[0], item[1]))
-    return [node for _, node in scored[:max_nodes]]
+                    # A self-contained node is more likely to run under the
+                    # declared base-pytest conformance profile.  Nodes with
+                    # parameters may rely on repository-specific fixtures;
+                    # retain them as fallbacks, but do not let their pathname
+                    # ordering displace an equally relevant zero-fixture node.
+                    fixture_count = len(node.args.posonlyargs) + len(node.args.args)
+                    if fixture_count and node.args.args[0].arg in {"self", "cls"}:
+                        fixture_count -= 1
+                    scored.append((hits, fixture_count, f"{rel}::{node_id}"))
+    scored.sort(key=lambda item: (-item[0], item[1], item[2]))
+    return [node for _, _, node in scored[:max_nodes]]
 
 
 def precheck_upstream_conformance(
