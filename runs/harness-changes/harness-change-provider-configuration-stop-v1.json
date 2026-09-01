@@ -1,0 +1,20 @@
+{
+  "affected_component": "Real-build provider configuration preflight",
+  "after_control_sha256": "9f75f6df1237dc0bcc1af9604d7db662c7bef16ed2ed5ebe585c8f8235343388",
+  "anonymous_fixture_id": "anonymous-missing-provider-environment-v1",
+  "before_control_sha256": "4e8fa8f73336b69ccf7b4fb6a0c3c3570037c785df9cd91b232a50605eb43eea",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T16:38:10+08:00",
+  "evidence_id": "harness-change-provider-configuration-stop-v1",
+  "incident_ids": [
+    "incident-provider-config-unstructured-networkx-v1",
+    "incident-provider-config-unstructured-datasette-v1"
+  ],
+  "invariant": "A missing or invalid provider environment is a zero-model Harness configuration stop. It must produce a stable blocked preflight and Product action result without a traceback, model call, repair round, provider URL, account detail, or secret value.",
+  "normalized_fingerprint": "1d0f9903b0a55fae",
+  "regression_tests": [
+    "tests/test_workspace_containment.py::test_missing_provider_configuration_is_a_structured_zero_agent_stop"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

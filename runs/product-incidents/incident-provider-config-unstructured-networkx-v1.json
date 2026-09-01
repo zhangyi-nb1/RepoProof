@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "structured_action_result_written": 0,
+    "traceback_emitted": 1
+  },
+  "created_at": "2026-09-01T01:11:29+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "356114b600d3fba91b812d31f65e385a4d15c6c2",
+  "framework_tree_sha256": "6e1da904a5f2ec1372b4aefc6cd9d9959aa082003cddf2741dd192168138193b",
+  "incident_id": "incident-provider-config-unstructured-networkx-v1",
+  "normalized_fingerprint": "1d0f9903b0a55fae",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "real-build::provider-configuration"
+  ],
+  "reason_codes": [
+    "PROVIDER_CONFIGURATION_EXCEPTION_UNSTRUCTURED",
+    "PRODUCT_ACTION_RESULT_MISSING"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-networkx-tool-v3"
+}

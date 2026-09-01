@@ -4172,7 +4172,21 @@ def run_host_guided_cli(
             provider = subscription_config()
             pf = run_subscription_preflight(provider)
         else:
-            provider = provider_from_env()
+            try:
+                provider = provider_from_env()
+            except RuntimeError:
+                return {
+                    "blocked": True,
+                    "agent_model_call_count": 0,
+                    "preflight": {
+                        "ready": False,
+                        "reason": "PROVIDER_CONFIGURATION_INVALID",
+                    },
+                    "remediation": (
+                        "恢复或修正 RepoProof provider 环境后重试；"
+                        "本次没有调用模型，也不得消耗 repair"
+                    ),
+                }
             pf = run_preflight(provider)
         if not pf.ready:
             return {"blocked": True, "preflight": pf.summary(),

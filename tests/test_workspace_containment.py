@@ -109,6 +109,43 @@ def test_shared_workspace_runtime_closure_is_not_answer_key_residue(
     assert reachable_answer_keys(task, roots=(str(scan_root),)) == [str(leaked)]
 
 
+def test_missing_provider_configuration_is_a_structured_zero_agent_stop(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from repoproof.runner import host_guided
+
+    for name in (
+        "REPOPROOF_API_BASE",
+        "REPOPROOF_BASE_URL",
+        "REPOPROOF_API_KEY",
+        "REPOPROOF_MODEL",
+        "REPOPROOF_MODEL_NAME",
+        "REPOPROOF_PROVIDER",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(
+        host_guided,
+        "reachable_answer_keys",
+        lambda *_args, **_kwargs: [],
+    )
+
+    result = host_guided.run_host_guided_cli(
+        tmp_path / "task" / "contract.yaml",
+        tmp_path,
+        fake=None,
+        backend="mini-swe",
+    )
+
+    assert result["blocked"] is True
+    assert result["agent_model_call_count"] == 0
+    assert result["preflight"] == {
+        "ready": False,
+        "reason": "PROVIDER_CONFIGURATION_INVALID",
+    }
+    assert "repair" in result["remediation"]
+
+
 def test_session_workspace_is_not_residue(tmp_path) -> None:
     """会话工作区里的 fixtures 是**合法注入**,不能把每一发都拒开。
 

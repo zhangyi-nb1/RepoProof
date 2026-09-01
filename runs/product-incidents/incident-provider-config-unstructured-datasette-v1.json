@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "structured_action_result_written": 0,
+    "traceback_emitted": 1
+  },
+  "created_at": "2026-09-01T16:34:45+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "94df2080f042aedb37ec2f0109d7406886c6a2fe",
+  "framework_tree_sha256": "3f2d650daf1fd2e62755e93fc92da040e17bff687f52e21a32e7ac6e493c9b2d",
+  "incident_id": "incident-provider-config-unstructured-datasette-v1",
+  "normalized_fingerprint": "1d0f9903b0a55fae",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "real-build::provider-configuration"
+  ],
+  "reason_codes": [
+    "PROVIDER_CONFIGURATION_EXCEPTION_UNSTRUCTURED",
+    "PRODUCT_ACTION_RESULT_MISSING"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-datasette-tool-v3"
+}
