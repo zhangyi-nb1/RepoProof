@@ -165,3 +165,31 @@ def test_fake_smoke_pass_never_counts_toward_gate(tmp_path: Path) -> None:
     assert c["smoke"] == 1 and c["smoke_passes"] == 1
     assert c["smoke_run_ids"] == ["t1-smoke"]
     assert c["total"] == 2, "如实计数:冒烟发照样进 total,只是不充闸门"
+
+
+# ---------- 账号更名:宿主身份必须按别名集合判定 (2026-09-02) ----------
+
+def test_baseline_host_aliases_contain_the_current_canonical_name():
+    """BASELINE_HOST 必须在别名集合里,否则更名时一定漏掉一处。"""
+    from repoproof.persistence.bench_records import BASELINE_HOST, BASELINE_HOST_ALIASES
+    assert BASELINE_HOST in BASELINE_HOST_ALIASES
+
+
+def test_renamed_owner_is_still_the_first_host(monkeypatch):
+    """GitHub 账号更名后,历史台账里的旧 owner 名仍是第一宿主。
+
+    台账是 append-only 的,更名不回改历史行。若身份判定只比单个字符串，
+    更名当天全部历史发次会被判成第二宿主,gate_report 随即产出一个
+    "第二宿主已建" 的能力结论——凭空的能力数字,正是本仓最忌讳的东西。
+    """
+    from repoproof.persistence import bench_records as br
+
+    old, new = "zhangyi-nb1/offerclaw", "newname/offerclaw"
+    monkeypatch.setattr(br, "BASELINE_HOST", new)
+    monkeypatch.setattr(br, "BASELINE_HOST_ALIASES", frozenset({old, new}))
+
+    assert br._same_host({"host_id": old}) is True    # 历史行
+    assert br._same_host({"host_id": new}) is True    # 更名后新发次
+    assert br._same_host({"host_id": None}) is True   # 无字段=只有一个宿主的年代
+    assert br._same_host({"host_id": br.UNKNOWN}) is True
+    assert br._same_host({"host_id": "someone/other-repo"}) is False   # 真第二宿主

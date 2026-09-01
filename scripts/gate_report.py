@@ -41,11 +41,15 @@ def compute(project_root: Path = REPO) -> dict:
     bench = project_root / "benchmarks" / "v2"
     everything = count_passes(project_root)
     # 台账里出现过哪些宿主 —— 说明串由**数据**推出来,不由散文写死。
-    from repoproof.persistence.bench_records import BASELINE_HOST, UNKNOWN, load_runs
+    from repoproof.persistence.bench_records import (
+        BASELINE_HOST, BASELINE_HOST_ALIASES, UNKNOWN, load_runs,
+    )
 
     hosts = sorted({str(r.get("host_id") or BASELINE_HOST).replace(UNKNOWN, BASELINE_HOST)
                     for r in load_runs(project_root)})
-    second_host_built = [h for h in hosts if h != BASELINE_HOST]
+    # 比别名集合而不是单个字符串:账号更名后台账里同时存在新旧两个 owner 名,
+    # 它们仍是同一个宿主仓库,不能算成"第二宿主"（见 bench_records 处的说明）。
+    second_host_built = [h for h in hosts if h not in BASELINE_HOST_ALIASES]
     heldout_note = (
         "未见任务能力评测 —— **第二宿主未建,恒为 0**" if not second_host_built
         else f"未见任务能力评测(已扣除冒烟/探索/无效/机制四类);"

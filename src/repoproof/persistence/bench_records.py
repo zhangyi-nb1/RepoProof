@@ -396,6 +396,19 @@ def classify_runs(project_root: str | Path) -> list[dict]:
 # 缺失 = 那时只有这一个宿主(与 runtime_profile_id 同一条处理规则)。
 BASELINE_HOST = "zhangyi-nb1/offerclaw"
 
+# 同一个宿主仓库可能有多个名字:GitHub 账号更名后 owner 段会变,而台账是
+# append-only 的,历史行必须原样保留旧名。于是"是不是第一宿主"不能拿单个
+# 字符串比 —— 那样更名当天全部历史发次会突然被判成**第二宿主**,
+# `gate_report.py` 的 heldout_note 随即从"第二宿主未建,恒为 0"翻成
+# "台账里的宿主:[...]",凭空产出一个第二宿主已建的能力结论。这正是本文件
+# 上方注释警告过的那类洞(以"能力数字"的形式再犯一次),只是触发条件是改名。
+#
+# 更名时只改这里:把新名字加进集合,并把 BASELINE_HOST 指向新的规范名;
+# **不要**改 runs.jsonl / contract.yaml 里的历史 host_id。
+BASELINE_HOST_ALIASES = frozenset({
+    "zhangyi-nb1/offerclaw",
+})
+
 # ------------------------------------------------------------------ held-out 口径
 # 用户 2026-08-15 裁决:**严口径 —— 我们写的 oracle 一律不算 held-out。**
 #
@@ -450,7 +463,9 @@ def _same_host(row: dict) -> bool:
     形式再犯一次,后果重得多。
     """
     h = row.get("host_id")
-    return h in (None, "", UNKNOWN, BASELINE_HOST)
+    if h in (None, "", UNKNOWN):
+        return True
+    return h in BASELINE_HOST_ALIASES
 
 
 def count_passes(project_root: str | Path, task_prefix: str | None = None) -> dict:
