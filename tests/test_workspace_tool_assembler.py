@@ -51,6 +51,60 @@ from repoproof.verification.workspace_semantic import (
 )
 
 
+def test_workspace_package_build_does_not_require_unfrozen_build_backend(
+    tmp_path: Path,
+) -> None:
+    """The exported CLI must run with only its frozen runtime lock available."""
+
+    package = "anonymous_workspace"
+    root = tmp_path / "tool"
+    (root / "bin").mkdir(parents=True)
+    (root / "src" / package).mkdir(parents=True)
+    (root / "vendor" / "wheels").mkdir(parents=True)
+    (root / "requirements.lock.txt").write_text("", encoding="utf-8")
+    (root / "pyproject.toml").write_text(
+        "[project]\n"
+        'name = "anonymous-workspace"\n'
+        'version = "1.0.0"\n'
+        "\n[tool.setuptools.packages.find]\n"
+        'where = ["src"]\n',
+        encoding="utf-8",
+    )
+    (root / "src" / package / "__main__.py").write_text(
+        'print("anonymous workspace ready")\n',
+        encoding="utf-8",
+    )
+    build = root / "build.sh"
+    build.write_text(workspace_tool_assembler._BUILD, encoding="utf-8")
+    build.chmod(0o755)
+    command = root / "bin" / "anonymous-workspace"
+    command.write_text(
+        workspace_tool_assembler._BIN.format(package=package),
+        encoding="utf-8",
+    )
+    command.chmod(0o755)
+
+    completed = subprocess.run(
+        [str(build)],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    invoked = subprocess.run(
+        [str(command)],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert invoked.returncode == 0, invoked.stdout + invoked.stderr
+    assert invoked.stdout == "anonymous workspace ready\n"
+
+
 def test_golden_identity_ignores_oracle_read_only_hardening(
     tmp_path: Path,
     monkeypatch,

@@ -143,7 +143,7 @@ raise SystemExit(cli())
 _BIN = '''#!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-exec "$ROOT/.venv/bin/python" -m {package} "$@"
+exec env PYTHONPATH="$ROOT/src" "$ROOT/.venv/bin/python" -m {package} "$@"
 '''
 
 _BUILD = '''#!/usr/bin/env bash
@@ -152,8 +152,6 @@ cd "$(dirname "$0")"
 python3 -m venv .venv
 .venv/bin/pip install --disable-pip-version-check -q --no-index \
   --find-links vendor/wheels -r requirements.lock.txt
-.venv/bin/pip install --disable-pip-version-check -q --no-index \
-  --find-links vendor/wheels -e .
 echo "build ok: $(pwd)"
 '''
 

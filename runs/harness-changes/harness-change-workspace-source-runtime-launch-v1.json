@@ -1,0 +1,21 @@
+{
+  "affected_component": "Exported workspace package build and CLI launch",
+  "after_control_sha256": "9425e5b6e13df009e4aa6527ea7dc123804bd26cf025f827b447788a246dc20c",
+  "anonymous_fixture_id": "anonymous-workspace-source-runtime-v1",
+  "before_control_sha256": "5dda44b668c682a8c579c861451bfb997e125a5d736433bae1a77169e0ba59cf",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T17:55:00+08:00",
+  "evidence_id": "harness-change-workspace-source-runtime-launch-v1",
+  "incident_ids": [
+    "incident-action-2e46d8a64cea2db29bc9743b",
+    "incident-workspace-package-build-backend-v1"
+  ],
+  "invariant": "An exported workspace tool must rebuild and invoke its Harness-owned Python CLI using only the frozen business runtime lock and wheelhouse. The local source package must not introduce an undeclared PEP 517 build-backend dependency after historical verification and clean replay have passed.",
+  "normalized_fingerprint": "2da7fe3cb69b2187",
+  "regression_tests": [
+    "tests/test_workspace_tool_assembler.py::test_workspace_package_build_does_not_require_unfrozen_build_backend",
+    "tests/test_workspace_tool_assembler.py::test_workspace_assembler_freezes_v4_task_and_runs_public_controls"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

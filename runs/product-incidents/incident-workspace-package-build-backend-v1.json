@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "historical_verdict": "VERIFIED_TOOL_READY",
+    "fresh_audit_build": "fail",
+    "operational_status": "REVOKED"
+  },
+  "created_at": "2026-09-01T17:48:26+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED_FALSE_SUCCESS",
+  "framework_git_commit": "96e381dd594c776439ef002f73d4a2cd33389cc3",
+  "framework_tree_sha256": "c895c4c2387bd659d28756776db00843c59dad7f599461531c9d66c2b345683b",
+  "incident_id": "incident-workspace-package-build-backend-v1",
+  "normalized_fingerprint": "2da7fe3cb69b2187",
+  "owner": "HARNESS",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "BUILD_FAILED",
+    "STOP_HARNESS_OR_EXTERNAL"
+  ],
+  "reason_codes": [
+    "BUILD_FAILED",
+    "UNFROZEN_PACKAGE_BUILD_BACKEND"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "RELEASE_UI",
+  "task_version": "tool-textual-taskdesk-v2"
+}
