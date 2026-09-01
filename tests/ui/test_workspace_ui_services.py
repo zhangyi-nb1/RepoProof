@@ -60,6 +60,11 @@ def _tool() -> dict:
 def _managed_draft(tmp_path: Path, monkeypatch) -> Path:
     state = tmp_path / "state"
     monkeypatch.setenv("REPOPROOF_UI_STATE_ROOT", str(state))
+    monkeypatch.setattr(
+        product_jobs,
+        "_current_draft_semantic_fingerprint",
+        lambda _draft: "d" * 64,
+    )
     draft = state / "drafts" / "workspace"
     (draft / "examples").mkdir(parents=True)
     (draft / "draft.yaml").write_text(
@@ -335,12 +340,25 @@ def test_workspace_candidate_generation_rejects_reference_verifier_disagreement(
         "_run_workspace_reference_candidate",
         fake_reference,
     )
+    draft_semantics_sha256 = "d" * 64
     monkeypatch.setattr(
-        "repoproof.verification.workspace_semantic.run_workspace_semantic_verifier",
-        lambda **_kwargs: SimpleNamespace(
+        product_jobs,
+        "_current_draft_semantic_fingerprint",
+        lambda _draft: draft_semantics_sha256,
+        raising=False,
+    )
+    seen_semantic_call: dict[str, object] = {}
+
+    def reject_semantics(**kwargs):
+        seen_semantic_call.update(kwargs)
+        return SimpleNamespace(
             passed=False,
             reason_codes=("PUBLIC_SEMANTIC_MISMATCH",),
-        ),
+        )
+
+    monkeypatch.setattr(
+        "repoproof.verification.workspace_semantic.run_workspace_semantic_verifier",
+        reject_semantics,
     )
 
     result = product_jobs.propose_workspace_fixture_candidates(
@@ -355,6 +373,10 @@ def test_workspace_candidate_generation_rejects_reference_verifier_disagreement(
         "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT"
     ]
     assert result["diagnostics"] == ["PUBLIC_SEMANTIC_MISMATCH"]
+    assert (
+        seen_semantic_call["intent_confirmation_sha256"]
+        == draft_semantics_sha256
+    )
     assert not (draft / "workspace_fixture_candidates.json").exists()
 
 
@@ -600,6 +622,7 @@ def test_workspace_candidate_preview_zip_and_confirmation_are_tree_bound(
         "expected_tree_sha256": expected_manifest.tree_sha256,
         "expected_file_count": expected_manifest.file_count,
         "expected_total_bytes": expected_manifest.total_bytes,
+        "draft_semantics_sha256": "d" * 64,
         "confirmed": False,
         "generation_id": generation_id,
     }
@@ -624,6 +647,20 @@ def test_workspace_candidate_preview_zip_and_confirmation_are_tree_bound(
         draft,
         candidate_token=token,
     )
+    monkeypatch.setattr(
+        product_jobs,
+        "_current_draft_semantic_fingerprint",
+        lambda _draft: "e" * 64,
+    )
+    stale = product_jobs.confirm_workspace_fixture_candidate(
+        draft,
+        candidate_token=token,
+    )
+    monkeypatch.setattr(
+        product_jobs,
+        "_current_draft_semantic_fingerprint",
+        lambda _draft: "d" * 64,
+    )
     confirmed = product_jobs.confirm_workspace_fixture_candidate(
         draft,
         candidate_token=token,
@@ -633,6 +670,8 @@ def test_workspace_candidate_preview_zip_and_confirmation_are_tree_bound(
     assert preview["expected_tree"]["tree_sha256"] == expected_manifest.tree_sha256
     assert archive["ok"] is True
     assert archive["bytes"].startswith(b"PK")
+    assert stale["ok"] is False
+    assert "SEMANTICS_STALE" in stale["error"]
     assert confirmed["ok"] is True
     manifest = yaml.safe_load(
         (draft / "workspace_examples.yaml").read_text(encoding="utf-8")

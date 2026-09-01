@@ -1389,11 +1389,37 @@ def _workspace_candidate_token(record: dict[str, object]) -> str:
         "builder_source_sha256",
         "input_sha256",
         "expected_tree_sha256",
+        "draft_semantics_sha256",
     ):
         payload = str(record.get(key) or "").encode("utf-8")
         digest.update(len(payload).to_bytes(8, "big"))
         digest.update(payload)
     return digest.hexdigest()
+
+
+def _current_draft_semantic_fingerprint(draft: dict) -> str:
+    """Bind pre-confirmation examples to the exact public semantics on screen."""
+
+    from repoproof.adoption.intake.intent_contract import (
+        IntentContractError,
+        semantic_fingerprint,
+    )
+
+    try:
+        return semantic_fingerprint(draft)
+    except IntentContractError as exc:
+        raise ValueError("DRAFT_SEMANTICS_INVALID") from exc
+
+
+def _require_workspace_candidate_semantics(draft: dict, record: dict) -> None:
+    expected = str(record.get("draft_semantics_sha256") or "")
+    if re.fullmatch(r"[0-9a-f]{64}", expected) is None:
+        raise ValueError("WORKSPACE_CANDIDATE_SEMANTICS_UNBOUND")
+    if not secrets.compare_digest(
+        _current_draft_semantic_fingerprint(draft),
+        expected,
+    ):
+        raise ValueError("WORKSPACE_CANDIDATE_SEMANTICS_STALE")
 
 
 def _workspace_audit_candidate_token(record: dict[str, object]) -> str:
@@ -1664,6 +1690,7 @@ def propose_workspace_fixture_candidates(
         draft = yaml.safe_load((draft_dir / "draft.yaml").read_text(encoding="utf-8")) or {}
         if not isinstance(draft, dict):
             raise TypeError("draft.yaml root")
+        draft_semantics_sha256 = _current_draft_semantic_fingerprint(draft)
         readiness = _core_draft_readiness(draft, draft_dir)
         if not readiness.compatible or not readiness.current:
             return _readiness_rejection(readiness, action="生成目录样例")
@@ -1809,10 +1836,6 @@ def propose_workspace_fixture_candidates(
                     for item in (raw_intent.get("commitments") or [])
                     if isinstance(item, dict) and item.get("commitment_id")
                 )
-                confirmation_sha = str(
-                    ((raw_intent.get("confirmation") or {}).get("semantics_sha256"))
-                    or ""
-                )
                 source_repo = draft.get("source_repo") or {}
                 from repoproof.verification.semantic_artifact import (
                     SemanticVerifierError,
@@ -1838,7 +1861,12 @@ def propose_workspace_fixture_candidates(
                                 separators=(",", ":"),
                             ).encode("utf-8")
                         ).hexdigest(),
-                        intent_confirmation_sha256=confirmation_sha,
+                        # Before the human gate this is the exact semantic
+                        # fingerprint that confirmation will bind if the user
+                        # makes no edits.  It prevents a circular dependency:
+                        # examples require semantic screening, while intent
+                        # confirmation requires representative examples.
+                        intent_confirmation_sha256=draft_semantics_sha256,
                         required_commitment_ids=required_commitment_ids,
                         execute_installed_upstream=True,
                         isolation_required=True,
@@ -1866,6 +1894,7 @@ def propose_workspace_fixture_candidates(
                     "expected_tree_sha256": expected["tree_sha256"],
                     "expected_file_count": expected["file_count"],
                     "expected_total_bytes": expected["total_bytes"],
+                    "draft_semantics_sha256": draft_semantics_sha256,
                     "confirmed": False,
                     "generation_id": generation_id,
                 }
@@ -2232,6 +2261,7 @@ def workspace_candidate_preview(
             state,
             record,
         )
+        _require_workspace_candidate_semantics(draft, record)
         expected = _workspace_tree_projection(
             expected_dir,
             contract=tool.workspace_contract,
@@ -2300,6 +2330,12 @@ def workspace_candidate_zip(
             state,
             record,
         )
+        draft = yaml.safe_load(
+            (checked_dir / "draft.yaml").read_text(encoding="utf-8")
+        ) or {}
+        if not isinstance(draft, dict):
+            raise TypeError("draft.yaml root")
+        _require_workspace_candidate_semantics(draft, record)
         actual_tree = _workspace_tree_projection(expected_dir)
         if (
             not actual_tree.get("ok")
@@ -2525,6 +2561,7 @@ def confirm_workspace_fixture_candidate(
             return {"ok": True, "note": "该目录样例已经确认，无需重复写入。"}
         if _workspace_candidate_token(record) != candidate_token:
             raise ValueError("WORKSPACE_CANDIDATE_BINDING_INVALID")
+        _require_workspace_candidate_semantics(draft, record)
         input_source, expected_source = _workspace_candidate_record_paths(
             draft_dir,
             state,

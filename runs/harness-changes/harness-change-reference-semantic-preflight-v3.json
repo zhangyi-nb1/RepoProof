@@ -1,0 +1,20 @@
+{
+  "affected_component": "Pre-confirmation workspace example semantic identity and candidate freshness binding",
+  "after_control_sha256": "79edd39397ef209d6c18d30054280338aed9a7640280df6698fc159774837a82",
+  "anonymous_fixture_id": "anonymous-preconfirmation-semantic-binding-v1",
+  "before_control_sha256": "43ff4912505718c8cc0036e7bb56241e2e60729fee57c7a90c02107c2e1ec710",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-01T17:14:54+08:00",
+  "evidence_id": "harness-change-reference-semantic-preflight-v3",
+  "incident_ids": [
+    "incident-reference-semantic-preflight-gap-v1"
+  ],
+  "invariant": "Pre-confirmation workspace examples must be screened against the exact current public semantic fingerprint without requiring a future human-confirmation record. The candidate token must bind that fingerprint, and any later semantic edit must invalidate the pending candidate before preview, download, or confirmation.",
+  "normalized_fingerprint": "37a6606db4df6a63",
+  "regression_tests": [
+    "tests/ui/test_workspace_ui_services.py::test_workspace_candidate_generation_rejects_reference_verifier_disagreement",
+    "tests/ui/test_workspace_ui_services.py::test_workspace_candidate_preview_zip_and_confirmation_are_tree_bound"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}
