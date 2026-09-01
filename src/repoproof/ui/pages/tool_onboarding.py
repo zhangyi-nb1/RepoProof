@@ -738,10 +738,12 @@ def _render_workspace_examples(
             st.info(str(result["recommended_action"]))
         if (
             owner == "CONTRACT"
-            and reasons == ["WORKSPACE_REFERENCE_EXECUTION_FAILED"]
+            and len(reasons) == 1
+            and reasons[0]
+            in product_jobs.WORKSPACE_REFERENCE_REPAIRABLE_FAILURE_CODES
         ):
             st.caption(
-                "这是冻结前 reference 的实现故障，不会交给构建 Agent。"
+                "这是冻结前 reference 的实现或 Core 运行时所有权故障，不会交给构建 Agent。"
                 "下面的动作会追加一次起草模型调用，只允许改 reference 生产者源码。"
             )
             if st.button(
@@ -753,7 +755,7 @@ def _render_workspace_examples(
                 ]
                 repaired = product_jobs.repair_workspace_reference_control(
                     draft_dir,
-                    failure_code="WORKSPACE_REFERENCE_EXECUTION_FAILED",
+                    failure_code=reasons[0],
                     exception_type=(diagnostics[0] if diagnostics else "RuntimeError"),
                 )
                 st.session_state[f"{prefix}_flash"] = {

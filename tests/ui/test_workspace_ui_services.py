@@ -348,6 +348,63 @@ def test_workspace_reference_repair_is_bounded_and_producer_only() -> None:
     assert "fixture" not in json.dumps(drafter.contexts, sort_keys=True).lower()
 
 
+def test_workspace_reference_repair_retries_runtime_ownership_violation() -> None:
+    original = (
+        "from pathlib import Path\n\n"
+        "def build_workspace(input_path: Path, output_dir: Path) -> None:\n"
+        "    raise TypeError('public API assumption')\n"
+    )
+    invalid = original.replace(
+        "raise TypeError('public API assumption')",
+        "(output_dir / 'run.sh').write_text('wrong owner')",
+    )
+    repaired = original.replace(
+        "raise TypeError('public API assumption')",
+        "(output_dir / 'app.py').write_text('print(1)')",
+    )
+
+    class Drafter:
+        def __init__(self) -> None:
+            self.contexts: list[dict[str, object]] = []
+
+        def repair_workspace_reference(self, context: dict) -> dict[str, str]:
+            self.contexts.append(context)
+            return {"reference_impl": invalid if len(self.contexts) == 1 else repaired}
+
+    drafter = Drafter()
+    result = product_jobs._bounded_workspace_reference_source_repair(
+        drafter=drafter,
+        current_source=original,
+        public_context={
+            "workspace_contract": {"require_offline_wheelhouse": True},
+            "authoring_failure": {
+                "reason_code": "WORKSPACE_REFERENCE_EXECUTION_FAILED",
+                "exception_type": "TypeError",
+            },
+        },
+    )
+
+    assert result["repair_attempts"] == 2
+    assert result["reference_impl"] == repaired
+    assert drafter.contexts[1]["previous_public_failure"]["reason_code"] == (
+        "WORKSPACE_REFERENCE_RUNTIME_OWNERSHIP_VIOLATION"
+    )
+
+
+def test_workspace_runtime_owned_collision_is_reference_repairable() -> None:
+    assert product_jobs.WORKSPACE_REFERENCE_REPAIRABLE_FAILURE_CODES == {
+        "WORKSPACE_REFERENCE_EXECUTION_FAILED",
+        "WORKSPACE_RUNTIME_OWNED_PATH_COLLISION",
+    }
+    assert (
+        product_jobs._workspace_fixture_failure_owner(
+            "WORKSPACE_RUNTIME_OWNED_PATH_COLLISION"
+        )
+        == "CONTRACT"
+    )
+    assert product_jobs._workspace_fixture_failure_owner("OSError") == "HARNESS"
+
+
 def test_fresh_fixture_blueprint_gets_core_owned_portable_path_projection() -> None:
     seed = FixtureBlueprintV1(
         blueprint_id="seed-project",

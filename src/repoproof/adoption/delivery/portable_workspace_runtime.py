@@ -44,6 +44,17 @@ python3 -m venv "$RUNTIME/venv"
 '''
 
 
+# These paths are supplied by the trusted Core after a task-owned producer has
+# finished creating its application files.  Keep the list public and shared so
+# drafting policy, reference repair, and runtime sealing cannot drift apart.
+OFFLINE_PYTHON_RUNTIME_OWNED_PATHS = (
+    "run.sh",
+    "requirements.lock.txt",
+    "THIRD_PARTY_NOTICES.md",
+    "vendor",
+)
+
+
 class _HTML(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -249,12 +260,7 @@ def seal_offline_python_runtime(
     application_path = output / application
     if application_path.is_symlink() or not application_path.is_file():
         raise WorkspaceRuntimeError("WORKSPACE_RUNTIME_APPLICATION_MISSING")
-    for relative in (
-        "run.sh",
-        "requirements.lock.txt",
-        "THIRD_PARTY_NOTICES.md",
-        "vendor",
-    ):
+    for relative in OFFLINE_PYTHON_RUNTIME_OWNED_PATHS:
         candidate = output / relative
         if candidate.exists() or candidate.is_symlink():
             raise WorkspaceRuntimeError(

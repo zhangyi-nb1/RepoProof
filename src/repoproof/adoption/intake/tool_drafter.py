@@ -32,6 +32,9 @@ from typing import Any, Literal, cast
 
 import yaml
 
+from repoproof.adoption.delivery.portable_workspace_runtime import (
+    OFFLINE_PYTHON_RUNTIME_OWNED_PATHS,
+)
 from repoproof.adoption.delivery.product_profile import (
     CLI_V2_PROFILE_ID,
     WORKSPACE_BUNDLE_PROFILE_ID,
@@ -341,7 +344,12 @@ _WORKSPACE_REFERENCE_REPAIR_SYSTEM = (
     "isolated execution already proved that source cannot run. Repair only the "
     "producer implementation; do not change fixture semantics, the independent "
     "verifier or the public contract. Do not hardcode candidate inputs or expected "
-    "artifact bytes. Never use bare except or catch Exception/BaseException; map "
+    "artifact bytes. When WorkspaceArtifactContract.require_offline_wheelhouse is "
+    "true, the trusted Core exclusively creates run.sh, requirements.lock.txt, "
+    "THIRD_PARTY_NOTICES.md and vendor/wheels/*.whl after build_workspace returns. "
+    "The repaired producer must not create, copy, reconstruct, bundle or overwrite "
+    "those runtime-owned paths; it creates only application and domain files. "
+    "Never use bare except or catch Exception/BaseException; map "
     "only explicit input-domain exception types to UserInputError so programming "
     "and upstream-API errors remain observable to the Harness. Do not call the "
     "network, spawn subprocesses, inspect examples/oracles/verifiers, or change "
@@ -1044,6 +1052,42 @@ def reference_source_policy_errors(
         if isinstance(node, ast.ExceptHandler)
     ):
         return ["REFERENCE_BROAD_EXCEPTION_MASKING"]
+    return []
+
+
+def workspace_reference_runtime_ownership_policy_errors(
+    source: str,
+    workspace_contract: object,
+) -> list[str]:
+    """Reject a producer that claims the Core-owned offline runtime closure.
+
+    Only exact path-bearing literals are reserved.  Human-facing documentation
+    may still contain prose such as ``Run ./run.sh``; the runtime collision gate
+    remains the final protection against dynamically assembled paths.
+    """
+
+    if isinstance(workspace_contract, WorkspaceArtifactContractV1):
+        closure_required = workspace_contract.require_offline_wheelhouse
+    elif isinstance(workspace_contract, dict):
+        closure_required = bool(workspace_contract.get("require_offline_wheelhouse"))
+    else:
+        closure_required = False
+    if not closure_required:
+        return []
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return ["REFERENCE_SOURCE_SYNTAX_INVALID"]
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+            continue
+        literal = node.value.replace("\\", "/").strip("/")
+        if any(
+            literal == owned or literal.startswith(f"{owned}/")
+            for owned in OFFLINE_PYTHON_RUNTIME_OWNED_PATHS
+        ):
+            return ["WORKSPACE_REFERENCE_RUNTIME_OWNERSHIP_VIOLATION"]
     return []
 
 

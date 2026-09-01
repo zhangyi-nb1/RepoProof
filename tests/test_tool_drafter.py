@@ -41,6 +41,7 @@ from repoproof.adoption.intake.tool_drafter import (
     normalize_workspace_reference_repair_document,
     reference_source_policy_errors,
     validate_repo_summary_document,
+    workspace_reference_runtime_ownership_policy_errors,
 )
 from repoproof.adoption.intake.tool_intake import run_tool_intake
 
@@ -168,6 +169,30 @@ def test_workspace_reference_repair_requires_two_argument_builder() -> None:
         normalize_workspace_reference_repair_document(
             {"reference_impl": "def extract(path):\n    return 'wrong topology'\n"}
         )
+
+
+def test_workspace_reference_cannot_claim_core_owned_runtime_paths() -> None:
+    contract = {"require_offline_wheelhouse": True}
+    bad = (
+        "from pathlib import Path\n\n"
+        "def build_workspace(input_path: Path, output_dir: Path) -> None:\n"
+        "    (output_dir / 'vendor' / 'wheels').mkdir(parents=True)\n"
+    )
+    documented = (
+        "from pathlib import Path\n\n"
+        "def build_workspace(input_path: Path, output_dir: Path) -> None:\n"
+        "    (output_dir / 'README.md').write_text('Run ./run.sh')\n"
+    )
+
+    assert workspace_reference_runtime_ownership_policy_errors(bad, contract) == [
+        "WORKSPACE_REFERENCE_RUNTIME_OWNERSHIP_VIOLATION"
+    ]
+    assert workspace_reference_runtime_ownership_policy_errors(
+        documented, contract
+    ) == []
+    assert workspace_reference_runtime_ownership_policy_errors(
+        bad, {"require_offline_wheelhouse": False}
+    ) == []
 
 
 @pytest.mark.parametrize(

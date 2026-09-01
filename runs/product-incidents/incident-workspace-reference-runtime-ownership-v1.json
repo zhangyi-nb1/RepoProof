@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "core_owned_collision_detected": "YES",
+    "task_frozen": "NO"
+  },
+  "created_at": "2026-09-01T15:23:35+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "e2f82778005cbb0a3d0448f76e88b432072639eb",
+  "framework_tree_sha256": "537f2c85a3a075ecc1378cf74d08baf9751532222d89bac06c25569a067a434f",
+  "incident_id": "incident-workspace-reference-runtime-ownership-v1",
+  "normalized_fingerprint": "844acb0f8edca384",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "64f27fa5a089fb94cfee3d80e43997daf6b8aba30c38e98702859051d04bf472",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "reference-repair::runtime-ownership"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_RUNTIME_OWNERSHIP_VIOLATION"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

@@ -75,6 +75,12 @@ from repoproof.ui.services.product_mode import ui_state_root
 PRODUCT_LOCK = "product-job.json"
 _EXACT_PIN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*==[A-Za-z0-9][A-Za-z0-9._+!-]*")
 _CONTROL_REPAIR_MARKER = ".repoproof-control-repair.incomplete"
+WORKSPACE_REFERENCE_REPAIRABLE_FAILURE_CODES = frozenset(
+    {
+        "WORKSPACE_REFERENCE_EXECUTION_FAILED",
+        "WORKSPACE_RUNTIME_OWNED_PATH_COLLISION",
+    }
+)
 
 
 def _product_source_tree_sha256(root: Path | None = None) -> str:
@@ -1843,19 +1849,12 @@ def propose_workspace_fixture_candidates(
         if generation_root is not None:
             shutil.rmtree(generation_root, ignore_errors=True)
         code = str(getattr(exc, "code", type(exc).__name__.upper()))
-        contract_owned = (
-            code.startswith("FIXTURE_")
-            or code.startswith("WORKSPACE_CONTRACT_")
-            or code.startswith("WORKSPACE_REFERENCE_EXECUTION_")
-            or code.startswith("WORKSPACE_REFERENCE_FIXTURE_")
-            or code.startswith("WORKSPACE_REFERENCE_PROTOCOL_")
-            or code.startswith("WORKSPACE_REFERENCE_DEPENDENCY_")
-        )
+        failure_owner = _workspace_fixture_failure_owner(code)
         diagnostics = str(getattr(exc, "detail", "") or "")
         return {
             "ok": False,
             "error": f"目录样例生成失败：{code}",
-            "failure_owner": "CONTRACT" if contract_owned else "HARNESS",
+            "failure_owner": failure_owner,
             "reason_codes": [code],
             "diagnostics": [diagnostics] if diagnostics else [],
             "recommended_action": (
@@ -1863,7 +1862,7 @@ def propose_workspace_fixture_candidates(
                     "冻结前的合同、fixture 或 reference 不可执行；修正公共语义并创建新的任务版本，"
                     "不要把控制面故障交给构建 Agent 盲修。"
                 )
-                if contract_owned
+                if failure_owner == "CONTRACT"
                 else (
                     "修复隔离环境或执行器后从当前 Journey 重试；"
                     "本次不得消耗构建 Agent repair。"
@@ -1883,23 +1882,19 @@ def _bounded_workspace_reference_source_repair(
     from repoproof.adoption.intake.tool_drafter import (
         DraftError,
         reference_source_policy_errors,
+        workspace_reference_runtime_ownership_policy_errors,
     )
 
     before = hashlib.sha256(current_source.encode("utf-8")).hexdigest()
+    previous_public_failure: dict[str, str] | None = None
     for attempt in (1, 2):
         context = {
             **public_context,
             "current_reference_impl": current_source,
             "repair_attempt": attempt,
         }
-        if attempt == 2:
-            context["previous_public_failure"] = {
-                "reason_code": "WORKSPACE_REFERENCE_REPAIR_NO_PROGRESS",
-                "detail": (
-                    "The prior repair returned byte-identical source. Produce a "
-                    "real build_workspace change without changing the public contract."
-                ),
-            }
+        if previous_public_failure is not None:
+            context["previous_public_failure"] = previous_public_failure
         repaired = str(
             drafter.repair_workspace_reference(context).get("reference_impl") or ""
         )
@@ -1907,10 +1902,23 @@ def _bounded_workspace_reference_source_repair(
             repaired,
             function_name="build_workspace",
         )
-        if policy_errors:
-            raise DraftError(
-                "workspace-reference-repair:" + policy_errors[0]
+        policy_errors.extend(
+            workspace_reference_runtime_ownership_policy_errors(
+                repaired,
+                public_context.get("workspace_contract"),
             )
+        )
+        if policy_errors:
+            previous_public_failure = {
+                "reason_code": policy_errors[0],
+                "detail": (
+                    "The prior source violated a public producer policy. Repair the "
+                    "producer without changing the workspace contract."
+                ),
+            }
+            if attempt == 1:
+                continue
+            raise DraftError("workspace-reference-repair:" + policy_errors[0])
         after = hashlib.sha256(repaired.encode("utf-8")).hexdigest()
         if after != before:
             return {
@@ -1919,7 +1927,29 @@ def _bounded_workspace_reference_source_repair(
                 "reference_after_sha256": after,
                 "repair_attempts": attempt,
             }
+        previous_public_failure = {
+            "reason_code": "WORKSPACE_REFERENCE_REPAIR_NO_PROGRESS",
+            "detail": (
+                "The prior repair returned byte-identical source. Produce a "
+                "real build_workspace change without changing the public contract."
+            ),
+        }
     raise DraftError("WORKSPACE_REFERENCE_REPAIR_NO_PROGRESS")
+
+
+def _workspace_fixture_failure_owner(code: str) -> str:
+    """Project one public pre-freeze fixture/reference code to its owner."""
+
+    contract_owned = (
+        code.startswith("FIXTURE_")
+        or code.startswith("WORKSPACE_CONTRACT_")
+        or code.startswith("WORKSPACE_REFERENCE_EXECUTION_")
+        or code.startswith("WORKSPACE_REFERENCE_FIXTURE_")
+        or code.startswith("WORKSPACE_REFERENCE_PROTOCOL_")
+        or code.startswith("WORKSPACE_REFERENCE_DEPENDENCY_")
+        or code in WORKSPACE_REFERENCE_REPAIRABLE_FAILURE_CODES
+    )
+    return "CONTRACT" if contract_owned else "HARNESS"
 
 
 def repair_workspace_reference_control(
@@ -1944,7 +1974,7 @@ def repair_workspace_reference_control(
     )
     if checked_dir is None:
         return {"ok": False, "error": path_error}
-    if failure_code != "WORKSPACE_REFERENCE_EXECUTION_FAILED" or re.fullmatch(
+    if failure_code not in WORKSPACE_REFERENCE_REPAIRABLE_FAILURE_CODES or re.fullmatch(
         r"[A-Za-z_][A-Za-z0-9_.]{0,119}", exception_type
     ) is None:
         return {
@@ -1994,6 +2024,16 @@ def repair_workspace_reference_control(
                     mode="json"
                 ),
                 "workspace_contract": tool.workspace_contract.model_dump(mode="json"),
+                "runtime_owned_paths": (
+                    [
+                        "run.sh",
+                        "requirements.lock.txt",
+                        "THIRD_PARTY_NOTICES.md",
+                        "vendor/wheels/*.whl",
+                    ]
+                    if tool.workspace_contract.require_offline_wheelhouse
+                    else []
+                ),
                 "upstream_public_info": {
                     key: str(source_repo.get(key) or "")
                     for key in (
