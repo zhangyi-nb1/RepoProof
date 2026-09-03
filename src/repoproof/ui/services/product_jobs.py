@@ -7228,7 +7228,12 @@ def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repai
     # (incident-selfcheck-bound-monotone-progress-*).  The hard cap still bounds
     # the total.
     stall_repairs = 0
-    seen_signatures: set[tuple[str, str]] = set()
+    # An *attempt* is an owner plus the evidence it was handed.  Handing the
+    # same evidence to a control that has not answered it yet is a different
+    # attempt, not a stall: keying this on the evidence alone spent the budget
+    # while the one owner who could fix it was still waiting its turn
+    # (incident-disagreement-subdiagnostic-owner-ignored-*).
+    seen_attempts: set[tuple[str, str, str]] = set()
     hard_cap = max(bound, MAX_TOTAL_REPAIR_ROUNDS) if bound else 0
     pending = None
     for round_index in range(1, hard_cap + 2):
@@ -7256,9 +7261,6 @@ def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repai
                 )
             rounds.append(check)
             break
-        if signature in seen_signatures:
-            stall_repairs += 1
-        seen_signatures.add(signature)
         code = check.reason_codes[0] if check.reason_codes else ""
         same_code_repairs = sum(
             1
@@ -7271,6 +7273,10 @@ def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repai
         if target is None or drafter is None:
             rounds.append(check)
             break
+        attempt = (*signature, target)
+        if attempt in seen_attempts:
+            stall_repairs += 1
+        seen_attempts.add(attempt)
         repair_result = _apply_draft_control_repair(
             draft_dir,
             draft,

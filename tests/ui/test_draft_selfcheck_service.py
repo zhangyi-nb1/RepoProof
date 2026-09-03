@@ -155,6 +155,14 @@ class _ScriptedDrafter:
             raise DraftError("workspace_reference_execution_repair:INVALID_MODEL_OUTPUT")
         return {"reference_impl": self._reference}
 
+    def repair_workspace_contract(self, context):
+        # Hands the contract back unchanged: the honest shape of an owner that
+        # was given its turn and had nothing to change.
+        self.calls.append(("contract", context))
+        if self._raise_on == "contract":
+            raise DraftError("workspace_contract_structural_repair:INVALID_MODEL_OUTPUT")
+        return {"workspace_contract": context["current_workspace_contract"]}
+
     def repair_fixture_builder(self, context):
         self.calls.append(("builder", context))
         return {
@@ -265,22 +273,42 @@ def test_persistent_disagreement_alternates_to_reference_then_stops_at_bound(tmp
 
     result = product_jobs.run_draft_self_check(draft_dir, repair=True, max_repair_rounds=3, drafter=drafter)
 
-    # Stall budget: the first attempt at a failure is free, each repeat spends one of
-    # the three; the disagreement sequence is verifier, verifier, reference, reference.
-    # Four generations: the fourth repair (reference again) returns the same source,
-    # rolls back as NO_PROGRESS and the unchanged failure is reused as round 5.
+    # Stall budget: an attempt is an owner plus the evidence it was handed, so the
+    # same disagreement handed to a control that has not answered it yet is free.
+    # The disagreement's owner sequence covers all four controls — verifier,
+    # verifier, reference, reference, contract, builder — before the producer is
+    # asked again, and only then is the budget spent.
     assert result["ok"] is False and len(calls) == 4
-    # The fourth repair is a reference attempt whose two bounded drafter calls both
-    # return the same source (NO_PROGRESS), hence five drafter calls in total.
-    assert [name for name, _ in drafter.calls] == ["verifier", "verifier", "reference", "reference", "reference"]
+    # A reference repair whose two bounded drafter calls both return the same source
+    # rolls back as NO_PROGRESS, so those repairs show up as two drafter calls each.
+    assert [name for name, _ in drafter.calls] == [
+        "verifier",
+        "verifier",
+        "reference",
+        "reference",
+        "reference",
+        "contract",
+        "builder",
+        "reference",
+        "reference",
+    ]
     second_verifier_context = drafter.calls[1][1]
     assert second_verifier_context["self_check_failure"]["repeated_after_repair"] is True
     assert second_verifier_context["self_check_failure"]["previous_repair_targets"] == ["verifier"]
     reference_context = drafter.calls[2][1]
     assert "current_reference_impl" in reference_context and "semantic_verifier" not in json.dumps(reference_context)
     report = read_draft_self_check(draft_dir)
-    assert report is not None and [r.round for r in report.rounds] == [1, 2, 3, 4, 5]
-    assert report.rounds[4].repair is None
+    assert report is not None and [r.round for r in report.rounds] == [1, 2, 3, 4, 5, 6, 7, 8]
+    assert [r.repair.target for r in report.rounds if r.repair is not None] == [
+        "verifier",
+        "verifier",
+        "reference",
+        "reference",
+        "contract",
+        "builder",
+        "reference",
+    ]
+    assert report.rounds[7].repair is None
     assert report.final_reason_codes == ("WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",)
 
 

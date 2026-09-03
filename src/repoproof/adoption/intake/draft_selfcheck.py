@@ -60,6 +60,20 @@ RepairOutcome = Literal["APPLIED", "NO_PROGRESS", "ROLLED_BACK", "UNAVAILABLE"]
 SelfCheckStatus = Literal["NOT_APPLICABLE", "MISSING", "STALE", "FAILED", "PASSED"]
 
 _DISAGREEMENT_CODE = "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT"
+# Reference/verifier disagreement is symmetric evidence across *all four*
+# controls, not two: the judge answers first (it has no producer to lean on),
+# the producer second, and when neither moves the failure the contract's file
+# rules and the fixture builder — the two owners the sub-diagnostic keeps
+# naming — get their turn before the producer is asked again.
+_DISAGREEMENT_OWNERS: tuple[RepairTarget, ...] = (
+    "verifier",
+    "verifier",
+    "reference",
+    "reference",
+    "contract",
+    "builder",
+    "reference",
+)
 # Builder codes that are the frozen asset's own doing (repairable) versus the
 # environment's (systemic; never handed to a model).
 _BUILDER_SYSTEMIC_CODES = frozenset(
@@ -277,8 +291,16 @@ def repair_target_for(
         return None
     if code == _DISAGREEMENT_CODE:
         # Two evidence-based attempts on the judge (the second one knows the
-        # first did not change the outcome), then the producer.
-        return "verifier" if round_index <= 2 else "reference"
+        # first did not change the outcome), then the producer.  When neither
+        # moves the failure, the remaining two controls get their turn: the
+        # disagreement's sub-diagnostic routinely names a *third* owner — the
+        # contract's file rules (the judge demands a file the contract just
+        # rejected as extra) or the fixture builder (the judge cannot read the
+        # input it was handed) — and spending every repair on the two obvious
+        # owners fixes neither
+        # (incident-disagreement-subdiagnostic-owner-ignored-*).
+        index = min(max(int(round_index), 1), len(_DISAGREEMENT_OWNERS)) - 1
+        return _DISAGREEMENT_OWNERS[index]
     if code in _VERIFIER_CODES:
         return "verifier"
     if code in _RUNTIME_CLOSURE_DISAGREEMENT_CODES:

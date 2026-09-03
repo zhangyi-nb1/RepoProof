@@ -8,7 +8,7 @@ verifier→verifier→reference 顺序根本走不到。
   I1 修复 ROLLED_BACK/NO_PROGRESS 后,草稿没变,循环**不重跑候选生成**,直接把同一份失败
      交给路由表的下一位(同码计数 +1);
   I2 只有预算耗尽、检查通过、无人可修、或起草者离线(UNAVAILABLE)才停;
-  I3 每一次修复尝试都占预算,记录逐轮保留。
+  I3 预算按"同一主人对同一份证据重复同一尝试"计;主人轮完后仍会停,记录逐轮保留。
 """
 
 from __future__ import annotations
@@ -68,10 +68,20 @@ def test_rolled_back_repair_hands_the_same_failure_to_the_next_owner(monkeypatch
 
 
 def test_budget_still_bounds_the_attempts(monkeypatch) -> None:
-    rounds, checks, targets = _drive(monkeypatch, ["ROLLED_BACK"] * 5, bound=3)
-    # The bound is a stall budget: the first attempt at a new failure is free,
-    # every repeat of the same failure spends one (test_selfcheck_bound_counts_stalls).
-    assert len(targets) == 4
+    rounds, checks, targets = _drive(monkeypatch, ["ROLLED_BACK"] * 10, bound=3)
+    # The bound is a stall budget spent by a repeated *attempt* — the same owner
+    # handed the same evidence again.  Every control on the disagreement's owner
+    # sequence gets one free turn first (test_disagreement_owner_sequence), and
+    # only the producer's second sighting spends the last unit.
+    assert targets == [
+        "verifier",
+        "verifier",
+        "reference",
+        "reference",
+        "contract",
+        "builder",
+        "reference",
+    ]
     assert checks == [1]
     assert rounds[-1].check_ok is False
 
