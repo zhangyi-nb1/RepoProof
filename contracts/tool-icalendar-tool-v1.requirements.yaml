@@ -1,0 +1,81 @@
+task_id: tool-icalendar-tool-v1
+controls:
+  positive: controls/tool-icalendar-tool-v1/positive
+  negatives:
+  - path: controls/tool-icalendar-tool-v1/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-icalendar-tool-v1/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - typical-week
+  - no-conflict
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - icalendar-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-ics-one-event-per-row
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 交付的 output/schedule.ics 是一个用 icalendar 可解析的 VCALENDAR，其中每一条 VEVENT
+    恰好对应输入两份 CSV 的一行数据行，事件总数等于两份 CSV 数据行数之和。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:icalendar-tool-workspace-semantic-v1
+- id: intent-ics-event-fields
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每个 VEVENT 的 SUMMARY 等于对应 CSV 行的 title；DTSTART 与 DTEND 由该行的 date 加 start/end
+    构成，且 DTEND 晚于 DTSTART；LOCATION 等于该行的 location。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:icalendar-tool-workspace-semantic-v1
+- id: intent-weekview-covers-all-events
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: output/week_view.html 解析后包含每一条事件的 title 与时间文本，且事件按 (date, start) 升序呈现，覆盖
+    ICS 中的全部事件。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:icalendar-tool-workspace-semantic-v1
+- id: intent-conflicts-list-overlaps
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: output/conflicts.txt 列出所有在同一日期上时间区间相互重叠的事件对（半开区间 [start,end) 判定），每对一行且按
+    (date, start) 升序排列；无重叠时该文件不含任何冲突行。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:icalendar-tool-workspace-semantic-v1

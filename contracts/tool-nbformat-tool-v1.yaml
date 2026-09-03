@@ -1,0 +1,275 @@
+task_id: tool-nbformat-tool-v1
+source_repo:
+  url: https://github.com/jupyter/nbformat
+  revision: guided
+  resolved_commit: 75f819f5b60bc6ffc72145c364132efe5b3c4b35
+  license: BSD
+  distribution: nbformat
+  import_module: nbformat
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_nbformat-tool
+  package: nbformat_tool
+  entry_point: nbformat-tool
+requirement_spec_file: tool-nbformat-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: nbformat-tool
+  summary: 将本地目录中的零散分析代码、说明和文本数据整理为规范 Jupyter 笔记本及纯文本审阅稿工作区。
+  interface:
+    usage: nbformat-tool <input> --out-dir <new-directory>
+    input:
+      kind: directory
+      format: 包含分析代码片段、Markdown 说明和文本数据的本地目录
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: organized_notebook.ipynb
+      role: 规范 Jupyter 笔记本
+      media_type: application/x-ipynb+json
+      validation_profile: ipynb_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: review.txt
+      role: 纯文本审阅稿
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    allow_extra_files: false
+    entrypoints: []
+    runnable: false
+    smoke_command: []
+    smoke_timeout_seconds: 30
+    require_offline_wheelhouse: false
+    runtime_python_entrypoint: null
+    limits:
+      max_files: 2
+      max_total_bytes: 20971520
+      max_file_bytes: 10485760
+      max_depth: 1
+      max_path_bytes: 128
+capability:
+  statement: '用户目标：我有一堆零散的分析代码片段和一份数据，想整理成一个规范的 Jupyter 笔记本交给同学，还要一份纯文本版方便审阅。
+
+    公开行为承诺：
+
+    - [source-file-sequence] 递归收集输入目录中的每个常规文件，以相对 POSIX 路径的字典序排列；规范笔记本的单元格 provenance
+    和纯文本审阅稿的记录均按该顺序一一对应这些文件。
+
+    - [python-code-cells] 每个 .py 文件成为一个代码单元格，单元格 metadata.source_path 为其相对路径，且代码单元格
+    source 完整保留该文件的 UTF-8 文本。
+
+    - [markdown-source-cells] 每个 .md 文件成为一个 Markdown 单元格，单元格 metadata.source_path
+    为其相对路径，且 Markdown 单元格 source 完整保留该文件的 UTF-8 文本。
+
+    - [text-material-cells] 每个既非 .py 也非 .md 的文本文件成为一个 Markdown 单元格，metadata.source_path
+    为其相对路径；该单元格以三级路径标题和 tilde 围栏展示完整原文，围栏长度至少为四且长于原文中任何连续波浪号。
+
+    - [review-records] review.txt 以 ANALYSIS REVIEW 标题开头，并为每个输入文件生成一个按路径排序的长度定界记录；记录声明
+    JSON 路径、材料类型、原文 UTF-8 字节数，并保留完整原文。
+
+    公开产物协议：
+
+    - [source-file-sequence -> source-file-sequence] 定位：In organized_notebook.ipynb,
+    read the cells array and collect each cell.metadata.source_path in array order;
+    in review.txt, parse FILE records in record order and collect their JSON-string
+    path values.；值表示：Both locations encode a JSON-compatible ordered array of relative
+    POSIX path strings; the two arrays are identical and strictly lexicographically
+    increasing.
+
+    - [python-code-cells -> python-code-cells] 定位：In organized_notebook.ipynb, for
+    every cell whose metadata.source_path has the .py suffix, inspect cell_type and
+    source.；值表示：Each matching cell is a Jupyter code cell; source is the Jupyter cell-source
+    string representing the complete UTF-8 source text of its provenance path.
+
+    - [markdown-source-cells -> markdown-source-cells] 定位：In organized_notebook.ipynb,
+    for every cell whose metadata.source_path has the .md suffix, inspect cell_type
+    and source.；值表示：Each matching cell is a Jupyter markdown cell; source is the Jupyter
+    cell-source string representing the complete UTF-8 source text of its provenance
+    path.
+
+    - [text-material-cells -> text-material-cells] 定位：In organized_notebook.ipynb,
+    for every cell whose metadata.source_path has neither the .py nor the .md suffix,
+    inspect cell_type and source.；值表示：Each matching cell is a Jupyter markdown cell
+    whose source consists of a level-three Markdown heading containing its relative
+    POSIX provenance path, a blank line, an opening tilde fence, the complete UTF-8
+    source text, and a closing tilde fence; the fence width is at least four and exceeds
+    every contiguous tilde run in that source text.
+
+    - [review-records -> review-records] 定位：Parse review.txt as an ANALYSIS REVIEW
+    header followed by zero or more records: FILE followed by one JSON string path
+    and newline, TYPE followed by a lowercase type token and newline, BYTES followed
+    by a decimal byte count and newline, exactly that many UTF-8 bytes of content,
+    then newline END newline.；值表示：Records are ordered by strictly lexicographically
+    increasing relative POSIX path; type is python, markdown, or text; BYTES is the
+    UTF-8 byte length of the following content; content is the complete source text
+    for that path.
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: WorkspaceBundleV1
+  intent_contract:
+    schema_version: 1
+    user_goal: 我有一堆零散的分析代码片段和一份数据，想整理成一个规范的 Jupyter 笔记本交给同学，还要一份纯文本版方便审阅。
+    user_goal_sha256: a0134ef83dd574be699996863415894a8a702cec59503cf3447905207336581e
+    commitments:
+    - commitment_id: source-file-sequence
+      public_text: 递归收集输入目录中的每个常规文件，以相对 POSIX 路径的字典序排列；规范笔记本的单元格 provenance 和纯文本审阅稿的记录均按该顺序一一对应这些文件。
+      rationale: 使零散且嵌套的分析材料完整、可追溯且顺序稳定。
+      origin: MODEL_PROPOSED
+    - commitment_id: python-code-cells
+      public_text: 每个 .py 文件成为一个代码单元格，单元格 metadata.source_path 为其相对路径，且代码单元格 source
+        完整保留该文件的 UTF-8 文本。
+      rationale: 保留可运行的分析代码片段及其来源。
+      origin: MODEL_PROPOSED
+    - commitment_id: markdown-source-cells
+      public_text: 每个 .md 文件成为一个 Markdown 单元格，单元格 metadata.source_path 为其相对路径，且 Markdown
+        单元格 source 完整保留该文件的 UTF-8 文本。
+      rationale: 保留原有分析说明的 Markdown 语义。
+      origin: MODEL_PROPOSED
+    - commitment_id: text-material-cells
+      public_text: 每个既非 .py 也非 .md 的文本文件成为一个 Markdown 单元格，metadata.source_path 为其相对路径；该单元格以三级路径标题和
+        tilde 围栏展示完整原文，围栏长度至少为四且长于原文中任何连续波浪号。
+      rationale: 将 CSV、TSV 和其他文本数据纳入可审阅笔记本，同时避免原文波浪号意外闭合围栏。
+      origin: MODEL_PROPOSED
+    - commitment_id: review-records
+      public_text: review.txt 以 ANALYSIS REVIEW 标题开头，并为每个输入文件生成一个按路径排序的长度定界记录；记录声明
+        JSON 路径、材料类型、原文 UTF-8 字节数，并保留完整原文。
+      rationale: 提供无需打开笔记本即可按来源准确审阅所有材料的纯文本版本。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: analysis-materials-workspace-v1
+      observations:
+      - observation_id: source-file-sequence
+        commitment_ids:
+        - source-file-sequence
+        locator: In organized_notebook.ipynb, read the cells array and collect each
+          cell.metadata.source_path in array order; in review.txt, parse FILE records
+          in record order and collect their JSON-string path values.
+        value_encoding: Both locations encode a JSON-compatible ordered array of relative
+          POSIX path strings; the two arrays are identical and strictly lexicographically
+          increasing.
+      - observation_id: python-code-cells
+        commitment_ids:
+        - python-code-cells
+        locator: In organized_notebook.ipynb, for every cell whose metadata.source_path
+          has the .py suffix, inspect cell_type and source.
+        value_encoding: Each matching cell is a Jupyter code cell; source is the Jupyter
+          cell-source string representing the complete UTF-8 source text of its provenance
+          path.
+      - observation_id: markdown-source-cells
+        commitment_ids:
+        - markdown-source-cells
+        locator: In organized_notebook.ipynb, for every cell whose metadata.source_path
+          has the .md suffix, inspect cell_type and source.
+        value_encoding: Each matching cell is a Jupyter markdown cell; source is the
+          Jupyter cell-source string representing the complete UTF-8 source text of
+          its provenance path.
+      - observation_id: text-material-cells
+        commitment_ids:
+        - text-material-cells
+        locator: In organized_notebook.ipynb, for every cell whose metadata.source_path
+          has neither the .py nor the .md suffix, inspect cell_type and source.
+        value_encoding: Each matching cell is a Jupyter markdown cell whose source
+          consists of a level-three Markdown heading containing its relative POSIX
+          provenance path, a blank line, an opening tilde fence, the complete UTF-8
+          source text, and a closing tilde fence; the fence width is at least four
+          and exceeds every contiguous tilde run in that source text.
+      - observation_id: review-records
+        commitment_ids:
+        - review-records
+        locator: 'Parse review.txt as an ANALYSIS REVIEW header followed by zero or
+          more records: FILE followed by one JSON string path and newline, TYPE followed
+          by a lowercase type token and newline, BYTES followed by a decimal byte
+          count and newline, exactly that many UTF-8 bytes of content, then newline
+          END newline.'
+        value_encoding: Records are ordered by strictly lexicographically increasing
+          relative POSIX path; type is python, markdown, or text; BYTES is the UTF-8
+          byte length of the following content; content is the complete source text
+          for that path.
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: directory
+          location: local
+          representation: utf8_text
+          format_label: 包含分析代码片段、Markdown 说明和文本数据的本地目录
+          role: 待整理的分析材料
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: 包含规范 Jupyter 笔记本和纯文本审阅稿的交付目录
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-02T04:30:25.017779Z'
+      semantics_sha256: 7af49d390d08dcb5735a0936b55dd96b8d3a1b1c16c8191e3cbb8374f29d0a1e
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: nbformat-tool-workspace-semantic-v1
+    source_file: oracle/tool-nbformat-tool-v1/semantic_verifier.py
+    source_sha256: 625af4a01ee1091274fc254e66b401306c3d20a836c36779a61b3411511a5049
+    required_for_operational_active: true

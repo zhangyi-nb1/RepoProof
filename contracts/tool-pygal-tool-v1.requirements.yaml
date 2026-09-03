@@ -1,0 +1,100 @@
+task_id: tool-pygal-tool-v1
+controls:
+  positive: controls/tool-pygal-tool-v1/positive
+  negatives:
+  - path: controls/tool-pygal-tool-v1/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-pygal-tool-v1/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - single-mixed-csv
+  - dir-two-providers
+  - single-day-single-model
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_example_3
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - pygal-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-spend-by-day-bar
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: dashboard/spend_by_day.svg 是由 pygal 渲染的柱状图，其 x 轴标签为输入 CSV 中出现的每个唯一日期（按日期升序），每个日期对应的柱值为该日所有记录
+    cost_usd 的合计。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-spend-by-model-bar
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: dashboard/spend_by_model.svg 是由 pygal 渲染的柱状图，其 x 轴标签为输入 CSV 中出现的每个唯一模型名（按模型名升序），每个模型对应的柱值为该模型所有记录
+    cost_usd 的合计。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-latest-balance-per-provider
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: dashboard/index.html 中为每个 provider 列出其最新余额，即该 provider 记录中最大 date（并列时取该
+    date 中最大 (provider,model) 排序末条）对应的 balance_usd。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-low-balance-alert
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 当某 provider 的最新余额低于阈值 10.00 美元时，dashboard/index.html 对该 provider 显示一条包含文本
+    'ALERT' 的提醒；余额不低于阈值的 provider 不显示该提醒。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-total-spend-summary
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: dashboard/index.html 显示所有记录 cost_usd 的合计作为总花费金额（保留两位小数）。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-dashboard-links-charts
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: dashboard/index.html 通过相对片段引用（同目录文件名）链接 spend_by_day.svg 与 spend_by_model.svg
+    两个图表文件。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1

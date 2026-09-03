@@ -1,0 +1,103 @@
+task_id: tool-research-project-starter-v2
+controls:
+  positive: controls/tool-research-project-starter-v2/positive
+  negatives:
+  - path: controls/tool-research-project-starter-v2/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-research-project-starter-v2/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - web-service
+  - lab-notes
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - research-project-starter <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-title-from-input
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 项目说明 YAML 的 title 非空字符串会去除首尾空白，作为项目标题写入 README 的一级标题。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:research-project-starter-workspace-semantic-v1
+- id: intent-description-preservation
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 项目说明 YAML 的 description 字符串会原样写入 README 的说明标记之间；说明允许为空。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:research-project-starter-workspace-semantic-v1
+- id: intent-normalized-distribution-name
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: pyproject 的 `[project].name` 由标题经 NFKD 规范化、移除非 ASCII 字符、转小写、将连续非 ASCII
+    字母数字字符替换为一个连字符、去除首尾连字符得到；若结果为空则使用 `project`。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:research-project-starter-workspace-semantic-v1
+- id: intent-starter-module-title
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 生成的 `starter_project` 模块会以 Python 字符串常量 `PROJECT_NAME` 暴露项目标题。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:research-project-starter-workspace-semantic-v1
+- id: intent-starter-layout
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 固定本地模板经 Cookiecutter 渲染后，工作区恰好包含合同列出的十个文件，覆盖 README、pyproject、源码、测试、实验配置、脚本、CI、Git
+    忽略规则和复现说明。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:research-project-starter-workspace-semantic-v1
+- id: intent-direct-test-entrypoint
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 可执行的 `run_tests.py` 将源目录加入导入路径，发现 `tests` 目录中的 unittest 测试，并以测试成功或失败决定进程状态。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:research-project-starter-workspace-semantic-v1
+- id: intent-behavior-7
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 实验配置固定声明 schema version、项目标题和随机种子 42；启动脚本创建本地虚拟环境并运行检查；CI 执行同一检查；复现说明公开对应命令和配置位置。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:research-project-starter-workspace-semantic-v1

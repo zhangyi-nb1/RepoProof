@@ -1,0 +1,87 @@
+task_id: tool-pillow-tool-v1
+controls:
+  positive: controls/tool-pillow-tool-v1/positive
+  negatives:
+  - path: controls/tool-pillow-tool-v1/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-pillow-tool-v1/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - nested-experiment-images
+  - single-portrait-image
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - pillow-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-catalog-image-selection
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 工作区会递归检查输入文件夹中的普通文件；只有能由 Pillow 成功打开并加载的图片会进入目录，按其相对路径的 Unicode 代码点升序排列；如果没有这样的图片则不生成有效目录。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pillow-tool-workspace-semantic-v1
+- id: intent-image-metadata-table
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: metadata.csv 对每张目录图片恰有一行，依次提供相对路径、Pillow 像素宽高、Pillow 格式名，以及 EXIF DateTimeOriginal、Make、Model、Orientation；缺失的
+    EXIF 值为空。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pillow-tool-workspace-semantic-v1
+- id: intent-thumbnail-generation
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每张目录图片生成一个本地 PNG 缩略图；缩略图保持原始宽高比，最长边不超过 256 像素，并由 metadata.csv 的 thumbnail_path
+    唯一关联。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pillow-tool-workspace-semantic-v1
+- id: intent-overview-montage
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: montage.png 使用所有目录缩略图，按目录行顺序从左至右、从上至下排列，每行最多四张。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pillow-tool-workspace-semantic-v1
+- id: intent-offline-index-page
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: index.html 是无需网络和脚本即可打开的索引页，显示 montage.png，并以与 metadata.csv 相同的列顺序和行顺序列出图片信息及其本地缩略图。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pillow-tool-workspace-semantic-v1

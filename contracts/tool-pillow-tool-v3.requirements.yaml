@@ -1,0 +1,90 @@
+task_id: tool-pillow-tool-v3
+controls:
+  positive: controls/tool-pillow-tool-v3/positive
+  negatives:
+  - path: controls/tool-pillow-tool-v3/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-pillow-tool-v3/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - mixed-basic-images
+  - nested-image-collection
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - pillow-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-supported-image-inventory
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 工具递归检查输入目录中扩展名为 BMP、GIF、JPEG、JPG、PNG、PPM、TIF、TIFF 或 WEBP 的文件，按相对 POSIX
+    路径排序；每张可由 Pillow 打开的候选图像在 photos.csv 中恰有一条记录，其他扩展名文件不列入目录。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pillow-tool-workspace-semantic-v1
+- id: intent-image-dimensions-and-capture-metadata
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每条 photos.csv 记录使用 Pillow 图像对象报告原始像素宽度、高度和格式，并报告 EXIF DateTimeOriginal（缺失时
+    DateTime）、Make 与 Model；缺失的拍摄信息以空字段表示。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pillow-tool-workspace-semantic-v1
+- id: intent-thumbnail-rendering
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每张已记录照片生成一个 JPEG 缩略图，先按 Pillow 的 EXIF 方向校正，再以保持比例的方式限制在 240×180 像素内；photos.csv
+    的 thumbnail_path 指向该缩略图。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pillow-tool-workspace-semantic-v1
+- id: intent-overview-collage
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: overview.jpg 是由全部已生成缩略图按 CSV 顺序从左到右、从上到下排成四列的 JPEG 总览；每个单元为 250×220
+    像素，缩略图置于单元左上角偏移 5 像素处。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pillow-tool-workspace-semantic-v1
+- id: intent-offline-index-page
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: index.html 是无需外部资源的离线索引页，展示 overview.jpg，并为 photos.csv 的每条记录展示其本地缩略图、源路径、尺寸、格式和拍摄信息；页面提示用户通过
+    ./run.sh 启动本地浏览服务。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pillow-tool-workspace-semantic-v1

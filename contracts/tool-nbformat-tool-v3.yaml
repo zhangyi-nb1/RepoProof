@@ -1,0 +1,266 @@
+task_id: tool-nbformat-tool-v3
+source_repo:
+  url: https://github.com/jupyter/nbformat
+  revision: guided
+  resolved_commit: 75f819f5b60bc6ffc72145c364132efe5b3c4b35
+  license: BSD
+  distribution: nbformat
+  import_module: nbformat
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_nbformat-tool-v3
+  package: nbformat_tool
+  entry_point: nbformat-tool
+requirement_spec_file: tool-nbformat-tool-v3.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: nbformat-tool
+  summary: 把零散分析代码片段和一份数据整理成规范的 Jupyter 笔记本工作区，并附带一份纯文本审阅版。
+  interface:
+    usage: nbformat-tool <input> --out-dir <new-directory>
+    input:
+      kind: file
+      format: JSON 组装清单
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: assemble_notebook.py
+      role: 生成并写出规范笔记本与纯文本版的应用文件（非可执行，由 run.sh 调用）
+      media_type: text/x-python
+      validation_profile: python_compile_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: notebook.ipynb
+      role: 生成的规范化 Jupyter 笔记本
+      media_type: application/x-ipynb+json
+      validation_profile: ipynb_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: notebook.txt
+      role: 笔记本的纯文本审阅版
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: README.md
+      role: 使用说明，指引运行 ./run.sh
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: run.sh
+      role: Harness-owned offline Python launcher
+      media_type: text/x-shellscript
+      validation_profile: shell_v1
+      min_count: 1
+      max_count: 1
+      executable: true
+    - path_pattern: requirements.lock.txt
+      role: Frozen Python dependency lock
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: THIRD_PARTY_NOTICES.md
+      role: Frozen third-party wheel inventory
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: vendor/wheels/*.whl
+      role: Frozen offline Python wheel closure
+      media_type: application/zip
+      validation_profile: wheel_v1
+      min_count: 1
+      max_count: 256
+      executable: false
+    allow_extra_files: false
+    entrypoints:
+    - run.sh
+    runnable: true
+    smoke_command:
+    - ./run.sh
+    smoke_timeout_seconds: 60
+    require_offline_wheelhouse: true
+    runtime_python_entrypoint: assemble_notebook.py
+    limits:
+      max_files: 512
+      max_total_bytes: 268435456
+      max_file_bytes: 67108864
+      max_depth: 4
+      max_path_bytes: 240
+capability:
+  statement: '用户目标：我有一堆零散的分析代码片段和一份数据，想整理成一个规范的 Jupyter 笔记本交给同学，还要一份纯文本版方便审阅。
+
+    公开行为承诺：
+
+    - [valid-ipynb] 生成的 notebook.ipynb 是有效的 Jupyter 笔记本：用 nbformat.read 读入后，nbformat.validate
+    通过且不抛 ValidationError。
+
+    - [cells-order-preserved] notebook.ipynb 的 cells 数量与顺序与输入清单 cells 数组一一对应，第 i 个单元的
+    cell_type 与去除首尾统一后的 source 内容与清单第 i 项一致。
+
+    - [nbformat-version-current] notebook.ipynb 顶层 nbformat 与 nbformat_minor 等于所用
+    nbformat 版本的 current_nbformat 与 current_nbformat_minor。
+
+    - [plain-text-mirrors-cells] notebook.txt 逐单元反映笔记本内容：为每个单元含一个标注其序号与 cell_type
+    的行，随后是该单元的 source 文本，顺序与 ipynb 中的 cells 一致。
+
+    公开产物协议：
+
+    - [ipynb-validates -> valid-ipynb] 定位：用 nbformat.read(open(''notebook.ipynb''),
+    as_version=nbformat.NO_CONVERT) 读入后调用 nbformat.validate(nb)。；值表示：布尔判定：validate
+    不抛 ValidationError 视为成立。
+
+    - [cells-sequence -> cells-order-preserved] 定位：读入 notebook.ipynb 后的 nb.cells 列表，与输入清单
+    JSON 的 cells 数组按下标对齐。；值表示：有序序列，每项为 (cell_type 字符串, source 文本)；长度等于清单 cells 长度。
+
+    - [format-version -> nbformat-version-current] 定位：notebook.ipynb 顶层 JSON 对象的 nbformat
+    与 nbformat_minor 字段。；值表示：两个整数，分别等于 nbformat.current_nbformat 与 nbformat.current_nbformat_minor。
+
+    - [txt-cell-blocks -> plain-text-mirrors-cells] 定位：notebook.txt 文本按单元块解析：每块起始行形如
+    ''[Cell N] <cell_type>''，其后至下一块前为该单元 source。；值表示：有序块序列，每块含序号 N、cell_type 标记与随后的源文本；顺序与
+    ipynb cells 一致。
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: NotebookAssemblyWorkspace
+  intent_contract:
+    schema_version: 1
+    user_goal: 我有一堆零散的分析代码片段和一份数据，想整理成一个规范的 Jupyter 笔记本交给同学，还要一份纯文本版方便审阅。
+    user_goal_sha256: a0134ef83dd574be699996863415894a8a702cec59503cf3447905207336581e
+    commitments:
+    - commitment_id: valid-ipynb
+      public_text: 生成的 notebook.ipynb 是有效的 Jupyter 笔记本：用 nbformat.read 读入后，nbformat.validate
+        通过且不抛 ValidationError。
+      rationale: 用户要求“规范的”笔记本，规范性由上游 schema 校验保证。
+      origin: MODEL_PROPOSED
+    - commitment_id: cells-order-preserved
+      public_text: notebook.ipynb 的 cells 数量与顺序与输入清单 cells 数组一一对应，第 i 个单元的 cell_type
+        与去除首尾统一后的 source 内容与清单第 i 项一致。
+      rationale: 用户是把零散片段“按顺序整理”，需保证不丢失、不重排。
+      origin: MODEL_PROPOSED
+    - commitment_id: nbformat-version-current
+      public_text: notebook.ipynb 顶层 nbformat 与 nbformat_minor 等于所用 nbformat 版本的 current_nbformat
+        与 current_nbformat_minor。
+      rationale: 规范笔记本应写成上游当前的格式版本，便于同学工具打开。
+      origin: MODEL_PROPOSED
+    - commitment_id: plain-text-mirrors-cells
+      public_text: notebook.txt 逐单元反映笔记本内容：为每个单元含一个标注其序号与 cell_type 的行，随后是该单元的 source
+        文本，顺序与 ipynb 中的 cells 一致。
+      rationale: 用户要一份纯文本版方便审阅，需与笔记本内容对应。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: notebook-assembly-workspace
+      observations:
+      - observation_id: ipynb-validates
+        commitment_ids:
+        - valid-ipynb
+        locator: 用 nbformat.read(open('notebook.ipynb'), as_version=nbformat.NO_CONVERT)
+          读入后调用 nbformat.validate(nb)。
+        value_encoding: 布尔判定：validate 不抛 ValidationError 视为成立。
+      - observation_id: cells-sequence
+        commitment_ids:
+        - cells-order-preserved
+        locator: 读入 notebook.ipynb 后的 nb.cells 列表，与输入清单 JSON 的 cells 数组按下标对齐。
+        value_encoding: 有序序列，每项为 (cell_type 字符串, source 文本)；长度等于清单 cells 长度。
+      - observation_id: format-version
+        commitment_ids:
+        - nbformat-version-current
+        locator: notebook.ipynb 顶层 JSON 对象的 nbformat 与 nbformat_minor 字段。
+        value_encoding: 两个整数，分别等于 nbformat.current_nbformat 与 nbformat.current_nbformat_minor。
+      - observation_id: txt-cell-blocks
+        commitment_ids:
+        - plain-text-mirrors-cells
+        locator: notebook.txt 文本按单元块解析：每块起始行形如 '[Cell N] <cell_type>'，其后至下一块前为该单元
+          source。
+        value_encoding: 有序块序列，每块含序号 N、cell_type 标记与随后的源文本；顺序与 ipynb cells 一致。
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: file
+          location: local
+          representation: utf8_text
+          format_label: JSON 组装清单
+          role: 描述数据文件内容与按顺序排列的 Markdown/代码单元片段的组装清单，用于生成笔记本
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: 包含规范化 .ipynb 笔记本与其纯文本审阅版的离线工作区
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-02T21:25:49.402465Z'
+      semantics_sha256: fa67248a3aa571ec6a09da256c6438ffda90b76900623bf2594c35df0aa0b09e
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: nbformat-tool-workspace-semantic-v1
+    source_file: oracle/tool-nbformat-tool-v3/semantic_verifier.py
+    source_sha256: 4608b82dfb87a9b2d325eb3747d0491fe7b0b328bd87d651cf6c154ee0696e99
+    required_for_operational_active: true

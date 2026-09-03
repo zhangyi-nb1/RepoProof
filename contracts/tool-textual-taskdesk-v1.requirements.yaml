@@ -1,0 +1,95 @@
+task_id: tool-textual-taskdesk-v1
+controls:
+  positive: controls/tool-textual-taskdesk-v1/positive
+  negatives:
+  - path: controls/tool-textual-taskdesk-v1/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-textual-taskdesk-v1/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - active-lab-day
+  - empty-event-log
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - textual-taskdesk <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-source-snapshot
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 工作区会将输入目录中的 tasks.yaml、events.ndjson 和 config/display.json 分别复制为 data/tasks.yaml、data/events.ndjson
+    和 data/display.json，供工作区自身使用。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:textual-taskdesk-workspace-semantic-v1
+- id: intent-textual-terminal-dashboard
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: taskdesk.py 定义基于 Textual App 的终端任务台，界面提供筛选输入框、任务表、完成按钮和任务数量摘要。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:textual-taskdesk-workspace-semantic-v1
+- id: intent-task-filtering
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 任务台会从紧凑 YAML 任务列表读取 id 和 title，并可用不区分大小写的筛选文字匹配任务编号、标题或当前状态。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:textual-taskdesk-workspace-semantic-v1
+- id: intent-local-append-only-update
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 点击“标记选中任务完成”会仅向工作区 data/events.ndjson 追加一条 action 为 done 的 JSON 事件，其中含
+    task_id 和 UTC 时间；后续显示将该任务视为 done。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:textual-taskdesk-workspace-semantic-v1
+- id: intent-display-configuration
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 任务台从 data/display.json 读取可选字符串 title，并将其作为终端应用标题。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:textual-taskdesk-workspace-semantic-v1
+- id: intent-handover-instructions
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: README.md 提供运行、数据约定、更新记录和交接四个章节，并要求使用 ./run.sh 启动工作区。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:textual-taskdesk-workspace-semantic-v1

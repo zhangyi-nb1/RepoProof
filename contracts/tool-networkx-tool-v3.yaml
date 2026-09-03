@@ -1,0 +1,300 @@
+task_id: tool-networkx-tool-v3
+source_repo:
+  url: https://github.com/networkx/networkx
+  revision: guided
+  resolved_commit: 7530809bfa1ea7ed6fdf918a4d1431488953cb1f
+  license: BSD
+  distribution: networkx
+  import_module: networkx
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_networkx-tool-v3
+  package: networkx_tool
+  entry_point: networkx-tool
+requirement_spec_file: tool-networkx-tool-v3.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: networkx-tool
+  summary: 为本地 Python 项目生成离线模块依赖图、循环与影响范围分析，并交付可浏览的 XHTML 交接报告及可交换资料。
+  interface:
+    usage: networkx-tool <input> --out-dir <new-directory>
+    input:
+      kind: directory
+      format: 本地 Python 项目源码目录
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: report.xhtml
+      role: 离线可浏览的 XHTML 交接报告
+      media_type: application/xhtml+xml
+      validation_profile: xml_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: graph.json
+      role: 可交换的模块依赖图数据
+      media_type: application/json
+      validation_profile: json_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: nodes.csv
+      role: 模块节点指标表
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: risks.md
+      role: 风险规则与发现说明
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: exclusions.txt
+      role: 分析排除规则
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    allow_extra_files: false
+    entrypoints: []
+    runnable: false
+    smoke_command: []
+    smoke_timeout_seconds: 10
+    require_offline_wheelhouse: false
+    limits:
+      max_files: 5
+      max_total_bytes: 62914560
+      max_file_bytes: 20971520
+      max_depth: 8
+      max_path_bytes: 128
+capability:
+  statement: '用户目标：接手一个 Python 项目，想快速看懂模块依赖、循环和影响范围，并留下可在浏览器查看、也方便交接的本地资料。希望包括可交换的图数据、节点表、风险说明和排除规则，不需要联网。
+
+    公开行为承诺：
+
+    - [module-inventory-and-edges] 工作区会为未被排除目录过滤的每个 source-relative .py 文件建立一个节点，并将
+    AST 中每个可解析为项目内模块的 import 或 from-import 建立为从导入方到被导入方的有向边。
+
+    - [local-import-resolution] 模块名由相对路径转换：普通 .py 文件去掉扩展名，包的 __init__.py 使用其目录名；相对导入按当前模块所在包解析。导入目标在已发现模块名的最长前缀中匹配；同名候选文件存在时选择字典序最小的
+    source-relative 路径。
+
+    - [cycle-groups] 使用 NetworkX 有向图的强连通分量识别循环：包含两个以上模块的分量，以及单模块自环，都会作为按路径排序的 cycle_group
+    写入节点表，并写入循环风险发现。
+
+    - [transitive-impact] 节点表会列出每个模块的直接导入数、直接依赖方数和传递依赖方数；传递依赖方是依赖图中可沿有向路径到达该模块的其他模块，并由
+    NetworkX 图祖先计算得出。
+
+    - [risk-policy] risks.md 固定说明两条规则：所有循环组均为循环依赖风险；传递依赖方数不少于 3 的模块均为影响范围较大风险。文档逐项列出发现；没有发现时明确写“无。”。
+
+    - [exclusion-rules] 分析会排除目录名为 .git、.hg、.svn、__pycache__、.mypy_cache、.pytest_cache、.tox、.venv、venv
+    的任何路径，并忽略所有非 .py 文件；这些规则逐行写入 exclusions.txt。
+
+    - [handoff-report] report.xhtml 提供离线可打开的交接概览：显示模块数和依赖边数，复述 risks.md 的全部风险发现，并明确列出
+    graph.json、nodes.csv、risks.md 与 exclusions.txt 作为交接文件。
+
+    公开产物协议：
+
+    - [dependency-graph -> module-inventory-and-edges,local-import-resolution] 定位：Parse
+    graph.json as a JSON object. Its nodes member is an array of objects with exactly
+    the id and module string members; its edges member is an array of objects with
+    exactly the source and target string members.；值表示：JSON object: nodes is sorted
+    ascending by id; edges is sorted ascending by (source,target); each id is a source-relative
+    POSIX .py path and each edge endpoint is a node id.
+
+    - [node-metrics -> cycle-groups,transitive-impact] 定位：Parse nodes.csv with the
+    CSV header path,module,direct_imports,direct_dependents,transitive_dependents,cycle_group.
+    Read one data row per graph node.；值表示：RFC 4180 CSV. path and module are strings;
+    the three count columns are base-10 nonnegative integers; cycle_group is empty
+    or a semicolon-separated ascending list of source-relative POSIX .py paths.
+
+    - [risk-findings -> risk-policy] 定位：Read risks.md. The document has the exact
+    headings ''# 风险说明'', ''## 判定规则'', and ''## 发现''; each finding is one Markdown
+    bullet below the final heading.；值表示：UTF-8 Markdown. Rule bullets state the cycle
+    and transitive-dependent thresholds. Finding bullets begin with either ''循环依赖：''
+    or ''影响范围较大：''; an empty finding set is represented by the single bullet ''无。''.
+
+    - [exclusions -> exclusion-rules] 定位：Read exclusions.txt as UTF-8 text, one rule
+    per nonblank line.；值表示：Each line is either an excluded directory name or the literal
+    rule ''非 .py 文件不分析''.
+
+    - [xhtml-handoff-report -> handoff-report] 定位：Parse report.xhtml as XML and locate
+    the XHTML elements with ids overview, risks, and handoff.；值表示：The overview section
+    contains module and dependency-edge counts as decimal text; the risks section
+    contains the same risk finding bullets as risks.md; the handoff section names
+    graph.json, nodes.csv, risks.md, and exclusions.txt.
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: PythonDependencyWorkspace
+  intent_contract:
+    schema_version: 1
+    user_goal: 接手一个 Python 项目，想快速看懂模块依赖、循环和影响范围，并留下可在浏览器查看、也方便交接的本地资料。希望包括可交换的图数据、节点表、风险说明和排除规则，不需要联网。
+    user_goal_sha256: 2193069fd428f0012cbf0575ab7428261e589a4642d5c5b484917b585d7e2266
+    commitments:
+    - commitment_id: module-inventory-and-edges
+      public_text: 工作区会为未被排除目录过滤的每个 source-relative .py 文件建立一个节点，并将 AST 中每个可解析为项目内模块的
+        import 或 from-import 建立为从导入方到被导入方的有向边。
+      rationale: 提供可交换的完整本地模块依赖图，是理解模块关系的基础。
+      origin: MODEL_PROPOSED
+    - commitment_id: local-import-resolution
+      public_text: 模块名由相对路径转换：普通 .py 文件去掉扩展名，包的 __init__.py 使用其目录名；相对导入按当前模块所在包解析。导入目标在已发现模块名的最长前缀中匹配；同名候选文件存在时选择字典序最小的
+        source-relative 路径。
+      rationale: 明确本地导入边的可复核解析规则，避免把第三方或标准库导入伪装成项目内依赖。
+      origin: MODEL_PROPOSED
+    - commitment_id: cycle-groups
+      public_text: 使用 NetworkX 有向图的强连通分量识别循环：包含两个以上模块的分量，以及单模块自环，都会作为按路径排序的 cycle_group
+        写入节点表，并写入循环风险发现。
+      rationale: 循环依赖是交接和重构时需要优先处理的结构性风险；NetworkX 的图算法直接决定该结果。
+      origin: MODEL_PROPOSED
+    - commitment_id: transitive-impact
+      public_text: 节点表会列出每个模块的直接导入数、直接依赖方数和传递依赖方数；传递依赖方是依赖图中可沿有向路径到达该模块的其他模块，并由 NetworkX
+        图祖先计算得出。
+      rationale: 反向可达范围直接支持评估改动一个模块会影响哪些模块。
+      origin: MODEL_PROPOSED
+    - commitment_id: risk-policy
+      public_text: risks.md 固定说明两条规则：所有循环组均为循环依赖风险；传递依赖方数不少于 3 的模块均为影响范围较大风险。文档逐项列出发现；没有发现时明确写“无。”。
+      rationale: 将风险阈值和结果留在可交接的独立资料中，避免风险判定成为隐含规则。
+      origin: MODEL_PROPOSED
+    - commitment_id: exclusion-rules
+      public_text: 分析会排除目录名为 .git、.hg、.svn、__pycache__、.mypy_cache、.pytest_cache、.tox、.venv、venv
+        的任何路径，并忽略所有非 .py 文件；这些规则逐行写入 exclusions.txt。
+      rationale: 让交接人员可见哪些生成物、虚拟环境和元数据没有进入依赖分析。
+      origin: MODEL_PROPOSED
+    - commitment_id: handoff-report
+      public_text: report.xhtml 提供离线可打开的交接概览：显示模块数和依赖边数，复述 risks.md 的全部风险发现，并明确列出
+        graph.json、nodes.csv、risks.md 与 exclusions.txt 作为交接文件。
+      rationale: 提供适合浏览器阅读的入口，同时指向可交换图数据、节点指标和规则资料。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: python-dependency-workspace
+      observations:
+      - observation_id: dependency-graph
+        commitment_ids:
+        - module-inventory-and-edges
+        - local-import-resolution
+        locator: Parse graph.json as a JSON object. Its nodes member is an array of
+          objects with exactly the id and module string members; its edges member
+          is an array of objects with exactly the source and target string members.
+        value_encoding: 'JSON object: nodes is sorted ascending by id; edges is sorted
+          ascending by (source,target); each id is a source-relative POSIX .py path
+          and each edge endpoint is a node id.'
+      - observation_id: node-metrics
+        commitment_ids:
+        - cycle-groups
+        - transitive-impact
+        locator: Parse nodes.csv with the CSV header path,module,direct_imports,direct_dependents,transitive_dependents,cycle_group.
+          Read one data row per graph node.
+        value_encoding: RFC 4180 CSV. path and module are strings; the three count
+          columns are base-10 nonnegative integers; cycle_group is empty or a semicolon-separated
+          ascending list of source-relative POSIX .py paths.
+      - observation_id: risk-findings
+        commitment_ids:
+        - risk-policy
+        locator: Read risks.md. The document has the exact headings '# 风险说明', '##
+          判定规则', and '## 发现'; each finding is one Markdown bullet below the final
+          heading.
+        value_encoding: UTF-8 Markdown. Rule bullets state the cycle and transitive-dependent
+          thresholds. Finding bullets begin with either '循环依赖：' or '影响范围较大：'; an empty
+          finding set is represented by the single bullet '无。'.
+      - observation_id: exclusions
+        commitment_ids:
+        - exclusion-rules
+        locator: Read exclusions.txt as UTF-8 text, one rule per nonblank line.
+        value_encoding: Each line is either an excluded directory name or the literal
+          rule '非 .py 文件不分析'.
+      - observation_id: xhtml-handoff-report
+        commitment_ids:
+        - handoff-report
+        locator: Parse report.xhtml as XML and locate the XHTML elements with ids
+          overview, risks, and handoff.
+        value_encoding: The overview section contains module and dependency-edge counts
+          as decimal text; the risks section contains the same risk finding bullets
+          as risks.md; the handoff section names graph.json, nodes.csv, risks.md,
+          and exclusions.txt.
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: directory
+          location: local
+          representation: utf8_text
+          format_label: 本地 Python 项目源码目录
+          role: 要分析的 Python 项目；目录内的 UTF-8 Python 源文件用于建立模块依赖图
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: 含可在本地浏览器打开的 XHTML 交接报告、可交换图数据、节点表、风险说明和排除规则
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-08-31T16:40:53.628033Z'
+      semantics_sha256: df915324defe53026e2cf703c719cce74e4124866a9d54211bd6c129157fd9e3
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: networkx-tool-workspace-semantic-v1
+    source_file: oracle/tool-networkx-tool-v3/semantic_verifier.py
+    source_sha256: cbeb35f0da3484b596c169164eb819f3a30924618a2e9ce54245a7a44fb3bed2
+    required_for_operational_active: true

@@ -1,0 +1,87 @@
+task_id: tool-pdfplumber-tool-v1
+controls:
+  positive: controls/tool-pdfplumber-tool-v1/positive
+  negatives:
+  - path: controls/tool-pdfplumber-tool-v1/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-pdfplumber-tool-v1/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - single-text-page
+  - ruled-table-page
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - pdfplumber-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-page-inventory
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 资料夹的 index.xhtml 按源 PDF 页序提供逐页链接；每个源页恰有一个 pages/page-####.xhtml 文件，其文件序号、页面标题和链接所示页码均为从
+    1 开始的同一源页号。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pdfplumber-tool-workspace-semantic-v1
+- id: intent-extracted-text
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每个逐页文件的 text 区域按页序保存该页由 pdfplumber 的 page.extract_text() 返回的文字；返回空值时该区域为空字符串。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pdfplumber-tool-workspace-semantic-v1
+- id: intent-extracted-tables
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每个逐页文件的 tables 区域按 pdfplumber 的 page.extract_tables() 返回顺序保存全部表格、行和单元格；空值单元格以空字符串表示。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pdfplumber-tool-workspace-semantic-v1
+- id: intent-ocr-notice
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 当某页的 page.extract_text() 返回空值或仅由 Unicode 空白组成时，该页包含 OCR 提示，明确说明未检测到可提取文本、该页可能是扫描件并需要
+    OCR；其他页面不包含该提示。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pdfplumber-tool-workspace-semantic-v1
+- id: intent-xml-safe-text
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 写入 XHTML 文字或表格单元格前，仅移除 XML 1.0 禁止的 Unicode 字符；其余提取字符及其顺序保持不变。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pdfplumber-tool-workspace-semantic-v1

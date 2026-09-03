@@ -1,0 +1,324 @@
+task_id: tool-pygal-tool-v4
+source_repo:
+  url: https://github.com/Kozea/pygal
+  revision: guided
+  resolved_commit: 056424cf548677ee42a1d87166418e9c9772e3da
+  license: 存在但未识别类型
+  distribution: pygal
+  import_module: pygal
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_pygal-tool-v4
+  package: pygal_tool
+  entry_point: pygal-tool
+requirement_spec_file: tool-pygal-tool-v4.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: pygal-tool
+  summary: 把导出的用量/账单 CSV 打包成一个本地离线仪表盘工作区：按天按模型汇总花费、展示余额、超阈值提醒，重跑即更新。
+  interface:
+    usage: pygal-tool <input> --out-dir <new-directory>
+    input:
+      kind: file
+      format: 用量/账单 CSV
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: dashboard_app.py
+      role: Non-executable Python application that regenerates the dashboard from
+        bundled usage CSV
+      media_type: text/x-python
+      validation_profile: python_compile_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: data/usage.csv
+      role: Bundled normalized usage/billing rows used to (re)build the dashboard
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: index.html
+      role: 'Self-contained offline dashboard: per-day-per-model spend, balance, over-threshold
+        alerts'
+      media_type: text/html
+      validation_profile: html_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: charts/spend_by_day.svg
+      role: Per-day total spend bar chart rendered by pygal
+      media_type: image/svg+xml
+      validation_profile: svg_xml_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: charts/spend_by_model.svg
+      role: Per-model total spend bar chart rendered by pygal
+      media_type: image/svg+xml
+      validation_profile: svg_xml_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: README.md
+      role: User instructions (invoke ./run.sh to rebuild the dashboard)
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: run.sh
+      role: Harness-owned offline Python launcher
+      media_type: text/x-shellscript
+      validation_profile: shell_v1
+      min_count: 1
+      max_count: 1
+      executable: true
+    - path_pattern: requirements.lock.txt
+      role: Frozen Python dependency lock
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: THIRD_PARTY_NOTICES.md
+      role: Frozen third-party wheel inventory
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: vendor/wheels/*.whl
+      role: Frozen offline Python wheel closure
+      media_type: application/zip
+      validation_profile: wheel_v1
+      min_count: 1
+      max_count: 256
+      executable: false
+    allow_extra_files: false
+    entrypoints:
+    - run.sh
+    runnable: true
+    smoke_command:
+    - ./run.sh
+    smoke_timeout_seconds: 60
+    require_offline_wheelhouse: true
+    runtime_python_entrypoint: dashboard_app.py
+    limits:
+      max_files: 512
+      max_total_bytes: 268435456
+      max_file_bytes: 67108864
+      max_depth: 4
+      max_path_bytes: 240
+capability:
+  statement: '用户目标：我从 OpenAI 和 Anthropic 后台导出了几份用量/账单 CSV，想要一个本地就能打开、能按天按模型看花了多少、余额还剩多少、超阈值就提醒的仪表盘，以后每次导出新数据重跑一下就更新。
+
+    公开行为承诺：
+
+    - [per-day-spend-rows] index.html 中的“按天花费”表格为每个出现的日期给出恰好一行，日期升序排列，每行列出该天所有记录的花费合计（美元，保留两位小数）。
+
+    - [per-model-spend-rows] index.html 中的“按模型花费”表格为每个出现的模型给出恰好一行，按模型名升序排列，每行列出该模型所有记录的花费合计（美元，保留两位小数）。
+
+    - [total-spend-and-balance] index.html 展示总花费（所有记录 cost_usd 之和，两位小数）与剩余余额（预算减去总花费，两位小数）。
+
+    - [over-threshold-alert] 按天花费表中，当某天合计花费严格大于阈值时，该行被标记为超阈值提醒；否则不标记；index.html 也汇总列出所有超阈值的日期（升序）。
+
+    - [pygal-day-chart-bars] charts/spend_by_day.svg 由 pygal 渲染为柱状图，其柱子与按天花费表逐日一一对应（相同日期集合、相同顺序、相同合计值）。
+
+    - [pygal-model-chart-bars] charts/spend_by_model.svg 由 pygal 渲染为柱状图，其柱子与按模型花费表逐模型一一对应（相同模型集合、相同顺序、相同合计值）。
+
+    - [rebuild-idempotent-from-bundled-csv] 通过 ./run.sh 重新运行时，仪表盘完全依据 data/usage.csv
+    中的数据重建，相同的 data/usage.csv 产生完全一致的汇总、余额、提醒与图表条目。
+
+    公开产物协议：
+
+    - [day-spend-table -> per-day-spend-rows,over-threshold-alert] 定位：在 index.html
+    中定位 id="spend-by-day" 的 table；表头列为 date、total_usd、over_threshold；数据行按 date 升序。；值表示：每行：date
+    为 ISO 日期文本；total_usd 为保留两位小数的十进制字符串；over_threshold 为 yes 或 no。
+
+    - [model-spend-table -> per-model-spend-rows] 定位：在 index.html 中定位 id="spend-by-model"
+    的 table；表头列为 model、total_usd；数据行按 model 名升序。；值表示：每行：model 为模型名文本；total_usd 为保留两位小数的十进制字符串。
+
+    - [summary-block -> total-spend-and-balance] 定位：在 index.html 中定位 id="summary"
+    的元素，其中含 id="total-spend"、id="budget"、id="balance" 三个子元素的文本。；值表示：三者均为保留两位小数的十进制美元字符串（balance
+    可为负，前缀连字符）。
+
+    - [alert-list -> over-threshold-alert] 定位：在 index.html 中定位 id="alerts" 的列表元素，其每个
+    li 为一个超阈值日期，按日期升序；若无超阈值日期则该列表为空。；值表示：每个 li 文本为 ISO 日期字符串。
+
+    - [day-svg-bars -> pygal-day-chart-bars] 定位：解析 charts/spend_by_day.svg 的 pygal
+    生成 DOM，读取各柱对应的标签（日期）与数值。；值表示：标签为 ISO 日期文本，数值为该日合计花费的数值，顺序与 day-spend-table 一致。
+
+    - [model-svg-bars -> pygal-model-chart-bars] 定位：解析 charts/spend_by_model.svg 的
+    pygal 生成 DOM，读取各柱对应的标签（模型）与数值。；值表示：标签为模型名文本，数值为该模型合计花费的数值，顺序与 model-spend-table
+    一致。
+
+    - [bundled-usage-csv -> rebuild-idempotent-from-bundled-csv] 定位：以严格 CSV 方言解析 data/usage.csv，表头为
+    date,provider,model,cost_usd，数据行按 (date,provider,model) 升序。；值表示：date 为 ISO 日期文本；provider、model
+    为文本；cost_usd 为十进制字符串。
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: UsageBillingDashboardWorkspace
+  intent_contract:
+    schema_version: 1
+    user_goal: 我从 OpenAI 和 Anthropic 后台导出了几份用量/账单 CSV，想要一个本地就能打开、能按天按模型看花了多少、余额还剩多少、超阈值就提醒的仪表盘，以后每次导出新数据重跑一下就更新。
+    user_goal_sha256: aec6f9bb4088ddc1dc0ed63a15de91d0128fcdc852adf919c408274d775850ba
+    commitments:
+    - commitment_id: per-day-spend-rows
+      public_text: index.html 中的“按天花费”表格为每个出现的日期给出恰好一行，日期升序排列，每行列出该天所有记录的花费合计（美元，保留两位小数）。
+      rationale: 用户要按天看花了多少。
+      origin: MODEL_PROPOSED
+    - commitment_id: per-model-spend-rows
+      public_text: index.html 中的“按模型花费”表格为每个出现的模型给出恰好一行，按模型名升序排列，每行列出该模型所有记录的花费合计（美元，保留两位小数）。
+      rationale: 用户要按模型看花了多少。
+      origin: MODEL_PROPOSED
+    - commitment_id: total-spend-and-balance
+      public_text: index.html 展示总花费（所有记录 cost_usd 之和，两位小数）与剩余余额（预算减去总花费，两位小数）。
+      rationale: 用户要看余额还剩多少。
+      origin: MODEL_PROPOSED
+    - commitment_id: over-threshold-alert
+      public_text: 按天花费表中，当某天合计花费严格大于阈值时，该行被标记为超阈值提醒；否则不标记；index.html 也汇总列出所有超阈值的日期（升序）。
+      rationale: 用户要超阈值就提醒。
+      origin: MODEL_PROPOSED
+    - commitment_id: pygal-day-chart-bars
+      public_text: charts/spend_by_day.svg 由 pygal 渲染为柱状图，其柱子与按天花费表逐日一一对应（相同日期集合、相同顺序、相同合计值）。
+      rationale: 图表须真实反映按天汇总并由上游 pygal 生成。
+      origin: MODEL_PROPOSED
+    - commitment_id: pygal-model-chart-bars
+      public_text: charts/spend_by_model.svg 由 pygal 渲染为柱状图，其柱子与按模型花费表逐模型一一对应（相同模型集合、相同顺序、相同合计值）。
+      rationale: 图表须真实反映按模型汇总并由上游 pygal 生成。
+      origin: MODEL_PROPOSED
+    - commitment_id: rebuild-idempotent-from-bundled-csv
+      public_text: 通过 ./run.sh 重新运行时，仪表盘完全依据 data/usage.csv 中的数据重建，相同的 data/usage.csv
+        产生完全一致的汇总、余额、提醒与图表条目。
+      rationale: 用户要重跑就更新且结果可复现。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: usage-billing-dashboard
+      observations:
+      - observation_id: day-spend-table
+        commitment_ids:
+        - per-day-spend-rows
+        - over-threshold-alert
+        locator: 在 index.html 中定位 id="spend-by-day" 的 table；表头列为 date、total_usd、over_threshold；数据行按
+          date 升序。
+        value_encoding: 每行：date 为 ISO 日期文本；total_usd 为保留两位小数的十进制字符串；over_threshold
+          为 yes 或 no。
+      - observation_id: model-spend-table
+        commitment_ids:
+        - per-model-spend-rows
+        locator: 在 index.html 中定位 id="spend-by-model" 的 table；表头列为 model、total_usd；数据行按
+          model 名升序。
+        value_encoding: 每行：model 为模型名文本；total_usd 为保留两位小数的十进制字符串。
+      - observation_id: summary-block
+        commitment_ids:
+        - total-spend-and-balance
+        locator: 在 index.html 中定位 id="summary" 的元素，其中含 id="total-spend"、id="budget"、id="balance"
+          三个子元素的文本。
+        value_encoding: 三者均为保留两位小数的十进制美元字符串（balance 可为负，前缀连字符）。
+      - observation_id: alert-list
+        commitment_ids:
+        - over-threshold-alert
+        locator: 在 index.html 中定位 id="alerts" 的列表元素，其每个 li 为一个超阈值日期，按日期升序；若无超阈值日期则该列表为空。
+        value_encoding: 每个 li 文本为 ISO 日期字符串。
+      - observation_id: day-svg-bars
+        commitment_ids:
+        - pygal-day-chart-bars
+        locator: 解析 charts/spend_by_day.svg 的 pygal 生成 DOM，读取各柱对应的标签（日期）与数值。
+        value_encoding: 标签为 ISO 日期文本，数值为该日合计花费的数值，顺序与 day-spend-table 一致。
+      - observation_id: model-svg-bars
+        commitment_ids:
+        - pygal-model-chart-bars
+        locator: 解析 charts/spend_by_model.svg 的 pygal 生成 DOM，读取各柱对应的标签（模型）与数值。
+        value_encoding: 标签为模型名文本，数值为该模型合计花费的数值，顺序与 model-spend-table 一致。
+      - observation_id: bundled-usage-csv
+        commitment_ids:
+        - rebuild-idempotent-from-bundled-csv
+        locator: 以严格 CSV 方言解析 data/usage.csv，表头为 date,provider,model,cost_usd，数据行按
+          (date,provider,model) 升序。
+        value_encoding: date 为 ISO 日期文本；provider、model 为文本；cost_usd 为十进制字符串。
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: file
+          location: local
+          representation: utf8_text
+          format_label: 用量/账单 CSV
+          role: 从 OpenAI / Anthropic 后台导出的一份或多份用量/账单 CSV（作为单一本地文件或包含多份 CSV 的本地目录提供）
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: 本地可打开的仪表盘工作区：包含按天按模型汇总、余额展示与超阈值提醒的自包含 HTML 仪表盘及支撑数据文件
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-03T05:41:46.581974Z'
+      semantics_sha256: 0585a9758f5251ec8891f1f0c5b43e4c99d306ae2d5b7675007f8fb56aff765e
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: pygal-tool-workspace-semantic-v1
+    source_file: oracle/tool-pygal-tool-v4/semantic_verifier.py
+    source_sha256: ea1c7e27745e36ea8c9184017fcd242ceda054a0e1620d49f384229a0cd4b148
+    required_for_operational_active: true

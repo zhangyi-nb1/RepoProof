@@ -1,0 +1,79 @@
+task_id: tool-python-pptx-tool-v3
+controls:
+  positive: controls/tool-python-pptx-tool-v3/positive
+  negatives:
+  - path: controls/tool-python-pptx-tool-v3/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-python-pptx-tool-v3/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - basic-quarter
+  - single-metric
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - python-pptx-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-one-title-slide
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 生成的 out/quarterly_report.pptx 的第一张幻灯片为标题页，其标题占位文本等于输入 JSON 的 deck_title，副标题包含
+    quarter 值。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:python-pptx-tool-workspace-semantic-v1
+- id: intent-one-slide-per-metric
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每条输入指标对应一张内容幻灯片，位于标题页之后，指标幻灯片数量等于输入 metrics 数组长度，且幻灯片按指标 name 升序排列。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:python-pptx-tool-workspace-semantic-v1
+- id: intent-metric-slide-body-text
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每张指标幻灯片的标题占位文本等于该指标的 name，正文包含拼接后的 value 与 unit（形如“value unit”，unit
+    为空时仅含 value）。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:python-pptx-tool-workspace-semantic-v1
+- id: intent-speaker-notes-mirror-notes
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: out/speaker_notes.txt 的正文按输入 notes 数组顺序逐条列出每条要点笔记（每条一行）；当 notes 为空时讲稿包含固定占位行“（无要点笔记）”。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:python-pptx-tool-workspace-semantic-v1

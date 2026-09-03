@@ -1,0 +1,73 @@
+task_id: tool-python-pptx-tool-v1
+controls:
+  positive: controls/tool-python-pptx-tool-v1/positive
+  negatives:
+  - path: controls/tool-python-pptx-tool-v1/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-python-pptx-tool-v1/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - two-quarter-revenue
+  - three-quarter-product
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - python-pptx-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-title-slide
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 对有效资料目录中的 metrics.json，工作区 report.pptx 的第 1 张幻灯片标题等于顶层 title；有效输入要求
+    title 为非空单行字符串，quarters 为非空数组。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:python-pptx-tool-workspace-semantic-v1
+- id: intent-quarterly-metric-tables
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: report.pptx 在封面之后按 metrics.json 的 quarters 数组顺序各生成一张季度幻灯片：幻灯片标题等于 quarter，首个表格列头依次为
+    Metric、Value，并按该季度 metrics 对象的输入顺序写入指标名与显示值。字符串值原样显示；有限数值使用紧凑 JSON 数值表示。有效输入要求季度名唯一且为非空单行字符串，每个
+    metrics 为非空对象，指标名为非空单行字符串，指标值为字符串或有限非布尔数值。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:python-pptx-tool-workspace-semantic-v1
+- id: intent-speaker-script
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: speaker_notes.md 的首个一级标题为“讲稿：”加 title；随后按 quarters 顺序生成同名二级标题，其正文等于
+    notes.md 中对应“## {quarter}”章节正文去除首尾空白后的文本。有效输入要求 notes.md 为 UTF-8 文本、每个季度恰有一个对应二级标题且正文非空；未匹配季度名的二级章节不进入讲稿。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:python-pptx-tool-workspace-semantic-v1

@@ -1,0 +1,40 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "public_tests/test_interface_contract.py"
+  ],
+  "collection_manifest_sha256": null,
+  "consumer_fixture_tree_sha256": "0142dd188fff1e3e811b0ff9daa4b84a01dc7e47fc2f52ef74092e6b68bef61d",
+  "contract_sha256": "cac7e88da5c7c9ecba89ad747ba931e065519ad8c108408fa12f0b8e7aa23da3",
+  "controls_summary": null,
+  "environment_constraints": null,
+  "expected_capability_nodes": null,
+  "expected_regression_nodes": null,
+  "held_out_fixture_sha256": "d6dc4b7814607bab3a43ecc7c3dcf2274ce93c813e116d7769edf140f9e79589",
+  "image_digest": null,
+  "oracle_tree_sha256": "963e6252307567dbe044447a9a9871f940c9ded836b6012dfe5622d839a2ac70",
+  "prompt_manifest_sha256": null,
+  "public_examples_sha256": null,
+  "public_fixture_sha256": "a156f88f00bb1295790530cd4ed991d61d2c0ba85f24c88d579becd5ce755d3d",
+  "public_tests_tree_sha256": null,
+  "requirement_spec_sha256": null,
+  "responsibility_matrix": null,
+  "root_hash": "aaa31353abb428384be8071de31f8da675f50a98f7f52e74722a96f6fd0180e4",
+  "source_commit": "138c8453db34fbb584bbcbc592fd7bd4b972e8ef",
+  "source_git_tree_hash": "a82865318fa375e758c7926387b9603c2d8a95cc",
+  "task_id": "tool-icalendar-tool-v1",
+  "wheelhouse_root": "1ef3a455d0599d1da9fef2497c9a06e35f99b7375a727a778a02cc8611ff03ec",
+  "wheelhouse_wheels": {
+    "icalendar-7.3.0-py3-none-any.whl": "8355acfe17be81b368f0b1e3740817cea9b56ea889931f8f1a87c62f2d28db0b",
+    "python_dateutil-2.9.0.post0-py2.py3-none-any.whl": "a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427",
+    "six-1.17.0-py2.py3-none-any.whl": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+    "typing_extensions-4.16.0-py3-none-any.whl": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+    "tzdata-2026.3-py2.py3-none-any.whl": "dc096730c87af6cab1b171c9d532be840741ff5d459015e7f6947bd7d7e54931"
+  }
+}

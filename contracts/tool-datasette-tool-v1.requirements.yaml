@@ -1,0 +1,90 @@
+task_id: tool-datasette-tool-v1
+controls:
+  positive: controls/tool-datasette-tool-v1/positive
+  negatives:
+  - path: controls/tool-datasette-tool-v1/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-datasette-tool-v1/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - single-measurement
+  - nested-experiments
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - datasette-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-csv-table-coverage
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 工作区会递归收集输入文件夹中全部且仅有的 .csv 文件（扩展名不区分大小写），按相对路径排序后为每份文件建立一个 SQLite 表；table-manifest.json
+    记录相对来源路径、表名、列名和数据行数。表名由相对路径去掉扩展名后将非字母数字下划线字符替换为下划线并加 table_ 前缀；同名时按排序顺序追加 __2、__3
+    等后缀。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:datasette-tool-workspace-semantic-v1
+- id: intent-csv-schema-and-cells
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每个导入表的列名按对应 CSV 首行原样保留，列顺序与表头一致；每个后续 CSV 记录按原始顺序写入，单元格以文本保存，不进行数值类型推断、清洗、合并或修正。CSV
+    必须具有非空且唯一的表头，并且每条数据记录的列数必须与表头一致。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:datasette-tool-workspace-semantic-v1
+- id: intent-datasette-metadata
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: metadata.json 使用 Datasette 为 data/experiments.db 解析出的数据库名称，并为每个导入表提供含其
+    CSV 相对来源路径的 Datasette 表描述。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:datasette-tool-workspace-semantic-v1
+- id: intent-datasette-browser-launcher
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 可执行的 server.py 会调用 Datasette 0.65.3 的 CLI，加载工作区的 SQLite 数据库和 metadata.json，并透传附加命令行参数，因此启动后提供
+    Datasette 的表浏览、筛选和 SQL 查询界面。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:datasette-tool-workspace-semantic-v1
+- id: intent-local-and-lan-use-instructions
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: README.md 提供本机启动命令，并提供通过 ./server.py --host 0.0.0.0 监听局域网接口的命令和访问说明。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:datasette-tool-workspace-semantic-v1

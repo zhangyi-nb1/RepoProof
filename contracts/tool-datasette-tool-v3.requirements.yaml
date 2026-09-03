@@ -1,0 +1,71 @@
+task_id: tool-datasette-tool-v3
+controls:
+  positive: controls/tool-datasette-tool-v3/positive
+  negatives:
+  - path: controls/tool-datasette-tool-v3/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-datasette-tool-v3/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - two-experiments
+  - unicode-columns
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - datasette-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-csv-discovery-and-table-mapping
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 递归发现输入目录中扩展名为 .csv（不区分大小写）的常规文件，按相对 POSIX 路径不区分大小写排序；每份 CSV 导入一个 SQLite
+    表，并在 README 的映射表中公开其源路径、表名和 Datasette 数据库名。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:datasette-tool-workspace-semantic-v1
+- id: intent-csv-headers-and-record-values
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每个导入表按原 CSV 表头顺序建立 TEXT 列，并按原 CSV 数据行顺序保存所有单元格文本值；UTF-8 BOM 不构成第一个表头的一部分。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:datasette-tool-workspace-semantic-v1
+- id: intent-datasette-browse-filter-and-query-service
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 工作区的 app.py 通过 Datasette 0.65.3 的公开 CLI 使用 experiment.db 与 metadata.json
+    启动服务，因此导入表可通过 Datasette 的交互浏览、筛选及 SQL 查询界面和 API 使用。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:datasette-tool-workspace-semantic-v1

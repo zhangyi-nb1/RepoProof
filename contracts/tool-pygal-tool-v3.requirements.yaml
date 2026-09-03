@@ -1,0 +1,99 @@
+task_id: tool-pygal-tool-v3
+controls:
+  positive: controls/tool-pygal-tool-v3/positive
+  negatives:
+  - path: controls/tool-pygal-tool-v3/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-pygal-tool-v3/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - single-mixed-export
+  - threshold-breach
+  - multi-file-dir
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_example_3
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - pygal-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-daily-cost-aggregation
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: data/summary.csv 中按 (date, model) 聚合每条记录的 cost_usd 合计，且各天全部模型花费之和等于该输入所有
+    cost_usd 之和。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-model-cost-aggregation
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: charts/model_cost.svg 由 pygal 生成，为每个出现过的模型给出一个跨全部日期的 cost_usd 总花费数据点，模型集合与输入中出现的模型集合完全一致。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-daily-cost-chart
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: charts/daily_cost.svg 由 pygal 生成，横轴为升序排列的全部出现日期，每个日期的取值为该天所有模型 cost_usd
+    之和。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-latest-balance
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: index.html 展示的当前余额取输入中最晚日期（并列时按 balance_usd 最小）对应的 balance_usd 值。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-threshold-alert
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 当任一 (date, model) 的 cost_usd 超过默认阈值（每条 10.0000 USD）时，index.html 列出全部超阈值条目及其
+    date、model、cost_usd；无超阈值时明确显示无提醒。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-summary-columns
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: data/summary.csv 首行表头恰为 date,model,cost_usd,balance_usd 四列，数据行按 date
+    升序、同日按 model 升序排列。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1

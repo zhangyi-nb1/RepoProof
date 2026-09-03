@@ -1,0 +1,40 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "public_tests/test_interface_contract.py"
+  ],
+  "collection_manifest_sha256": null,
+  "consumer_fixture_tree_sha256": "cdfff5c37baf138d9dcb2823a3ea44a05bd703390ef8c3447dfbba7199c67ab3",
+  "contract_sha256": "b461e5ab67dc2dabccd10e4a0b400a7902ad59ca8fe6d742db1103068d4ece1d",
+  "controls_summary": null,
+  "environment_constraints": null,
+  "expected_capability_nodes": null,
+  "expected_regression_nodes": null,
+  "held_out_fixture_sha256": "5179a1799c04dd95c98ab3862b480a27e23f5902112b4495e21815ed65b76ebc",
+  "image_digest": null,
+  "oracle_tree_sha256": "3878258220d7001faef4c2c883a985c71d3313e09851db7a7507bbdc0c3c4cdf",
+  "prompt_manifest_sha256": null,
+  "public_examples_sha256": null,
+  "public_fixture_sha256": "de77c99eb2b1362cebe1d0da835e8a877b0181f9c4e0235f65ca7635c13e99b6",
+  "public_tests_tree_sha256": null,
+  "requirement_spec_sha256": null,
+  "responsibility_matrix": null,
+  "root_hash": "cdfccaa9f4ab2309c02a7d5de84d2757e352132f060259e06d6cf96c236cbec1",
+  "source_commit": "278b47b1dedd5b46ee84c286e77cdfb0bf4594be",
+  "source_git_tree_hash": "5cb8508885c135f313b105b9d5ccc9e86e8b8017",
+  "task_id": "tool-python-pptx-tool-v2",
+  "wheelhouse_root": "2434703d382c51dea16a06f1f116aecf5bcef0b26c2b7d9dc9bdb96c963e5222",
+  "wheelhouse_wheels": {
+    "lxml-6.1.2-cp312-cp312-macosx_10_13_universal2.whl": "7d506bdba580ecb1a6ad2e2b5c49445e66d3e1f95894885739094393a1aad237",
+    "pillow-12.3.0-cp312-cp312-macosx_11_0_arm64.whl": "ffd0c5368496f41b0944be820fcb7a838aa6e623d250b01acf2643939c3f99d7",
+    "python_pptx-1.0.2-py3-none-any.whl": "160838e0b8565a8b1f67947675886e9fea18aa5e795db7ae531606d68e785cba",
+    "typing_extensions-4.16.0-py3-none-any.whl": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+    "xlsxwriter-3.2.9-py3-none-any.whl": "9a5db42bc5dff014806c58a20b9eae7322a134abb6fce3c92c181bfb275ec5b3"
+  }
+}

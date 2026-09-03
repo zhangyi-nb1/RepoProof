@@ -1,0 +1,296 @@
+task_id: tool-pygal-tool-v2
+source_repo:
+  url: https://github.com/Kozea/pygal
+  revision: guided
+  resolved_commit: 056424cf548677ee42a1d87166418e9c9772e3da
+  license: 存在但未识别类型
+  distribution: pygal
+  import_module: pygal
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_pygal-tool-v2
+  package: pygal_tool
+  entry_point: pygal-tool
+requirement_spec_file: tool-pygal-tool-v2.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: pygal-tool
+  summary: 用 pygal 把导出的用量/账单 CSV 生成一个离线可打开、按天按模型看花费、显示余额并对超阈值项标注告警的本地 SVG 仪表盘工作区。
+  interface:
+    usage: pygal-tool <input> --out-dir <new-directory>
+    input:
+      kind: file
+      format: 用量/账单 CSV
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: dashboard.py
+      role: 由 build_workspace 写入的非可执行 Python 应用文件，读取 CSV 并用 pygal 生成图表与 HTML
+      media_type: text/x-python
+      validation_profile: python_compile_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: README.md
+      role: 面向用户的使用说明（指示运行 ./run.sh）
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: data/usage.csv
+      role: 随工作区打包的用量/账单 CSV 样本，作为默认输入
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: charts/spend_by_day.svg
+      role: pygal 渲染的按天花费柱状图
+      media_type: image/svg+xml
+      validation_profile: svg_xml_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: charts/spend_by_model.svg
+      role: pygal 渲染的按模型花费柱状图
+      media_type: image/svg+xml
+      validation_profile: svg_xml_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: index.html
+      role: 离线仪表盘概览页：内嵌两张图表链接、余额与超阈值告警表
+      media_type: text/html
+      validation_profile: html_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: summary.csv
+      role: 按天/按模型汇总花费与告警标记的机器可读明细表
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: run.sh
+      role: Harness-owned offline Python launcher
+      media_type: text/x-shellscript
+      validation_profile: shell_v1
+      min_count: 1
+      max_count: 1
+      executable: true
+    - path_pattern: requirements.lock.txt
+      role: Frozen Python dependency lock
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: THIRD_PARTY_NOTICES.md
+      role: Frozen third-party wheel inventory
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: vendor/wheels/*.whl
+      role: Frozen offline Python wheel closure
+      media_type: application/zip
+      validation_profile: wheel_v1
+      min_count: 1
+      max_count: 256
+      executable: false
+    allow_extra_files: false
+    entrypoints:
+    - run.sh
+    runnable: true
+    smoke_command:
+    - ./run.sh
+    smoke_timeout_seconds: 60
+    require_offline_wheelhouse: true
+    runtime_python_entrypoint: dashboard.py
+    limits:
+      max_files: 512
+      max_total_bytes: 268435456
+      max_file_bytes: 67108864
+      max_depth: 4
+      max_path_bytes: 240
+capability:
+  statement: '用户目标：我从 OpenAI 和 Anthropic 后台导出了几份用量/账单 CSV，想要一个本地就能打开、能按天按模型看花了多少、余额还剩多少、超阈值就提醒的仪表盘，以后每次导出新数据重跑一下就更新。
+
+    公开行为承诺：
+
+    - [spend-by-day-chart] charts/spend_by_day.svg 是由 pygal 渲染的柱状图，其 x 轴标签为输入中出现的每个不同日期（按日期升序去重），每个日期对应的柱值等于该日全部记录
+    cost 之和（保留两位小数）。
+
+    - [spend-by-model-chart] charts/spend_by_model.svg 是由 pygal 渲染的柱状图，其 x 轴标签为输入中出现的每个不同模型名（按名称升序去重），每个模型对应的柱值等于该模型全部记录
+    cost 之和（保留两位小数）。
+
+    - [summary-rows] summary.csv 表头为 scope,key,total_cost,alert；先输出所有 scope=day 的行（key
+    为日期，按日期升序），再输出所有 scope=model 的行（key 为模型，按模型名升序）；total_cost 为对应聚合花费保留两位小数。
+
+    - [threshold-alert] 当输入含 threshold 列时，summary.csv 中每个 scope=day 行的 alert 值在该日
+    total_cost 严格大于该日 threshold 时为 OVER，否则为 OK；无 threshold 列时所有 alert 为 NA。scope=model
+    行的 alert 恒为 NA。
+
+    - [balance-latest] 当输入含 balance 列时，index.html 中标记为 id="latest-balance" 的元素文本等于输入中最新日期（按日期升序取最后一个）任一记录的
+    balance 值；无 balance 列时该元素文本为 NA。
+
+    公开产物协议：
+
+    - [day-chart-bars -> spend-by-day-chart] 定位：解析 charts/spend_by_day.svg，读取 x 轴类别标签（升序去重的日期）及各对应柱的数值。；值表示：pygal
+    SVG：x 轴标签为 ISO 日期字符串，柱值为两位小数金额浮点数。
+
+    - [model-chart-bars -> spend-by-model-chart] 定位：解析 charts/spend_by_model.svg，读取
+    x 轴类别标签（升序去重的模型名）及各对应柱的数值。；值表示：pygal SVG：x 轴标签为模型名字符串，柱值为两位小数金额浮点数。
+
+    - [summary-table -> summary-rows,threshold-alert] 定位：用严格 CSV 方言解析 summary.csv，逐行读取列
+    scope,key,total_cost,alert；先 day 分组（key 日期升序）后 model 分组（key 模型升序）。；值表示：CSV 行：scope∈{day,model}；key
+    字符串；total_cost 两位小数金额；alert∈{OK,OVER,NA}。
+
+    - [balance-cell -> balance-latest] 定位：解析 index.html DOM，定位 id="latest-balance"
+    的元素并读取其文本内容。；值表示：文本：两位小数余额金额字符串，或字面量 NA。
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: UsageBillingDashboard
+  intent_contract:
+    schema_version: 1
+    user_goal: 我从 OpenAI 和 Anthropic 后台导出了几份用量/账单 CSV，想要一个本地就能打开、能按天按模型看花了多少、余额还剩多少、超阈值就提醒的仪表盘，以后每次导出新数据重跑一下就更新。
+    user_goal_sha256: aec6f9bb4088ddc1dc0ed63a15de91d0128fcdc852adf919c408274d775850ba
+    commitments:
+    - commitment_id: spend-by-day-chart
+      public_text: charts/spend_by_day.svg 是由 pygal 渲染的柱状图，其 x 轴标签为输入中出现的每个不同日期（按日期升序去重），每个日期对应的柱值等于该日全部记录
+        cost 之和（保留两位小数）。
+      rationale: 用户要求按天看花了多少，日聚合是核心需求，可由输入 CSV 与该 SVG 的标签/数值独立判定。
+      origin: MODEL_PROPOSED
+    - commitment_id: spend-by-model-chart
+      public_text: charts/spend_by_model.svg 是由 pygal 渲染的柱状图，其 x 轴标签为输入中出现的每个不同模型名（按名称升序去重），每个模型对应的柱值等于该模型全部记录
+        cost 之和（保留两位小数）。
+      rationale: 用户要求按模型看花费，模型聚合是核心需求，可由输入与 SVG 独立判定。
+      origin: MODEL_PROPOSED
+    - commitment_id: summary-rows
+      public_text: summary.csv 表头为 scope,key,total_cost,alert；先输出所有 scope=day 的行（key
+        为日期，按日期升序），再输出所有 scope=model 的行（key 为模型，按模型名升序）；total_cost 为对应聚合花费保留两位小数。
+      rationale: 提供机器可读的按天/按模型汇总，供用户重跑对账，可由输入直接推导并逐行核对。
+      origin: MODEL_PROPOSED
+    - commitment_id: threshold-alert
+      public_text: 当输入含 threshold 列时，summary.csv 中每个 scope=day 行的 alert 值在该日 total_cost
+        严格大于该日 threshold 时为 OVER，否则为 OK；无 threshold 列时所有 alert 为 NA。scope=model 行的
+        alert 恒为 NA。
+      rationale: 用户要求超阈值就提醒，告警判定是核心需求，可由输入阈值与聚合花费独立判定。
+      origin: MODEL_PROPOSED
+    - commitment_id: balance-latest
+      public_text: 当输入含 balance 列时，index.html 中标记为 id="latest-balance" 的元素文本等于输入中最新日期（按日期升序取最后一个）任一记录的
+        balance 值；无 balance 列时该元素文本为 NA。
+      rationale: 用户要求看余额还剩多少，最新余额展示是核心需求，可由输入 CSV 与页面文本独立判定。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: usage-billing-dashboard
+      observations:
+      - observation_id: day-chart-bars
+        commitment_ids:
+        - spend-by-day-chart
+        locator: 解析 charts/spend_by_day.svg，读取 x 轴类别标签（升序去重的日期）及各对应柱的数值。
+        value_encoding: pygal SVG：x 轴标签为 ISO 日期字符串，柱值为两位小数金额浮点数。
+      - observation_id: model-chart-bars
+        commitment_ids:
+        - spend-by-model-chart
+        locator: 解析 charts/spend_by_model.svg，读取 x 轴类别标签（升序去重的模型名）及各对应柱的数值。
+        value_encoding: pygal SVG：x 轴标签为模型名字符串，柱值为两位小数金额浮点数。
+      - observation_id: summary-table
+        commitment_ids:
+        - summary-rows
+        - threshold-alert
+        locator: 用严格 CSV 方言解析 summary.csv，逐行读取列 scope,key,total_cost,alert；先 day 分组（key
+          日期升序）后 model 分组（key 模型升序）。
+        value_encoding: CSV 行：scope∈{day,model}；key 字符串；total_cost 两位小数金额；alert∈{OK,OVER,NA}。
+      - observation_id: balance-cell
+        commitment_ids:
+        - balance-latest
+        locator: 解析 index.html DOM，定位 id="latest-balance" 的元素并读取其文本内容。
+        value_encoding: 文本：两位小数余额金额字符串，或字面量 NA。
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: file
+          location: local
+          representation: utf8_text
+          format_label: 用量/账单 CSV
+          role: 用户从 OpenAI/Anthropic 后台导出的用量或账单 CSV（含日期、模型、花费金额，以及可选的余额/阈值信息）
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: 离线仪表盘工作区：包含由 pygal 渲染的按天与按模型花费 SVG 图表、含余额与超阈值告警标注的 HTML 概览页面，用户重跑即可更新
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-03T04:05:16.560007Z'
+      semantics_sha256: a7aeb1e131e55c742dff88aa691e216fa092127b57b6700326a0f1532f0e5636
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: pygal-tool-workspace-semantic-v1
+    source_file: oracle/tool-pygal-tool-v2/semantic_verifier.py
+    source_sha256: dd86e5827d4e39abf631c7e74d473f26a2c2b880a2a9aec1a0c2ffebe4e6d3af
+    required_for_operational_active: true

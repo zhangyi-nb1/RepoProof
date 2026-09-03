@@ -1,0 +1,288 @@
+task_id: tool-icalendar-tool-v1
+source_repo:
+  url: https://github.com/collective/icalendar
+  revision: guided
+  resolved_commit: 138c8453db34fbb584bbcbc592fd7bd4b972e8ef
+  license: BSD-2-Clause
+  distribution: icalendar
+  import_module: icalendar
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_icalendar-tool
+  package: icalendar_tool
+  entry_point: icalendar-tool
+requirement_spec_file: tool-icalendar-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: icalendar-tool
+  summary: 把排班表和课程表两份 CSV 合并成一个离线工作区：生成可导入手机日历的 ICS、可打印的周视图 HTML 以及一份时间冲突清单。
+  interface:
+    usage: icalendar-tool <input> --out-dir <new-directory>
+    input:
+      kind: directory
+      format: 含排班表与课程表两份 CSV 的目录
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: generate.py
+      role: 从工作区内示例 CSV 生成日历/周视图/冲突清单的 Python 应用文件
+      media_type: text/x-python
+      validation_profile: python_compile_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: README.md
+      role: 面向用户的使用说明，指导以 ./run.sh 运行
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: input/shifts.csv
+      role: 随工作区交付的排班表示例 CSV，供冒烟运行使用
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: input/courses.csv
+      role: 随工作区交付的课程表示例 CSV，供冒烟运行使用
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: output/schedule.ics
+      role: 可导入手机日历的 iCalendar 文件
+      media_type: text/calendar
+      validation_profile: ics_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: output/week_view.html
+      role: 可打印的周视图 HTML 报告
+      media_type: text/html
+      validation_profile: html_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: output/conflicts.txt
+      role: 时间冲突清单文本
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: run.sh
+      role: Harness-owned offline Python launcher
+      media_type: text/x-shellscript
+      validation_profile: shell_v1
+      min_count: 1
+      max_count: 1
+      executable: true
+    - path_pattern: requirements.lock.txt
+      role: Frozen Python dependency lock
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: THIRD_PARTY_NOTICES.md
+      role: Frozen third-party wheel inventory
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: vendor/wheels/*.whl
+      role: Frozen offline Python wheel closure
+      media_type: application/zip
+      validation_profile: wheel_v1
+      min_count: 1
+      max_count: 256
+      executable: false
+    allow_extra_files: false
+    entrypoints:
+    - run.sh
+    runnable: true
+    smoke_command:
+    - ./run.sh
+    smoke_timeout_seconds: 60
+    require_offline_wheelhouse: true
+    runtime_python_entrypoint: generate.py
+    limits:
+      max_files: 512
+      max_total_bytes: 268435456
+      max_file_bytes: 67108864
+      max_depth: 4
+      max_path_bytes: 240
+capability:
+  statement: '用户目标：排班表和课程表都是 CSV，我想导入手机日历，同时要一张能打印的周视图和一份冲突清单。
+
+    公开行为承诺：
+
+    - [ics-one-event-per-row] 交付的 output/schedule.ics 是一个用 icalendar 可解析的 VCALENDAR，其中每一条
+    VEVENT 恰好对应输入两份 CSV 的一行数据行，事件总数等于两份 CSV 数据行数之和。
+
+    - [ics-event-fields] 每个 VEVENT 的 SUMMARY 等于对应 CSV 行的 title；DTSTART 与 DTEND 由该行的
+    date 加 start/end 构成，且 DTEND 晚于 DTSTART；LOCATION 等于该行的 location。
+
+    - [weekview-covers-all-events] output/week_view.html 解析后包含每一条事件的 title 与时间文本，且事件按
+    (date, start) 升序呈现，覆盖 ICS 中的全部事件。
+
+    - [conflicts-list-overlaps] output/conflicts.txt 列出所有在同一日期上时间区间相互重叠的事件对（半开区间 [start,end)
+    判定），每对一行且按 (date, start) 升序排列；无重叠时该文件不含任何冲突行。
+
+    公开产物协议：
+
+    - [ics-vevent-count -> ics-one-event-per-row] 定位：用 icalendar.Calendar.from_ical
+    解析 output/schedule.ics，统计 walk(''VEVENT'') 返回的组件数量。；值表示：非负整数，等于两份输入 CSV 数据行数之和。
+
+    - [ics-vevent-fields -> ics-event-fields] 定位：对每个 VEVENT 组件读取 SUMMARY、LOCATION
+    的字符串值，以及 DTSTART、DTEND 的 .dt 值。；值表示：每事件一组字段：SUMMARY 与 LOCATION 为字符串，DTSTART/DTEND
+    为 datetime，DTEND 严格大于 DTSTART。
+
+    - [weekview-event-rows -> weekview-covers-all-events] 定位：将 output/week_view.html
+    解析为 DOM，按文档顺序读取 class 为 ''event'' 的元素的文本内容。；值表示：字符串序列，每项含事件 title 与 ''HH:MM-HH:MM''
+    时间文本；序列按 (date,start) 升序且与 ICS 事件集合一一对应。
+
+    - [conflict-lines -> conflicts-list-overlaps] 定位：逐行读取 output/conflicts.txt，忽略以
+    ''#'' 开头的表头/注释行，其余非空行即为冲突行。；值表示：零到多行，每行描述同一日期上一对重叠事件；行集合按 (date,start) 升序，且恰好等于全部重叠事件对。
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: ScheduleCalendarWorkspace
+  intent_contract:
+    schema_version: 1
+    user_goal: 排班表和课程表都是 CSV，我想导入手机日历，同时要一张能打印的周视图和一份冲突清单。
+    user_goal_sha256: cb36f2d4ed3766f0c23a091ee29c4d7875157aa45b4faabf1538d852cdaa7d7d
+    commitments:
+    - commitment_id: ics-one-event-per-row
+      public_text: 交付的 output/schedule.ics 是一个用 icalendar 可解析的 VCALENDAR，其中每一条 VEVENT
+        恰好对应输入两份 CSV 的一行数据行，事件总数等于两份 CSV 数据行数之和。
+      rationale: 用户要把两份 CSV 合并导入手机日历，事件条目必须与源数据行一一对应。
+      origin: MODEL_PROPOSED
+    - commitment_id: ics-event-fields
+      public_text: 每个 VEVENT 的 SUMMARY 等于对应 CSV 行的 title；DTSTART 与 DTEND 由该行的 date
+        加 start/end 构成，且 DTEND 晚于 DTSTART；LOCATION 等于该行的 location。
+      rationale: 日历事件的标题、起止时间与地点必须忠实还原源 CSV，否则导入后信息错乱。
+      origin: MODEL_PROPOSED
+    - commitment_id: weekview-covers-all-events
+      public_text: output/week_view.html 解析后包含每一条事件的 title 与时间文本，且事件按 (date, start)
+        升序呈现，覆盖 ICS 中的全部事件。
+      rationale: 用户要求一张能打印的周视图，需完整、有序地展示所有安排。
+      origin: MODEL_PROPOSED
+    - commitment_id: conflicts-list-overlaps
+      public_text: output/conflicts.txt 列出所有在同一日期上时间区间相互重叠的事件对（半开区间 [start,end) 判定），每对一行且按
+        (date, start) 升序排列；无重叠时该文件不含任何冲突行。
+      rationale: 用户明确要一份冲突清单，冲突判定与排序必须可从输入独立复核。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: schedule-calendar-workspace
+      observations:
+      - observation_id: ics-vevent-count
+        commitment_ids:
+        - ics-one-event-per-row
+        locator: 用 icalendar.Calendar.from_ical 解析 output/schedule.ics，统计 walk('VEVENT')
+          返回的组件数量。
+        value_encoding: 非负整数，等于两份输入 CSV 数据行数之和。
+      - observation_id: ics-vevent-fields
+        commitment_ids:
+        - ics-event-fields
+        locator: 对每个 VEVENT 组件读取 SUMMARY、LOCATION 的字符串值，以及 DTSTART、DTEND 的 .dt 值。
+        value_encoding: 每事件一组字段：SUMMARY 与 LOCATION 为字符串，DTSTART/DTEND 为 datetime，DTEND
+          严格大于 DTSTART。
+      - observation_id: weekview-event-rows
+        commitment_ids:
+        - weekview-covers-all-events
+        locator: 将 output/week_view.html 解析为 DOM，按文档顺序读取 class 为 'event' 的元素的文本内容。
+        value_encoding: 字符串序列，每项含事件 title 与 'HH:MM-HH:MM' 时间文本；序列按 (date,start) 升序且与
+          ICS 事件集合一一对应。
+      - observation_id: conflict-lines
+        commitment_ids:
+        - conflicts-list-overlaps
+        locator: 逐行读取 output/conflicts.txt，忽略以 '#' 开头的表头/注释行，其余非空行即为冲突行。
+        value_encoding: 零到多行，每行描述同一日期上一对重叠事件；行集合按 (date,start) 升序，且恰好等于全部重叠事件对。
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: directory
+          location: local
+          representation: utf8_text
+          format_label: 含排班表与课程表两份 CSV 的目录
+          role: 一个本地目录，内含 shifts.csv（排班表）与 courses.csv（课程表）两份 CSV，作为待转换的时间安排数据源
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: 一个离线工作区，包含可导入手机日历的 .ics 文件、可打印的周视图 HTML 以及一份时间冲突清单文本
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-02T22:20:01.839435Z'
+      semantics_sha256: 770e103ac59ccba6f0933a27d22295b18b2b861986ff939e6e1e2997095683c2
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: icalendar-tool-workspace-semantic-v1
+    source_file: oracle/tool-icalendar-tool-v1/semantic_verifier.py
+    source_sha256: ceb2d2172aaccd0cfee5ab3be73ec7449ab19abc0d113adb6fd4056c1d4cb7f2
+    required_for_operational_active: true

@@ -1,0 +1,46 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "public_tests/test_interface_contract.py"
+  ],
+  "collection_manifest_sha256": null,
+  "consumer_fixture_tree_sha256": "8bf76315109ec9f67b12def2db1d012ec75633c426ad48680af954045fd7e7d1",
+  "contract_sha256": "2ee793b183e8b3a75b847f460fb62718aa7f707e5b45626215bcd3fc6a0a8c8e",
+  "controls_summary": null,
+  "environment_constraints": null,
+  "expected_capability_nodes": null,
+  "expected_regression_nodes": null,
+  "held_out_fixture_sha256": "1f53ae13b8d2f9ac1d34dfffc6975bcbb08f0b195c617a99b0b0724f505c697d",
+  "image_digest": null,
+  "oracle_tree_sha256": "b22f102aacd333df58064c8a8d18e2483325f1a2e5d4919c9d665c86b58824c2",
+  "prompt_manifest_sha256": null,
+  "public_examples_sha256": null,
+  "public_fixture_sha256": "235bc6112a62a940e49df666c388321a1741fa4aea4479c845ed444bba3f8be2",
+  "public_tests_tree_sha256": null,
+  "requirement_spec_sha256": null,
+  "responsibility_matrix": null,
+  "root_hash": "12c7394cd02121a4c960dcc6a3f49ed5ced5362bdf5c9361aa58e451b56c5884",
+  "source_commit": "75f819f5b60bc6ffc72145c364132efe5b3c4b35",
+  "source_git_tree_hash": "92cd9d7149fe06a6c35ed723f19d0b2054fefdc2",
+  "task_id": "tool-nbformat-tool-v1",
+  "wheelhouse_root": "048ea12078b0db4597f90a4001a0f6015776df9206a2e09a40e66eb33b56718d",
+  "wheelhouse_wheels": {
+    "attrs-26.1.0-py3-none-any.whl": "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309",
+    "fastjsonschema-2.22.2-py3-none-any.whl": "0fb3915616adac85ccfdd737d26be1089845d2019819505b42d39888458f74d4",
+    "jsonschema-4.26.0-py3-none-any.whl": "d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce",
+    "jsonschema_specifications-2025.9.1-py3-none-any.whl": "98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe",
+    "jupyter_core-5.9.1-py3-none-any.whl": "ebf87fdc6073d142e114c72c9e29a9d7ca03fad818c5d300ce2adc1fb0743407",
+    "nbformat-5.11.1-py3-none-any.whl": "cc6698fa75f4fab8755ead786317815f13a6fee3b53311c0abb1a8b51d52f7ec",
+    "platformdirs-4.11.7-py3-none-any.whl": "8a02cb259042c79d1cd0450facc2fe6dc9d303ae7901afbe33bf8ea0b188cef6",
+    "referencing-0.37.0-py3-none-any.whl": "381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231",
+    "rpds_py-2026.6.3-cp312-cp312-macosx_11_0_arm64.whl": "538949e262e46caa31ac01bdb3c1e8f642622922cacbabbae6a8445d9dc33eaf",
+    "traitlets-5.16.1-py3-none-any.whl": "f775618166caa0396c8e337099240f2bd3e5e917d203b2e6fbe21a58d3cb1f6b",
+    "typing_extensions-4.16.0-py3-none-any.whl": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+  }
+}

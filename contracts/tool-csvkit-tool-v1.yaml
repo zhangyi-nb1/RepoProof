@@ -1,0 +1,267 @@
+task_id: tool-csvkit-tool-v1
+source_repo:
+  url: https://github.com/wireservice/csvkit
+  revision: guided
+  resolved_commit: bdd6e7e25b52cb52073c1a19dd0210cd85894871
+  license: MIT
+  distribution: csvkit
+  import_module: csvkit
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_csvkit-tool
+  package: csvkit_tool
+  entry_point: csvkit-tool
+requirement_spec_file: tool-csvkit-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: csvkit-tool
+  summary: 将同事提供的采购、报销和分类 CSV 表整理为可追溯汇总表、源表清单和交接说明的离线文件夹。
+  interface:
+    usage: csvkit-tool <input> --out-dir <new-directory>
+    input:
+      kind: directory
+      format: 包含采购、报销和分类 CSV 表格的本地目录
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: app.py
+      role: 用户通过运行脚本启动的 Python 说明程序
+      media_type: text/x-python
+      validation_profile: python_compile_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: reconciliation.csv
+      role: 可追溯的统一核对表
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: source-inventory.csv
+      role: 已处理源表的清单
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: HANDOFF.md
+      role: 继续核对与交接说明
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: run.sh
+      role: Core 提供的唯一用户启动入口
+      media_type: text/x-shellscript
+      validation_profile: shell_v1
+      min_count: 1
+      max_count: 1
+      executable: true
+    - path_pattern: requirements.lock.txt
+      role: Core 提供的离线运行时锁定清单
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: THIRD_PARTY_NOTICES.md
+      role: Core 提供的第三方声明
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: vendor/wheels/*.whl
+      role: Core 提供的离线 Python wheelhouse
+      media_type: application/octet-stream
+      validation_profile: wheel_v1
+      min_count: 1
+      max_count: 32
+      executable: false
+    allow_extra_files: false
+    entrypoints:
+    - run.sh
+    runnable: true
+    smoke_command:
+    - ./run.sh
+    - --help
+    smoke_timeout_seconds: 15
+    require_offline_wheelhouse: true
+    runtime_python_entrypoint: app.py
+    limits:
+      max_files: 512
+      max_total_bytes: 268435456
+      max_file_bytes: 67108864
+      max_depth: 3
+      max_path_bytes: 240
+capability:
+  statement: '用户目标：采购、报销和分类表来自不同同事，想整理成能继续核对和交接的文件夹。
+
+    公开行为承诺：
+
+    - [source-csv-discovery] 工作区只纳入输入目录顶层、扩展名为 .csv（不区分大小写）的普通文件；按文件名 Unicode 码点顺序处理。
+
+    - [source-inventory] source-inventory.csv 为每个已纳入源 CSV 生成一行，列出文件名、数据记录数，以及以 JSON
+    字符串编码的原始表头数组。
+
+    - [consolidated-records] reconciliation.csv 的表头固定以 source_file、source_record 开始，随后按已处理文件顺序首次出现的顺序列出所有不同的源表头；每个源数据记录恰生成一行，保留同名源列的文本值，缺少的列填空字符串。
+
+    - [handoff-guide] HANDOFF.md 必须包含“继续核对”和“交接说明”二级标题，说明统一核对表、来源追溯列、源表清单以及通过 ./run.sh
+    使用工作区。
+
+    公开产物协议：
+
+    - [source-inventory-table -> source-csv-discovery,source-inventory] 定位：在 delivered
+    workspace 的 source-inventory.csv 中，使用严格 CSV 解析；首行必须依次为 filename、data_rows、headers，随后每行对应一个已处理的源
+    CSV 文件。；值表示：UTF-8 strict CSV table. filename is a relative filename string; data_rows
+    is a base-10 nonnegative integer; headers is one CSV cell containing a JSON array
+    of strings.
+
+    - [consolidated-ledger-table -> consolidated-records] 定位：在 delivered workspace
+    的 reconciliation.csv 中，使用严格 CSV 解析；首两列必须依次为 source_file、source_record，余下列为合并后的源表列。；值表示：UTF-8
+    strict CSV table. source_file is a relative filename string; source_record is
+    a base-10 positive integer denoting the one-based data-record position within
+    that source; all remaining cells are UTF-8 text values from the correspondingly
+    named source column.
+
+    - [handoff-guide-sections -> handoff-guide] 定位：在 delivered workspace 的 HANDOFF.md
+    中，查找二级标题“继续核对”和“交接说明”及其后的段落。；值表示：UTF-8 Markdown document with ATX level-two headings
+    followed by UTF-8 paragraph text.
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: FinanceReconciliationWorkspace
+  intent_contract:
+    schema_version: 1
+    user_goal: 采购、报销和分类表来自不同同事，想整理成能继续核对和交接的文件夹。
+    user_goal_sha256: d3fb71a05aea1f5effae67ed74b2e5ac75b91d14433352f77eb352384be43734
+    commitments:
+    - commitment_id: source-csv-discovery
+      public_text: 工作区只纳入输入目录顶层、扩展名为 .csv（不区分大小写）的普通文件；按文件名 Unicode 码点顺序处理。
+      rationale: 明确哪些同事提供的表会进入交接包，并使来源顺序可复核。
+      origin: MODEL_PROPOSED
+    - commitment_id: source-inventory
+      public_text: source-inventory.csv 为每个已纳入源 CSV 生成一行，列出文件名、数据记录数，以及以 JSON 字符串编码的原始表头数组。
+      rationale: 交接人可以核实哪些表已被处理及其结构。
+      origin: MODEL_PROPOSED
+    - commitment_id: consolidated-records
+      public_text: reconciliation.csv 的表头固定以 source_file、source_record 开始，随后按已处理文件顺序首次出现的顺序列出所有不同的源表头；每个源数据记录恰生成一行，保留同名源列的文本值，缺少的列填空字符串。
+      rationale: 形成可继续核对的统一表，同时可用来源文件和一基数据记录序号回查。
+      origin: MODEL_PROPOSED
+    - commitment_id: handoff-guide
+      public_text: HANDOFF.md 必须包含“继续核对”和“交接说明”二级标题，说明统一核对表、来源追溯列、源表清单以及通过 ./run.sh
+        使用工作区。
+      rationale: 让接手同事无需猜测文件用途即可继续核对。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: finance-reconciliation-workspace
+      observations:
+      - observation_id: source-inventory-table
+        commitment_ids:
+        - source-csv-discovery
+        - source-inventory
+        locator: 在 delivered workspace 的 source-inventory.csv 中，使用严格 CSV 解析；首行必须依次为
+          filename、data_rows、headers，随后每行对应一个已处理的源 CSV 文件。
+        value_encoding: UTF-8 strict CSV table. filename is a relative filename string;
+          data_rows is a base-10 nonnegative integer; headers is one CSV cell containing
+          a JSON array of strings.
+      - observation_id: consolidated-ledger-table
+        commitment_ids:
+        - consolidated-records
+        locator: 在 delivered workspace 的 reconciliation.csv 中，使用严格 CSV 解析；首两列必须依次为
+          source_file、source_record，余下列为合并后的源表列。
+        value_encoding: UTF-8 strict CSV table. source_file is a relative filename
+          string; source_record is a base-10 positive integer denoting the one-based
+          data-record position within that source; all remaining cells are UTF-8 text
+          values from the correspondingly named source column.
+      - observation_id: handoff-guide-sections
+        commitment_ids:
+        - handoff-guide
+        locator: 在 delivered workspace 的 HANDOFF.md 中，查找二级标题“继续核对”和“交接说明”及其后的段落。
+        value_encoding: UTF-8 Markdown document with ATX level-two headings followed
+          by UTF-8 paragraph text.
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: directory
+          location: local
+          representation: utf8_text
+          format_label: 包含采购、报销和分类 CSV 表格的本地目录
+          role: 待汇总并交接的源表集合
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: 包含汇总核对表、源表清单和交接说明的文件夹
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-01T17:34:41.825985Z'
+      semantics_sha256: 16a81942d71690ea5498db523c23426d7cf313083b6ddcee6e3e8f861ed4b593
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: csvkit-tool-workspace-semantic-v1
+    source_file: oracle/tool-csvkit-tool-v1/semantic_verifier.py
+    source_sha256: 829de1045c561ab5e36522d86c1e7e07458eb2fcd4c45213a7875cc6eb2e1a40
+    required_for_operational_active: true

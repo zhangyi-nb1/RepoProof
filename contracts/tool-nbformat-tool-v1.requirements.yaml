@@ -1,0 +1,89 @@
+task_id: tool-nbformat-tool-v1
+controls:
+  positive: controls/tool-nbformat-tool-v1/positive
+  negatives:
+  - path: controls/tool-nbformat-tool-v1/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-nbformat-tool-v1/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - mixed-analysis-materials
+  - nested-materials
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - nbformat-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-source-file-sequence
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 递归收集输入目录中的每个常规文件，以相对 POSIX 路径的字典序排列；规范笔记本的单元格 provenance 和纯文本审阅稿的记录均按该顺序一一对应这些文件。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:nbformat-tool-workspace-semantic-v1
+- id: intent-python-code-cells
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每个 .py 文件成为一个代码单元格，单元格 metadata.source_path 为其相对路径，且代码单元格 source 完整保留该文件的
+    UTF-8 文本。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:nbformat-tool-workspace-semantic-v1
+- id: intent-markdown-source-cells
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每个 .md 文件成为一个 Markdown 单元格，单元格 metadata.source_path 为其相对路径，且 Markdown
+    单元格 source 完整保留该文件的 UTF-8 文本。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:nbformat-tool-workspace-semantic-v1
+- id: intent-text-material-cells
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每个既非 .py 也非 .md 的文本文件成为一个 Markdown 单元格，metadata.source_path 为其相对路径；该单元格以三级路径标题和
+    tilde 围栏展示完整原文，围栏长度至少为四且长于原文中任何连续波浪号。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:nbformat-tool-workspace-semantic-v1
+- id: intent-review-records
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: review.txt 以 ANALYSIS REVIEW 标题开头，并为每个输入文件生成一个按路径排序的长度定界记录；记录声明 JSON
+    路径、材料类型、原文 UTF-8 字节数，并保留完整原文。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:nbformat-tool-workspace-semantic-v1

@@ -1,0 +1,313 @@
+task_id: tool-pillow-tool-v1
+source_repo:
+  url: https://github.com/python-pillow/Pillow
+  revision: guided
+  resolved_commit: bb1d8e8ab8d29048624d96e3ee53cecf7c13d13d
+  license: 存在但未识别类型
+  distribution: pillow
+  import_module: PIL
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_pillow-tool
+  package: pillow_tool
+  entry_point: pillow-tool
+requirement_spec_file: tool-pillow-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: pillow-tool
+  summary: 将实验照片文件夹制作为含缩略图、总览拼图、拍摄信息 CSV 和离线索引页的本地工作区。
+  interface:
+    usage: pillow-tool <input> --out-dir <new-directory>
+    input:
+      kind: directory
+      format: 包含实验照片的本地文件夹
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: index.html
+      role: 离线照片索引页
+      media_type: text/html
+      validation_profile: html_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: metadata.csv
+      role: 图片元数据表
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: montage.png
+      role: 照片总览拼图
+      media_type: image/png
+      validation_profile: png_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: thumbnails/*.png
+      role: 逐图缩略图
+      media_type: image/png
+      validation_profile: png_v1
+      min_count: 1
+      max_count: 100
+      executable: false
+    - path_pattern: app.py
+      role: 本地目录服务应用
+      media_type: text/x-python
+      validation_profile: python_compile_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: run.sh
+      role: Core 管理的工作区启动器
+      media_type: text/x-shellscript
+      validation_profile: shell_v1
+      min_count: 1
+      max_count: 1
+      executable: true
+    - path_pattern: requirements.lock.txt
+      role: Core 管理的锁定依赖清单
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: THIRD_PARTY_NOTICES.md
+      role: Core 管理的第三方声明
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: vendor/wheels/*.whl
+      role: Core 管理的离线 Python 轮子
+      media_type: application/zip
+      validation_profile: wheel_v1
+      min_count: 0
+      max_count: 100
+      executable: false
+    allow_extra_files: false
+    entrypoints:
+    - run.sh
+    runnable: true
+    smoke_command:
+    - ./run.sh
+    - --help
+    smoke_timeout_seconds: 20
+    require_offline_wheelhouse: true
+    runtime_python_entrypoint: app.py
+    limits:
+      max_files: 512
+      max_total_bytes: 268435456
+      max_file_bytes: 67108864
+      max_depth: 8
+      max_path_bytes: 240
+capability:
+  statement: '用户目标：一个文件夹里几百张实验照片，我想要缩略图、一张总览拼图、每张图的尺寸和拍摄信息表，还要一个能离线翻看的索引页。
+
+    公开行为承诺：
+
+    - [catalog-image-selection] 工作区会递归检查输入文件夹中的普通文件；只有能由 Pillow 成功打开并加载的图片会进入目录，按其相对路径的
+    Unicode 代码点升序排列；如果没有这样的图片则不生成有效目录。
+
+    - [image-metadata-table] metadata.csv 对每张目录图片恰有一行，依次提供相对路径、Pillow 像素宽高、Pillow
+    格式名，以及 EXIF DateTimeOriginal、Make、Model、Orientation；缺失的 EXIF 值为空。
+
+    - [thumbnail-generation] 每张目录图片生成一个本地 PNG 缩略图；缩略图保持原始宽高比，最长边不超过 256 像素，并由 metadata.csv
+    的 thumbnail_path 唯一关联。
+
+    - [overview-montage] montage.png 使用所有目录缩略图，按目录行顺序从左至右、从上至下排列，每行最多四张。
+
+    - [offline-index-page] index.html 是无需网络和脚本即可打开的索引页，显示 montage.png，并以与 metadata.csv
+    相同的列顺序和行顺序列出图片信息及其本地缩略图。
+
+    公开产物协议：
+
+    - [catalog-rows -> catalog-image-selection,image-metadata-table] 定位：/metadata.csv:
+    parse as strict CSV; each data row represents one catalogued image and the header
+    row names its fields；值表示：UTF-8 CSV with exactly these ordered header cells: relative_path,width_px,height_px,format,captured_at,camera_make,camera_model,orientation,thumbnail_path;
+    one data row per catalogued image, ordered by relative_path in Unicode code-point
+    ascending order.
+
+    - [image-properties -> image-metadata-table] 定位：/metadata.csv: fields width_px,
+    height_px, format, captured_at, camera_make, camera_model, and orientation in
+    every data row；值表示：width_px and height_px are unsigned decimal integers; format,
+    captured_at, camera_make, camera_model, and orientation are UTF-8 text fields,
+    with an empty field denoting unavailable source metadata.
+
+    - [thumbnail-mapping -> thumbnail-generation] 定位：/metadata.csv: thumbnail_path
+    field in every data row, resolving relative to the workspace root；值表示：Each value
+    has the syntax thumbnails/ followed by a five-digit, zero-padded positive row
+    ordinal and the suffix .png; the referenced file is a PNG thumbnail for that row''s
+    source image.
+
+    - [montage-image -> overview-montage] 定位：/montage.png and /index.html: the img
+    element whose id is montage has src exactly montage.png；值表示：PNG raster image;
+    its tiles are the catalogued thumbnails in catalog-row order, laid out left-to-right
+    then top-to-bottom in no more than four columns.
+
+    - [index-page -> offline-index-page] 定位：/index.html: the table element whose id
+    is image-index, plus the img element whose id is montage；值表示：UTF-8 HTML containing
+    no script or external-resource URL; image-index has the same ordered column names
+    and one body row per metadata.csv data row, and each body row embeds the row''s
+    local thumbnail_path.
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: WorkspaceBundleV1
+  intent_contract:
+    schema_version: 1
+    user_goal: 一个文件夹里几百张实验照片，我想要缩略图、一张总览拼图、每张图的尺寸和拍摄信息表，还要一个能离线翻看的索引页。
+    user_goal_sha256: dc37427e13fc88714e088651642098ff7046d9ada5989dcbf1b7c1c274927ce7
+    commitments:
+    - commitment_id: catalog-image-selection
+      public_text: 工作区会递归检查输入文件夹中的普通文件；只有能由 Pillow 成功打开并加载的图片会进入目录，按其相对路径的 Unicode
+        代码点升序排列；如果没有这样的图片则不生成有效目录。
+      rationale: 明确照片集合的范围、排序和非图片旁注的处理方式。
+      origin: MODEL_PROPOSED
+    - commitment_id: image-metadata-table
+      public_text: metadata.csv 对每张目录图片恰有一行，依次提供相对路径、Pillow 像素宽高、Pillow 格式名，以及 EXIF
+        DateTimeOriginal、Make、Model、Orientation；缺失的 EXIF 值为空。
+      rationale: 提供用户要求的尺寸和拍摄信息表，并规定字段来源。
+      origin: MODEL_PROPOSED
+    - commitment_id: thumbnail-generation
+      public_text: 每张目录图片生成一个本地 PNG 缩略图；缩略图保持原始宽高比，最长边不超过 256 像素，并由 metadata.csv 的
+        thumbnail_path 唯一关联。
+      rationale: 让每张图片都可在离线索引中快速浏览。
+      origin: MODEL_PROPOSED
+    - commitment_id: overview-montage
+      public_text: montage.png 使用所有目录缩略图，按目录行顺序从左至右、从上至下排列，每行最多四张。
+      rationale: 生成一张可快速总览整个实验照片集的拼图。
+      origin: MODEL_PROPOSED
+    - commitment_id: offline-index-page
+      public_text: index.html 是无需网络和脚本即可打开的索引页，显示 montage.png，并以与 metadata.csv 相同的列顺序和行顺序列出图片信息及其本地缩略图。
+      rationale: 提供可离线翻看的总览和逐图索引。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: offline-photo-catalog-v1
+      observations:
+      - observation_id: catalog-rows
+        commitment_ids:
+        - catalog-image-selection
+        - image-metadata-table
+        locator: '/metadata.csv: parse as strict CSV; each data row represents one
+          catalogued image and the header row names its fields'
+        value_encoding: 'UTF-8 CSV with exactly these ordered header cells: relative_path,width_px,height_px,format,captured_at,camera_make,camera_model,orientation,thumbnail_path;
+          one data row per catalogued image, ordered by relative_path in Unicode code-point
+          ascending order.'
+      - observation_id: image-properties
+        commitment_ids:
+        - image-metadata-table
+        locator: '/metadata.csv: fields width_px, height_px, format, captured_at,
+          camera_make, camera_model, and orientation in every data row'
+        value_encoding: width_px and height_px are unsigned decimal integers; format,
+          captured_at, camera_make, camera_model, and orientation are UTF-8 text fields,
+          with an empty field denoting unavailable source metadata.
+      - observation_id: thumbnail-mapping
+        commitment_ids:
+        - thumbnail-generation
+        locator: '/metadata.csv: thumbnail_path field in every data row, resolving
+          relative to the workspace root'
+        value_encoding: Each value has the syntax thumbnails/ followed by a five-digit,
+          zero-padded positive row ordinal and the suffix .png; the referenced file
+          is a PNG thumbnail for that row's source image.
+      - observation_id: montage-image
+        commitment_ids:
+        - overview-montage
+        locator: '/montage.png and /index.html: the img element whose id is montage
+          has src exactly montage.png'
+        value_encoding: PNG raster image; its tiles are the catalogued thumbnails
+          in catalog-row order, laid out left-to-right then top-to-bottom in no more
+          than four columns.
+      - observation_id: index-page
+        commitment_ids:
+        - offline-index-page
+        locator: '/index.html: the table element whose id is image-index, plus the
+          img element whose id is montage'
+        value_encoding: UTF-8 HTML containing no script or external-resource URL;
+          image-index has the same ordered column names and one body row per metadata.csv
+          data row, and each body row embeds the row's local thumbnail_path.
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: directory
+          location: local
+          representation: binary
+          format_label: 包含实验照片的本地文件夹
+          role: 待整理的照片集合
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: 包含缩略图、总览拼图、元数据表和离线索引页的照片目录
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-02T04:05:36.673272Z'
+      semantics_sha256: f70738c147bc6089390a368c82e6bd55c7a2cd04fae5b5281426e15096aaa5f7
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: pillow-tool-workspace-semantic-v1
+    source_file: oracle/tool-pillow-tool-v1/semantic_verifier.py
+    source_sha256: 5338b425df0e478bfab9cafd9bc4043c27ad50313e55440374e6b16d9bd75b8a
+    required_for_operational_active: true

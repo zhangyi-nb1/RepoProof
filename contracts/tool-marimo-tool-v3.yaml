@@ -1,0 +1,292 @@
+task_id: tool-marimo-tool-v3
+source_repo:
+  url: https://github.com/marimo-team/marimo
+  revision: guided
+  resolved_commit: 854f7f2910b4bb4b6aebe650efc1f83ad40d9bef
+  license: Apache-2.0
+  distribution: marimo
+  import_module: marimo
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_marimo-tool-v3
+  package: marimo_tool
+  entry_point: marimo-tool
+requirement_spec_file: tool-marimo-tool-v3.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: marimo-tool
+  summary: 将实验 CSV 和初步分析想法整理为可离线启动、可修改参数、可交接的 marimo 分析工作区。
+  interface:
+    usage: marimo-tool <input> --out-dir <new-directory>
+    input:
+      kind: directory
+      format: 包含一份 UTF-8 CSV 实验表和一份 UTF-8 分析想法文本的本地目录
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: analysis.py
+      role: editable marimo analysis application
+      media_type: text/x-python
+      validation_profile: python_compile_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: README.md
+      role: user-facing handover instructions
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: analysis_notes.md
+      role: preserved initial analysis idea
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: data/source.csv
+      role: preserved experimental table
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: run.sh
+      role: Core-owned workspace launcher
+      media_type: text/x-shellscript
+      validation_profile: shell_v1
+      min_count: 1
+      max_count: 1
+      executable: true
+    - path_pattern: requirements.lock.txt
+      role: Core-owned locked runtime requirements
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: THIRD_PARTY_NOTICES.md
+      role: Core-owned third-party notices
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: vendor/wheels/*.whl
+      role: Core-owned offline Python wheelhouse
+      media_type: application/zip
+      validation_profile: wheel_v1
+      min_count: 1
+      max_count: 56
+      executable: false
+    allow_extra_files: false
+    entrypoints:
+    - run.sh
+    runnable: true
+    smoke_command:
+    - ./run.sh
+    - --help
+    smoke_timeout_seconds: 20
+    require_offline_wheelhouse: true
+    runtime_python_entrypoint: analysis.py
+    limits:
+      max_files: 512
+      max_total_bytes: 268435456
+      max_file_bytes: 67108864
+      max_depth: 3
+      max_path_bytes: 180
+capability:
+  statement: '用户目标：有一份实验表和一个大概分析想法，希望得到以后还能改参数、能交给同学继续看的分析项目。
+
+    公开行为承诺：
+
+    - [preserved-experimental-table] 工作区会在 data/source.csv 中保留输入目录中唯一 CSV 实验表的表头和数据记录，供后续分析直接读取。
+
+    - [editable-marimo-analysis] 工作区会提供 analysis.py，其中用 marimo.App 定义设置、CSV 加载和结果预览三个
+    reactive 单元。
+
+    - [parameterized-preview] analysis.py 会提供可编辑的 DEFAULT_PREVIEW_ROWS 参数，并用它限制展示的实验记录数。
+
+    - [analysis-idea-carried-forward] 工作区会把输入的 analysis_idea.txt 内容写入 analysis_notes.md
+    的 Initial analysis idea 小节。
+
+    - [handover-instructions] README.md 会说明通过 ./run.sh 启动项目，并指出 analysis.py 是应继续编辑的
+    marimo notebook 源文件。
+
+    公开产物协议：
+
+    - [source-table -> preserved-experimental-table] 定位：The delivered workspace file
+    at data/source.csv.；值表示：The complete file is UTF-8 CSV text using the input table''s
+    header and data records.
+
+    - [marimo-analysis-cells -> editable-marimo-analysis] 定位：The delivered workspace
+    file at analysis.py; find the app assignment and the three immediately following
+    @app.cell-decorated functions.；值表示：Python source defining one marimo.App instance
+    and exactly three registered analysis cells: settings, CSV loading, and preview
+    rendering.
+
+    - [preview-parameter -> parameterized-preview] 定位：The delivered workspace file
+    at analysis.py; find the uppercase assignment DEFAULT_PREVIEW_ROWS in the settings
+    cell and its use in the preview cell.；值表示：A positive base-10 integer Python literal
+    assigned to DEFAULT_PREVIEW_ROWS and used to bound the rendered record preview.
+
+    - [analysis-notes -> analysis-idea-carried-forward] 定位：The delivered workspace
+    file at analysis_notes.md; find the section headed ## Initial analysis idea.；值表示：Markdown
+    text whose section body is the UTF-8 analysis-idea input text.
+
+    - [start-instructions -> handover-instructions] 定位：The delivered workspace file
+    at README.md; find the section headed ## Start the project.；值表示：Markdown instructions
+    containing the literal command ./run.sh and identifying analysis.py as the editable
+    marimo notebook source.
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: WorkspaceBundleV1
+  intent_contract:
+    schema_version: 1
+    user_goal: 有一份实验表和一个大概分析想法，希望得到以后还能改参数、能交给同学继续看的分析项目。
+    user_goal_sha256: 8614dd7d3ed8c39bd7b8bb86e06761aed7d0e96bb7d3cf67aa265f2c58bb2290
+    commitments:
+    - commitment_id: preserved-experimental-table
+      public_text: 工作区会在 data/source.csv 中保留输入目录中唯一 CSV 实验表的表头和数据记录，供后续分析直接读取。
+      rationale: 保留原始实验表让同学能够审阅数据并继续扩展分析。
+      origin: MODEL_PROPOSED
+    - commitment_id: editable-marimo-analysis
+      public_text: 工作区会提供 analysis.py，其中用 marimo.App 定义设置、CSV 加载和结果预览三个 reactive 单元。
+      rationale: 将分析交付为可编辑的 marimo Python notebook，而非一次性报告。
+      origin: MODEL_PROPOSED
+    - commitment_id: parameterized-preview
+      public_text: analysis.py 会提供可编辑的 DEFAULT_PREVIEW_ROWS 参数，并用它限制展示的实验记录数。
+      rationale: 提供一个明确、低风险的参数入口，方便后续修改和演示。
+      origin: MODEL_PROPOSED
+    - commitment_id: analysis-idea-carried-forward
+      public_text: 工作区会把输入的 analysis_idea.txt 内容写入 analysis_notes.md 的 Initial analysis
+        idea 小节。
+      rationale: 使初步分析思路与可运行项目一同交接。
+      origin: MODEL_PROPOSED
+    - commitment_id: handover-instructions
+      public_text: README.md 会说明通过 ./run.sh 启动项目，并指出 analysis.py 是应继续编辑的 marimo notebook
+        源文件。
+      rationale: 让接手同学能以工作区规定的入口启动并定位可修改内容。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: marimo-analysis-workspace
+      observations:
+      - observation_id: source-table
+        commitment_ids:
+        - preserved-experimental-table
+        locator: The delivered workspace file at data/source.csv.
+        value_encoding: The complete file is UTF-8 CSV text using the input table's
+          header and data records.
+      - observation_id: marimo-analysis-cells
+        commitment_ids:
+        - editable-marimo-analysis
+        locator: The delivered workspace file at analysis.py; find the app assignment
+          and the three immediately following @app.cell-decorated functions.
+        value_encoding: 'Python source defining one marimo.App instance and exactly
+          three registered analysis cells: settings, CSV loading, and preview rendering.'
+      - observation_id: preview-parameter
+        commitment_ids:
+        - parameterized-preview
+        locator: The delivered workspace file at analysis.py; find the uppercase assignment
+          DEFAULT_PREVIEW_ROWS in the settings cell and its use in the preview cell.
+        value_encoding: A positive base-10 integer Python literal assigned to DEFAULT_PREVIEW_ROWS
+          and used to bound the rendered record preview.
+      - observation_id: analysis-notes
+        commitment_ids:
+        - analysis-idea-carried-forward
+        locator: 'The delivered workspace file at analysis_notes.md; find the section
+          headed ## Initial analysis idea.'
+        value_encoding: Markdown text whose section body is the UTF-8 analysis-idea
+          input text.
+      - observation_id: start-instructions
+        commitment_ids:
+        - handover-instructions
+        locator: 'The delivered workspace file at README.md; find the section headed
+          ## Start the project.'
+        value_encoding: Markdown instructions containing the literal command ./run.sh
+          and identifying analysis.py as the editable marimo notebook source.
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: directory
+          location: local
+          representation: utf8_text
+          format_label: 包含一份 UTF-8 CSV 实验表和一份 UTF-8 分析想法文本的本地目录
+          role: 实验数据与初步分析思路
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: 可编辑、可交接的 marimo 分析项目
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-01T15:37:41.969912Z'
+      semantics_sha256: 981c9a2d5587951e23e784cfb80bfa9729b992c2ac0893ceeb62670108fce457
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: marimo-tool-workspace-semantic-v1
+    source_file: oracle/tool-marimo-tool-v3/semantic_verifier.py
+    source_sha256: b8ea46ef0d5ba26aedca946ba2267202269d8b77648025f8f0ae5d6237f22938
+    required_for_operational_active: true

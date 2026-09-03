@@ -1,0 +1,38 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "public_tests/test_interface_contract.py"
+  ],
+  "collection_manifest_sha256": null,
+  "consumer_fixture_tree_sha256": "2dca7ec8f101fedd7dce53dd0f38ebef6438a188e9e9c742bb617ad40d29e6dc",
+  "contract_sha256": "bb5c9b4506f10c6cd717205a84813e79a529677b89ce726a9c90d9aee5987b6f",
+  "controls_summary": null,
+  "environment_constraints": null,
+  "expected_capability_nodes": null,
+  "expected_regression_nodes": null,
+  "held_out_fixture_sha256": "4de3241651e8193be97476b067661e73a25adc2895292aa11c5303a0288c8ee2",
+  "image_digest": null,
+  "oracle_tree_sha256": "436800edb6ccf810a8616f0122ceeef344be08818bf526dfe51f09738b9025df",
+  "prompt_manifest_sha256": null,
+  "public_examples_sha256": null,
+  "public_fixture_sha256": "5d111b80deb737f8fb4ef606558d7d1820e1f91da4227d5d5a006d1917fbceae",
+  "public_tests_tree_sha256": null,
+  "requirement_spec_sha256": null,
+  "responsibility_matrix": null,
+  "root_hash": "d260aed05249d293f8632364472647855ed2d36eb84f3c1a4f2400ea9cc61f9e",
+  "source_commit": "056424cf548677ee42a1d87166418e9c9772e3da",
+  "source_git_tree_hash": "4c32f043feb5a173cb8b1cccf4d041f87c5e5a88",
+  "task_id": "tool-pygal-tool-v3",
+  "wheelhouse_root": "373aa4697fd17c7fb51a6c567602237ac811506c5d141218387b841ecbc336af",
+  "wheelhouse_wheels": {
+    "importlib_metadata-9.0.1-py3-none-any.whl": "bba5600596a7e21f3eef53281cf28d6a5195634d2f2b78ff9501a3272c6eaab0",
+    "pygal-3.1.3-py3-none-any.whl": "c0b9bc2d31df4094c9f65b0969b62571a47b28197aced081b1a9433c3a760f32",
+    "zipp-4.1.0-py3-none-any.whl": "25ad4e16390cd314347dd8f1de67a2ac538ae658ed4ab9db16029c07c188e97f"
+  }
+}

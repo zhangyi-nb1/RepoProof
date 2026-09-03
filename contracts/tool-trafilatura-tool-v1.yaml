@@ -1,0 +1,277 @@
+task_id: tool-trafilatura-tool-v1
+source_repo:
+  url: https://github.com/adbar/trafilatura
+  revision: guided
+  resolved_commit: 2f4702d2117b0f95fabdd4ea35c9c2a4f3f39d04
+  license: Apache-2.0
+  distribution: trafilatura
+  import_module: trafilatura
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_trafilatura-tool
+  package: trafilatura_tool
+  entry_point: trafilatura-tool
+requirement_spec_file: tool-trafilatura-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: trafilatura-tool
+  summary: 把本地保存的网页批次整理为离线研究资料夹，含本周简报、可读文章、清单、全文索引和坏页清单，且不联网抓取内容。
+  interface:
+    usage: trafilatura-tool <input> --out-dir <new-directory>
+    input:
+      kind: directory
+      format: 本地保存网页目录
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: weekly-brief.md
+      role: 本周整理简报
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: article-list.csv
+      role: 可读文章清单
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: broken-pages.csv
+      role: 坏页清单
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: index.sqlite
+      role: SQLite 全文检索索引
+      media_type: application/vnd.sqlite3
+      validation_profile: sqlite_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: articles/*.md
+      role: 逐篇可读 Markdown 文章
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 0
+      max_count: 96
+      executable: false
+    allow_extra_files: false
+    entrypoints: []
+    runnable: false
+    smoke_command: []
+    smoke_timeout_seconds: 30
+    require_offline_wheelhouse: false
+    runtime_python_entrypoint: null
+    limits:
+      max_files: 100
+      max_total_bytes: 52428800
+      max_file_bytes: 52428800
+      max_depth: 4
+      max_path_bytes: 240
+capability:
+  statement: '用户目标：把这批本地保存的网页整理成一个离线研究资料夹，里面有本周简报、每篇可读版本、文章清单和以后能查的索引；坏掉的网页单独列出来，不要联网抓取新内容。
+
+    公开行为承诺：
+
+    - [candidate-extraction-status] 工具递归处理输入目录中扩展名为 .html、.htm 或 .xhtml（不区分大小写）的所有常规文件，并按相对
+    POSIX 路径字典序处理。每个候选文件恰好归入可读文章或坏页之一：对其原始字节调用 trafilatura.extract(raw_html, output_format="txt")，返回值经
+    strip() 后非空即为可读，否则为坏页。
+
+    - [readable-article-files] 每个可读候选网页生成一个按处理序号命名的 articles/NNNN.md。该文件的 Source path
+    JSON 字符串解码后等于源相对路径，其 Extracted text 正文恰为对应 trafilatura.extract(raw_html, output_format="txt")
+    返回文本的 strip() 结果。
+
+    - [article-list-mapping] article-list.csv 只包含可读网页，每行将源相对路径、生成的 articles/NNNN.md
+    路径和该提取正文的 Python 字符数对应起来；行顺序与候选网页的相对路径排序一致。
+
+    - [search-index] index.sqlite 的 FTS5 表 article_search 对每个可读网页恰存一行，其 source_path、article_path
+    和 text 分别等于 article-list.csv 映射的源路径、文章路径和该网页的 strip() 后 trafilatura 提取正文；因此可用
+    SQLite FTS5 MATCH 查询正文。
+
+    - [weekly-brief] weekly-brief.md 的可读文章数等于 article-list.csv 数据行数，无法提取数等于 broken-pages.csv
+    数据行数；其阅读目录按文章编号递增，逐项且仅列出 article-list.csv 中的 article_path。
+
+    公开产物协议：
+
+    - [candidate-status-rows -> candidate-extraction-status] 定位：对输入目录递归枚举扩展名为 .html、.htm
+    或 .xhtml（大小写不敏感）的常规文件，按相对 POSIX 路径排序；对每个候选文件在 article-list.csv 或 broken-pages.csv
+    中恰有一行。；值表示：两个 CSV 均使用 UTF-8、严格 CSV 方言；article-list.csv 的表头精确为 source_path,article_path,character_count，broken-pages.csv
+    的表头精确为 source_path,reason。source_path 是相对 POSIX 路径；reason 的语法为固定标记 no-readable-text。
+
+    - [readable-article-text -> readable-article-files] 定位：对 article-list.csv 的每个数据行，读取其
+    article_path 列所指向的 articles/*.md 文件；在该文件中定位精确标题行 ## Extracted text，标题后的正文区域即为该行的可读正文。；值表示：文章文件是
+    UTF-8 Markdown，依次由精确行 # Extracted article、空行、以 Source path: 开头且其余部分为 JSON 字符串的行、空行、精确行
+    ## Extracted text、空行和正文构成；正文以一个换行结束。
+
+    - [article-list-records -> article-list-mapping] 定位：解析 article-list.csv 的全部数据行，并按
+    article_path 的字典序读取。；值表示：每行有三个字段：source_path 为相对 POSIX 路径；article_path 符合 articles/
+    后接四位十进制序号再接 .md；character_count 为非负十进制整数。
+
+    - [sqlite-search-records -> search-index] 定位：打开 index.sqlite，并执行 SELECT source_path,
+    article_path, text FROM article_search ORDER BY article_path。；值表示：index.sqlite
+    是 SQLite 数据库；article_search 是 FTS5 虚拟表，具有 source_path、article_path、text 三列。查询所得每行分别为相对
+    POSIX 路径、articles/NNNN.md 路径和 UTF-8 文本。
+
+    - [weekly-brief-sections -> weekly-brief] 定位：读取 weekly-brief.md：第 1 行是精确标题 # 本周网页研究简报；在精确标题
+    ## 概览之后读取两个项目行，在精确标题 ## 阅读目录之后读取全部项目行。；值表示：概览项目行依次匹配 - 可读文章：<非负十进制整数> 和 - 无法提取：<非负十进制整数>。阅读目录的每一行匹配
+    - articles/NNNN.md，且按 NNNN 递增。
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: OfflineResearchFolderWorkspace
+  intent_contract:
+    schema_version: 1
+    user_goal: 把这批本地保存的网页整理成一个离线研究资料夹，里面有本周简报、每篇可读版本、文章清单和以后能查的索引；坏掉的网页单独列出来，不要联网抓取新内容。
+    user_goal_sha256: 8c52167920e4e4f55e282ab3a84ce5f230a1f10fae5f279629c4f0c597a8922e
+    commitments:
+    - commitment_id: candidate-extraction-status
+      public_text: 工具递归处理输入目录中扩展名为 .html、.htm 或 .xhtml（不区分大小写）的所有常规文件，并按相对 POSIX 路径字典序处理。每个候选文件恰好归入可读文章或坏页之一：对其原始字节调用
+        trafilatura.extract(raw_html, output_format="txt")，返回值经 strip() 后非空即为可读，否则为坏页。
+      rationale: 明确网页批次的范围、排序和坏页判定，且不进行任何联网获取。
+      origin: MODEL_PROPOSED
+    - commitment_id: readable-article-files
+      public_text: 每个可读候选网页生成一个按处理序号命名的 articles/NNNN.md。该文件的 Source path JSON 字符串解码后等于源相对路径，其
+        Extracted text 正文恰为对应 trafilatura.extract(raw_html, output_format="txt") 返回文本的
+        strip() 结果。
+      rationale: 保证每篇网页都有可直接阅读、可追溯到本地源文件的离线版本。
+      origin: MODEL_PROPOSED
+    - commitment_id: article-list-mapping
+      public_text: article-list.csv 只包含可读网页，每行将源相对路径、生成的 articles/NNNN.md 路径和该提取正文的
+        Python 字符数对应起来；行顺序与候选网页的相对路径排序一致。
+      rationale: 提供可导入表格软件的文章清单及文件映射。
+      origin: MODEL_PROPOSED
+    - commitment_id: search-index
+      public_text: index.sqlite 的 FTS5 表 article_search 对每个可读网页恰存一行，其 source_path、article_path
+        和 text 分别等于 article-list.csv 映射的源路径、文章路径和该网页的 strip() 后 trafilatura 提取正文；因此可用
+        SQLite FTS5 MATCH 查询正文。
+      rationale: 提供无需网络、以后可全文检索的索引。
+      origin: MODEL_PROPOSED
+    - commitment_id: weekly-brief
+      public_text: weekly-brief.md 的可读文章数等于 article-list.csv 数据行数，无法提取数等于 broken-pages.csv
+        数据行数；其阅读目录按文章编号递增，逐项且仅列出 article-list.csv 中的 article_path。
+      rationale: 提供本批网页整理结果的本周概览和稳定阅读入口。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: offline-research-folder-v1
+      observations:
+      - observation_id: candidate-status-rows
+        commitment_ids:
+        - candidate-extraction-status
+        locator: 对输入目录递归枚举扩展名为 .html、.htm 或 .xhtml（大小写不敏感）的常规文件，按相对 POSIX 路径排序；对每个候选文件在
+          article-list.csv 或 broken-pages.csv 中恰有一行。
+        value_encoding: 两个 CSV 均使用 UTF-8、严格 CSV 方言；article-list.csv 的表头精确为 source_path,article_path,character_count，broken-pages.csv
+          的表头精确为 source_path,reason。source_path 是相对 POSIX 路径；reason 的语法为固定标记 no-readable-text。
+      - observation_id: readable-article-text
+        commitment_ids:
+        - readable-article-files
+        locator: '对 article-list.csv 的每个数据行，读取其 article_path 列所指向的 articles/*.md 文件；在该文件中定位精确标题行
+          ## Extracted text，标题后的正文区域即为该行的可读正文。'
+        value_encoding: '文章文件是 UTF-8 Markdown，依次由精确行 # Extracted article、空行、以 Source
+          path: 开头且其余部分为 JSON 字符串的行、空行、精确行 ## Extracted text、空行和正文构成；正文以一个换行结束。'
+      - observation_id: article-list-records
+        commitment_ids:
+        - article-list-mapping
+        locator: 解析 article-list.csv 的全部数据行，并按 article_path 的字典序读取。
+        value_encoding: 每行有三个字段：source_path 为相对 POSIX 路径；article_path 符合 articles/
+          后接四位十进制序号再接 .md；character_count 为非负十进制整数。
+      - observation_id: sqlite-search-records
+        commitment_ids:
+        - search-index
+        locator: 打开 index.sqlite，并执行 SELECT source_path, article_path, text FROM article_search
+          ORDER BY article_path。
+        value_encoding: index.sqlite 是 SQLite 数据库；article_search 是 FTS5 虚拟表，具有 source_path、article_path、text
+          三列。查询所得每行分别为相对 POSIX 路径、articles/NNNN.md 路径和 UTF-8 文本。
+      - observation_id: weekly-brief-sections
+        commitment_ids:
+        - weekly-brief
+        locator: '读取 weekly-brief.md：第 1 行是精确标题 # 本周网页研究简报；在精确标题 ## 概览之后读取两个项目行，在精确标题
+          ## 阅读目录之后读取全部项目行。'
+        value_encoding: 概览项目行依次匹配 - 可读文章：<非负十进制整数> 和 - 无法提取：<非负十进制整数>。阅读目录的每一行匹配 -
+          articles/NNNN.md，且按 NNNN 递增。
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: directory
+          location: local
+          representation: binary
+          format_label: 本地保存网页目录
+          role: 待整理的网页批次
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件研究资料夹
+          role: 包含本周简报、可读文章、文章清单、SQLite 全文索引及坏页清单的本地资料夹
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-01T19:50:20.664509Z'
+      semantics_sha256: 0698783f024b595d9c4706b5a95f355d11affaa8cbdb92caeeaa9130fa10ee17
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: trafilatura-tool-workspace-semantic-v1
+    source_file: oracle/tool-trafilatura-tool-v1/semantic_verifier.py
+    source_sha256: 0feeaf190f23cd0ffcf66f492340836d798692da78c0bea829cec49d40a923ef
+    required_for_operational_active: true

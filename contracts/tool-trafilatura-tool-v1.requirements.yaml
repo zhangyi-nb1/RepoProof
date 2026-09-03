@@ -1,0 +1,92 @@
+task_id: tool-trafilatura-tool-v1
+controls:
+  positive: controls/tool-trafilatura-tool-v1/positive
+  negatives:
+  - path: controls/tool-trafilatura-tool-v1/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-trafilatura-tool-v1/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - single-readable-page
+  - mixed-readable-and-empty
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - trafilatura-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-candidate-extraction-status
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 工具递归处理输入目录中扩展名为 .html、.htm 或 .xhtml（不区分大小写）的所有常规文件，并按相对 POSIX 路径字典序处理。每个候选文件恰好归入可读文章或坏页之一：对其原始字节调用
+    trafilatura.extract(raw_html, output_format="txt")，返回值经 strip() 后非空即为可读，否则为坏页。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:trafilatura-tool-workspace-semantic-v1
+- id: intent-readable-article-files
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每个可读候选网页生成一个按处理序号命名的 articles/NNNN.md。该文件的 Source path JSON 字符串解码后等于源相对路径，其
+    Extracted text 正文恰为对应 trafilatura.extract(raw_html, output_format="txt") 返回文本的
+    strip() 结果。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:trafilatura-tool-workspace-semantic-v1
+- id: intent-article-list-mapping
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: article-list.csv 只包含可读网页，每行将源相对路径、生成的 articles/NNNN.md 路径和该提取正文的 Python
+    字符数对应起来；行顺序与候选网页的相对路径排序一致。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:trafilatura-tool-workspace-semantic-v1
+- id: intent-search-index
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: index.sqlite 的 FTS5 表 article_search 对每个可读网页恰存一行，其 source_path、article_path
+    和 text 分别等于 article-list.csv 映射的源路径、文章路径和该网页的 strip() 后 trafilatura 提取正文；因此可用
+    SQLite FTS5 MATCH 查询正文。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:trafilatura-tool-workspace-semantic-v1
+- id: intent-weekly-brief
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: weekly-brief.md 的可读文章数等于 article-list.csv 数据行数，无法提取数等于 broken-pages.csv
+    数据行数；其阅读目录按文章编号递增，逐项且仅列出 article-list.csv 中的 article_path。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:trafilatura-tool-workspace-semantic-v1

@@ -1,0 +1,255 @@
+task_id: tool-pdfplumber-tool-v1
+source_repo:
+  url: https://github.com/jsvine/pdfplumber
+  revision: guided
+  resolved_commit: 7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62
+  license: MIT
+  distribution: pdfplumber
+  import_module: pdfplumber
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_pdfplumber-tool
+  package: pdfplumber_tool
+  entry_point: pdfplumber-tool
+requirement_spec_file: tool-pdfplumber-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: pdfplumber-tool
+  summary: 将本地长 PDF 离线整理为可按页浏览、保留页码、文字和表格，并标示需 OCR 页面的资料夹。
+  interface:
+    usage: pdfplumber-tool <input> --out-dir <new-directory>
+    input:
+      kind: file
+      format: PDF 文档
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: index.xhtml
+      role: 按页链接的资料夹索引
+      media_type: application/xhtml+xml
+      validation_profile: xml_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: pages/page-*.xhtml
+      role: 包含页码、逐页文字、表格和 OCR 提示的页面
+      media_type: application/xhtml+xml
+      validation_profile: xml_v1
+      min_count: 0
+      max_count: 99
+      executable: false
+    allow_extra_files: false
+    entrypoints: []
+    runnable: false
+    smoke_command: []
+    smoke_timeout_seconds: 30
+    require_offline_wheelhouse: false
+    runtime_python_entrypoint: null
+    limits:
+      max_files: 100
+      max_total_bytes: 52428800
+      max_file_bytes: 10485760
+      max_depth: 2
+      max_path_bytes: 240
+capability:
+  statement: '用户目标：把一份长 PDF 整理成容易查证和引用的本地资料夹，保留页码、逐页内容和表格；遇到扫描件明确提示需要 OCR，不联网，也不想逐页复制。
+
+    公开行为承诺：
+
+    - [page-inventory] 资料夹的 index.xhtml 按源 PDF 页序提供逐页链接；每个源页恰有一个 pages/page-####.xhtml
+    文件，其文件序号、页面标题和链接所示页码均为从 1 开始的同一源页号。
+
+    - [extracted-text] 每个逐页文件的 text 区域按页序保存该页由 pdfplumber 的 page.extract_text() 返回的文字；返回空值时该区域为空字符串。
+
+    - [extracted-tables] 每个逐页文件的 tables 区域按 pdfplumber 的 page.extract_tables() 返回顺序保存全部表格、行和单元格；空值单元格以空字符串表示。
+
+    - [ocr-notice] 当某页的 page.extract_text() 返回空值或仅由 Unicode 空白组成时，该页包含 OCR 提示，明确说明未检测到可提取文本、该页可能是扫描件并需要
+    OCR；其他页面不包含该提示。
+
+    - [xml-safe-text] 写入 XHTML 文字或表格单元格前，仅移除 XML 1.0 禁止的 Unicode 字符；其余提取字符及其顺序保持不变。
+
+    公开产物协议：
+
+    - [page-links -> page-inventory] 定位：index.xhtml: /html/body/main/ol/li/a, in document
+    order; each href is a relative pages/page-*.xhtml target；值表示：A nonempty ordered
+    sequence of relative URI references whose basename has the syntax page- followed
+    by exactly four ASCII decimal digits followed by .xhtml.
+
+    - [page-number -> page-inventory] 定位：pages/page-*.xhtml: /html/body/main/h1；值表示：The
+    element text has the syntax 第 followed by one or more ASCII decimal digits followed
+    by 页; its decimal value is the source PDF page number.
+
+    - [page-text -> extracted-text,xml-safe-text] 定位：pages/page-*.xhtml: /html/body/main/section[@id=''text'']/pre；值表示：UTF-8
+    XML character data. Its value is the upstream extracted text after removal of
+    characters forbidden by XML 1.0; an absent upstream text value is encoded as the
+    empty string.
+
+    - [ocr-required-notice -> ocr-notice] 定位：pages/page-*.xhtml: /html/body/main/section[@id=''ocr-notice'']；值表示：Boolean
+    by element presence: present exactly when the upstream extracted text is absent
+    or consists only of Unicode whitespace; when present, its descendant text states
+    that OCR is needed.
+
+    - [page-tables -> extracted-tables,xml-safe-text] 定位：pages/page-*.xhtml: /html/body/main/section[@id=''tables'']/table,
+    in document order; each table contains tr elements in order and each tr contains
+    td elements in order；值表示：An ordered sequence of tables. Each table is an ordered
+    sequence of rows, and each row is an ordered sequence of UTF-8 XML character-data
+    cells. A null upstream cell is encoded as the empty string; other cells have XML-forbidden
+    characters removed.
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: PdfResearchWorkspace
+  intent_contract:
+    schema_version: 1
+    user_goal: 把一份长 PDF 整理成容易查证和引用的本地资料夹，保留页码、逐页内容和表格；遇到扫描件明确提示需要 OCR，不联网，也不想逐页复制。
+    user_goal_sha256: 5156ef847c7a6b5c4ba75429cced1c32586b440cdeeab05f3e98b323f7007932
+    commitments:
+    - commitment_id: page-inventory
+      public_text: 资料夹的 index.xhtml 按源 PDF 页序提供逐页链接；每个源页恰有一个 pages/page-####.xhtml
+        文件，其文件序号、页面标题和链接所示页码均为从 1 开始的同一源页号。
+      rationale: 使读者能由索引浏览全部页面，并以稳定页码引用内容。
+      origin: MODEL_PROPOSED
+    - commitment_id: extracted-text
+      public_text: 每个逐页文件的 text 区域按页序保存该页由 pdfplumber 的 page.extract_text() 返回的文字；返回空值时该区域为空字符串。
+      rationale: 保留可复制、可检索的逐页文字内容。
+      origin: MODEL_PROPOSED
+    - commitment_id: extracted-tables
+      public_text: 每个逐页文件的 tables 区域按 pdfplumber 的 page.extract_tables() 返回顺序保存全部表格、行和单元格；空值单元格以空字符串表示。
+      rationale: 把可提取表格保留为可查证的结构化页面内容。
+      origin: MODEL_PROPOSED
+    - commitment_id: ocr-notice
+      public_text: 当某页的 page.extract_text() 返回空值或仅由 Unicode 空白组成时，该页包含 OCR 提示，明确说明未检测到可提取文本、该页可能是扫描件并需要
+        OCR；其他页面不包含该提示。
+      rationale: 在不联网且不执行 OCR 的前提下，明确标出需要后续 OCR 处理的页面。
+      origin: MODEL_PROPOSED
+    - commitment_id: xml-safe-text
+      public_text: 写入 XHTML 文字或表格单元格前，仅移除 XML 1.0 禁止的 Unicode 字符；其余提取字符及其顺序保持不变。
+      rationale: 保证资料夹页面可作为 UTF-8 XHTML 解析，同时最大限度保留提取内容。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: pdf-page-research-folder
+      observations:
+      - observation_id: page-links
+        commitment_ids:
+        - page-inventory
+        locator: 'index.xhtml: /html/body/main/ol/li/a, in document order; each href
+          is a relative pages/page-*.xhtml target'
+        value_encoding: A nonempty ordered sequence of relative URI references whose
+          basename has the syntax page- followed by exactly four ASCII decimal digits
+          followed by .xhtml.
+      - observation_id: page-number
+        commitment_ids:
+        - page-inventory
+        locator: 'pages/page-*.xhtml: /html/body/main/h1'
+        value_encoding: The element text has the syntax 第 followed by one or more
+          ASCII decimal digits followed by 页; its decimal value is the source PDF
+          page number.
+      - observation_id: page-text
+        commitment_ids:
+        - extracted-text
+        - xml-safe-text
+        locator: 'pages/page-*.xhtml: /html/body/main/section[@id=''text'']/pre'
+        value_encoding: UTF-8 XML character data. Its value is the upstream extracted
+          text after removal of characters forbidden by XML 1.0; an absent upstream
+          text value is encoded as the empty string.
+      - observation_id: ocr-required-notice
+        commitment_ids:
+        - ocr-notice
+        locator: 'pages/page-*.xhtml: /html/body/main/section[@id=''ocr-notice'']'
+        value_encoding: 'Boolean by element presence: present exactly when the upstream
+          extracted text is absent or consists only of Unicode whitespace; when present,
+          its descendant text states that OCR is needed.'
+      - observation_id: page-tables
+        commitment_ids:
+        - extracted-tables
+        - xml-safe-text
+        locator: 'pages/page-*.xhtml: /html/body/main/section[@id=''tables'']/table,
+          in document order; each table contains tr elements in order and each tr
+          contains td elements in order'
+        value_encoding: An ordered sequence of tables. Each table is an ordered sequence
+          of rows, and each row is an ordered sequence of UTF-8 XML character-data
+          cells. A null upstream cell is encoded as the empty string; other cells
+          have XML-forbidden characters removed.
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: file
+          location: local
+          representation: binary
+          format_label: PDF 文档
+          role: 待整理的长篇 PDF
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: 含索引、逐页内容、页码、表格与 OCR 提示的本地资料夹
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-01T17:58:27.080598Z'
+      semantics_sha256: 75637c5fd77ba0541176a67a1cfe203bd208d273051b23914ec56f62468482a6
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: pdfplumber-tool-workspace-semantic-v1
+    source_file: oracle/tool-pdfplumber-tool-v1/semantic_verifier.py
+    source_sha256: 2e4b5882079593bc6b6388ff125fd9e531b8a9d3b0b7f449b85692fbd4abb612
+    required_for_operational_active: true

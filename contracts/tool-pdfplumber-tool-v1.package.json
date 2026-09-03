@@ -1,0 +1,50 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "public_tests/test_interface_contract.py"
+  ],
+  "collection_manifest_sha256": null,
+  "consumer_fixture_tree_sha256": "191cbaa7feb032bb8b5a8355c4bb6a456ae979716fb0fa0cc37f6c07454ab04f",
+  "contract_sha256": "2db3b629d0f78d877440c50b96d4717d6788cae13691c5e8c25b7c86e5fa2ff7",
+  "controls_summary": null,
+  "environment_constraints": null,
+  "expected_capability_nodes": null,
+  "expected_regression_nodes": null,
+  "held_out_fixture_sha256": "409164815257325c7ec48e97e691430677ad9f3b3b7a798a676a567dcccf366a",
+  "image_digest": null,
+  "oracle_tree_sha256": "6d6814fd98c92fec6d37e5e10e7a85c882f4cd8b2164fe18f3751f1dd673e252",
+  "prompt_manifest_sha256": null,
+  "public_examples_sha256": null,
+  "public_fixture_sha256": "e81268b9ff042a060304bb881127405c518d9054e2b32faebf607a5421e1e894",
+  "public_tests_tree_sha256": null,
+  "requirement_spec_sha256": null,
+  "responsibility_matrix": null,
+  "root_hash": "8addb7bf0b674061974ab542fed1cc085122d6f2f3f8912301f58094fbfdf59a",
+  "source_commit": "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62",
+  "source_git_tree_hash": "267b4de4d69f79dde84e456ebf4bb81b69173c9a",
+  "task_id": "tool-pdfplumber-tool-v1",
+  "wheelhouse_root": "eccad562b3be8b230d65e319fcfce6a34113c7293ea5180c6393e67a02460cdb",
+  "wheelhouse_wheels": {
+    "cffi-2.1.1-cp312-cp312-macosx_11_0_arm64.whl": "f81b3b8f3d4e343550fa4baa0e479bba9f2d29ce9c2e9b51d1ce1718d7442fcf",
+    "charset_normalizer-3.5.1-cp312-cp312-macosx_10_13_universal2.whl": "5b6d1386bf0096d26d3a863dc0a487a5b4eb9aa93cf5ba69683d29dde6b9d60f",
+    "cryptography-50.0.1-cp311-abi3-macosx_11_0_arm64.whl": "b8f852c65863251b9e3a1b8c150ce21e59b522dbb6a7d4bc80e680d38388e986",
+    "iniconfig-2.3.0-py3-none-any.whl": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12",
+    "packaging-26.3-py3-none-any.whl": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+    "pdfminer_six-20260107-py3-none-any.whl": "366585ba97e80dffa8f00cebe303d2f381884d8637af4ce422f1df3ef38111a9",
+    "pdfplumber-0.11.10-py3-none-any.whl": "7741ea81bf165b474b153e6789d10d18e06b6ddcf3ec84289c3ef2fed6802580",
+    "pillow-12.3.0-cp312-cp312-macosx_11_0_arm64.whl": "ffd0c5368496f41b0944be820fcb7a838aa6e623d250b01acf2643939c3f99d7",
+    "pluggy-1.6.0-py3-none-any.whl": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746",
+    "pycparser-3.0-py3-none-any.whl": "b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992",
+    "pygments-2.21.0-py3-none-any.whl": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9",
+    "pypdfium2-5.13.0-py3-none-macosx_13_0_arm64.whl": "da5c7b74eebf40b5c1fbe1de01aa1edc8827a79fb1efd999616bc20dcaf77ba4",
+    "pytest-9.1.1-py3-none-any.whl": "37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c",
+    "setuptools-84.0.0-py3-none-any.whl": "51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670",
+    "wheel-0.48.0-py3-none-any.whl": "3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab"
+  }
+}

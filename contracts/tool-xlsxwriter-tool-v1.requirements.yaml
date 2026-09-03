@@ -1,0 +1,98 @@
+task_id: tool-xlsxwriter-tool-v1
+controls:
+  positive: controls/tool-xlsxwriter-tool-v1/positive
+  negatives:
+  - path: controls/tool-xlsxwriter-tool-v1/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-xlsxwriter-tool-v1/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - balanced-ledger
+  - mixed-audit-exceptions
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - xlsxwriter-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-required-sheets
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 生成的 audit_workbook.xlsx 按顺序包含 Summary、Invoices、Payments、ChartOfAccounts
+    和 Exceptions 五个工作表。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:xlsxwriter-tool-workspace-semantic-v1
+- id: intent-source-ledgers
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: Invoices、Payments 和 ChartOfAccounts 工作表分别保留 invoices.csv、payments.csv
+    和 chart_of_accounts.csv 的标题与数据行，数据行保持源 CSV 的原始顺序。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:xlsxwriter-tool-workspace-semantic-v1
+- id: intent-summary-metrics
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: Summary 表列出发票数量、发票金额合计、付款金额合计、未匹配付款数量和缺失科目数量；金额合计分别基于 invoices.csv
+    的 amount 列和 payments.csv 的 amount 列。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:xlsxwriter-tool-workspace-semantic-v1
+- id: intent-exception-detection
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: Exceptions 表登记三类异常：付款的 invoice_id 未出现在发票中、发票的 account_code 未出现在科目表中，以及同一非空
+    invoice_id 的第二次及后续出现。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:xlsxwriter-tool-workspace-semantic-v1
+- id: intent-exception-order
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: Exceptions 表先列出未匹配付款，再列出缺失科目，最后列出重复发票；每一类内部按其源 CSV 的数据行顺序排列，并记录源工作表和源
+    CSV 行号。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:xlsxwriter-tool-workspace-semantic-v1
+- id: intent-exception-highlighting
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: Exceptions 表的每条异常记录在 A:E 列均以红色系填充突出显示。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:xlsxwriter-tool-workspace-semantic-v1

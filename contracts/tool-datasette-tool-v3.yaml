@@ -1,0 +1,258 @@
+task_id: tool-datasette-tool-v3
+source_repo:
+  url: https://github.com/simonw/datasette
+  revision: guided
+  resolved_commit: fddbef822a7feff45dcb78ef25de007b2c71ef3c
+  license: Apache-2.0
+  distribution: datasette
+  import_module: datasette
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_datasette-tool-v3
+  package: datasette_tool
+  entry_point: datasette-tool
+requirement_spec_file: tool-datasette-tool-v3.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: datasette-tool
+  summary: 将本地实验 CSV 文件夹导入为由 Datasette 0.65.3 驱动的离线多文件查询小站工作区，供同事启动后在浏览器中浏览、筛选和查询。
+  interface:
+    usage: datasette-tool <input> --out-dir <new-directory>
+    input:
+      kind: directory
+      format: 实验 CSV 文件夹
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: app.py
+      role: Datasette 服务应用入口
+      media_type: text/x-python
+      validation_profile: python_compile_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: experiment.db
+      role: 由 CSV 导入的 SQLite 实验数据库
+      media_type: application/vnd.sqlite3
+      validation_profile: sqlite_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: metadata.json
+      role: Datasette 元数据配置
+      media_type: application/json
+      validation_profile: json_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: README.md
+      role: 启动说明和 CSV 至数据表映射
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: run.sh
+      role: Core 提供的唯一可执行启动入口
+      media_type: text/x-shellscript
+      validation_profile: shell_v1
+      min_count: 1
+      max_count: 1
+      executable: true
+    - path_pattern: requirements.lock.txt
+      role: Core 提供的冻结运行时依赖锁定文件
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: THIRD_PARTY_NOTICES.md
+      role: Core 提供的第三方许可证声明
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: vendor/wheels/*.whl
+      role: Core 提供的离线 Python 运行时轮包
+      media_type: application/zip
+      validation_profile: wheel_v1
+      min_count: 1
+      max_count: 100
+      executable: false
+    allow_extra_files: false
+    entrypoints:
+    - run.sh
+    runnable: true
+    smoke_command:
+    - ./run.sh
+    - --help
+    smoke_timeout_seconds: 20
+    require_offline_wheelhouse: true
+    runtime_python_entrypoint: app.py
+    limits:
+      max_files: 512
+      max_total_bytes: 268435456
+      max_file_bytes: 67108864
+      max_depth: 5
+      max_path_bytes: 240
+capability:
+  statement: '用户目标：实验团队有几份 CSV，希望同事用浏览器式界面查看数据、筛选记录并查询结果，而不必各自打开表格文件。每次输入一个本地实验 CSV
+    文件夹文件或资料目录，输出一套离线多文件工作区；每次调用独立运行。主要边界是仅面向本机或局域网内的浏览与查询，不包含公开发布到互联网。
+
+    公开行为承诺：
+
+    - [csv-discovery-and-table-mapping] 递归发现输入目录中扩展名为 .csv（不区分大小写）的常规文件，按相对 POSIX
+    路径不区分大小写排序；每份 CSV 导入一个 SQLite 表，并在 README 的映射表中公开其源路径、表名和 Datasette 数据库名。
+
+    - [csv-headers-and-record-values] 每个导入表按原 CSV 表头顺序建立 TEXT 列，并按原 CSV 数据行顺序保存所有单元格文本值；UTF-8
+    BOM 不构成第一个表头的一部分。
+
+    - [datasette-browse-filter-and-query-service] 工作区的 app.py 通过 Datasette 0.65.3
+    的公开 CLI 使用 experiment.db 与 metadata.json 启动服务，因此导入表可通过 Datasette 的交互浏览、筛选及 SQL
+    查询界面和 API 使用。
+
+    公开产物协议：
+
+    - [csv-table-mapping -> csv-discovery-and-table-mapping] 定位：README.md 的“## 已导入表”章节：该章节包含恰好一个
+    Markdown 表格，列顺序为“CSV 相对路径”、“SQLite 表”、“Datasette 数据库”。；值表示：Markdown 表格的数据行；第一列为相对于输入目录的
+    POSIX 路径，第二列为 SQLite 标识符，第三列为 Datasette 数据库名称。
+
+    - [sqlite-table-content -> csv-headers-and-record-values] 定位：experiment.db：对 README.md“##
+    已导入表”表格每一行第二列指定的表，读取 PRAGMA table_info(table_name) 和按 rowid ASC 排序的 SELECT * 结果。；值表示：SQLite
+    表结构与行序列：PRAGMA 的 name 字段依次编码列名；每个结果行按列顺序编码为 SQLite TEXT 值；行顺序由升序 rowid 定义。
+
+    - [datasette-service-launch -> datasette-browse-filter-and-query-service] 定位：app.py：main()
+    中对 datasette.cli.cli.main 的调用及其 args 参数；README.md 的“## 启动”章节。；值表示：Python 源码调用语法和
+    UTF-8 Markdown 指令：源码必须导入 datasette.cli 的 cli，并以数据库文件和元数据文件为参数调用 cli.main；Markdown
+    指令以 ./run.sh 作为启动命令。
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: DatasetteWorkspaceBundle
+  intent_contract:
+    schema_version: 1
+    user_goal: 实验团队有几份 CSV，希望同事用浏览器式界面查看数据、筛选记录并查询结果，而不必各自打开表格文件。每次输入一个本地实验 CSV 文件夹文件或资料目录，输出一套离线多文件工作区；每次调用独立运行。主要边界是仅面向本机或局域网内的浏览与查询，不包含公开发布到互联网。
+    user_goal_sha256: 52e73242734337079c79608f5b495587edf4cd5be363b5ee31621959b69336c0
+    commitments:
+    - commitment_id: csv-discovery-and-table-mapping
+      public_text: 递归发现输入目录中扩展名为 .csv（不区分大小写）的常规文件，按相对 POSIX 路径不区分大小写排序；每份 CSV 导入一个
+        SQLite 表，并在 README 的映射表中公开其源路径、表名和 Datasette 数据库名。
+      rationale: 让团队能够追溯每个可浏览表对应的实验 CSV，并在包含子目录的资料目录中稳定定位数据。
+      origin: MODEL_PROPOSED
+    - commitment_id: csv-headers-and-record-values
+      public_text: 每个导入表按原 CSV 表头顺序建立 TEXT 列，并按原 CSV 数据行顺序保存所有单元格文本值；UTF-8 BOM 不构成第一个表头的一部分。
+      rationale: 保留实验记录的字段结构、顺序和文本内容，供浏览、筛选和 SQL 查询使用。
+      origin: MODEL_PROPOSED
+    - commitment_id: datasette-browse-filter-and-query-service
+      public_text: 工作区的 app.py 通过 Datasette 0.65.3 的公开 CLI 使用 experiment.db 与 metadata.json
+        启动服务，因此导入表可通过 Datasette 的交互浏览、筛选及 SQL 查询界面和 API 使用。
+      rationale: 将 Datasette 的既有数据探索界面用于团队在本机或局域网中共享查询。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: datasette-csv-workspace
+      observations:
+      - observation_id: csv-table-mapping
+        commitment_ids:
+        - csv-discovery-and-table-mapping
+        locator: README.md 的“## 已导入表”章节：该章节包含恰好一个 Markdown 表格，列顺序为“CSV 相对路径”、“SQLite
+          表”、“Datasette 数据库”。
+        value_encoding: Markdown 表格的数据行；第一列为相对于输入目录的 POSIX 路径，第二列为 SQLite 标识符，第三列为
+          Datasette 数据库名称。
+      - observation_id: sqlite-table-content
+        commitment_ids:
+        - csv-headers-and-record-values
+        locator: experiment.db：对 README.md“## 已导入表”表格每一行第二列指定的表，读取 PRAGMA table_info(table_name)
+          和按 rowid ASC 排序的 SELECT * 结果。
+        value_encoding: SQLite 表结构与行序列：PRAGMA 的 name 字段依次编码列名；每个结果行按列顺序编码为 SQLite
+          TEXT 值；行顺序由升序 rowid 定义。
+      - observation_id: datasette-service-launch
+        commitment_ids:
+        - datasette-browse-filter-and-query-service
+        locator: app.py：main() 中对 datasette.cli.cli.main 的调用及其 args 参数；README.md 的“##
+          启动”章节。
+        value_encoding: Python 源码调用语法和 UTF-8 Markdown 指令：源码必须导入 datasette.cli 的 cli，并以数据库文件和元数据文件为参数调用
+          cli.main；Markdown 指令以 ./run.sh 作为启动命令。
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: USER_EDITED
+      requirements:
+        inputs:
+        - kind: directory
+          location: local
+          representation: utf8_text
+          format_label: 实验 CSV 文件夹
+          role: user-confirmed primary input
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: user-confirmed primary artifact
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-01T07:33:46.975791Z'
+      semantics_sha256: e339d77e252a253761705dad06c0d333e81ea5481bd08ca4d90d75c5139257b9
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: datasette-tool-workspace-semantic-v1
+    source_file: oracle/tool-datasette-tool-v3/semantic_verifier.py
+    source_sha256: fe050158208fe7d2f31ee10a49e5fffe8202a25e3cea6a6ae859aac5f35bf546
+    required_for_operational_active: true

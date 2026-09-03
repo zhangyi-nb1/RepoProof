@@ -1,0 +1,319 @@
+task_id: tool-textual-taskdesk-v1
+source_repo:
+  url: https://github.com/Textualize/textual
+  revision: guided
+  resolved_commit: 1d99508b928a771b51e1a527319c6b87dcff9e05
+  license: MIT
+  distribution: textual
+  import_module: textual
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_textual-taskdesk
+  package: textual_taskdesk
+  entry_point: textual-taskdesk
+requirement_spec_file: tool-textual-taskdesk-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: textual-taskdesk
+  summary: 将实验任务、每日事件日志和显示配置封装为可离线运行、可筛选并可追加本地完成事件的 Textual 终端任务台工作区。
+  interface:
+    usage: textual-taskdesk <input> --out-dir <new-directory>
+    input:
+      kind: directory
+      format: 任务 YAML、事件 NDJSON 和显示配置目录
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: run.sh
+      role: Core-owned offline launcher and sole executable entrypoint
+      media_type: text/x-shellscript
+      validation_profile: shell_v1
+      min_count: 1
+      max_count: 1
+      executable: true
+    - path_pattern: requirements.lock.txt
+      role: Core-owned locked runtime dependency manifest
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: THIRD_PARTY_NOTICES.md
+      role: Core-owned third-party attribution notice
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: vendor/wheels/*.whl
+      role: Core-owned offline Python wheelhouse
+      media_type: application/zip
+      validation_profile: wheel_v1
+      min_count: 1
+      max_count: 100
+      executable: false
+    - path_pattern: taskdesk.py
+      role: Textual terminal task desk application
+      media_type: text/x-python
+      validation_profile: python_compile_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: data/tasks.yaml
+      role: workspace-local copied task list
+      media_type: text/yaml
+      validation_profile: yaml_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: data/events.ndjson
+      role: workspace-local append-only event log
+      media_type: application/x-ndjson
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: data/display.json
+      role: workspace-local copied display configuration
+      media_type: application/json
+      validation_profile: json_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: README.md
+      role: user-facing handover and operating instructions
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    allow_extra_files: false
+    entrypoints:
+    - run.sh
+    runnable: true
+    smoke_command:
+    - ./run.sh
+    - --help
+    smoke_timeout_seconds: 20
+    require_offline_wheelhouse: true
+    runtime_python_entrypoint: taskdesk.py
+    limits:
+      max_files: 512
+      max_total_bytes: 268435456
+      max_file_bytes: 67108864
+      max_depth: 4
+      max_path_bytes: 240
+capability:
+  statement: '用户目标：想把实验任务和每天追加的日志做成终端里能查看、筛选和更新的小工具，方便每天整理；不要改坏原始日志，离线就能运行，也要有交接说明。
+
+    公开行为承诺：
+
+    - [source-snapshot] 工作区会将输入目录中的 tasks.yaml、events.ndjson 和 config/display.json
+    分别复制为 data/tasks.yaml、data/events.ndjson 和 data/display.json，供工作区自身使用。
+
+    - [textual-terminal-dashboard] taskdesk.py 定义基于 Textual App 的终端任务台，界面提供筛选输入框、任务表、完成按钮和任务数量摘要。
+
+    - [task-filtering] 任务台会从紧凑 YAML 任务列表读取 id 和 title，并可用不区分大小写的筛选文字匹配任务编号、标题或当前状态。
+
+    - [local-append-only-update] 点击“标记选中任务完成”会仅向工作区 data/events.ndjson 追加一条 action
+    为 done 的 JSON 事件，其中含 task_id 和 UTC 时间；后续显示将该任务视为 done。
+
+    - [display-configuration] 任务台从 data/display.json 读取可选字符串 title，并将其作为终端应用标题。
+
+    - [handover-instructions] README.md 提供运行、数据约定、更新记录和交接四个章节，并要求使用 ./run.sh 启动工作区。
+
+    公开产物协议：
+
+    - [workspace-data-copies -> source-snapshot] 定位：data/tasks.yaml, data/events.ndjson,
+    and data/display.json: whole files；值表示：Each file is UTF-8 text whose complete
+    content is a byte-preserving UTF-8 copy of the corresponding accepted input file.
+
+    - [textual-ui-structure -> textual-terminal-dashboard] 定位：taskdesk.py: imports
+    from textual, TaskDesk class, TaskDesk.compose method, and the method decorated
+    with @on(Button.Pressed)；值表示：Python source containing a textual.app.App subclass
+    whose compose method yields an Input with id filter, a DataTable with id tasks,
+    a Button with id mark-done, and a Static with id summary; the Button.Pressed handler
+    is decorated with textual.on.
+
+    - [filter-rule -> task-filtering] 定位：taskdesk.py: TaskDesk.refresh_table method；值表示：Python
+    source expression syntax showing casefolded filter text compared against the concatenation
+    of each task id, title, and effective status before a DataTable row is added.
+
+    - [update-event-rule -> local-append-only-update] 定位：taskdesk.py: TaskDesk method
+    decorated with @on(Button.Pressed)；值表示：Python source syntax that opens data/events.ndjson
+    in append mode and writes one JSON object with task_id, action, and at keys, where
+    action has the string value done.
+
+    - [display-title-rule -> display-configuration] 定位：taskdesk.py: TaskDesk.on_mount
+    method and data/display.json；值表示：Python source syntax that reads data/display.json
+    as a JSON object and assigns its optional string title member to the Textual application
+    title; the configuration file is UTF-8 JSON object text.
+
+    - [handover-document -> handover-instructions] 定位：README.md: 运行、数据约定、更新记录、交接 sections；值表示：UTF-8
+    Markdown with exactly the four named level-two sections; the 运行 section invokes
+    ./run.sh and does not instruct execution of taskdesk.py directly.
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: WorkspaceBundleV1
+  intent_contract:
+    schema_version: 1
+    user_goal: 想把实验任务和每天追加的日志做成终端里能查看、筛选和更新的小工具，方便每天整理；不要改坏原始日志，离线就能运行，也要有交接说明。
+    user_goal_sha256: 87b2c7f97c5f8e51433c8bfae50d55ef90e519222f564fd217164b891a14f5e8
+    commitments:
+    - commitment_id: source-snapshot
+      public_text: 工作区会将输入目录中的 tasks.yaml、events.ndjson 和 config/display.json 分别复制为
+        data/tasks.yaml、data/events.ndjson 和 data/display.json，供工作区自身使用。
+      rationale: 使每天的整理在独立副本中进行，原始日志不会被工作区程序写入。
+      origin: MODEL_PROPOSED
+    - commitment_id: textual-terminal-dashboard
+      public_text: taskdesk.py 定义基于 Textual App 的终端任务台，界面提供筛选输入框、任务表、完成按钮和任务数量摘要。
+      rationale: 使用 Textual 的公开 App、组件组合和事件装饰器 API 实现用户要求的终端查看与交互界面。
+      origin: MODEL_PROPOSED
+    - commitment_id: task-filtering
+      public_text: 任务台会从紧凑 YAML 任务列表读取 id 和 title，并可用不区分大小写的筛选文字匹配任务编号、标题或当前状态。
+      rationale: 支持每天快速缩小待整理任务范围。
+      origin: MODEL_PROPOSED
+    - commitment_id: local-append-only-update
+      public_text: 点击“标记选中任务完成”会仅向工作区 data/events.ndjson 追加一条 action 为 done 的 JSON
+        事件，其中含 task_id 和 UTC 时间；后续显示将该任务视为 done。
+      rationale: 将更新保留为可追溯的追加事件，而不覆盖任务清单或原始日志。
+      origin: MODEL_PROPOSED
+    - commitment_id: display-configuration
+      public_text: 任务台从 data/display.json 读取可选字符串 title，并将其作为终端应用标题。
+      rationale: 保留输入显示配置中对日常工作台名称的定制。
+      origin: MODEL_PROPOSED
+    - commitment_id: handover-instructions
+      public_text: README.md 提供运行、数据约定、更新记录和交接四个章节，并要求使用 ./run.sh 启动工作区。
+      rationale: 为离线日常使用和人员交接提供明确的操作说明。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: terminal-taskdesk-workspace
+      observations:
+      - observation_id: workspace-data-copies
+        commitment_ids:
+        - source-snapshot
+        locator: 'data/tasks.yaml, data/events.ndjson, and data/display.json: whole
+          files'
+        value_encoding: Each file is UTF-8 text whose complete content is a byte-preserving
+          UTF-8 copy of the corresponding accepted input file.
+      - observation_id: textual-ui-structure
+        commitment_ids:
+        - textual-terminal-dashboard
+        locator: 'taskdesk.py: imports from textual, TaskDesk class, TaskDesk.compose
+          method, and the method decorated with @on(Button.Pressed)'
+        value_encoding: Python source containing a textual.app.App subclass whose
+          compose method yields an Input with id filter, a DataTable with id tasks,
+          a Button with id mark-done, and a Static with id summary; the Button.Pressed
+          handler is decorated with textual.on.
+      - observation_id: filter-rule
+        commitment_ids:
+        - task-filtering
+        locator: 'taskdesk.py: TaskDesk.refresh_table method'
+        value_encoding: Python source expression syntax showing casefolded filter
+          text compared against the concatenation of each task id, title, and effective
+          status before a DataTable row is added.
+      - observation_id: update-event-rule
+        commitment_ids:
+        - local-append-only-update
+        locator: 'taskdesk.py: TaskDesk method decorated with @on(Button.Pressed)'
+        value_encoding: Python source syntax that opens data/events.ndjson in append
+          mode and writes one JSON object with task_id, action, and at keys, where
+          action has the string value done.
+      - observation_id: display-title-rule
+        commitment_ids:
+        - display-configuration
+        locator: 'taskdesk.py: TaskDesk.on_mount method and data/display.json'
+        value_encoding: Python source syntax that reads data/display.json as a JSON
+          object and assigns its optional string title member to the Textual application
+          title; the configuration file is UTF-8 JSON object text.
+      - observation_id: handover-document
+        commitment_ids:
+        - handover-instructions
+        locator: 'README.md: 运行、数据约定、更新记录、交接 sections'
+        value_encoding: UTF-8 Markdown with exactly the four named level-two sections;
+          the 运行 section invokes ./run.sh and does not instruct execution of taskdesk.py
+          directly.
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: USER_EDITED
+      requirements:
+        inputs:
+        - kind: directory
+          location: local
+          representation: utf8_text
+          format_label: 任务 YAML、事件 NDJSON 和显示配置目录
+          role: user-confirmed primary input
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: user-confirmed primary artifact
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-01T09:19:35.545762Z'
+      semantics_sha256: 502696d10fc1f7fbad013ef087aa2a701ebb64c645ef39bbf7b8e22c3b03c8bb
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: textual-taskdesk-workspace-semantic-v1
+    source_file: oracle/tool-textual-taskdesk-v1/semantic_verifier.py
+    source_sha256: ce5b5d50967f63ebae5177a375b5a7a4789dba5ef60728b9406f225c8284b218
+    required_for_operational_active: true

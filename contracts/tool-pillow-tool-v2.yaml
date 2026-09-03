@@ -1,0 +1,341 @@
+task_id: tool-pillow-tool-v2
+source_repo:
+  url: https://github.com/python-pillow/Pillow
+  revision: guided
+  resolved_commit: bb1d8e8ab8d29048624d96e3ee53cecf7c13d13d
+  license: 存在但未识别类型
+  distribution: pillow
+  import_module: PIL
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_pillow-tool-v2
+  package: pillow_tool
+  entry_point: pillow-tool
+requirement_spec_file: tool-pillow-tool-v2.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: pillow-tool
+  summary: 将实验照片文件夹转换为含缩略图、总览拼图、拍摄信息表和离线索引页的本地工作区。
+  interface:
+    usage: pillow-tool <input> --out-dir <new-directory>
+    input:
+      kind: directory
+      format: 本地实验照片文件夹
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: index.html
+      role: 离线照片索引页
+      media_type: text/html
+      validation_profile: html_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: overview.png
+      role: 照片总览拼图
+      media_type: image/png
+      validation_profile: png_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: image-metadata.csv
+      role: 照片尺寸与拍摄信息表
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: image_indexer.py
+      role: 离线工作区说明应用
+      media_type: text/x-python
+      validation_profile: python_compile_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: thumbnails/*.png
+      role: 每张照片的 PNG 缩略图
+      media_type: image/png
+      validation_profile: png_v1
+      min_count: 1
+      max_count: 400
+      executable: false
+    - path_pattern: run.sh
+      role: Harness-owned offline Python launcher
+      media_type: text/x-shellscript
+      validation_profile: shell_v1
+      min_count: 1
+      max_count: 1
+      executable: true
+    - path_pattern: requirements.lock.txt
+      role: Frozen Python dependency lock
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: THIRD_PARTY_NOTICES.md
+      role: Frozen third-party wheel inventory
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: vendor/wheels/*.whl
+      role: Frozen offline Python wheel closure
+      media_type: application/zip
+      validation_profile: wheel_v1
+      min_count: 1
+      max_count: 256
+      executable: false
+    allow_extra_files: false
+    entrypoints:
+    - run.sh
+    runnable: true
+    smoke_command:
+    - ./run.sh
+    smoke_timeout_seconds: 20
+    require_offline_wheelhouse: true
+    runtime_python_entrypoint: image_indexer.py
+    limits:
+      max_files: 512
+      max_total_bytes: 268435456
+      max_file_bytes: 67108864
+      max_depth: 12
+      max_path_bytes: 240
+capability:
+  statement: '用户目标：一个文件夹里几百张实验照片，我想要缩略图、一张总览拼图、每张图的尺寸和拍摄信息表，还要一个能离线翻看的索引页。
+
+    公开行为承诺：
+
+    - [image-discovery] 工具递归扫描输入文件夹中扩展名为 .bmp、.gif、.jpeg、.jpg、.png、.tif、.tiff 或 .webp
+    的常规文件，并按其 POSIX 相对路径的 Unicode 码点顺序为每张照片生成一条记录。
+
+    - [dimension-metadata] 每条照片记录的 width_px 和 height_px 分别等于 Pillow 打开该原图后 Image.size
+    返回的宽度和高度。
+
+    - [capture-metadata] 每条照片记录输出 captured_at、make 和 model：captured_at 优先取 EXIF DateTimeOriginal（36867），缺失时取
+    DateTime（306）；make 取 Make（271），model 取 Model（272）；缺失值为空字符串。
+
+    - [thumbnail-rendering] 工具为每张照片生成一个 PNG 缩略图；缩略图由 Pillow 的 LANCZOS 缩放生成，保持原始长宽比，宽度不超过
+    240 像素且高度不超过 180 像素。
+
+    - [overview-collage] 工具生成 overview.png 总览拼图：画布宽 1280 像素、高为 216×ceil(照片数/5) 像素，白色背景；照片顺序的缩略图按五列排列，每格
+    256×216 像素并从格内坐标 (8,8) 放置。
+
+    - [offline-index-page] 工具生成 index.html，其中 image-table 的每一行对应 image-metadata.csv
+    中同顺序的一张照片，显示其缩略图、源路径、尺寸、拍摄时间、厂商和型号；页面只引用工作区内的相对本地 overview.png、image-metadata.csv
+    和缩略图资源。
+
+    公开产物协议：
+
+    - [image-row-order -> image-discovery] 定位：Parse image-metadata.csv as UTF-8 CSV;
+    read all data rows in their serialized order and the source_path column.；值表示：The
+    header is exactly image_id,source_path,width_px,height_px,captured_at,make,model,thumbnail_file.
+    source_path values are POSIX relative paths and rows are ordered by Unicode code-point
+    ordering of source_path.
+
+    - [dimension-columns -> dimension-metadata] 定位：For each data row in image-metadata.csv,
+    read source_path, width_px, and height_px.；值表示：width_px and height_px are base-10
+    positive integers representing the two members of Pillow Image.size for the source
+    image named by source_path.
+
+    - [capture-columns -> capture-metadata] 定位：For each data row in image-metadata.csv,
+    read captured_at, make, and model.；值表示：captured_at, make, and model are UTF-8
+    text. captured_at is the string form of EXIF tag 36867 when present, otherwise
+    the string form of tag 306 when present, otherwise an empty string. make and model
+    are respectively the string forms of EXIF tags 271 and 272, or empty strings when
+    absent.
+
+    - [thumbnail-files -> thumbnail-rendering] 定位：For each row in image-metadata.csv,
+    open the PNG at the relative path stored in thumbnail_file.；值表示：thumbnail_file
+    is a relative path with the syntax thumbnails/<64-lowercase-hexadecimal-image-id>.png.
+    Each referenced file is a PNG whose width is at most 240 pixels and whose height
+    is at most 180 pixels.
+
+    - [overview-layout -> overview-collage] 定位：Open overview.png and compare it with
+    the thumbnail files named by image-metadata.csv in row order.；值表示：overview.png
+    is an RGBA PNG with width 1280 and height 216*ceil(row_count/5). It has opaque
+    white background and places each row-order thumbnail at the top-left coordinate
+    (8 + 256*(row_index mod 5), 8 + 216*floor(row_index/5)).
+
+    - [index-table -> offline-index-page] 定位：Parse index.html; locate table#image-table
+    and its tbody tr elements, then inspect each row''s data-image-id attribute and
+    descendant img src attribute.；值表示：There is one tbody row per image-metadata.csv
+    data row, in the same order. Every row has data-image-id equal to the row image_id
+    and contains an img whose src equals that row thumbnail_file. The document contains
+    only relative local references for overview.png, image-metadata.csv, and thumbnail
+    files.
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: WorkspacePhotoIndexBundle
+  intent_contract:
+    schema_version: 1
+    user_goal: 一个文件夹里几百张实验照片，我想要缩略图、一张总览拼图、每张图的尺寸和拍摄信息表，还要一个能离线翻看的索引页。
+    user_goal_sha256: dc37427e13fc88714e088651642098ff7046d9ada5989dcbf1b7c1c274927ce7
+    commitments:
+    - commitment_id: image-discovery
+      public_text: 工具递归扫描输入文件夹中扩展名为 .bmp、.gif、.jpeg、.jpg、.png、.tif、.tiff 或 .webp 的常规文件，并按其
+        POSIX 相对路径的 Unicode 码点顺序为每张照片生成一条记录。
+      rationale: 让数百张分层实验照片的覆盖范围和展示顺序可预测且可复核。
+      origin: MODEL_PROPOSED
+    - commitment_id: dimension-metadata
+      public_text: 每条照片记录的 width_px 和 height_px 分别等于 Pillow 打开该原图后 Image.size 返回的宽度和高度。
+      rationale: 提供用户所需的每张图像尺寸表。
+      origin: MODEL_PROPOSED
+    - commitment_id: capture-metadata
+      public_text: 每条照片记录输出 captured_at、make 和 model：captured_at 优先取 EXIF DateTimeOriginal（36867），缺失时取
+        DateTime（306）；make 取 Make（271），model 取 Model（272）；缺失值为空字符串。
+      rationale: 把可用的拍摄时间和相机信息汇总到同一张表中。
+      origin: MODEL_PROPOSED
+    - commitment_id: thumbnail-rendering
+      public_text: 工具为每张照片生成一个 PNG 缩略图；缩略图由 Pillow 的 LANCZOS 缩放生成，保持原始长宽比，宽度不超过 240
+        像素且高度不超过 180 像素。
+      rationale: 使大量实验照片可以快速离线浏览。
+      origin: MODEL_PROPOSED
+    - commitment_id: overview-collage
+      public_text: 工具生成 overview.png 总览拼图：画布宽 1280 像素、高为 216×ceil(照片数/5) 像素，白色背景；照片顺序的缩略图按五列排列，每格
+        256×216 像素并从格内坐标 (8,8) 放置。
+      rationale: 提供一张可整体查看全部照片的总览图。
+      origin: MODEL_PROPOSED
+    - commitment_id: offline-index-page
+      public_text: 工具生成 index.html，其中 image-table 的每一行对应 image-metadata.csv 中同顺序的一张照片，显示其缩略图、源路径、尺寸、拍摄时间、厂商和型号；页面只引用工作区内的相对本地
+        overview.png、image-metadata.csv 和缩略图资源。
+      rationale: 让用户无需网络即可从索引页查看拼图、缩略图和拍摄信息。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: workspace-photo-index-v1
+      observations:
+      - observation_id: image-row-order
+        commitment_ids:
+        - image-discovery
+        locator: Parse image-metadata.csv as UTF-8 CSV; read all data rows in their
+          serialized order and the source_path column.
+        value_encoding: The header is exactly image_id,source_path,width_px,height_px,captured_at,make,model,thumbnail_file.
+          source_path values are POSIX relative paths and rows are ordered by Unicode
+          code-point ordering of source_path.
+      - observation_id: dimension-columns
+        commitment_ids:
+        - dimension-metadata
+        locator: For each data row in image-metadata.csv, read source_path, width_px,
+          and height_px.
+        value_encoding: width_px and height_px are base-10 positive integers representing
+          the two members of Pillow Image.size for the source image named by source_path.
+      - observation_id: capture-columns
+        commitment_ids:
+        - capture-metadata
+        locator: For each data row in image-metadata.csv, read captured_at, make,
+          and model.
+        value_encoding: captured_at, make, and model are UTF-8 text. captured_at is
+          the string form of EXIF tag 36867 when present, otherwise the string form
+          of tag 306 when present, otherwise an empty string. make and model are respectively
+          the string forms of EXIF tags 271 and 272, or empty strings when absent.
+      - observation_id: thumbnail-files
+        commitment_ids:
+        - thumbnail-rendering
+        locator: For each row in image-metadata.csv, open the PNG at the relative
+          path stored in thumbnail_file.
+        value_encoding: thumbnail_file is a relative path with the syntax thumbnails/<64-lowercase-hexadecimal-image-id>.png.
+          Each referenced file is a PNG whose width is at most 240 pixels and whose
+          height is at most 180 pixels.
+      - observation_id: overview-layout
+        commitment_ids:
+        - overview-collage
+        locator: Open overview.png and compare it with the thumbnail files named by
+          image-metadata.csv in row order.
+        value_encoding: overview.png is an RGBA PNG with width 1280 and height 216*ceil(row_count/5).
+          It has opaque white background and places each row-order thumbnail at the
+          top-left coordinate (8 + 256*(row_index mod 5), 8 + 216*floor(row_index/5)).
+      - observation_id: index-table
+        commitment_ids:
+        - offline-index-page
+        locator: Parse index.html; locate table#image-table and its tbody tr elements,
+          then inspect each row's data-image-id attribute and descendant img src attribute.
+        value_encoding: There is one tbody row per image-metadata.csv data row, in
+          the same order. Every row has data-image-id equal to the row image_id and
+          contains an img whose src equals that row thumbnail_file. The document contains
+          only relative local references for overview.png, image-metadata.csv, and
+          thumbnail files.
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: directory
+          location: local
+          representation: binary
+          format_label: 本地实验照片文件夹
+          role: 要索引的照片集合；可包含数百张图像和子文件夹
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件照片索引工作区
+          role: 包含缩略图、总览拼图、拍摄信息 CSV 表和可离线浏览的索引页
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-02T05:10:34.426875Z'
+      semantics_sha256: a92181ecb3b19381a274464f2b4b55898387b5070256c18f20004ae652a51ad7
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: pillow-tool-workspace-semantic-v1
+    source_file: oracle/tool-pillow-tool-v2/semantic_verifier.py
+    source_sha256: 0ebb9fd0a3af8b2ecf02bab1a491ba27bfd7a2174b92e41bd57a3e5b38e2d54d
+    required_for_operational_active: true

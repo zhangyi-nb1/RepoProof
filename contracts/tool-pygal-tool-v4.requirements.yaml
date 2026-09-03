@@ -1,0 +1,102 @@
+task_id: tool-pygal-tool-v4
+controls:
+  positive: controls/tool-pygal-tool-v4/positive
+  negatives:
+  - path: controls/tool-pygal-tool-v4/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-pygal-tool-v4/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - single-mixed-export
+  - single-day-single-model
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - pygal-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-per-day-spend-rows
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: index.html 中的“按天花费”表格为每个出现的日期给出恰好一行，日期升序排列，每行列出该天所有记录的花费合计（美元，保留两位小数）。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-per-model-spend-rows
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: index.html 中的“按模型花费”表格为每个出现的模型给出恰好一行，按模型名升序排列，每行列出该模型所有记录的花费合计（美元，保留两位小数）。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-total-spend-and-balance
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: index.html 展示总花费（所有记录 cost_usd 之和，两位小数）与剩余余额（预算减去总花费，两位小数）。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-over-threshold-alert
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 按天花费表中，当某天合计花费严格大于阈值时，该行被标记为超阈值提醒；否则不标记；index.html 也汇总列出所有超阈值的日期（升序）。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-pygal-day-chart-bars
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: charts/spend_by_day.svg 由 pygal 渲染为柱状图，其柱子与按天花费表逐日一一对应（相同日期集合、相同顺序、相同合计值）。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-pygal-model-chart-bars
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: charts/spend_by_model.svg 由 pygal 渲染为柱状图，其柱子与按模型花费表逐模型一一对应（相同模型集合、相同顺序、相同合计值）。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-rebuild-idempotent-from-bundled-csv
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 通过 ./run.sh 重新运行时，仪表盘完全依据 data/usage.csv 中的数据重建，相同的 data/usage.csv
+    产生完全一致的汇总、余额、提醒与图表条目。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1

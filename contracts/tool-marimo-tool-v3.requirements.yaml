@@ -1,0 +1,87 @@
+task_id: tool-marimo-tool-v3
+controls:
+  positive: controls/tool-marimo-tool-v3/positive
+  negatives:
+  - path: controls/tool-marimo-tool-v3/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-marimo-tool-v3/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - growth-experiment
+  - sensor-observations
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - marimo-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-preserved-experimental-table
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 工作区会在 data/source.csv 中保留输入目录中唯一 CSV 实验表的表头和数据记录，供后续分析直接读取。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:marimo-tool-workspace-semantic-v1
+- id: intent-editable-marimo-analysis
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 工作区会提供 analysis.py，其中用 marimo.App 定义设置、CSV 加载和结果预览三个 reactive 单元。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:marimo-tool-workspace-semantic-v1
+- id: intent-parameterized-preview
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: analysis.py 会提供可编辑的 DEFAULT_PREVIEW_ROWS 参数，并用它限制展示的实验记录数。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:marimo-tool-workspace-semantic-v1
+- id: intent-analysis-idea-carried-forward
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 工作区会把输入的 analysis_idea.txt 内容写入 analysis_notes.md 的 Initial analysis
+    idea 小节。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:marimo-tool-workspace-semantic-v1
+- id: intent-handover-instructions
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: README.md 会说明通过 ./run.sh 启动项目，并指出 analysis.py 是应继续编辑的 marimo notebook
+    源文件。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:marimo-tool-workspace-semantic-v1

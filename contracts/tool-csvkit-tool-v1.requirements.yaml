@@ -1,0 +1,77 @@
+task_id: tool-csvkit-tool-v1
+controls:
+  positive: controls/tool-csvkit-tool-v1/positive
+  negatives:
+  - path: controls/tool-csvkit-tool-v1/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-csvkit-tool-v1/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - three-finance-sheets
+  - shared-columns
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - csvkit-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-source-csv-discovery
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 工作区只纳入输入目录顶层、扩展名为 .csv（不区分大小写）的普通文件；按文件名 Unicode 码点顺序处理。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:csvkit-tool-workspace-semantic-v1
+- id: intent-source-inventory
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: source-inventory.csv 为每个已纳入源 CSV 生成一行，列出文件名、数据记录数，以及以 JSON 字符串编码的原始表头数组。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:csvkit-tool-workspace-semantic-v1
+- id: intent-consolidated-records
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: reconciliation.csv 的表头固定以 source_file、source_record 开始，随后按已处理文件顺序首次出现的顺序列出所有不同的源表头；每个源数据记录恰生成一行，保留同名源列的文本值，缺少的列填空字符串。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:csvkit-tool-workspace-semantic-v1
+- id: intent-handoff-guide
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: HANDOFF.md 必须包含“继续核对”和“交接说明”二级标题，说明统一核对表、来源追溯列、源表清单以及通过 ./run.sh 使用工作区。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:csvkit-tool-workspace-semantic-v1

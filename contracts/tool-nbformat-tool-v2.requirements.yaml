@@ -1,0 +1,78 @@
+task_id: tool-nbformat-tool-v2
+controls:
+  positive: controls/tool-nbformat-tool-v2/positive
+  negatives:
+  - path: controls/tool-nbformat-tool-v2/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-nbformat-tool-v2/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - basic-analysis
+  - markdown-only
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - nbformat-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-valid-ipynb
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 生成的 notebook.ipynb 是能被 pinned nbformat 通过 read+validate 无错读取与校验的规范化
+    Jupyter 笔记本。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:nbformat-tool-workspace-semantic-v1
+- id: intent-cells-preserved
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 笔记本按输入规格 cells 的原始顺序包含相同数量的单元，且每个单元的 cell_type 与 source 内容与规格一致。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:nbformat-tool-workspace-semantic-v1
+- id: intent-nbformat-version
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 笔记本的 nbformat 与 nbformat_minor 与输入规格所声明的版本一致（未声明时采用 upstream 当前版本）。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:nbformat-tool-workspace-semantic-v1
+- id: intent-review-mirrors-notebook
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: notebook_review.txt 纯文本按相同顺序逐单元列出每个单元的 cell_type 与 source 文本，其单元条数与笔记本单元数相同。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:nbformat-tool-workspace-semantic-v1

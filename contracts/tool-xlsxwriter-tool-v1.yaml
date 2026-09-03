@@ -1,0 +1,308 @@
+task_id: tool-xlsxwriter-tool-v1
+source_repo:
+  url: https://github.com/jmcnamara/XlsxWriter
+  revision: guided
+  resolved_commit: e943bee8c9cdf0661cfdb83d5497e0725390e41e
+  license: BSD
+  distribution: xlsxwriter
+  import_module: xlsxwriter
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_xlsxwriter-tool
+  package: xlsxwriter_tool
+  entry_point: xlsxwriter-tool
+requirement_spec_file: tool-xlsxwriter-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: xlsxwriter-tool
+  summary: 将发票、付款和科目表 CSV 打包为离线审计工作区，生成带汇总页和红色异常登记册的 Excel 工作簿。
+  interface:
+    usage: xlsxwriter-tool <input> --out-dir <new-directory>
+    input:
+      kind: directory
+      format: 包含发票、付款及科目表 CSV 的本地目录
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: app.py
+      role: 审计工作区 Python 应用
+      media_type: text/x-python
+      validation_profile: python_compile_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: README.md
+      role: 用户操作说明
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: audit_workbook.xlsx
+      role: 可交付审计 Excel 工作簿
+      media_type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      validation_profile: xlsx_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: source_data/invoices.csv
+      role: 发票源数据快照
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: source_data/payments.csv
+      role: 付款源数据快照
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: source_data/chart_of_accounts.csv
+      role: 科目表源数据快照
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: run.sh
+      role: Harness-owned offline Python launcher
+      media_type: text/x-shellscript
+      validation_profile: shell_v1
+      min_count: 1
+      max_count: 1
+      executable: true
+    - path_pattern: requirements.lock.txt
+      role: Frozen Python dependency lock
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: THIRD_PARTY_NOTICES.md
+      role: Frozen third-party wheel inventory
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: vendor/wheels/*.whl
+      role: Frozen offline Python wheel closure
+      media_type: application/zip
+      validation_profile: wheel_v1
+      min_count: 1
+      max_count: 256
+      executable: false
+    allow_extra_files: false
+    entrypoints:
+    - run.sh
+    runnable: true
+    smoke_command:
+    - ./run.sh
+    - --help
+    smoke_timeout_seconds: 20
+    require_offline_wheelhouse: true
+    runtime_python_entrypoint: app.py
+    limits:
+      max_files: 512
+      max_total_bytes: 268435456
+      max_file_bytes: 67108864
+      max_depth: 3
+      max_path_bytes: 160
+capability:
+  statement: '用户目标：每个月财务给我三四张 CSV（发票、付款、科目表），我想一键得到一个能直接交给审计的 Excel 工作簿，带汇总页和异常标红。
+
+    公开行为承诺：
+
+    - [required-sheets] 生成的 audit_workbook.xlsx 按顺序包含 Summary、Invoices、Payments、ChartOfAccounts
+    和 Exceptions 五个工作表。
+
+    - [source-ledgers] Invoices、Payments 和 ChartOfAccounts 工作表分别保留 invoices.csv、payments.csv
+    和 chart_of_accounts.csv 的标题与数据行，数据行保持源 CSV 的原始顺序。
+
+    - [summary-metrics] Summary 表列出发票数量、发票金额合计、付款金额合计、未匹配付款数量和缺失科目数量；金额合计分别基于 invoices.csv
+    的 amount 列和 payments.csv 的 amount 列。
+
+    - [exception-detection] Exceptions 表登记三类异常：付款的 invoice_id 未出现在发票中、发票的 account_code
+    未出现在科目表中，以及同一非空 invoice_id 的第二次及后续出现。
+
+    - [exception-order] Exceptions 表先列出未匹配付款，再列出缺失科目，最后列出重复发票；每一类内部按其源 CSV 的数据行顺序排列，并记录源工作表和源
+    CSV 行号。
+
+    - [exception-highlighting] Exceptions 表的每条异常记录在 A:E 列均以红色系填充突出显示。
+
+    公开产物协议：
+
+    - [workbook-sheets -> required-sheets] 定位：在交付工作区根目录的 audit_workbook.xlsx 中，用 XLSX
+    工作表清单读取工作表名称。；值表示：工作表名称列表；必须按顺序为 Summary、Invoices、Payments、ChartOfAccounts、Exceptions。
+
+    - [ledger-sheet-values -> source-ledgers] 定位：在 audit_workbook.xlsx 的 Invoices、Payments、ChartOfAccounts
+    工作表中，读取第 1 行标题及从第 2 行开始的单元格值。；值表示：每张表的标题行是输入 CSV 的标题行；其后的每一行按输入 CSV 的行序编码为字符串单元格序列。
+
+    - [summary-table -> summary-metrics] 定位：在 audit_workbook.xlsx 的 Summary 工作表中，读取
+    A1:B6。；值表示：二维表：第 1 行为 Metric、Value；第 2 至第 6 行的 Metric 依次为 Invoice count、Invoice
+    total、Payment total、Unmatched payment count、Missing account count；各 Value 分别为整数或十进制数值。
+
+    - [exception-register -> exception-detection,exception-order] 定位：在 audit_workbook.xlsx
+    的 Exceptions 工作表中，读取第 1 行标题以及从第 2 行开始的所有记录。；值表示：标题固定为 ErrorType、SourceSheet、SourceRow、Key、Detail；每条记录编码为五个字符串单元格。记录先按
+    ErrorType 的顺序 Unmatched payment、Missing account、Duplicate invoice 排列，再按对应输入 CSV
+    的数据行序排列。
+
+    - [exception-row-style -> exception-highlighting] 定位：在 audit_workbook.xlsx 的 Exceptions
+    工作表中，检查每个非标题记录行 A:E 的单元格填充格式。；值表示：每个异常记录行的 A:E 单元格均使用红色系实心填充格式；无异常记录时该表只有标题行。
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: AuditExcelWorkspace
+  intent_contract:
+    schema_version: 1
+    user_goal: 每个月财务给我三四张 CSV（发票、付款、科目表），我想一键得到一个能直接交给审计的 Excel 工作簿，带汇总页和异常标红。
+    user_goal_sha256: 8fe194fd91bf6500b91c836ee2548b37298341f3b3801740573707ac6e60af12
+    commitments:
+    - commitment_id: required-sheets
+      public_text: 生成的 audit_workbook.xlsx 按顺序包含 Summary、Invoices、Payments、ChartOfAccounts
+        和 Exceptions 五个工作表。
+      rationale: 将汇总、三类原始台账和审计异常登记册固定在可直接交付的工作簿中。
+      origin: MODEL_PROPOSED
+    - commitment_id: source-ledgers
+      public_text: Invoices、Payments 和 ChartOfAccounts 工作表分别保留 invoices.csv、payments.csv
+        和 chart_of_accounts.csv 的标题与数据行，数据行保持源 CSV 的原始顺序。
+      rationale: 审计人员可在工作簿内追溯每一条源台账记录。
+      origin: MODEL_PROPOSED
+    - commitment_id: summary-metrics
+      public_text: Summary 表列出发票数量、发票金额合计、付款金额合计、未匹配付款数量和缺失科目数量；金额合计分别基于 invoices.csv
+        的 amount 列和 payments.csv 的 amount 列。
+      rationale: 提供期间规模、金额和关键异常数量的审计总览。
+      origin: MODEL_PROPOSED
+    - commitment_id: exception-detection
+      public_text: Exceptions 表登记三类异常：付款的 invoice_id 未出现在发票中、发票的 account_code 未出现在科目表中，以及同一非空
+        invoice_id 的第二次及后续出现。
+      rationale: 将付款匹配、科目完整性和重复发票号风险集中暴露。
+      origin: MODEL_PROPOSED
+    - commitment_id: exception-order
+      public_text: Exceptions 表先列出未匹配付款，再列出缺失科目，最后列出重复发票；每一类内部按其源 CSV 的数据行顺序排列，并记录源工作表和源
+        CSV 行号。
+      rationale: 使审计复核定位稳定且可回溯。
+      origin: MODEL_PROPOSED
+    - commitment_id: exception-highlighting
+      public_text: Exceptions 表的每条异常记录在 A:E 列均以红色系填充突出显示。
+      rationale: 满足异常标红的审计交付要求。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: audit-excel-workbook-v1
+      observations:
+      - observation_id: workbook-sheets
+        commitment_ids:
+        - required-sheets
+        locator: 在交付工作区根目录的 audit_workbook.xlsx 中，用 XLSX 工作表清单读取工作表名称。
+        value_encoding: 工作表名称列表；必须按顺序为 Summary、Invoices、Payments、ChartOfAccounts、Exceptions。
+      - observation_id: ledger-sheet-values
+        commitment_ids:
+        - source-ledgers
+        locator: 在 audit_workbook.xlsx 的 Invoices、Payments、ChartOfAccounts 工作表中，读取第
+          1 行标题及从第 2 行开始的单元格值。
+        value_encoding: 每张表的标题行是输入 CSV 的标题行；其后的每一行按输入 CSV 的行序编码为字符串单元格序列。
+      - observation_id: summary-table
+        commitment_ids:
+        - summary-metrics
+        locator: 在 audit_workbook.xlsx 的 Summary 工作表中，读取 A1:B6。
+        value_encoding: 二维表：第 1 行为 Metric、Value；第 2 至第 6 行的 Metric 依次为 Invoice count、Invoice
+          total、Payment total、Unmatched payment count、Missing account count；各 Value
+          分别为整数或十进制数值。
+      - observation_id: exception-register
+        commitment_ids:
+        - exception-detection
+        - exception-order
+        locator: 在 audit_workbook.xlsx 的 Exceptions 工作表中，读取第 1 行标题以及从第 2 行开始的所有记录。
+        value_encoding: 标题固定为 ErrorType、SourceSheet、SourceRow、Key、Detail；每条记录编码为五个字符串单元格。记录先按
+          ErrorType 的顺序 Unmatched payment、Missing account、Duplicate invoice 排列，再按对应输入
+          CSV 的数据行序排列。
+      - observation_id: exception-row-style
+        commitment_ids:
+        - exception-highlighting
+        locator: 在 audit_workbook.xlsx 的 Exceptions 工作表中，检查每个非标题记录行 A:E 的单元格填充格式。
+        value_encoding: 每个异常记录行的 A:E 单元格均使用红色系实心填充格式；无异常记录时该表只有标题行。
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: directory
+          location: local
+          representation: utf8_text
+          format_label: 包含发票、付款及科目表 CSV 的本地目录
+          role: 审计源数据
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 含审计 Excel 工作簿的离线多文件工作区
+          role: 可交付审计工作簿及其本地再生成工具
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-02T06:27:31.432674Z'
+      semantics_sha256: 51dd19f2c28a0720b95bd3cd0f9431014e481f99dad118a18bcdd7f0483ab45e
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: xlsxwriter-tool-workspace-semantic-v1
+    source_file: oracle/tool-xlsxwriter-tool-v1/semantic_verifier.py
+    source_sha256: 26580e5fcef32eeb4caa3708eb7735dc1d27816ec7e59541495820317aa7f0f9
+    required_for_operational_active: true

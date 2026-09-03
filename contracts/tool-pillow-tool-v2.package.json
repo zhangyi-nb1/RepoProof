@@ -1,0 +1,36 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "public_tests/test_interface_contract.py"
+  ],
+  "collection_manifest_sha256": null,
+  "consumer_fixture_tree_sha256": "f5fb5981b32b06c5f77ec046b8f17f110601fcb1b21ecc1eeb2fc8a4fd903c49",
+  "contract_sha256": "eb835e1fc33994e00d414b4177a0c366f52b75b1db1fad656ccf25de5ec1c1c1",
+  "controls_summary": null,
+  "environment_constraints": null,
+  "expected_capability_nodes": null,
+  "expected_regression_nodes": null,
+  "held_out_fixture_sha256": "2560c8376dc321301ec6f35d159c6a6d0c7c5f4c8ee8cd4d0ad50297d743f7fa",
+  "image_digest": null,
+  "oracle_tree_sha256": "78f92552ac0122979b9cfb51062061b05265115c9e2b312a12edb5a2bee0eff9",
+  "prompt_manifest_sha256": null,
+  "public_examples_sha256": null,
+  "public_fixture_sha256": "54d60969fa125689d110835aa2fe6e87c685e151eef53d29b42119058115de9c",
+  "public_tests_tree_sha256": null,
+  "requirement_spec_sha256": null,
+  "responsibility_matrix": null,
+  "root_hash": "7732de5deb968ea7bd4e39db9ce0506c0dddeead2e2dc8fd21f2520ad3a1929c",
+  "source_commit": "bb1d8e8ab8d29048624d96e3ee53cecf7c13d13d",
+  "source_git_tree_hash": "12b034b7ed17ca8f43779dce83536682b23fae97",
+  "task_id": "tool-pillow-tool-v2",
+  "wheelhouse_root": "420795c48ce78215cbc0989b8dd81dc3dfa7e8a2dfc3cb7ebdff5763f3a16f3e",
+  "wheelhouse_wheels": {
+    "pillow-12.3.0-cp312-cp312-macosx_11_0_arm64.whl": "ffd0c5368496f41b0944be820fcb7a838aa6e623d250b01acf2643939c3f99d7"
+  }
+}

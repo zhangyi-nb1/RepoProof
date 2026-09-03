@@ -1,0 +1,234 @@
+task_id: tool-python-pptx-tool-v2
+source_repo:
+  url: https://github.com/scanny/python-pptx
+  revision: guided
+  resolved_commit: 278b47b1dedd5b46ee84c286e77cdfb0bf4594be
+  license: MIT
+  distribution: python-pptx
+  import_module: pptx
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_python-pptx-tool-v2
+  package: python_pptx_tool
+  entry_point: python-pptx-tool
+requirement_spec_file: tool-python-pptx-tool-v2.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: python-pptx-tool
+  summary: 根据季度指标 JSON 和要点笔记生成可直接汇报的 PowerPoint 幻灯片及配套讲稿工作区。
+  interface:
+    usage: python-pptx-tool <input> --out-dir <new-directory>
+    input:
+      kind: directory
+      format: 包含 metrics.json 与 notes.txt 的本地目录
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: report.pptx
+      role: 季度指标 PowerPoint 幻灯片
+      media_type: application/vnd.openxmlformats-officedocument.presentationml.presentation
+      validation_profile: pptx_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: speaker_notes.md
+      role: 配套讲稿
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: README.md
+      role: 工作区说明
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    allow_extra_files: false
+    entrypoints: []
+    runnable: false
+    smoke_command: []
+    smoke_timeout_seconds: 10
+    require_offline_wheelhouse: false
+    runtime_python_entrypoint: null
+    limits:
+      max_files: 3
+      max_total_bytes: 16777216
+      max_file_bytes: 8388608
+      max_depth: 1
+      max_path_bytes: 128
+capability:
+  statement: '用户目标：我有季度指标的 JSON 和一份要点笔记，想生成一套能直接汇报的幻灯片，再附一份讲稿。
+
+    公开行为承诺：
+
+    - [presentation-title] report.pptx 的第 1 张幻灯片标题等于 metrics.json 的 title 字符串。
+
+    - [quarter-slide-order-and-metrics] report.pptx 按 metrics.json 中 quarters 的顺序为每个季度生成一张幻灯片；每张显示该季度名称，并按输入
+    metrics 顺序显示“名称: 数值”，仅在 unit 存在且非空时在数值后附加空格和单位。
+
+    - [presentation-notes-slide] report.pptx 的最后一张幻灯片标题为“讲解要点”，其正文保留 notes.txt 的全部文本。
+
+    - [speaker-script-content] speaker_notes.md 以 metrics.json 的 title 作为一级标题，按输入季度顺序提供二级标题和对应指标条目，最后以“讲解要点”二级标题后保留
+    notes.txt 的全部文本。
+
+    公开产物协议：
+
+    - [presentation-title-text -> presentation-title] 定位：在 report.pptx 中用 pinned upstream
+    打开演示文稿，读取第 1 张幻灯片的标题形状文本。；值表示：Unicode string.
+
+    - [quarter-slide-content -> quarter-slide-order-and-metrics] 定位：在 report.pptx
+    中用 pinned upstream 打开演示文稿，按幻灯片顺序读取第 2 张至倒数第 2 张幻灯片；每张的第一个文本框为季度标题，第二个文本框按换行分隔指标行。；值表示：Ordered
+    sequence of objects, each containing a Unicode quarter title and an ordered sequence
+    of Unicode metric lines. Each metric line has the syntax metric-name, colon, space,
+    decimal-value, and an optional space followed by a nonempty unit.
+
+    - [presentation-notes-content -> presentation-notes-slide] 定位：在 report.pptx 中用
+    pinned upstream 打开演示文稿，读取最后一张幻灯片的第一个和第二个文本框文本。；值表示：Object with a Unicode title
+    string and a Unicode body string.
+
+    - [speaker-script-sections -> speaker-script-content] 定位：读取 speaker_notes.md 的
+    UTF-8 文本；首个 ATX level-1 heading 是汇报标题，随后每个 ATX level-2 heading 到下一 level-2 heading
+    之间构成一个季度段或讲解要点段。；值表示：Markdown document containing one level-1 heading, an ordered
+    sequence of quarter level-2 headings with zero or more hyphen-space metric lines,
+    and one final level-2 heading followed by Unicode note text.
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: QuarterlyReportWorkspace
+  intent_contract:
+    schema_version: 1
+    user_goal: 我有季度指标的 JSON 和一份要点笔记，想生成一套能直接汇报的幻灯片，再附一份讲稿。
+    user_goal_sha256: 549f48fd5e11e846a27b897bac3805ba5104192d70900a0be19a966f5967ebc2
+    commitments:
+    - commitment_id: presentation-title
+      public_text: report.pptx 的第 1 张幻灯片标题等于 metrics.json 的 title 字符串。
+      rationale: 使生成的演示文稿使用用户提供的汇报主题。
+      origin: MODEL_PROPOSED
+    - commitment_id: quarter-slide-order-and-metrics
+      public_text: 'report.pptx 按 metrics.json 中 quarters 的顺序为每个季度生成一张幻灯片；每张显示该季度名称，并按输入
+        metrics 顺序显示“名称: 数值”，仅在 unit 存在且非空时在数值后附加空格和单位。'
+      rationale: 将季度指标以适合逐页汇报的顺序和可读格式呈现。
+      origin: MODEL_PROPOSED
+    - commitment_id: presentation-notes-slide
+      public_text: report.pptx 的最后一张幻灯片标题为“讲解要点”，其正文保留 notes.txt 的全部文本。
+      rationale: 让演示文稿包含输入笔记所要求的讨论要点。
+      origin: MODEL_PROPOSED
+    - commitment_id: speaker-script-content
+      public_text: speaker_notes.md 以 metrics.json 的 title 作为一级标题，按输入季度顺序提供二级标题和对应指标条目，最后以“讲解要点”二级标题后保留
+        notes.txt 的全部文本。
+      rationale: 提供与幻灯片内容一致、可在汇报时直接阅读的讲稿。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: quarterly-report-workspace
+      observations:
+      - observation_id: presentation-title-text
+        commitment_ids:
+        - presentation-title
+        locator: 在 report.pptx 中用 pinned upstream 打开演示文稿，读取第 1 张幻灯片的标题形状文本。
+        value_encoding: Unicode string.
+      - observation_id: quarter-slide-content
+        commitment_ids:
+        - quarter-slide-order-and-metrics
+        locator: 在 report.pptx 中用 pinned upstream 打开演示文稿，按幻灯片顺序读取第 2 张至倒数第 2 张幻灯片；每张的第一个文本框为季度标题，第二个文本框按换行分隔指标行。
+        value_encoding: Ordered sequence of objects, each containing a Unicode quarter
+          title and an ordered sequence of Unicode metric lines. Each metric line
+          has the syntax metric-name, colon, space, decimal-value, and an optional
+          space followed by a nonempty unit.
+      - observation_id: presentation-notes-content
+        commitment_ids:
+        - presentation-notes-slide
+        locator: 在 report.pptx 中用 pinned upstream 打开演示文稿，读取最后一张幻灯片的第一个和第二个文本框文本。
+        value_encoding: Object with a Unicode title string and a Unicode body string.
+      - observation_id: speaker-script-sections
+        commitment_ids:
+        - speaker-script-content
+        locator: 读取 speaker_notes.md 的 UTF-8 文本；首个 ATX level-1 heading 是汇报标题，随后每个
+          ATX level-2 heading 到下一 level-2 heading 之间构成一个季度段或讲解要点段。
+        value_encoding: Markdown document containing one level-1 heading, an ordered
+          sequence of quarter level-2 headings with zero or more hyphen-space metric
+          lines, and one final level-2 heading followed by Unicode note text.
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: directory
+          location: local
+          representation: utf8_text
+          format_label: 包含 metrics.json 与 notes.txt 的本地目录
+          role: 季度指标数据和要点笔记
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: 可直接汇报的 PowerPoint 幻灯片和讲稿
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-02T05:49:31.775278Z'
+      semantics_sha256: 4f65854dcddd4a49d867ad4d9aeb18b5747b013b51b28d6c5831ad99fe6c1b39
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: python-pptx-tool-workspace-semantic-v1
+    source_file: oracle/tool-python-pptx-tool-v2/semantic_verifier.py
+    source_sha256: 8390bf459e0419a85023d2133311cc04ffd1b8e876f6201864cd01f4cde9e148
+    required_for_operational_active: true

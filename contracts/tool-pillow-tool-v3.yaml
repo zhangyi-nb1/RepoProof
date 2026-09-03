@@ -1,0 +1,313 @@
+task_id: tool-pillow-tool-v3
+source_repo:
+  url: https://github.com/python-pillow/Pillow
+  revision: guided
+  resolved_commit: bb1d8e8ab8d29048624d96e3ee53cecf7c13d13d
+  license: 存在但未识别类型
+  distribution: pillow
+  import_module: PIL
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_pillow-tool-v3
+  package: pillow_tool
+  entry_point: pillow-tool
+requirement_spec_file: tool-pillow-tool-v3.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: pillow-tool
+  summary: 将实验照片文件夹打包为含缩略图、总览拼图、拍摄信息 CSV 表和离线索引页的本地工作区。
+  interface:
+    usage: pillow-tool <input> --out-dir <new-directory>
+    input:
+      kind: directory
+      format: 实验照片目录
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: app.py
+      role: 本地离线照片索引服务应用
+      media_type: text/x-python
+      validation_profile: python_compile_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: index.html
+      role: 离线照片索引页面
+      media_type: text/html
+      validation_profile: html_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: overview.jpg
+      role: 照片总览拼图
+      media_type: image/jpeg
+      validation_profile: binary_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: photos.csv
+      role: 照片尺寸与拍摄信息表
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: thumbnails/*.jpg
+      role: 单张照片的离线 JPEG 缩略图
+      media_type: image/jpeg
+      validation_profile: binary_v1
+      min_count: 1
+      max_count: 100
+      executable: false
+    - path_pattern: run.sh
+      role: Harness-owned offline Python launcher
+      media_type: text/x-shellscript
+      validation_profile: shell_v1
+      min_count: 1
+      max_count: 1
+      executable: true
+    - path_pattern: requirements.lock.txt
+      role: Frozen Python dependency lock
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: THIRD_PARTY_NOTICES.md
+      role: Frozen third-party wheel inventory
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: vendor/wheels/*.whl
+      role: Frozen offline Python wheel closure
+      media_type: application/zip
+      validation_profile: wheel_v1
+      min_count: 1
+      max_count: 256
+      executable: false
+    allow_extra_files: false
+    entrypoints:
+    - run.sh
+    runnable: true
+    smoke_command:
+    - ./run.sh
+    - --help
+    smoke_timeout_seconds: 20
+    require_offline_wheelhouse: true
+    runtime_python_entrypoint: app.py
+    limits:
+      max_files: 512
+      max_total_bytes: 268435456
+      max_file_bytes: 67108864
+      max_depth: 8
+      max_path_bytes: 240
+capability:
+  statement: '用户目标：一个文件夹里几百张实验照片，我想要缩略图、一张总览拼图、每张图的尺寸和拍摄信息表，还要一个能离线翻看的索引页。
+
+    公开行为承诺：
+
+    - [supported-image-inventory] 工具递归检查输入目录中扩展名为 BMP、GIF、JPEG、JPG、PNG、PPM、TIF、TIFF
+    或 WEBP 的文件，按相对 POSIX 路径排序；每张可由 Pillow 打开的候选图像在 photos.csv 中恰有一条记录，其他扩展名文件不列入目录。
+
+    - [image-dimensions-and-capture-metadata] 每条 photos.csv 记录使用 Pillow 图像对象报告原始像素宽度、高度和格式，并报告
+    EXIF DateTimeOriginal（缺失时 DateTime）、Make 与 Model；缺失的拍摄信息以空字段表示。
+
+    - [thumbnail-rendering] 每张已记录照片生成一个 JPEG 缩略图，先按 Pillow 的 EXIF 方向校正，再以保持比例的方式限制在
+    240×180 像素内；photos.csv 的 thumbnail_path 指向该缩略图。
+
+    - [overview-collage] overview.jpg 是由全部已生成缩略图按 CSV 顺序从左到右、从上到下排成四列的 JPEG 总览；每个单元为
+    250×220 像素，缩略图置于单元左上角偏移 5 像素处。
+
+    - [offline-index-page] index.html 是无需外部资源的离线索引页，展示 overview.jpg，并为 photos.csv
+    的每条记录展示其本地缩略图、源路径、尺寸、格式和拍摄信息；页面提示用户通过 ./run.sh 启动本地浏览服务。
+
+    公开产物协议：
+
+    - [photo-records -> supported-image-inventory] 定位：Parse photos.csv as UTF-8 CSV;
+    each data row is one accepted source image, identified by its source_path cell.；值表示：CSV
+    with exactly the header source_path,width,height,format,captured_at,camera_make,camera_model,thumbnail_path;
+    source_path and thumbnail_path are relative POSIX paths, width and height are
+    base-10 positive integers, and remaining cells are UTF-8 text.
+
+    - [image-metadata-cells -> image-dimensions-and-capture-metadata] 定位：For every
+    data row in photos.csv, read the width, height, format, captured_at, camera_make,
+    and camera_model cells.；值表示：width and height are base-10 positive integers; format
+    is nonempty UTF-8 text; captured_at, camera_make, and camera_model are UTF-8 text
+    and may be empty when the corresponding EXIF value is absent.
+
+    - [thumbnail-files -> thumbnail-rendering] 定位：For every photos.csv data row, resolve
+    its thumbnail_path relative to the workspace root and inspect that JPEG file.；值表示：thumbnail_path
+    has the syntax thumbnails/ followed by a zero-padded decimal ordinal and .jpg;
+    the target is a JPEG image.
+
+    - [overview-image -> overview-collage] 定位：Open overview.jpg at the workspace root.；值表示：A
+    JPEG image whose width is 1000 pixels and whose height is 220 multiplied by the
+    ceiling of the CSV data-row count divided by 4.
+
+    - [index-page-elements -> offline-index-page] 定位：Parse index.html and locate the
+    table element with id="photos", the overview image element with id="overview",
+    and the image elements in the table body.；值表示：UTF-8 HTML containing one overview
+    image with src="overview.jpg" and one table-body image per CSV data row; each
+    table-body image src is the corresponding thumbnail_path CSV value, and its adjacent
+    cells present that row''s source path, dimensions, format, and capture metadata.
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: WorkspaceBundleV1
+  intent_contract:
+    schema_version: 1
+    user_goal: 一个文件夹里几百张实验照片，我想要缩略图、一张总览拼图、每张图的尺寸和拍摄信息表，还要一个能离线翻看的索引页。
+    user_goal_sha256: dc37427e13fc88714e088651642098ff7046d9ada5989dcbf1b7c1c274927ce7
+    commitments:
+    - commitment_id: supported-image-inventory
+      public_text: 工具递归检查输入目录中扩展名为 BMP、GIF、JPEG、JPG、PNG、PPM、TIF、TIFF 或 WEBP 的文件，按相对
+        POSIX 路径排序；每张可由 Pillow 打开的候选图像在 photos.csv 中恰有一条记录，其他扩展名文件不列入目录。
+      rationale: 使大型实验照片目录的纳入范围和记录顺序可预测、可核查。
+      origin: MODEL_PROPOSED
+    - commitment_id: image-dimensions-and-capture-metadata
+      public_text: 每条 photos.csv 记录使用 Pillow 图像对象报告原始像素宽度、高度和格式，并报告 EXIF DateTimeOriginal（缺失时
+        DateTime）、Make 与 Model；缺失的拍摄信息以空字段表示。
+      rationale: 提供用户要求的尺寸和可获得的拍摄信息表。
+      origin: MODEL_PROPOSED
+    - commitment_id: thumbnail-rendering
+      public_text: 每张已记录照片生成一个 JPEG 缩略图，先按 Pillow 的 EXIF 方向校正，再以保持比例的方式限制在 240×180
+        像素内；photos.csv 的 thumbnail_path 指向该缩略图。
+      rationale: 让索引页可快速离线预览且不会拉伸实验照片。
+      origin: MODEL_PROPOSED
+    - commitment_id: overview-collage
+      public_text: overview.jpg 是由全部已生成缩略图按 CSV 顺序从左到右、从上到下排成四列的 JPEG 总览；每个单元为 250×220
+        像素，缩略图置于单元左上角偏移 5 像素处。
+      rationale: 提供一张可快速查看整个实验照片集合的总览拼图。
+      origin: MODEL_PROPOSED
+    - commitment_id: offline-index-page
+      public_text: index.html 是无需外部资源的离线索引页，展示 overview.jpg，并为 photos.csv 的每条记录展示其本地缩略图、源路径、尺寸、格式和拍摄信息；页面提示用户通过
+        ./run.sh 启动本地浏览服务。
+      rationale: 提供可在交付工作区中离线翻看的照片索引。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: offline-photo-catalog-v1
+      observations:
+      - observation_id: photo-records
+        commitment_ids:
+        - supported-image-inventory
+        locator: Parse photos.csv as UTF-8 CSV; each data row is one accepted source
+          image, identified by its source_path cell.
+        value_encoding: CSV with exactly the header source_path,width,height,format,captured_at,camera_make,camera_model,thumbnail_path;
+          source_path and thumbnail_path are relative POSIX paths, width and height
+          are base-10 positive integers, and remaining cells are UTF-8 text.
+      - observation_id: image-metadata-cells
+        commitment_ids:
+        - image-dimensions-and-capture-metadata
+        locator: For every data row in photos.csv, read the width, height, format,
+          captured_at, camera_make, and camera_model cells.
+        value_encoding: width and height are base-10 positive integers; format is
+          nonempty UTF-8 text; captured_at, camera_make, and camera_model are UTF-8
+          text and may be empty when the corresponding EXIF value is absent.
+      - observation_id: thumbnail-files
+        commitment_ids:
+        - thumbnail-rendering
+        locator: For every photos.csv data row, resolve its thumbnail_path relative
+          to the workspace root and inspect that JPEG file.
+        value_encoding: thumbnail_path has the syntax thumbnails/ followed by a zero-padded
+          decimal ordinal and .jpg; the target is a JPEG image.
+      - observation_id: overview-image
+        commitment_ids:
+        - overview-collage
+        locator: Open overview.jpg at the workspace root.
+        value_encoding: A JPEG image whose width is 1000 pixels and whose height is
+          220 multiplied by the ceiling of the CSV data-row count divided by 4.
+      - observation_id: index-page-elements
+        commitment_ids:
+        - offline-index-page
+        locator: Parse index.html and locate the table element with id="photos", the
+          overview image element with id="overview", and the image elements in the
+          table body.
+        value_encoding: UTF-8 HTML containing one overview image with src="overview.jpg"
+          and one table-body image per CSV data row; each table-body image src is
+          the corresponding thumbnail_path CSV value, and its adjacent cells present
+          that row's source path, dimensions, format, and capture metadata.
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: directory
+          location: local
+          representation: binary
+          format_label: 实验照片目录
+          role: 包含数百张待编目实验照片的本地文件夹
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线照片目录工作区
+          role: 包含缩略图、总览拼图、照片信息 CSV 表和可离线浏览索引页的本地工作区
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-02T05:55:17.942171Z'
+      semantics_sha256: d7aea25c992f6c4209774bef23e2e2e19b4604c50b7dfb763f9cd96e1ced8ab7
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: pillow-tool-workspace-semantic-v1
+    source_file: oracle/tool-pillow-tool-v3/semantic_verifier.py
+    source_sha256: 6641a0ac2ca4ad702c767d79795dcd9c1316bd2bdd09c1322e23d55411de8dcc
+    required_for_operational_active: true

@@ -1,0 +1,90 @@
+task_id: tool-nbformat-tool-v4
+controls:
+  positive: controls/tool-nbformat-tool-v4/positive
+  negatives:
+  - path: controls/tool-nbformat-tool-v4/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-nbformat-tool-v4/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - basic-analysis
+  - markdown-only
+  - multi-code
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_example_3
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - nbformat-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-valid-nbformat-4
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 生成的 notebook.ipynb 通过 nbformat.read 读取后再经 nbformat.validate 校验为合法的
+    nbformat 4.x 笔记本（nbformat 版本为 4，nbformat_minor 为当前上游 current_nbformat_minor）。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:nbformat-tool-workspace-semantic-v1
+- id: intent-cell-order-and-count
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: notebook.ipynb 的 cells 数量与顺序与输入 JSON 的 cells 数组逐一对应：第 i 个输出单元格由第 i
+    个输入片段生成，cell_type 保持一致（markdown 或 code）。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:nbformat-tool-workspace-semantic-v1
+- id: intent-cell-source-preserved
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每个输出单元格的 source 文本等于对应输入片段的 source 内容（逐字符一致，仅按 nbformat 规范存储）。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:nbformat-tool-workspace-semantic-v1
+- id: intent-code-cells-normalized
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每个 code 单元格在规范化后 execution_count 为 null 且 outputs 为空数组，metadata 为对象。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:nbformat-tool-workspace-semantic-v1
+- id: intent-plaintext-mirrors-cells
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: notebook.txt 按笔记本单元格顺序呈现每个单元格，每个单元格以标明其序号与类型（markdown 或 code）的标题行开头，随后是该单元格的
+    source 原文；单元格总数与 notebook.ipynb 的 cells 数量相同。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:nbformat-tool-workspace-semantic-v1
