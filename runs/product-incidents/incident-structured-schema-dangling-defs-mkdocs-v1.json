@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "cause": "Pydantic-derived workspace contract schema carries $defs; embedding it under properties.workspace_contract leaves $ref root-relative and unresolved",
+    "classified_as": "DRAFTER_STRUCTURED_OUTPUT_UNSUPPORTED without the provider's public message",
+    "provider_message": "Invalid schema for response_format: reference to component '#/$defs/WorkspaceArtifactLimits' which was not found in the schema"
+  },
+  "created_at": "2026-09-02T13:20:02+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "0553ab5107fd170a7e879386a3b5a7162f4e55e50b7438c1ed1065436627a8f7",
+  "incident_id": "incident-structured-schema-dangling-defs-mkdocs-v1",
+  "normalized_fingerprint": "a0d07da828d8e290",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::contract-repair"
+  ],
+  "reason_codes": [
+    "DRAFTER_STRUCTURED_OUTPUT_UNSUPPORTED",
+    "EMBEDDED_SCHEMA_DEFS_NOT_HOISTED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

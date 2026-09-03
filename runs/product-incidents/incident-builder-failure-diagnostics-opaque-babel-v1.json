@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-3 round 2: FIXTURE_BUILDER_FAILED ['ValueError'] — same bare class, no message or location; the repair had nothing to argue from"
+  },
+  "created_at": "2026-09-03T16:47:50+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "80388f21ffb00d683d9bf3d81f1855b31e94071aee7347e8e5650ef3d32240cc",
+  "incident_id": "incident-builder-failure-diagnostics-opaque-babel-v1",
+  "normalized_fingerprint": "1076392f4f0eb06a",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "f7fd7f3be07006187a0811d4a52e64cf7d01ad61d4ef100222179efd243ea5da",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::fixture-builder"
+  ],
+  "reason_codes": [
+    "FIXTURE_BUILDER_FAILED",
+    "BUILDER_FAILURE_DIAGNOSTICS_OPAQUE"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

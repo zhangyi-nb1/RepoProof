@@ -1,0 +1,20 @@
+{
+  "affected_component": "product_jobs._wall_clock_date_findings + _assert_reference_reproducible(input_root) in candidate generation; reference-repair prompt clause for WALL_CLOCK_DATE_EMBEDDED",
+  "after_control_sha256": "74723a6f5b35b92bf39f3c1474f2b33e9c370914ce11a6f29f4880ad423a0500",
+  "anonymous_fixture_id": "anonymous-wall-clock-date-scan",
+  "before_control_sha256": "2ab4ca9b49766714268f311407885996dc1b42d6a16c99ab00de5cc6be431aa4",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T13:05:37+08:00",
+  "evidence_id": "harness-change-reference-wall-clock-date-scan-v1",
+  "incident_ids": [
+    "incident-wall-clock-date-embedded-undetected-pygal-v3"
+  ],
+  "invariant": "A reference workspace is not reproducible if any generated UTF-8 text file carries today's date (local or UTC, in the spellings generators stamp) that the input itself does not contain: the probe rejects it as WORKSPACE_REFERENCE_NOT_REPRODUCIBLE / WALL_CLOCK_DATE_EMBEDDED with path=WALL_CLOCK_DATE@line N and an actual-side excerpt, routed to the reference repair whose prompt explains the fix. The two-second rerun remains; this closes its day-resolution blind spot. False-certification exception: a freeze that certifies reproducibility for a golden that only matches on its freeze date issues a certificate that is false the next day, revoking the tool and failing every later run without any change.",
+  "normalized_fingerprint": "bc0331c9d0e717d2",
+  "regression_tests": [
+    "tests/ui/test_reference_wall_clock_date_scan.py::test_findings_name_todays_date_in_generated_text_only",
+    "tests/ui/test_reference_wall_clock_date_scan.py::test_probe_rejects_a_reproducible_tree_that_embeds_today"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

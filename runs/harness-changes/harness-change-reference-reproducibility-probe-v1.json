@@ -1,0 +1,22 @@
+{
+  "affected_component": "product_jobs.propose_workspace_fixture_candidates reproducibility probe + draft_selfcheck routing + workspace reference repair prompt",
+  "after_control_sha256": "bc13ff6c0eae5b0a7ecf5a3755c24e72330e83720c6cd993bbbb5a53d6351dd1",
+  "anonymous_fixture_id": "anonymous-reference-reproducibility-probe",
+  "before_control_sha256": "32a60fd8e895a69a380e09d77792d12394a0ad3808f6e85fa4ed147bd78b8ec4",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-02T12:44:45+08:00",
+  "evidence_id": "harness-change-reference-reproducibility-probe-v1",
+  "incident_ids": [
+    "incident-reference-reproducibility-unprobed-pptx-v1",
+    "incident-reference-reproducibility-unprobed-nbformat-v1"
+  ],
+  "invariant": "Candidate generation (the draft self-check's ruler) re-runs the reference on the first candidate after a >=2s clock tick and requires the identical tree identity; drift fails closed as WORKSPACE_REFERENCE_NOT_REPRODUCIBLE with path-level divergence kinds (BYTES_DIFFER / ZIP_METADATA_ONLY / MISSING / EXTRA) that route to an evidence-based reference repair, so a golden that cannot be re-derived never reaches confirmation, freeze or preflight.",
+  "normalized_fingerprint": "6a2c56008bd7f28a",
+  "regression_tests": [
+    "tests/ui/test_reference_reproducibility_probe.py::test_drifting_reference_is_rejected_with_path_level_divergence",
+    "tests/ui/test_reference_reproducibility_probe.py::test_reproducible_reference_runs_twice_and_is_not_rejected_for_drift",
+    "tests/test_selfcheck_contract_routing.py::test_not_reproducible_routes_to_reference"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

@@ -1,0 +1,22 @@
+{
+  "affected_component": "semantic_artifact verifier runner/parse + SemanticVerifierEvidenceV2.reason_details + self-check disagreement diagnostics + verifier prompts",
+  "after_control_sha256": "831214dea1b8579a83389505433611c2dde284d7ec77da69cf218c480e26a693",
+  "anonymous_fixture_id": "anonymous-verifier-reason-details",
+  "before_control_sha256": "51be2ebc5179f9bc606c40bcc2e1678c0b565e0264e1325ed6cf33e0c2cf1f8c",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-02T14:18:07+08:00",
+  "evidence_id": "harness-change-verifier-reason-details-v1",
+  "incident_ids": [
+    "incident-verifier-reason-detail-not-carried-xlsx-v1",
+    "incident-verifier-reason-detail-not-carried-icalendar-v1"
+  ],
+  "invariant": "A semantic verifier may return reason_details (reported reason code -> one public expected-versus-observed sentence, <=200 chars); the Harness keeps only explanations for reported codes, carries them on the workspace semantic evidence, and the self-check disagreement diagnostics include 'CODE: explanation' so both the judge and the producer repairs argue from what the judge actually demanded. Verifiers without the key are unchanged. Drafting and repair prompts ask for the explanations.",
+  "normalized_fingerprint": "d7a8b6a0cb84e22c",
+  "regression_tests": [
+    "tests/test_verifier_reason_details.py::test_reason_details_are_carried_bounded_and_scoped_to_reported_codes",
+    "tests/test_verifier_reason_details.py::test_verifier_without_details_is_still_accepted",
+    "tests/test_verifier_reason_details.py::test_selfcheck_disagreement_diagnostics_include_details"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

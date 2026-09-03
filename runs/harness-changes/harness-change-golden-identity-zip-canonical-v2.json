@@ -1,0 +1,23 @@
+{
+  "affected_component": "assembler test template: test_workspace_output_is_deterministic asserts _golden_sha; the raw-byte _tree_sha second ruler removed from the prelude",
+  "after_control_sha256": "c54ec9f879e9377134c75153eccb9116e95471d5ae14cc07a5b844f791feb522",
+  "anonymous_fixture_id": "anonymous-determinism-golden-ruler",
+  "before_control_sha256": "1e7a4f8aede2b5bed093f65ec85e5d930a0d66df389c721f15a84d933f6eb567",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T17:27:27+08:00",
+  "evidence_id": "harness-change-golden-identity-zip-canonical-v2",
+  "incident_ids": [
+    "incident-artifact-identity-zip-metadata-pptx-v1",
+    "incident-artifact-identity-zip-metadata-xlsx-v1",
+    "incident-artifact-identity-zip-metadata-pptx-v3-determinism"
+  ],
+  "invariant": "v1 invariant unchanged (acceptance equality is the golden identity). v2 closes the fifth equality site v1 missed: the exported determinism test judges two runs by the same golden identity as every other acceptance comparison, and the frozen package ships no raw-byte second ruler at all — a pptx/xlsx whose zip member DOS timestamps straddle a 2-second window is deterministic in content and must not flake between the main run and the clean replay. Already-frozen packages keep their old test; only re-frozen versions gain the ruler.",
+  "normalized_fingerprint": "0bc5a80f0f5e2f3e",
+  "regression_tests": [
+    "tests/test_determinism_test_uses_golden_ruler.py::test_prelude_has_no_second_ruler",
+    "tests/test_determinism_test_uses_golden_ruler.py::test_determinism_assertion_compares_the_golden_identity",
+    "tests/test_determinism_test_uses_golden_ruler.py::test_the_shipped_ruler_ignores_zip_incidentals_only"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

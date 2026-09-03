@@ -1,0 +1,25 @@
+{
+  "affected_component": "Fresh-audit workspace candidate proposal loop and fixture builder failure projection",
+  "after_control_sha256": "adc25d735db91c2a350c32b79dc54b8a2822bb3a2e844b50aa5705c98990863e",
+  "anonymous_fixture_id": "anonymous-fresh-audit-proposal-loop-v1",
+  "before_control_sha256": "ad62328184c2800c2bf0dc5835298f3c98eb4f1c7619d035c988c1de134694db",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-02T03:40:46+08:00",
+  "evidence_id": "harness-change-fresh-audit-per-proposal-materialization-v1",
+  "incident_ids": [
+    "incident-fresh-audit-proposal-batch-abort-pdf-v1",
+    "incident-fresh-audit-proposal-batch-abort-starter-v3"
+  ],
+  "invariant": "A model-proposed fresh-audit blueprint has exactly one domain oracle: materialisation by the frozen task builder and frozen reference. The proposal prompt invites Unicode and boundary scenarios while a task builder never declares its parameter domain, so a frozen-asset domain rejection of one proposal is that proposal's recorded outcome, carrying the public exception class (builder failures now project it exactly as reference failures already did) and fed back as an exclusion to a bounded re-proposal; it never discards sibling candidates that materialised. Systemic failures still abort at once, and zero materialised candidates within the bound is still a failure.",
+  "normalized_fingerprint": "4caceaeffa4e1a8b",
+  "regression_tests": [
+    "tests/test_fresh_audit_proposal_loop.py::test_one_rejected_proposal_does_not_discard_materialized_sibling",
+    "tests/test_fresh_audit_proposal_loop.py::test_rejections_feed_back_as_exclusions_within_bound",
+    "tests/test_fresh_audit_proposal_loop.py::test_systemic_builder_failure_still_aborts_immediately",
+    "tests/test_fresh_audit_proposal_loop.py::test_all_rejected_within_bound_yields_no_records_and_stops_at_bound",
+    "tests/test_fresh_audit_proposal_loop.py::test_helper_is_the_single_owner_of_fresh_audit_materialization",
+    "tests/test_workspace_fixtures.py::test_builder_failure_projects_public_exception_class"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

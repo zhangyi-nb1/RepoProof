@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "manifest_hash_present": 0,
+    "structure_passed": "NO_OR_UNMEASURED",
+    "tree_hash_present": 0
+  },
+  "created_at": "2026-09-01T08:14:36.667598Z",
+  "disposition": "RETRY_INFRASTRUCTURE",
+  "framework_git_commit": "769cfb997715d14033e3dc5ee65cb4a95906edb2",
+  "framework_tree_sha256": "097f6d66c79895e226a6ee1f7ed28ac36313ae269c53537a00d167aeacf5ea65",
+  "incident_id": "incident-action-a3936a481f7413bf9c68cec6",
+  "normalized_fingerprint": "9e9b7d4065deddd3",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "REHEARSAL_POSITIVE_CONTROL_FAILED",
+    "STOP_NEEDS_HUMAN"
+  ],
+  "reason_codes": [
+    "REHEARSAL_POSITIVE_CONTROL_FAILED",
+    "STOP_NEEDS_HUMAN"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "SEMANTIC_VERIFIER",
+  "task_version": "tool-datasette-tool-v2"
+}

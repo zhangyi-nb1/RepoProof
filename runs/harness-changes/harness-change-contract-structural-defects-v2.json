@@ -1,0 +1,20 @@
+{
+  "affected_component": "tool_drafter._WORKSPACE_CONTRACT_REPAIR_SCHEMA ($defs) + LiteLLMDrafter._once_with_system rejection diagnostics",
+  "after_control_sha256": "3f43bc6c22c0a5748c6bed58674f9fb559adb74db9ba50d4befc17fd7afe7960",
+  "anonymous_fixture_id": "anonymous-contract-repair-schema",
+  "before_control_sha256": "a79d41a696c5d0f24d04ab2a023a5bb21cf22685d82f6592b7b08dbb3a630261",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-02T13:23:25+08:00",
+  "evidence_id": "harness-change-contract-structural-defects-v2",
+  "incident_ids": [
+    "incident-selfcheck-contract-defect-misrouted-mkdocs-v1",
+    "incident-selfcheck-contract-defect-misrouted-xlsx-v1"
+  ],
+  "invariant": "Completion of v1: the contract repair's provider-enforced schema must be self-contained (the Pydantic-derived contract sub-schema carries the root $defs it references), and a provider schema rejection must surface its public message as DraftError diagnostics instead of a bare DRAFTER_STRUCTURED_OUTPUT_UNSUPPORTED. Observed on the first real contract repair (self-check round 1 of the docs-site case): the route was correct, the repair call failed on our own dangling $ref.",
+  "normalized_fingerprint": "6edce7c725211c35",
+  "regression_tests": [
+    "tests/test_contract_repair_schema_self_contained.py::test_repair_schema_resolves_every_ref_locally"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

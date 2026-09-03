@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "manifest_hash_present": 0,
+    "structure_passed": "NO_OR_UNMEASURED",
+    "tree_hash_present": 0
+  },
+  "created_at": "2026-09-01T09:48:26.421640Z",
+  "disposition": "RETRY_INFRASTRUCTURE",
+  "framework_git_commit": "96e381dd594c776439ef002f73d4a2cd33389cc3",
+  "framework_tree_sha256": "c895c4c2387bd659d28756776db00843c59dad7f599461531c9d66c2b345683b",
+  "incident_id": "incident-action-2e46d8a64cea2db29bc9743b",
+  "normalized_fingerprint": "2da7fe3cb69b2187",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "BUILD_FAILED",
+    "STOP_HARNESS_OR_EXTERNAL"
+  ],
+  "reason_codes": [
+    "BUILD_FAILED",
+    "STOP_HARNESS_OR_EXTERNAL"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "AGENT_ADAPTER",
+  "task_version": "tool-textual-taskdesk-v2"
+}

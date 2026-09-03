@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-15 rounds 2-3: WORKSPACE_REFERENCE_FIXTURE_REJECTED routed to builder both times, same UserInputError afterwards; a rejection is symmetric evidence (fixture wrong or reference's input domain wrong) yet only the builder ever gets a turn — the same principle already applied to closure and structural codes"
+  },
+  "created_at": "2026-09-03T09:35:52+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "6e9fb9b0456e2048895e171af2d3caa0f14355f02eea07662123ca14d3248da0",
+  "incident_id": "incident-fixture-rejected-never-alternates-mkdocs-v1",
+  "normalized_fingerprint": "650b3fcc83cb47ba",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::repair-routing"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_FIXTURE_REJECTED",
+    "SYMMETRIC_FAILURE_NEVER_ALTERNATES_OWNER"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

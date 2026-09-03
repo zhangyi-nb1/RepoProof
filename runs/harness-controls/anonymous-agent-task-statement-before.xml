@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="0.157" timestamp="2026-09-03T00:42:42.020270+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_agent_task_statement" name="test_statement_does_not_claim_an_environment_the_run_does_not_provide" time="0.004"><failure message="AssertionError: assert 'container' not in 'you are a c...al_output`).'&#10;  &#10;  'container' is contained here:&#10;    xed linux container (no network). you interact only by issuing bash&#10;  ?           +++++++++&#10;    commands; each reply must contain exactly the command(s) to run next.&#10;    when you are completely done, run a command whose first output line is&#10;    complete_task_and_submit_final_output&#10;    (e.g. `echo complete_task_and_submit_final_output`).">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-183/test_statement_does_not_claim_0')
+
+    def test_statement_does_not_claim_an_environment_the_run_does_not_provide(tmp_path: Path) -&gt; None:
+        rendered = _render(_env(tmp_path)).lower()
+&gt;       assert "container" not in rendered
+E       AssertionError: assert 'container' not in 'you are a c...al_output`).'
+E         
+E         'container' is contained here:
+E           xed linux container (no network). you interact only by issuing bash
+E         ?           +++++++++
+E           commands; each reply must contain exactly the command(s) to run next.
+E           when you are completely done, run a command whose first output line is
+E           complete_task_and_submit_final_output
+E           (e.g. `echo complete_task_and_submit_final_output`).
+
+tests/test_agent_task_statement.py:50: AssertionError</failure></testcase><testcase classname="tests.test_agent_task_statement" name="test_statement_gives_the_absolute_working_directory_the_shell_starts_in" time="0.000"><failure message="KeyError: 'workdir_abs'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-183/test_statement_gives_the_absol0')
+
+    def test_statement_gives_the_absolute_working_directory_the_shell_starts_in(tmp_path: Path) -&gt; None:
+        env = _env(tmp_path)
+        expected = str((tmp_path / "anon-session" / "host").resolve())
+&gt;       assert env.get_template_vars()["workdir_abs"] == expected
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'workdir_abs'
+
+tests/test_agent_task_statement.py:57: KeyError</failure></testcase><testcase classname="tests.test_agent_task_statement" name="test_statement_discloses_the_filesystem_sweep_rule_before_it_bites" time="0.001"><failure message="AssertionError: assert ('filesystem' in 'you are a careful software engineer working alone in a\nsandboxed linux container (no network). you interact only by ...hose first output line is\ncomplete_task_and_submit_final_output\n(e.g. `echo complete_task_and_submit_final_output`).')">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-183/test_statement_discloses_the_f0')
+
+    def test_statement_discloses_the_filesystem_sweep_rule_before_it_bites(tmp_path: Path) -&gt; None:
+        from repoproof.agents.repoproof_env import evaluate_agent_command
+    
+        denied = evaluate_agent_command("find / -maxdepth 6 -iname 'tool*'")
+        assert denied.allowed is False and any("sweep" in reason for reason in denied.reasons)
+        rendered = _render(_env(tmp_path)).lower()
+&gt;       assert "filesystem" in rendered and ("denied" in rendered or "refuse" in rendered)
+E       AssertionError: assert ('filesystem' in 'you are a careful software engineer working alone in a\nsandboxed linux container (no network). you interact only by ...hose first output line is\ncomplete_task_and_submit_final_output\n(e.g. `echo complete_task_and_submit_final_output`).')
+
+tests/test_agent_task_statement.py:67: AssertionError</failure></testcase><testcase classname="tests.test_agent_task_statement" name="test_statement_is_rendered_per_run_not_hardcoded" time="0.001"><failure message="AssertionError: assert 'You are a careful software engineer working alone in a\nsandboxed Linux container (no network). You interact ONLY by ...hose first output line is\nCOMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\n(e.g. `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`).' != 'You are a careful software engineer working alone in a\nsandboxed Linux container (no network). You interact ONLY by ...hose first output line is\nCOMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\n(e.g. `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`).'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-183/test_statement_is_rendered_per0')
+
+    def test_statement_is_rendered_per_run_not_hardcoded(tmp_path: Path) -&gt; None:
+        one = _render(_env(tmp_path, "session-one"))
+        two = _render(_env(tmp_path, "session-two"))
+&gt;       assert one != two
+E       AssertionError: assert 'You are a careful software engineer working alone in a\nsandboxed Linux container (no network). You interact ONLY by ...hose first output line is\nCOMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\n(e.g. `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`).' != 'You are a careful software engineer working alone in a\nsandboxed Linux container (no network). You interact ONLY by ...hose first output line is\nCOMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\n(e.g. `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`).'
+
+tests/test_agent_task_statement.py:73: AssertionError</failure></testcase></testsuite></testsuites>

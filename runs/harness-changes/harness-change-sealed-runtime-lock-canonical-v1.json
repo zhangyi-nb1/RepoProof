@@ -1,0 +1,23 @@
+{
+  "affected_component": "portable_workspace_runtime.seal_offline_python_runtime + product_preflight REFERENCE_GOLDEN_MISMATCH divergence detail",
+  "after_control_sha256": "29de748b5958cf8980d5737ff04395107bc7fadf8054fb125c7900d1299f53c1",
+  "anonymous_fixture_id": "anonymous-runtime-lock-canonical-seal",
+  "before_control_sha256": "762a9346b75e9d062772462cf6395208934c1c5c7b88d5ed9722dd87f145f9c7",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-02T12:24:03+08:00",
+  "evidence_id": "harness-change-sealed-runtime-lock-canonical-v1",
+  "incident_ids": [
+    "incident-workspace-candidate-lock-canonicalization-v1",
+    "incident-workspace-candidate-lock-canonicalization-v2"
+  ],
+  "invariant": "Every sealed offline runtime closure (candidate golden at confirmation, frozen reference at preflight, release audits) writes the single closed canonical requirements.lock.txt computed by close_workspace_runtime_lock(lock, contract); callers' raw lock bytes (comment/blank lines, missing Core validator pins) never enter the tree identity. The preflight golden-mismatch detail must name each divergent path and its kind (MISSING/EXTRA/BYTES_DIFFER/ZIP_METADATA_ONLY).",
+  "normalized_fingerprint": "20b0b057489520fe",
+  "regression_tests": [
+    "tests/test_runtime_lock_canonical_seal.py::test_sealed_lock_is_the_closed_canonical_form_not_the_raw_bytes",
+    "tests/test_runtime_lock_canonical_seal.py::test_already_canonical_lock_is_sealed_unchanged",
+    "tests/test_manifest_divergence.py::test_divergence_classifies_zip_metadata_content_missing_and_extra",
+    "tests/test_manifest_divergence.py::test_identical_trees_have_no_divergence"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

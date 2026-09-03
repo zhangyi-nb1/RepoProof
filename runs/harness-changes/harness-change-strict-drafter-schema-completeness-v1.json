@@ -1,0 +1,24 @@
+{
+  "affected_component": "adoption.delivery.product_profile.delivery_requirements_json_schema",
+  "after_control_sha256": "ce471cecbc1d4c8e1dc8ebd720fa80868ad861f559811579be33b2f4c9b92151",
+  "anonymous_fixture_id": "anonymous-strict-drafter-schema-v1",
+  "before_control_sha256": "9026905c7572e07b46bbeaa26bfff5d8bbb59bd1b91f3da9c7a9b878685aed35",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-08-31T11:05:41.005424Z",
+  "evidence_id": "harness-change-strict-drafter-schema-completeness-v1",
+  "incident_ids": [
+    "incident-drafter-strict-schema-default-omission-a523e68-v2"
+  ],
+  "invariant": "Every property in a newly model-authored delivery-requirements object must be explicitly required by the provider schema; compatibility defaults may load historical records but cannot manufacture safe claims for omitted risk dimensions.",
+  "normalized_fingerprint": "b88f7275d9e5f21a",
+  "regression_tests": [
+    "tests/test_product_delivery_profile.py::test_new_drafter_delivery_schema_requires_every_declared_dimension",
+    "tests/test_tool_drafter.py",
+    "tests/test_codex_text_drafter.py",
+    "tests/ui/test_ui_product_mode.py",
+    "tests/ui/test_ui_page_render_smoke.py",
+    "tests/test_m6_2_workspace_qualification_protocol.py"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

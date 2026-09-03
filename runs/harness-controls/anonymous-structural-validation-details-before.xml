@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="0.119" timestamp="2026-09-03T05:43:13.332851+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_structural_validation_details" name="test_overlap_extra_and_external_resource_are_named_by_path" time="0.004"><failure message="AttributeError: 'WorkspaceValidationResultV1' object has no attribute 'details'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-230/test_overlap_extra_and_externa0')
+
+    def test_overlap_extra_and_external_resource_are_named_by_path(tmp_path: Path) -&gt; None:
+        root = tmp_path / "ws"
+        (root / "site").mkdir(parents=True)
+        (root / "site" / "index.html").write_text(
+            '&lt;html&gt;&lt;head&gt;&lt;link rel="stylesheet" href="https://cdn.example.com/x.css"&gt;&lt;/head&gt;&lt;body&gt;hi&lt;/body&gt;&lt;/html&gt;',
+            encoding="utf-8",
+        )
+        (root / "notes.txt").write_text("stray\n", encoding="utf-8")
+        contract = _contract(
+            [
+                _rule("site/**/*.html", "html_v1", max_count=8),
+                _rule("site/index.html", "html_v1"),
+            ]
+        )
+        result = validate_workspace(root, contract)
+        assert result.ok is False
+        codes = set(result.reason_codes)
+        assert {"WORKSPACE_RULE_OVERLAP", "WORKSPACE_EXTRA_FILE_FORBIDDEN"} &lt;= codes
+&gt;       details = list(result.details)
+                       ^^^^^^^^^^^^^^
+
+tests/test_structural_validation_details.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = WorkspaceValidationResultV1(schema_version=1, ok=False, reason_codes=('WORKSPACE_EXTRA_FILE_FORBIDDEN', 'WORKSPACE_HTM...c2c36651281dbe22f'))), matched_paths={'site/**/*.html': ('site/index.html',), 'site/index.html': ('site/index.html',)})
+item = 'details'
+
+    def __getattr__(self, item: str) -&gt; Any:
+        private_attributes = object.__getattribute__(self, '__private_attributes__')
+        if item in private_attributes:
+            attribute = private_attributes[item]
+            if hasattr(attribute, '__get__'):
+                return attribute.__get__(self, type(self))  # type: ignore
+    
+            try:
+                # Note: self.__pydantic_private__ cannot be None if self.__private_attributes__ has items
+                return self.__pydantic_private__[item]  # type: ignore
+            except KeyError as exc:
+                raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}') from exc
+        else:
+            # `__pydantic_extra__` can fail to be set if the model is not yet fully initialized.
+            # See `BaseModel.__repr_args__` for more details
+            try:
+                pydantic_extra = object.__getattribute__(self, '__pydantic_extra__')
+            except AttributeError:
+                pydantic_extra = None
+    
+            if pydantic_extra and item in pydantic_extra:
+                return pydantic_extra[item]
+            else:
+                if hasattr(self.__class__, item):
+                    return super().__getattribute__(item)  # Raises AttributeError if appropriate
+                else:
+                    # this is the current error
+&gt;                   raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}')
+E                   AttributeError: 'WorkspaceValidationResultV1' object has no attribute 'details'
+
+.venv/lib/python3.12/site-packages/pydantic/main.py:1042: AttributeError</failure></testcase><testcase classname="tests.test_structural_validation_details" name="test_missing_required_entry_names_the_pattern" time="0.001"><failure message="AttributeError: 'WorkspaceValidationResultV1' object has no attribute 'details'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-230/test_missing_required_entry_na0')
+
+    def test_missing_required_entry_names_the_pattern(tmp_path: Path) -&gt; None:
+        root = tmp_path / "ws"
+        root.mkdir()
+        (root / "README.md").write_text("# x\n", encoding="utf-8")
+        result = validate_workspace(root, _contract([_rule("README.md"), _rule("summary.csv", "csv_v1")]))
+        assert "WORKSPACE_REQUIRED_ENTRY_MISSING" in result.reason_codes
+&gt;       assert any("summary.csv" in row for row in result.details)
+                                                   ^^^^^^^^^^^^^^
+
+tests/test_structural_validation_details.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = WorkspaceValidationResultV1(schema_version=1, ok=False, reason_codes=('WORKSPACE_REQUIRED_ENTRY_MISSING',), manifest=A...43252c8d4b45bb40eb375882587f825cb9ce1fd1241f66f1e'),)), matched_paths={'README.md': ('README.md',), 'summary.csv': ()})
+item = 'details'
+
+    def __getattr__(self, item: str) -&gt; Any:
+        private_attributes = object.__getattribute__(self, '__private_attributes__')
+        if item in private_attributes:
+            attribute = private_attributes[item]
+            if hasattr(attribute, '__get__'):
+                return attribute.__get__(self, type(self))  # type: ignore
+    
+            try:
+                # Note: self.__pydantic_private__ cannot be None if self.__private_attributes__ has items
+                return self.__pydantic_private__[item]  # type: ignore
+            except KeyError as exc:
+                raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}') from exc
+        else:
+            # `__pydantic_extra__` can fail to be set if the model is not yet fully initialized.
+            # See `BaseModel.__repr_args__` for more details
+            try:
+                pydantic_extra = object.__getattribute__(self, '__pydantic_extra__')
+            except AttributeError:
+                pydantic_extra = None
+    
+            if pydantic_extra and item in pydantic_extra:
+                return pydantic_extra[item]
+            else:
+                if hasattr(self.__class__, item):
+                    return super().__getattribute__(item)  # Raises AttributeError if appropriate
+                else:
+                    # this is the current error
+&gt;                   raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}')
+E                   AttributeError: 'WorkspaceValidationResultV1' object has no attribute 'details'
+
+.venv/lib/python3.12/site-packages/pydantic/main.py:1042: AttributeError</failure></testcase><testcase classname="tests.test_structural_validation_details" name="test_clean_workspace_has_no_details" time="0.001"><failure message="AttributeError: 'WorkspaceValidationResultV1' object has no attribute 'details'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-230/test_clean_workspace_has_no_de0')
+
+    def test_clean_workspace_has_no_details(tmp_path: Path) -&gt; None:
+        root = tmp_path / "ws"
+        root.mkdir()
+        (root / "README.md").write_text("# x\n", encoding="utf-8")
+        result = validate_workspace(root, _contract([_rule("README.md")]))
+&gt;       assert result.ok is True and result.details == ()
+                                     ^^^^^^^^^^^^^^
+
+tests/test_structural_validation_details.py:80: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = WorkspaceValidationResultV1(schema_version=1, ok=True, reason_codes=(), manifest=ArtifactManifestV1(schema_version=1, ...56='253b610bd786f2543252c8d4b45bb40eb375882587f825cb9ce1fd1241f66f1e'),)), matched_paths={'README.md': ('README.md',)})
+item = 'details'
+
+    def __getattr__(self, item: str) -&gt; Any:
+        private_attributes = object.__getattribute__(self, '__private_attributes__')
+        if item in private_attributes:
+            attribute = private_attributes[item]
+            if hasattr(attribute, '__get__'):
+                return attribute.__get__(self, type(self))  # type: ignore
+    
+            try:
+                # Note: self.__pydantic_private__ cannot be None if self.__private_attributes__ has items
+                return self.__pydantic_private__[item]  # type: ignore
+            except KeyError as exc:
+                raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}') from exc
+        else:
+            # `__pydantic_extra__` can fail to be set if the model is not yet fully initialized.
+            # See `BaseModel.__repr_args__` for more details
+            try:
+                pydantic_extra = object.__getattribute__(self, '__pydantic_extra__')
+            except AttributeError:
+                pydantic_extra = None
+    
+            if pydantic_extra and item in pydantic_extra:
+                return pydantic_extra[item]
+            else:
+                if hasattr(self.__class__, item):
+                    return super().__getattribute__(item)  # Raises AttributeError if appropriate
+                else:
+                    # this is the current error
+&gt;                   raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}')
+E                   AttributeError: 'WorkspaceValidationResultV1' object has no attribute 'details'
+
+.venv/lib/python3.12/site-packages/pydantic/main.py:1042: AttributeError</failure></testcase></testsuite></testsuites>

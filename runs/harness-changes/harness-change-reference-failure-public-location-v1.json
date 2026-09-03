@@ -1,0 +1,21 @@
+{
+  "affected_component": "Workspace reference candidate runner failure marker + WorkspaceBundleError.diagnostics + candidate-generation result diagnostics",
+  "after_control_sha256": "a1a87fccbe7589d39a6b963673a6af7cf2616d6ff370c9d11ee25651f421ebfe",
+  "anonymous_fixture_id": "anonymous-reference-failure-diagnostics",
+  "before_control_sha256": "2e1a680cca45c02b7d9cacd5cb7de45dfa4c8c96598ccf148602506e5d714fd9",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-02T12:32:49+08:00",
+  "evidence_id": "harness-change-reference-failure-public-location-v1",
+  "incident_ids": [
+    "incident-reference-failure-diagnostics-opaque-mkdocs-v1",
+    "incident-reference-failure-diagnostics-opaque-icalendar-v1"
+  ],
+  "invariant": "When a drafted workspace reference raises during candidate generation, the public diagnostics must carry the exception type (first entry, unchanged for existing consumers) plus one bounded location line 'Type: message @ reference_impl.py:line fn; ...' (reference-source frames only, innermost non-reference frame named, private temp root masked), so the self-check's bounded repair argues from where the model's own code failed instead of guessing from a type name.",
+  "normalized_fingerprint": "af451192553e69c0",
+  "regression_tests": [
+    "tests/ui/test_reference_failure_diagnostics.py::test_reference_failure_carries_public_location_and_message",
+    "tests/ui/test_reference_failure_diagnostics.py::test_candidate_generation_result_exposes_both_diagnostics"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

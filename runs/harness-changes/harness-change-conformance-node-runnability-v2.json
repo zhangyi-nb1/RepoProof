@@ -1,0 +1,22 @@
+{
+  "affected_component": "upstream_conformance.probe_runnable_nodes (+_candidate_execution_roots, --rootdir parity in precheck) + tool_pipeline freeze-time probe of a wider ranked candidate list",
+  "after_control_sha256": "0fac0c178068e8a192669c624db129b589957af97b3c643c98c26873169a7ab1",
+  "anonymous_fixture_id": "anonymous-conformance-probe-by-execution",
+  "before_control_sha256": "74c98bb6d0683824e6815ba7d68604e7284d47b52b83910cd0a8a278e5f89336",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T11:31:10+08:00",
+  "evidence_id": "harness-change-conformance-node-runnability-v2",
+  "incident_ids": [
+    "incident-action-056c66a5be0ed89674b98131",
+    "incident-action-a1192146e697556267f601ae",
+    "incident-conformance-node-needs-absent-test-dependency-pygal-v1"
+  ],
+  "invariant": "v1 invariant unchanged (only nodes compatible with the declared runner profile may be selected). v2: before a selection is frozen it is executed once, candidate by candidate in ranked order, with the same interpreter and admitted execution roots the rehearsal precheck uses; only ids that really pass (parameter ids included) are kept, a ModuleNotFoundError prunes every later candidate whose module-level imports name that module, nothing is installed, dropped nodes are recorded with the missing module, and an empty result is an honest empty selection rather than a frozen subset destined to block rehearsal. Both probe and precheck pass --rootdir=<upstream> so node ids and conftest discovery follow the suite itself.",
+  "normalized_fingerprint": "7217f502846e0c2b",
+  "regression_tests": [
+    "tests/test_conformance_probe_by_execution.py::test_probe_keeps_only_nodes_that_really_pass_and_names_missing_modules",
+    "tests/test_conformance_probe_by_execution.py::test_probe_reports_an_empty_selection_when_nothing_runs"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

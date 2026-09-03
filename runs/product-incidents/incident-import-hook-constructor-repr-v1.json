@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "capability_failed": 1,
+    "failing_node": "test_workspace_runtime_smoke",
+    "instrument_changed_upstream_behavior": "YES"
+  },
+  "created_at": "2026-09-01T23:48:07+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "7db6e65e641bb72a0112d62760eff1e0d32d82a6",
+  "framework_tree_sha256": "1564267291d4a9006c44c3d75ed4977203546a11b99235b2cea38f6b2c0dfecf",
+  "incident_id": "incident-import-hook-constructor-repr-v1",
+  "normalized_fingerprint": "6b0c5ef74c5cd7b2",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "rehearsal::capability-suite"
+  ],
+  "reason_codes": [
+    "OBSERVATION_INSTRUMENT_NOT_TRANSPARENT",
+    "CONSTRUCTOR_ARGS_REPR_UNSAFE"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "SEMANTIC_VERIFIER",
+  "task_version": "tool-marimo-tool-v3"
+}

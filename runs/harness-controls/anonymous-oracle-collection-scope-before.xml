@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="1" failures="0" skipped="0" tests="1" time="0.158" timestamp="2026-09-02T00:42:46.637946+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="" name="tests.test_oracle_collection_scope" time="0.000"><error message="collection failure">ImportError while importing test module '/Users/zhangronglei/Desktop/XIANGMU/RepoProof/tests/test_oracle_collection_scope.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.12/3.12.5/Frameworks/Python.framework/Versions/3.12/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_oracle_collection_scope.py:16: in &lt;module&gt;
+    from repoproof.runner.host_guided import oracle_pytest_targets
+E   ImportError: cannot import name 'oracle_pytest_targets' from 'repoproof.runner.host_guided' (/Users/zhangronglei/Desktop/XIANGMU/RepoProof/src/repoproof/runner/host_guided.py)</error></testcase></testsuite></testsuites>

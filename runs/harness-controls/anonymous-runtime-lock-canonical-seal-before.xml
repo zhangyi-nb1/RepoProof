@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="0.102" timestamp="2026-09-02T12:18:01.251133+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_runtime_lock_canonical_seal" name="test_sealed_lock_is_the_closed_canonical_form_not_the_raw_bytes" time="0.004"><failure message="AssertionError: assert '# 由钉版上游树声明版本...untime==1.0\n' == 'demo-runtime==1.0\n'&#10;  &#10;  + # 由钉版上游树声明版本派生(commit 0000000);&#10;  + # 草稿束写了 reference.lock.txt 时以你写的为准。&#10;  + &#10;    demo-runtime==1.0">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-93/test_sealed_lock_is_the_closed0')
+
+    def test_sealed_lock_is_the_closed_canonical_form_not_the_raw_bytes(tmp_path: Path) -&gt; None:
+        raw = "# 由钉版上游树声明版本派生(commit 0000000);\n# 草稿束写了 reference.lock.txt 时以你写的为准。\n\ndemo-runtime==1.0\n"
+        sealed, contract = _sealed_lock(tmp_path, raw)
+&gt;       assert sealed == close_workspace_runtime_lock(raw, contract)
+E       AssertionError: assert '# 由钉版上游树声明版本...untime==1.0\n' == 'demo-runtime==1.0\n'
+E         
+E         + # 由钉版上游树声明版本派生(commit 0000000);
+E         + # 草稿束写了 reference.lock.txt 时以你写的为准。
+E         + 
+E           demo-runtime==1.0
+
+tests/test_runtime_lock_canonical_seal.py:46: AssertionError</failure></testcase><testcase classname="tests.test_runtime_lock_canonical_seal" name="test_already_canonical_lock_is_sealed_unchanged" time="0.001" /></testsuite></testsuites>

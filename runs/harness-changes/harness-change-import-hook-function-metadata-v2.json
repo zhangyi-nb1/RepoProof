@@ -1,0 +1,20 @@
+{
+  "affected_component": "import_hook receipt proxy (_make) + semantic_artifact counterfactual proxy (_make_proxy)",
+  "after_control_sha256": "52bf4b1736fb3a2b9bd91ee8a5db588b22a1b8231edc90a535252621ab2808a6",
+  "anonymous_fixture_id": "anonymous-wrapper-preserves-callable-attributes",
+  "before_control_sha256": "c183c45b5a3761e17e63df1b0158aef149395f07fe6af8c6736e24e466e46787",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T06:54:46+08:00",
+  "evidence_id": "harness-change-import-hook-function-metadata-v2",
+  "incident_ids": [
+    "incident-import-hook-lru-cache-attributes-mkdocs-v1"
+  ],
+  "invariant": "Runtime observation must preserve the observable behaviour and metadata of every wrapped upstream callable (v1). v2 extends this to the attributes the wrapped object itself carries: every public attribute of the original callable that the proxy function lacks (lru_cache's cache_clear/cache_info/cache_parameters, singledispatch's register/dispatch, __wrapped__ via functools.wraps) is reachable on the proxy, so an upstream that performs housekeeping on its own decorated functions runs unchanged under observation and under the counterfactual control; calls are still receipted and return values unchanged. Same measurement-validity exception as v1: a verdict on a program the Harness altered is not a measurement of the submission.",
+  "normalized_fingerprint": "7de835968034c112",
+  "regression_tests": [
+    "tests/test_import_hook_preserves_callable_attributes.py::test_lru_cache_attributes_survive_the_receipt_wrapper",
+    "tests/test_import_hook_preserves_callable_attributes.py::test_counterfactual_proxy_keeps_attributes_reachable"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

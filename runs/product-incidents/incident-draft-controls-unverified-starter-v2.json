@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "defects_found_by_manual_review": 3,
+    "detected_by_harness_stage": "candidate-generation (COMMITMENT_COVERAGE_MISMATCH)",
+    "self_repair_loop": "none",
+    "verifier": "commitment id drift + substring match on parsed config + shallow AST substitution"
+  },
+  "created_at": "2026-09-02T05:52:35+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "bdf389f4cf4473543b56fc5e69a71a7df8b01a556e38a871c0163d68730e9341",
+  "incident_id": "incident-draft-controls-unverified-starter-v2",
+  "normalized_fingerprint": "3e0c167e3213252b",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft::builder-reference-verifier-consistency"
+  ],
+  "reason_codes": [
+    "DRAFT_CONTROLS_UNVERIFIED_BEFORE_HUMAN_REVIEW"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": "tool-research-project-starter-v2"
+}

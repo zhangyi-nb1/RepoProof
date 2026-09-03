@@ -1,0 +1,21 @@
+{
+  "affected_component": "Journey autopilot stage recording (rehearsal/real_build) and stage payload persistence",
+  "after_control_sha256": "22061948a96254de73db1a28718dde3e3f7f205f3fdbf71e98142c85ff2882de",
+  "anonymous_fixture_id": "anonymous-autopilot-stage-projection",
+  "before_control_sha256": "cba0cc4565c2679d4d203d5d14fffe901d45ba3a3b4857b9946e0cb46a9b8444",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-02T12:24:03+08:00",
+  "evidence_id": "harness-change-autopilot-failed-substage-projection-v1",
+  "incident_ids": [
+    "incident-autopilot-rehearsal-cause-opaque-pptx-v1",
+    "incident-autopilot-rehearsal-cause-opaque-pillow-v1"
+  ],
+  "invariant": "An autopilot stage must report the reason codes, detail and owner of the substage that actually stopped the CLI build (for example stages.preflight), never a generic REHEARSAL_FAILED/REAL_BUILD_FAILED, and every stage's raw CLI payload must be persisted (record_dir/stages/<stage>.json and the journey's autopilot state dir) so the cause is recoverable from disk.",
+  "normalized_fingerprint": "55b040a95757611e",
+  "regression_tests": [
+    "tests/ui/test_autopilot_stage_projection.py::test_rehearsal_failure_projects_the_failed_substage",
+    "tests/ui/test_autopilot_stage_projection.py::test_every_stage_payload_is_persisted_for_disk_diagnosis"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

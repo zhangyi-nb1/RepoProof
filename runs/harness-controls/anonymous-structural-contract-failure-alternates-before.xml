@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="0.062" timestamp="2026-09-03T06:26:19.876725+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_structural_contract_failure_alternates" name="test_structural_codes_alternate_contract_then_reference" time="0.000"><failure message="AssertionError: assert 'contract' == 'reference'&#10;  &#10;  - reference&#10;  + contract">def test_structural_codes_alternate_contract_then_reference() -&gt; None:
+        assert repair_target_for(_CODE, round_index=1, diagnostics=_STRUCTURAL) == "contract"
+&gt;       assert repair_target_for(_CODE, round_index=2, diagnostics=_STRUCTURAL) == "reference"
+E       AssertionError: assert 'contract' == 'reference'
+E         
+E         - reference
+E         + contract
+
+tests/test_structural_contract_failure_alternates.py:20: AssertionError</failure></testcase><testcase classname="tests.test_structural_contract_failure_alternates" name="test_content_codes_go_straight_to_the_producer" time="0.000" /></testsuite></testsuites>

@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "detail_gap": "preflight smoke detail carries only the code; no exit code or stderr tail",
+    "gap": "candidate generation validates structure/semantics but never runs run_workspace_smoke; the first smoke execution happens after freeze, so a repairable producer/contract defect costs a new task version",
+    "observed": "self-check PASSED in one round, freeze + wheelhouse fine, then preflight ran the contract's smoke_command on the reference workspace and it exited non-zero (WORKSPACE_SMOKE_NONZERO_EXIT, no stderr excerpt)"
+  },
+  "created_at": "2026-09-03T05:00:56+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "1110584b108b426fc579141590f91ed84cbd254033eed56dc08d9513e55c27f2",
+  "incident_id": "incident-selfcheck-omits-runtime-smoke-nbformat-v2",
+  "normalized_fingerprint": "b13f617667b533c0",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "preflight::reference_workspace_smoke"
+  ],
+  "reason_codes": [
+    "REFERENCE_WORKSPACE_SMOKE_FAILED",
+    "SELF_CHECK_DOES_NOT_EXERCISE_SMOKE_COMMAND"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-nbformat-tool-v2"
+}

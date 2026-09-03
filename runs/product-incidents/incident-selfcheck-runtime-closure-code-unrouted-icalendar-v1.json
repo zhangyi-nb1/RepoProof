@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "drafter": "anthropic-gateway:claude-opus-4-8",
+    "observed": "identical to the docs-site case one run earlier: contract declares runnable with a runtime_python_entrypoint, reference never writes it, sealer raises WORKSPACE_RUNTIME_APPLICATION_MISSING, self-check stops at round 1 with no repair and empty diagnostics",
+    "protocol_note": "the protocol lists this case as runnable: false; the model chose runnable: true and then did not honour it — a contract-vs-producer disagreement with no route and no evidence"
+  },
+  "created_at": "2026-09-03T04:41:25+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "fbad7f19c6cbc8e1ef53829ae2e01799b320ebbe815134acee0f55b78fea4737",
+  "incident_id": "incident-selfcheck-runtime-closure-code-unrouted-icalendar-v1",
+  "normalized_fingerprint": "7f1be82bf6e54437",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "d868421eba4a6454d552ec4458446b052c87cba77449430000d15f79680ccb5f",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::repair-routing"
+  ],
+  "reason_codes": [
+    "WORKSPACE_RUNTIME_APPLICATION_MISSING",
+    "SELF_CHECK_RUNTIME_CLOSURE_CODE_UNROUTED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

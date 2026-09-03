@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "code": "WORKSPACE_FIXTURE_INPUT_KIND_MISMATCH",
+    "diagnostics_carried": "none (plain DraftProjectionError, no cause)",
+    "outcome": "one blind repair then INVALID_MODEL_OUTPUT"
+  },
+  "created_at": "2026-09-03T05:10:42+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "ff3c62efca56982d4fa81964d3135289f0b8b21168300a81f81389d5db318907",
+  "incident_id": "incident-projection-repair-blind-fixture-kind-nbformat-v1",
+  "normalized_fingerprint": "557050ccfe4450c7",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "3b9aba246da32bf7402459cc1e87cc6bf69bae3c530ce9ab1559e134874e5292",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "drafting::projection-repair"
+  ],
+  "reason_codes": [
+    "DRAFTER_PROJECTION_REPAIR_BLIND",
+    "PROJECTION_ERROR_WITHOUT_FIELD_DIAGNOSTICS"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

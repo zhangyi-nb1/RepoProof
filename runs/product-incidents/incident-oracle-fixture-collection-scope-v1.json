@@ -1,0 +1,31 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "capability_checks_executed": 0,
+    "collection_scope": "entire-oracle-snapshot-directory",
+    "false_success_direction": "fixture tests could inflate passed_checks",
+    "fixture_test_files_collected": 3
+  },
+  "created_at": "2026-09-02T00:42:18+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "7db6e65e641bb72a0112d62760eff1e0d32d82a6",
+  "framework_tree_sha256": "9e4bb4b57ca5b026288a57dd80b7ac9ed6f715c06c2d41d6e92608595c645532",
+  "incident_id": "incident-oracle-fixture-collection-scope-v1",
+  "normalized_fingerprint": "4daffa9af61c1d22",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "oracle-capability::collection"
+  ],
+  "reason_codes": [
+    "REHEARSAL_POSITIVE_CONTROL_FAILED",
+    "ORACLE_COLLECTED_FIXTURE_DATA_AS_TESTS"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "SEMANTIC_VERIFIER",
+  "task_version": "tool-research-project-starter-v3"
+}

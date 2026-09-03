@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "manifest_hash_present": 0,
+    "structure_passed": "NO_OR_UNMEASURED",
+    "tree_hash_present": 0
+  },
+  "created_at": "2026-09-01T15:55:04.965790Z",
+  "disposition": "RETRY_INFRASTRUCTURE",
+  "framework_git_commit": "7db6e65e641bb72a0112d62760eff1e0d32d82a6",
+  "framework_tree_sha256": "f5e97ca67ef854d0f18c3ef7b24114bb1665719dba21f3962149c981c6b3274a",
+  "incident_id": "incident-action-0d8ee163932c59d97578b5b2",
+  "normalized_fingerprint": "c1151ad069512055",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "ANSWER_KEY_REACHABLE",
+    "STOP_HARNESS_OR_EXTERNAL"
+  ],
+  "reason_codes": [
+    "ANSWER_KEY_REACHABLE",
+    "STOP_HARNESS_OR_EXTERNAL"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-marimo-tool-v3"
+}

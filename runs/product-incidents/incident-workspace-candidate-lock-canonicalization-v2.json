@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "candidate_seal_source": "draft reference.lock.txt raw bytes (harness-derived, two comment lines)",
+    "difference": "requirements.lock.txt=BYTES_DIFFER (comment lines only)",
+    "preflight_seal_source": "compiled canonical controls reference lock"
+  },
+  "created_at": "2026-09-02T12:15:31+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "978fb5f0eff88301597f100a59fd28d060095429f29f1b52821468ae5c8b525f",
+  "incident_id": "incident-workspace-candidate-lock-canonicalization-v2",
+  "normalized_fingerprint": "20b0b057489520fe",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "preflight::reference_golden_mismatch"
+  ],
+  "reason_codes": [
+    "REFERENCE_GOLDEN_MISMATCH",
+    "CANDIDATE_SEALED_LOCK_NOT_CANONICAL"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "FIXTURE_REFERENCE",
+  "task_version": "tool-pillow-tool-v1"
+}

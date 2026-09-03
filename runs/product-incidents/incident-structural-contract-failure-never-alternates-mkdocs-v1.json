@@ -1,0 +1,27 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-10: WORKSPACE_REFERENCE_CONTRACT_FAILED with structural codes routed to contract three times; each repair APPLIED, codes identical; the producer (which writes the colliding paths) never got a turn"
+  },
+  "created_at": "2026-09-03T06:25:01+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "0959a930aa56edb86ecbb6e6e783478489fa00ebc01b354423f82f56654b591e",
+  "incident_id": "incident-structural-contract-failure-never-alternates-mkdocs-v1",
+  "normalized_fingerprint": "191bd4e3a23d5ab2",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::repair-routing"
+  ],
+  "reason_codes": [
+    "STRUCTURAL_CONTRACT_FAILURE_NEVER_ALTERNATES_OWNER"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

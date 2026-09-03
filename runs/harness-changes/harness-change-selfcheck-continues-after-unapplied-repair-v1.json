@@ -1,0 +1,22 @@
+{
+  "affected_component": "product_jobs._self_check_repair_rounds (extracted from run_draft_self_check)",
+  "after_control_sha256": "90e6b4211c9d9fe65bdc6e619b611f680877f295d7485b35c07439d2ac1b03c8",
+  "anonymous_fixture_id": "anonymous-selfcheck-continues-after-unapplied-repair",
+  "before_control_sha256": "49bfcb4c398ea6390e2d12e69371f736830db39cea45af2284212e1f86cf94d8",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T06:28:41+08:00",
+  "evidence_id": "harness-change-selfcheck-continues-after-unapplied-repair-v1",
+  "incident_ids": [
+    "incident-selfcheck-stops-at-first-unapplied-repair-icalendar-v1",
+    "incident-selfcheck-stops-at-first-unapplied-repair-nbformat-v1"
+  ],
+  "invariant": "A rolled-back or no-progress repair leaves the draft unchanged, so the self-check hands the same failure (same reason codes and diagnostics, same-code counter advanced) to the next owner in repair_target_for's sequence without regenerating candidates; the loop stops only when the check passes, the repair budget is spent, no owner is routable, or the drafter is offline (UNAVAILABLE). Every attempt still costs one unit of the bound and is recorded as its own round.",
+  "normalized_fingerprint": "869c1654321510f6",
+  "regression_tests": [
+    "tests/ui/test_selfcheck_continues_after_unapplied_repair.py::test_rolled_back_repair_hands_the_same_failure_to_the_next_owner",
+    "tests/ui/test_selfcheck_continues_after_unapplied_repair.py::test_budget_still_bounds_the_attempts",
+    "tests/ui/test_selfcheck_continues_after_unapplied_repair.py::test_offline_drafter_stops_immediately"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

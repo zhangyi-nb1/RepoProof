@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.118" timestamp="2026-08-31T19:00:03.141661+08:00" hostname="ZhangrongleideMacBook-Air-3.local"><testcase classname="tests.test_product_delivery_profile" name="test_new_drafter_delivery_schema_requires_every_declared_dimension" time="0.002"><failure message="AssertionError: provider-enforced model schemas must require every declared property; compatibility defaults are read-only history semantics&#10;assert {'credentials...s', 'runtime'} == {'browser', '...network', ...}&#10;  &#10;  Extra items in the right set:&#10;  'browser'&#10;  'external_side_effects'&#10;  Use -v to get more diff">def test_new_drafter_delivery_schema_requires_every_declared_dimension() -&gt; None:
+        """Compatibility defaults must never become model-authored safe claims."""
+    
+        def assert_strict_objects(node: object) -&gt; None:
+            if isinstance(node, list):
+                for item in node:
+                    assert_strict_objects(item)
+                return
+            if not isinstance(node, dict):
+                return
+            properties = node.get("properties")
+            if node.get("type") == "object" and isinstance(properties, dict):
+                assert set(node.get("required") or ()) == set(properties), (
+                    "provider-enforced model schemas must require every declared "
+                    "property; compatibility defaults are read-only history semantics"
+                )
+                assert node.get("additionalProperties") is False
+            for value in node.values():
+                assert_strict_objects(value)
+    
+&gt;       assert_strict_objects(delivery_requirements_json_schema())
+
+tests/test_product_delivery_profile.py:120: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+node = {'additionalProperties': False, 'description': 'Model-described delivery needs, before support admission.', 'propertie...ls', 'type': 'string'}, ...}, 'required': ['inputs', 'outputs', 'network', 'credentials', 'lifecycle', 'runtime'], ...}
+
+    def assert_strict_objects(node: object) -&gt; None:
+        if isinstance(node, list):
+            for item in node:
+                assert_strict_objects(item)
+            return
+        if not isinstance(node, dict):
+            return
+        properties = node.get("properties")
+        if node.get("type") == "object" and isinstance(properties, dict):
+&gt;           assert set(node.get("required") or ()) == set(properties), (
+                "provider-enforced model schemas must require every declared "
+                "property; compatibility defaults are read-only history semantics"
+            )
+E           AssertionError: provider-enforced model schemas must require every declared property; compatibility defaults are read-only history semantics
+E           assert {'credentials...s', 'runtime'} == {'browser', '...network', ...}
+E             
+E             Extra items in the right set:
+E             'browser'
+E             'external_side_effects'
+E             Use -v to get more diff
+
+tests/test_product_delivery_profile.py:112: AssertionError</failure></testcase></testsuite></testsuites>

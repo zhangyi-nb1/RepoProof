@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-9: FIXTURE_BUILDER_FAILED five rounds with diagnostics ['TypeError'] / ['ValueError'] — the builder child runner emits only exception_type; four blind builder repairs while the reference runner has carried message+frames since reference-failure-diagnostics"
+  },
+  "created_at": "2026-09-03T16:47:50+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "80388f21ffb00d683d9bf3d81f1855b31e94071aee7347e8e5650ef3d32240cc",
+  "incident_id": "incident-builder-failure-diagnostics-opaque-pygal-v1",
+  "normalized_fingerprint": "1076392f4f0eb06a",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "c696600c993cbe18d8862fd8453b79880337266aceee18d8fb1141cf403427ba",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::fixture-builder"
+  ],
+  "reason_codes": [
+    "FIXTURE_BUILDER_FAILED",
+    "BUILDER_FAILURE_DIAGNOSTICS_OPAQUE"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

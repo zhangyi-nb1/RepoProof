@@ -1,0 +1,22 @@
+{
+  "affected_component": "product_jobs._self_check_repair_rounds stall budget + draft_selfcheck.MAX_TOTAL_REPAIR_ROUNDS hard cap",
+  "after_control_sha256": "d314f13ca818f4089efcad218ebd083c6b1a5aee66329faf2510bce5f5f6bc90",
+  "anonymous_fixture_id": "anonymous-selfcheck-bound-counts-stalls",
+  "before_control_sha256": "bfc737e7125c3e35985d91d998beb8c521f679a95fe7648b69c85cc563a430fe",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T13:27:07+08:00",
+  "evidence_id": "harness-change-selfcheck-bound-counts-stalls-v1",
+  "incident_ids": [
+    "incident-selfcheck-bound-monotone-progress-mkdocs-v1",
+    "incident-selfcheck-bound-monotone-progress-pygal-v1"
+  ],
+  "invariant": "The self-check repair bound is a stall budget, not a repair count: a repair spends it only when the failure it faces (first reason code + first diagnostic line) has already been seen in this self-check; a repair facing a brand-new failure is progress and is free. A hard cap (MAX_TOTAL_REPAIR_ROUNDS) still bounds the total number of repairs, every attempt is recorded as its own round, and a persistently identical failure therefore gets one free attempt plus the stall budget before the loop stops.",
+  "normalized_fingerprint": "6b67d3cd8e6e8c33",
+  "regression_tests": [
+    "tests/ui/test_selfcheck_bound_counts_stalls.py::test_distinct_failures_do_not_spend_the_stall_budget",
+    "tests/ui/test_selfcheck_bound_counts_stalls.py::test_repeated_failures_still_stop_at_the_stall_bound",
+    "tests/ui/test_selfcheck_bound_counts_stalls.py::test_hard_cap_bounds_even_monotone_progress"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

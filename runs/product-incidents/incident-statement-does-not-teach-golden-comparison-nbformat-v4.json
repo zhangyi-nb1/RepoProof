@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 1,
+    "observed": "run tool-nbformat-tool-v4-20260903-072008 (claude-opus-4-8): 20/20 calls, 0 writes, LimitsExceeded; steps 5-20 spent guessing how the expected notebooks' 8-hex cell ids were derived (the upstream generates them randomly; the reference pins them by a rule stated nowhere in the public contract) — never reached the application file the expected tree carries"
+  },
+  "created_at": "2026-09-03T07:37:54+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "0194548cfb1c651af53b752e4792898a7fa8238591b41463912305d3afedd0c8",
+  "incident_id": "incident-statement-does-not-teach-golden-comparison-nbformat-v4",
+  "normalized_fingerprint": "12fab86921b47e00",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "agent::task-statement"
+  ],
+  "reason_codes": [
+    "NO_ADAPTER_DIFF",
+    "STATEMENT_DOES_NOT_TEACH_GOLDEN_COMPARISON"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "AGENT_ADAPTER",
+  "task_version": "tool-nbformat-tool-v4"
+}

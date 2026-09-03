@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "second task version of the same case: self-check PASSED (4 rounds), frozen, preflight smoke (`./run.sh`, no args this time) exited non-zero; still no stderr in the check detail"
+  },
+  "created_at": "2026-09-03T05:28:22+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "22811e5bf57b1f758e3ba8b7371d4fdcafba3b84699251a15775d42ebd19853e",
+  "incident_id": "incident-selfcheck-omits-runtime-smoke-nbformat-v3",
+  "normalized_fingerprint": "b13f617667b533c0",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "preflight::reference_workspace_smoke"
+  ],
+  "reason_codes": [
+    "REFERENCE_WORKSPACE_SMOKE_FAILED",
+    "SELF_CHECK_DOES_NOT_EXERCISE_SMOKE_COMMAND"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-nbformat-tool-v3"
+}

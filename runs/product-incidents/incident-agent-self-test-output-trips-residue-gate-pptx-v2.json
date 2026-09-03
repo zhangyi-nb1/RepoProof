@@ -1,0 +1,31 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "intended_fix_when_authorised": "give the agent a scratch directory inside the session and say so in the task statement, so correct output never lands in a scan root",
+    "operator_remediation": "scripts/clear_answer_key_residue.py — the gate's own detector finds the trees, which are moved (never deleted) to ~/.repoproof/quarantine",
+    "second_occurrence": "a different model's run left /tmp/out2 and /tmp/wsp/out; the next run was again blocked at zero budget",
+    "still_one_task_version": "both occurrences are tool-python-pptx-tool-v2 — the other two cases leave non-matching bytes only because their implementations are wrong, so residue appears exactly when the agent SUCCEEDS; a generic mechanism change still needs a second independent task version"
+  },
+  "created_at": "2026-09-03T03:49:29+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "fbad7f19c6cbc8e1ef53829ae2e01799b320ebbe815134acee0f55b78fea4737",
+  "incident_id": "incident-agent-self-test-output-trips-residue-gate-pptx-v2",
+  "normalized_fingerprint": "040f8deb534efe03",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "preflight::answer-key-residue"
+  ],
+  "reason_codes": [
+    "ANSWER_KEY_REACHABLE",
+    "CORRECT_AGENT_SELF_TEST_OUTPUT_TRIPS_RESIDUE_GATE"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-python-pptx-tool-v2"
+}

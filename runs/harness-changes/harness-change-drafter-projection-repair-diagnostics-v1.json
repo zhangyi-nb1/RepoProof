@@ -1,0 +1,23 @@
+{
+  "affected_component": "Tool drafter projection repair context / DraftError diagnostics / tool add payload / autopilot draft stage",
+  "after_control_sha256": "86a9636ea1f1b5e513767b5d138c0e9723c4c3ae5e4ae492e759c1b1e79ec9be",
+  "anonymous_fixture_id": "anonymous-projection-repair-diagnostics",
+  "before_control_sha256": "74d5eea115d845362dc81732507a4c94c09ec3f82c2fa831b2796db245a94eef",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-02T12:24:03+08:00",
+  "evidence_id": "harness-change-drafter-projection-repair-diagnostics-v1",
+  "incident_ids": [
+    "incident-drafter-projection-repair-blind-csvkit-v1",
+    "incident-drafter-projection-repair-blind-xlsx-v1"
+  ],
+  "invariant": "When Core rejects a drafted workspace contract, the field-level public validation diagnostics (loc/type/msg, never the rejected input) must reach the bounded projection-repair turn and the final DraftError, so a failed draft is diagnosable from the CLI payload and autopilot report and the second model attempt argues from evidence instead of a bare reason code.",
+  "normalized_fingerprint": "02dac14c9d871e00",
+  "regression_tests": [
+    "tests/test_drafter_projection_diagnostics.py::test_public_validation_diagnostics_project_location_and_type_only",
+    "tests/test_drafter_projection_diagnostics.py::test_projection_repair_context_carries_diagnostics",
+    "tests/test_drafter_projection_diagnostics.py::test_final_draft_error_carries_diagnostics_for_the_caller",
+    "tests/test_drafter_projection_diagnostics.py::test_plain_value_error_cause_is_projected_as_a_stable_code"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

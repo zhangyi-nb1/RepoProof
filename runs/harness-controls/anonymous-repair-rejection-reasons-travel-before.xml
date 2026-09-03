@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="0.265" timestamp="2026-09-03T09:15:53.589942+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.ui.test_repair_rejection_reasons_travel" name="test_repair_source_keeps_the_inner_rejection_and_tells_the_retry_why" time="0.000"><failure message="AssertionError: assert 'VALIDATOR_WEAKENED' in 'workspace_contract_structural_repair:INVALID_MODEL_OUTPUT'&#10; +  where 'workspace_contract_structural_repair:INVALID_MODEL_OUTPUT' = str(DraftError('workspace_contract_structural_repair:INVALID_MODEL_OUTPUT'))">document = {'workspace_contract': {'rules': []}}
+
+    def rejecting_normalizer(document):
+&gt;       raise DraftError("workspace-contract-repair:VALIDATOR_WEAKENED", diagnostics=_ROWS)
+E       repoproof.adoption.intake.tool_drafter.DraftError: workspace-contract-repair:VALIDATOR_WEAKENED
+
+tests/ui/test_repair_rejection_reasons_travel.py:45: DraftError
+
+The above exception was the direct cause of the following exception:
+
+    def test_repair_source_keeps_the_inner_rejection_and_tells_the_retry_why() -&gt; None:
+        drafter = LiteLLMDrafter.__new__(LiteLLMDrafter)
+        seen: list[str] = []
+    
+        def fake_once(system, user, *, schema, schema_name):
+            seen.append(user)
+            return '{"workspace_contract": {"rules": []}}'
+    
+        drafter._once_with_system = fake_once  # type: ignore[method-assign]
+    
+        def rejecting_normalizer(document):
+            raise DraftError("workspace-contract-repair:VALIDATOR_WEAKENED", diagnostics=_ROWS)
+    
+        try:
+&gt;           drafter._repair_source(
+                context={"x": 1}, system="s", schema={}, schema_name="workspace_contract_structural_repair",
+                normalizer=rejecting_normalizer,
+            )
+
+tests/ui/test_repair_rejection_reasons_travel.py:48: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;repoproof.adoption.intake.tool_drafter.LiteLLMDrafter object at 0x10acb2c30&gt;
+context = {'x': 1}, system = 's', schema = {}
+schema_name = 'workspace_contract_structural_repair'
+normalizer = &lt;function test_repair_source_keeps_the_inner_rejection_and_tells_the_retry_why.&lt;locals&gt;.rejecting_normalizer at 0x10bfdede0&gt;
+
+    def _repair_source(
+        self,
+        *,
+        context: dict,
+        system: str,
+        schema: dict,
+        schema_name: str,
+        normalizer,
+    ) -&gt; dict[str, str]:
+        user_msg = json.dumps(context, ensure_ascii=False, indent=1)
+        text = self._once_with_system(
+            system,
+            user_msg,
+            schema=schema,
+            schema_name=schema_name,
+        )
+        for attempt in (1, 2):
+            try:
+                body = text.strip()
+                if body.startswith("```"):
+                    body = body.strip("`\n")
+                    body = body[body.index("{"):]
+                document = json.loads(body[body.index("{"): body.rindex("}") + 1])
+                return normalizer(document)
+            except (ValueError, IndexError, DraftError) as exc:
+                if attempt == 2:
+&gt;                   raise DraftError(f"{schema_name}:INVALID_MODEL_OUTPUT") from exc
+E                   repoproof.adoption.intake.tool_drafter.DraftError: workspace_contract_structural_repair:INVALID_MODEL_OUTPUT
+
+src/repoproof/adoption/intake/tool_drafter.py:2799: DraftError
+
+During handling of the above exception, another exception occurred:
+
+    def test_repair_source_keeps_the_inner_rejection_and_tells_the_retry_why() -&gt; None:
+        drafter = LiteLLMDrafter.__new__(LiteLLMDrafter)
+        seen: list[str] = []
+    
+        def fake_once(system, user, *, schema, schema_name):
+            seen.append(user)
+            return '{"workspace_contract": {"rules": []}}'
+    
+        drafter._once_with_system = fake_once  # type: ignore[method-assign]
+    
+        def rejecting_normalizer(document):
+            raise DraftError("workspace-contract-repair:VALIDATOR_WEAKENED", diagnostics=_ROWS)
+    
+        try:
+            drafter._repair_source(
+                context={"x": 1}, system="s", schema={}, schema_name="workspace_contract_structural_repair",
+                normalizer=rejecting_normalizer,
+            )
+        except DraftError as exc:
+&gt;           assert "VALIDATOR_WEAKENED" in str(exc)
+E           AssertionError: assert 'VALIDATOR_WEAKENED' in 'workspace_contract_structural_repair:INVALID_MODEL_OUTPUT'
+E            +  where 'workspace_contract_structural_repair:INVALID_MODEL_OUTPUT' = str(DraftError('workspace_contract_structural_repair:INVALID_MODEL_OUTPUT'))
+
+tests/ui/test_repair_rejection_reasons_travel.py:53: AssertionError</failure></testcase><testcase classname="tests.ui.test_repair_rejection_reasons_travel" name="test_repair_record_carries_the_rejection_diagnostics_and_previous_rejections_reach_the_drafter" time="0.007"><failure message="TypeError: _apply_draft_control_repair() got an unexpected keyword argument 'previous_rejections'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-284/test_repair_record_carries_the0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10bffa330&gt;
+
+    def test_repair_record_carries_the_rejection_diagnostics_and_previous_rejections_reach_the_drafter(tmp_path: Path, monkeypatch) -&gt; None:
+        draft_dir = _fixtures._draft_with_contract(tmp_path, monkeypatch)
+        import yaml
+    
+        draft = yaml.safe_load((draft_dir / "draft.yaml").read_text(encoding="utf-8"))
+        failure = DraftSelfCheckRoundV1(
+            round=1, check_ok=False, reason_codes=("WORKSPACE_REFERENCE_CONTRACT_FAILED",),
+            diagnostics=("WORKSPACE_RULE_OVERLAP", "WORKSPACE_RULE_OVERLAP: 'a' matches 'a' and '**'"),
+        )
+        drafter = _RejectingDrafter()
+&gt;       record = product_jobs._apply_draft_control_repair(
+            draft_dir, draft, target="contract", failure=failure, drafter=drafter,
+            previous_rejections=("earlier: role set changed",),
+        )
+E       TypeError: _apply_draft_control_repair() got an unexpected keyword argument 'previous_rejections'
+
+tests/ui/test_repair_rejection_reasons_travel.py:82: TypeError</failure></testcase><testcase classname="tests.ui.test_repair_rejection_reasons_travel" name="test_round_loop_hands_previous_rejections_to_the_next_attempt" time="0.000"><failure message="pydantic_core._pydantic_core.ValidationError: 1 validation error for DraftSelfCheckRepairV1&#10;diagnostics&#10;  Extra inputs are not permitted [type=extra_forbidden, input_value=('why: weakened',), input_type=tuple]&#10;    For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10bfeaf00&gt;
+
+    def test_round_loop_hands_previous_rejections_to_the_next_attempt(monkeypatch) -&gt; None:
+        seen: list[tuple[str, tuple[str, ...]]] = []
+    
+        def fake_round(draft_dir, draft, *, round_index):
+            return DraftSelfCheckRoundV1(round=round_index, check_ok=bool(seen and seen[-1][0] == "applied"),
+                                         reason_codes=() if seen and seen[-1][0] == "applied" else ("WORKSPACE_REFERENCE_CONTRACT_FAILED",),
+                                         diagnostics=("WORKSPACE_RULE_OVERLAP",))
+    
+        outcomes = iter(["ROLLED_BACK", "APPLIED"])
+    
+        def fake_repair(draft_dir, draft, *, target, failure, drafter, same_code_repairs=0, previous_targets=(), previous_rejections=()):
+            outcome = next(outcomes)
+            seen.append(("applied" if outcome == "APPLIED" else "rolled", tuple(previous_rejections)))
+            return DraftSelfCheckRepairV1(target=target, attempts=1, outcome=outcome, reason_code=None if outcome == "APPLIED" else "X",
+                                          diagnostics=("why: weakened",) if outcome != "APPLIED" else ())
+    
+        monkeypatch.setattr(product_jobs, "_self_check_round", fake_round)
+        monkeypatch.setattr(product_jobs, "_apply_draft_control_repair", fake_repair)
+&gt;       product_jobs._self_check_repair_rounds(Path("/nonexistent"), {}, bound=3, repair=True, drafter=object())
+
+tests/ui/test_repair_rejection_reasons_travel.py:110: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/repoproof/ui/services/product_jobs.py:7079: in _self_check_repair_rounds
+    repair_result = _apply_draft_control_repair(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+draft_dir = PosixPath('/nonexistent'), draft = {}, target = 'contract'
+failure = DraftSelfCheckRoundV1(round=1, check_ok=False, reason_codes=('WORKSPACE_REFERENCE_CONTRACT_FAILED',), diagnostics=('WO...E_RULE_OVERLAP',), generation_id=None, candidate_count=0, discrimination_probed=0, discrimination_gaps=(), repair=None)
+drafter = &lt;object object at 0x1049fe120&gt;, same_code_repairs = 0
+previous_targets = (), previous_rejections = ()
+
+    def fake_repair(draft_dir, draft, *, target, failure, drafter, same_code_repairs=0, previous_targets=(), previous_rejections=()):
+        outcome = next(outcomes)
+        seen.append(("applied" if outcome == "APPLIED" else "rolled", tuple(previous_rejections)))
+&gt;       return DraftSelfCheckRepairV1(target=target, attempts=1, outcome=outcome, reason_code=None if outcome == "APPLIED" else "X",
+                                      diagnostics=("why: weakened",) if outcome != "APPLIED" else ())
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for DraftSelfCheckRepairV1
+E       diagnostics
+E         Extra inputs are not permitted [type=extra_forbidden, input_value=('why: weakened',), input_type=tuple]
+E           For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
+
+tests/ui/test_repair_rejection_reasons_travel.py:105: ValidationError</failure></testcase></testsuite></testsuites>

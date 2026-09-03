@@ -1,0 +1,33 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "attribution": "the PREVIOUS, SUCCESSFUL agent created it itself: `W=$(mktemp -d /private/tmp/wsXXXX) && ./bin/<tool> public_tests/... $W/o1` — a legitimate self-test of the tool it had just written",
+    "class": "false blocking, not false success",
+    "consequence": "a successful run poisons the host for every later run until an operator moves the scratch tree out of the scan roots; the agent is never told /tmp is scanned or where to put scratch output",
+    "observed": "a later run was blocked at zero budget with ANSWER_KEY_REACHABLE naming two files under a /tmp scratch dir",
+    "remediation_applied": "residue moved to ~/.repoproof/quarantine (outside the scan roots), per the gate's own remediation text",
+    "why_it_trips": "the gate compares by content, and a CORRECT implementation necessarily emits bytes identical to the protected expected fixtures (sha cd3f195d... matched two frozen fixtures)"
+  },
+  "created_at": "2026-09-03T03:04:44+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "433ae4f5b37a211cc1781492ed736d0bfb0cbf78093f45a60a940e2b4e5cd036",
+  "incident_id": "incident-agent-self-test-output-trips-residue-gate-pptx-v1",
+  "normalized_fingerprint": "040f8deb534efe03",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "preflight::answer-key-residue"
+  ],
+  "reason_codes": [
+    "ANSWER_KEY_REACHABLE",
+    "CORRECT_AGENT_SELF_TEST_OUTPUT_TRIPS_RESIDUE_GATE"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-python-pptx-tool-v2"
+}

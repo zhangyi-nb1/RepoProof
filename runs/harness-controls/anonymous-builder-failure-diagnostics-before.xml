@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="0.168" timestamp="2026-09-03T16:48:12.277398+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_builder_failure_diagnostics" name="test_builder_failure_detail_names_message_and_location" time="0.026"><failure message="AssertionError: assert False&#10; +  where False = &lt;built-in method startswith of str object at 0x108faefb0&gt;('ValueError: ')&#10; +    where &lt;built-in method startswith of str object at 0x108faefb0&gt; = 'ValueError'.startswith">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-378/test_builder_failure_detail_na0')
+
+    def test_builder_failure_detail_names_message_and_location(tmp_path: Path) -&gt; None:
+        with pytest.raises(FixtureBuilderError) as caught:
+            _build(tmp_path, _FAILING_BUILDER)
+        assert caught.value.code == "FIXTURE_BUILDER_FAILED"
+        detail = caught.value.detail
+&gt;       assert detail.startswith("ValueError: ")
+E       AssertionError: assert False
+E        +  where False = &lt;built-in method startswith of str object at 0x108faefb0&gt;('ValueError: ')
+E        +    where &lt;built-in method startswith of str object at 0x108faefb0&gt; = 'ValueError'.startswith
+
+tests/test_builder_failure_diagnostics.py:70: AssertionError</failure></testcase><testcase classname="tests.test_builder_failure_diagnostics" name="test_successful_builder_is_untouched" time="0.025" /></testsuite></testsuites>

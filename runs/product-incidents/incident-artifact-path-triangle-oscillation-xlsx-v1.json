@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-10, 7 rounds / 6 repairs oscillating: the contract rule admits 'audit_workbook.xlsx' at the root while the reference writes and the verifier expects 'output/audit_workbook.xlsx'; each repair aligns two of the three (EXTRA_FILE_FORBIDDEN -> WORKBOOK_MISSING -> EXTRA_FILE_FORBIDDEN ...) because no stage pins the one path all three must share; the artifact_protocol locator already names the path at drafting time, where a contract-vs-locator admission check would have projected the disagreement with a field loc"
+  },
+  "created_at": "2026-09-03T16:08:50+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "80388f21ffb00d683d9bf3d81f1855b31e94071aee7347e8e5650ef3d32240cc",
+  "incident_id": "incident-artifact-path-triangle-oscillation-xlsx-v1",
+  "normalized_fingerprint": "994a504420c8cc4b",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "de7a251efbbc0bdecbb20fc97a43a3542f2e9752fb1fd56eb0843c447c89d44a",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "drafting::artifact-path-consistency"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_CONTRACT_FAILED",
+    "ARTIFACT_PATH_TRIANGLE_NOT_PINNED_AT_PROJECTION"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

@@ -1,0 +1,24 @@
+{
+  "affected_component": "repair_loop.external_interruption_marker + host_guided round loop -> missing_external",
+  "after_control_sha256": "d9f2a82e04a2480f9d24d19c823ecad63b06fb5126e0013460359c903baa24ba",
+  "anonymous_fixture_id": "anonymous-external-interruption-verdict",
+  "before_control_sha256": "fd5aa935924b339d665233d7c90a2a46737cf6df65a07692b21594920550feab",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T03:43:54+08:00",
+  "evidence_id": "harness-change-external-interruption-is-not-a-task-failure-v1",
+  "incident_ids": [
+    "incident-provider-interruption-recorded-as-fail-pptx-v1",
+    "incident-provider-interruption-recorded-as-fail-pillow-v1"
+  ],
+  "invariant": "A run the PROVIDER ended mid-flight has no task conclusion and must not be graded as one: an EXTERNAL agent exit (service unavailable / rate limited / API timeout / connection / internal server error) emits one public marker into the existing missing_external channel, so the completion gate's own decision table returns BLOCKED instead of FAIL. Agent-side exits (submitted, step limit, token budget) never emit it — those are real terminal states. The marker carries no provider body, URL or account detail.",
+  "normalized_fingerprint": "8d17aa6dfb7c898a",
+  "regression_tests": [
+    "tests/test_external_interruption_verdict.py::test_provider_exits_produce_an_external_interruption_marker",
+    "tests/test_external_interruption_verdict.py::test_agent_side_exits_never_produce_the_marker",
+    "tests/test_external_interruption_verdict.py::test_interrupted_run_is_blocked_not_failed",
+    "tests/test_external_interruption_verdict.py::test_round_loop_feeds_the_marker_into_missing_external",
+    "tests/test_external_interruption_verdict.py::test_marker_carries_no_provider_body_url_or_account"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

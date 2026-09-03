@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="0.469" timestamp="2026-09-02T13:43:02.715227+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_verifier_reason_details" name="test_reason_details_are_carried_bounded_and_scoped_to_reported_codes" time="0.053"><failure message="AssertionError: assert {'VERIFIER_PROTOCOL_ERROR'} &gt;= {'SECTION_ENC...DER_MISMATCH'}&#10;  &#10;  Extra items in the right set:&#10;  'TABLE_ORDER_MISMATCH'&#10;  'SECTION_ENCODING_MISMATCH'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-134/test_reason_details_are_carrie0')
+
+    def test_reason_details_are_carried_bounded_and_scoped_to_reported_codes(tmp_path: Path) -&gt; None:
+        evidence = _fx._run(_fx._world(tmp_path, verifier=_DETAILED_VERIFIER))
+        assert evidence.passed is False
+&gt;       assert set(evidence.reason_codes) &gt;= {"SECTION_ENCODING_MISMATCH", "TABLE_ORDER_MISMATCH"}
+E       AssertionError: assert {'VERIFIER_PROTOCOL_ERROR'} &gt;= {'SECTION_ENC...DER_MISMATCH'}
+E         
+E         Extra items in the right set:
+E         'TABLE_ORDER_MISMATCH'
+E         'SECTION_ENCODING_MISMATCH'
+
+tests/test_verifier_reason_details.py:40: AssertionError</failure></testcase><testcase classname="tests.test_verifier_reason_details" name="test_verifier_without_details_is_still_accepted" time="0.158"><failure message="AttributeError: 'SemanticVerifierEvidenceV2' object has no attribute 'reason_details'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-134/test_verifier_without_details_0')
+
+    def test_verifier_without_details_is_still_accepted(tmp_path: Path) -&gt; None:
+        evidence = _fx._run(_fx._world(tmp_path))
+        assert evidence.passed is True
+&gt;       assert dict(evidence.reason_details) == {}
+                    ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_verifier_reason_details.py:50: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = SemanticVerifierEvidenceV2(schema_version=4, protocol='repoproof-workspace-semantic-verifier-v2', verifier_id='workspa...uired_commitment_ids=('render-workspace',), checked_commitment_ids=('render-workspace',), passed=True, reason_codes=())
+item = 'reason_details'
+
+    def __getattr__(self, item: str) -&gt; Any:
+        private_attributes = object.__getattribute__(self, '__private_attributes__')
+        if item in private_attributes:
+            attribute = private_attributes[item]
+            if hasattr(attribute, '__get__'):
+                return attribute.__get__(self, type(self))  # type: ignore
+    
+            try:
+                # Note: self.__pydantic_private__ cannot be None if self.__private_attributes__ has items
+                return self.__pydantic_private__[item]  # type: ignore
+            except KeyError as exc:
+                raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}') from exc
+        else:
+            # `__pydantic_extra__` can fail to be set if the model is not yet fully initialized.
+            # See `BaseModel.__repr_args__` for more details
+            try:
+                pydantic_extra = object.__getattribute__(self, '__pydantic_extra__')
+            except AttributeError:
+                pydantic_extra = None
+    
+            if pydantic_extra and item in pydantic_extra:
+                return pydantic_extra[item]
+            else:
+                if hasattr(self.__class__, item):
+                    return super().__getattribute__(item)  # Raises AttributeError if appropriate
+                else:
+                    # this is the current error
+&gt;                   raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}')
+E                   AttributeError: 'SemanticVerifierEvidenceV2' object has no attribute 'reason_details'
+
+.venv/lib/python3.12/site-packages/pydantic/main.py:1042: AttributeError</failure></testcase><testcase classname="tests.test_verifier_reason_details" name="test_selfcheck_disagreement_diagnostics_include_details" time="0.107"><failure message="assert &quot;SECTION_ENCODING_MISMATCH: README section 'Sheets' must list one line per sheet&quot; in ['SECTION_ENCODING_MISMATCH']">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-134/test_selfcheck_disagreement_di0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x109315e80&gt;
+
+    def test_selfcheck_disagreement_diagnostics_include_details(tmp_path: Path, monkeypatch) -&gt; None:
+        from repoproof.ui.services import product_jobs
+    
+        probe_spec = importlib.util.spec_from_file_location(
+            "_probe_fixtures", Path(__file__).parent / "ui" / "test_reference_reproducibility_probe.py"
+        )
+        probe = importlib.util.module_from_spec(probe_spec)
+        assert probe_spec.loader is not None
+        probe_spec.loader.exec_module(probe)
+        draft, _runs = probe._prepare(tmp_path, monkeypatch, drift=False)
+        monkeypatch.setattr(
+            "repoproof.verification.workspace_semantic.run_workspace_semantic_verifier",
+            lambda **_k: type(
+                "S",
+                (),
+                {
+                    "passed": False,
+                    "reason_codes": ["SECTION_ENCODING_MISMATCH"],
+                    "reason_details": {"SECTION_ENCODING_MISMATCH": "README section 'Sheets' must list one line per sheet"},
+                    "evidence": None,
+                },
+            )(),
+        )
+        result = product_jobs.propose_workspace_fixture_candidates(draft, n=1, offline=True)
+        assert result["ok"] is False
+        assert result["reason_codes"] == ["WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT"]
+        assert result["diagnostics"][0] == "SECTION_ENCODING_MISMATCH"
+&gt;       assert "SECTION_ENCODING_MISMATCH: README section 'Sheets' must list one line per sheet" in result["diagnostics"]
+E       assert "SECTION_ENCODING_MISMATCH: README section 'Sheets' must list one line per sheet" in ['SECTION_ENCODING_MISMATCH']
+
+tests/test_verifier_reason_details.py:80: AssertionError</failure></testcase></testsuite></testsuites>

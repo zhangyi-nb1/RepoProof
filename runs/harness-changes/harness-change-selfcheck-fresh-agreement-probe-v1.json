@@ -1,0 +1,21 @@
+{
+  "affected_component": "product_jobs._self_check_round fresh-input agreement probe (propose_workspace_fixture_candidates offline=False, n=1, before the drafted generation) + fresh-audit proposal failure carrying the judge's diagnostics",
+  "after_control_sha256": "04dfea7accec6c11c0ef433410180dfa2c417099764b742f37d4c9751c1b9351",
+  "anonymous_fixture_id": "anonymous-selfcheck-fresh-agreement-probe",
+  "before_control_sha256": "989e45ae740fc76a7a4310b45cb7d32859db95f520b83712a841a026ccf8241f",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T12:29:47+08:00",
+  "evidence_id": "harness-change-selfcheck-fresh-agreement-probe-v1",
+  "incident_ids": [
+    "incident-frozen-controls-disagree-on-fresh-input-pptx-v2",
+    "incident-frozen-controls-disagree-on-fresh-input-pygal-v2"
+  ],
+  "invariant": "Before a draft can pass its self-check, the producer and the independent judge must agree on one input neither was drafted against: each round first proposes one fresh scenario through the same online proposal/materialisation path the post-freeze fresh audit uses (drafter proposal → frozen-to-be builder → reference → verifier → controls); a disagreement fails the round with the judge's reason codes and details and enters the ordinary verifier→verifier→reference repair. The probe runs before the drafted generation so the drafted blueprints remain the latest confirmable generation; without an online drafter the probe is skipped. The fresh audit's proposal failure now carries the judge's diagnostics in reason_codes instead of a bare code.",
+  "normalized_fingerprint": "e7b712d2a760f753",
+  "regression_tests": [
+    "tests/ui/test_selfcheck_fresh_agreement_probe.py::test_fresh_disagreement_fails_the_round_with_the_verifier_details",
+    "tests/ui/test_selfcheck_fresh_agreement_probe.py::test_offline_drafter_skips_the_probe"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

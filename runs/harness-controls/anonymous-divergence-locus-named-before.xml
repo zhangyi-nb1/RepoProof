@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.136" timestamp="2026-09-03T11:52:27.276178+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_divergence_locus_named" name="test_rows_name_the_member_and_the_line" time="0.004"><failure message="KeyError: 'locus'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-329/test_rows_name_the_member_and_0')
+
+    def test_rows_name_the_member_and_the_line(tmp_path: Path) -&gt; None:
+        actual = _tree(tmp_path / "actual", core=b"&lt;created&gt;2026-09-03T11:00:01Z&lt;/created&gt;", svg_line3="chart-9b1c")
+        expected = _tree(tmp_path / "expected", core=b"&lt;created&gt;2026-09-03T10:59:58Z&lt;/created&gt;", svg_line3="chart-3f2a")
+        rows = manifest_divergence(
+            build_artifact_manifest(actual), build_artifact_manifest(expected), actual_root=actual, expected_root=expected
+        )
+        by_path = {row["path"]: row for row in rows}
+        assert by_path["book.xlsx"]["kind"] == "BYTES_DIFFER"
+&gt;       assert by_path["book.xlsx"]["locus"] == "docProps/core.xml"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'locus'
+
+tests/test_divergence_locus_named.py:49: KeyError</failure></testcase><testcase classname="tests.test_divergence_locus_named" name="test_probe_diagnostics_carry_the_locus" time="0.001"><failure message="assert 'locus' in 'def _assert_reference_reproducible(*, expected_dir: Path, rerun_dir: Path, contract, rerun) -&gt; None:\n    &quot;&quot;&quot;Re-run t...*[f&quot;{row[\'path\']}={row[\'kind\']}&quot; for row in rows]),\n        )\n    shutil.rmtree(rerun_dir, ignore_errors=True)\n'">def test_probe_diagnostics_carry_the_locus() -&gt; None:
+        source = inspect.getsource(product_jobs._assert_reference_reproducible)
+&gt;       assert "locus" in source
+E       assert 'locus' in 'def _assert_reference_reproducible(*, expected_dir: Path, rerun_dir: Path, contract, rerun) -&gt; None:\n    """Re-run t...*[f"{row[\'path\']}={row[\'kind\']}" for row in rows]),\n        )\n    shutil.rmtree(rerun_dir, ignore_errors=True)\n'
+
+tests/test_divergence_locus_named.py:57: AssertionError</failure></testcase></testsuite></testsuites>

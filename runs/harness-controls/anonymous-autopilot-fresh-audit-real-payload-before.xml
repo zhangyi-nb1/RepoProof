@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="0.212" timestamp="2026-09-03T08:10:55.856703+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.ui.test_autopilot_fresh_audit_real_payload" name="test_real_pass_payload_is_recognised" time="0.008"><failure message="AssertionError: {'ok': False, 'status': 'FRESH_AUDIT_FAILED', 'report_path': '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T...ey_id': '9b6871d0b8324828aefb5c258846c6c3', 'repo': 'https://github.com/anon/anon', 'capability': 'do the thing', ...}}&#10;assert (False is True)">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-264/test_real_pass_payload_is_reco0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10955b8f0&gt;
+
+    def test_real_pass_payload_is_recognised(tmp_path: Path, monkeypatch) -&gt; None:
+        result = _drive(tmp_path, monkeypatch, _real_pass())
+&gt;       assert result["ok"] is True and result["status"] == "ACTIVE", result
+E       AssertionError: {'ok': False, 'status': 'FRESH_AUDIT_FAILED', 'report_path': '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T...ey_id': '9b6871d0b8324828aefb5c258846c6c3', 'repo': 'https://github.com/anon/anon', 'capability': 'do the thing', ...}}
+E       assert (False is True)
+
+tests/ui/test_autopilot_fresh_audit_real_payload.py:73: AssertionError</failure></testcase><testcase classname="tests.ui.test_autopilot_fresh_audit_real_payload" name="test_semantic_only_pass_is_still_a_pass" time="0.005"><failure message="AssertionError: {'ok': False, 'status': 'FRESH_AUDIT_FAILED', 'report_path': '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T...ey_id': 'e2c916d5ef154980bb4e4a20d26ae1d1', 'repo': 'https://github.com/anon/anon', 'capability': 'do the thing', ...}}&#10;assert (False is True)">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-264/test_semantic_only_pass_is_sti0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x109559df0&gt;
+
+    def test_semantic_only_pass_is_still_a_pass(tmp_path: Path, monkeypatch) -&gt; None:
+        result = _drive(tmp_path, monkeypatch, _real_pass("FRESH_INPUT_SEMANTIC_PASS"))
+&gt;       assert result["ok"] is True and result["status"] == "ACTIVE", result
+E       AssertionError: {'ok': False, 'status': 'FRESH_AUDIT_FAILED', 'report_path': '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T...ey_id': 'e2c916d5ef154980bb4e4a20d26ae1d1', 'repo': 'https://github.com/anon/anon', 'capability': 'do the thing', ...}}
+E       assert (False is True)
+
+tests/ui/test_autopilot_fresh_audit_real_payload.py:80: AssertionError</failure></testcase><testcase classname="tests.ui.test_autopilot_fresh_audit_real_payload" name="test_real_revocation_projects_the_audit_reason" time="0.005"><failure message="AssertionError: assert 'SEMANTIC_VERIFIER_MISMATCH' in ['FRESH_AUDIT_FAILED']">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-264/test_real_revocation_projects_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x1095e1ac0&gt;
+
+    def test_real_revocation_projects_the_audit_reason(tmp_path: Path, monkeypatch) -&gt; None:
+        result = _drive(tmp_path, monkeypatch, _real_fail())
+        assert result["ok"] is False and result["status"] == "FRESH_AUDIT_FAILED"
+        stage = next(s for s in result["report"]["stages"] if s["stage"] == "fresh_audit")
+&gt;       assert "SEMANTIC_VERIFIER_MISMATCH" in stage["reason_codes"]
+E       AssertionError: assert 'SEMANTIC_VERIFIER_MISMATCH' in ['FRESH_AUDIT_FAILED']
+
+tests/ui/test_autopilot_fresh_audit_real_payload.py:87: AssertionError</failure></testcase></testsuite></testsuites>

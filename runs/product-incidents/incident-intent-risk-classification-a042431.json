@@ -1,0 +1,26 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "expected_stable_reason_present": 0
+  },
+  "created_at": "2026-08-31T10:07:50.195074Z",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "a0424315bf32e4944fe60242b7a23510563a8591",
+  "framework_tree_sha256": "aefa606f9dd1fb06dc06b31b300f9d5766e70b4b17c4a69622e76b0e47140fd5",
+  "incident_id": "incident-intent-risk-classification-a042431",
+  "normalized_fingerprint": "59f9b50cbca5cb66",
+  "owner": "HARNESS",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "intent_policy.credentialled_irreversible"
+  ],
+  "reason_codes": [
+    "CREDENTIALLED_IRREVERSIBLE_INTENT_NOT_CLASSIFIED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "INTENT_ADMISSION",
+  "task_version": null
+}

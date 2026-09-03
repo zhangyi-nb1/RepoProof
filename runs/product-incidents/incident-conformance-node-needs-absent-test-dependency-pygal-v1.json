@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-3: self-check passed (4 rounds), freeze ok, rehearsal BLOCKED at conformance_preflight: of 3 selected nodes, test_simple_bar needs the test-only package pyquery (imported at runtime inside render_pyquery) and test_xml_filters_change_bars fails in the suite-wide [lxml] parametrization the conftest injects via pytest_generate_tests (lxml absent); neither dependency is visible to the static AST runnability profile, and the selection never executes a candidate before freezing it"
+  },
+  "created_at": "2026-09-03T11:28:39+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "011718afe16b631970a8435ac33d2347c8d4952b02ecb383b20d0358194c2ea7",
+  "incident_id": "incident-conformance-node-needs-absent-test-dependency-pygal-v1",
+  "normalized_fingerprint": "7217f502846e0c2b",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "STOP_HARNESS_OR_EXTERNAL",
+    "UPSTREAM_CONFORMANCE_ENVIRONMENT"
+  ],
+  "reason_codes": [
+    "STOP_HARNESS_OR_EXTERNAL",
+    "UPSTREAM_CONFORMANCE_ENVIRONMENT"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-pygal-tool-v1"
+}

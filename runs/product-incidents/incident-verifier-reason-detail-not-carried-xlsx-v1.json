@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "attempts_2_and_3": "identical 4-round plateau: INVALID_*_ENCODING codes; verifier x2 then reference x1; the reference repair could not know what encoding the judge expects",
+    "protocol": "verify() returns uppercase reason codes only; no per-code public explanation reaches either repair"
+  },
+  "created_at": "2026-09-02T13:40:52+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "e27626f84bfe57841a4d240b2b0ad3c454bb5d72f74bc6650a8ad430df3c7086",
+  "incident_id": "incident-verifier-reason-detail-not-carried-xlsx-v1",
+  "normalized_fingerprint": "d7a8b6a0cb84e22c",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "de7a251efbbc0bdecbb20fc97a43a3542f2e9752fb1fd56eb0843c447c89d44a",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::disagreement-repair"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+    "VERIFIER_REASON_DETAIL_NOT_CARRIED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

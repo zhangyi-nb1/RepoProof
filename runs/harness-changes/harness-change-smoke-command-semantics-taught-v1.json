@@ -1,0 +1,22 @@
+{
+  "affected_component": "tool_drafter drafting/reference-repair/contract-repair prompts + _reject_smoke_non_member_argument projection check (normalize_draft_document, normalize_workspace_contract_repair)",
+  "after_control_sha256": "e1ab7b2c1b96a5edb60b1bec6a5ef2735ee0749fc6dac36f3740bea8e3d1b0b9",
+  "anonymous_fixture_id": "anonymous-smoke-command-semantics",
+  "before_control_sha256": "897da8de13b4722eb4397e55e7a0d2d74737f246ccd97b3e489e00feaa7bf7ca",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T05:58:15+08:00",
+  "evidence_id": "harness-change-smoke-command-semantics-taught-v1",
+  "incident_ids": [
+    "incident-smoke-command-semantics-untaught-icalendar-v1",
+    "incident-smoke-command-semantics-untaught-nbformat-v1"
+  ],
+  "invariant": "The three prompts that can author or repair a smoke command state that the Harness runs it inside the delivered workspace alone (no candidate input, no external files) and that it must exit 0 there; the projection layer rejects a smoke argument that looks like a path and matches no contract rule as SMOKE_COMMAND_NON_MEMBER_ARGUMENT with loc workspace_contract.smoke_command.N (only when extra files are forbidden), so the contradiction is named at drafting time instead of surfacing as a stderr excerpt after sealing. Flags and contracted member paths compile unchanged.",
+  "normalized_fingerprint": "f0b52b01e927303f",
+  "regression_tests": [
+    "tests/test_smoke_command_semantics_taught.py::test_prompts_state_that_smoke_runs_inside_the_workspace_alone",
+    "tests/test_smoke_command_semantics_taught.py::test_smoke_argument_naming_a_non_member_file_is_a_named_projection_error",
+    "tests/test_smoke_command_semantics_taught.py::test_flags_and_member_paths_compile"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

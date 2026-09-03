@@ -1,0 +1,22 @@
+{
+  "affected_component": "Upstream conformance preflight execution environment",
+  "after_control_sha256": "ecd9415dbc71e2ce477becf0a140e49e308c9b1041dd2f1a95b7b70bbeaabb7d",
+  "anonymous_fixture_id": "anonymous-conformance-execution-root-v1",
+  "before_control_sha256": "c3e543f0793d089b23e32942e4075d137cd088a6ab9df5ec7bbbae4e4cef572b",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-02T00:34:10+08:00",
+  "evidence_id": "harness-change-conformance-execution-root-probe-v1",
+  "incident_ids": [
+    "incident-conformance-execution-root-convention-v1"
+  ],
+  "invariant": "The conformance preflight must execute the admitted upstream test subset under the suite's own working-directory convention. Upstream suites legitimately anchor fixture paths either at the repository root or at the real-cased test root; the harness probes these admitted roots in a deterministic order and records the satisfying root instead of guessing one convention. The bar is unchanged: the selected nodes must pass unmodified, dependencies are never auto-installed, and a subset failing under every admitted root is still rejected at materialization.",
+  "normalized_fingerprint": "b8a815d4815ff213",
+  "regression_tests": [
+    "tests/test_upstream_conformance.py::test_precheck_probes_repo_root_convention_for_fixture_paths",
+    "tests/test_upstream_conformance.py::test_precheck_still_fails_when_nodes_fail_under_every_root",
+    "tests/test_upstream_conformance.py::test_precheck_runs_from_real_cased_test_root_for_local_fixtures",
+    "tests/test_upstream_conformance.py::test_precheck_missing_dependency_is_reported_without_installing"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

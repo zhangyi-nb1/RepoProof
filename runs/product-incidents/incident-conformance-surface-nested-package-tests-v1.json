@@ -1,0 +1,31 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "case_evidence_effect": "no upstream conformance evidence",
+    "conformance_status": "SKIPPED",
+    "selected_nodes": 0,
+    "selector_surface": "top-level tests dir + test_*.py",
+    "upstream_layout": "package-internal tests directories only",
+    "upstream_test_files_present": 265
+  },
+  "created_at": "2026-09-02T04:14:41+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "a1ead76bb4655af265d6bc1de2540e2ba3779971ff0e9457060293b360c86750",
+  "incident_id": "incident-conformance-surface-nested-package-tests-v1",
+  "normalized_fingerprint": "d049b923d3953dbf",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "conformance-selection::admitted-test-surface"
+  ],
+  "reason_codes": [
+    "UPSTREAM_CONFORMANCE_SURFACE_TOO_NARROW"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-networkx-tool-v4"
+}

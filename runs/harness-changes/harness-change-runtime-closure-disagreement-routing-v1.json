@@ -1,0 +1,22 @@
+{
+  "affected_component": "draft_selfcheck.repair_target_for + product_jobs._runtime_closure_bundle_error + portable runtime error detail + drafting prompt",
+  "after_control_sha256": "1c58d881b528fab0d273ae35c7b192199a8e608b0b90aa780a1ed3c1ce6d41fa",
+  "anonymous_fixture_id": "anonymous-runtime-closure-routing",
+  "before_control_sha256": "a40d823e83ec665db438ba58ac3688698b570ca1f1149ffcc7c67e25d7b70da3",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T04:45:08+08:00",
+  "evidence_id": "harness-change-runtime-closure-disagreement-routing-v1",
+  "incident_ids": [
+    "incident-selfcheck-runtime-closure-code-unrouted-mkdocs-v1",
+    "incident-selfcheck-runtime-closure-code-unrouted-icalendar-v1"
+  ],
+  "invariant": "A contract-vs-producer disagreement surfaced by the Core runtime-closure step (WORKSPACE_RUNTIME_APPLICATION_MISSING / ENTRYPOINT_MISSING / OWNED_PATH_COLLISION) is repairable in the self-check: producer first, then the contract's runtime shape on the same code; environment-side WORKSPACE_RUNTIME_* codes (wheelhouse, lock, wheel set) stay unrouted. The candidate-generation projection carries the missing entrypoint path in its public diagnostics, and the drafting prompt states that the runtime_python_entrypoint file is the producer's to write, not Core's.",
+  "normalized_fingerprint": "7f1be82bf6e54437",
+  "regression_tests": [
+    "tests/test_selfcheck_runtime_closure_routing.py::test_missing_entrypoint_routes_to_reference_then_contract",
+    "tests/test_selfcheck_runtime_closure_routing.py::test_environment_runtime_codes_stay_unrouted",
+    "tests/test_selfcheck_runtime_closure_routing.py::test_runtime_closure_failure_carries_the_entrypoint_in_public_diagnostics"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

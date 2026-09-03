@@ -1,0 +1,32 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "common_root": "the model's typed delivery requirements contradict other members of its OWN document; Core classifies by the requirements alone (admission = unsupported need, or a code-only projection error) instead of detecting the internal contradiction and naming the conflicting fields",
+    "harness_response": "classified as DeliveryAdmissionError (unsupported need) → no repair at all; the rejected document was not persisted",
+    "public_code": "OUTPUT_TRANSPORT_MISMATCH",
+    "shape": "outputs[0].format_id=workspace_bundle (workspace profile selected) while outputs[0].kind was not 'directory'",
+    "user_request": "notebook + markdown export + requirements = multi-file"
+  },
+  "created_at": "2026-09-03T04:35:55+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "fbad7f19c6cbc8e1ef53829ae2e01799b320ebbe815134acee0f55b78fea4737",
+  "incident_id": "incident-delivery-shape-self-contradiction-nbformat-v1",
+  "normalized_fingerprint": "573af0d2c9337586",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "3b9aba246da32bf7402459cc1e87cc6bf69bae3c530ce9ab1559e134874e5292",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "drafting::delivery-shape"
+  ],
+  "reason_codes": [
+    "DELIVERY_SHAPE_SELF_CONTRADICTION",
+    "DRAFT_DOCUMENT_CONSISTENCY_UNCHECKED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

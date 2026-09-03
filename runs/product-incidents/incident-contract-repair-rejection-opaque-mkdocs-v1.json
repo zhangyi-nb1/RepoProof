@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-14 rounds 1 and 3: contract repair ROLLED_BACK WORKSPACE_CONTRACT_STRUCTURAL_REPAIR_INVALID_MODEL_OUTPUT twice for the same one-line diagnostic (docs/index.md matches docs/**/*.md and docs/index.md); the round record keeps only the generic code — which rule of normalize_workspace_contract_repair rejected the output (schema, role set, delivery shape, weakened validator, smoke argument) is written nowhere, and the second attempt is not told why the first was refused"
+  },
+  "created_at": "2026-09-03T09:13:58+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "e518dac5353c7b2b01a5d33f30a5e4775e4b249138c875d7c31121ed6491b58a",
+  "incident_id": "incident-contract-repair-rejection-opaque-mkdocs-v1",
+  "normalized_fingerprint": "9f6895fa3c78f428",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::contract-repair"
+  ],
+  "reason_codes": [
+    "WORKSPACE_CONTRACT_STRUCTURAL_REPAIR_INVALID_MODEL_OUTPUT",
+    "REPAIR_REJECTION_REASON_OPAQUE"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

@@ -1,0 +1,21 @@
+{
+  "affected_component": "autopilot._failed_substage (blocked substages)",
+  "after_control_sha256": "3c1909f28dadceea3031182f78df953df83ca174838a3d33c71505a596d9d17e",
+  "anonymous_fixture_id": "anonymous-autopilot-blocked-substage",
+  "before_control_sha256": "c99bf0f8d933f508e5fa046cc8be594a16b329d3cb0db861bd6b2cc0807d9043",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-02T14:58:53+08:00",
+  "evidence_id": "harness-change-autopilot-failed-substage-projection-v2",
+  "incident_ids": [
+    "incident-autopilot-blocked-substage-opaque-xlsx-v1",
+    "incident-autopilot-blocked-substage-opaque-pptx-v1",
+    "incident-autopilot-blocked-substage-opaque-pillow-v1"
+  ],
+  "invariant": "Completion of v1: a substage that reports blocked=true (zero-budget stops such as the Agent provider preflight) is projected like ok=false — its preflight status becomes the stage reason code, its evidence lines the detail, owner EXTERNAL unless the payload names one — so an autopilot stop on gateway unavailability reads PROVIDER_UNAVAILABLE / 'http 503' instead of a bare REAL_BUILD_FAILED.",
+  "normalized_fingerprint": "7ab2f89dcd05ac29",
+  "regression_tests": [
+    "tests/ui/test_autopilot_blocked_substage.py::test_blocked_real_stage_projects_provider_status"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

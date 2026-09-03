@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "v2 `./run.sh spec.json` referenced a file absent from the workspace; v3 `./run.sh` with no args exited non-zero for the same reason (app expects an input)",
+    "prompt_state": "same — smoke semantics never stated"
+  },
+  "created_at": "2026-09-03T05:42:57+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "af64f5b754367b21e6933cab7773b744da51b7ef235b864ccb8bcebc80628241",
+  "incident_id": "incident-smoke-command-semantics-untaught-nbformat-v1",
+  "normalized_fingerprint": "f0b52b01e927303f",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "3b9aba246da32bf7402459cc1e87cc6bf69bae3c530ce9ab1559e134874e5292",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "drafting::smoke-command"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_SMOKE_FAILED",
+    "SMOKE_COMMAND_SEMANTICS_UNTAUGHT"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

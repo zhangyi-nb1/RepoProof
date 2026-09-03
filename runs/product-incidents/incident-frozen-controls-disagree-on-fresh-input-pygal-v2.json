@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": true,
+  "artifact_tree_diff": {
+    "agent_invoked": 1,
+    "observed": "phase2-attempt-1: real build PASS_ADAPTED in 4 model calls, VERIFIED_TOOL_READY, exported; fresh-audit proposal step WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT (rejected_proposals 0) with no reason codes in the report — same shape"
+  },
+  "created_at": "2026-09-03T12:25:51+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "4afb4053e0eee4a740cd03c93d47faee965a0c0251fa5972b8425089565a76b5",
+  "incident_id": "incident-frozen-controls-disagree-on-fresh-input-pygal-v2",
+  "normalized_fingerprint": "e7b712d2a760f753",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "fresh-audit::proposal"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+    "FROZEN_CONTROLS_AGREEMENT_UNPROBED_ON_FRESH_INPUT"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "SEMANTIC_VERIFIER",
+  "task_version": "tool-pygal-tool-v2"
+}

@@ -1,0 +1,27 @@
+{
+  "agent_diff_present": true,
+  "artifact_tree_diff": {
+    "agent_invoked": 1,
+    "observed": "earlier in this batch (incident-agent-self-test-output-trips-residue-gate-*): the Agent's correct self-test outputs under /tmp equalled the protected expected fixtures byte-for-byte and tripped the H9-a residue gate for every later run on the host; same root — no sanctioned, Harness-discarded scratch location exists and the statement names none"
+  },
+  "created_at": "2026-09-03T08:37:14+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "1b1e346587912f6592a8f0fa1a3094021127ee100169b5d52e37d8400e149a36",
+  "incident_id": "incident-no-sanctioned-scratch-location-pptx-v2",
+  "normalized_fingerprint": "88dab6d119bdb4dc",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "agent::self-test-output-location"
+  ],
+  "reason_codes": [
+    "NO_SANCTIONED_SCRATCH_LOCATION"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "AGENT_ADAPTER",
+  "task_version": "tool-python-pptx-tool-v2"
+}

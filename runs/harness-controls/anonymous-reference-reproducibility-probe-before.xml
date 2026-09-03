@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.213" timestamp="2026-09-02T12:38:47.946507+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.ui.test_reference_reproducibility_probe" name="test_drifting_reference_is_rejected_with_path_level_divergence" time="0.017"><failure message="assert True is False">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-109/test_drifting_reference_is_rej0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10beed970&gt;
+
+    def test_drifting_reference_is_rejected_with_path_level_divergence(tmp_path: Path, monkeypatch) -&gt; None:
+        draft, runs = _prepare(tmp_path, monkeypatch, drift=True)
+        result = product_jobs.propose_workspace_fixture_candidates(draft, n=1, offline=True)
+&gt;       assert result["ok"] is False
+E       assert True is False
+
+tests/ui/test_reference_reproducibility_probe.py:79: AssertionError</failure></testcase><testcase classname="tests.ui.test_reference_reproducibility_probe" name="test_reproducible_reference_runs_twice_and_is_not_rejected_for_drift" time="0.004"><failure message="AssertionError: assert 1 == 2&#10; +  where 1 = len([PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-109/test_reproducible_reference_ru0/state/drafts/workspace/workspace-candidates/generation-1788323928-eec194fe/expected/ordinary-study')])">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-109/test_reproducible_reference_ru0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10bf098b0&gt;
+
+    def test_reproducible_reference_runs_twice_and_is_not_rejected_for_drift(tmp_path: Path, monkeypatch) -&gt; None:
+        draft, runs = _prepare(tmp_path, monkeypatch, drift=False)
+        result = product_jobs.propose_workspace_fixture_candidates(draft, n=1, offline=True)
+        assert result.get("reason_codes") != ["WORKSPACE_REFERENCE_NOT_REPRODUCIBLE"]
+&gt;       assert len(runs) == 2
+E       AssertionError: assert 1 == 2
+E        +  where 1 = len([PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-109/test_reproducible_reference_ru0/state/drafts/workspace/workspace-candidates/generation-1788323928-eec194fe/expected/ordinary-study')])
+
+tests/ui/test_reference_reproducibility_probe.py:91: AssertionError</failure></testcase></testsuite></testsuites>

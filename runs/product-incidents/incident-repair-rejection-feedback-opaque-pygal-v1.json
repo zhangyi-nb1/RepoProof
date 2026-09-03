@@ -1,0 +1,31 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "feedback_given_to_attempt_2": "reason code + generic sentence; no offending literal, no line",
+    "rejected_candidates_persisted": 0,
+    "repair": "reference: both attempts rejected by WORKSPACE_REFERENCE_RUNTIME_OWNERSHIP_VIOLATION → ROLLED_BACK, self-check stopped",
+    "round_1": "probe caught charts/*.svg=BYTES_DIFFER (SVG generator emits per-run ids)"
+  },
+  "created_at": "2026-09-02T13:11:33+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "0553ab5107fd170a7e879386a3b5a7162f4e55e50b7438c1ed1065436627a8f7",
+  "incident_id": "incident-repair-rejection-feedback-opaque-pygal-v1",
+  "normalized_fingerprint": "8e62ae51c8a136f9",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "c696600c993cbe18d8862fd8453b79880337266aceee18d8fb1141cf403427ba",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::reference-repair"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_NOT_REPRODUCIBLE",
+    "REPAIR_REJECTION_FEEDBACK_OPAQUE"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

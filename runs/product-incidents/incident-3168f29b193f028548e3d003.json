@@ -1,0 +1,32 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "changed_file_count": 0,
+    "diff_lines": 0,
+    "policy_violations": 0,
+    "public_failed": 4,
+    "regression_failed": 0
+  },
+  "created_at": "2026-09-02T16:22:57.282623Z",
+  "disposition": "STOP_NEEDS_HUMAN",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "a7448076cffb896c0711930743ab6eb51608b058a36c257b47e16c2adff5d11a",
+  "incident_id": "incident-3168f29b193f028548e3d003",
+  "normalized_fingerprint": "d3eda4d12915bb1b",
+  "owner": "AGENT_ADAPTER",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "POLICY_VIOLATION",
+    "SHARED_ROOT_CAUSE"
+  ],
+  "reason_codes": [
+    "NO_ADAPTER_DIFF",
+    "PUBLIC_CONTRACT_FAILURE"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "AGENT_ADAPTER",
+  "task_version": "tool-pillow-tool-v3"
+}

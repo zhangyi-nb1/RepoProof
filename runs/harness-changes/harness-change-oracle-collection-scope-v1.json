@@ -1,0 +1,22 @@
+{
+  "affected_component": "Hidden oracle acceptance pytest collection scope",
+  "after_control_sha256": "c32e7a893040d016dbe602372eef576f037b2e22238942c3baa05d9af6b3de3f",
+  "anonymous_fixture_id": "anonymous-oracle-collection-scope-v1",
+  "before_control_sha256": "5c24f29a149f3e47f1974f6e3623ed732c5e76796c92694540224c271e88310b",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-02T00:43:54+08:00",
+  "evidence_id": "harness-change-oracle-collection-scope-v1",
+  "incident_ids": [
+    "incident-oracle-fixture-collection-scope-v1"
+  ],
+  "invariant": "Hidden acceptance may execute only the oracle's own top-level test modules. Frozen fixture data inside the oracle snapshot is data and must never be collected as tests: directory-level collection crashes on legitimately delivered tests/ directories (same-basename import mismatch) and, if fixture-embedded tests execute, they pollute the junit counts the acceptance verdict is computed from. Snapshots without a top-level test module keep the legacy directory semantics.",
+  "normalized_fingerprint": "4daffa9af61c1d22",
+  "regression_tests": [
+    "tests/test_oracle_collection_scope.py::test_oracle_targets_exclude_fixture_data",
+    "tests/test_oracle_collection_scope.py::test_oracle_targets_keep_every_top_level_test_module",
+    "tests/test_oracle_collection_scope.py::test_oracle_run_over_targets_is_clean_while_directory_mode_crashes",
+    "tests/test_oracle_collection_scope.py::test_oracle_targets_fall_back_to_directory_when_no_test_module"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

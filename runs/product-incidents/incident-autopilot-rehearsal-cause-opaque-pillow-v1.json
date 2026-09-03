@@ -1,0 +1,32 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "actual_cause": "stages.preflight reference_golden_mismatch",
+    "raw_payload_persisted": 0,
+    "recorded_codes": [
+      "REHEARSAL_FAILED"
+    ],
+    "recorded_detail": ""
+  },
+  "created_at": "2026-09-02T12:15:31+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "978fb5f0eff88301597f100a59fd28d060095429f29f1b52821468ae5c8b525f",
+  "incident_id": "incident-autopilot-rehearsal-cause-opaque-pillow-v1",
+  "normalized_fingerprint": "55b040a95757611e",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "autopilot::rehearsal"
+  ],
+  "reason_codes": [
+    "REHEARSAL_FAILED",
+    "AUTOPILOT_STAGE_CAUSE_NOT_PROJECTED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-pillow-tool-v1"
+}

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="0.061" timestamp="2026-09-02T12:37:54.751100+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_selfcheck_contract_routing" name="test_structural_contract_codes_route_to_contract" time="0.000"><failure message="TypeError: repair_target_for() got an unexpected keyword argument 'diagnostics'">def test_structural_contract_codes_route_to_contract() -&gt; None:
+        for diagnostic in ("WORKSPACE_RULE_OVERLAP", "WORKSPACE_PATH_TOO_DEEP", "WORKSPACE_FILE_COUNT_EXCEEDED"):
+&gt;           assert repair_target_for("WORKSPACE_REFERENCE_CONTRACT_FAILED", round_index=1, diagnostics=(diagnostic,)) == "contract"
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: repair_target_for() got an unexpected keyword argument 'diagnostics'
+
+tests/test_selfcheck_contract_routing.py:11: TypeError</failure></testcase><testcase classname="tests.test_selfcheck_contract_routing" name="test_output_shape_codes_still_route_to_reference" time="0.000"><failure message="TypeError: repair_target_for() got an unexpected keyword argument 'diagnostics'">def test_output_shape_codes_still_route_to_reference() -&gt; None:
+        for diagnostic in ("WORKSPACE_REQUIRED_ENTRY_MISSING", "WORKSPACE_FORMAT_UTF8_INVALID", "WORKSPACE_HTML_EXTERNAL_RESOURCE"):
+&gt;           assert repair_target_for("WORKSPACE_REFERENCE_CONTRACT_FAILED", round_index=1, diagnostics=(diagnostic,)) == "reference"
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: repair_target_for() got an unexpected keyword argument 'diagnostics'
+
+tests/test_selfcheck_contract_routing.py:19: TypeError</failure></testcase><testcase classname="tests.test_selfcheck_contract_routing" name="test_not_reproducible_routes_to_reference" time="0.000"><failure message="TypeError: repair_target_for() got an unexpected keyword argument 'diagnostics'">def test_not_reproducible_routes_to_reference() -&gt; None:
+&gt;       assert repair_target_for("WORKSPACE_REFERENCE_NOT_REPRODUCIBLE", round_index=1, diagnostics=("report.pptx=ZIP_METADATA_ONLY",)) == "reference"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: repair_target_for() got an unexpected keyword argument 'diagnostics'
+
+tests/test_selfcheck_contract_routing.py:24: TypeError</failure></testcase></testsuite></testsuites>

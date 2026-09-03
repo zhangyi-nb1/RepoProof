@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "cause": "zip member timestamps = wall clock at write",
+    "divergence": "report.pptx=ZIP_METADATA_ONLY",
+    "self_check": "PASSED without ever re-running the reference"
+  },
+  "created_at": "2026-09-02T12:34:45+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "b1e1ee9e4a25af6ad123c3b416af8499de01459f0017b2054779b09e14f984a5",
+  "incident_id": "incident-reference-reproducibility-unprobed-pptx-v1",
+  "normalized_fingerprint": "6a2c56008bd7f28a",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::reference-reproducibility"
+  ],
+  "reason_codes": [
+    "REFERENCE_GOLDEN_MISMATCH",
+    "REFERENCE_REPRODUCIBILITY_UNPROBED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "FIXTURE_REFERENCE",
+  "task_version": "tool-python-pptx-tool-v1"
+}

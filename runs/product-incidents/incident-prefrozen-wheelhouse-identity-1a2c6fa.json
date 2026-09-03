@@ -1,0 +1,25 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "preregistered_manifest_consumed": 0
+  },
+  "created_at": "2026-08-31T10:31:57.300926Z",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "1a2c6fa9697883ec13939447948f420d7a542897",
+  "framework_tree_sha256": "30d37e4bdb443f99d136587235207adaa194938a7563697c595d1efb63182f40",
+  "incident_id": "incident-prefrozen-wheelhouse-identity-1a2c6fa",
+  "normalized_fingerprint": "1e34e60c038e203f",
+  "owner": "HARNESS",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "product_preflight.wheelhouse_identity"
+  ],
+  "reason_codes": [
+    "PREFROZEN_WHEELHOUSE_NOT_CONSUMED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": null
+}

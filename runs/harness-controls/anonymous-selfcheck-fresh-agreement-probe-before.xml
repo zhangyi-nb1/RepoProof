@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.168" timestamp="2026-09-03T12:27:49.748660+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.ui.test_selfcheck_fresh_agreement_probe" name="test_fresh_disagreement_fails_the_round_with_the_verifier_details" time="0.002"><failure message="AssertionError: assert True is False&#10; +  where True = DraftSelfCheckRoundV1(round=1, check_ok=True, reason_codes=(), diagnostics=(), generation_id='generation-base', candidate_count=3, discrimination_probed=3, discrimination_gaps=(), repair=None).check_ok">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-339/test_fresh_disagreement_fails_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x1075d3fe0&gt;
+
+    def test_fresh_disagreement_fails_the_round_with_the_verifier_details(tmp_path: Path, monkeypatch) -&gt; None:
+        calls = _install(
+            monkeypatch,
+            {
+                "ok": False,
+                "reason_codes": ["WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT"],
+                "diagnostics": ["TOTAL_MISMATCH", "TOTAL_MISMATCH: expected total 3 but observed 2 in summary.txt"],
+            },
+        )
+        (tmp_path / "fixture_blueprints.json").write_text('{"blueprints": [{}, {}, {}]}', encoding="utf-8")
+        rnd = product_jobs._self_check_round(tmp_path, {}, round_index=1)
+&gt;       assert rnd.check_ok is False
+E       AssertionError: assert True is False
+E        +  where True = DraftSelfCheckRoundV1(round=1, check_ok=True, reason_codes=(), diagnostics=(), generation_id='generation-base', candidate_count=3, discrimination_probed=3, discrimination_gaps=(), repair=None).check_ok
+
+tests/ui/test_selfcheck_fresh_agreement_probe.py:56: AssertionError</failure></testcase><testcase classname="tests.ui.test_selfcheck_fresh_agreement_probe" name="test_offline_drafter_skips_the_probe" time="0.001"><failure message="assert [True] == [False, True]&#10;  &#10;  At index 0 diff: True != False&#10;  Right contains one more item: True&#10;  Use -v to get more diff">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-339/test_offline_drafter_skips_the0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x107600bc0&gt;
+
+    def test_offline_drafter_skips_the_probe(tmp_path: Path, monkeypatch) -&gt; None:
+        calls = _install(monkeypatch, DraftError("tool-draft:REQUIRES_ONLINE_DRAFTER"))
+        (tmp_path / "fixture_blueprints.json").write_text('{"blueprints": [{}, {}, {}]}', encoding="utf-8")
+        rnd = product_jobs._self_check_round(tmp_path, {}, round_index=1)
+        assert rnd.check_ok is True
+&gt;       assert [offline for _n, offline in calls] == [False, True]
+E       assert [True] == [False, True]
+E         
+E         At index 0 diff: True != False
+E         Right contains one more item: True
+E         Use -v to get more diff
+
+tests/ui/test_selfcheck_fresh_agreement_probe.py:68: AssertionError</failure></testcase></testsuite></testsuites>

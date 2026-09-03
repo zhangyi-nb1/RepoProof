@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="0.199" timestamp="2026-09-03T06:26:19.522463+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.ui.test_selfcheck_continues_after_unapplied_repair" name="test_rolled_back_repair_hands_the_same_failure_to_the_next_owner" time="0.000"><failure message="AttributeError: module 'repoproof.ui.services.product_jobs' has no attribute '_self_check_repair_rounds'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x108072b40&gt;
+
+    def test_rolled_back_repair_hands_the_same_failure_to_the_next_owner(monkeypatch) -&gt; None:
+&gt;       rounds, checks, targets = _drive(monkeypatch, ["ROLLED_BACK", "ROLLED_BACK", "APPLIED"])
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/ui/test_selfcheck_continues_after_unapplied_repair.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x108072b40&gt;
+outcomes = ['ROLLED_BACK', 'ROLLED_BACK', 'APPLIED'], bound = 3
+
+    def _drive(monkeypatch, outcomes: list[str], *, bound: int = 3):
+        checks: list[int] = []
+        targets: list[str] = []
+    
+        def fake_round(draft_dir: Path, draft: dict, *, round_index: int):
+            checks.append(round_index)
+            if targets and outcomes[len(targets) - 1] == "APPLIED":
+                return DraftSelfCheckRoundV1(round=round_index, check_ok=True)
+            return _failing(round_index)
+    
+        def fake_repair(draft_dir, draft, *, target, failure, drafter, same_code_repairs=0, previous_targets=()):
+            targets.append(target)
+            outcome = outcomes[len(targets) - 1]
+            return DraftSelfCheckRepairV1(
+                target=target,
+                attempts=1,
+                outcome=outcome,
+                reason_code=None if outcome == "APPLIED" else "SEMANTIC_VERIFIER_REPAIR_NO_PROGRESS",
+            )
+    
+        monkeypatch.setattr(product_jobs, "_self_check_round", fake_round)
+        monkeypatch.setattr(product_jobs, "_apply_draft_control_repair", fake_repair)
+&gt;       rounds = product_jobs._self_check_repair_rounds(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            Path("/nonexistent"), {}, bound=bound, repair=True, drafter=object()
+        )
+E       AttributeError: module 'repoproof.ui.services.product_jobs' has no attribute '_self_check_repair_rounds'
+
+tests/ui/test_selfcheck_continues_after_unapplied_repair.py:55: AttributeError</failure></testcase><testcase classname="tests.ui.test_selfcheck_continues_after_unapplied_repair" name="test_budget_still_bounds_the_attempts" time="0.000"><failure message="AttributeError: module 'repoproof.ui.services.product_jobs' has no attribute '_self_check_repair_rounds'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x108072390&gt;
+
+    def test_budget_still_bounds_the_attempts(monkeypatch) -&gt; None:
+&gt;       rounds, checks, targets = _drive(monkeypatch, ["ROLLED_BACK"] * 5, bound=3)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/ui/test_selfcheck_continues_after_unapplied_repair.py:71: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x108072390&gt;
+outcomes = ['ROLLED_BACK', 'ROLLED_BACK', 'ROLLED_BACK', 'ROLLED_BACK', 'ROLLED_BACK']
+bound = 3
+
+    def _drive(monkeypatch, outcomes: list[str], *, bound: int = 3):
+        checks: list[int] = []
+        targets: list[str] = []
+    
+        def fake_round(draft_dir: Path, draft: dict, *, round_index: int):
+            checks.append(round_index)
+            if targets and outcomes[len(targets) - 1] == "APPLIED":
+                return DraftSelfCheckRoundV1(round=round_index, check_ok=True)
+            return _failing(round_index)
+    
+        def fake_repair(draft_dir, draft, *, target, failure, drafter, same_code_repairs=0, previous_targets=()):
+            targets.append(target)
+            outcome = outcomes[len(targets) - 1]
+            return DraftSelfCheckRepairV1(
+                target=target,
+                attempts=1,
+                outcome=outcome,
+                reason_code=None if outcome == "APPLIED" else "SEMANTIC_VERIFIER_REPAIR_NO_PROGRESS",
+            )
+    
+        monkeypatch.setattr(product_jobs, "_self_check_round", fake_round)
+        monkeypatch.setattr(product_jobs, "_apply_draft_control_repair", fake_repair)
+&gt;       rounds = product_jobs._self_check_repair_rounds(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            Path("/nonexistent"), {}, bound=bound, repair=True, drafter=object()
+        )
+E       AttributeError: module 'repoproof.ui.services.product_jobs' has no attribute '_self_check_repair_rounds'
+
+tests/ui/test_selfcheck_continues_after_unapplied_repair.py:55: AttributeError</failure></testcase><testcase classname="tests.ui.test_selfcheck_continues_after_unapplied_repair" name="test_offline_drafter_stops_immediately" time="0.000"><failure message="AttributeError: module 'repoproof.ui.services.product_jobs' has no attribute '_self_check_repair_rounds'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x1080721b0&gt;
+
+    def test_offline_drafter_stops_immediately(monkeypatch) -&gt; None:
+&gt;       rounds, checks, targets = _drive(monkeypatch, ["UNAVAILABLE", "APPLIED"])
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/ui/test_selfcheck_continues_after_unapplied_repair.py:78: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x1080721b0&gt;
+outcomes = ['UNAVAILABLE', 'APPLIED'], bound = 3
+
+    def _drive(monkeypatch, outcomes: list[str], *, bound: int = 3):
+        checks: list[int] = []
+        targets: list[str] = []
+    
+        def fake_round(draft_dir: Path, draft: dict, *, round_index: int):
+            checks.append(round_index)
+            if targets and outcomes[len(targets) - 1] == "APPLIED":
+                return DraftSelfCheckRoundV1(round=round_index, check_ok=True)
+            return _failing(round_index)
+    
+        def fake_repair(draft_dir, draft, *, target, failure, drafter, same_code_repairs=0, previous_targets=()):
+            targets.append(target)
+            outcome = outcomes[len(targets) - 1]
+            return DraftSelfCheckRepairV1(
+                target=target,
+                attempts=1,
+                outcome=outcome,
+                reason_code=None if outcome == "APPLIED" else "SEMANTIC_VERIFIER_REPAIR_NO_PROGRESS",
+            )
+    
+        monkeypatch.setattr(product_jobs, "_self_check_round", fake_round)
+        monkeypatch.setattr(product_jobs, "_apply_draft_control_repair", fake_repair)
+&gt;       rounds = product_jobs._self_check_repair_rounds(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            Path("/nonexistent"), {}, bound=bound, repair=True, drafter=object()
+        )
+E       AttributeError: module 'repoproof.ui.services.product_jobs' has no attribute '_self_check_repair_rounds'
+
+tests/ui/test_selfcheck_continues_after_unapplied_repair.py:55: AttributeError</failure></testcase></testsuite></testsuites>

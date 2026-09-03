@@ -1,0 +1,21 @@
+{
+  "affected_component": "product_jobs._self_check_artifact_observation + verifier repair prompt",
+  "after_control_sha256": "f54cee23a6844ff5ed9a518b1b041fd836a29aa5ab47abce6e1166ffbc2b8544",
+  "anonymous_fixture_id": "anonymous-selfcheck-observation",
+  "before_control_sha256": "2b65ae72d123ffcb72e02ebcf460a59803a653e3094577c9d67f407b65f1b8f4",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-02T12:56:25+08:00",
+  "evidence_id": "harness-change-verifier-repair-observation-excerpts-v1",
+  "incident_ids": [
+    "incident-verifier-repair-observation-thin-icalendar-v1",
+    "incident-verifier-repair-observation-thin-xlsx-v1"
+  ],
+  "invariant": "The artifact observation handed to a bounded verifier repair must let the judge see what it judged: for each produced file (runtime-owned paths excluded) the path, size, first line and a bounded UTF-8 excerpt (1600 chars, 24000 total), zip member names for container files, or the magic prefix of other binaries — never the producer source. A judge that only sees headings cannot align section, table or encoding checks with the reference's actual output.",
+  "normalized_fingerprint": "beb207f06d928c59",
+  "regression_tests": [
+    "tests/ui/test_selfcheck_observation.py::test_observation_carries_bounded_excerpts_members_and_magic",
+    "tests/ui/test_selfcheck_observation.py::test_observation_excerpts_are_bounded"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

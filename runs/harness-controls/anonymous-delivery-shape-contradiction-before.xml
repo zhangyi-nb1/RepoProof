@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="0.140" timestamp="2026-09-03T04:40:51.961556+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_delivery_shape_contradiction" name="test_workspace_format_with_text_kind_is_a_named_projection_error" time="0.000"><failure message="TypeError: normalize_draft_document() missing 1 required keyword-only argument: 'capability_goal'">def test_workspace_format_with_text_kind_is_a_named_projection_error() -&gt; None:
+        with pytest.raises(DraftProjectionError) as caught:
+&gt;           normalize_draft_document(_with_output("text_artifact", "workspace_bundle"))
+E           TypeError: normalize_draft_document() missing 1 required keyword-only argument: 'capability_goal'
+
+tests/test_delivery_shape_contradiction.py:70: TypeError</failure></testcase><testcase classname="tests.test_delivery_shape_contradiction" name="test_workspace_members_with_cli_shape_is_the_same_named_projection_error" time="0.000"><failure message="TypeError: normalize_draft_document() missing 1 required keyword-only argument: 'capability_goal'">def test_workspace_members_with_cli_shape_is_the_same_named_projection_error() -&gt; None:
+        with pytest.raises(DraftProjectionError) as caught:
+&gt;           normalize_draft_document(_with_output("text_artifact", "markdown_report"))
+E           TypeError: normalize_draft_document() missing 1 required keyword-only argument: 'capability_goal'
+
+tests/test_delivery_shape_contradiction.py:80: TypeError</failure></testcase><testcase classname="tests.test_delivery_shape_contradiction" name="test_consistent_workspace_document_still_compiles" time="0.000"><failure message="TypeError: normalize_draft_document() missing 1 required keyword-only argument: 'capability_goal'">def test_consistent_workspace_document_still_compiles() -&gt; None:
+&gt;       drafted = normalize_draft_document(_doc())
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: normalize_draft_document() missing 1 required keyword-only argument: 'capability_goal'
+
+tests/test_delivery_shape_contradiction.py:88: TypeError</failure></testcase><testcase classname="tests.test_delivery_shape_contradiction" name="test_genuine_cli_document_is_not_touched" time="0.000"><failure message="TypeError: normalize_draft_document() missing 1 required keyword-only argument: 'capability_goal'">def test_genuine_cli_document_is_not_touched() -&gt; None:
+        doc = _with_output("text_artifact", "markdown_report")
+        doc["workspace_contract"] = None
+        doc["fixture_builder"] = None
+        doc["fixture_blueprints"] = []
+        doc["output_required_fields"] = ["title"]
+        doc["reference_impl"] = "import acme_lib\nclass UserInputError(ValueError):\n    pass\ndef extract(path):\n    return {'title': acme_lib.title(path)}\n"
+        try:
+&gt;           normalize_draft_document(doc)
+E           TypeError: normalize_draft_document() missing 1 required keyword-only argument: 'capability_goal'
+
+tests/test_delivery_shape_contradiction.py:100: TypeError</failure></testcase></testsuite></testsuites>

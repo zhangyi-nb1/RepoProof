@@ -1,0 +1,21 @@
+{
+  "affected_component": "workspace_bundle.manifest_divergence rows gain `locus` (+_divergence_locus); reproducibility-probe diagnostics and preflight golden detail render path=KIND@locus",
+  "after_control_sha256": "7c9f5a602b53cb90c91e4e2154399e75bef4bb60ca896fe7acf238101677314e",
+  "anonymous_fixture_id": "anonymous-divergence-locus-named",
+  "before_control_sha256": "b16b3f35b6fc03b80e333fa2b103fa6d4fb18d22f6822db2b1730a611d682dc7",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T11:54:26+08:00",
+  "evidence_id": "harness-change-divergence-locus-named-v1",
+  "incident_ids": [
+    "incident-divergence-locus-not-named-xlsx-v1",
+    "incident-divergence-locus-not-named-pygal-v1"
+  ],
+  "invariant": "A divergence row does not stop at the file path: for a zip container it names the first member whose bytes differ (or the member present on one side only), for a UTF-8 text file the first differing line number with a bounded excerpt of the ACTUAL side only (the producer's own output — expected-side bytes are never quoted), and nothing for other binaries. The reproducibility probe and the preflight golden mismatch carry that locus in their public diagnostics, so a reference repair pins the real source of drift (a docProps stamp, a generated element id) instead of guessing.",
+  "normalized_fingerprint": "51a1e204cf6b917c",
+  "regression_tests": [
+    "tests/test_divergence_locus_named.py::test_rows_name_the_member_and_the_line",
+    "tests/test_divergence_locus_named.py::test_probe_diagnostics_carry_the_locus"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

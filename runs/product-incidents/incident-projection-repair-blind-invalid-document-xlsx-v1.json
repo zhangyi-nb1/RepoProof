@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-7: drafting ended with tool-draft:INVALID_MODEL_OUTPUT:INVALID_DOCUMENT and draft_error_diagnostics=[] — the draft-schema rejection (jsonschema.validate in normalize_draft_document) raises a bare DraftError: no json path, no message, and it is not a DraftProjectionError so the bounded evidence-based projection repair never runs; the journey died on the first model document"
+  },
+  "created_at": "2026-09-03T10:44:59+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "1ff71c325334419d940f98751545516d22099962bd2bbe8bba0f574db10f6a0b",
+  "incident_id": "incident-projection-repair-blind-invalid-document-xlsx-v1",
+  "normalized_fingerprint": "557050ccfe4450c7",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "de7a251efbbc0bdecbb20fc97a43a3542f2e9752fb1fd56eb0843c447c89d44a",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "drafting::projection-repair"
+  ],
+  "reason_codes": [
+    "DRAFTER_PROJECTION_REPAIR_BLIND",
+    "PROJECTION_ERROR_WITHOUT_FIELD_DIAGNOSTICS"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

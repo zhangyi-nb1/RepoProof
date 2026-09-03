@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "verifier returned ok=true with reason_codes=['OK'] (informational) and reason_details 'All supplied commitments verified'; the screen requires reason_codes to be empty on a pass (`and not reasons`), so it became a disagreement whose only diagnostic reads 'OK: All verified'",
+    "rounds": "verifier repaired twice, reference once, plateau at the same 'OK' — nobody was told the rule",
+    "rule_location": "workspace_semantic actual_pass requires empty reasons; not stated in the verifier prompt nor in any diagnostic"
+  },
+  "created_at": "2026-09-03T05:00:56+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "1110584b108b426fc579141590f91ed84cbd254033eed56dc08d9513e55c27f2",
+  "incident_id": "incident-verifier-verdict-inconsistency-untaught-icalendar-v1",
+  "normalized_fingerprint": "ec2505cf7b1f9758",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "d868421eba4a6454d552ec4458446b052c87cba77449430000d15f79680ccb5f",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::semantic-screen"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+    "VERIFIER_INFORMATIONAL_REASON_CODE_ON_PASS"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

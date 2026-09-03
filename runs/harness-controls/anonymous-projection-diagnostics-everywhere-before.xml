@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="0.222" timestamp="2026-09-03T05:10:28.099410+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_projection_diagnostics_everywhere" name="test_repair_context_survives_inadmissible_requirements" time="0.030"><failure message="repoproof.adoption.delivery.product_profile.ProductProfileError: OUTPUT_TRANSPORT_MISMATCH">def test_repair_context_survives_inadmissible_requirements() -&gt; None:
+        doc = _fx._with_output("text_artifact", "workspace_bundle")
+        with pytest.raises(DraftProjectionError) as caught:
+            normalize_draft_document(doc, capability_goal=_fx._GOAL)
+&gt;       context = _projection_repair_context(doc, caught.value)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_projection_diagnostics_everywhere.py:36: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/repoproof/adoption/intake/tool_drafter.py:1839: in _projection_repair_context
+    profile = select_product_delivery_profile(raw_requirements)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/repoproof/adoption/delivery/product_profile.py:647: in select_product_delivery_profile
+    selected.admit_requirements(requirements)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ProductDeliveryProfile(schema_version=1, profile_id='workspace_bundle_v1', input_kind='file_or_directory', input_cardi...'text', validation_profile=None, aliases=('workspace', 'directory', 'project folder'), allows_required_fields=False),))
+raw = DeliveryRequirements(inputs=(DeliveryInputRequirement(kind='directory', location='local', representation='binary', for...ne', credentials='none', lifecycle='per_invocation', runtime='local_cpu', browser='none', external_side_effects='none')
+
+    def admit_requirements(
+        self,
+        raw: DeliveryRequirements | dict,
+    ) -&gt; tuple[DeliveryRequirements, OutputArtifactSpec]:
+        """Admit a proposed workflow by topology, never by task vocabulary."""
+    
+        try:
+            requirements = (
+                raw
+                if isinstance(raw, DeliveryRequirements)
+                else DeliveryRequirements.model_validate(raw)
+            )
+        except ValueError as exc:
+            raise ProductProfileError("DELIVERY_REQUIREMENTS_INVALID") from exc
+        if len(requirements.inputs) != self.input_cardinality:
+            raise ProductProfileError("INPUT_CARDINALITY_MISMATCH")
+        input_requirement = requirements.inputs[0]
+        allowed_input_kinds = (
+            {"file", "directory"}
+            if self.input_kind == "file_or_directory"
+            else {"file"}
+        )
+        if (
+            input_requirement.kind not in allowed_input_kinds
+            or input_requirement.location != "local"
+        ):
+            raise ProductProfileError("INPUT_SOURCE_MISMATCH")
+        if len(requirements.outputs) != self.output_cardinality:
+            raise ProductProfileError("OUTPUT_CARDINALITY_MISMATCH")
+        output_requirement = requirements.outputs[0]
+        expected_output_kind = (
+            "directory" if self.output_kind == "directory" else "text_artifact"
+        )
+        if output_requirement.kind != expected_output_kind:
+&gt;           raise ProductProfileError("OUTPUT_TRANSPORT_MISMATCH")
+E           repoproof.adoption.delivery.product_profile.ProductProfileError: OUTPUT_TRANSPORT_MISMATCH
+
+src/repoproof/adoption/delivery/product_profile.py:190: ProductProfileError</failure></testcase><testcase classname="tests.test_projection_diagnostics_everywhere" name="test_fixture_input_kind_mismatch_names_the_blueprint_field" time="0.011"><failure message="assert ([])">def test_fixture_input_kind_mismatch_names_the_blueprint_field() -&gt; None:
+        doc = copy.deepcopy(_fx._WORKSPACE_DOC)
+        doc["fixture_blueprints"][1]["input_kind"] = "file"
+        with pytest.raises(DraftProjectionError) as caught:
+            normalize_draft_document(doc, capability_goal=_fx._GOAL)
+        assert str(caught.value) == "tool-draft:WORKSPACE_FIXTURE_INPUT_KIND_MISMATCH"
+        rows = public_validation_diagnostics(caught.value)
+&gt;       assert rows and rows[0]["loc"] == "fixture_blueprints.1.input_kind"
+E       assert ([])
+
+tests/test_projection_diagnostics_everywhere.py:50: AssertionError</failure></testcase><testcase classname="tests.test_projection_diagnostics_everywhere" name="test_missing_fixture_builder_names_the_field" time="0.011"><failure message="repoproof.adoption.intake.tool_drafter.DraftError: tool-draft:INVALID_DOCUMENT">document = {'summary': '生成离线工作区', 'delivery_requirements': {'inputs': [{'kind': 'directory', 'location': 'local', 'representation...'network': 'offline', 'credentials': 'none', ...}, 'output_required_fields': [], 'output_schema': 'AnonWorkspace', ...}
+capability_goal = '生成匿名离线工作区', authoritative_delivery_requirements = None
+
+    def normalize_draft_document(
+        document: dict,
+        *,
+        capability_goal: str,
+        authoritative_delivery_requirements: dict | None = None,
+    ) -&gt; dict:
+        """Validate model fields and compile delivery shape from the Core profile.
+    
+        A model may be the first proposer of a delivery topology.  Once the user has
+        explicitly adopted a supported proposal, however, that exact typed topology
+        becomes a Core-owned input.  The model's repeated copy is then explanatory
+        output, not authority: compiling from it again caused otherwise supported
+        tasks to be rejected when a drafter changed ``per_invocation`` or local
+        side-effect wording during the next call.
+    
+        The authoritative value is still admitted through the ordinary Product
+        profile below.  This therefore cannot coerce a genuinely unsupported user
+        requirement into a supported one.
+        """
+    
+        try:
+            import jsonschema
+    
+&gt;           jsonschema.validate(document, _DRAFT_SCHEMA)
+
+src/repoproof/adoption/intake/tool_drafter.py:1701: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+instance = {'summary': '生成离线工作区', 'delivery_requirements': {'inputs': [{'kind': 'directory', 'location': 'local', 'representation...'network': 'offline', 'credentials': 'none', ...}, 'output_required_fields': [], 'output_schema': 'AnonWorkspace', ...}
+schema = {'type': 'object', 'additionalProperties': False, '$defs': {'WorkspaceArtifactLimits': {'additionalProperties': False,...ivery_requirements', 'output_required_fields', 'output_schema', 'semantic_commitments', 'artifact_protocol', ...], ...}
+cls = &lt;class 'jsonschema.validators.Draft202012Validator'&gt;, args = ()
+kwargs = {}
+
+    def validate(instance, schema, cls=None, *args, **kwargs):  # noqa: D417
+        """
+        Validate an instance under the given schema.
+    
+            &gt;&gt;&gt; validate([2, 3, 4], {"maxItems": 2})
+            Traceback (most recent call last):
+                ...
+            ValidationError: [2, 3, 4] is too long
+    
+        :func:`~jsonschema.validators.validate` will first verify that the
+        provided schema is itself valid, since not doing so can lead to less
+        obvious error messages and fail in less obvious or consistent ways.
+    
+        If you know you have a valid schema already, especially
+        if you intend to validate multiple instances with
+        the same schema, you likely would prefer using the
+        `jsonschema.protocols.Validator.validate` method directly on a
+        specific validator (e.g. ``Draft202012Validator.validate``).
+    
+    
+        Arguments:
+    
+            instance:
+    
+                The instance to validate
+    
+            schema:
+    
+                The schema to validate with
+    
+            cls (jsonschema.protocols.Validator):
+    
+                The class that will be used to validate the instance.
+    
+        If the ``cls`` argument is not provided, two things will happen
+        in accordance with the specification. First, if the schema has a
+        :kw:`$schema` keyword containing a known meta-schema [#]_ then the
+        proper validator will be used. The specification recommends that
+        all schemas contain :kw:`$schema` properties for this reason. If no
+        :kw:`$schema` property is found, the default validator class is the
+        latest released draft.
+    
+        Any other provided positional and keyword arguments will be passed
+        on when instantiating the ``cls``.
+    
+        Raises:
+    
+            `jsonschema.exceptions.ValidationError`:
+    
+                if the instance is invalid
+    
+            `jsonschema.exceptions.SchemaError`:
+    
+                if the schema itself is invalid
+    
+        .. rubric:: Footnotes
+        .. [#] known by a validator registered with
+            `jsonschema.validators.validates`
+    
+        """
+        if cls is None:
+            cls = validator_for(schema)
+    
+        cls.check_schema(schema)
+        validator = cls(schema, *args, **kwargs)
+        error = exceptions.best_match(validator.iter_errors(instance))
+        if error is not None:
+&gt;           raise error
+E           jsonschema.exceptions.ValidationError: '' should be non-empty
+E           
+E           Failed validating 'minLength' in schema[1]:
+E               {'type': 'string', 'minLength': 1, 'maxLength': 30000}
+E           
+E           On instance:
+E               ''
+
+.venv/lib/python3.12/site-packages/jsonschema/validators.py:1332: ValidationError
+
+The above exception was the direct cause of the following exception:
+
+    def test_missing_fixture_builder_names_the_field() -&gt; None:
+        doc = copy.deepcopy(_fx._WORKSPACE_DOC)
+        doc["fixture_builder"] = ""
+        with pytest.raises(DraftProjectionError) as caught:
+&gt;           normalize_draft_document(doc, capability_goal=_fx._GOAL)
+
+tests/test_projection_diagnostics_everywhere.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+document = {'summary': '生成离线工作区', 'delivery_requirements': {'inputs': [{'kind': 'directory', 'location': 'local', 'representation...'network': 'offline', 'credentials': 'none', ...}, 'output_required_fields': [], 'output_schema': 'AnonWorkspace', ...}
+capability_goal = '生成匿名离线工作区', authoritative_delivery_requirements = None
+
+    def normalize_draft_document(
+        document: dict,
+        *,
+        capability_goal: str,
+        authoritative_delivery_requirements: dict | None = None,
+    ) -&gt; dict:
+        """Validate model fields and compile delivery shape from the Core profile.
+    
+        A model may be the first proposer of a delivery topology.  Once the user has
+        explicitly adopted a supported proposal, however, that exact typed topology
+        becomes a Core-owned input.  The model's repeated copy is then explanatory
+        output, not authority: compiling from it again caused otherwise supported
+        tasks to be rejected when a drafter changed ``per_invocation`` or local
+        side-effect wording during the next call.
+    
+        The authoritative value is still admitted through the ordinary Product
+        profile below.  This therefore cannot coerce a genuinely unsupported user
+        requirement into a supported one.
+        """
+    
+        try:
+            import jsonschema
+    
+            jsonschema.validate(document, _DRAFT_SCHEMA)
+        except jsonschema.ValidationError as exc:
+&gt;           raise DraftError("tool-draft:INVALID_DOCUMENT") from exc
+E           repoproof.adoption.intake.tool_drafter.DraftError: tool-draft:INVALID_DOCUMENT
+
+src/repoproof/adoption/intake/tool_drafter.py:1703: DraftError</failure></testcase></testsuite></testsuites>

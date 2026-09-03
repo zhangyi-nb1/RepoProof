@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": true,
+  "artifact_tree_diff": {
+    "agent_invoked": 1,
+    "observed": "the only way forward after a fresh-audit disagreement is a new task version, but the autopilot's next phase-1 journey starts with no memory of this version's named disagreement (SUMMARY_BALANCE_MISMATCH, MODEL_SVG_BAR_VALUE); the next draft can repeat the same ambiguity"
+  },
+  "created_at": "2026-09-03T13:59:33+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "1b94cd34c46eac4f6316e5ba69763aab2625060d84083b4eb3bcf65dd3adf4a0",
+  "incident_id": "incident-fresh-audit-diagnosis-not-carried-to-next-version-pygal-v4",
+  "normalized_fingerprint": "5569dd7683833a90",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "autopilot::next-version-drafting"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+    "PRIOR_VERSION_FINDINGS_NOT_FED_TO_NEXT_DRAFT"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "SEMANTIC_VERIFIER",
+  "task_version": "tool-pygal-tool-v4"
+}

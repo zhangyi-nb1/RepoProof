@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="3" time="0.659" timestamp="2026-09-02T00:33:04.615356+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_upstream_conformance" name="test_precheck_runs_from_real_cased_test_root_for_local_fixtures" time="0.221" /><testcase classname="tests.test_upstream_conformance" name="test_precheck_probes_repo_root_convention_for_fixture_paths" time="0.196"><failure message="repoproof.adoption.intake.upstream_conformance.UpstreamConformanceError: 上游一致性预检失败(exit 1)—— 供给/环境问题,物化期拒绝:F                                                                        [100%]&#10;=================================== FAILURES ===================================&#10;_______________________ test_repo_root_relative_fixture ________________________&#10;&#10;    def test_repo_root_relative_fixture():&#10;&gt;       assert open('tests/fake-repo/marker.txt', encoding='utf-8').read() == 'ready'&#10;               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^&#10;E       FileNotFoundError: [Errno 2] No such file or directory: 'tests/fake-repo/marker.txt'&#10;&#10;test_repo_root_fixture.py:2: FileNotFoundError&#10;=========================== short test summary info ============================&#10;FAILED ../../../../../../../../../../../dev::test_repo_root_relative_fixture&#10;1 failed in 0.06s">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-383/test_precheck_probes_repo_root0')
+
+    def test_precheck_probes_repo_root_convention_for_fixture_paths(tmp_path):
+        """cwd 只能探测不能猜(incident-conformance-execution-root-convention-v1)。
+    
+        另一半真实惯例:上游测试用**仓库根相对**路径引用 fixture(路径里
+        自带 tests/ 前缀)。单一测试根的猜测把 cwd 定到 tests/ 下,这类
+        套件必然 RepositoryNotFound 型假拦截。探测顺序确定:仓库根,再
+        单一测试根;记录实际通过的 execution_root。
+        """
+        import sys
+    
+        root = tmp_path / "up"
+        tests = root / "tests"
+        (tests / "fake-repo").mkdir(parents=True)
+        (tests / "fake-repo" / "marker.txt").write_text("ready", encoding="utf-8")
+        (tests / "test_repo_root_fixture.py").write_text(
+            "def test_repo_root_relative_fixture():\n"
+            "    assert open('tests/fake-repo/marker.txt', encoding='utf-8').read() == 'ready'\n",
+            encoding="utf-8",
+        )
+    
+&gt;       result = precheck_upstream_conformance(
+            root,
+            ["tests/test_repo_root_fixture.py::test_repo_root_relative_fixture"],
+            Path(sys.executable),
+        )
+
+tests/test_upstream_conformance.py:291: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+upstream_dir = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-383/test_precheck_probes_repo_root0/up')
+selected = ['tests/test_repo_root_fixture.py::test_repo_root_relative_fixture']
+python = PosixPath('/Users/zhangronglei/Desktop/XIANGMU/RepoProof/.venv/bin/python3.12')
+
+    def precheck_upstream_conformance(
+        upstream_dir: Path,
+        selected: list[str],
+        python: Path,
+    ) -&gt; dict:
+        """物化期预检(M2-e 实施定稿):在 harness 侧(已装 pinned 上游的解释
+        器)跑选中子集 —— 供给/环境问题在物化期就暴露,不进 run。
+    
+        为什么不做成 S0 health check(实测倒逼):上游库是 **agent 的 lock
+        责任**,S0 态骨架 venv 里没有它,收集必崩;若让 harness 预装上游,
+        replay"从 agent 自锁 lock 重建"的执法点被打穿(lock 缺上游也能绿)。
+        → 选中子集不健康 = 抛(物化拒绝);绿 = 返回记录(任务包留痕)。"""
+        if not selected:
+            return {"selected": [], "status": "EMPTY"}
+        nodes = []
+        test_roots: set[str] = set()
+        for item in selected:
+            path, separator, node = item.partition("::")
+            target = str(Path(upstream_dir) / path)
+            nodes.append(f"{target}::{node}" if separator else target)
+            relative_parts = Path(path).parts
+            if relative_parts:
+                test_roots.add(relative_parts[0])
+        # The admitted test surface is rooted in ``tests``/``Tests``/``test``.
+        # Execute from that real-cased root so legacy suites can resolve their own
+        # fixture directories, while the installed wheel (not the checkout parent)
+        # remains the imported upstream distribution.
+        execution_root = Path(upstream_dir)
+        if len(test_roots) == 1:
+            candidate_root = Path(upstream_dir) / next(iter(test_roots))
+            if candidate_root.is_dir() and not candidate_root.is_symlink():
+                execution_root = candidate_root
+        argv = [
+            str(python), "-m", "pytest", "-q", "-c", os.devnull,
+            "-p", "no:cacheprovider", *nodes,
+        ]
+        result = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=600,
+            cwd=str(execution_root),
+        )
+        if result.returncode == 0:
+            return {
+                "selected": selected,
+                "status": "PASS",
+                "tail": (
+                    result.stdout.strip().splitlines()[-1]
+                    if result.stdout.strip()
+                    else ""
+                ),
+            }
+        output = f"{result.stdout}\n{result.stderr}".strip()
+        missing_match = _MISSING_MODULE_RE.search(output)
+        missing = missing_match.group(1) if missing_match else None
+        suffix = output[-1200:]
+&gt;       raise UpstreamConformanceError(
+            f"上游一致性预检失败(exit {result.returncode})—— 供给/环境问题,"
+            f"物化期拒绝:{suffix}",
+            missing_module=missing,
+        )
+E       repoproof.adoption.intake.upstream_conformance.UpstreamConformanceError: 上游一致性预检失败(exit 1)—— 供给/环境问题,物化期拒绝:F                                                                        [100%]
+E       =================================== FAILURES ===================================
+E       _______________________ test_repo_root_relative_fixture ________________________
+E       
+E           def test_repo_root_relative_fixture():
+E       &gt;       assert open('tests/fake-repo/marker.txt', encoding='utf-8').read() == 'ready'
+E                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       E       FileNotFoundError: [Errno 2] No such file or directory: 'tests/fake-repo/marker.txt'
+E       
+E       test_repo_root_fixture.py:2: FileNotFoundError
+E       =========================== short test summary info ============================
+E       FAILED ../../../../../../../../../../../dev::test_repo_root_relative_fixture
+E       1 failed in 0.06s
+
+src/repoproof/adoption/intake/upstream_conformance.py:356: UpstreamConformanceError</failure></testcase><testcase classname="tests.test_upstream_conformance" name="test_precheck_still_fails_when_nodes_fail_under_every_root" time="0.197" /></testsuite></testsuites>

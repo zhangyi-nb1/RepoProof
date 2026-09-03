@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": true,
+  "artifact_tree_diff": {
+    "changed_file_count": 1,
+    "diff_lines": 163,
+    "policy_violations": 0,
+    "public_failed": 1,
+    "regression_failed": 0
+  },
+  "created_at": "2026-09-01T16:55:23.940263Z",
+  "disposition": "REPAIR_AGENT",
+  "framework_git_commit": "7db6e65e641bb72a0112d62760eff1e0d32d82a6",
+  "framework_tree_sha256": "755e4ab5c66fbf68346a2546aab6984be99183496cd37370308f63f4e130eb3c",
+  "incident_id": "incident-a98c8b1fd07321cfa7ef20da",
+  "normalized_fingerprint": "bfd93eb3cb5b6591",
+  "owner": "AGENT_ADAPTER",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "TEST_FAILURE"
+  ],
+  "reason_codes": [
+    "PUBLIC_CONTRACT_FAILURE"
+  ],
+  "repair_eligible": true,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "AGENT_ADAPTER",
+  "task_version": "tool-research-project-starter-v3"
+}

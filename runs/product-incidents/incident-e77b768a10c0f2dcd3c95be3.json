@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": true,
+  "artifact_tree_diff": {
+    "changed_file_count": 1,
+    "diff_lines": 200,
+    "policy_violations": 0,
+    "public_failed": 4,
+    "regression_failed": 0
+  },
+  "created_at": "2026-09-03T01:57:46.518727Z",
+  "disposition": "REPAIR_AGENT",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "6e9fb9b0456e2048895e171af2d3caa0f14355f02eea07662123ca14d3248da0",
+  "incident_id": "incident-e77b768a10c0f2dcd3c95be3",
+  "normalized_fingerprint": "d3eda4d12915bb1b",
+  "owner": "AGENT_ADAPTER",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "SHARED_ROOT_CAUSE"
+  ],
+  "reason_codes": [
+    "PUBLIC_CONTRACT_FAILURE"
+  ],
+  "repair_eligible": true,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "AGENT_ADAPTER",
+  "task_version": "tool-xlsxwriter-tool-v1"
+}

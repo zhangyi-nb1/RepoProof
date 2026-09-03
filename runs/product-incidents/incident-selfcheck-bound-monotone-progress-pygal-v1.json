@@ -1,0 +1,27 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-7: four rounds, four different defects each repaired once, none recurring (placeholder app import at smoke -> SVG date drift (locus named) -> AttributeError in the repaired renderer -> SVG format invalid); stopped on the fixed 3-repair bound with every step being progress"
+  },
+  "created_at": "2026-09-03T13:23:40+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "c5cc8855d42a57902d069403953ef5b3234d5a127f420263a2b9ffaea6fcbeb8",
+  "incident_id": "incident-selfcheck-bound-monotone-progress-pygal-v1",
+  "normalized_fingerprint": "6b67d3cd8e6e8c33",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "c696600c993cbe18d8862fd8453b79880337266aceee18d8fb1141cf403427ba",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::repair-bound"
+  ],
+  "reason_codes": [
+    "SELF_CHECK_BOUND_EXHAUSTED_WITH_MONOTONE_PROGRESS"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

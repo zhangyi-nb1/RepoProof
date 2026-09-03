@@ -1,0 +1,27 @@
+{
+  "agent_diff_present": true,
+  "artifact_tree_diff": {
+    "agent_invoked": 1,
+    "observed": "run tool-xlsxwriter-tool-v1-20260903-093618 round 2: the Agent's audit_workbook.xlsx unpacks to member-for-member identical XML; only zip member ordering and compression level differ (xlsxwriter in_memory / zlib default), and the byte-for-byte golden judged FAIL 1/5 after 40 calls"
+  },
+  "created_at": "2026-09-03T10:03:03+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "6e9fb9b0456e2048895e171af2d3caa0f14355f02eea07662123ca14d3248da0",
+  "incident_id": "incident-artifact-identity-zip-metadata-xlsx-v1",
+  "normalized_fingerprint": "0bc5a80f0f5e2f3e",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "ruler::artifact-identity::zip-container"
+  ],
+  "reason_codes": [
+    "ARTIFACT_IDENTITY_ZIP_METADATA_SENSITIVE"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "ARTIFACT_STRUCTURE",
+  "task_version": "tool-xlsxwriter-tool-v1"
+}

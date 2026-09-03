@@ -1,0 +1,22 @@
+{
+  "affected_component": "ui/services/autopilot.py fresh-audit projection (FRESH_AUDIT_PASS_REASONS, singular reason_code) + tests/ui/test_autopilot.py fixture shape",
+  "after_control_sha256": "65daaafc6cf27b42817eaa41438a763106dd49f726fe4b5dc40761cdd5dc485a",
+  "anonymous_fixture_id": "anonymous-autopilot-fresh-audit-real-payload",
+  "before_control_sha256": "e7c41177877744f962656a1ee39916685f8a76b6038f1b0d62120ac09705a158",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T08:12:47+08:00",
+  "evidence_id": "harness-change-autopilot-fresh-audit-real-payload-v1",
+  "incident_ids": [
+    "incident-autopilot-misreads-fresh-audit-pass-pillow-v3",
+    "incident-autopilot-misreads-fresh-audit-pass-icalendar-v1"
+  ],
+  "invariant": "The autopilot judges the fresh-input audit by the audit CLI's real payload: ok=true with the singular reason_code in {FRESH_INPUT_PASS, FRESH_INPUT_SEMANTIC_PASS} (the two ACTIVE decisions of tool_release._record_audit_decision) is a pass and the journey continues to ACTIVE; any other outcome is recorded with the audit's own reason_code (e.g. SEMANTIC_VERIFIER_MISMATCH) rather than a generic FRESH_AUDIT_FAILED. The test fixture uses the real shape, so a payload shape the CLI never emits can no longer keep a dead check green.",
+  "normalized_fingerprint": "060ff03ff8bcbb2e",
+  "regression_tests": [
+    "tests/ui/test_autopilot_fresh_audit_real_payload.py::test_real_pass_payload_is_recognised",
+    "tests/ui/test_autopilot_fresh_audit_real_payload.py::test_semantic_only_pass_is_still_a_pass",
+    "tests/ui/test_autopilot_fresh_audit_real_payload.py::test_real_revocation_projects_the_audit_reason"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

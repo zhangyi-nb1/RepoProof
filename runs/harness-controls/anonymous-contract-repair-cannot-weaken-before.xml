@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="5" time="0.150" timestamp="2026-09-03T06:26:19.199115+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_contract_repair_cannot_weaken" name="test_profile_downgrade_is_rejected_and_named" time="0.000"><failure message="Failed: DID NOT RAISE DraftError">def test_profile_downgrade_is_rejected_and_named() -&gt; None:
+        def downgrade(doc: dict) -&gt; None:
+            doc["rules"][0]["validation_profile"] = "text_utf8_v1"
+    
+&gt;       error = _weakened_error(downgrade)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_contract_repair_cannot_weaken.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mutate = &lt;function test_profile_downgrade_is_rejected_and_named.&lt;locals&gt;.downgrade at 0x109c93880&gt;
+
+    def _weakened_error(mutate) -&gt; DraftError:
+&gt;       with pytest.raises(DraftError) as caught:
+E       Failed: DID NOT RAISE DraftError
+
+tests/test_contract_repair_cannot_weaken.py:57: Failed</failure></testcase><testcase classname="tests.test_contract_repair_cannot_weaken" name="test_allow_extra_files_cannot_flip_open" time="0.000"><failure message="Failed: DID NOT RAISE DraftError">def test_allow_extra_files_cannot_flip_open() -&gt; None:
+        def open_up(doc: dict) -&gt; None:
+            doc["allow_extra_files"] = True
+    
+&gt;       error = _weakened_error(open_up)
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_contract_repair_cannot_weaken.py:76: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mutate = &lt;function test_allow_extra_files_cannot_flip_open.&lt;locals&gt;.open_up at 0x109c932e0&gt;
+
+    def _weakened_error(mutate) -&gt; DraftError:
+&gt;       with pytest.raises(DraftError) as caught:
+E       Failed: DID NOT RAISE DraftError
+
+tests/test_contract_repair_cannot_weaken.py:57: Failed</failure></testcase><testcase classname="tests.test_contract_repair_cannot_weaken" name="test_executable_flag_cannot_change" time="0.000"><failure message="Failed: DID NOT RAISE DraftError">def test_executable_flag_cannot_change() -&gt; None:
+        def flip(doc: dict) -&gt; None:
+            doc["rules"][1]["executable"] = True
+    
+&gt;       assert str(_weakened_error(flip)) == "workspace-contract-repair:VALIDATOR_WEAKENED"
+                   ^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_contract_repair_cannot_weaken.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mutate = &lt;function test_executable_flag_cannot_change.&lt;locals&gt;.flip at 0x109cc5f80&gt;
+
+    def _weakened_error(mutate) -&gt; DraftError:
+&gt;       with pytest.raises(DraftError) as caught:
+E       Failed: DID NOT RAISE DraftError
+
+tests/test_contract_repair_cannot_weaken.py:57: Failed</failure></testcase><testcase classname="tests.test_contract_repair_cannot_weaken" name="test_structural_changes_and_tightening_still_pass" time="0.000" /><testcase classname="tests.test_contract_repair_cannot_weaken" name="test_contract_repair_prompt_disowns_content_diagnostics" time="0.000"><failure message="AssertionError: assert ('validation_profile' in 'you repair only the structural representation of a pre-freeze workspaceartifactcontract after the harness proved the ...never point it at a file that is not a contracted member. output strict json with exactly one key: workspace_contract.')">def test_contract_repair_prompt_disowns_content_diagnostics() -&gt; None:
+        text = tool_drafter._WORKSPACE_CONTRACT_REPAIR_SYSTEM.lower()
+&gt;       assert "validation_profile" in text and "never" in text
+E       AssertionError: assert ('validation_profile' in 'you repair only the structural representation of a pre-freeze workspaceartifactcontract after the harness proved the ...never point it at a file that is not a contracted member. output strict json with exactly one key: workspace_contract.')
+
+tests/test_contract_repair_cannot_weaken.py:105: AssertionError</failure></testcase></testsuite></testsuites>

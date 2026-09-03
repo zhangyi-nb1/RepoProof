@@ -1,0 +1,22 @@
+{
+  "affected_component": "host_guided.public_fixture_digest (+_application_file_from_launcher) — v2 adds the application-file line",
+  "after_control_sha256": "d0f0e9687ca96c1a1e3ab30f0c397929d70775f0ccfb4643e88a023ecfb54e50",
+  "anonymous_fixture_id": "anonymous-workspace-statement-public-fixtures-v2",
+  "before_control_sha256": "b3f44a01296e12c168eee094b00313b1819fb98d49bd24099f650f5afcccf03e",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T08:13:07+08:00",
+  "evidence_id": "harness-change-workspace-statement-teaches-public-fixtures-v2",
+  "incident_ids": [
+    "incident-statement-does-not-teach-golden-comparison-icalendar-v1",
+    "incident-statement-does-not-teach-golden-comparison-xlsx-v1",
+    "incident-statement-does-not-teach-golden-comparison-nbformat-v4",
+    "incident-statement-does-not-teach-golden-comparison-nbformat-v4-attempt2"
+  ],
+  "invariant": "v1 invariant unchanged. v2: when the sealed launcher run.sh in a public expected tree executes a file that is identical across every public example, the digest names it as the application file — the generator of every varying file holding their exact derivation rules (ordering, normalisation, generated ids) — and tells the Agent to read it first and write it byte-exactly, instead of listing it only among copyable constants. The name comes from the public launcher text, never from the contract or oracle. Control note: the v1 before-XML (whole test file red) stands as the before state; the application-line assertion was added to the same file and is green in the v2 after-XML.",
+  "normalized_fingerprint": "12fab86921b47e00",
+  "regression_tests": [
+    "tests/test_workspace_statement_teaches_public_fixtures.py::test_digest_classifies_public_expected_files_without_leaking_bytes"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

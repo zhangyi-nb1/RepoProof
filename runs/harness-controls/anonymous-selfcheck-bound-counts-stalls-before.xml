@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="1" failures="0" skipped="0" tests="1" time="0.115" timestamp="2026-09-03T13:24:00.814707+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="" name="tests.ui.test_selfcheck_bound_counts_stalls" time="0.000"><error message="collection failure">ImportError while importing test module '/Users/zhangronglei/Desktop/XIANGMU/RepoProof/tests/ui/test_selfcheck_bound_counts_stalls.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.12/3.12.5/Frameworks/Python.framework/Versions/3.12/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/ui/test_selfcheck_bound_counts_stalls.py:18: in &lt;module&gt;
+    from repoproof.adoption.intake.draft_selfcheck import (
+E   ImportError: cannot import name 'MAX_TOTAL_REPAIR_ROUNDS' from 'repoproof.adoption.intake.draft_selfcheck' (/Users/zhangronglei/Desktop/XIANGMU/RepoProof/src/repoproof/adoption/intake/draft_selfcheck.py)</error></testcase></testsuite></testsuites>

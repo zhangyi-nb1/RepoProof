@@ -1,0 +1,31 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "code": "INPUT_BINDING_CONTROL_FAILED",
+    "common_root": "mechanism codes produced by the semantic screen's own controls (binding controls, counterfactual, coverage) reach the repair without any public explanation of what was observed or what rule was violated; the verifier's own codes now carry reason_details, the Harness's do not",
+    "explanation_given": "the bare code only; the verifier prompt never says what the control does (a different input must flip the verdict) or what 'accepted' means here",
+    "rounds": "7th-round round 2 and 9th-round rounds 2-3: two verifier repairs in a row could not fix it"
+  },
+  "created_at": "2026-09-03T05:19:21+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "70ab1db1a1ac791588551d69792ad639e55da9a21262afa2867e4ebba5b520f2",
+  "incident_id": "incident-semantic-mechanism-code-unexplained-mkdocs-v1",
+  "normalized_fingerprint": "858eb03211bafd92",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::semantic-screen"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+    "SEMANTIC_MECHANISM_CODE_UNEXPLAINED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

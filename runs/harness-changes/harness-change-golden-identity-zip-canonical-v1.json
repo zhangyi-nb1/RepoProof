@@ -1,0 +1,24 @@
+{
+  "affected_component": "portable_workspace_runtime golden_file_identity/golden_tree_sha256 (single stdlib ruler) → assembler test prelude _golden_sha V2, preflight golden check, fresh-audit reference match, reproducibility probe",
+  "after_control_sha256": "cb73886a8896e2e3b5aa473ecf9baf1be94586b84d802af2e15584a05c198466",
+  "anonymous_fixture_id": "anonymous-golden-identity-zip-canonical",
+  "before_control_sha256": "d5f73ee5ef79ee15b1228197ab1dcfffd53a8adcc41a5f64f53749ae3d004fb4",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T10:07:37+08:00",
+  "evidence_id": "harness-change-golden-identity-zip-canonical-v1",
+  "incident_ids": [
+    "incident-artifact-identity-zip-metadata-pptx-v1",
+    "incident-artifact-identity-zip-metadata-xlsx-v1"
+  ],
+  "invariant": "Acceptance equality of a delivered workspace is the golden identity: per file, bytes that parse as a zip archive are identified by their sorted (member name, member bytes) pairs — member ordering, compression level, entry timestamps and extra fields never decide a comparison — and every other file by its raw sha256; the tree identity binds path and executable bit to that. The exported public-test prelude implements the identical algorithm (parity test), and the four Core equality sites (preflight golden, fresh-audit reference match, reproducibility probe, public-test _golden_sha) use it. Evidence manifests keep the raw tree_sha256 for integrity, so frozen packages' manifest hashes are untouched; already-frozen tasks keep their old prelude and only re-frozen versions gain the ruler.",
+  "normalized_fingerprint": "0bc5a80f0f5e2f3e",
+  "regression_tests": [
+    "tests/test_golden_identity_zip_canonical.py::test_zip_identity_ignores_order_compression_and_timestamps",
+    "tests/test_golden_identity_zip_canonical.py::test_non_zip_bytes_keep_their_raw_sha256",
+    "tests/test_golden_identity_zip_canonical.py::test_golden_tree_matches_while_raw_manifest_tree_differs",
+    "tests/test_golden_identity_zip_canonical.py::test_exported_public_test_prelude_is_the_same_ruler",
+    "tests/test_golden_identity_zip_canonical.py::test_acceptance_equalities_compare_the_golden_identity"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

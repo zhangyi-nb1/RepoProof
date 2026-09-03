@@ -1,0 +1,22 @@
+{
+  "affected_component": "workspace_semantic verdict_details for mechanism codes + drafting prompt reproducibility rule",
+  "after_control_sha256": "05e421eec9a7ec0f8a39145c699d5e7ede3d51e8bbc2830ed77e2028637e306d",
+  "anonymous_fixture_id": "anonymous-semantic-mechanism-explanations",
+  "before_control_sha256": "a81b6a556b71783cdef81e94678e420b4bd26ad3ad260d27e1a3fd4e9975a830",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T05:28:22+08:00",
+  "evidence_id": "harness-change-semantic-mechanism-code-explanations-v1",
+  "incident_ids": [
+    "incident-semantic-mechanism-code-unexplained-mkdocs-v1",
+    "incident-semantic-mechanism-code-unexplained-icalendar-v1"
+  ],
+  "invariant": "Every mechanism reason code the semantic screen itself produces (INPUT/ARTIFACT/UPSTREAM_RESULT binding control failures, UPSTREAM_CALL_NOT_OBSERVED, COMMITMENT_COVERAGE_MISMATCH with the missing and extra commitment ids) carries a public reason_detail stating what was observed and which rule it violates, so a judge repair is evidence-based for Harness-side rejections exactly as it already is for the verifier's own codes. The drafting prompt additionally teaches byte-reproducibility up front (no clock, no random ids, pinned container timestamps, sorted collections).",
+  "normalized_fingerprint": "858eb03211bafd92",
+  "regression_tests": [
+    "tests/test_semantic_mechanism_code_explanations.py::test_input_binding_control_failure_is_explained",
+    "tests/test_semantic_mechanism_code_explanations.py::test_commitment_coverage_mismatch_lists_missing_and_extra_ids",
+    "tests/test_semantic_mechanism_code_explanations.py::test_drafting_prompt_teaches_reproducibility_up_front"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

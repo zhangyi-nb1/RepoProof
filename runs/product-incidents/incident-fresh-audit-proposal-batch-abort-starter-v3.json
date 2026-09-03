@@ -1,0 +1,32 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "evidence_source": "session-observed-2026-09-02-not-persisted-retried-without-record",
+    "materializable_siblings": "unknown",
+    "phase": "fresh_audit_candidate_generation",
+    "proposals": 2,
+    "rejected_by": "frozen-reference",
+    "rejected_code": "WORKSPACE_REFERENCE_FIXTURE_REJECTED"
+  },
+  "created_at": "2026-09-02T03:36:29+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "1bdf8fd44917e277978e750f4423976846a4c97ffbd5ceae8e117bac1584476f",
+  "incident_id": "incident-fresh-audit-proposal-batch-abort-starter-v3",
+  "normalized_fingerprint": "4caceaeffa4e1a8b",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "fresh-audit::proposal-batch"
+  ],
+  "reason_codes": [
+    "FRESH_PROPOSAL_MATERIALIZATION_BATCH_ABORT"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "FIXTURE_REFERENCE",
+  "task_version": "tool-research-project-starter-v3"
+}

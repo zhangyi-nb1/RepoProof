@@ -1,0 +1,22 @@
+{
+  "affected_component": "product_jobs._self_check_round fresh-input agreement probe: two fresh scenarios (n=2) instead of one",
+  "after_control_sha256": "a9f073b9a35796b9f3fe761259fcc1c8b8d7839bdb83c36ebc208d609c3ea059",
+  "anonymous_fixture_id": "anonymous-selfcheck-fresh-agreement-probe-v2",
+  "before_control_sha256": "989e45ae740fc76a7a4310b45cb7d32859db95f520b83712a841a026ccf8241f",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T14:00:36+08:00",
+  "evidence_id": "harness-change-selfcheck-fresh-agreement-probe-v2",
+  "incident_ids": [
+    "incident-frozen-controls-disagree-on-fresh-input-pptx-v2",
+    "incident-frozen-controls-disagree-on-fresh-input-pygal-v2",
+    "incident-frozen-controls-disagree-on-fresh-input-pygal-v4"
+  ],
+  "invariant": "v1 invariant unchanged. v2: the pre-freeze agreement probe proposes and materialises TWO never-seen scenarios per self-check round; a single agreed scenario let a task freeze whose controls the post-freeze audit still split on its own proposal (SUMMARY_BALANCE_MISMATCH / MODEL_SVG_BAR_VALUE). The post-freeze fresh audit is unchanged and remains the final judge; the probe only raises the bar before freezing.",
+  "normalized_fingerprint": "e7b712d2a760f753",
+  "regression_tests": [
+    "tests/ui/test_selfcheck_fresh_agreement_probe.py::test_fresh_disagreement_fails_the_round_with_the_verifier_details",
+    "tests/ui/test_selfcheck_fresh_agreement_probe.py::test_offline_drafter_skips_the_probe"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

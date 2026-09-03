@@ -1,0 +1,22 @@
+{
+  "affected_component": "workspace_fixtures child runner failure marker + _builder_failure_public_class projector (private_root masked)",
+  "after_control_sha256": "13e58beb8ac39f730f3bb5bad1a9859189b8dbc5670f3190dec8abd4b3f41752",
+  "anonymous_fixture_id": "anonymous-builder-failure-diagnostics",
+  "before_control_sha256": "daead3f0e3701b4c81f7a240ff1c37b6ca0151361e1570a2a97246c126160582",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T16:50:00+08:00",
+  "evidence_id": "harness-change-builder-failure-diagnostics-v1",
+  "incident_ids": [
+    "incident-builder-failure-diagnostics-opaque-pygal-v1",
+    "incident-builder-failure-diagnostics-opaque-babel-v1"
+  ],
+  "invariant": "A fixture-builder subprocess failure projects to one public line — Type: bounded whitespace-collapsed message @ fixture_builder.py:line fn (innermost file:line fn) — mirroring the reference runner: the builder is the model's own draft, so its message and in-source frames are repair evidence, not answer keys; raw tracebacks and blueprint parameters never leave the child, the private temp root is masked, and a missing or malformed marker still projects to the empty string. The line rides FixtureBuilderError.detail into FIXTURE_BUILDER_FAILED diagnostics everywhere that error is surfaced.",
+  "normalized_fingerprint": "1076392f4f0eb06a",
+  "regression_tests": [
+    "tests/test_builder_failure_diagnostics.py::test_builder_failure_detail_names_message_and_location",
+    "tests/test_builder_failure_diagnostics.py::test_successful_builder_is_untouched",
+    "tests/test_workspace_fixtures.py::test_builder_failure_projects_public_exception_class"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

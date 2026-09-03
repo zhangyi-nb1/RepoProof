@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.079" timestamp="2026-09-01T23:46:43.776365+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_import_hook" name="test_instrumentation_never_raises_into_upstream_for_unreprable_args" time="0.039"><failure message="AssertionError: Traceback (most recent call last):&#10;    File &quot;/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-359/test_instrumentation_never_rai0/child.py&quot;, line 2, in &lt;module&gt;&#10;      store = statepkg.Store()&#10;              ^^^^^^^^^^^^^^^^&#10;    File &quot;/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-359/test_instrumentation_never_rai0/up/statepkg.py&quot;, line 8, in __init__&#10;      self._setter = Functor(self)&#10;                     ^^^^^^^^^^^^^&#10;    File &quot;/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-359/test_instrumentation_never_rai0/hook/sitecustomize.py&quot;, line 68, in _new&#10;      repr((a, sorted(kw.items())))[:2000].encode()&#10;      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^&#10;    File &quot;/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-359/test_instrumentation_never_rai0/up/statepkg.py&quot;, line 12, in __repr__&#10;      return f'Store({self._items!r})'&#10;                      ^^^^^^^^^^^&#10;  AttributeError: 'Store' object has no attribute '_items'&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['/Users/zhangronglei/Desktop/XIANGMU/RepoProof/.venv/bin/python3.12', '/private/var/folders/y4/...e({self._items!r})\'\n                    ^^^^^^^^^^^\nAttributeError: \'Store\' object has no attribute \'_items\'\n').returncode">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-359/test_instrumentation_never_rai0')
+
+    def test_instrumentation_never_raises_into_upstream_for_unreprable_args(tmp_path):
+        """量具透明性第二面(incident-import-hook-constructor-repr-v1)。
+    
+        真实上游惯用法:对象 __init__ 里先把**尚未构造完**的自身交给另一个
+        公开类(registry/functor 注册),此刻其 __repr__ 依赖的属性还没赋值。
+        量具对构造参数做 repr 摘要,不得让 repr 的异常射进被测上游 ——
+        回执允许降级(类型名摘要),观测不许改变被观测。
+        """
+        up = tmp_path / "up"
+        up.mkdir()
+        (up / "statepkg.py").write_text(
+            "class Functor:\n"
+            "    def __init__(self, owner):\n"
+            "        self.owner = owner\n"
+            "\n"
+            "\n"
+            "class Store:\n"
+            "    def __init__(self):\n"
+            "        self._setter = Functor(self)\n"
+            "        self._items = []\n"
+            "\n"
+            "    def __repr__(self):\n"
+            "        return f'Store({self._items!r})'\n",
+            encoding="utf-8")
+        hook = write_hook_dir(tmp_path / "hook")
+        ledger = tmp_path / "ledger.jsonl"
+        script = tmp_path / "child.py"
+        script.write_text(
+            "import statepkg\n"
+            "store = statepkg.Store()\n"
+            "assert store._setter.owner is store\n"
+            "assert store._items == []\n",
+            encoding="utf-8")
+        env = dict(os.environ,
+                   PYTHONPATH=f"{hook}{os.pathsep}{up}",
+                   **{ENV_MODULE: "statepkg", ENV_LEDGER: str(ledger),
+                      ENV_SECRET: "s3cr3t"})
+        r = subprocess.run([sys.executable, str(script)], env=env,
+                           capture_output=True, text=True, timeout=120)
+&gt;       assert r.returncode == 0, r.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-359/test_instrumentation_never_rai0/child.py", line 2, in &lt;module&gt;
+E             store = statepkg.Store()
+E                     ^^^^^^^^^^^^^^^^
+E           File "/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-359/test_instrumentation_never_rai0/up/statepkg.py", line 8, in __init__
+E             self._setter = Functor(self)
+E                            ^^^^^^^^^^^^^
+E           File "/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-359/test_instrumentation_never_rai0/hook/sitecustomize.py", line 68, in _new
+E             repr((a, sorted(kw.items())))[:2000].encode()
+E             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-359/test_instrumentation_never_rai0/up/statepkg.py", line 12, in __repr__
+E             return f'Store({self._items!r})'
+E                             ^^^^^^^^^^^
+E         AttributeError: 'Store' object has no attribute '_items'
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/zhangronglei/Desktop/XIANGMU/RepoProof/.venv/bin/python3.12', '/private/var/folders/y4/...e({self._items!r})\'\n                    ^^^^^^^^^^^\nAttributeError: \'Store\' object has no attribute \'_items\'\n').returncode
+
+tests/test_import_hook.py:332: AssertionError</failure></testcase></testsuite></testsuites>

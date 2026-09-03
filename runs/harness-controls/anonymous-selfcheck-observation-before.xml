@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.168" timestamp="2026-09-02T12:55:15.262851+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.ui.test_selfcheck_observation" name="test_observation_carries_bounded_excerpts_members_and_magic" time="0.003"><failure message="KeyError: 'excerpt'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-122/test_observation_carries_bound0')
+
+    def test_observation_carries_bounded_excerpts_members_and_magic(tmp_path: Path) -&gt; None:
+        _expected_tree(tmp_path)
+        observation = product_jobs._self_check_artifact_observation(tmp_path, excluded=("vendor/*",))
+        by_path = {row["path"]: row for row in observation["files"]}
+        assert set(by_path) == {"README.md", "book.xlsx", "chart.png"}
+        readme = by_path["README.md"]
+        assert readme["first_line"] == "# 报告"
+&gt;       assert "## 异常规则" in readme["excerpt"] and readme["line_count"] == 10
+                            ^^^^^^^^^^^^^^^^^
+E       KeyError: 'excerpt'
+
+tests/ui/test_selfcheck_observation.py:41: KeyError</failure></testcase><testcase classname="tests.ui.test_selfcheck_observation" name="test_observation_excerpts_are_bounded" time="0.001"><failure message="KeyError: 'excerpt'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-122/test_observation_excerpts_are_0')
+
+    def test_observation_excerpts_are_bounded(tmp_path: Path) -&gt; None:
+        expected = tmp_path / "expected"
+        expected.mkdir()
+        (expected / "big.txt").write_text("x" * 50_000, encoding="utf-8")
+        state = {"schema_version": 1, "generation_id": "generation-1-abcdef01", "records": [{"expected_dir": str(expected)}]}
+        (tmp_path / product_jobs._WORKSPACE_FIXTURE_STATE).write_text(json.dumps(state), encoding="utf-8")
+        observation = product_jobs._self_check_artifact_observation(tmp_path, excluded=())
+        row = observation["files"][0]
+&gt;       assert len(row["excerpt"]) &lt;= product_jobs._OBSERVATION_EXCERPT_CHARS
+                   ^^^^^^^^^^^^^^
+E       KeyError: 'excerpt'
+
+tests/ui/test_selfcheck_observation.py:56: KeyError</failure></testcase></testsuite></testsuites>

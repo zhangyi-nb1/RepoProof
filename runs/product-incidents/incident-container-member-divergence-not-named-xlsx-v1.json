@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-8 rounds 1-2 and attempt-9 rounds 1,2,4: 'audit_workbook.xlsx=BYTES_DIFFER' five times; with zip metadata canonicalised this means a member's bytes differ (OOXML docProps/core.xml wall-clock stamps), but the divergence row stops at the container path; the reference repairs guessed (attempt-9 round 3 even called a non-existent set_default_date_time) instead of pinning the named member"
+  },
+  "created_at": "2026-09-03T11:16:19+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "011718afe16b631970a8435ac33d2347c8d4952b02ecb383b20d0358194c2ea7",
+  "incident_id": "incident-container-member-divergence-not-named-xlsx-v1",
+  "normalized_fingerprint": "67293694f103615e",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "de7a251efbbc0bdecbb20fc97a43a3542f2e9752fb1fd56eb0843c447c89d44a",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::reproducibility-probe"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_NOT_REPRODUCIBLE",
+    "CONTAINER_MEMBER_DIVERGENCE_NOT_NAMED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

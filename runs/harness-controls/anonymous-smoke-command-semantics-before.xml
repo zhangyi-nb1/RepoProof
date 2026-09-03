@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="7" time="2.654" timestamp="2026-09-03T05:55:14.080029+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_smoke_command_semantics_taught" name="test_prompts_state_that_smoke_runs_inside_the_workspace_alone[_SYSTEM]" time="0.006"><failure message="AssertionError: _SYSTEM&#10;assert ('alone' in &quot;you draft one structured proposal for packaging a single capability of a pinned open-source python library as a local...default to json unless the user's final requirement actually asks for a machine-readable json artifact. no extra keys.&quot; and 'no candidate input' in &quot;you draft one structured proposal for packaging a single capability of a pinned open-source python library as a local...default to json unless the user's final requirement actually asks for a machine-readable json artifact. no extra keys.&quot;)">prompt_name = '_SYSTEM'
+
+    @pytest.mark.parametrize(
+        "prompt_name",
+        ["_SYSTEM", "_WORKSPACE_REFERENCE_REPAIR_SYSTEM", "_WORKSPACE_CONTRACT_REPAIR_SYSTEM"],
+    )
+    def test_prompts_state_that_smoke_runs_inside_the_workspace_alone(prompt_name: str) -&gt; None:
+        text = getattr(tool_drafter, prompt_name).lower()
+        assert "smoke" in text
+&gt;       assert "alone" in text and "no candidate input" in text, prompt_name
+E       AssertionError: _SYSTEM
+E       assert ('alone' in "you draft one structured proposal for packaging a single capability of a pinned open-source python library as a local...default to json unless the user's final requirement actually asks for a machine-readable json artifact. no extra keys." and 'no candidate input' in "you draft one structured proposal for packaging a single capability of a pinned open-source python library as a local...default to json unless the user's final requirement actually asks for a machine-readable json artifact. no extra keys.")
+
+tests/test_smoke_command_semantics_taught.py:62: AssertionError</failure></testcase><testcase classname="tests.test_smoke_command_semantics_taught" name="test_prompts_state_that_smoke_runs_inside_the_workspace_alone[_WORKSPACE_REFERENCE_REPAIR_SYSTEM]" time="0.001"><failure message="AssertionError: assert 'smoke' in 'you repair only a pre-freeze workspace reference implementation after an isolated harness execution raised one public...constant date_time, derive ids from content, never read the clock or random state, and sort every collection you emit.'">prompt_name = '_WORKSPACE_REFERENCE_REPAIR_SYSTEM'
+
+    @pytest.mark.parametrize(
+        "prompt_name",
+        ["_SYSTEM", "_WORKSPACE_REFERENCE_REPAIR_SYSTEM", "_WORKSPACE_CONTRACT_REPAIR_SYSTEM"],
+    )
+    def test_prompts_state_that_smoke_runs_inside_the_workspace_alone(prompt_name: str) -&gt; None:
+        text = getattr(tool_drafter, prompt_name).lower()
+&gt;       assert "smoke" in text
+E       AssertionError: assert 'smoke' in 'you repair only a pre-freeze workspace reference implementation after an isolated harness execution raised one public...constant date_time, derive ids from content, never read the clock or random state, and sort every collection you emit.'
+
+tests/test_smoke_command_semantics_taught.py:61: AssertionError</failure></testcase><testcase classname="tests.test_smoke_command_semantics_taught" name="test_prompts_state_that_smoke_runs_inside_the_workspace_alone[_WORKSPACE_CONTRACT_REPAIR_SYSTEM]" time="0.001"><failure message="AssertionError: assert 'smoke' in 'you repair only the structural representation of a pre-freeze workspaceartifactcontract after the harness proved the ...s.md and vendor/wheels/*.whl; never write rules for them. output strict json with exactly one key: workspace_contract.'">prompt_name = '_WORKSPACE_CONTRACT_REPAIR_SYSTEM'
+
+    @pytest.mark.parametrize(
+        "prompt_name",
+        ["_SYSTEM", "_WORKSPACE_REFERENCE_REPAIR_SYSTEM", "_WORKSPACE_CONTRACT_REPAIR_SYSTEM"],
+    )
+    def test_prompts_state_that_smoke_runs_inside_the_workspace_alone(prompt_name: str) -&gt; None:
+        text = getattr(tool_drafter, prompt_name).lower()
+&gt;       assert "smoke" in text
+E       AssertionError: assert 'smoke' in 'you repair only the structural representation of a pre-freeze workspaceartifactcontract after the harness proved the ...s.md and vendor/wheels/*.whl; never write rules for them. output strict json with exactly one key: workspace_contract.'
+
+tests/test_smoke_command_semantics_taught.py:61: AssertionError</failure></testcase><testcase classname="tests.test_smoke_command_semantics_taught" name="test_smoke_argument_naming_a_non_member_file_is_a_named_projection_error" time="1.307"><failure message="Failed: DID NOT RAISE DraftProjectionError">def test_smoke_argument_naming_a_non_member_file_is_a_named_projection_error() -&gt; None:
+&gt;       with pytest.raises(DraftProjectionError) as caught:
+E       Failed: DID NOT RAISE DraftProjectionError
+
+tests/test_smoke_command_semantics_taught.py:67: Failed</failure></testcase><testcase classname="tests.test_smoke_command_semantics_taught" name="test_flags_and_member_paths_compile[smoke0]" time="0.028" /><testcase classname="tests.test_smoke_command_semantics_taught" name="test_flags_and_member_paths_compile[smoke1]" time="0.029" /><testcase classname="tests.test_smoke_command_semantics_taught" name="test_flags_and_member_paths_compile[smoke2]" time="0.027" /></testsuite></testsuites>

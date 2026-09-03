@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.291" timestamp="2026-09-02T12:38:48.320590+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.ui.test_selfcheck_contract_repair" name="test_structural_defect_repairs_contract_representation_and_preserves_roles" time="0.008"><failure message="AssertionError: reference must not be repaired for a contract structural defect">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-110/test_structural_defect_repairs0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x109cfb9e0&gt;
+
+    def test_structural_defect_repairs_contract_representation_and_preserves_roles(tmp_path: Path, monkeypatch) -&gt; None:
+        draft_dir = _draft_with_contract(tmp_path, monkeypatch)
+        calls = _fixtures._scripted_candidates(
+            monkeypatch,
+            [
+                {"ok": False, "reason_codes": ["WORKSPACE_REFERENCE_CONTRACT_FAILED"], "diagnostics": ["WORKSPACE_PATH_TOO_DEEP"], "failure_owner": "CONTRACT"},
+                {"ok": True, "candidates": [{}, {}, {}]},
+            ],
+        )
+        repaired = json.loads(json.dumps(_CONTRACT))
+        repaired["limits"]["max_depth"] = 6
+        drafter = _ContractDrafter(repaired)
+        before_reference = (draft_dir / "reference_impl.py").read_bytes()
+    
+&gt;       result = product_jobs.run_draft_self_check(draft_dir, repair=True, drafter=drafter)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/ui/test_selfcheck_contract_repair.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/repoproof/ui/services/product_jobs.py:6871: in run_draft_self_check
+    repair_result = _apply_draft_control_repair(
+src/repoproof/ui/services/product_jobs.py:6659: in _apply_draft_control_repair
+    repaired = _bounded_workspace_reference_source_repair(
+src/repoproof/ui/services/product_jobs.py:2085: in _bounded_workspace_reference_source_repair
+    drafter.repair_workspace_reference(context).get("reference_impl") or ""
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;test_selfcheck_contract_repair._ContractDrafter object at 0x108a06ed0&gt;
+context = {'user_goal': 'g', 'semantic_commitments': [{'commitment_id': 'c1', 'public_text': 't', 'rationale': 'r', 'origin': 'M...ation_id': 'o', 'commitment_ids': ['c1'], 'locator': 'l', 'value_encoding': 'v'}]}, 'delivery_requirements': None, ...}
+
+    def repair_workspace_reference(self, context):
+&gt;       raise AssertionError("reference must not be repaired for a contract structural defect")
+E       AssertionError: reference must not be repaired for a contract structural defect
+
+tests/ui/test_selfcheck_contract_repair.py:55: AssertionError</failure></testcase><testcase classname="tests.ui.test_selfcheck_contract_repair" name="test_contract_repair_that_changes_roles_is_rolled_back" time="0.006"><failure message="AssertionError: reference must not be repaired for a contract structural defect">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-110/test_contract_repair_that_chan0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x109d1f3b0&gt;
+
+    def test_contract_repair_that_changes_roles_is_rolled_back(tmp_path: Path, monkeypatch) -&gt; None:
+        draft_dir = _draft_with_contract(tmp_path, monkeypatch)
+        failure = {"ok": False, "reason_codes": ["WORKSPACE_REFERENCE_CONTRACT_FAILED"], "diagnostics": ["WORKSPACE_RULE_OVERLAP"], "failure_owner": "CONTRACT"}
+        _fixtures._scripted_candidates(monkeypatch, [failure, failure])
+        repaired = json.loads(json.dumps(_CONTRACT))
+        repaired["rules"] = repaired["rules"][:1]
+        drafter = _ContractDrafter(repaired)
+        before = (draft_dir / "draft.yaml").read_bytes()
+    
+&gt;       result = product_jobs.run_draft_self_check(draft_dir, repair=True, max_repair_rounds=1, drafter=drafter)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/ui/test_selfcheck_contract_repair.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/repoproof/ui/services/product_jobs.py:6871: in run_draft_self_check
+    repair_result = _apply_draft_control_repair(
+src/repoproof/ui/services/product_jobs.py:6659: in _apply_draft_control_repair
+    repaired = _bounded_workspace_reference_source_repair(
+src/repoproof/ui/services/product_jobs.py:2085: in _bounded_workspace_reference_source_repair
+    drafter.repair_workspace_reference(context).get("reference_impl") or ""
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;test_selfcheck_contract_repair._ContractDrafter object at 0x109d1f7d0&gt;
+context = {'user_goal': 'g', 'semantic_commitments': [{'commitment_id': 'c1', 'public_text': 't', 'rationale': 'r', 'origin': 'M...ation_id': 'o', 'commitment_ids': ['c1'], 'locator': 'l', 'value_encoding': 'v'}]}, 'delivery_requirements': None, ...}
+
+    def repair_workspace_reference(self, context):
+&gt;       raise AssertionError("reference must not be repaired for a contract structural defect")
+E       AssertionError: reference must not be repaired for a contract structural defect
+
+tests/ui/test_selfcheck_contract_repair.py:55: AssertionError</failure></testcase></testsuite></testsuites>

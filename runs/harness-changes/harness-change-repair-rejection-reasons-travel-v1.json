@@ -1,0 +1,22 @@
+{
+  "affected_component": "tool_drafter._repair_source (+_rejection_code) retry message and final DraftError; draft_selfcheck.DraftSelfCheckRepairV1.diagnostics; product_jobs._apply_draft_control_repair rejection rows + previous_rejections; _self_check_repair_rounds",
+  "after_control_sha256": "42be9f1966d81b096c3dc06b7eece95076ae004bdf25c1c43b50d602bc5ce396",
+  "anonymous_fixture_id": "anonymous-repair-rejection-reasons-travel",
+  "before_control_sha256": "1eee30b6566e936db58da9b7bdf2fc493c000f32abd3780fc165339afcbd9132",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T09:17:43+08:00",
+  "evidence_id": "harness-change-repair-rejection-reasons-travel-v1",
+  "incident_ids": [
+    "incident-contract-repair-rejection-opaque-mkdocs-v1",
+    "incident-contract-repair-rejection-opaque-nbformat-v1"
+  ],
+  "invariant": "When Core refuses a model repair, the refusal's public code and field rows (loc/msg, never model output) travel three ways: into the retry prompt of the same repair call, into the final DraftError (message keeps the inner code after INVALID_MODEL_OUTPUT; diagnostics keep the rows), and into the round record (DraftSelfCheckRepairV1.diagnostics). The round loop hands every earlier refused attempt's rows, prefixed by its target, to the next repair as previous_rejections, so no repairer — same owner or the alternate — argues without knowing what was already refused and why.",
+  "normalized_fingerprint": "9f6895fa3c78f428",
+  "regression_tests": [
+    "tests/ui/test_repair_rejection_reasons_travel.py::test_repair_source_keeps_the_inner_rejection_and_tells_the_retry_why",
+    "tests/ui/test_repair_rejection_reasons_travel.py::test_repair_record_carries_the_rejection_diagnostics_and_previous_rejections_reach_the_drafter",
+    "tests/ui/test_repair_rejection_reasons_travel.py::test_round_loop_hands_previous_rejections_to_the_next_attempt"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

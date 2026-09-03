@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.165" timestamp="2026-09-02T13:21:52.182429+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_contract_repair_schema_self_contained" name="test_repair_schema_resolves_every_ref_locally" time="0.000"><failure message="AssertionError: #/$defs/WorkspaceArtifactRule&#10;assert (True and 'WorkspaceArtifactRule' in {})&#10; +  where True = &lt;built-in method startswith of str object at 0x109ef4a30&gt;('#/$defs/')&#10; +    where &lt;built-in method startswith of str object at 0x109ef4a30&gt; = '#/$defs/WorkspaceArtifactRule'.startswith">def test_repair_schema_resolves_every_ref_locally() -&gt; None:
+        strict = strict_structured_output_schema(_WORKSPACE_CONTRACT_REPAIR_SCHEMA)
+        defs = strict.get("$defs") or {}
+        for ref in _refs(strict, []):
+&gt;           assert ref.startswith("#/$defs/") and ref.split("/")[-1] in defs, ref
+E           AssertionError: #/$defs/WorkspaceArtifactRule
+E           assert (True and 'WorkspaceArtifactRule' in {})
+E            +  where True = &lt;built-in method startswith of str object at 0x109ef4a30&gt;('#/$defs/')
+E            +    where &lt;built-in method startswith of str object at 0x109ef4a30&gt; = '#/$defs/WorkspaceArtifactRule'.startswith
+
+tests/test_contract_repair_schema_self_contained.py:29: AssertionError</failure></testcase></testsuite></testsuites>

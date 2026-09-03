@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="0.306" timestamp="2026-09-03T08:38:33.775000+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_agent_scratch_location" name="test_backend_env_names_a_scratch_dir_inside_the_session_outside_the_package" time="0.087"><failure message="KeyError: 'REPOPROOF_SCRATCH_DIR'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-276/test_backend_env_names_a_scrat0')
+
+    def test_backend_env_names_a_scratch_dir_inside_the_session_outside_the_package(tmp_path: Path) -&gt; None:
+        backend = LocalWorktreeBackend(sessions_root=tmp_path / "sessions")
+        session = backend.start(name_prefix="rp")
+        root = backend.session_root(session)
+        (root / "host").mkdir()
+        env = backend.build_env(session)
+&gt;       scratch = Path(env["REPOPROOF_SCRATCH_DIR"])
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'REPOPROOF_SCRATCH_DIR'
+
+tests/test_agent_scratch_location.py:35: KeyError</failure></testcase><testcase classname="tests.test_agent_scratch_location" name="test_template_renders_the_scratch_path_and_teaches_the_budget" time="0.077"><failure message="KeyError: 'REPOPROOF_SCRATCH_DIR'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-276/test_template_renders_the_scra0')
+
+    def test_template_renders_the_scratch_path_and_teaches_the_budget(tmp_path: Path) -&gt; None:
+        backend = LocalWorktreeBackend(sessions_root=tmp_path / "sessions")
+        session = backend.start(name_prefix="rp")
+        env = RepoProofEnvironment(
+            backend=backend, container=session, store=None, command_timeout_s=10, command_budget=10, default_cwd="host"
+        )
+        variables = env.get_template_vars()
+&gt;       expected = backend.build_env(session)["REPOPROOF_SCRATCH_DIR"]
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'REPOPROOF_SCRATCH_DIR'
+
+tests/test_agent_scratch_location.py:48: KeyError</failure></testcase><testcase classname="tests.test_agent_scratch_location" name="test_workspace_prompt_names_the_scratch_variable_and_the_counting_rule" time="0.000"><failure message="AssertionError: assert 'REPOPROOF_SCRATCH_DIR' in 'You are packaging ONE capability from a pinned open-source library into\nan OFFLINE, MULTI-FILE LOCAL WORKSPACE TOOL....fixture trees or\nclaiming completion cannot pass.\nWhen done, submit with: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT'">def test_workspace_prompt_names_the_scratch_variable_and_the_counting_rule() -&gt; None:
+        prompt = build_host_prompt(_contract(), wheel_note="package wheelhouse")
+&gt;       assert "REPOPROOF_SCRATCH_DIR" in prompt
+E       AssertionError: assert 'REPOPROOF_SCRATCH_DIR' in 'You are packaging ONE capability from a pinned open-source library into\nan OFFLINE, MULTI-FILE LOCAL WORKSPACE TOOL....fixture trees or\nclaiming completion cannot pass.\nWhen done, submit with: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT'
+
+tests/test_agent_scratch_location.py:58: AssertionError</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,21 @@
+{
+  "affected_component": "portable_workspace_runtime.profile_format_error/_validate + workspace_bundle._validate_format delegation",
+  "after_control_sha256": "508cbf50f3bf9aaa6483d8966bb0672bae688bc14a4cdbf3028cdcae49d6b097",
+  "anonymous_fixture_id": "anonymous-validator-parity",
+  "before_control_sha256": "f5e3edc83a535f87ed58c2f18a78e1dfdd1063c9e71ec6475bcf699d9391e0dc",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-02T13:29:29+08:00",
+  "evidence_id": "harness-change-validator-parity-single-ruler-v1",
+  "incident_ids": [
+    "incident-portable-runtime-validator-profile-drift-pillow-v2"
+  ],
+  "invariant": "Core and the exported portable runtime validate workspace structure with one ruler: the six structure profiles (xlsx/pptx/png/ics/ipynb/mo) live once, stdlib-only, in portable_workspace_runtime.profile_format_error and Core delegates to it; every profile is handled explicitly by the exported validator (unknown profile -> WORKSPACE_VALIDATION_PROFILE_UNKNOWN, undecodable text -> WORKSPACE_FORMAT_UTF8_INVALID, zip/sqlite/parser failures -> public codes) so a raw UnicodeDecodeError can never turn a valid binary workspace into 'internal error'. Safety/false-success exception: the drifted exported validator silently skipped structure checks for new text-like profiles.",
+  "normalized_fingerprint": "cf2c94444d578b75",
+  "regression_tests": [
+    "tests/test_validator_parity.py::test_portable_validator_never_leaks_decode_errors",
+    "tests/test_validator_parity.py::test_core_and_portable_agree_on_structure_profiles",
+    "tests/test_validator_parity.py::test_unknown_profile_is_rejected_by_both_rulers"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

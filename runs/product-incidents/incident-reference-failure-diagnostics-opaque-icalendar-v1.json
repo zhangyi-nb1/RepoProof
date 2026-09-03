@@ -1,0 +1,33 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "later_rounds": "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT x3 (bound reached)",
+    "repair_context_for_execution_failure": "exception type name only; no reference frame line, no exception message",
+    "round_1_diagnostics": [
+      "KeyError"
+    ],
+    "self_check_rounds": 4
+  },
+  "created_at": "2026-09-02T12:25:36+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "6402fc03a26df8298570147ac1dad59537d3361abc5fc904a35772890455c9a0",
+  "incident_id": "incident-reference-failure-diagnostics-opaque-icalendar-v1",
+  "normalized_fingerprint": "af451192553e69c0",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "d868421eba4a6454d552ec4458446b052c87cba77449430000d15f79680ccb5f",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::reference-execution"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_EXECUTION_FAILED",
+    "REFERENCE_FAILURE_DIAGNOSTICS_OPAQUE"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "class": "contract-vs-reference disagreement surfaced by the Core closure step, not by validate_workspace; the code family WORKSPACE_RUNTIME_* is absent from every routing table",
+    "drafter": "anthropic-gateway:claude-opus-4-8",
+    "observed": "self-check round 1: reference ran fine but the runtime closure sealer raised WORKSPACE_RUNTIME_APPLICATION_MISSING (contract names runtime_python_entrypoint, reference did not write that file); repair_target_for returned None so the self-check stopped after one round with empty diagnostics"
+  },
+  "created_at": "2026-09-03T04:38:44+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "fbad7f19c6cbc8e1ef53829ae2e01799b320ebbe815134acee0f55b78fea4737",
+  "incident_id": "incident-selfcheck-runtime-closure-code-unrouted-mkdocs-v1",
+  "normalized_fingerprint": "7f1be82bf6e54437",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::repair-routing"
+  ],
+  "reason_codes": [
+    "WORKSPACE_RUNTIME_APPLICATION_MISSING",
+    "SELF_CHECK_RUNTIME_CLOSURE_CODE_UNROUTED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

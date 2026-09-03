@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "manifest_hash_present": 0,
+    "structure_passed": "NO_OR_UNMEASURED",
+    "tree_hash_present": 0
+  },
+  "created_at": "2026-09-01T07:33:52.509132Z",
+  "disposition": "NEW_TASK_VERSION",
+  "framework_git_commit": "200bd03fa0736b97cbe326c726e568c558c2db62",
+  "framework_tree_sha256": "e8c47e6b4c3d89f45ae3642bef83e6838d7fbfe88b4409cf5a54c3177bc38b5c",
+  "incident_id": "incident-action-d587326221c995b6803ddac8",
+  "normalized_fingerprint": "18bf419adc79efba",
+  "owner": "CONTRACT",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "REFERENCE_EXECUTION_FAILED",
+    "STOP_NEEDS_HUMAN"
+  ],
+  "reason_codes": [
+    "REFERENCE_EXECUTION_FAILED",
+    "STOP_NEEDS_HUMAN"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "FIXTURE_REFERENCE",
+  "task_version": "tool-datasette-tool-v2"
+}

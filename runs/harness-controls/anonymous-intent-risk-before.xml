@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.141" timestamp="2026-08-31T18:09:32.514165+08:00" hostname="ZhangrongleideMacBook-Air-3.local"><testcase classname="tests.test_tool_intake" name="test_intake_rejects_credentialled_irreversible_intent_before_repository_access" time="0.004"><failure message="AssertionError: repository access must not occur for rejected intent">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-82/test_intake_rejects_credential0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10b5dfe90&gt;
+
+    def test_intake_rejects_credentialled_irreversible_intent_before_repository_access(
+        tmp_path, monkeypatch
+    ):
+        """Explicit high-risk intent is a zero-repository, zero-Agent safety stop."""
+    
+        def forbidden_repository_access(*_args, **_kwargs):
+            raise AssertionError("repository access must not occur for rejected intent")
+    
+        monkeypatch.setattr(
+            "repoproof.adoption.intake.tool_intake.clone_for_analysis",
+            forbidden_repository_access,
+        )
+&gt;       report = run_tool_intake(
+            "https://example.invalid/public-source",
+            "Authenticate to a private account and complete an irreversible external transaction.",
+            cache_root=tmp_path / "cache",
+            revision="v1",
+        )
+
+tests/test_tool_intake.py:177: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/repoproof/adoption/intake/tool_intake.py:301: in run_tool_intake
+    repo_dir, err = clone_for_analysis(source, revision, cache_root)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+_args = ('https://example.invalid/public-source', 'v1', PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-82/test_intake_rejects_credential0/cache'))
+_kwargs = {}
+
+    def forbidden_repository_access(*_args, **_kwargs):
+&gt;       raise AssertionError("repository access must not occur for rejected intent")
+E       AssertionError: repository access must not occur for rejected intent
+
+tests/test_tool_intake.py:171: AssertionError</failure></testcase></testsuite></testsuites>

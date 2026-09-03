@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-8 and attempt-12 (rounds 3-4): the verifier's real upstream call load_config failed inside the upstream itself with AttributeError: 'function' object has no attribute 'cache_clear' — the upstream calls utils.get_themes.cache_clear() on its own lru_cache-decorated public function, which the receipt proxy had replaced by a plain function (functools.wraps copies __dict__, not the lru_cache wrapper's methods)",
+    "why_exception": "same invariant as harness-change-import-hook-function-metadata-v1 (runtime observation must preserve the observable behaviour and metadata of every wrapped upstream callable); a verdict produced on a program the Harness changed is not a measurement of the submission"
+  },
+  "created_at": "2026-09-03T06:54:03+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "fa0bf55b3b1ca036b5bdc61625f6d2a60e54b18485ebc2881b857064fc83d7f5",
+  "incident_id": "incident-import-hook-lru-cache-attributes-mkdocs-v1",
+  "normalized_fingerprint": "7de835968034c112",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::verifier-run::import-hook-receipt-proxy"
+  ],
+  "reason_codes": [
+    "IMPORT_HOOK_WRAPPER_DROPS_CALLABLE_ATTRIBUTES"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

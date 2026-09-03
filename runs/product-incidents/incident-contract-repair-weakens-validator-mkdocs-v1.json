@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-11 round 1 diagnostics named 'site/404.html' (profile html_v1) with cdnjs highlight.js URLs; the contract repair was APPLIED and round 2 no longer reported WORKSPACE_HTML_EXTERNAL_RESOURCE. The final draft.yaml shows site/index.html and site/*/**/*.html at validation_profile text_utf8_v1: the repairer downgraded html_v1 to text_utf8_v1, so the offline check vanished while the delivered site still references CDN resources",
+    "why_false_success": "normalize_workspace_contract_repair enforces only the role set and runnable/require_offline_wheelhouse/runtime_python_entrypoint; validation_profile, executable and allow_extra_files can be weakened silently and the prompt never forbids it"
+  },
+  "created_at": "2026-09-03T06:23:41+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "0959a930aa56edb86ecbb6e6e783478489fa00ebc01b354423f82f56654b591e",
+  "incident_id": "incident-contract-repair-weakens-validator-mkdocs-v1",
+  "normalized_fingerprint": "920b0c91b07d7165",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::contract-repair"
+  ],
+  "reason_codes": [
+    "WORKSPACE_CONTRACT_REPAIR_WEAKENED_VALIDATOR"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

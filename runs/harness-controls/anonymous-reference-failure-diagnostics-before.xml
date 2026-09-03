@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.236" timestamp="2026-09-02T12:27:17.527453+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.ui.test_reference_failure_diagnostics" name="test_reference_failure_carries_public_location_and_message" time="0.030"><failure message="AttributeError: 'WorkspaceBundleError' object has no attribute 'diagnostics'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-103/test_reference_failure_carries0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10ba3b890&gt;
+
+    def test_reference_failure_carries_public_location_and_message(tmp_path: Path, monkeypatch) -&gt; None:
+        error = _run(tmp_path, monkeypatch)
+        assert error.code == "WORKSPACE_REFERENCE_EXECUTION_FAILED"
+        assert error.detail == "KeyError"
+&gt;       diagnostics = list(error.diagnostics)
+                           ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'WorkspaceBundleError' object has no attribute 'diagnostics'
+
+tests/ui/test_reference_failure_diagnostics.py:67: AttributeError</failure></testcase><testcase classname="tests.ui.test_reference_failure_diagnostics" name="test_candidate_generation_result_exposes_both_diagnostics" time="0.025"><failure message="AttributeError: module 'repoproof.ui.services.product_jobs' has no attribute '_workspace_bundle_error_diagnostics'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-103/test_candidate_generation_resu0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10b1dc410&gt;
+
+    def test_candidate_generation_result_exposes_both_diagnostics(tmp_path: Path, monkeypatch) -&gt; None:
+        error = _run(tmp_path, monkeypatch)
+&gt;       projected = product_jobs._workspace_bundle_error_diagnostics(error)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'repoproof.ui.services.product_jobs' has no attribute '_workspace_bundle_error_diagnostics'
+
+tests/ui/test_reference_failure_diagnostics.py:76: AttributeError</failure></testcase></testsuite></testsuites>

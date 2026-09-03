@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.174" timestamp="2026-09-02T14:57:13.703157+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.ui.test_autopilot_blocked_substage" name="test_blocked_real_stage_projects_provider_status" time="0.009"><failure message="AssertionError: assert ['REAL_BUILD_FAILED'] == ['PROVIDER_UNAVAILABLE']&#10;  &#10;  At index 0 diff: 'REAL_BUILD_FAILED' != 'PROVIDER_UNAVAILABLE'&#10;  Use -v to get more diff">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-152/test_blocked_real_stage_projec0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x109c76750&gt;
+
+    def test_blocked_real_stage_projects_provider_status(tmp_path: Path, monkeypatch) -&gt; None:
+        state, dest = _env(tmp_path, monkeypatch)
+        runner = _Scripted(tmp_path, monkeypatch, payloads={**_HAPPY, "build-real": _BLOCKED_REAL})
+    
+        result = autopilot.run_journey_autopilot(
+            repo="https://github.com/anon/anon",
+            capability="do the thing",
+            project_root=tmp_path,
+            dest_root=dest,
+            runner=runner,
+            record_dir=tmp_path / "record",
+        )
+    
+        assert result["ok"] is False and result["status"] == "REAL_BUILD_FAILED"
+        stage = next(item for item in result["report"]["stages"] if item["stage"] == "real_build")
+&gt;       assert stage["reason_codes"] == ["PROVIDER_UNAVAILABLE"]
+E       AssertionError: assert ['REAL_BUILD_FAILED'] == ['PROVIDER_UNAVAILABLE']
+E         
+E         At index 0 diff: 'REAL_BUILD_FAILED' != 'PROVIDER_UNAVAILABLE'
+E         Use -v to get more diff
+
+tests/ui/test_autopilot_blocked_substage.py:57: AssertionError</failure></testcase></testsuite></testsuites>

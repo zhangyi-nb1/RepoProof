@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "phase-2 real build returned verdict REAL_BLOCKED with stages.real.blocked=true and preflight.status=PROVIDER_UNAVAILABLE (http 503, 0 agent calls); autopilot recorded only REAL_BUILD_FAILED with empty detail and failed_stage null"
+  },
+  "created_at": "2026-09-02T14:58:53+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "38bc0a7f24c222f5da4dcf792f9273e0a6c444fda93fdc73202675f44daf0f41",
+  "incident_id": "incident-autopilot-blocked-substage-opaque-xlsx-v1",
+  "normalized_fingerprint": "7ab2f89dcd05ac29",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "autopilot::real_build"
+  ],
+  "reason_codes": [
+    "REAL_BUILD_FAILED",
+    "AUTOPILOT_BLOCKED_SUBSTAGE_NOT_PROJECTED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "AGENT_ADAPTER",
+  "task_version": "tool-xlsxwriter-tool-v1"
+}

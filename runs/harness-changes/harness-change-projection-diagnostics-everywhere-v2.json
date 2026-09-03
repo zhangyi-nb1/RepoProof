@@ -1,0 +1,23 @@
+{
+  "affected_component": "tool_drafter.normalize_draft_document draft-schema rejection (INVALID_DOCUMENT) → _projection_error with json path and value-free schema message",
+  "after_control_sha256": "74010c126c42e43336a19de600618a90391d40d6b00ac0aca69d176362a4ab3a",
+  "anonymous_fixture_id": "anonymous-invalid-document-named",
+  "before_control_sha256": "f99f2b70b7b6fe7ad75c6d9343221cf7a27dc1185adc9872743c4e972312c882",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T10:48:04+08:00",
+  "evidence_id": "harness-change-projection-diagnostics-everywhere-v2",
+  "incident_ids": [
+    "incident-projection-repair-blind-fixture-kind-nbformat-v1",
+    "incident-projection-repair-blind-fixtures-forbidden-icalendar-v1",
+    "incident-projection-repair-blind-invalid-document-xlsx-v1"
+  ],
+  "invariant": "v1 invariant unchanged (every projection rejection carries loc/msg field diagnostics and enters the bounded evidence-based projection repair). v2 extends it to the draft-schema boundary: a jsonschema rejection of the model document is a DraftProjectionError tool-draft:INVALID_DOCUMENT whose diagnostic names the JSON path and the violated schema keyword with its expectation (never the rejected instance), so the same one bounded projection repair runs instead of the journey ending on the first document with a bare code.",
+  "normalized_fingerprint": "557050ccfe4450c7",
+  "regression_tests": [
+    "tests/test_invalid_document_is_a_named_projection_error.py::test_schema_rejection_is_a_projection_error_with_the_json_path",
+    "tests/test_invalid_document_is_a_named_projection_error.py::test_projection_repair_context_names_the_field",
+    "tests/test_invalid_document_is_a_named_projection_error.py::test_valid_document_still_compiles"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

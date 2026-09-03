@@ -1,0 +1,31 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observation_given": "zip member names of the .pptx only",
+    "round_1": "WORKSPACE_REFERENCE_NOT_REPRODUCIBLE quarterly_report.pptx=ZIP_METADATA_ONLY → reference repair APPLIED, drift gone (probe works)",
+    "rounds_2_4": "disagreement METRIC_SLIDE_ORDER/METRIC_DELTA/KEY_POINTS/SPEECH_SCRIPT mismatch; two verifier repairs, 4→4→3 codes, bound reached",
+    "what_the_judge_needed": "slide text runs / notes text the reference actually rendered"
+  },
+  "created_at": "2026-09-02T13:02:47+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "0553ab5107fd170a7e879386a3b5a7162f4e55e50b7438c1ed1065436627a8f7",
+  "incident_id": "incident-verifier-repair-observation-container-thin-pptx-v1",
+  "normalized_fingerprint": "f34f0454ba73a719",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "d723ef6474f0962ba99130d13abb2f21a0753c79edcf58befcd51eb2e7561050",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::verifier-repair"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+    "VERIFIER_REPAIR_OBSERVATION_CONTAINER_TEXT_MISSING"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

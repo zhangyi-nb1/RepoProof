@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": true,
+  "artifact_tree_diff": {
+    "agent_invoked": 1,
+    "observed": "phase2-attempt-2: real build PASS_ADAPTED -> VERIFIED_TOOL_READY, fresh audit payload ok=true reason_code=FRESH_INPUT_PASS decision ACTIVE (tool ACTIVE on disk), report says FRESH_AUDIT_FAILED — same dead key check"
+  },
+  "created_at": "2026-09-03T08:06:00+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "de0dbd1aaf2b8d2feb4d5849f35a1d66edef4227693c27c39dfee56a8530656e",
+  "incident_id": "incident-autopilot-misreads-fresh-audit-pass-icalendar-v1",
+  "normalized_fingerprint": "060ff03ff8bcbb2e",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "autopilot::fresh-audit-projection"
+  ],
+  "reason_codes": [
+    "FRESH_AUDIT_FAILED",
+    "AUTOPILOT_MISREADS_FRESH_AUDIT_PAYLOAD"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "RELEASE_UI",
+  "task_version": "tool-icalendar-tool-v1"
+}

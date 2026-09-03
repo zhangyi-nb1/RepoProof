@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-8/9: 'audit_workbook.xlsx=BYTES_DIFFER' five times; which zip member drifted (docProps/core.xml) is never said; repairs guessed",
+    "reclassifies": "incident-container-member-divergence-not-named-xlsx-v1 (same observation, broader class: the divergence row stops at the file path)"
+  },
+  "created_at": "2026-09-03T11:52:09+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "bdd77b5a52ab32bfad3edc9ddb460b710a5be1450c961b677609f101f3e8ca43",
+  "incident_id": "incident-divergence-locus-not-named-xlsx-v1",
+  "normalized_fingerprint": "51a1e204cf6b917c",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "de7a251efbbc0bdecbb20fc97a43a3542f2e9752fb1fd56eb0843c447c89d44a",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::reproducibility-probe"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_NOT_REPRODUCIBLE",
+    "DIVERGENCE_LOCUS_NOT_NAMED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

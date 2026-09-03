@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="0.146" timestamp="2026-09-02T12:37:54.428957+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_runtime_closure_rule_collision" name="test_runtime_owned_paths_match_exactly_one_core_rule" time="0.000"><failure message="AssertionError: ('vendor/wheels/demo-1.0-py3-none-any.whl', ['vendor/wheels/*', 'vendor/wheels/*.whl'])&#10;assert 2 == 1&#10; +  where 2 = len([{'path_pattern': 'vendor/wheels/*', 'role': 'wheels', 'media_type': 'application/zip', 'validation_profile': 'wheel_v...'role': 'Frozen offline Python wheel closure', 'media_type': 'application/zip', 'validation_profile': 'wheel_v1', ...}])">def test_runtime_owned_paths_match_exactly_one_core_rule() -&gt; None:
+        compiled = _compile_workspace_runtime_closure(_model_contract())
+        rules = compiled["rules"]
+        for representative in _REPRESENTATIVES:
+            matching = [rule for rule in rules if workspace_path_matches(str(rule["path_pattern"]), representative)]
+&gt;           assert len(matching) == 1, (representative, [r["path_pattern"] for r in matching])
+E           AssertionError: ('vendor/wheels/demo-1.0-py3-none-any.whl', ['vendor/wheels/*', 'vendor/wheels/*.whl'])
+E           assert 2 == 1
+E            +  where 2 = len([{'path_pattern': 'vendor/wheels/*', 'role': 'wheels', 'media_type': 'application/zip', 'validation_profile': 'wheel_v...'role': 'Frozen offline Python wheel closure', 'media_type': 'application/zip', 'validation_profile': 'wheel_v1', ...}])
+
+tests/test_runtime_closure_rule_collision.py:43: AssertionError</failure></testcase><testcase classname="tests.test_runtime_closure_rule_collision" name="test_model_domain_rules_survive_normalisation" time="0.000" /></testsuite></testsuites>

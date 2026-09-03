@@ -1,0 +1,271 @@
+{
+ "schema_version": 1,
+ "protocol_id": "m6.3-complex-workspace-qualification-v1",
+ "protocol_status": "DRAFT_NOT_FROZEN",
+ "protocol_sha256_at_closeout": "5dfb74eabc94908fdff213de9671245247e3d58ab2a341cffc1ea3e6dc81a67b",
+ "batch": "EXPLORATORY_UNPREREGISTERED",
+ "closed_at": "2026-09-03T16:18:01+08:00",
+ "gate": {
+  "definition": "八个复杂案例中 ≥6 个经修复后 ACTIVE，且二进制办公类（c1/c2）、图像类（c4）、可重生成站点类（c3）各至少一个",
+  "active_cases": [
+   "c4-photo-contact-sheet",
+   "c6-calendar-schedule-pack",
+   "c7-analysis-notebook-pack"
+  ],
+  "met": false,
+  "reason": "3/8 ACTIVE(c4/c6/c7);c1/c2 二进制办公类无 ACTIVE,c3 站点类 READY 未 ACTIVE"
+ },
+ "cases": [
+  {
+   "case_id": "n0-live-balance-monitor",
+   "kind": "expected_rejection",
+   "phase1_attempts": 1,
+   "phase2_attempts": 0,
+   "frozen_task_versions": [],
+   "latest_task": null,
+   "registry_operational_status": null,
+   "terminal_state": "EXPECTED_REJECTION_CONFIRMED",
+   "note": "预期拒绝负控:准入拒绝,零模型预算(支持面边界钉死)"
+  },
+  {
+   "case_id": "c1-xlsx-reconciliation-workbook",
+   "kind": "complex",
+   "phase1_attempts": 11,
+   "phase2_attempts": 5,
+   "frozen_task_versions": [
+    "tool-xlsxwriter-tool-v1"
+   ],
+   "latest_task": "tool-xlsxwriter-tool-v1",
+   "registry_operational_status": null,
+   "terminal_state": "FAILED_PHASE1_AFTER_REPAIRS",
+   "note": "v1 到彩排后 phase 2 倒在 zip 容器元数据(尺子已改);重冻结 v2 十轮未成:xlsx 容器内成员漂移、schema 拒绝、归属筛查(均已修 Harness),最终一轮倒在路径三角振荡(合同 root / reference+verifier output/,单例待第二起)"
+  },
+  {
+   "case_id": "c2-pptx-quarterly-briefing",
+   "kind": "complex",
+   "phase1_attempts": 4,
+   "phase2_attempts": 8,
+   "frozen_task_versions": [
+    "tool-python-pptx-tool-v2"
+   ],
+   "latest_task": "tool-python-pptx-tool-v2",
+   "registry_operational_status": "REVIEW_REQUIRED",
+   "terminal_state": "READY_NOT_ACTIVE_FROZEN_CONTROLS_DISAGREE",
+   "note": "tool-python-pptx-tool-v2 真发 PASS → VERIFIED_TOOL_READY;新输入抽查冻结控制件分歧(类已修:冻结前双新输入探针;v2 冻结件不受益,需重冻结 v3)"
+  },
+  {
+   "case_id": "c3-offline-usage-dashboard",
+   "kind": "complex",
+   "phase1_attempts": 9,
+   "phase2_attempts": 3,
+   "frozen_task_versions": [
+    "tool-pygal-tool-v1",
+    "tool-pygal-tool-v2",
+    "tool-pygal-tool-v3",
+    "tool-pygal-tool-v4"
+   ],
+   "latest_task": "tool-pygal-tool-v4",
+   "registry_operational_status": "REVIEW_REQUIRED",
+   "terminal_state": "READY_NOT_ACTIVE_FROZEN_CONTROLS_DISAGREE",
+   "note": "v2/v3/v4 三次到彩排、v2/v4 真发 PASS(v4 20 步)→ READY 导出;新输入抽查分歧 SUMMARY_BALANCE_MISMATCH/MODEL_SVG_BAR_VALUE(诊断随行生效);v3 带冻结日期炸弹(已修扫描)"
+  },
+  {
+   "case_id": "c4-photo-contact-sheet",
+   "kind": "complex",
+   "phase1_attempts": 4,
+   "phase2_attempts": 9,
+   "frozen_task_versions": [
+    "tool-pillow-tool-v2",
+    "tool-pillow-tool-v3"
+   ],
+   "latest_task": "tool-pillow-tool-v3",
+   "registry_operational_status": "ACTIVE",
+   "terminal_state": "ACTIVE",
+   "note": "tool-pillow-tool-v3 真发 PASS → 新输入抽查 FRESH_INPUT_PASS → ACTIVE(驱动曾误报 FRESH_AUDIT_FAILED,已修)"
+  },
+  {
+   "case_id": "c5-offline-docs-site",
+   "kind": "complex",
+   "phase1_attempts": 19,
+   "phase2_attempts": 0,
+   "frozen_task_versions": [],
+   "latest_task": null,
+   "registry_operational_status": null,
+   "terminal_state": "FAILED_PHASE1_AFTER_REPAIRS",
+   "note": "19 轮 phase 1 未冻结:每轮换一种 Harness 病灶(十余项已修);最终两轮在停滞预算下各 7 轮 6 修,倒在 mkdocs 主题 CDN 外链与 site/index.html 判别力缺口(模型侧/任务难度)"
+  },
+  {
+   "case_id": "c6-calendar-schedule-pack",
+   "kind": "complex",
+   "phase1_attempts": 12,
+   "phase2_attempts": 2,
+   "frozen_task_versions": [
+    "tool-icalendar-tool-v1"
+   ],
+   "latest_task": "tool-icalendar-tool-v1",
+   "registry_operational_status": "ACTIVE",
+   "terminal_state": "ACTIVE",
+   "note": "tool-icalendar-tool-v1 一轮 20 步 PASS → FRESH_INPUT_PASS → ACTIVE(M6.3 首个全程零人工到 ACTIVE)"
+  },
+  {
+   "case_id": "c7-analysis-notebook-pack",
+   "kind": "complex",
+   "phase1_attempts": 13,
+   "phase2_attempts": 4,
+   "frozen_task_versions": [
+    "tool-nbformat-tool-v1",
+    "tool-nbformat-tool-v2",
+    "tool-nbformat-tool-v3",
+    "tool-nbformat-tool-v4"
+   ],
+   "latest_task": "tool-nbformat-tool-v4",
+   "registry_operational_status": "ACTIVE",
+   "terminal_state": "ACTIVE",
+   "note": "tool-nbformat-tool-v4 真发 PASS → 新输入抽查通过 → ACTIVE(题面摘要 v2 + scratch 机制后一轮即过)"
+  },
+  {
+   "case_id": "c8-translation-catalog-pack",
+   "kind": "complex",
+   "phase1_attempts": 4,
+   "phase2_attempts": 0,
+   "frozen_task_versions": [],
+   "latest_task": null,
+   "registry_operational_status": null,
+   "terminal_state": "FAILED_PHASE1_ENVIRONMENT",
+   "note": "四轮均倒在钉版源码 checkout 遮蔽已构建分发(babel CLDR 数据缺失,HARNESS 环境类单例待第二起);参考实现修复对环境错误无效"
+  }
+ ],
+ "harness_change_evidence_today": [
+  "harness-change-agent-scratch-location-v1",
+  "harness-change-agent-task-statement-truthful-environment-v1",
+  "harness-change-autopilot-fresh-audit-real-payload-v1",
+  "harness-change-conformance-node-runnability-v2",
+  "harness-change-contract-repair-cannot-weaken-validator-v1",
+  "harness-change-delivery-shape-self-contradiction-v1",
+  "harness-change-delivery-shape-self-contradiction-v2",
+  "harness-change-divergence-locus-named-v1",
+  "harness-change-external-interruption-is-not-a-task-failure-v1",
+  "harness-change-golden-identity-zip-canonical-v1",
+  "harness-change-import-hook-function-metadata-v2",
+  "harness-change-projection-diagnostics-everywhere-v1",
+  "harness-change-projection-diagnostics-everywhere-v2",
+  "harness-change-reference-ownership-policy-single-ruler-v1",
+  "harness-change-reference-wall-clock-date-scan-v1",
+  "harness-change-repair-rejection-reasons-travel-v1",
+  "harness-change-runtime-closure-disagreement-routing-v1",
+  "harness-change-selfcheck-bound-counts-stalls-v1",
+  "harness-change-selfcheck-continues-after-unapplied-repair-v1",
+  "harness-change-selfcheck-fresh-agreement-probe-v1",
+  "harness-change-selfcheck-fresh-agreement-probe-v2",
+  "harness-change-selfcheck-runs-smoke-v1",
+  "harness-change-semantic-mechanism-code-explanations-v1",
+  "harness-change-smoke-command-semantics-taught-v1",
+  "harness-change-structural-contract-failure-alternates-owner-v1",
+  "harness-change-structural-validation-path-details-v1",
+  "harness-change-verifier-verdict-consistency-named-v1",
+  "harness-change-workspace-statement-teaches-public-fixtures-v1",
+  "harness-change-workspace-statement-teaches-public-fixtures-v2"
+ ],
+ "pending_single_incidents": [
+  {
+   "incident_id": "incident-agent-self-test-output-trips-residue-gate-pptx-v1",
+   "class": "CORRECT_AGENT_SELF_TEST_OUTPUT_TRIPS_RESIDUE_GATE",
+   "fingerprint": "040f8deb534efe03"
+  },
+  {
+   "incident_id": "incident-agent-self-test-output-trips-residue-gate-pptx-v2",
+   "class": "CORRECT_AGENT_SELF_TEST_OUTPUT_TRIPS_RESIDUE_GATE",
+   "fingerprint": "040f8deb534efe03"
+  },
+  {
+   "incident_id": "incident-agent-session-path-differs-from-acceptance-nbformat-v4",
+   "class": "AGENT_SESSION_PATH_DIFFERS_FROM_ACCEPTANCE",
+   "fingerprint": "380128a7a28a40a7"
+  },
+  {
+   "incident_id": "incident-artifact-path-triangle-oscillation-xlsx-v1",
+   "class": "ARTIFACT_PATH_TRIANGLE_NOT_PINNED_AT_PROJECTION",
+   "fingerprint": "994a504420c8cc4b"
+  },
+  {
+   "incident_id": "incident-commitment-coverage-ids-not-projected-icalendar-v2",
+   "class": "COMMITMENT_COVERAGE_IDS_NOT_PROJECTED",
+   "fingerprint": "976f358f12e1a23a"
+  },
+  {
+   "incident_id": "incident-container-member-divergence-not-named-xlsx-v1",
+   "class": "CONTAINER_MEMBER_DIVERGENCE_NOT_NAMED",
+   "fingerprint": "67293694f103615e"
+  },
+  {
+   "incident_id": "incident-fixture-rejected-never-alternates-mkdocs-v1",
+   "class": "SYMMETRIC_FAILURE_NEVER_ALTERNATES_OWNER",
+   "fingerprint": "650b3fcc83cb47ba"
+  },
+  {
+   "incident_id": "incident-fresh-audit-diagnosis-not-carried-to-next-version-pygal-v4",
+   "class": "PRIOR_VERSION_FINDINGS_NOT_FED_TO_NEXT_DRAFT",
+   "fingerprint": "5569dd7683833a90"
+  },
+  {
+   "incident_id": "incident-fresh-reference-transient-55bad9e",
+   "class": "WORKSPACE_REFERENCE_EXECUTION_FAILED",
+   "fingerprint": "c75f6db3b2cb7a3d"
+  },
+  {
+   "incident_id": "incident-golden-identity-zip-metadata-v1",
+   "class": "ARTIFACT_IDENTITY_ZIP_METADATA_SENSITIVE",
+   "fingerprint": "f0206673517ed357"
+  },
+  {
+   "incident_id": "incident-literal-rule-shadowed-by-glob-mkdocs-v1",
+   "class": "LITERAL_RULE_SHADOWED_BY_GLOB_NOT_CAUGHT_AT_PROJECTION",
+   "fingerprint": "ff8cd4f3bcb70195"
+  },
+  {
+   "incident_id": "incident-mixed-structural-and-shape-codes-single-route-mkdocs-v1",
+   "class": "MIXED_STRUCTURAL_AND_SHAPE_CODES_ROUTED_TO_ONE_TARGET",
+   "fingerprint": "681dec2091fe1349"
+  },
+  {
+   "incident_id": "incident-pinned-checkout-shadows-built-distribution-babel-v1",
+   "class": "PINNED_SOURCE_CHECKOUT_SHADOWS_BUILT_DISTRIBUTION",
+   "fingerprint": "88e5af16f887742a"
+  },
+  {
+   "incident_id": "incident-provider-rate-limit-unmapped-nbformat-v1",
+   "class": "PROVIDER_EXCEPTION_UNMAPPED_RATE_LIMIT",
+   "fingerprint": "e084db3448187dc3"
+  },
+  {
+   "incident_id": "incident-reference-repair-relabels-error-as-user-input-mkdocs-v1",
+   "class": "REFERENCE_REPAIR_RELABELLED_INTERNAL_ERROR",
+   "fingerprint": "b5c2a756f5040a7c"
+  },
+  {
+   "incident_id": "incident-repair-rejection-feedback-opaque-pygal-v1",
+   "class": "REPAIR_REJECTION_FEEDBACK_OPAQUE",
+   "fingerprint": "8e62ae51c8a136f9"
+  },
+  {
+   "incident_id": "incident-selfcheck-bound-exhausted-monotone-progress-mkdocs-v1",
+   "class": "SELF_CHECK_BOUND_EXHAUSTED_WITH_MONOTONE_PROGRESS",
+   "fingerprint": "784e487ff6775a8d"
+  },
+  {
+   "incident_id": "incident-structured-schema-dangling-defs-mkdocs-v1",
+   "class": "EMBEDDED_SCHEMA_DEFS_NOT_HOISTED",
+   "fingerprint": "a0d07da828d8e290"
+  },
+  {
+   "incident_id": "incident-verifier-repair-observation-container-thin-pptx-v1",
+   "class": "VERIFIER_REPAIR_OBSERVATION_CONTAINER_TEXT_MISSING",
+   "fingerprint": "f34f0454ba73a719"
+  },
+  {
+   "incident_id": "incident-workspace-application-is-a-placeholder-xlsx-v1",
+   "class": "WORKSPACE_APPLICATION_IS_A_PLACEHOLDER",
+   "fingerprint": "e42d42452c2586ee"
+  }
+ ]
+}

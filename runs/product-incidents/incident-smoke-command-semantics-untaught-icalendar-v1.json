@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-10 round 3: `./run.sh` inside the sealed workspace raised UserInputError 'cannot read input: No such file input' — the app assumes an external input directory at smoke time; the contract repair then returned the same smoke command (NO_PROGRESS)",
+    "prompt_state": "the drafting prompt only says smoke_command must begin with ./run.sh; nothing says it runs alone inside the delivered workspace with no external inputs"
+  },
+  "created_at": "2026-09-03T05:42:57+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "af64f5b754367b21e6933cab7773b744da51b7ef235b864ccb8bcebc80628241",
+  "incident_id": "incident-smoke-command-semantics-untaught-icalendar-v1",
+  "normalized_fingerprint": "f0b52b01e927303f",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "d868421eba4a6454d552ec4458446b052c87cba77449430000d15f79680ccb5f",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "drafting::smoke-command"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_SMOKE_FAILED",
+    "SMOKE_COMMAND_SEMANTICS_UNTAUGHT"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

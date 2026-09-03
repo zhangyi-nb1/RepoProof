@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="3" time="0.111" timestamp="2026-09-03T17:26:25.742492+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_determinism_test_uses_golden_ruler" name="test_prelude_has_no_second_ruler" time="0.000"><failure message="assert '_tree_sha' not in 'import hash...urn output\n'&#10;  &#10;  '_tree_sha' is contained here:&#10;    es&quot;&#10;    &#10;    &#10;    def _tree_sha(root):&#10;        digest = hashlib.sha256(b&quot;REPOPROOF-WORKSPACE-TREE-V1\0&quot;)...&#10;  &#10;  ...Full output truncated (88 lines hidden), use '-vv' to show">def test_prelude_has_no_second_ruler() -&gt; None:
+&gt;       assert "_tree_sha" not in workspace_tool_assembler._TEST_PRELUDE
+E       assert '_tree_sha' not in 'import hash...urn output\n'
+E         
+E         '_tree_sha' is contained here:
+E           es"
+E           
+E           
+E           def _tree_sha(root):
+E               digest = hashlib.sha256(b"REPOPROOF-WORKSPACE-TREE-V1\0")...
+E         
+E         ...Full output truncated (88 lines hidden), use '-vv' to show
+
+tests/test_determinism_test_uses_golden_ruler.py:23: AssertionError</failure></testcase><testcase classname="tests.test_determinism_test_uses_golden_ruler" name="test_determinism_assertion_compares_the_golden_identity" time="0.003"><failure message="assert 'assert _golden_sha(first) == _golden_sha(second)' in '&quot;&quot;&quot;M6.2 assembler for one-input offline workspace-bundle tools.\n\nThe assembler is deliberately repository-blind.  T.../python -m repoproof.cli freeze-task &quot;\n            f&quot;--contract contracts/{task_id}.yaml --full&quot;\n        ),\n    }\n'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-388/test_determinism_assertion_com0')
+
+    def test_determinism_assertion_compares_the_golden_identity(tmp_path: Path) -&gt; None:
+        import inspect
+    
+        source = inspect.getsource(workspace_tool_assembler)
+&gt;       assert "assert _golden_sha(first) == _golden_sha(second)" in source
+E       assert 'assert _golden_sha(first) == _golden_sha(second)' in '"""M6.2 assembler for one-input offline workspace-bundle tools.\n\nThe assembler is deliberately repository-blind.  T.../python -m repoproof.cli freeze-task "\n            f"--contract contracts/{task_id}.yaml --full"\n        ),\n    }\n'
+
+tests/test_determinism_test_uses_golden_ruler.py:30: AssertionError</failure></testcase><testcase classname="tests.test_determinism_test_uses_golden_ruler" name="test_the_shipped_ruler_ignores_zip_incidentals_only" time="0.002" /></testsuite></testsuites>

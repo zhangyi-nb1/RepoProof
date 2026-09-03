@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.317" timestamp="2026-09-03T05:21:17.087498+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_semantic_mechanism_code_explanations" name="test_input_binding_control_failure_is_explained" time="0.153"><failure message="KeyError: 'INPUT_BINDING_CONTROL_FAILED'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-218/test_input_binding_control_fai0')
+
+    def test_input_binding_control_failure_is_explained(tmp_path: Path) -&gt; None:
+        evidence = _run(_fx._world(tmp_path, verifier=_INPUT_BLIND_VERIFIER), ["render-workspace"])
+        assert evidence.passed is False
+        assert "INPUT_BINDING_CONTROL_FAILED" in evidence.reason_codes
+&gt;       detail = dict(evidence.reason_details)["INPUT_BINDING_CONTROL_FAILED"].lower()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'INPUT_BINDING_CONTROL_FAILED'
+
+tests/test_semantic_mechanism_code_explanations.py:56: KeyError</failure></testcase><testcase classname="tests.test_semantic_mechanism_code_explanations" name="test_commitment_coverage_mismatch_lists_missing_and_extra_ids" time="0.042"><failure message="KeyError: 'COMMITMENT_COVERAGE_MISMATCH'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-218/test_commitment_coverage_misma0')
+
+    def test_commitment_coverage_mismatch_lists_missing_and_extra_ids(tmp_path: Path) -&gt; None:
+        evidence = _run(_fx._world(tmp_path), ["render-workspace", "index-page"])
+        assert evidence.passed is False
+        assert "COMMITMENT_COVERAGE_MISMATCH" in evidence.reason_codes
+&gt;       detail = dict(evidence.reason_details)["COMMITMENT_COVERAGE_MISMATCH"]
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'COMMITMENT_COVERAGE_MISMATCH'
+
+tests/test_semantic_mechanism_code_explanations.py:64: KeyError</failure></testcase></testsuite></testsuites>

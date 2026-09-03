@@ -1,0 +1,34 @@
+{
+  "affected_component": "Draft self-check with bounded self-repair (intake control plane)",
+  "after_control_sha256": "8719a69b15eca3e79f32379107ab41249f8b887a17563ae43f18ed3532d28ab2",
+  "anonymous_fixture_id": "anonymous-draft-self-check-v1",
+  "before_control_sha256": "4c9c65b37200f35f5b3f1d99bd4964ad9ca7378418601c29d54ef5701f94277f",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-02T06:32:21+08:00",
+  "evidence_id": "harness-change-draft-self-check-bounded-repair-v2",
+  "incident_ids": [
+    "incident-draft-controls-unverified-csvkit-v1",
+    "incident-draft-controls-unverified-trafilatura-v1",
+    "incident-draft-controls-unverified-pdfplumber-v1",
+    "incident-draft-controls-unverified-marimo-v3",
+    "incident-draft-controls-unverified-starter-v2"
+  ],
+  "invariant": "Machine-drafted workspace controls must be proven mutually consistent by the Harness itself before human review and before any freeze: the existing candidate-generation ruler plus a verifier discrimination probe run automatically after drafting; a public failure is routed to the one control it implicates and repaired within a bound of three repairs through the fail-closed control-repair transaction; the report binds the proven bytes and readiness blocks freezing on MISSING/STALE/FAILED. Disagreement routing counts prior repairs of the same code; the judge gets two evidence-based attempts (with a provenance-safe artifact observation: paths, sizes, first text line) before the producer. Verifier repair may add recomputation but never weaken checks; Harness and environment failures never reach a model.",
+  "normalized_fingerprint": "3e0c167e3213252b",
+  "regression_tests": [
+    "tests/test_draft_selfcheck.py::test_status_transitions_missing_passed_stale_failed",
+    "tests/test_draft_selfcheck.py::test_readiness_reports_self_check_without_blocking_confirmation",
+    "tests/test_draft_selfcheck.py::test_repair_target_routing_is_deterministic",
+    "tests/test_workspace_semantic_probe.py::test_existence_only_verifier_is_flagged_per_file",
+    "tests/test_workspace_semantic_probe.py::test_content_recomputing_verifier_has_no_gap",
+    "tests/ui/test_draft_selfcheck_service.py::test_disagreement_repairs_verifier_then_passes",
+    "tests/ui/test_draft_selfcheck_service.py::test_persistent_disagreement_alternates_to_reference_then_stops_at_bound",
+    "tests/ui/test_draft_selfcheck_service.py::test_harness_failure_never_triggers_repair",
+    "tests/ui/test_draft_selfcheck_service.py::test_builder_failure_repairs_builder_and_blueprints",
+    "tests/ui/test_draft_selfcheck_service.py::test_drafter_failure_rolls_back_controls_and_records_outcome",
+    "tests/ui/test_draft_selfcheck_service.py::test_discrimination_gap_repairs_verifier_with_public_gap_list",
+    "tests/ui/test_draft_selfcheck_service.py::test_offline_drafter_cannot_repair_and_is_reported_as_unavailable"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="3" failures="0" skipped="0" tests="3" time="0.210" timestamp="2026-09-02T05:54:36.018024+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="" name="tests.test_draft_selfcheck" time="0.000"><error message="collection failure">ImportError while importing test module '/Users/zhangronglei/Desktop/XIANGMU/RepoProof/tests/test_draft_selfcheck.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.12/3.12.5/Frameworks/Python.framework/Versions/3.12/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_draft_selfcheck.py:21: in &lt;module&gt;
+    from repoproof.adoption.intake.draft_selfcheck import (
+E   ModuleNotFoundError: No module named 'repoproof.adoption.intake.draft_selfcheck'</error></testcase><testcase classname="" name="tests.test_workspace_semantic_probe" time="0.000"><error message="collection failure">ImportError while importing test module '/Users/zhangronglei/Desktop/XIANGMU/RepoProof/tests/test_workspace_semantic_probe.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.12/3.12.5/Frameworks/Python.framework/Versions/3.12/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_workspace_semantic_probe.py:14: in &lt;module&gt;
+    from repoproof.verification.workspace_semantic import (
+E   ImportError: cannot import name 'probe_workspace_verifier_discrimination' from 'repoproof.verification.workspace_semantic' (/Users/zhangronglei/Desktop/XIANGMU/RepoProof/src/repoproof/verification/workspace_semantic.py)</error></testcase><testcase classname="" name="tests.ui.test_draft_selfcheck_service" time="0.000"><error message="collection failure">ImportError while importing test module '/Users/zhangronglei/Desktop/XIANGMU/RepoProof/tests/ui/test_draft_selfcheck_service.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/opt/homebrew/Cellar/python@3.12/3.12.5/Frameworks/Python.framework/Versions/3.12/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/ui/test_draft_selfcheck_service.py:22: in &lt;module&gt;
+    from repoproof.adoption.intake.draft_selfcheck import read_draft_self_check
+E   ModuleNotFoundError: No module named 'repoproof.adoption.intake.draft_selfcheck'</error></testcase></testsuite></testsuites>

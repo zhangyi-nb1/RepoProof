@@ -1,0 +1,22 @@
+{
+  "affected_component": "local_worktree_backend.scratch_dir + build_env REPOPROOF_SCRATCH_DIR; repoproof_env.scratch_abs template var; agents/backend SYSTEM_TEMPLATE; host_guided workspace prompt",
+  "after_control_sha256": "bd7b88a71f59c206dc18d4656cec9385fe9d4ad727df045f8d2392c4415d9aaa",
+  "anonymous_fixture_id": "anonymous-agent-scratch-location",
+  "before_control_sha256": "3addb3beb9a9031f0694d66dd6ea409febcde262f1b0913a9ef9302dea7d60b2",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T08:39:59+08:00",
+  "evidence_id": "harness-change-agent-scratch-location-v1",
+  "incident_ids": [
+    "incident-no-sanctioned-scratch-location-nbformat-v4",
+    "incident-no-sanctioned-scratch-location-pptx-v2"
+  ],
+  "invariant": "Every agent session exposes REPOPROOF_SCRATCH_DIR, a directory inside the session root (under the fake HOME) and outside the package: it is created before the first command, destroyed with the session, outside the adaptation diff, and inside the `_sessions/` subtree the answer-key residue gate explicitly skips. The system statement renders its absolute path and the workspace statement names the variable, and both say that every file left inside the package counts toward the patch budget and that /tmp is off limits for outputs. A gate that counts files must say what it counts and give the outputs somewhere to go.",
+  "normalized_fingerprint": "88dab6d119bdb4dc",
+  "regression_tests": [
+    "tests/test_agent_scratch_location.py::test_backend_env_names_a_scratch_dir_inside_the_session_outside_the_package",
+    "tests/test_agent_scratch_location.py::test_template_renders_the_scratch_path_and_teaches_the_budget",
+    "tests/test_agent_scratch_location.py::test_workspace_prompt_names_the_scratch_variable_and_the_counting_rule"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

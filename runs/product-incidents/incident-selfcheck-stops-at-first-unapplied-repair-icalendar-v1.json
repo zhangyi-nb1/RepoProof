@@ -1,0 +1,27 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-10 round 3: contract repair WORKSPACE_CONTRACT_REPAIR_NO_PROGRESS → the self-check ended with budget left, although repair_target_for would have handed the next round to the producer"
+  },
+  "created_at": "2026-09-03T06:25:01+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "0959a930aa56edb86ecbb6e6e783478489fa00ebc01b354423f82f56654b591e",
+  "incident_id": "incident-selfcheck-stops-at-first-unapplied-repair-icalendar-v1",
+  "normalized_fingerprint": "869c1654321510f6",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "d868421eba4a6454d552ec4458446b052c87cba77449430000d15f79680ccb5f",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::repair-loop"
+  ],
+  "reason_codes": [
+    "SELF_CHECK_STOPS_AT_FIRST_UNAPPLIED_REPAIR"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

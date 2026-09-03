@@ -1,0 +1,22 @@
+{
+  "affected_component": "tool_drafter._projection_error + _normalize_fixture_blueprints + normalize_draft_document projection sites + _projection_repair_context",
+  "after_control_sha256": "9630300a357764320dded9dd7f7f3d6e46966aa765a198e71ae60a9e17a552d0",
+  "anonymous_fixture_id": "anonymous-projection-diagnostics-everywhere",
+  "before_control_sha256": "6553c6ff19bff789caade687e0e9a6084c84bfce1895d716674e5adfb22fd242",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T05:12:15+08:00",
+  "evidence_id": "harness-change-projection-diagnostics-everywhere-v1",
+  "incident_ids": [
+    "incident-projection-repair-blind-fixture-kind-nbformat-v1",
+    "incident-projection-repair-blind-fixtures-forbidden-icalendar-v1"
+  ],
+  "invariant": "Every Core projection rejection of a drafted document carries field-level public diagnostics (loc/type/msg) — fixture blueprint count/shape/input_kind/duplicate, missing fixture builder, workspace required fields, cli-shape members — via one helper, so the single bounded projection repair always argues from the named field; and the projection repair context tolerates a document whose delivery requirements are inadmissible (the very document being repaired) instead of letting ProductProfileError kill the drafter process.",
+  "normalized_fingerprint": "557050ccfe4450c7",
+  "regression_tests": [
+    "tests/test_projection_diagnostics_everywhere.py::test_repair_context_survives_inadmissible_requirements",
+    "tests/test_projection_diagnostics_everywhere.py::test_fixture_input_kind_mismatch_names_the_blueprint_field",
+    "tests/test_projection_diagnostics_everywhere.py::test_missing_fixture_builder_names_the_field"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-16: four rounds, four different defects each repaired once, none recurring (reproducibility drift -> input+upstream binding -> upstream binding -> discrimination gap); stopped on the fixed 3-repair bound",
+    "reclassifies": "incident-selfcheck-bound-exhausted-monotone-progress-mkdocs-v1 (same observation, class-only reason list)"
+  },
+  "created_at": "2026-09-03T13:23:40+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "c5cc8855d42a57902d069403953ef5b3234d5a127f420263a2b9ffaea6fcbeb8",
+  "incident_id": "incident-selfcheck-bound-monotone-progress-mkdocs-v1",
+  "normalized_fingerprint": "6b67d3cd8e6e8c33",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::repair-bound"
+  ],
+  "reason_codes": [
+    "SELF_CHECK_BOUND_EXHAUSTED_WITH_MONOTONE_PROGRESS"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

@@ -1,0 +1,24 @@
+{
+  "affected_component": "agents/backend.py SYSTEM_TEMPLATE + repoproof_env workspace_dir/template vars",
+  "after_control_sha256": "96f65838927a373b201f96cb2a99d5a439370952183cf6d9435a14632cba7376",
+  "anonymous_fixture_id": "anonymous-agent-task-statement",
+  "before_control_sha256": "4da44058a86bc3bc05eca85c188a341e06e0c40fd2964e1c2a7d91e5cc7f96a4",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T00:44:04+08:00",
+  "evidence_id": "harness-change-agent-task-statement-truthful-environment-v1",
+  "incident_ids": [
+    "incident-agent-task-statement-environment-xlsx-v1",
+    "incident-agent-task-statement-environment-pptx-v1",
+    "incident-agent-task-statement-environment-pillow-v1"
+  ],
+  "invariant": "The agent's task statement must describe the environment the run actually provides: it may not claim an execution context the harness does not create, it must name the absolute working directory the shell starts in (rendered per run from the backend's own session root, never hardcoded), and it must disclose the filesystem-sweep rule the policy enforces. A rule that bites must be taught first; an undisclosed location forces the agent to search, which is the very action the policy blocks.",
+  "normalized_fingerprint": "b95cc3e49e933a0c",
+  "regression_tests": [
+    "tests/test_agent_task_statement.py::test_statement_does_not_claim_an_environment_the_run_does_not_provide",
+    "tests/test_agent_task_statement.py::test_statement_gives_the_absolute_working_directory_the_shell_starts_in",
+    "tests/test_agent_task_statement.py::test_statement_discloses_the_filesystem_sweep_rule_before_it_bites",
+    "tests/test_agent_task_statement.py::test_statement_is_rendered_per_run_not_hardcoded"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

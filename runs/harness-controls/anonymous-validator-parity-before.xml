@@ -1,0 +1,1035 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="27" skipped="0" tests="28" time="0.245" timestamp="2026-09-02T13:24:55.763246+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[binary_v1]" time="0.002" /><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[csv_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_1')
+profile = 'csv_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'csv_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_1/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[html_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_2')
+profile = 'html_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'html_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_2/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[ics_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_3')
+profile = 'ics_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'ics_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_3/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[ipynb_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_4')
+profile = 'ipynb_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'ipynb_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_4/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[mo_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_5')
+profile = 'mo_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'mo_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_5/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[png_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_6')
+profile = 'png_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'png_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_6/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[pptx_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_7')
+profile = 'pptx_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'pptx_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_7/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[xlsx_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_8')
+profile = 'xlsx_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'xlsx_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_8/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[json_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_9')
+profile = 'json_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'json_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_9/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[python_compile_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_10')
+profile = 'python_compile_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'python_compile_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_10/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[shell_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_11')
+profile = 'shell_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'shell_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_11/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[sqlite_v1]" time="0.002"><failure message="sqlite3.OperationalError: unable to open database file">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_12')
+profile = 'sqlite_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'sqlite_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_12/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+&gt;           connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           sqlite3.OperationalError: unable to open database file
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:209: OperationalError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[svg_xml_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_13')
+profile = 'svg_xml_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'svg_xml_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_13/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[text_utf8_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_14')
+profile = 'text_utf8_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'text_utf8_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_14/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[toml_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_15')
+profile = 'toml_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'toml_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_15/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[tsv_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_16')
+profile = 'tsv_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'tsv_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_16/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[wheel_v1]" time="0.000"><failure message="FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_17/x'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_17')
+profile = 'wheel_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:204: in _validate
+    with zipfile.ZipFile(path) as archive:
+         ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;zipfile.ZipFile [closed]&gt;
+file = '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_17/x'
+mode = 'r', compression = 0, allowZip64 = True, compresslevel = None
+strict_timestamps = True, metadata_encoding = None
+
+    def __init__(self, file, mode="r", compression=ZIP_STORED, allowZip64=True,
+                 compresslevel=None, *, strict_timestamps=True, metadata_encoding=None):
+        """Open the ZIP file with mode read 'r', write 'w', exclusive create 'x',
+        or append 'a'."""
+        if mode not in ('r', 'w', 'x', 'a'):
+            raise ValueError("ZipFile requires mode 'r', 'w', 'x', or 'a'")
+    
+        _check_compression(compression)
+    
+        self._allowZip64 = allowZip64
+        self._didModify = False
+        self.debug = 0  # Level of printing: 0 through 3
+        self.NameToInfo = {}    # Find file info given name
+        self.filelist = []      # List of ZipInfo instances for archive
+        self.compression = compression  # Method of compression
+        self.compresslevel = compresslevel
+        self.mode = mode
+        self.pwd = None
+        self._comment = b''
+        self._strict_timestamps = strict_timestamps
+        self.metadata_encoding = metadata_encoding
+    
+        # Check that we don't try to write with nonconforming codecs
+        if self.metadata_encoding and mode != 'r':
+            raise ValueError(
+                "metadata_encoding is only supported for reading files")
+    
+        # Check if we were passed a file-like object
+        if isinstance(file, os.PathLike):
+            file = os.fspath(file)
+        if isinstance(file, str):
+            # No, it's a filename
+            self._filePassed = 0
+            self.filename = file
+            modeDict = {'r' : 'rb', 'w': 'w+b', 'x': 'x+b', 'a' : 'r+b',
+                        'r+b': 'w+b', 'w+b': 'wb', 'x+b': 'xb'}
+            filemode = modeDict[mode]
+            while True:
+                try:
+&gt;                   self.fp = io.open(file, filemode)
+                              ^^^^^^^^^^^^^^^^^^^^^^^
+E                   FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_17/x'
+
+/opt/homebrew/Cellar/python@3.12/3.12.5/Frameworks/Python.framework/Versions/3.12/lib/python3.12/zipfile/__init__.py:1331: FileNotFoundError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[xml_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_18')
+profile = 'xml_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'xml_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_18/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[yaml_v1]" time="0.000"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_19')
+profile = 'yaml_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'yaml_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_19/x')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_portable_validator_never_leaks_decode_errors[zip_v1]" time="0.000"><failure message="FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_20/x'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_20')
+profile = 'zip_v1'
+
+    @pytest.mark.parametrize("profile", _PROFILES)
+    def test_portable_validator_never_leaks_decode_errors(tmp_path: Path, profile: str) -&gt; None:
+        payload = _fx._png()
+        try:
+&gt;           runtime._validate(payload, profile, tmp_path / "x")
+
+tests/test_validator_parity.py:63: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:204: in _validate
+    with zipfile.ZipFile(path) as archive:
+         ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;zipfile.ZipFile [closed]&gt;
+file = '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_20/x'
+mode = 'r', compression = 0, allowZip64 = True, compresslevel = None
+strict_timestamps = True, metadata_encoding = None
+
+    def __init__(self, file, mode="r", compression=ZIP_STORED, allowZip64=True,
+                 compresslevel=None, *, strict_timestamps=True, metadata_encoding=None):
+        """Open the ZIP file with mode read 'r', write 'w', exclusive create 'x',
+        or append 'a'."""
+        if mode not in ('r', 'w', 'x', 'a'):
+            raise ValueError("ZipFile requires mode 'r', 'w', 'x', or 'a'")
+    
+        _check_compression(compression)
+    
+        self._allowZip64 = allowZip64
+        self._didModify = False
+        self.debug = 0  # Level of printing: 0 through 3
+        self.NameToInfo = {}    # Find file info given name
+        self.filelist = []      # List of ZipInfo instances for archive
+        self.compression = compression  # Method of compression
+        self.compresslevel = compresslevel
+        self.mode = mode
+        self.pwd = None
+        self._comment = b''
+        self._strict_timestamps = strict_timestamps
+        self.metadata_encoding = metadata_encoding
+    
+        # Check that we don't try to write with nonconforming codecs
+        if self.metadata_encoding and mode != 'r':
+            raise ValueError(
+                "metadata_encoding is only supported for reading files")
+    
+        # Check if we were passed a file-like object
+        if isinstance(file, os.PathLike):
+            file = os.fspath(file)
+        if isinstance(file, str):
+            # No, it's a filename
+            self._filePassed = 0
+            self.filename = file
+            modeDict = {'r' : 'rb', 'w': 'w+b', 'x': 'x+b', 'a' : 'r+b',
+                        'r+b': 'w+b', 'w+b': 'wb', 'x+b': 'xb'}
+            filemode = modeDict[mode]
+            while True:
+                try:
+&gt;                   self.fp = io.open(file, filemode)
+                              ^^^^^^^^^^^^^^^^^^^^^^^
+E                   FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_portable_validator_never_20/x'
+
+/opt/homebrew/Cellar/python@3.12/3.12.5/Frameworks/Python.framework/Versions/3.12/lib/python3.12/zipfile/__init__.py:1331: FileNotFoundError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_core_and_portable_agree_on_structure_profiles[xlsx_v1-PK\x03\x04\x14\x00\x00\x00\x00\x00\x1bk&quot;]h4\xeb\x91'\x00\x00\x00'\x00\x00\x00\x13\x00\x00\x00[Content_Types].xml&lt;?xml version=&quot;1.0&quot;?&gt;&lt;Types xmlns=&quot;x&quot;/&gt;PK\x03\x04\x14\x00\x00\x00\x00\x00\x1bk&quot;]\x1e\xaf_*\x0c\x00\x00\x00\x0c\x00\x00\x00\x18\x00\x00\x00xl/worksheets/sheet1.xml&lt;worksheet/&gt;PK\x01\x02\x14\x03\x14\x00\x00\x00\x00\x00\x1bk&quot;]h4\xeb\x91'\x00\x00\x00'\x00\x00\x00\x13\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x00\x00\x00[Content_Types].xmlPK\x01\x02\x14\x03\x14\x00\x00\x00\x00\x00\x1bk&quot;]\x1e\xaf_*\x0c\x00\x00\x00\x0c\x00\x00\x00\x18\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01X\x00\x00\x00xl/worksheets/sheet1.xmlPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00\x87\x00\x00\x00\x9a\x00\x00\x00\x00\x00-PK\x03\x04\x14\x00\x00\x00\x00\x00\x1bk&quot;]h4\xeb\x91'\x00\x00\x00'\x00\x00\x00\x13\x00\x00\x00[Content_Types].xml&lt;?xml version=&quot;1.0&quot;?&gt;&lt;Types xmlns=&quot;x&quot;/&gt;PK\x03\x04\x14\x00\x00\x00\x00\x00\x1bk&quot;]\x11\xda^U\x0b\x00\x00\x00\x0b\x00\x00\x00\x18\x00\x00\x00xl/worksheets/sheet1.xml&lt;worksheet&gt;PK\x01\x02\x14\x03\x14\x00\x00\x00\x00\x00\x1bk&quot;]h4\xeb\x91'\x00\x00\x00'\x00\x00\x00\x13\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x00\x00\x00[Content_Types].xmlPK\x01\x02\x14\x03\x14\x00\x00\x00\x00\x00\x1bk&quot;]\x11\xda^U\x0b\x00\x00\x00\x0b\x00\x00\x00\x18\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01X\x00\x00\x00xl/worksheets/sheet1.xmlPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00\x87\x00\x00\x00\x99\x00\x00\x00\x00\x00]" time="0.001"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode bytes in position 16-17: invalid continuation byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_core_and_portable_agree_o0')
+profile = 'xlsx_v1'
+good = b'PK\x03\x04\x14\x00\x00\x00\x00\x00\x1bk"]h4\xeb\x91\'\x00\x00\x00\'\x00\x00\x00\x13\x00\x00\x00[Content_Types].xml&lt;?...\x00\x00\x00xl/worksheets/sheet1.xmlPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00\x87\x00\x00\x00\x9a\x00\x00\x00\x00\x00'
+bad = b'PK\x03\x04\x14\x00\x00\x00\x00\x00\x1bk"]h4\xeb\x91\'\x00\x00\x00\'\x00\x00\x00\x13\x00\x00\x00[Content_Types].xml&lt;?...\x00\x00\x00xl/worksheets/sheet1.xmlPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00\x87\x00\x00\x00\x99\x00\x00\x00\x00\x00'
+
+    @pytest.mark.parametrize(("profile", "good", "bad"), _CASES)
+    def test_core_and_portable_agree_on_structure_profiles(tmp_path: Path, profile: str, good: bytes, bad: bytes) -&gt; None:
+        assert _core_verdict(tmp_path, profile, good) is None
+&gt;       assert _portable_verdict(tmp_path, profile, good) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_validator_parity.py:71: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_validator_parity.py:43: in _portable_verdict
+    runtime._validate(payload, profile, path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'PK\x03\x04\x14\x00\x00\x00\x00\x00\x1bk"]h4\xeb\x91\'\x00\x00\x00\'\x00\x00\x00\x13\x00\x00\x00[Content_Types].xml&lt;?...\x00\x00\x00xl/worksheets/sheet1.xmlPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00\x87\x00\x00\x00\x9a\x00\x00\x00\x00\x00'
+profile = 'xlsx_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_core_and_portable_agree_o0/artifact.bin')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode bytes in position 16-17: invalid continuation byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_core_and_portable_agree_on_structure_profiles[pptx_v1-PK\x03\x04\x14\x00\x00\x00\x00\x00\x1bk&quot;]h4\xeb\x91'\x00\x00\x00'\x00\x00\x00\x13\x00\x00\x00[Content_Types].xml&lt;?xml version=&quot;1.0&quot;?&gt;&lt;Types xmlns=&quot;x&quot;/&gt;PK\x03\x04\x14\x00\x00\x00\x00\x00\x1bk&quot;]\xeb\xf2[\x91\x06\x00\x00\x00\x06\x00\x00\x00\x15\x00\x00\x00ppt/slides/slide1.xml&lt;sld/&gt;PK\x01\x02\x14\x03\x14\x00\x00\x00\x00\x00\x1bk&quot;]h4\xeb\x91'\x00\x00\x00'\x00\x00\x00\x13\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01\x00\x00\x00\x00[Content_Types].xmlPK\x01\x02\x14\x03\x14\x00\x00\x00\x00\x00\x1bk&quot;]\xeb\xf2[\x91\x06\x00\x00\x00\x06\x00\x00\x00\x15\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x01X\x00\x00\x00ppt/slides/slide1.xmlPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00\x84\x00\x00\x00\x91\x00\x00\x00\x00\x00-PK\x03\x04not-a-zip]" time="0.001"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode bytes in position 16-17: invalid continuation byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_core_and_portable_agree_o1')
+profile = 'pptx_v1'
+good = b'PK\x03\x04\x14\x00\x00\x00\x00\x00\x1bk"]h4\xeb\x91\'\x00\x00\x00\'\x00\x00\x00\x13\x00\x00\x00[Content_Types].xml&lt;?...01X\x00\x00\x00ppt/slides/slide1.xmlPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00\x84\x00\x00\x00\x91\x00\x00\x00\x00\x00'
+bad = b'PK\x03\x04not-a-zip'
+
+    @pytest.mark.parametrize(("profile", "good", "bad"), _CASES)
+    def test_core_and_portable_agree_on_structure_profiles(tmp_path: Path, profile: str, good: bytes, bad: bytes) -&gt; None:
+        assert _core_verdict(tmp_path, profile, good) is None
+&gt;       assert _portable_verdict(tmp_path, profile, good) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_validator_parity.py:71: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_validator_parity.py:43: in _portable_verdict
+    runtime._validate(payload, profile, path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'PK\x03\x04\x14\x00\x00\x00\x00\x00\x1bk"]h4\xeb\x91\'\x00\x00\x00\'\x00\x00\x00\x13\x00\x00\x00[Content_Types].xml&lt;?...01X\x00\x00\x00ppt/slides/slide1.xmlPK\x05\x06\x00\x00\x00\x00\x02\x00\x02\x00\x84\x00\x00\x00\x91\x00\x00\x00\x00\x00'
+profile = 'pptx_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_core_and_portable_agree_o1/artifact.bin')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode bytes in position 16-17: invalid continuation byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_core_and_portable_agree_on_structure_profiles[png_v1-\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82-\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00]" time="0.001"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_core_and_portable_agree_o2')
+profile = 'png_v1'
+good = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+bad = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00'
+
+    @pytest.mark.parametrize(("profile", "good", "bad"), _CASES)
+    def test_core_and_portable_agree_on_structure_profiles(tmp_path: Path, profile: str, good: bytes, bad: bytes) -&gt; None:
+        assert _core_verdict(tmp_path, profile, good) is None
+&gt;       assert _portable_verdict(tmp_path, profile, good) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_validator_parity.py:71: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_validator_parity.py:43: in _portable_verdict
+    runtime._validate(payload, profile, path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc```\x00\x00\x00\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82'
+profile = 'png_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_core_and_portable_agree_o2/artifact.bin')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0x89 in position 0: invalid start byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_core_and_portable_agree_on_structure_profiles[ics_v1-BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nSUMMARY:x\r\n folded\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n-BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nEND:VCALENDAR\r\n]" time="0.001"><failure message="AssertionError: assert ('WORKSPACE_FORMAT_ICS_INVALID' is not None and None is not None)">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_core_and_portable_agree_o3')
+profile = 'ics_v1'
+good = b'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nSUMMARY:x\r\n folded\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n'
+bad = b'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nEND:VCALENDAR\r\n'
+
+    @pytest.mark.parametrize(("profile", "good", "bad"), _CASES)
+    def test_core_and_portable_agree_on_structure_profiles(tmp_path: Path, profile: str, good: bytes, bad: bytes) -&gt; None:
+        assert _core_verdict(tmp_path, profile, good) is None
+        assert _portable_verdict(tmp_path, profile, good) is None
+        core_bad = _core_verdict(tmp_path, profile, bad)
+        portable_bad = _portable_verdict(tmp_path, profile, bad)
+&gt;       assert core_bad is not None and portable_bad is not None
+E       AssertionError: assert ('WORKSPACE_FORMAT_ICS_INVALID' is not None and None is not None)
+
+tests/test_validator_parity.py:74: AssertionError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_core_and_portable_agree_on_structure_profiles[ipynb_v1-{&quot;nbformat&quot;: 4, &quot;nbformat_minor&quot;: 5, &quot;metadata&quot;: {}, &quot;cells&quot;: [{&quot;cell_type&quot;: &quot;code&quot;, &quot;source&quot;: &quot;1&quot;, &quot;metadata&quot;: {}, &quot;outputs&quot;: []}]}-{&quot;nbformat&quot;: 4, &quot;metadata&quot;: {}, &quot;cells&quot;: [{&quot;cell_type&quot;: &quot;code&quot;, &quot;source&quot;: &quot;1&quot;, &quot;metadata&quot;: {}}]}]" time="0.001"><failure message="AssertionError: assert ('WORKSPACE_FORMAT_IPYNB_INVALID' is not None and None is not None)">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_core_and_portable_agree_o4')
+profile = 'ipynb_v1'
+good = b'{"nbformat": 4, "nbformat_minor": 5, "metadata": {}, "cells": [{"cell_type": "code", "source": "1", "metadata": {}, "outputs": []}]}'
+bad = b'{"nbformat": 4, "metadata": {}, "cells": [{"cell_type": "code", "source": "1", "metadata": {}}]}'
+
+    @pytest.mark.parametrize(("profile", "good", "bad"), _CASES)
+    def test_core_and_portable_agree_on_structure_profiles(tmp_path: Path, profile: str, good: bytes, bad: bytes) -&gt; None:
+        assert _core_verdict(tmp_path, profile, good) is None
+        assert _portable_verdict(tmp_path, profile, good) is None
+        core_bad = _core_verdict(tmp_path, profile, bad)
+        portable_bad = _portable_verdict(tmp_path, profile, bad)
+&gt;       assert core_bad is not None and portable_bad is not None
+E       AssertionError: assert ('WORKSPACE_FORMAT_IPYNB_INVALID' is not None and None is not None)
+
+tests/test_validator_parity.py:74: AssertionError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_core_and_portable_agree_on_structure_profiles[mo_v1-\xde\x12\x04\x95\x00\x00\x00\x00\x02\x00\x00\x00\x1c\x00\x00\x00,\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00-\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00]" time="0.001"><failure message="UnicodeDecodeError: 'utf-8' codec can't decode byte 0xde in position 0: invalid continuation byte">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_core_and_portable_agree_o5')
+profile = 'mo_v1'
+good = b'\xde\x12\x04\x95\x00\x00\x00\x00\x02\x00\x00\x00\x1c\x00\x00\x00,\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+bad = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+
+    @pytest.mark.parametrize(("profile", "good", "bad"), _CASES)
+    def test_core_and_portable_agree_on_structure_profiles(tmp_path: Path, profile: str, good: bytes, bad: bytes) -&gt; None:
+        assert _core_verdict(tmp_path, profile, good) is None
+&gt;       assert _portable_verdict(tmp_path, profile, good) is None
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_validator_parity.py:71: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_validator_parity.py:43: in _portable_verdict
+    runtime._validate(payload, profile, path)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+payload = b'\xde\x12\x04\x95\x00\x00\x00\x00\x02\x00\x00\x00\x1c\x00\x00\x00,\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+profile = 'mo_v1'
+path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_core_and_portable_agree_o5/artifact.bin')
+
+    def _validate(payload: bytes, profile: str, path: Path) -&gt; None:
+        if profile in {"binary_v1", "wheel_v1", "zip_v1"}:
+            if not payload:
+                raise WorkspaceRuntimeError("WORKSPACE_EMPTY_BINARY", str(path))
+        if profile in {"zip_v1", "wheel_v1"}:
+            with zipfile.ZipFile(path) as archive:
+                if archive.testzip() is not None:
+                    raise WorkspaceRuntimeError("WORKSPACE_ZIP_INVALID", str(path))
+            return
+        if profile == "sqlite_v1":
+            connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+            try:
+                if connection.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise WorkspaceRuntimeError("WORKSPACE_SQLITE_INVALID", str(path))
+            finally:
+                connection.close()
+            return
+        if profile == "binary_v1":
+            return
+&gt;       text = payload.decode("utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^
+E       UnicodeDecodeError: 'utf-8' codec can't decode byte 0xde in position 0: invalid continuation byte
+
+src/repoproof/adoption/delivery/portable_workspace_runtime.py:218: UnicodeDecodeError</failure></testcase><testcase classname="tests.test_validator_parity" name="test_unknown_profile_is_rejected_by_both_rulers" time="0.001"><failure message="Failed: DID NOT RAISE WorkspaceRuntimeError">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-126/test_unknown_profile_is_reject0')
+
+    def test_unknown_profile_is_rejected_by_both_rulers(tmp_path: Path) -&gt; None:
+        payload = b"hello\n"
+        path = tmp_path / "artifact.bin"
+        path.write_bytes(payload)
+&gt;       with pytest.raises(runtime.WorkspaceRuntimeError) as caught:
+E       Failed: DID NOT RAISE WorkspaceRuntimeError
+
+tests/test_validator_parity.py:82: Failed</failure></testcase></testsuite></testsuites>

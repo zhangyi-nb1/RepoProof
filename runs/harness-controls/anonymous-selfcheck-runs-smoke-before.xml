@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="4" time="0.199" timestamp="2026-09-03T05:29:46.631274+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.ui.test_selfcheck_runs_smoke" name="test_runnable_contract_smoke_failure_is_projected_with_evidence" time="0.006"><failure message="AttributeError: &lt;module 'repoproof.ui.services.product_jobs' from '/Users/zhangronglei/Desktop/XIANGMU/RepoProof/src/repoproof/ui/services/product_jobs.py'&gt; has no attribute '_smoke_reference_workspace'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-221/test_runnable_contract_smoke_f0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10b8bf2c0&gt;
+
+    def test_runnable_contract_smoke_failure_is_projected_with_evidence(tmp_path: Path, monkeypatch) -&gt; None:
+        draft, _runs = _probe._prepare(tmp_path, monkeypatch, drift=False)
+        _make_runnable(draft)
+        smoke = _FailingSmoke()
+&gt;       monkeypatch.setattr(product_jobs, "_smoke_reference_workspace", smoke)
+E       AttributeError: &lt;module 'repoproof.ui.services.product_jobs' from '/Users/zhangronglei/Desktop/XIANGMU/RepoProof/src/repoproof/ui/services/product_jobs.py'&gt; has no attribute '_smoke_reference_workspace'
+
+tests/ui/test_selfcheck_runs_smoke.py:69: AttributeError</failure></testcase><testcase classname="tests.ui.test_selfcheck_runs_smoke" name="test_non_runnable_contract_never_runs_smoke" time="0.002"><failure message="AttributeError: &lt;module 'repoproof.ui.services.product_jobs' from '/Users/zhangronglei/Desktop/XIANGMU/RepoProof/src/repoproof/ui/services/product_jobs.py'&gt; has no attribute '_smoke_reference_workspace'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-221/test_non_runnable_contract_nev0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10b891130&gt;
+
+    def test_non_runnable_contract_never_runs_smoke(tmp_path: Path, monkeypatch) -&gt; None:
+        draft, _runs = _probe._prepare(tmp_path, monkeypatch, drift=False)
+        smoke = _FailingSmoke()
+&gt;       monkeypatch.setattr(product_jobs, "_smoke_reference_workspace", smoke)
+E       AttributeError: &lt;module 'repoproof.ui.services.product_jobs' from '/Users/zhangronglei/Desktop/XIANGMU/RepoProof/src/repoproof/ui/services/product_jobs.py'&gt; has no attribute '_smoke_reference_workspace'
+
+tests/ui/test_selfcheck_runs_smoke.py:83: AttributeError</failure></testcase><testcase classname="tests.ui.test_selfcheck_runs_smoke" name="test_smoke_failure_routes_to_reference_then_contract" time="0.000"><failure message="AssertionError: assert None == 'reference'&#10; +  where None = repair_target_for('WORKSPACE_REFERENCE_SMOKE_FAILED', round_index=1)">def test_smoke_failure_routes_to_reference_then_contract() -&gt; None:
+&gt;       assert repair_target_for("WORKSPACE_REFERENCE_SMOKE_FAILED", round_index=1) == "reference"
+E       AssertionError: assert None == 'reference'
+E        +  where None = repair_target_for('WORKSPACE_REFERENCE_SMOKE_FAILED', round_index=1)
+
+tests/ui/test_selfcheck_runs_smoke.py:90: AssertionError</failure></testcase><testcase classname="tests.ui.test_selfcheck_runs_smoke" name="test_smoke_runner_hands_a_bounded_stderr_excerpt_to_the_sink_only" time="0.001"><failure message="TypeError: run_workspace_smoke() got an unexpected keyword argument 'stderr_sink'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-221/test_smoke_runner_hands_a_boun0')
+
+    def test_smoke_runner_hands_a_bounded_stderr_excerpt_to_the_sink_only(tmp_path: Path) -&gt; None:
+        root = tmp_path / "ws"
+        root.mkdir()
+        (root / "README.md").write_text("# x\n", encoding="utf-8")
+        launcher = root / "run.sh"
+        launcher.write_text("#!/bin/sh\necho 'boom: spec.json missing' &gt;&amp;2\nexit 3\n", encoding="utf-8")
+        launcher.chmod(launcher.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        contract = WorkspaceArtifactContractV1.model_validate(
+            {
+                "schema_version": 1,
+                "rules": [
+                    {"path_pattern": "README.md", "role": "docs", "media_type": "text/markdown", "validation_profile": "text_utf8_v1"},
+                    {"path_pattern": "run.sh", "role": "launcher", "media_type": "text/x-shellscript", "validation_profile": "shell_v1", "executable": True},
+                ],
+                "allow_extra_files": False,
+                "entrypoints": ["run.sh"],
+                "runnable": True,
+                "smoke_command": ["./run.sh"],
+                "smoke_timeout_seconds": 10,
+                "require_offline_wheelhouse": False,
+                "limits": {"max_files": 10, "max_total_bytes": 4096, "max_file_bytes": 2048, "max_depth": 3, "max_path_bytes": 120},
+            }
+        )
+        captured: list[str] = []
+&gt;       evidence = run_workspace_smoke(root, contract, isolation_required=False, stderr_sink=captured.append)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: run_workspace_smoke() got an unexpected keyword argument 'stderr_sink'
+
+tests/ui/test_selfcheck_runs_smoke.py:118: TypeError</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,23 @@
+{
+  "affected_component": "workspace_bundle.validate_workspace details (+_validate_html resource detail) → product_jobs REFERENCE_CONTRACT_FAILED diagnostics, preflight CONTRACT_MISMATCH detail, CONTRACT_FAILED/SMOKE_STRUCTURE_INVALID diagnostics",
+  "after_control_sha256": "506950252049b2370ab0c57a4a2d73a6e832d9ffb1228155c786edf8920ce119",
+  "anonymous_fixture_id": "anonymous-structural-validation-details",
+  "before_control_sha256": "f63899e60b76a4bf12af42d146f3424be590460e4e205f667d3b55fcf4eb5622",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-03T05:58:15+08:00",
+  "evidence_id": "harness-change-structural-validation-path-details-v1",
+  "incident_ids": [
+    "incident-structural-codes-without-path-detail-mkdocs-v1",
+    "incident-structural-codes-without-path-detail-xlsx-v1",
+    "incident-structural-codes-without-path-detail-icalendar-v1"
+  ],
+  "invariant": "Every structural reason code returned by validate_workspace carries one public detail row naming the path it concerns and the rules or resource involved (RULE_OVERLAP: path + both patterns; EXTRA_FILE_FORBIDDEN: the extra paths; REQUIRED_ENTRY_MISSING/CARDINALITY: the pattern and counts; ENTRYPOINT/EXECUTABLE: the path; format failures: path + profile + parser detail such as the external URL). Candidate generation forwards those rows as the diagnostics of WORKSPACE_REFERENCE_CONTRACT_FAILED so a contract or reference repair can act on the exact path instead of re-reading the whole contract; a clean workspace has no rows. No candidate bytes or answer content appear in a row, only paths, patterns and parser-level facts.",
+  "normalized_fingerprint": "3faa5b5501f81d46",
+  "regression_tests": [
+    "tests/test_structural_validation_details.py::test_overlap_extra_and_external_resource_are_named_by_path",
+    "tests/test_structural_validation_details.py::test_missing_required_entry_names_the_pattern",
+    "tests/test_structural_validation_details.py::test_clean_workspace_has_no_details"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

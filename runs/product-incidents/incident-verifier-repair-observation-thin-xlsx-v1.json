@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observation_given": "paths, sizes, first text line only",
+    "rounds": "disagreement x4: INVALID_*_ENCODING codes shrink 4→2→1→1 across verifier, verifier, reference repairs; bound reached",
+    "what_the_judge_needed": "the sidecar JSON/CSV payloads whose value encoding it judges"
+  },
+  "created_at": "2026-09-02T12:54:31+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "32e99a254a3dbc1dc2662e8ee550ad9583f4fd93a9c781b2a32315bfc74f277b",
+  "incident_id": "incident-verifier-repair-observation-thin-xlsx-v1",
+  "normalized_fingerprint": "beb207f06d928c59",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "de7a251efbbc0bdecbb20fc97a43a3542f2e9752fb1fd56eb0843c447c89d44a",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::verifier-repair"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+    "VERIFIER_REPAIR_OBSERVATION_INSUFFICIENT"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "manifest_hash_present": 0,
+    "structure_passed": "NO_OR_UNMEASURED",
+    "tree_hash_present": 0
+  },
+  "created_at": "2026-09-01T16:23:49.078094Z",
+  "disposition": "RETRY_INFRASTRUCTURE",
+  "framework_git_commit": "7db6e65e641bb72a0112d62760eff1e0d32d82a6",
+  "framework_tree_sha256": "f5e97ca67ef854d0f18c3ef7b24114bb1665719dba21f3962149c981c6b3274a",
+  "incident_id": "incident-action-8d99b8acb9af177b1c02e219",
+  "normalized_fingerprint": "7217f502846e0c2b",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "STOP_HARNESS_OR_EXTERNAL",
+    "UPSTREAM_CONFORMANCE_ENVIRONMENT"
+  ],
+  "reason_codes": [
+    "STOP_HARNESS_OR_EXTERNAL",
+    "UPSTREAM_CONFORMANCE_ENVIRONMENT"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-research-project-starter-v2"
+}

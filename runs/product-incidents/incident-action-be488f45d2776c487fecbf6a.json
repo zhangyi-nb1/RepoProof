@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "manifest_hash_present": 0,
+    "structure_passed": "NO_OR_UNMEASURED",
+    "tree_hash_present": 0
+  },
+  "created_at": "2026-08-31T17:08:06.753979Z",
+  "disposition": "RETRY_INFRASTRUCTURE",
+  "framework_git_commit": "356114b600d3fba91b812d31f65e385a4d15c6c2",
+  "framework_tree_sha256": "6e1da904a5f2ec1372b4aefc6cd9d9959aa082003cddf2741dd192168138193b",
+  "incident_id": "incident-action-be488f45d2776c487fecbf6a",
+  "normalized_fingerprint": "c1151ad069512055",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "ANSWER_KEY_REACHABLE",
+    "STOP_HARNESS_OR_EXTERNAL"
+  ],
+  "reason_codes": [
+    "ANSWER_KEY_REACHABLE",
+    "STOP_HARNESS_OR_EXTERNAL"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "PREFLIGHT_UPSTREAM",
+  "task_version": "tool-networkx-tool-v3"
+}

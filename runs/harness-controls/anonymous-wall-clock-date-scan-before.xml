@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.194" timestamp="2026-09-03T13:04:06.355540+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.ui.test_reference_wall_clock_date_scan" name="test_findings_name_todays_date_in_generated_text_only" time="0.003"><failure message="AttributeError: module 'repoproof.ui.services.product_jobs' has no attribute '_wall_clock_date_findings'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-348/test_findings_name_todays_date0')
+
+    def test_findings_name_todays_date_in_generated_text_only(tmp_path: Path) -&gt; None:
+        inputs = tmp_path / "input"
+        inputs.mkdir()
+        (inputs / "rows.csv").write_text("date,cost\n2024-07-02,1\n", encoding="utf-8")
+        generated = _tree(tmp_path / "out", stamp=_TODAY)
+&gt;       rows = product_jobs._wall_clock_date_findings(generated, input_root=inputs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'repoproof.ui.services.product_jobs' has no attribute '_wall_clock_date_findings'
+
+tests/ui/test_reference_wall_clock_date_scan.py:42: AttributeError</failure></testcase><testcase classname="tests.ui.test_reference_wall_clock_date_scan" name="test_probe_rejects_a_reproducible_tree_that_embeds_today" time="0.001"><failure message="TypeError: _assert_reference_reproducible() got an unexpected keyword argument 'input_root'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-348/test_probe_rejects_a_reproduci0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10c275b80&gt;
+
+    def test_probe_rejects_a_reproducible_tree_that_embeds_today(tmp_path: Path, monkeypatch) -&gt; None:
+        class _Contract:
+            limits = None
+    
+        expected = _tree(tmp_path / "expected", stamp=_TODAY)
+        inputs = tmp_path / "input"
+        inputs.mkdir()
+        (inputs / "rows.csv").write_text("date,cost\n2024-07-02,1\n", encoding="utf-8")
+        monkeypatch.setattr(product_jobs, "_REPRODUCIBILITY_GAP_SECONDS", 0)
+    
+        def rerun(target: Path) -&gt; None:
+            _tree(target, stamp=_TODAY)  # byte-identical rerun: the 2-second probe alone is blind
+    
+        with pytest.raises(WorkspaceBundleError) as caught:
+&gt;           product_jobs._assert_reference_reproducible(
+                expected_dir=expected, rerun_dir=tmp_path / "rerun", contract=_Contract(), rerun=rerun, input_root=inputs
+            )
+E           TypeError: _assert_reference_reproducible() got an unexpected keyword argument 'input_root'
+
+tests/ui/test_reference_wall_clock_date_scan.py:64: TypeError</failure></testcase></testsuite></testsuites>

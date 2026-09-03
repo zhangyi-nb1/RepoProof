@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.131" timestamp="2026-09-03T06:52:46.957117+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_import_hook_preserves_callable_attributes" name="test_lru_cache_attributes_survive_the_receipt_wrapper" time="0.037"><failure message="AssertionError: Traceback (most recent call last):&#10;    File &quot;/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-246/test_lru_cache_attributes_surv0/child.py&quot;, line 2, in &lt;module&gt;&#10;      assert cachedup.reset_and_count() == 1, cachedup.reset_and_count()&#10;             ^^^^^^^^^^^^^^^^^^^^^^^^^^&#10;    File &quot;/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-246/test_lru_cache_attributes_surv0/hook/sitecustomize.py&quot;, line 104, in _proxy&#10;      return fn(*a, **kw)&#10;             ^^^^^^^^^^^^&#10;    File &quot;/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-246/test_lru_cache_attributes_surv0/up/cachedup.py&quot;, line 10, in reset_and_count&#10;      get_themes.cache_clear()&#10;      ^^^^^^^^^^^^^^^^^^^^^^&#10;  AttributeError: 'function' object has no attribute 'cache_clear'&#10;  &#10;assert 1 == 0&#10; +  where 1 = CompletedProcess(args=['/Users/zhangronglei/Desktop/XIANGMU/RepoProof/.venv/bin/python3.12', '/private/var/folders/y4/...mes.cache_clear()\n    ^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: \'function\' object has no attribute \'cache_clear\'\n').returncode">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-246/test_lru_cache_attributes_surv0')
+
+    def test_lru_cache_attributes_survive_the_receipt_wrapper(tmp_path: Path) -&gt; None:
+        run, ledger = _run(
+            tmp_path,
+            "import cachedup\n"
+            "assert cachedup.reset_and_count() == 1, cachedup.reset_and_count()\n"
+            "assert cachedup.get_themes.cache_info().currsize == 1\n"
+            "assert cachedup.get_themes.__wrapped__() == {'a': 1}\n",
+        )
+&gt;       assert run.returncode == 0, run.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-246/test_lru_cache_attributes_surv0/child.py", line 2, in &lt;module&gt;
+E             assert cachedup.reset_and_count() == 1, cachedup.reset_and_count()
+E                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           File "/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-246/test_lru_cache_attributes_surv0/hook/sitecustomize.py", line 104, in _proxy
+E             return fn(*a, **kw)
+E                    ^^^^^^^^^^^^
+E           File "/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-246/test_lru_cache_attributes_surv0/up/cachedup.py", line 10, in reset_and_count
+E             get_themes.cache_clear()
+E             ^^^^^^^^^^^^^^^^^^^^^^
+E         AttributeError: 'function' object has no attribute 'cache_clear'
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/zhangronglei/Desktop/XIANGMU/RepoProof/.venv/bin/python3.12', '/private/var/folders/y4/...mes.cache_clear()\n    ^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: \'function\' object has no attribute \'cache_clear\'\n').returncode
+
+tests/test_import_hook_preserves_callable_attributes.py:65: AssertionError</failure></testcase><testcase classname="tests.test_import_hook_preserves_callable_attributes" name="test_counterfactual_proxy_keeps_attributes_reachable" time="0.053"><failure message="TypeError: dict() got multiple values for keyword argument 'REPOPROOF_HOOK_MODULE'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-246/test_counterfactual_proxy_keep0')
+
+    def test_counterfactual_proxy_keeps_attributes_reachable(tmp_path: Path) -&gt; None:
+        from repoproof.verification import semantic_artifact
+    
+        hook_src = tmp_path / "repoproof_counterfactual_hook.py"
+        hook_src.write_text(semantic_artifact._COUNTERFACTUAL_HOOK, encoding="utf-8")
+&gt;       run, _ = _run(
+            tmp_path,
+            "import sys\n"
+            f"sys.path.insert(0, {str(tmp_path)!r})\n"
+            "import repoproof_counterfactual_hook as h\n"
+            "h.install()\n"
+            "import cachedup\n"
+            "cachedup.get_themes.cache_clear()\n"  # upstream-internal housekeeping must not crash the control
+            "result = cachedup.get_themes()\n"
+            "assert repr(result) == '&lt;controlled-upstream-result&gt;', repr(result)\n",
+            extra_env={"REPOPROOF_HOOK_MODULE": "cachedup"},
+        )
+
+tests/test_import_hook_preserves_callable_attributes.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-246/test_counterfactual_proxy_keep0')
+body = "import sys\nsys.path.insert(0, '/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytes...s.cache_clear()\nresult = cachedup.get_themes()\nassert repr(result) == '&lt;controlled-upstream-result&gt;', repr(result)\n"
+extra_env = {'REPOPROOF_HOOK_MODULE': 'cachedup'}
+
+    def _run(tmp: Path, body: str, *, extra_env: dict[str, str] | None = None) -&gt; tuple[subprocess.CompletedProcess, Path]:
+        up = tmp / "up"
+        up.mkdir(exist_ok=True)
+        (up / "cachedup.py").write_text(_CACHED_UP, encoding="utf-8")
+        hook = write_hook_dir(tmp / "hook")
+        ledger = tmp / "ledger.jsonl"
+        script = tmp / "child.py"
+        script.write_text(body, encoding="utf-8")
+&gt;       env = dict(
+            os.environ,
+            PYTHONPATH=f"{hook}{os.pathsep}{up}",
+            **{ENV_MODULE: "cachedup", ENV_LEDGER: str(ledger), ENV_SECRET: "s3cr3t"},
+            **(extra_env or {}),
+        )
+E       TypeError: dict() got multiple values for keyword argument 'REPOPROOF_HOOK_MODULE'
+
+tests/test_import_hook_preserves_callable_attributes.py:47: TypeError</failure></testcase></testsuite></testsuites>
