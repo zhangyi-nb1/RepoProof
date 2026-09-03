@@ -7215,6 +7215,7 @@ def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repai
 
     from repoproof.adoption.intake.draft_selfcheck import (
         MAX_TOTAL_REPAIR_ROUNDS,
+        REPAIR_BUDGET_EXHAUSTED,
         repair_target_for,
     )
 
@@ -7242,6 +7243,17 @@ def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repai
             check.diagnostics[0] if check.diagnostics else "",
         )
         if check.check_ok or not repair or stall_repairs >= bound or repairs_done >= hard_cap:
+            if not check.check_ok and repair and repairs_done >= hard_cap:
+                # The backstop, not the evidence, ended this one.  Say so: a
+                # truncated-while-converging round otherwise looks exactly like
+                # a round whose failure had no repair route at all
+                # (incident-selfcheck-hard-cap-stops-progress-*).
+                check = check.model_copy(
+                    update={
+                        "diagnostics": tuple(check.diagnostics)
+                        + (f"{REPAIR_BUDGET_EXHAUSTED}: {repairs_done} 次修复后到达绝对上限",)
+                    }
+                )
             rounds.append(check)
             break
         if signature in seen_signatures:

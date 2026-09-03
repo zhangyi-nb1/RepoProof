@@ -39,7 +39,21 @@ MAX_REPAIR_ROUNDS = 3
 # The stall budget above is spent only by repairs that face a failure already
 # seen; a repair facing a brand-new failure is progress and is free — up to this
 # hard cap on repairs in one self-check (incident-selfcheck-bound-monotone-progress-*).
-MAX_TOTAL_REPAIR_ROUNDS = 6
+#
+# The cap is a backstop against an unbounded loop, not the judge of whether a
+# draft is converging: that judgement belongs to the stall budget, which reads
+# the evidence.  At 6 the backstop was deciding outcomes — three repositories
+# retired six *distinct* defect signatures each, spent not one unit of stall
+# budget, and were cut off mid-convergence
+# (incident-selfcheck-hard-cap-stops-progress-*).  A runnable workspace has four
+# control files and routinely surfaces more independent defects than a
+# single-file task, so the backstop sits well above that count; a draft that
+# genuinely cannot converge is still ended by the stall budget after four
+# sightings of one signature.
+MAX_TOTAL_REPAIR_ROUNDS = 12
+# Marker appended to the round the backstop truncated, so "still converging,
+# budget spent" is never read as "this failure has nowhere to be repaired".
+REPAIR_BUDGET_EXHAUSTED = "SELF_CHECK_REPAIR_BUDGET_EXHAUSTED"
 
 RepairTarget = Literal["builder", "reference", "verifier", "contract"]
 RepairOutcome = Literal["APPLIED", "NO_PROGRESS", "ROLLED_BACK", "UNAVAILABLE"]
