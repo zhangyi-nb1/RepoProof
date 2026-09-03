@@ -15,6 +15,7 @@ Harness responsibilities.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import os
@@ -242,7 +243,7 @@ try:
     if not callable(verify):
         raise TypeError("verifier must export verify(input_path, artifact_path)")
     result = verify(Path(input_path), Path(artifact_path))
-    if not isinstance(result, dict) or set(result) != {
+    if not isinstance(result, dict) or set(result) - {"reason_details"} != {
         "ok", "reason_codes", "checked_commitment_ids"
     } or not isinstance(result.get("ok"), bool):
         raise TypeError("verifier result must be an object with boolean ok")
@@ -252,10 +253,17 @@ try:
     checked = result.get("checked_commitment_ids") or []
     if not isinstance(checked, list) or not all(isinstance(item, str) for item in checked):
         raise TypeError("checked_commitment_ids must be a string list")
+    details = result.get("reason_details") or {}
+    if not isinstance(details, dict):
+        raise TypeError("reason_details must be an object")
     print(json.dumps({
         "ok": result["ok"],
         "reason_codes": reasons,
         "checked_commitment_ids": checked,
+        "reason_details": {
+            str(key): str(value)[:200] for key, value in details.items()
+            if isinstance(key, str) and isinstance(value, str)
+        },
     }))
 except BaseException as exc:
     print(json.dumps({"fatal_type": type(exc).__name__}))
@@ -360,6 +368,17 @@ def install():
                     _proxy.__module__ = owner
                 except (AttributeError, TypeError):
                     pass
+                # Keep the wrapped object's own attributes (lru_cache's
+                # cache_clear, singledispatch's register, ...) reachable: the
+                # control must fail because results are controlled, never
+                # because the upstream's housekeeping crashed on the proxy.
+                for attr in dir(fn):
+                    if attr.startswith("__") or hasattr(_proxy, attr):
+                        continue
+                    try:
+                        setattr(_proxy, attr, getattr(fn, attr))
+                    except (AttributeError, TypeError):
+                        continue
                 return _proxy
 
             try:
@@ -410,6 +429,26 @@ class _VerifierRun:
     upstream_imports: int
     upstream_calls: int
     receipts_ok: bool
+    # Optional public one-line explanation per reported reason code (<=200 chars),
+    # authored by the verifier itself; never a mechanism fact, never required.
+    reason_details: dict[str, str] = dataclasses.field(default_factory=dict)
+
+
+_REASON_DETAIL_CHARS = 200
+
+
+def public_reason_details(raw: object, reason_codes: tuple[str, ...]) -> dict[str, str]:
+    """Keep only explanations for reported codes; bounded, printable, single-line."""
+
+    if not isinstance(raw, dict):
+        return {}
+    kept: dict[str, str] = {}
+    for code in reason_codes:
+        value = raw.get(code)
+        if not isinstance(value, str) or not value.strip():
+            continue
+        kept[code] = " ".join(value.split())[:_REASON_DETAIL_CHARS]
+    return kept
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -640,6 +679,7 @@ def _execute_snapshot(
         upstream_imports=int(receipts["imports"]),
         upstream_calls=int(receipts["calls"]),
         receipts_ok=bool(receipts["ok"]),
+        reason_details=public_reason_details(result.get("reason_details") if protocol_ok else None, reasons),
     )
 
 

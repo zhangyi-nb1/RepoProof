@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -48,8 +49,98 @@ build = getattr(module, "build", None)
 if not callable(build):
     raise TypeError("fixture builder must export build(blueprint, output_path)")
 blueprint = json.loads(blueprint_json)
-build(blueprint, Path(output_path))
+try:
+    build(blueprint, Path(output_path))
+except Exception as exc:
+    # Mirror the reference runner: the builder is the model's own draft, so its
+    # message and in-source frames are repair evidence, not answer keys
+    # (incident-builder-failure-diagnostics-opaque-*).  Raw tracebacks and
+    # parameters still never leave the child.
+    import traceback
+    frames = []
+    innermost = None
+    for frame in traceback.extract_tb(exc.__traceback__):
+        innermost = {"file": Path(frame.filename).name, "line": int(frame.lineno or 0), "name": frame.name}
+        if frame.filename == source:
+            frames.append({"line": int(frame.lineno or 0), "name": frame.name})
+    print(
+        "REPOPROOF_FIXTURE_BUILDER_FAILURE="
+        + json.dumps(
+            {
+                "exception_type": type(exc).__name__,
+                "exception_message": " ".join(str(exc).split())[:240],
+                "builder_frames": frames[-6:],
+                "innermost_frame": innermost,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        file=sys.stderr,
+    )
+    raise SystemExit(90) from None
 '''
+
+_BUILDER_FAILURE_MARKER = "REPOPROOF_FIXTURE_BUILDER_FAILURE="
+_EXCEPTION_CLASS_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+_PUBLIC_BUILDER_FRAME_NAME_RE = re.compile(r"[A-Za-z_<][A-Za-z0-9_>]{0,79}")
+_PUBLIC_BUILDER_FILE_NAME_RE = re.compile(r"[A-Za-z0-9_.-]{1,120}")
+
+
+def _builder_failure_public_class(stderr: str, *, private_root: str = "") -> str:
+    """One public line: ``Type: message @ fixture_builder.py:line fn (innermost ...)``.
+
+    The builder is the model's own draft; its message and in-source frames are
+    repair evidence, not answer keys.  Everything is bounded, the private temp
+    root is masked, and a missing or malformed marker still projects to "".
+    """
+
+    for line in reversed(stderr.splitlines()):
+        line = line.strip()
+        if not line.startswith(_BUILDER_FAILURE_MARKER):
+            continue
+        try:
+            payload = json.loads(line[len(_BUILDER_FAILURE_MARKER):]) or {}
+        except ValueError:
+            return ""
+        name = str(payload.get("exception_type") or "")
+        if _EXCEPTION_CLASS_RE.fullmatch(name) is None:
+            return ""
+        message = " ".join(str(payload.get("exception_message") or "").split())
+        if private_root:
+            message = message.replace(private_root, "<builder-root>")
+        message = message[:240]
+        frames: list[str] = []
+        for frame in reversed(list(payload.get("builder_frames") or [])[-6:]):
+            if not isinstance(frame, dict):
+                continue
+            frame_name = str(frame.get("name") or "")
+            frame_line = frame.get("line")
+            if (
+                not isinstance(frame_line, int)
+                or frame_line <= 0
+                or _PUBLIC_BUILDER_FRAME_NAME_RE.fullmatch(frame_name) is None
+            ):
+                continue
+            frames.append(f"fixture_builder.py:{frame_line} {frame_name}")
+        suffix = ""
+        innermost = payload.get("innermost_frame")
+        if isinstance(innermost, dict):
+            file_name = str(innermost.get("file") or "")
+            inner_name = str(innermost.get("name") or "")
+            inner_line = innermost.get("line")
+            if (
+                file_name != "fixture_builder.py"
+                and isinstance(inner_line, int)
+                and inner_line > 0
+                and _PUBLIC_BUILDER_FILE_NAME_RE.fullmatch(file_name) is not None
+                and _PUBLIC_BUILDER_FRAME_NAME_RE.fullmatch(inner_name) is not None
+            ):
+                suffix = f" (innermost {file_name}:{inner_line} {inner_name})"
+        head = f"{name}: {message}" if message else name
+        return head + (" @ " + "; ".join(frames) if frames else "") + suffix
+    return ""
 
 
 class FixtureBlueprintV1(BaseModel):
@@ -126,6 +217,7 @@ class FixtureBuilderError(RuntimeError):
     def __init__(self, code: str, detail: str = "") -> None:
         super().__init__(f"{code}: {detail}" if detail else code)
         self.code = code
+        self.detail = detail
 
 
 _PATH_VALUE_FIELDS = frozenset(
@@ -414,7 +506,8 @@ def build_fixture_candidate(
             raise FixtureBuilderError("FIXTURE_BUILDER_EXECUTION_FAILED") from exc
         if process.returncode != 0:
             raise FixtureBuilderError(
-                "FIXTURE_BUILDER_FAILED", type(process).__name__
+                "FIXTURE_BUILDER_FAILED",
+                _builder_failure_public_class(process.stderr or "", private_root=str(root)),
             )
         try:
             identity = snapshot_admitted_path(generated, destination)

@@ -1112,7 +1112,10 @@ def tool_build(
             import_module=str(sr["import_module"]),
         )
     )
-    selected = select_upstream_test_nodes(up, symbols)
+    # A wider ranked list than the final subset: the execution probe below
+    # needs alternatives when a top candidate turns out not to run.
+    candidate_nodes = select_upstream_test_nodes(up, symbols, max_nodes=8)
+    selected = candidate_nodes[:3]
     stages["conformance_selected"] = selected
     selection_basis = {
         "schema_version": 1,
@@ -1159,6 +1162,20 @@ def tool_build(
         tmp_task = Path(project_root) / "tool_tasks"
         tmp_task.mkdir(exist_ok=True)
         conf_py = _build_preflight_venv(tmp_task / f"_{task_id}_pf", pins)
+        # Execute the ranked candidates once before freezing anything: a node
+        # that needs a test-only package the pinned runtime lacks is dropped
+        # here, with the missing module named, instead of blocking rehearsal.
+        from repoproof.adoption.intake.upstream_conformance import probe_runnable_nodes
+
+        probed, dropped = probe_runnable_nodes(up, candidate_nodes, conf_py, max_nodes=3)
+        selection_basis["probe"] = {
+            "candidates": list(candidate_nodes),
+            "kept": list(probed),
+            "dropped": dropped,
+        }
+        selected = probed
+        stages["conformance_selected"] = selected
+        conf_record = {"selected": selected, "status": "SKIPPED", "selection_basis": selection_basis}
         try:
             conf_record = precheck_upstream_conformance(
                 up,

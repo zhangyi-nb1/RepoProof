@@ -268,6 +268,37 @@ def main(argv: list[str] | None = None) -> int:
         help="只读计算当前草稿的 Core 冻结 readiness；不修改、不冻结、不调用模型",
     )
     pt_readiness.add_argument("--draft-dir", type=Path, required=True)
+    pt_selfcheck = tsub.add_parser(
+        "self-check",
+        help=(
+            "起草自检自修:用冻结 builder/reference/verifier 互相物化并探针 verifier "
+            "判别力;失败按站位有界自动修复(最多两轮),报告绑定控制件指纹"
+        ),
+    )
+    pt_selfcheck.add_argument("--draft-dir", type=Path, required=True)
+    pt_selfcheck.add_argument("--no-repair", action="store_true",
+                              help="只自检不修复(零模型调用)")
+    pt_selfcheck.add_argument("--max-repair-rounds", type=int, default=None)
+    pt_auto = tsub.add_parser(
+        "autopilot",
+        help=(
+            "仓库地址 + 一句话 → 自动走完 起草自检 / 样例与意图机器确认 / "
+            "wheelhouse 冻结 / 彩排 / 真发 / fresh audit → ACTIVE"
+        ),
+    )
+    pt_auto.add_argument("--repo", default=None)
+    pt_auto.add_argument("--capability", default=None)
+    pt_auto.add_argument("--revision", default=None)
+    pt_auto.add_argument("--dest-root", type=Path, default=Path("~/tools").expanduser())
+    pt_auto.add_argument("--until", default="final",
+                         choices=["draft", "confirm_examples", "confirm_intent", "freeze_wheelhouse",
+                                  "rehearsal", "real_build", "fresh_audit", "final"])
+    pt_auto.add_argument("--expect-admission-rejection", action="store_true")
+    pt_auto.add_argument("--batch", default="EXPLORATORY_UNPREREGISTERED")
+    pt_auto.add_argument("--agent-backend", choices=["codex-cli", "mini-swe"], default="mini-swe")
+    pt_auto.add_argument("--record-dir", type=Path, default=None)
+    pt_auto.add_argument("--resume-task-id", default=None)
+    pt_auto.add_argument("--resume-tool-name", default=None)
     pt_real = tsub.add_parser(
         "build-real",
         help="对**已冻结**任务跑真实构建(彩排通过后的下半程;题面不重冻)")
@@ -628,6 +659,41 @@ def main(argv: list[str] | None = None) -> int:
                 indent=2,
             ))
             return 0
+        if args.tool_cmd == "autopilot":
+            from repoproof.ui.services.autopilot import run_journey_autopilot
+
+            if not args.resume_task_id and not (args.repo and args.capability):
+                print(json.dumps(
+                    {"ok": False, "error": "--repo 与 --capability 必填(或 --resume-task-id)"},
+                    ensure_ascii=False,
+                ))
+                return 2
+            outcome = run_journey_autopilot(
+                repo=str(args.repo or ""),
+                capability=str(args.capability or ""),
+                project_root=PROJECT_ROOT,
+                dest_root=args.dest_root,
+                revision=args.revision,
+                until=args.until,
+                expect_admission_rejection=args.expect_admission_rejection,
+                batch=args.batch,
+                agent_backend=args.agent_backend,
+                record_dir=args.record_dir,
+                resume_task_id=args.resume_task_id,
+                resume_tool_name=args.resume_tool_name,
+            )
+            print(json.dumps(outcome, ensure_ascii=False, indent=2))
+            return 0 if outcome.get("ok") else 3
+        if args.tool_cmd == "self-check":
+            from repoproof.ui.services.product_jobs import run_draft_self_check
+
+            outcome = run_draft_self_check(
+                args.draft_dir,
+                repair=not args.no_repair,
+                max_repair_rounds=args.max_repair_rounds,
+            )
+            print(json.dumps(outcome, ensure_ascii=False, indent=2))
+            return 0 if outcome.get("ok") else 3
         if args.tool_cmd == "add":
             from repoproof.adoption.intake.tool_confirm import write_draft_bundle
             from repoproof.adoption.intake.tool_drafter import (
@@ -692,12 +758,29 @@ def main(argv: list[str] | None = None) -> int:
                 )
             except DraftError as exc:
                 add_payload["draft_error"] = str(exc)
+                add_payload["draft_error_diagnostics"] = list(
+                    getattr(exc, "diagnostics", None) or []
+                )
                 return _emit_tool_action(
                     args,
                     action="tool-add",
                     payload={"ok": False, **add_payload},
                     exit_code=3,
                 )
+            # 起草物质量不靠人审:机器起草的 workspace 控制件在人看到之前先
+            # 由 Harness 自己物化、判定、探针,并在界内自修。fake 起草器只有
+            # 离线管道语义,自检对它不适用。
+            if not args.fake_drafter:
+                from repoproof.ui.services.product_jobs import run_draft_self_check
+
+                add_payload["draft_selfcheck"] = run_draft_self_check(
+                    bundle, repair=True, drafter=drafter
+                )
+            else:
+                add_payload["draft_selfcheck"] = {
+                    "ok": True, "status": "NOT_APPLICABLE", "rounds": 0,
+                    "final_reason_codes": [],
+                }
             add_payload["your_todo"] = [
                 f"1. 审阅并修改 {bundle}/draft.yaml(公开行为承诺/summary/格式;"
                 "工具名 tool.name 由你定;最终 statement 由 Core 编译)",

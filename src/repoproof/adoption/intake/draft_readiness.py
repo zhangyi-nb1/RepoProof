@@ -41,6 +41,10 @@ from repoproof.adoption.delivery.product_profile import (
     ProductProfileError,
     product_delivery_profile,
 )
+from repoproof.adoption.intake.draft_selfcheck import (
+    SelfCheckStatus,
+    self_check_status,
+)
 from repoproof.adoption.intake.intent_contract import (
     IntentContractDraftV1,
     validate_intent_contract,
@@ -102,6 +106,7 @@ class DraftReadinessPublicSummaryV1(BaseModel):
     dependency_lock_source: DependencyLockSource = "missing"
     example_count: int = Field(default=0, ge=0)
     minimum_examples: Literal[3] = 3
+    draft_self_check: SelfCheckStatus = "NOT_APPLICABLE"
 
 
 class DraftReadinessV1(BaseModel):
@@ -132,6 +137,7 @@ class _Evaluation:
     readiness: DraftReadinessV1
     problems: tuple[str, ...]
     dependency_lock_text: str
+    issues: tuple[_Issue, ...] = ()
 
 
 def _append(
@@ -987,8 +993,20 @@ def _evaluate(
             output_contract=output_contract,
         )
     )
+    self_check: SelfCheckStatus = "NOT_APPLICABLE"
     if workspace_profile:
         _check_workspace_fixture_assets(draft_dir, issues, parsed_tool)
+        # Machine-drafted controls must carry a current, passing self-check
+        # before freezing.  Human review and confirmation stay open: the
+        # issue only blocks ``ready``.
+        self_check = self_check_status(draft, draft_dir)
+        if self_check in {"MISSING", "STALE", "FAILED"}:
+            _append(
+                issues,
+                f"DRAFT_SELF_CHECK_{self_check}",
+                f"D:起草自检 {self_check} —— 冻结前需要一份绑定当前控制件的通过报告",
+                confirmation_only=True,
+            )
 
     import_module = str(source_repo.get("import_module") or "")
     reference_source = _read_text(draft_dir / REFERENCE_PY)
@@ -1171,6 +1189,7 @@ def _evaluate(
             dependency_lock_ready=dependency_ready,
             dependency_lock_source=lock_source,
             example_count=len(examples),
+            draft_self_check=self_check,
         ),
         recommended_action=recommended_action,
     )
@@ -1178,6 +1197,7 @@ def _evaluate(
         readiness=readiness,
         problems=tuple(issue.problem for issue in issues),
         dependency_lock_text=dependency_lock_text,
+        issues=tuple(issues),
     )
 
 

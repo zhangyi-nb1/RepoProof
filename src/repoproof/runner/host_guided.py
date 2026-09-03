@@ -64,6 +64,7 @@ from repoproof.adoption.repair.repair_loop import (
     RoundResult,
     classify_agent_exit_status,
     compute_public_failure_fingerprint,
+    external_interruption_marker,
 )
 from repoproof.agents.provider_gate import PreflightResult, ProviderConfig
 from repoproof.domain.models import (
@@ -488,6 +489,23 @@ def append_oracle_log(run_dir: Path, stdout: str, exit_code: int) -> None:
     with (run_dir / "oracle_stdout.log").open("a", encoding="utf-8") as f:
         f.write(f"\n===== oracle run @{time.strftime('%Y-%m-%dT%H:%M:%S')} "
                 f"exit={exit_code} =====\n{stdout}\n")
+
+
+def oracle_pytest_targets(oracle_snap: Path) -> list[str]:
+    """隐藏验收的收集范围:只执行 oracle 自己的顶层测试模块。
+
+    冻结 fixture 数据是数据,不是测试面 —— 工作区谱系可以合法交付
+    tests/ 目录,目录级收集会把 fixtures/**/expected 里的同名 test
+    模块扫进来:收集期 import mismatch 直接撞车(假拦截),被执行则
+    虚增 junit 计数(false-success 方向)。快照没有顶层 test 模块时
+    保持旧目录语义(旧谱系守恒)。
+    incident-oracle-fixture-collection-scope-v1。"""
+    snap = Path(oracle_snap)
+    targets = sorted(
+        str(path) for path in snap.glob("test_*.py")
+        if path.is_file() and not path.is_symlink()
+    )
+    return targets or [str(snap)]
 
 
 def replay_eligible(cap, reg, pol) -> bool:
@@ -1195,6 +1213,102 @@ def _is_core_owned_runtime_fixture(root_name: str, relative: Path) -> bool:
     )
 
 
+def _application_file_from_launcher(launcher: Path, constant: list[str]) -> str:
+    """The workspace file the sealed launcher runs, when it is a public constant.
+
+    Core's launcher ends with ``"$RUNTIME/venv/bin/python" "$ROOT/<app>" "$@"``;
+    the ``<app>`` token names the application the reference wrote.  Only a file
+    that is identical across every public example qualifies, so the line never
+    points the Agent at something it would have to derive.
+    """
+
+    try:
+        text = launcher.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+    for token in re.findall(r'"\$ROOT/([^"\s]+)"', text):
+        if token in constant:
+            return token
+    return ""
+
+
+def public_fixture_digest(task_dir: Path) -> str:
+    """What the public examples already reveal about the golden comparison.
+
+    Computed from ``public_tests/fixtures/<name>/{input,expected}`` only — the
+    material the Agent may read anyway — and carrying paths and classes, never
+    bytes.  Three facts cost an Agent most of a round to rediscover by hand
+    (incident-statement-does-not-teach-golden-comparison-*): which expected
+    files the Harness seals itself, which are identical across every example
+    (input-independent, reproducible by a byte-exact copy) and which vary with
+    the input.  A gate that compares byte-for-byte must say so up front.
+    """
+
+    fixtures = Path(task_dir) / "public_tests" / "fixtures"
+    if not fixtures.is_dir():
+        return ""
+    examples = sorted(
+        p for p in fixtures.iterdir() if p.is_dir() and (p / "expected").is_dir()
+    )
+    if not examples:
+        return ""
+    digests: dict[str, list[str]] = {}
+    sealed: set[str] = set()
+    for example in examples:
+        expected = example / "expected"
+        for file in sorted(p for p in expected.rglob("*") if p.is_file() and not p.is_symlink()):
+            relative = file.relative_to(expected)
+            if _is_core_owned_runtime_fixture(
+                "public_tests", Path("fixtures") / example.name / "expected" / relative
+            ):
+                sealed.add(
+                    "vendor/wheels/*.whl" if relative.parts[:2] == ("vendor", "wheels")
+                    else relative.as_posix()
+                )
+                continue
+            digests.setdefault(relative.as_posix(), []).append(sha256_bytes(file.read_bytes()))
+    constant = sorted(
+        path for path, shas in digests.items()
+        if len(shas) == len(examples) and len(set(shas)) == 1
+    )
+    varying = sorted(path for path in digests if path not in constant)
+    application = _application_file_from_launcher(examples[0] / "expected" / "run.sh", constant)
+    lines = [
+        f"- {len(examples)} public example(s) under public_tests/fixtures/<name>/input "
+        "(the admitted input) and public_tests/fixtures/<name>/expected (the exact "
+        "workspace acceptance expects for it).",
+    ]
+    if sealed:
+        lines.append(
+            "- Sealed by the Harness after build_workspace returns — do NOT write them: "
+            + ", ".join(sorted(sealed))
+            + "."
+        )
+    if application:
+        lines.append(
+            f"- Application file executed by run.sh: {application}. It is the generator of "
+            "every varying file and holds their exact derivation rules (ordering, "
+            "normalisation, generated ids); READ IT FIRST instead of guessing, and write "
+            "it into the workspace byte-exactly."
+        )
+    if constant:
+        lines.append(
+            "- Identical across every public example (input-independent; a byte-exact "
+            "copy from any example is expected, not re-authoring): "
+            + ", ".join(constant)
+            + "."
+        )
+    if varying:
+        lines.append(
+            "- Vary with the input (derive them by calling the upstream; where an expected "
+            "tree contains a copy of the input, diff it against the public input first — "
+            "it may be normalised): "
+            + ", ".join(varying)
+            + "."
+        )
+    return "\n".join(lines)
+
+
 def _read_regular_file_nonblocking(path: Path) -> bytes | None:
     """Read one regular file without ever blocking on a special file.
 
@@ -1439,7 +1553,7 @@ def source_commit_of(contract: HostContract) -> str:
 
 
 def build_host_prompt(contract: HostContract, *, wheel_note: str,
-                      budgets=None) -> str:
+                      budgets=None, public_fixture_digest: str = "") -> str:
     """契约 → agent 提示的唯一投影(不含任何 oracle/隐藏信息)。
 
     双档(G2):offerclaw-v1 = 既有文本逐字节不变(金标哈希钉死);
@@ -1450,7 +1564,10 @@ def build_host_prompt(contract: HostContract, *, wheel_note: str,
         return _build_tool_prompt(contract, wheel_note=wheel_note, budgets=budgets)
     if contract.prompt_profile == "workspace-tool-v1":
         return _build_workspace_tool_prompt(
-            contract, wheel_note=wheel_note, budgets=budgets
+            contract,
+            wheel_note=wheel_note,
+            budgets=budgets,
+            public_fixture_digest=public_fixture_digest,
         )
     if contract.prompt_profile in ("hb-delta-v1", "hb-delta-v2"):
         return _build_delta_prompt(contract, wheel_note=wheel_note, budgets=budgets)
@@ -1667,7 +1784,11 @@ def _build_tool_prompt(contract: HostContract, *, wheel_note: str,
 
 
 def _build_workspace_tool_prompt(
-    contract: HostContract, *, wheel_note: str, budgets=None
+    contract: HostContract,
+    *,
+    wheel_note: str,
+    budgets=None,
+    public_fixture_digest: str = "",
 ) -> str:
     """workspace-tool-v1: one admitted path -> atomic offline workspace.
 
@@ -1722,6 +1843,18 @@ def _build_workspace_tool_prompt(
         f"- pip is OFFLINE and resolves only from {wheel_note}.\n"
         "- Command output is truncated around 8000 characters; inspect targeted\n"
         "  ranges and individual files rather than dumping entire trees.",
+        "WHAT ACCEPTANCE COMPARES\n"
+        "- Every public and held-out example is checked by comparing your\n"
+        "  output_dir with its expected tree BYTE-FOR-BYTE — every file, including\n"
+        "  the application file and README, not only the data outputs. Read the\n"
+        "  public examples before writing anything; they are the exact target.\n"
+        + (public_fixture_digest.strip() + "\n" if public_fixture_digest.strip() else "")
+        + "- Budget note: exploring for a whole round without a single write scores\n"
+        "  nothing; write build_workspace early, run the public checks, then refine.\n"
+        "- Self-test outputs go under $REPOPROOF_SCRATCH_DIR (given, outside the\n"
+        "  package, discarded after the run). Every file you leave inside the package\n"
+        "  counts toward the patch budget and is judged as part of your change, so\n"
+        "  never write trial workspaces into the package or /tmp.",
         "HARD RULES\n"
         + "\n".join(forbidden)
         + "\n- Never modify public_tests, public_examples, fixtures, contracts, oracle,"
@@ -2503,7 +2636,8 @@ class HostGuidedRunner:
         (s.root / xml_name).unlink(missing_ok=True)
         res = s.backend.exec(
             s.id,
-            [s.venv_py, "-m", "pytest", str(oracle_snap), "-q", "-p", "no:cacheprovider",
+            [s.venv_py, "-m", "pytest", *oracle_pytest_targets(oracle_snap),
+             "-q", "-p", "no:cacheprovider",
              "--junitxml", f"../{xml_name}"],
             timeout_s=timeout_s, workdir="host",
             env={**self._oracle_import_env(s),
@@ -2919,7 +3053,8 @@ class HostGuidedRunner:
 
             base_prompt = build_host_prompt(
                 contract, wheel_note=f"wheelhouse {self.wheelhouse.name}",
-                budgets=b)
+                budgets=b,
+                public_fixture_digest=public_fixture_digest(self.task_dir))
             prompt_sha = sha256_bytes(base_prompt.encode())
             ev("agent.prompt", actor="harness",
                payload={"sha256": prompt_sha, "chars": len(base_prompt)})
@@ -3205,6 +3340,15 @@ class HostGuidedRunner:
                 if exit_responsibility is not None:
                     failure_owner, reason_code, recommended_action = exit_responsibility
                     reason_codes.append(reason_code)
+                    # 轮级早就判了 EXTERNAL,但终态只看 capability —— 于是
+                    # 供应商中途一次抖动被写成该模型的 FAIL 进台账,与真正的
+                    # 能力失败无法区分。接进既有 missing_external 通道,由闸门
+                    # 决策表第一行判 BLOCKED(测量被打断 = 可恢复的非结论)。
+                    interruption = external_interruption_marker(
+                        str(result.exit_status or "")
+                    )
+                    if interruption:
+                        missing_external.append(interruption)
                 elif not collected_ok:
                     failure_owner = "HARNESS"
                     recommended_action = "RETRY_INFRASTRUCTURE"

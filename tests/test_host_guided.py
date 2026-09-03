@@ -881,14 +881,25 @@ def test_k17_setup_steps_run_in_the_declared_order():
     单测抓不到它(它们不建环境),是零模型端到端冒烟一把抓住的。这条把
     顺序钉在源码上,免得下次重构又把它拆散。
     """
-    src = _runner_src()
+    import inspect
+
+    from repoproof.runner.host_guided import HostGuidedRunner
+
+    # Inspect only the method and pin the semantic phases, not a one-line
+    # formatting accident.  The pip call gained a bounded Harness wheelhouse
+    # environment in M6.2 and became multiline; the old literal-source check
+    # failed even though the declared ordering was unchanged.
+    src = inspect.getsource(HostGuidedRunner._build_env_in_session)
     assert "head = cmds[:pip_idx] if pip_idx is not None else cmds" in src, (
         "装依赖之前那几步的切片没了 —— 顺序可能又被打乱")
     assert "for i, cmd in enumerate(cmds[pip_idx + 1:], start=pip_idx + 2):" in src, (
         "装依赖之后那几步没跑")
     # 顺序断言:head 循环必须出现在 pip 执行之前,tail 循环必须在它之后
     i_head = src.index("head = cmds[:pip_idx]")
-    i_pip = src.index("r2 = s.backend.exec(s.id, cmds[pip_idx]")
+    i_pip = src.index("r2 = s.backend.exec(")
+    assert src.index("cmds[pip_idx]", i_pip) < src.index(
+        "for i, cmd in enumerate(cmds[pip_idx + 1:]"
+    )
     i_tail = src.index("for i, cmd in enumerate(cmds[pip_idx + 1:]")
     assert i_head < i_pip < i_tail, "三段的先后顺序被打乱了"
 

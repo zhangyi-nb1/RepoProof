@@ -96,6 +96,12 @@ def _seed_login_keychain(home: Path) -> bool:
     return True
 
 
+def scratch_dir(session_root: Path) -> Path:
+    """Where an agent's self-test outputs belong: inside the session, outside the package."""
+
+    return Path(session_root) / ".rp_home" / "scratch"
+
+
 @dataclass
 class LocalWorktreeBackend:
     """会话 = 一个隔离的执行根 + 假 HOME + 净化环境。
@@ -170,6 +176,10 @@ class LocalWorktreeBackend:
             "HF_HOME": str(home / ".cache" / "huggingface"),
             "PYTHONDONTWRITEBYTECODE": "1",
             "REPOPROOF_EXECUTION_BACKEND": "local-worktree",
+            # 自测输出的合法去处:会话根之内、包之外,随会话销毁;残留闸门对
+            # `_sessions/` 显式跳过。没有它,Agent 要么写进包里(计入补丁预算),
+            # 要么写 /tmp(逐字节等于期望件,拦停之后每一发)。
+            "REPOPROOF_SCRATCH_DIR": str(scratch_dir(root)),
         })
         out.update(SYNTHETIC_ENV)
         if self.offline:
@@ -177,7 +187,7 @@ class LocalWorktreeBackend:
         out.update(self.extra_env)
         out.update(getattr(self, "_session_env", {}) or {})
         out.update(env or {})
-        for d in ("tmp", ".cache", ".config"):
+        for d in ("tmp", ".cache", ".config", "scratch"):
             (home / d).mkdir(parents=True, exist_ok=True)
         return out
 

@@ -33,6 +33,27 @@ STOP_REPEATED_PUBLIC_FAILURE = "repeated_public_failure"
 STOP_NON_REPAIRABLE = "non_repairable_failure"
 
 
+def external_interruption_marker(exit_status: str) -> str | None:
+    """A public marker when the PROVIDER, not the agent, ended the run.
+
+    A gateway that dies at call 30 of 39 leaves no task conclusion: the agent
+    neither submitted nor exhausted its budget, so grading what happens to be on
+    disk would record an external event as that model's capability failure.  The
+    marker travels through the existing ``missing_external`` channel, whose gate
+    row already means "blocked on an external condition" — the same treatment a
+    contaminated bench root or an unhealthy host baseline gets, and the same
+    distinction the crash report draws between a system-level interruption
+    (recoverable non-conclusion) and a task-level FAIL.
+
+    Carries no provider body, URL or account detail.
+    """
+
+    classified = classify_agent_exit_status(exit_status)
+    if classified is None or classified[0] != "EXTERNAL":
+        return None
+    return f"{classified[1]}(供应商在 run 中途中断,本次测量无结论)"
+
+
 def classify_agent_exit_status(exit_status: str) -> tuple[str, str, str] | None:
     """Project an agent-runtime exit into a public responsibility class.
 

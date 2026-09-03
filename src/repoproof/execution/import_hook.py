@@ -76,8 +76,26 @@ def _install():
             payload.update(extra)
         try:
             _emit(ledger, secret, payload)
-        except OSError:
+        except Exception:
+            # 记账失败(含解释器收尾期内建已卸载)不得射进被测进程。
             pass
+
+    def _args_digest(a, kw):
+        # 量具透明性:构造中途的对象 repr 可能抛任意异常(reactive
+        # registry/functor 惯用法把未构造完的 self 传给公开类)。摘要
+        # 允许降级为类型名投影,异常一律不得离开量具。
+        try:
+            rendered = repr((a, sorted(kw.items())))
+        except Exception:
+            try:
+                rendered = "types:" + ",".join(
+                    type(item).__name__ for item in a
+                ) + ";" + ",".join(sorted(kw))
+            except Exception:
+                rendered = "unreprable"
+        return hashlib.sha256(
+            rendered[:2000].encode("utf-8", "replace")
+        ).hexdigest()[:16]
 
     def _wrap_callables(mod, modname):
         for name in list(vars(mod)):
@@ -106,10 +124,7 @@ def _install():
 
                 def _make_new(sym, fn):
                     def _new(cls, *a, **kw):
-                        digest = hashlib.sha256(
-                            repr((a, sorted(kw.items())))[:2000].encode()
-                        ).hexdigest()[:16]
-                        _record("call", sym, {"args_sha": digest})
+                        _record("call", sym, {"args_sha": _args_digest(a, kw)})
                         if fn is object.__new__:
                             return fn(cls)
                         return fn(cls, *a, **kw)
@@ -127,11 +142,19 @@ def _install():
             def _make(sym, fn):
                 @functools.wraps(fn)
                 def _proxy(*a, **kw):
-                    digest = hashlib.sha256(
-                        repr((a, sorted(kw.items())))[:2000].encode()
-                    ).hexdigest()[:16]
-                    _record("call", sym, {"args_sha": digest})
+                    _record("call", sym, {"args_sha": _args_digest(a, kw)})
                     return fn(*a, **kw)
+                # functools.wraps 只拷 __dict__;lru_cache/singledispatch 等包装器
+                # 的 cache_clear/cache_info/register 是对象上的方法,上游自己会调
+                # (实测:上游在自己的 lru_cache 函数上调 cache_clear)。量具不许
+                # 改被测:把原对象上代理没有的公开属性一并带上。
+                for attr in dir(fn):
+                    if attr.startswith("__") or hasattr(_proxy, attr):
+                        continue
+                    try:
+                        setattr(_proxy, attr, getattr(fn, attr))
+                    except (AttributeError, TypeError):
+                        continue
                 return _proxy
 
             try:

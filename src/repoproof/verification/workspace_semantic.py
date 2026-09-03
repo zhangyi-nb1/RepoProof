@@ -88,6 +88,8 @@ class SemanticVerifierEvidenceV2(BaseModel):
     checked_commitment_ids: tuple[str, ...] = Field(default_factory=tuple, max_length=64)
     passed: bool
     reason_codes: tuple[str, ...] = Field(default_factory=tuple, max_length=32)
+    # Verifier-authored public explanations keyed by reported reason code.
+    reason_details: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("verifier_id")
     @classmethod
@@ -296,17 +298,40 @@ def run_workspace_semantic_verifier(
             timeout_s=timeout_s,
         )
         reasons = list(actual.reason_codes)
+        verdict_details: dict[str, str] = {}
         if not actual.protocol_ok:
             reasons = ["VERIFIER_PROTOCOL_ERROR"]
         elif not actual.verifier_ok and not reasons:
             reasons = ["SEMANTIC_MISMATCH"]
+        elif actual.verifier_ok and reasons:
+            # A passing verdict that still carries reason codes (models like to
+            # emit an informational "OK") is a protocol inconsistency.  The screen
+            # has always refused it (a pass must carry no failure codes); naming
+            # the rule here is what makes the refusal repairable instead of a
+            # disagreement whose only diagnostic reads "OK".
+            listed = ", ".join(reasons[:8])
+            reasons = ["VERIFIER_INFORMATIONAL_REASON_CODES_ON_PASS"]
+            verdict_details["VERIFIER_INFORMATIONAL_REASON_CODES_ON_PASS"] = (
+                f"verify() returned ok=true together with reason_codes [{listed}]; a passing "
+                "verdict must return an empty reason_codes list (no informational codes)"
+            )[:200]
         if (
             actual.protocol_ok
             and set(actual.checked_commitment_ids) != set(required_ids)
         ):
             reasons.append("COMMITMENT_COVERAGE_MISMATCH")
+            missing = sorted(set(required_ids) - set(actual.checked_commitment_ids))
+            extra = sorted(set(actual.checked_commitment_ids) - set(required_ids))
+            verdict_details["COMMITMENT_COVERAGE_MISMATCH"] = (
+                "checked_commitment_ids must equal the supplied commitment ids; "
+                f"missing={missing[:8]} extra={extra[:8]}"
+            )[:200]
         if not actual.receipts_ok:
             reasons.append("UPSTREAM_CALL_NOT_OBSERVED")
+            verdict_details["UPSTREAM_CALL_NOT_OBSERVED"] = (
+                "the verifier finished without a recorded call into the pinned upstream module; "
+                "the verdict must depend on values the upstream returns"
+            )
         actual_pass = bool(
             actual.protocol_ok
             and actual.verifier_ok
@@ -333,6 +358,10 @@ def run_workspace_semantic_verifier(
             input_result = "ACCEPTED" if input_control.verifier_ok else "REJECTED"
             if input_result == "ACCEPTED":
                 reasons.append("INPUT_BINDING_CONTROL_FAILED")
+                verdict_details["INPUT_BINDING_CONTROL_FAILED"] = (
+                    "the verifier still accepted the same artifact when given a different input; "
+                    "expectations must be recomputed from the input so a wrong input is rejected"
+                )
 
             artifact_control = _execute_snapshot(
                 stage_root=root / "artifact-control",
@@ -351,6 +380,10 @@ def run_workspace_semantic_verifier(
             artifact_result = "ACCEPTED" if artifact_control.verifier_ok else "REJECTED"
             if artifact_result == "ACCEPTED":
                 reasons.append("ARTIFACT_BINDING_CONTROL_FAILED")
+                verdict_details["ARTIFACT_BINDING_CONTROL_FAILED"] = (
+                    "the verifier accepted a corrupted artifact for the same input; "
+                    "it must read the delivered files and compare them to recomputed expectations"
+                )
 
             upstream_control = _execute_snapshot(
                 stage_root=root / "upstream-control",
@@ -372,6 +405,10 @@ def run_workspace_semantic_verifier(
             elif upstream_control.verifier_ok:
                 upstream_result = "ACCEPTED"
                 reasons.append("UPSTREAM_RESULT_BINDING_CONTROL_FAILED")
+                verdict_details["UPSTREAM_RESULT_BINDING_CONTROL_FAILED"] = (
+                    "the verifier still accepted the artifact when the pinned upstream returned "
+                    "counterfactual values; the verdict must depend on what the upstream returns"
+                )
             else:
                 upstream_result = "REJECTED"
 
@@ -414,6 +451,14 @@ def run_workspace_semantic_verifier(
         checked_commitment_ids=actual.checked_commitment_ids,
         passed=passed,
         reason_codes=tuple(reasons),
+        reason_details={
+            **{
+                code: text
+                for code, text in dict(getattr(actual, "reason_details", {}) or {}).items()
+                if code in reasons
+            },
+            **verdict_details,
+        },
     )
 
 
@@ -449,3 +494,234 @@ def write_workspace_semantic_evidence(
     finally:
         os.close(descriptor)
     return path
+
+
+# --------------------------------------------------------------------------
+# Verifier discrimination probe
+#
+# A verifier can pass the positive control and all three counterfactuals while
+# never recomputing the *content* of a delivered file (existence or heading
+# checks only).  Such a verifier would accept a producer that writes the right
+# skeleton with wrong data.  The probe applies deterministic content mutations
+# to every delivered file the task owns and requires the verifier to reject at
+# least one mutation per file.  Deleting a file is deliberately not a mutation:
+# structure validation already guards presence, and presence is not semantics.
+# --------------------------------------------------------------------------
+
+MutationResult = Literal["REJECTED", "ACCEPTED", "PROTOCOL_ERROR"]
+
+
+class WorkspaceVerifierMutationV1(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: str = Field(min_length=1, max_length=40)
+    result: MutationResult
+
+
+class WorkspaceVerifierFileProbeV1(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    path: str = Field(min_length=1, max_length=512)
+    mutations: tuple[WorkspaceVerifierMutationV1, ...] = ()
+    discriminated: bool
+
+
+class WorkspaceVerifierDiscriminationV1(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    probed_files: int = Field(ge=0)
+    files: tuple[WorkspaceVerifierFileProbeV1, ...] = ()
+    gaps: tuple[str, ...] = ()
+    ok: bool
+
+
+def _alter_character(char: str) -> str:
+    if char.isdigit():
+        return str((int(char) + 1) % 10)
+    return "y" if char == "x" else "x"
+
+
+def _text_content_mutations(payload: bytes, *, limit: int) -> list[tuple[str, bytes]]:
+    """Edit one character on each of up to ``limit`` sampled lines, then truncate.
+
+    Commitments usually cover only some lines of a delivered file (a heading,
+    a command, a table row).  Sampling first, last and evenly spaced lines asks
+    the honest question — does the verifier recompute *any* content of this
+    file — instead of demanding that every prose line be checked.
+    """
+
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError:
+        return []
+    lines = text.splitlines(keepends=True)
+    nonempty = [index for index, line in enumerate(lines) if line.strip()]
+    if not nonempty:
+        return []
+
+    def _edit(index: int) -> bytes | None:
+        line = lines[index]
+        body = line.rstrip("\r\n")
+        if not body:
+            return None
+        position = len(body) // 2
+        edited = body[:position] + _alter_character(body[position]) + body[position + 1:]
+        return "".join(lines[:index] + [edited + line[len(body):]] + lines[index + 1:]).encode("utf-8")
+
+    budget = max(1, int(limit))
+    edit_budget = max(1, budget - 1)
+    if len(nonempty) <= edit_budget:
+        sampled = list(nonempty)
+    else:
+        step = (len(nonempty) - 1) / (edit_budget - 1) if edit_budget > 1 else 0
+        sampled = sorted({nonempty[round(k * step)] for k in range(edit_budget)})
+    mutations: list[tuple[str, bytes]] = []
+    for index in sampled:
+        edited = _edit(index)
+        if edited is not None:
+            mutations.append((f"edit-line-{index + 1}", edited))
+    truncated = "".join(lines[: nonempty[-1]]).encode("utf-8")
+    if truncated != payload:
+        mutations.append(("truncate-last-line", truncated))
+    return mutations
+
+
+def _binary_content_mutations(payload: bytes) -> list[tuple[str, bytes]]:
+    if not payload:
+        return []
+    middle = len(payload) // 2
+    flipped = payload[:middle] + bytes([payload[middle] ^ 0x5A]) + payload[middle + 1:]
+    mutations = [("flip-middle-byte", flipped)]
+    if len(payload) > 16:
+        mutations.append(("truncate-tail", payload[:-16]))
+    return mutations
+
+
+def content_mutations(payload: bytes, *, limit: int) -> list[tuple[str, bytes]]:
+    """Deterministic content mutations for one delivered file."""
+
+    mutations = _text_content_mutations(payload, limit=limit) or _binary_content_mutations(payload)
+    return mutations[: max(1, int(limit))]
+
+
+def probe_workspace_verifier_discrimination(
+    *,
+    verifier_source: Path,
+    input_path: Path,
+    artifact_dir: Path,
+    python_exe: str,
+    upstream_dir: Path,
+    import_module: str,
+    excluded_patterns: tuple[str, ...] | list[str] = (),
+    focus_paths: tuple[str, ...] | list[str] | None = None,
+    execute_installed_upstream: bool = False,
+    isolation_required: bool = True,
+    timeout_s: int = 120,
+    max_files: int = 8,
+    max_mutations_per_file: int = 8,
+) -> WorkspaceVerifierDiscriminationV1:
+    """Require the verifier to reject a content mutation of every probed file.
+
+    ``focus_paths`` narrows the probe to the delivered files the public artifact
+    protocol actually refers to; files no observation mentions are not
+    semantically claimed and are therefore not gaps.
+    """
+
+    import shutil
+    from fnmatch import fnmatch
+
+    from repoproof.verification.semantic_artifact import (
+        _execute_snapshot,
+        _write_private_snapshot,
+    )
+
+    upstream_dir = Path(upstream_dir)
+    if upstream_dir.is_symlink() or not upstream_dir.is_dir():
+        raise SemanticVerifierError("upstream_dir must be a regular non-symlink directory")
+    if not python_exe:
+        raise SemanticVerifierError("python_exe is required")
+    source_bytes = _read_regular_file_snapshot(Path(verifier_source), label="verifier")
+    limits = WorkspaceArtifactLimits()
+    artifact_dir = Path(artifact_dir)
+    if artifact_dir.is_symlink() or not artifact_dir.is_dir():
+        raise SemanticVerifierError("workspace artifact must be a directory")
+
+    owned: list[tuple[str, Path]] = []
+    for path in sorted(artifact_dir.rglob("*")):
+        if path.is_symlink() or not path.is_file():
+            continue
+        relative = path.relative_to(artifact_dir).as_posix()
+        if any(fnmatch(relative, pattern) for pattern in excluded_patterns):
+            continue
+        if focus_paths is not None and relative not in set(focus_paths):
+            continue
+        if path.stat().st_size == 0:
+            continue
+        owned.append((relative, path))
+        if len(owned) >= max(1, int(max_files)):
+            break
+
+    upstream_paths = (
+        []
+        if execute_installed_upstream
+        else (
+            [str(upstream_dir / "src"), str(upstream_dir)]
+            if (upstream_dir / "src").is_dir()
+            else [str(upstream_dir)]
+        )
+    )
+    files: list[WorkspaceVerifierFileProbeV1] = []
+    with tempfile.TemporaryDirectory(prefix="rp-workspace-probe-") as temp:
+        root = Path(temp)
+        snapshots = root / "snapshots"
+        snapshots.mkdir(mode=0o700)
+        source_snapshot = _write_private_snapshot(
+            snapshots / "semantic_verifier.py", source_bytes
+        )
+        input_snapshot = snapshots / "input"
+        snapshot_admitted_path(Path(input_path), input_snapshot)
+        for index, (relative, path) in enumerate(owned):
+            payload = path.read_bytes()
+            results: list[WorkspaceVerifierMutationV1] = []
+            for mutation_index, (kind, mutated_payload) in enumerate(
+                content_mutations(payload, limit=max_mutations_per_file)
+            ):
+                stage = root / f"mutation-{index}-{mutation_index}"
+                source_copy = stage / "source"
+                shutil.copytree(artifact_dir, source_copy, symlinks=False)
+                (source_copy / relative).write_bytes(mutated_payload)
+                artifact_snapshot = stage / "artifact"
+                snapshot_admitted_path(source_copy, artifact_snapshot, limits=limits)
+                run = _execute_snapshot(
+                    stage_root=stage / "run",
+                    verifier_source=source_snapshot,
+                    input_path=input_snapshot,
+                    artifact_path=artifact_snapshot,
+                    python_exe=python_exe,
+                    upstream_paths=upstream_paths,
+                    import_module=import_module,
+                    control="normal",
+                    isolation_required=isolation_required,
+                    timeout_s=timeout_s,
+                )
+                if not run.protocol_ok:
+                    outcome: MutationResult = "PROTOCOL_ERROR"
+                elif run.verifier_ok:
+                    outcome = "ACCEPTED"
+                else:
+                    outcome = "REJECTED"
+                results.append(WorkspaceVerifierMutationV1(kind=kind, result=outcome))
+            files.append(
+                WorkspaceVerifierFileProbeV1(
+                    path=relative,
+                    mutations=tuple(results),
+                    discriminated=any(item.result == "REJECTED" for item in results),
+                )
+            )
+    gaps = tuple(item.path for item in files if not item.discriminated)
+    return WorkspaceVerifierDiscriminationV1(
+        probed_files=len(files),
+        files=tuple(files),
+        gaps=gaps,
+        ok=not gaps,
+    )

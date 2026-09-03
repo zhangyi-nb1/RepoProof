@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -18,7 +19,10 @@ except ImportError:  # pragma: no cover
 
 needs_streamlit = pytest.mark.skipif(not HAVE_ST, reason="streamlit (ui extra) not installed")
 
-KEY_MARKERS = ("sk-", "REPOPROOF_API_KEY", "DEEPSEEK_API_KEY")
+KEY_NAMES = ("REPOPROOF_API_KEY", "DEEPSEEK_API_KEY")
+# OpenAI-style keys have a long token after ``sk-``.  A bare substring check
+# falsely classified ordinary task names such as ``taskdesk-v3`` as secrets.
+API_KEY_PATTERN = re.compile(r"(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}")
 # 简单模式第一眼(标题/子标题/指标/按钮)不允许出现的英文技术词
 TECH_WORDS_FIRST_GLANCE = ("Oracle", "Harness", "TaskPackage", "Wheelhouse",
                            "RequirementSpec", "Completion Gate", "held-out")
@@ -192,8 +196,9 @@ def test_no_api_key_anywhere() -> None:
         ss_repr = " ".join(f"{k}={at.session_state[k]}" for k in ("case", "ui_mode", "wizard_step")
                            if k in at.session_state)
         text = _all_text(at) + ss_repr
-        for marker in KEY_MARKERS:
+        for marker in KEY_NAMES:
             assert marker not in text, f"{page}: {marker}"
+        assert API_KEY_PATTERN.search(text) is None, f"{page}: API-key-shaped value"
 
 
 # 12. 下载按钮存在

@@ -270,6 +270,7 @@ def test_every_run_level_usage_hook_shares_the_deduping_implementation() -> None
     非空 `success_callback` 注册处都经 `make_usage_cb`。空注册(卸钩子)
     不在此列。
     """
+    import ast
     import re
     from pathlib import Path
 
@@ -280,14 +281,30 @@ def test_every_run_level_usage_hook_shares_the_deduping_implementation() -> None
     accum = re.compile(r'totals\["(?:in|out)"\]\s*\+=')
     registration = re.compile(r"success_callback\s*=\s*\[([^\]]*)\]")
 
-    accum_files: set[str] = set()
+    accum_sites: set[str] = set()
     registrations: list[tuple[str, str]] = []
     for f in files:
         text = f.read_text(encoding="utf-8")
         rel = f.relative_to(src).as_posix()
-        for i, line in enumerate(text.splitlines(), 1):
-            if accum.search(line):
-                accum_files.add(f"{rel}:{i}")
+        tree = ast.parse(text)
+        parents: dict[ast.AST, ast.AST] = {}
+        for parent in ast.walk(tree):
+            for child in ast.iter_child_nodes(parent):
+                parents[child] = parent
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.AugAssign):
+                continue
+            line = ast.get_source_segment(text, node) or ""
+            if not accum.search(line):
+                continue
+            owner = parents.get(node)
+            functions: list[str] = []
+            while owner is not None:
+                if isinstance(owner, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    functions.append(owner.name)
+                owner = parents.get(owner)
+            function = ".".join(reversed(functions)) or "<module>"
+            accum_sites.add(f"{rel}:{function}")
         for m in registration.finditer(text):
             body = m.group(1).strip()
             if body:
@@ -296,11 +313,13 @@ def test_every_run_level_usage_hook_shares_the_deduping_implementation() -> None
     # 恰两个被祝福的去重实现:make_usage_cb(litellm 路,按 call_id 去重)
     # 与 absorb_dsh_usage(B-dsh 路,可信 events 汇经 normalize() 的 usage 律
     # 已在入口去重)。多一处 = 复制一份未去重的旧病。
-    # 行号钉随 host_guided 头部变动翻新(2026-08-25:SelfWriteWindow 导入
-    # +1;FROZEN 宣言段 +13);四个落点仍是同两个去重实现的内部。
-    assert accum_files == {"runner/host_guided.py:167", "runner/host_guided.py:168",
-                           "runner/host_guided.py:181", "runner/host_guided.py:182"}, (
-        f"run 级用量累加出现在 {sorted(accum_files)} —— 允许的落点只有"
+    # 钉函数所有权而不是行号。注释/导入新增不应让守卫变红；把累加复制到
+    # 第三个函数仍会被精确抓住。
+    assert accum_sites == {
+        "runner/host_guided.py:make_usage_cb._usage_cb",
+        "runner/host_guided.py:absorb_dsh_usage",
+    }, (
+        f"run 级用量累加出现在 {sorted(accum_sites)} —— 允许的落点只有"
         " make_usage_cb 与 absorb_dsh_usage 两个去重实现的内部"
     )
     assert registrations, "一处 success_callback 注册都没扫到 —— 钉自身失效"

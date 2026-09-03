@@ -213,9 +213,12 @@ def test_precheck_missing_dependency_is_reported_without_installing(
         )
 
     assert caught.value.missing_module == "yaml"
-    assert len(calls) == 1
-    assert "pip" not in calls[0]
-    assert "tests/test_table_extract.py::test_table_basic" in calls[0][-1]
+    # 不变量是「缺依赖如实上报,不许 pip 自动补装」;cwd 探测允许在
+    # 候选根下各试一次 pytest,但每一次都必须仍是 pytest 而非安装。
+    assert 1 <= len(calls) <= 2
+    for call in calls:
+        assert "pip" not in call
+        assert "tests/test_table_extract.py::test_table_basic" in call[-1]
 
 
 def test_precheck_green_and_failing(tmp_path):
@@ -266,3 +269,133 @@ def test_selection_on_real_pdfplumber():
     got = select_upstream_test_nodes(PDFPLUMBER, symbols)
     assert all(node.startswith("tests/") and "::" in node for node in got)
     assert len(got) <= 3
+
+
+def test_precheck_probes_repo_root_convention_for_fixture_paths(tmp_path):
+    """cwd 只能探测不能猜(incident-conformance-execution-root-convention-v1)。
+
+    另一半真实惯例:上游测试用**仓库根相对**路径引用 fixture(路径里
+    自带 tests/ 前缀)。单一测试根的猜测把 cwd 定到 tests/ 下,这类
+    套件必然 RepositoryNotFound 型假拦截。探测顺序确定:仓库根,再
+    单一测试根;记录实际通过的 execution_root。
+    """
+    import sys
+
+    root = tmp_path / "up"
+    tests = root / "tests"
+    (tests / "fake-repo").mkdir(parents=True)
+    (tests / "fake-repo" / "marker.txt").write_text("ready", encoding="utf-8")
+    (tests / "test_repo_root_fixture.py").write_text(
+        "def test_repo_root_relative_fixture():\n"
+        "    assert open('tests/fake-repo/marker.txt', encoding='utf-8').read() == 'ready'\n",
+        encoding="utf-8",
+    )
+
+    result = precheck_upstream_conformance(
+        root,
+        ["tests/test_repo_root_fixture.py::test_repo_root_relative_fixture"],
+        Path(sys.executable),
+    )
+    assert result["status"] == "PASS"
+    assert result.get("execution_root") == "."
+
+
+def test_precheck_still_fails_when_nodes_fail_under_every_root(tmp_path):
+    """探测不是放水:两种惯例下都失败的子集仍然物化期拒绝。"""
+    import sys
+
+    root = tmp_path / "up"
+    tests = root / "tests"
+    tests.mkdir(parents=True)
+    (tests / "test_truly_broken.py").write_text(
+        "def test_truly_broken():\n    assert False\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(UpstreamConformanceError):
+        precheck_upstream_conformance(
+            root,
+            ["tests/test_truly_broken.py::test_truly_broken"],
+            Path(sys.executable),
+        )
+
+
+# ---- 准入测试面 = pytest 在该仓实际会收集的面
+# (incident-conformance-surface-nested-package-tests-v1 /
+#  incident-conformance-surface-declared-testpaths-v1) ----
+
+
+def test_selection_reaches_package_internal_tests_directories(tmp_path) -> None:
+    """无顶层 tests/ 的仓:测试嵌在包内 pkg/**/tests/test_*.py(pytest 默认
+    递归收集,只跳过 norecursedirs)。只看顶层 tests 目录会把整仓判成零节点。"""
+    root = tmp_path / "up"
+    nested = root / "graphlib" / "algorithms" / "tests"
+    nested.mkdir(parents=True)
+    (root / "graphlib" / "__init__.py").write_text("", encoding="utf-8")
+    (nested / "test_paths.py").write_text(
+        "def test_shortest_path():\n    graphlib.shortest_path('g')\n",
+        encoding="utf-8",
+    )
+    (root / "build" / "lib" / "tests").mkdir(parents=True)
+    (root / "build" / "lib" / "tests" / "test_paths.py").write_text(
+        "def test_shortest_path():\n    graphlib.shortest_path('g')\n",
+        encoding="utf-8",
+    )
+    assert select_upstream_test_nodes(root, ["shortest_path"]) == [
+        "graphlib/algorithms/tests/test_paths.py::test_shortest_path"
+    ]
+
+
+def test_selection_honours_declared_testpaths_and_python_files(tmp_path) -> None:
+    """上游自己声明的收集规则(pyproject [tool.pytest.ini_options]):
+    testpaths 通配 + 非默认 basename(*_tests.py)。显式 node id 下 pytest
+    照样能收集这些文件,所以它们属于可运行的准入面。"""
+    root = tmp_path / "up"
+    tests = root / "tests"
+    tests.mkdir(parents=True)
+    (root / "pyproject.toml").write_text(
+        '[tool.pytest.ini_options]\ntestpaths = "tests/*test*.py"\n',
+        encoding="utf-8",
+    )
+    (tests / "unit_tests.py").write_text(
+        "def test_extract_basic():\n    extract('<html/>')\n",
+        encoding="utf-8",
+    )
+    (tests / "helpers.py").write_text(
+        "def test_extract_helper():\n    extract('<html/>')\n",
+        encoding="utf-8",
+    )
+    assert select_upstream_test_nodes(root, ["extract"]) == [
+        "tests/unit_tests.py::test_extract_basic"
+    ]
+
+
+def test_selection_uses_pytest_default_python_files_when_undeclared(tmp_path) -> None:
+    root = tmp_path / "up"
+    tests = root / "tests"
+    tests.mkdir(parents=True)
+    (tests / "reader_test.py").write_text(
+        "def test_parse():\n    reader.parse('x')\n", encoding="utf-8",
+    )
+    (tests / "notes.py").write_text(
+        "def test_parse_notes():\n    reader.parse('x')\n", encoding="utf-8",
+    )
+    assert select_upstream_test_nodes(root, ["reader.parse"]) == [
+        "tests/reader_test.py::test_parse"
+    ]
+
+
+def test_precheck_passes_explicit_non_default_basename_nodes(tmp_path) -> None:
+    """守卫:选中的非默认命名文件必须真的能被 -c os.devnull 的 pytest 执行。"""
+    import sys
+
+    root = tmp_path / "up"
+    tests = root / "tests"
+    tests.mkdir(parents=True)
+    (tests / "unit_tests.py").write_text(
+        "def test_ok():\n    assert True\n", encoding="utf-8",
+    )
+    result = precheck_upstream_conformance(
+        root, ["tests/unit_tests.py::test_ok"], Path(sys.executable),
+    )
+    assert result["status"] == "PASS"

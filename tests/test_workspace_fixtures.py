@@ -207,3 +207,38 @@ def test_builder_output_kind_must_match_blueprint(tmp_path: Path) -> None:
             python_exe=sys.executable,
             isolation_required=False,
         )
+
+
+def test_builder_failure_projects_public_exception_class(tmp_path: Path) -> None:
+    """量具对称性(incident-fresh-audit-proposal-batch-abort-*):reference
+    失败早已投影 exception_type,builder 失败却只留子进程包装类型名
+    `CompletedProcess`。builder 对提案的域外拒绝必须带公开异常类,才能
+    作为记录结果与排除反馈。"""
+    source = tmp_path / "builder.py"
+    source.write_text(
+        "def build(blueprint, output_path):\n"
+        "    'non-ascii'.encode('ascii')\n"
+        "    ''.join(blueprint['parameters']['lines']).encode('ascii')\n",
+        encoding="utf-8",
+    )
+    blueprint = FixtureBlueprintV1(
+        blueprint_id="unicode-page",
+        title="Unicode page",
+        scenario="A page whose text the frozen builder cannot encode.",
+        input_kind="file",
+        parameters={"lines": ["Résumé"]},
+    )
+    with pytest.raises(FixtureBuilderError) as caught:
+        build_fixture_candidate(
+            blueprint=blueprint,
+            builder_id="ascii-only-builder-v1",
+            builder_source=source,
+            fixture_root=tmp_path / "fixtures",
+            python_exe=sys.executable,
+            isolation_required=False,
+        )
+    assert caught.value.code == "FIXTURE_BUILDER_FAILED"
+    # v2 (incident-builder-failure-diagnostics-opaque-*): the class now leads a
+    # full public line with the bounded message and in-source location.
+    assert caught.value.detail.startswith("UnicodeEncodeError: ")
+    assert "fixture_builder.py:" in caught.value.detail

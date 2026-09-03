@@ -8,6 +8,7 @@ UNKNOWN 永不猜;每个结论带来源。
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import re
 import subprocess
@@ -33,11 +34,14 @@ _EXTERNAL_DEPS = {"openai", "anthropic", "google-genai", "boto3", "redis", "qdra
                   "chromadb", "pinecone", "weaviate-client", "pymongo", "psycopg2", "mysqlclient",
                   "elasticsearch", "kafka-python"}
 _SECRET_NAME = r"([A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD)[A-Z0-9_]*)"
-_RE_SECRET_REQUIRED = re.compile(
-    rf"\benviron\s*\[\s*['\"]{_SECRET_NAME}['\"]\s*\]"
+_RE_SECRET_MENTION = re.compile(
+    rf"\b(?:environ\s*\[\s*|environ\.get\s*\(\s*|getenv\s*\(\s*)['\"]{_SECRET_NAME}['\"]"
 )
-_RE_SECRET_OPTIONAL = re.compile(
-    rf"\b(?:environ\.get|getenv)\s*\(\s*['\"]{_SECRET_NAME}['\"]"
+_SECRET_NAME_FULL = re.compile(_SECRET_NAME.strip("()"))
+# 上游自身的测试/示例/文档目录:其中的密钥读取不构成被采纳能力的运行时
+# 需求(conformance 选节点时另行验证可运行性),单独入账、不静默丢弃。
+_NON_RUNTIME_ZONES = frozenset(
+    {"tests", "test", "testing", "docs", "doc", "examples", "example"}
 )
 _RE_TOP_DEF = re.compile(r"^(?:def|class)\s+([A-Za-z_]\w*)", re.MULTILINE)
 _RE_ALL = re.compile(r"__all__\s*=\s*[\[(]([^\])]*)[\])]", re.DOTALL)
@@ -76,6 +80,8 @@ class RepositoryReport(BaseModel):
     external_services: Finding = Finding.unknown()
     secrets_required: list[Finding] = []
     secrets_optional: list[Finding] = []
+    # 上游测试/示例/文档区的密钥读取:可见但不计入运行时需求(I4)。
+    secrets_test_zone: list[Finding] = []
     quickstart: Finding = Finding.unknown()
     # README 正文摘录(有界):此前只留第一个代码块当 quickstart,正文丢掉了,
     # 于是"这个仓库到底是干什么的"在 UI 里无从展示。**它是展示件**:不参与
@@ -216,6 +222,121 @@ def _git_head(repo: Path) -> str | None:
     return proc.stdout.strip() if proc.returncode == 0 else None
 
 
+def _is_secret_env_name(name: str) -> bool:
+    return _SECRET_NAME_FULL.fullmatch(name) is not None
+
+
+def _module_secret_env_reads(tree: ast.Module) -> tuple[set[str], set[str]]:
+    """按可执行语义提取 (必需式读取, 可选式读取) 的进程环境密钥名。
+
+    必需式 = 对 os.environ(或其 from-import 别名)的下标 **读取**;
+    可选式 = environ.get / os.getenv 带常量名调用。字符串字面量因不
+    进入 AST 表达式结构而天然排除;Store/Del 上下文(赋值/清理)是
+    "提供"不是"要求";WSGI 等同名形参对象通过 import 别名闭包排除。
+    """
+
+    os_aliases: set[str] = set()
+    environ_aliases: set[str] = set()
+    getenv_aliases: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "os":
+                    os_aliases.add(alias.asname or "os")
+        elif isinstance(node, ast.ImportFrom) and node.module == "os":
+            for alias in node.names:
+                if alias.name == "environ":
+                    environ_aliases.add(alias.asname or "environ")
+                elif alias.name == "getenv":
+                    getenv_aliases.add(alias.asname or "getenv")
+
+    def _is_environ(expr: ast.expr) -> bool:
+        if isinstance(expr, ast.Name):
+            return expr.id in environ_aliases
+        return (
+            isinstance(expr, ast.Attribute)
+            and expr.attr == "environ"
+            and isinstance(expr.value, ast.Name)
+            and expr.value.id in os_aliases
+        )
+
+    required: set[str] = set()
+    optional: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Subscript)
+            and isinstance(node.ctx, ast.Load)
+            and _is_environ(node.value)
+            and isinstance(node.slice, ast.Constant)
+            and isinstance(node.slice.value, str)
+        ):
+            if _is_secret_env_name(node.slice.value):
+                required.add(node.slice.value)
+        elif isinstance(node, ast.Call) and node.args:
+            func = node.func
+            is_get = (
+                (isinstance(func, ast.Attribute) and func.attr == "get" and _is_environ(func.value))
+                or (
+                    isinstance(func, ast.Attribute)
+                    and func.attr == "getenv"
+                    and isinstance(func.value, ast.Name)
+                    and func.value.id in os_aliases
+                )
+                or (isinstance(func, ast.Name) and func.id in getenv_aliases)
+            )
+            first = node.args[0]
+            if is_get and isinstance(first, ast.Constant) and isinstance(first.value, str):
+                if _is_secret_env_name(first.value):
+                    optional.add(first.value)
+    return required, optional
+
+
+def _scan_secret_env_reads(
+    root: Path,
+) -> tuple[dict[str, Finding], dict[str, Finding], dict[str, Finding], int]:
+    """全树确定性密钥读取扫描:(必需, 可选, 非运行时区, 解析失败数)。
+
+    密钥面是 admission 硬判据,故不受通用扫描的文件数上限约束(I3):
+    截断既会按字母序制造假阳,也会静默漏掉上限之后的真实需求。逐文件
+    大小上限沿用 _read_text;无法按 3.12 语法解析的文件不属于可导入
+    运行时,计数后跳过。
+    """
+
+    from repoproof.adoption.analysis.host_analyzer import SKIP_DIRS
+
+    required: dict[str, Finding] = {}
+    optional: dict[str, Finding] = {}
+    non_runtime: dict[str, Finding] = {}
+    parse_failed = 0
+    for path in sorted(root.rglob("*.py")):
+        rel = path.relative_to(root)
+        parts = rel.parts
+        if any(part in SKIP_DIRS for part in parts):
+            continue
+        text = _read_text(path)
+        if text is None:
+            continue
+        try:
+            tree = ast.parse(text)
+        except (SyntaxError, ValueError):
+            parse_failed += 1
+            continue
+        module_required, module_optional = _module_secret_env_reads(tree)
+        rel_s = str(rel)
+        if any(part in _NON_RUNTIME_ZONES for part in parts[:-1]):
+            for name in module_required | module_optional:
+                non_runtime.setdefault(name, Finding.fact(name, rel_s))
+            continue
+        for name in module_required:
+            required.setdefault(name, Finding.fact(name, rel_s))
+        for name in module_optional:
+            optional.setdefault(name, Finding.fact(name, rel_s))
+    for name in required:
+        optional.pop(name, None)
+        non_runtime.pop(name, None)
+    return required, optional, non_runtime, parse_failed
+
+
 def analyze_repository_dir(
     repo_dir: str | Path,
     *,
@@ -344,19 +465,13 @@ def analyze_repository_dir(
     # ---- 源码扫描:7 public api / 8 cli / 11 secrets / 候选 ----
     public_api: list[Finding] = []
     cli_entries: list[Finding] = []
-    secrets: dict[str, Finding] = {}
-    optional_secrets: dict[str, Finding] = {}
     candidates: list[CapabilityCandidate] = []
 
-    def collect_secrets(text: str, evidence: str) -> None:
-        for match in _RE_SECRET_REQUIRED.finditer(text):
-            name = match.group(1)
-            secrets.setdefault(name, Finding.fact(name, evidence))
-            optional_secrets.pop(name, None)
-        for match in _RE_SECRET_OPTIONAL.finditer(text):
-            name = match.group(1)
-            if name not in secrets:
-                optional_secrets.setdefault(name, Finding.fact(name, evidence))
+    # 密钥读取走独立全树 AST 扫描(I1-I4):必需式只能来自可执行读取,
+    # 不受下方通用扫描的 MAX_PY_FILES 截断影响。
+    secrets, optional_secrets, test_zone_secrets, secret_parse_failed = (
+        _scan_secret_env_reads(root)
+    )
 
     for rel, text in _iter_py_files(root, stats):
         rel_s = str(rel)
@@ -377,18 +492,33 @@ def analyze_repository_dir(
                     public_api.append(Finding.fact(m2.group(1), rel_s))
         if rel.name == "__main__.py":
             cli_entries.append(Finding.fact(f"python -m {rel.parent.name}", rel_s))
-        collect_secrets(text, rel_s)
-    collect_secrets(readme_text, readme.name if readme else "README")
+    # README 是文档:提及只能构成可选式风险,不能构成"要求"(I1)。
+    readme_evidence = readme.name if readme else "README"
+    for match in _RE_SECRET_MENTION.finditer(readme_text):
+        name = match.group(1)
+        if name not in secrets:
+            optional_secrets.setdefault(name, Finding.fact(name, readme_evidence))
     for name, target in scripts.items():
         cli_entries.append(Finding.fact(f"{name} = {target}", "pyproject.toml [project.scripts]"))
     if secrets:
         risks.append(
-            f"代码/文档要求环境密钥: {sorted(secrets)}——当前不自动提供 secret"
+            f"代码要求环境密钥: {sorted(secrets)}——当前不自动提供 secret"
         )
     if optional_secrets:
         risks.append(
             "代码/文档包含可选式环境密钥读取: "
             f"{sorted(optional_secrets)}——所选能力必须在无凭证预检中通过"
+        )
+    if test_zone_secrets:
+        risks.append(
+            "上游测试/示例/文档目录读取环境密钥: "
+            f"{sorted(test_zone_secrets)}——不计入所选能力的运行时需求;"
+            "无凭证预检仍会强制验证"
+        )
+    if secret_parse_failed:
+        risks.append(
+            f"密钥扫描:{secret_parse_failed} 个 Python 文件无法按当前语法解析,"
+            "未纳入读取分析"
         )
 
     for f in public_api[:10]:
@@ -424,6 +554,7 @@ def analyze_repository_dir(
         external_services=external,
         secrets_required=list(secrets.values())[:20],
         secrets_optional=list(optional_secrets.values())[:20],
+        secrets_test_zone=list(test_zone_secrets.values())[:20],
         quickstart=quickstart,
         readme_excerpt=readme_prose(readme_text),
         tests=tests,

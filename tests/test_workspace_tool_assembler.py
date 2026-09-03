@@ -124,7 +124,9 @@ def test_golden_identity_ignores_oracle_read_only_hardening(
     prelude = workspace_tool_assembler._TEST_PRELUDE.split("def _run_case", 1)[0]
     exec(prelude, namespace)
 
-    assert namespace["_tree_sha"](ordinary) != namespace["_tree_sha"](hardened)
+    # _tree_sha (the raw-byte second ruler) was removed from the prelude
+    # (incident-artifact-identity-zip-metadata-*); only the golden ruler ships.
+    assert "_tree_sha" not in namespace
     assert namespace["_golden_sha"](ordinary) == namespace["_golden_sha"](hardened)
 
 

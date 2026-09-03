@@ -382,6 +382,12 @@ WorkspaceValidationProfile = Literal[
     "binary_v1",
     "csv_v1",
     "html_v1",
+    "ics_v1",
+    "ipynb_v1",
+    "mo_v1",
+    "png_v1",
+    "pptx_v1",
+    "xlsx_v1",
     "json_v1",
     "python_compile_v1",
     "shell_v1",
@@ -500,6 +506,24 @@ class WorkspaceArtifactContractV1(BaseModel):
     require_offline_wheelhouse: bool = False
     runtime_python_entrypoint: str | None = None
     limits: WorkspaceArtifactLimits = Field(default_factory=WorkspaceArtifactLimits)
+    # Whole-tree profiles (e.g. static_site_v1: index.html present, internal
+    # links closed); per-file profiles cannot see across files.  Optional and
+    # absent from every earlier frozen contract.
+    directory_profiles: tuple[str, ...] = Field(default_factory=tuple, max_length=4)
+
+    @field_validator("directory_profiles")
+    @classmethod
+    def _known_directory_profiles(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        from repoproof.adoption.delivery.portable_workspace_runtime import (
+            KNOWN_DIRECTORY_PROFILES,
+        )
+
+        for item in value:
+            if item not in KNOWN_DIRECTORY_PROFILES:
+                raise ValueError(f"unknown directory profile: {item!r}")
+        if len(value) != len(set(value)):
+            raise ValueError("directory profiles must be unique")
+        return value
 
     @field_validator("entrypoints")
     @classmethod

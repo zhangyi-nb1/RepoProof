@@ -220,3 +220,82 @@ def test_sort_release_tags_version_order() -> None:
 
     out = sort_release_tags(["0.4.0", "v0.10.0", "0.5.1", "weird-tag", "0.5.0"])
     assert out == ["v0.10.0", "0.5.1", "0.5.0", "0.4.0", "weird-tag"]
+
+
+# ---- 必需式密钥 = 可执行读取,而非文本出现
+# (incident-admission-secret-scan-misclassification-v1) ----
+#
+# 不变量:
+# I1 secrets_required 只能来自可执行代码里的 environ 下标读取;
+#    字符串字面量(代码生成模板/文档示例)不是运行时需求。
+# I2 对 environ 的赋值/删除是"提供",不是"要求"。
+# I3 密钥扫描必须确定性覆盖整个 Python 树,不受通用扫描文件数上限
+#    截断影响 —— 截断既造成假阳(按字母序扫到哪算哪),也造成假阴
+#    (上限之后的真实密钥需求被静默漏掉)。
+# I4 上游自身 tests/docs/examples 区读密钥不构成被采纳能力的运行时
+#    需求;单独入账,不静默丢弃。
+
+
+def test_secret_name_inside_string_literal_is_not_required(tmp_path: Path) -> None:
+    _write(tmp_path, "gen/emit.py",
+           "TEMPLATE = [\n"
+           "    '    password=os.environ[\"DB_PASSWORD\"],',\n"
+           "]\n")
+    r = analyze_repository_dir(tmp_path)
+    assert {str(s.value) for s in r.secrets_required} == set()
+
+
+def test_secret_env_assignment_is_not_required(tmp_path: Path) -> None:
+    _write(tmp_path, "svc/setup_env.py",
+           'import os\nos.environ["EXPORT_TOKEN"] = "value"\n')
+    r = analyze_repository_dir(tmp_path)
+    assert "EXPORT_TOKEN" not in {str(s.value) for s in r.secrets_required}
+    assert "EXPORT_TOKEN" not in {str(s.value) for s in r.secrets_optional}
+
+
+def test_readme_secret_mention_is_not_required(tmp_path: Path) -> None:
+    _write(tmp_path, "README.md",
+           '# demo\n\n```python\nimport os\nk = os.environ["DOC_ONLY_KEY"]\n```\n')
+    r = analyze_repository_dir(tmp_path)
+    assert "DOC_ONLY_KEY" not in {str(s.value) for s in r.secrets_required}
+    # 文档提及仍要可见:进可选/风险面,不静默消失。
+    assert "DOC_ONLY_KEY" in {str(s.value) for s in r.secrets_optional}
+
+
+def test_secret_scan_is_not_truncated_by_generic_file_cap(tmp_path: Path) -> None:
+    from repoproof.adoption.analysis.host_analyzer import MAX_PY_FILES
+
+    for i in range(MAX_PY_FILES):
+        _write(tmp_path, f"pkg/a_{i:04d}.py", "X = 1\n")
+    _write(tmp_path, "pkg/zz_late.py",
+           'import os\nK = os.environ["LATE_API_KEY"]\n')
+    r = analyze_repository_dir(tmp_path)
+    assert "LATE_API_KEY" in {str(s.value) for s in r.secrets_required}
+
+
+def test_upstream_test_zone_secret_read_is_not_runtime_required(tmp_path: Path) -> None:
+    _write(tmp_path, "pkg/core.py", "def run():\n    return 1\n")
+    _write(tmp_path, "tests/test_env.py",
+           'import os\nK = os.environ["SUITE_ONLY_KEY"]\n')
+    r = analyze_repository_dir(tmp_path)
+    assert "SUITE_ONLY_KEY" not in {str(s.value) for s in r.secrets_required}
+    assert "SUITE_ONLY_KEY" in {str(s.value) for s in r.secrets_test_zone}
+
+
+def test_executable_lib_secret_read_still_required_via_alias_forms(tmp_path: Path) -> None:
+    """正控:闸门不降。真实读取(含 from os import environ 别名形态)仍必须命中。"""
+    _write(tmp_path, "svc/a.py", 'import os\nK = os.environ["ALPHA_API_KEY"]\n')
+    _write(tmp_path, "svc/b.py", 'from os import environ\nT = environ["BETA_TOKEN"]\n')
+    r = analyze_repository_dir(tmp_path)
+    names = {str(s.value) for s in r.secrets_required}
+    assert {"ALPHA_API_KEY", "BETA_TOKEN"} <= names
+
+
+def test_wsgi_style_foreign_environ_is_not_a_secret_requirement(tmp_path: Path) -> None:
+    """非 os.environ 的同名对象(WSGI environ 参数)不是进程环境密钥。"""
+    _write(tmp_path, "web/app.py",
+           "def app(environ, start_response):\n"
+           '    k = environ["HTTP_X_API_KEY"]\n'
+           "    return k\n")
+    r = analyze_repository_dir(tmp_path)
+    assert "HTTP_X_API_KEY" not in {str(s.value) for s in r.secrets_required}

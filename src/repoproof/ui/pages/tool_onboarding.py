@@ -640,8 +640,19 @@ def _render_draft_readiness_summary(readiness: dict) -> None:
     covered_count = int(summary.get("verifier_declared_commitment_count") or 0)
     coverage = str(summary.get("commitment_coverage") or "UNAVAILABLE")
     lock_ready = bool(summary.get("dependency_lock_ready"))
-    columns = st.columns(3)
+    self_check = str(summary.get("draft_self_check") or "NOT_APPLICABLE")
+    columns = st.columns(4)
     columns[0].metric("独立语义验证器", "已就绪" if verifier_ready else "待补全")
+    columns[3].metric(
+        "起草自检",
+        {
+            "PASSED": "已通过",
+            "FAILED": "未通过",
+            "STALE": "已过期",
+            "MISSING": "未运行",
+        }.get(self_check, "不适用"),
+        "冻结前必须通过" if self_check in {"FAILED", "STALE", "MISSING"} else None,
+    )
     coverage_value = f"{covered_count}/{commitment_count}"
     coverage_delta = coverage
     if coverage == "RUNTIME_PENDING":
@@ -690,6 +701,25 @@ def _render_workspace_examples(
         key=f"{prefix}_workspace_candidate_offline",
         help="使用创建草稿时已经由 LLM 提出的场景蓝图；真实字节仍由冻结 builder 和上游 reference 产生。",
     )
+    if _require_service("run_draft_self_check", "repair", "drafter") and controls[2].button(
+        "起草自检并有界自修",
+        key=f"{prefix}_workspace_self_check",
+        help=(
+            "Harness 用冻结 builder/reference/verifier 互相物化并探针判别力;"
+            "失败按站位自动修复,最多两轮;不冻结、不调用构建 Agent。"
+        ),
+    ):
+        with st.spinner("自检:生成样例 → 语义筛查 → 判别力探针 → 有界自修……"):
+            checked = product_jobs.run_draft_self_check(draft_dir, repair=True)
+        st.session_state[f"{prefix}_flash"] = {
+            "ok": bool(checked.get("ok")),
+            "message": (
+                f"起草自检 {checked.get('status')}:{checked.get('rounds')} 轮;"
+                + str(checked.get("recommended_action") or checked.get("error") or "")
+            ),
+        }
+        st.session_state.pop(f"{prefix}_workspace_candidates", None)
+        st.rerun()
     generate = controls[2].button(
         "按模型场景生成真实目录样例",
         type="primary",

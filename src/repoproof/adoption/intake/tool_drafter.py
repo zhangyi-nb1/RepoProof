@@ -187,7 +187,10 @@ _SYSTEM = (
     "workspace_contract (null for cli_v2; for workspace_bundle_v1, a complete "
     "WorkspaceArtifactContractV1 describing allowed relative paths, roles, media "
     "types, generic validators, cardinalities, executable bits, entrypoints, a "
-    "frozen smoke command and resource limits), fixture_builder (null for cli_v2; "
+    "frozen smoke command and resource limits; when the deliverable is a browsable "
+    "static site, also declare directory_profiles: [\"static_site_v1\"] so the "
+    "Harness machine-checks that an index.html exists and every internal link "
+    "resolves inside the tree), fixture_builder (null for cli_v2; "
     "for workspace_bundle_v1, Python source defining build(blueprint, output_path) "
     "that deterministically materializes a real file or directory without network "
     "or subprocesses). The builder receives the normalized FixtureBlueprintV1 object "
@@ -202,12 +205,20 @@ _SYSTEM = (
     "an executable entrypoint and smoke_command beginning with ./ plus that entrypoint. "
     "For every runnable Python workspace, Core owns a sealed offline runtime closure. "
     "Set require_offline_wheelhouse=true and runtime_python_entrypoint to the "
-    "non-executable Python application file that the generated workspace will contain. "
+    "non-executable Python application file that the generated workspace will contain; "
+    "that application file is NOT Core-owned: reference_impl.build_workspace itself must "
+    "write it (Core only seals the closure around it after build_workspace returns). "
     "Reserve run.sh, requirements.lock.txt, THIRD_PARTY_NOTICES.md and vendor/wheels/* "
     "for Core: include their structural rules, declare run.sh as the only executable "
     "entrypoint, and begin smoke_command with ./run.sh, but do not create those four "
     "runtime-owned resources in reference_impl. User-facing instructions must invoke "
-    "./run.sh instead of executing the application file directly. "
+    "./run.sh instead of executing the application file directly. The Harness runs "
+    "smoke_command inside the delivered workspace ALONE: no candidate input, no extra "
+    "files and nothing outside the workspace exist at that moment, and the command "
+    "must exit 0 there. So the application must succeed with exactly those arguments "
+    "(treat a missing input argument as a usage request that exits 0, or support "
+    "--help) and any file argument must be a contracted workspace member; "
+    "./run.sh input.json is wrong by construction when input.json is not one. "
     "semantic_commitments (1-16 public behaviour rules, each containing "
     "commitment_id, public_text, and rationale). Each semantic commitment MUST "
     "be independently decidable from one valid input path and the delivered "
@@ -229,7 +240,10 @@ _SYSTEM = (
     "reference_impl (python source: import the upstream module and define class "
     "UserInputError(ValueError). For cli_v2 define extract(input_path: Path) -> str. "
     "For workspace_bundle_v1 define build_workspace(input_path: Path, output_dir: "
-    "Path) -> None and create every contracted file below output_dir. Both versions "
+    "Path) -> None and create every contracted file below output_dir; the workspace "
+    "must be byte-reproducible (two runs on the same input, seconds apart, yield identical "
+    "trees: never read the clock or random state, pin generated ids and container "
+    "member timestamps to constants, sort every collection you emit). Both versions "
     "must REALLY call the upstream and "
     "the upstream result MUST drive at least one primary user-requested semantic "
     "commitment and its delivered artifact. Never add an incidental diagnostic, "
@@ -282,7 +296,14 @@ _VERIFIER_SYSTEM = (
     "calls the pinned upstream module while defining synchronous "
     "verify(input_path: Path, artifact_path: Path) -> dict. The returned dict has "
     "exactly boolean ok, stable uppercase reason_codes, and "
-    "checked_commitment_ids listing every supplied commitment actually evaluated. "
+    "checked_commitment_ids listing every supplied commitment actually evaluated, "
+    "reason_codes MUST be empty when ok is true (never emit informational codes such as "
+    "OK or PASSED; a passing verdict with any reason code is rejected as inconsistent), "
+    "plus reason_details: an object mapping EVERY returned reason code to one public "
+    "sentence (<=200 chars) that names the first differing item concretely — the exact "
+    "expected value and the exact observed value (a title, a row, a count, a path), never "
+    "a generic 'title, rows or order differ' — with no fixture bytes or secrets; a "
+    "rejection without its concrete explanation cannot be repaired from evidence. "
     "Every supplied commitment is intentionally scoped to behaviour observable "
     "from a valid input and its artifact. Generic offline policy, credentials, "
     "exception wrapping, invalid-input rejection and CLI exit semantics are verified "
@@ -353,7 +374,51 @@ _WORKSPACE_REFERENCE_REPAIR_SYSTEM = (
     "only explicit input-domain exception types to UserInputError so programming "
     "and upstream-API errors remain observable to the Harness. Do not call the "
     "network, spawn subprocesses, inspect examples/oracles/verifiers, or change "
-    "task semantics."
+    "task semantics. The workspace must be byte-reproducible: two runs on the same "
+    "input, seconds apart, must produce identical trees. When the failure is "
+    "WORKSPACE_REFERENCE_NOT_REPRODUCIBLE the diagnostics name each drifting path "
+    "and kind (ZIP_METADATA_ONLY = container member timestamps; BYTES_DIFFER = "
+    "content such as generated ids, wall-clock stamps or unordered iteration): pin "
+    "container member timestamps to a constant date_time, derive ids from content, "
+    "never read the clock or random state, and sort every collection you emit. "
+    "When the failure is WALL_CLOCK_DATE_EMBEDDED the diagnostics name the file and "
+    "line that carry today's date, written by the upstream itself (a generation "
+    "comment, a document property): rewrite that exact text to a constant after "
+    "rendering, or configure the upstream not to stamp it — a golden that only "
+    "matches on the day it was made is not reproducible. "
+    "When the failure is WORKSPACE_REFERENCE_SMOKE_FAILED the diagnostics carry the "
+    "fixed smoke command, its exit code and a stderr excerpt: the Harness runs that "
+    "command inside the delivered workspace alone, with no candidate input and no "
+    "external files, so the application file build_workspace writes must exit 0 under "
+    "exactly that command (treat a missing input argument as a usage request that "
+    "exits 0, support --help, or read only files the workspace itself contains)."
+)
+
+_WORKSPACE_CONTRACT_REPAIR_SYSTEM = (
+    "You repair ONLY the structural representation of a pre-freeze "
+    "WorkspaceArtifactContract after the Harness proved the current one cannot "
+    "accept the workspace its own reference produces (public diagnostics such as "
+    "WORKSPACE_RULE_OVERLAP or WORKSPACE_PATH_TOO_DEEP are supplied). The user "
+    "goal, delivery requirements, semantic commitments and artifact protocol are "
+    "fixed. You may change limits, rule path patterns and rule cardinalities and "
+    "merge overlapping rules; you must keep exactly the same set of rule roles "
+    "(no role added, removed or renamed), the same runnable flag, entrypoint and "
+    "require_offline_wheelhouse. Never change a rule's validation_profile or "
+    "executable flag, never turn allow_extra_files on and never change entrypoints: "
+    "those are the ruler the workspace is checked against, not its representation. "
+    "A content diagnostic (WORKSPACE_HTML_EXTERNAL_RESOURCE, WORKSPACE_FORMAT_*) is "
+    "not yours to fix: the producer must change the bytes, so leave that diagnostic "
+    "alone rather than loosening the check. Core exclusively owns run.sh, "
+    "requirements.lock.txt, THIRD_PARTY_NOTICES.md and vendor/wheels/*.whl; never "
+    "write rules for them. Each diagnostic row names the exact path, the rules or "
+    "the resource it concerns; change only what those rows implicate. "
+    "smoke_command is executed inside the delivered workspace alone (no candidate "
+    "input, no external files) and must exit 0 there; when the diagnostics are "
+    "WORKSPACE_REFERENCE_SMOKE_FAILED with a stderr showing a missing input, keep "
+    "./run.sh as the first token and change only its arguments to ones the workspace "
+    "satisfies by itself (such as --help when the application supports it); never "
+    "point it at a file that is not a contracted member. Output STRICT JSON with "
+    "exactly one key: workspace_contract."
 )
 
 _VERIFIER_REPAIR_SYSTEM = (
@@ -368,10 +433,45 @@ _VERIFIER_REPAIR_SYSTEM = (
     "Output STRICT JSON with exactly one key: semantic_verifier. Its value is Python "
     "source that imports and REALLY calls the pinned upstream and defines synchronous "
     "verify(input_path: Path, artifact_path: Path) -> dict with exactly boolean ok, "
-    "stable uppercase reason_codes and checked_commitment_ids. Recompute every public "
+    "stable uppercase reason_codes (empty when ok is true — never an informational OK), "
+    "checked_commitment_ids and reason_details (per reason "
+    "code one public sentence naming the exact expected value and the exact observed "
+    "value of the first differing item). Recompute every public "
     "commitment independently and ensure the expected artifact shape obeys the fixed "
     "output contract. Never reconstruct or infer reference_impl, hardcode examples, "
-    "or relax the contract merely to make a producer pass."
+    "or relax the contract merely to make a producer pass. When self_check_failure "
+    "reports discrimination_gaps, add the missing independent recomputation for each "
+    "listed delivered file; never remove or weaken an existing check. The Harness also "
+    "supplies artifact_observation: the delivered file paths, byte sizes, first text line, a "
+    "bounded excerpt of each text artifact (sections, tables, encodings as actually written), "
+    "zip member names for container files and the magic prefix of other binaries — the "
+    "reference artifact it judged — plus the reason_codes the current verifier returned. "
+    "Align the verifier with what was observed unless the observation violates a stated "
+    "commitment. Diagnose by re-reading the current verifier against those observed paths "
+    "before changing anything. Defect classes that repeatedly caused false rejection in "
+    "this project: escape sequences leaked into raw-string regexes (\\\\. instead of \\.), "
+    "list-versus-tuple or str-versus-int equality on parsed rows, substring matching on "
+    "structured data instead of parsing it, ordinal or numbering rules that differ from "
+    "the artifact protocol, and commitment ids that drift from the supplied semantic "
+    "commitments. Fix the actual defect; do not add unrelated defensive checks."
+)
+_FIXTURE_BUILDER_REPAIR_SYSTEM = (
+    "You repair ONLY a pre-freeze fixture builder and its 3-4 natural scenario "
+    "blueprints after a deterministic Harness materialisation failed with one "
+    "public failure classification. The supplied user goal, delivery requirements, "
+    "semantic commitments, artifact protocol, WorkspaceArtifactContract, input_kind "
+    "and pinned upstream identity are fixed. Output STRICT JSON with exactly two keys: "
+    "fixture_builder and fixture_blueprints. fixture_builder is Python source defining "
+    "synchronous build(blueprint, output_path) that reads ONLY blueprint['parameters'] "
+    "and writes the real input file or directory at output_path; it must not read "
+    "top-level blueprint keys, call the network, spawn subprocesses, embed expected "
+    "outputs, credentials, paths outside output_path or shell commands. Every "
+    "blueprint has blueprint_id, title, scenario, input_kind equal to the supplied "
+    "input_kind, and parameters_json: a JSON object string whose keys and value types "
+    "the builder actually consumes so that distinct blueprints produce distinct bytes. "
+    "Only use parameter values the builder can encode; when the public failure is an "
+    "encoding class, keep all parameter text inside the builder's supported character "
+    "set. Returning byte-identical builder source and identical blueprints is invalid."
 )
 
 _CODEX_REFERENCE_REPAIR_SYSTEM = _REFERENCE_REPAIR_SYSTEM
@@ -379,6 +479,18 @@ _CODEX_WORKSPACE_REFERENCE_REPAIR_SYSTEM = _WORKSPACE_REFERENCE_REPAIR_SYSTEM
 _CODEX_VERIFIER_REPAIR_SYSTEM = _VERIFIER_REPAIR_SYSTEM
 
 _DEFAULT_DRAFTER_TIMEOUT_SECONDS = 60.0
+# Schemas whose value is a whole source file or contract need the long budget on
+# every channel; keeping one set stops the two transports from diverging.
+_LONG_FORM_SCHEMA_NAMES = frozenset(
+    {
+        "tool_draft",
+        "semantic_verifier",
+        "reference_contract_repair",
+        "workspace_reference_execution_repair",
+        "semantic_verifier_contract_repair",
+        "workspace_contract_structural_repair",
+    }
+)
 _LONG_FORM_DRAFTER_TIMEOUT_SECONDS = 300.0
 _MIN_DRAFTER_TIMEOUT_SECONDS = 5.0
 _MAX_DRAFTER_TIMEOUT_SECONDS = 300.0
@@ -455,8 +567,28 @@ def _completion_with_temperature_fallback(litellm, **kwargs):
     raise DraftError("DRAFTER_UNREACHABLE")
 
 
+def _rejection_code(exc: BaseException) -> str:
+    """The public code of a rejection: the part after the last ':' of a DraftError,
+    or the exception class name for a parse/shape failure."""
+
+    if isinstance(exc, DraftError):
+        message = str(exc)
+        return message.rsplit(":", 1)[-1] if ":" in message else message
+    return type(exc).__name__
+
+
 class DraftError(RuntimeError):
-    pass
+    """Public drafting failure; ``diagnostics`` carries Core's field-level rejection facts.
+
+    Each diagnostic is ``{"loc", "type", "msg"}`` projected from the validation
+    error that rejected the model document (never the rejected input itself), so
+    a failed draft is diagnosable from the CLI payload / autopilot report on disk
+    and the bounded repair turn argues from evidence instead of a bare code.
+    """
+
+    def __init__(self, *args: object, diagnostics: list[dict[str, str]] | None = None) -> None:
+        super().__init__(*args)
+        self.diagnostics: list[dict[str, str]] = [dict(row) for row in (diagnostics or [])]
 
 
 class DeliveryAdmissionError(DraftError):
@@ -993,6 +1125,16 @@ _CODEX_REFERENCE_REPAIR_SCHEMA: dict[str, Any] = deepcopy(
     _REFERENCE_REPAIR_SCHEMA
 )
 _CODEX_VERIFIER_REPAIR_SCHEMA: dict[str, Any] = deepcopy(_VERIFIER_SCHEMA)
+_FIXTURE_REPAIR_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["fixture_builder", "fixture_blueprints"],
+    "properties": {
+        "fixture_builder": {"type": "string", "minLength": 1, "maxLength": 30000},
+        "fixture_blueprints": deepcopy(_FIXTURE_BLUEPRINT_SCHEMA),
+    },
+}
+_CODEX_FIXTURE_REPAIR_SCHEMA: dict[str, Any] = deepcopy(_FIXTURE_REPAIR_SCHEMA)
 
 
 def _context_with_product_profile(context: dict) -> dict:
@@ -1075,20 +1217,83 @@ def workspace_reference_runtime_ownership_policy_errors(
     if not closure_required:
         return []
     try:
-        tree = ast.parse(source)
+        ast.parse(source)
     except SyntaxError:
         return ["REFERENCE_SOURCE_SYNTAX_INVALID"]
+    if workspace_reference_runtime_ownership_diagnostics(source, workspace_contract):
+        return ["WORKSPACE_REFERENCE_RUNTIME_OWNERSHIP_VIOLATION"]
+    return []
 
+
+def workspace_reference_runtime_ownership_diagnostics(
+    source: str,
+    workspace_contract: object,
+) -> list[dict[str, str]]:
+    """Name every path-bearing literal that claims a Core-owned runtime path.
+
+    Reserved are the owned *files* (``run.sh``, ``requirements.lock.txt``,
+    ``THIRD_PARTY_NOTICES.md``) and anything under ``vendor/``.  The bare word
+    ``vendor`` is a domain noun (a billing or reconciliation column) far more
+    often than a directory, and treating it as reserved rejected every repair
+    of two unrelated producers without saying why
+    (incident-reference-ownership-policy-second-ruler-*).  Dynamically built
+    paths stay the business of the seal-time collision gate.
+    """
+
+    if isinstance(workspace_contract, WorkspaceArtifactContractV1):
+        closure_required = workspace_contract.require_offline_wheelhouse
+    elif isinstance(workspace_contract, dict):
+        closure_required = bool(workspace_contract.get("require_offline_wheelhouse"))
+    else:
+        closure_required = False
+    if not closure_required:
+        return []
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    owned_files = tuple(p for p in OFFLINE_PYTHON_RUNTIME_OWNED_PATHS if "." in p)
+    owned_dirs = tuple(p for p in OFFLINE_PYTHON_RUNTIME_OWNED_PATHS if "." not in p)
+    parents: dict[int, ast.AST] = {}
+    for parent in ast.walk(tree):
+        for child in ast.iter_child_nodes(parent):
+            parents[id(child)] = parent
+    rows: list[dict[str, str]] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
             continue
         literal = node.value.replace("\\", "/").strip("/")
-        if any(
-            literal == owned or literal.startswith(f"{owned}/")
-            for owned in OFFLINE_PYTHON_RUNTIME_OWNED_PATHS
-        ):
-            return ["WORKSPACE_REFERENCE_RUNTIME_OWNERSHIP_VIOLATION"]
-    return []
+        reserved = literal in owned_files or any(
+            literal.startswith(f"{owned}/") for owned in owned_dirs
+        )
+        if not reserved and literal in owned_dirs:
+            # A bare directory name counts only where it is used AS a path
+            # segment (``output_dir / 'vendor'``, ``Path('vendor')``,
+            # ``joinpath('vendor')``); as a dict key or a column label it is a
+            # domain word.
+            owner_node = parents.get(id(node))
+            if isinstance(owner_node, ast.BinOp) and isinstance(owner_node.op, ast.Div):
+                reserved = True
+            elif isinstance(owner_node, ast.Call):
+                func = owner_node.func
+                name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+                reserved = name in {"Path", "PurePath", "PurePosixPath", "joinpath", "join"}
+        if not reserved:
+            continue
+        line = getattr(node, "lineno", 0)
+        rows.append(
+            {
+                "loc": f"reference_impl:{line}",
+                "type": "runtime_ownership_violation",
+                "msg": (
+                    f"literal '{literal}' names a Core-owned runtime path; run.sh, "
+                    "requirements.lock.txt, THIRD_PARTY_NOTICES.md and vendor/** are "
+                    "sealed by Core after build_workspace returns — write only "
+                    "application and domain files"
+                ),
+            }
+        )
+    return rows
 
 
 def _validate_reference_source(
@@ -1215,14 +1420,19 @@ def _normalize_fixture_blueprints(
 ) -> tuple[dict[str, Any], ...]:
     rows = document.get("fixture_blueprints")
     if not isinstance(rows, list) or not minimum <= len(rows) <= maximum:
-        raise DraftProjectionError(
-            "tool-draft:WORKSPACE_FIXTURE_BLUEPRINTS_REQUIRED"
+        raise _projection_error(
+            "WORKSPACE_FIXTURE_BLUEPRINTS_REQUIRED",
+            ("fixture_blueprints",),
+            f"workspace_bundle_v1 needs {minimum}-{maximum} fixture blueprints; got "
+            f"{len(rows) if isinstance(rows, list) else type(rows).__name__}",
         )
     normalized: list[dict[str, Any]] = []
-    for raw in rows:
+    for index, raw in enumerate(rows):
         if not isinstance(raw, dict):
-            raise DraftProjectionError(
-                "tool-draft:WORKSPACE_FIXTURE_BLUEPRINT_INVALID"
+            raise _projection_error(
+                "WORKSPACE_FIXTURE_BLUEPRINT_INVALID",
+                ("fixture_blueprints", index),
+                "each blueprint must be an object with blueprint_id, title, scenario, input_kind, parameters_json",
             )
         try:
             parameters = json.loads(str(raw.get("parameters_json") or ""))
@@ -1239,17 +1449,24 @@ def _normalize_fixture_blueprints(
                 parameters=parameters,
             )
         except (TypeError, ValueError, json.JSONDecodeError) as exc:
-            raise DraftProjectionError(
-                "tool-draft:WORKSPACE_FIXTURE_BLUEPRINT_INVALID"
+            raise _projection_error(
+                "WORKSPACE_FIXTURE_BLUEPRINT_INVALID",
+                ("fixture_blueprints", index),
+                f"{type(exc).__name__}: {' '.join(str(exc).split())[:160]}",
             ) from exc
         if blueprint.input_kind != input_kind:
-            raise DraftProjectionError(
-                "tool-draft:WORKSPACE_FIXTURE_INPUT_KIND_MISMATCH"
+            raise _projection_error(
+                "WORKSPACE_FIXTURE_INPUT_KIND_MISMATCH",
+                ("fixture_blueprints", index, "input_kind"),
+                f"blueprint input_kind={blueprint.input_kind!r} but delivery_requirements.inputs[0].kind "
+                f"is {input_kind!r}; every blueprint must build that input kind",
             )
         normalized.append(blueprint.model_dump(mode="json"))
     if len({item["blueprint_id"] for item in normalized}) != len(normalized):
-        raise DraftProjectionError(
-            "tool-draft:WORKSPACE_FIXTURE_BLUEPRINT_DUPLICATE"
+        raise _projection_error(
+            "WORKSPACE_FIXTURE_BLUEPRINT_DUPLICATE",
+            ("fixture_blueprints",),
+            "blueprint_id values must be unique",
         )
     admitted = tuple(FixtureBlueprintV1.model_validate(item) for item in normalized)
     projected = tuple(
@@ -1338,6 +1555,59 @@ def _compile_workspace_contract_resource_floors(value: object) -> object:
     return compiled
 
 
+def _reject_smoke_non_member_argument(compiled: object) -> None:
+    """A smoke argument that names a file the workspace cannot contain is a
+    representation error, named at its field.
+
+    The Harness executes ``smoke_command`` inside the delivered workspace alone:
+    no candidate input, no external files.  A file-looking argument (``x.json``,
+    ``data/in``) matched by no contract rule therefore fails by construction, and
+    letting it through only surfaces later as a stderr excerpt in candidate
+    generation or preflight (incident-smoke-command-semantics-untaught-*).
+    Flags and non-path words are left alone; so is a contract that admits
+    extra files, since the producer may then write the argument itself.
+    """
+
+    if not isinstance(compiled, dict) or compiled.get("allow_extra_files"):
+        return
+    from repoproof.execution.workspace_bundle import workspace_path_matches
+
+    patterns = [
+        str(rule.get("path_pattern") or "")
+        for rule in (compiled.get("rules") or [])
+        if isinstance(rule, dict)
+    ]
+    smoke = compiled.get("smoke_command") or []
+    if not isinstance(smoke, list):
+        return
+    for index, token in enumerate(smoke[1:], start=1):
+        word = str(token)
+        if not word or word.startswith("-") or not _looks_like_path(word):
+            continue
+        if any(workspace_path_matches(pattern, word) for pattern in patterns):
+            continue
+        raise _projection_error(
+            "SMOKE_COMMAND_NON_MEMBER_ARGUMENT",
+            ("workspace_contract", "smoke_command", index),
+            f"smoke argument '{word}' matches no contract rule; the Harness runs the smoke "
+            "command inside the delivered workspace alone (no candidate input, no external "
+            "files), so name only contracted members or use a flag such as --help",
+        )
+
+
+def _looks_like_path(word: str) -> bool:
+    if "/" in word:
+        return True
+    stem, dot, suffix = word.rpartition(".")
+    return bool(dot and stem and suffix.isalnum() and len(suffix) <= 8)
+
+
+def _runtime_owned_subtree_pattern(pattern: str) -> bool:
+    """True when a contract glob can only ever match Core-owned wheel paths."""
+
+    return pattern.startswith("vendor/wheels/") or pattern in {"vendor/*", "vendor/**", "vendor/**/*"}
+
+
 def _compile_workspace_runtime_closure(value: object) -> object:
     """Compile one generic sealed runtime for model-authored Python workspaces.
 
@@ -1419,14 +1689,23 @@ def _compile_workspace_runtime_closure(value: object) -> object:
             "executable": False,
         },
     )
-    paths = {
-        str(item.get("path_pattern") or "")
-        for item in rules
-        if isinstance(item, dict)
-    }
-    for rule in machine_rules:
-        if rule["path_pattern"] not in paths:
-            rules.append(rule)
+    # Core owns the runtime closure paths.  A model rule that names one of them
+    # (same pattern) or that lives entirely inside vendor/wheels is representation
+    # noise: keeping it next to the Core rule would surface later as
+    # WORKSPACE_RULE_OVERLAP against every produced tree.  Broad model globs
+    # (for example ``*.md``) are left alone; a genuine overlap there is a
+    # contract structural defect the self-check routes to a contract repair.
+    machine_patterns = {rule["path_pattern"] for rule in machine_rules}
+    kept: list[object] = []
+    for item in rules:
+        if not isinstance(item, dict):
+            kept.append(item)
+            continue
+        pattern = str(item.get("path_pattern") or "")
+        if pattern in machine_patterns or _runtime_owned_subtree_pattern(pattern):
+            continue
+        kept.append(item)
+    rules[:] = [*kept, *deepcopy(list(machine_rules))]
     limits = compiled.get("limits")
     if isinstance(limits, dict):
         limits["max_files"] = 512
@@ -1438,16 +1717,137 @@ def _compile_workspace_runtime_closure(value: object) -> object:
     return compiled
 
 
+_MAX_PUBLIC_DIAGNOSTICS = 12
+_MAX_PUBLIC_DIAGNOSTIC_MSG = 240
+
+
+def public_validation_diagnostics(exc: BaseException) -> list[dict[str, str]]:
+    """Project the Core rejection chained behind ``exc`` into public field facts.
+
+    Pydantic rejections become ``loc``/``type``/``msg`` rows (input values are
+    never included); compiler ``ValueError`` codes become one ``value_error``
+    row.  Anything else yields nothing rather than guessing.
+    """
+
+    cause = exc.__cause__ if exc.__cause__ is not None else exc.__context__
+    if cause is None:
+        return []
+    errors_fn = getattr(cause, "errors", None)
+    if callable(errors_fn):
+        try:
+            rows = errors_fn(include_url=False, include_context=False, include_input=False)
+        except TypeError:
+            rows = errors_fn()
+        projected: list[dict[str, str]] = []
+        for row in list(rows)[:_MAX_PUBLIC_DIAGNOSTICS]:
+            if not isinstance(row, dict):
+                continue
+            projected.append(
+                {
+                    "loc": ".".join(str(part) for part in (row.get("loc") or ())),
+                    "type": str(row.get("type") or "")[:80],
+                    "msg": str(row.get("msg") or "")[:_MAX_PUBLIC_DIAGNOSTIC_MSG],
+                }
+            )
+        return projected
+    if isinstance(cause, ValueError):
+        return [{"loc": "", "type": "value_error", "msg": str(cause)[:_MAX_PUBLIC_DIAGNOSTIC_MSG]}]
+    return []
+
+
 def _invalid_model_output_error(exc: BaseException) -> DraftError:
     """Retain one allowlisted Core projection code without leaking model text."""
 
+    diagnostics = public_validation_diagnostics(exc)
     message = str(exc)
     prefix = "tool-draft:"
     if message.startswith(prefix):
         reason = message.removeprefix(prefix)
         if re.fullmatch(r"[A-Z][A-Z0-9_]{0,95}", reason):
-            return DraftError(f"tool-draft:INVALID_MODEL_OUTPUT:{reason}")
-    return DraftError("tool-draft:INVALID_MODEL_OUTPUT")
+            return DraftError(
+                f"tool-draft:INVALID_MODEL_OUTPUT:{reason}", diagnostics=diagnostics
+            )
+    return DraftError("tool-draft:INVALID_MODEL_OUTPUT", diagnostics=diagnostics)
+
+
+class _DocumentContradiction(ValueError):
+    """Field-level facts about a document that contradicts itself.
+
+    Exposes the same ``errors()`` shape as a Pydantic validation error so the
+    public diagnostics projection treats both alike.
+    """
+
+    def __init__(self, rows: list[dict[str, Any]]) -> None:
+        super().__init__(
+            "; ".join(
+                f"{'.'.join(str(part) for part in row['loc'])}: {row['msg']}" for row in rows
+            )
+        )
+        self._rows = rows
+
+    def errors(self, **_: object) -> list[dict[str, Any]]:
+        return [dict(row) for row in self._rows]
+
+
+def _projection_error(code: str, loc: tuple[object, ...], msg: str) -> DraftProjectionError:
+    """A projection rejection that names its field, so the one bounded repair is evidence-based."""
+
+    error = DraftProjectionError(f"tool-draft:{code}")
+    error.__cause__ = _DocumentContradiction([{"loc": loc, "type": code.lower(), "msg": msg}])
+    return error
+
+
+def _reject_delivery_shape_contradiction(document: dict, raw_requirements: object) -> None:
+    """A document whose typed delivery shape contradicts its own members is a
+    representation error, not an unsupported user need.
+
+    Workspace members (workspace_contract, fixture_builder, fixture_blueprints,
+    or an output whose format is the workspace bundle) mean the model is
+    describing a multi-file directory deliverable; an output kind other than
+    ``directory`` next to them cannot be a truthful requirement.  Classifying it
+    through profile admission would either reject it as unsupported (no repair)
+    or repair it blind; naming the conflicting field lets the bounded projection
+    repair fix exactly that and nothing else.
+    """
+
+    if not isinstance(raw_requirements, dict):
+        return
+    outputs = raw_requirements.get("outputs")
+    if not isinstance(outputs, list) or not outputs:
+        return
+    members = [
+        name
+        for name, present in (
+            ("workspace_contract", document.get("workspace_contract") is not None),
+            ("fixture_builder", bool(str(document.get("fixture_builder") or "").strip())),
+            ("fixture_blueprints", bool(document.get("fixture_blueprints"))),
+        )
+        if present
+    ]
+    rows: list[dict[str, Any]] = []
+    for index, output in enumerate(outputs):
+        if not isinstance(output, dict):
+            continue
+        kind = str(output.get("kind") or "")
+        bundle_format = str(output.get("format_id") or "") == "workspace_bundle"
+        if kind == "directory" or not (members or bundle_format):
+            continue
+        conflict = ", ".join([*members, *(["format_id=workspace_bundle"] if bundle_format else [])])
+        rows.append(
+            {
+                "loc": ("delivery_requirements", "outputs", index, "kind"),
+                "type": "delivery_shape_contradiction",
+                "msg": (
+                    f"kind={kind!r} contradicts the document's own workspace members ({conflict}); "
+                    "a multi-file workspace deliverable must use kind='directory' with "
+                    "format_id='workspace_bundle', or drop those members for a single-artifact tool"
+                ),
+            }
+        )
+    if rows:
+        raise DraftProjectionError(
+            "tool-draft:DELIVERY_SHAPE_SELF_CONTRADICTION"
+        ) from _DocumentContradiction(rows)
 
 
 def normalize_draft_document(
@@ -1475,13 +1875,30 @@ def normalize_draft_document(
 
         jsonschema.validate(document, _DRAFT_SCHEMA)
     except jsonschema.ValidationError as exc:
-        raise DraftError("tool-draft:INVALID_DOCUMENT") from exc
+        # A schema rejection is a representation error like any other: name the
+        # field so the one bounded projection repair can act on it, instead of
+        # ending the journey on the first document with a bare code
+        # (incident-projection-repair-blind-invalid-document-*).
+        # Value-free message: jsonschema's own text embeds the rejected instance,
+        # which for a whole reference source is bulky model output, not a fact.
+        expectation = json.dumps(exc.validator_value, ensure_ascii=False)[:160]
+        if exc.validator in {"additionalProperties", "required"}:
+            expectation = str(exc.message)[:_MAX_PUBLIC_DIAGNOSTIC_MSG]  # key names only
+        named = _projection_error(
+            "INVALID_DOCUMENT",
+            tuple(exc.absolute_path) or ("$",),
+            f"schema '{exc.validator}' violated; expected {expectation}",
+        )
+        # ``raise ... from exc`` would replace the diagnostic cause the
+        # projector reads; keep the schema error as implicit context only.
+        raise named  # noqa: B904 - the cause is the field diagnostic, by design
     raw_requirements = (
         deepcopy(authoritative_delivery_requirements)
         if authoritative_delivery_requirements is not None
         else document["delivery_requirements"]
     )
     try:
+        _reject_delivery_shape_contradiction(document, raw_requirements)
         profile = select_product_delivery_profile(raw_requirements)
         requirements, artifact = profile.admit_requirements(raw_requirements)
     except ProductProfileError as exc:
@@ -1491,17 +1908,18 @@ def normalize_draft_document(
     fixture_blueprints: tuple[dict[str, Any], ...] = ()
     if profile.profile_id == WORKSPACE_BUNDLE_PROFILE_ID:
         if document.get("output_required_fields"):
-            raise DraftProjectionError(
-                "tool-draft:WORKSPACE_REQUIRED_FIELDS_NOT_SUPPORTED"
+            raise _projection_error(
+                "WORKSPACE_REQUIRED_FIELDS_NOT_SUPPORTED",
+                ("output_required_fields",),
+                "a workspace deliverable has no flat required fields; keep the list empty and "
+                "express user-visible columns/sections as semantic_commitments",
             )
+        compiled_contract = _compile_workspace_contract_resource_floors(
+            _compile_workspace_runtime_closure(document.get("workspace_contract"))
+        )
+        _reject_smoke_non_member_argument(compiled_contract)
         try:
-            workspace_contract = WorkspaceArtifactContractV1.model_validate(
-                _compile_workspace_contract_resource_floors(
-                    _compile_workspace_runtime_closure(
-                        document.get("workspace_contract")
-                    )
-                )
-            )
+            workspace_contract = WorkspaceArtifactContractV1.model_validate(compiled_contract)
         except ValueError as exc:
             raise DraftProjectionError(
                 "tool-draft:WORKSPACE_CONTRACT_INVALID"
@@ -1511,8 +1929,10 @@ def normalize_draft_document(
         reference_function = "build_workspace"
         fixture_builder = str(document.get("fixture_builder") or "")
         if not fixture_builder.strip():
-            raise DraftProjectionError(
-                "tool-draft:WORKSPACE_FIXTURE_BUILDER_REQUIRED"
+            raise _projection_error(
+                "WORKSPACE_FIXTURE_BUILDER_REQUIRED",
+                ("fixture_builder",),
+                "workspace_bundle_v1 requires fixture_builder Python source defining build(blueprint, output_path)",
             )
         _validate_fixture_builder_source(fixture_builder)
         fixture_blueprints = _normalize_fixture_blueprints(
@@ -1521,14 +1941,19 @@ def normalize_draft_document(
         )
     else:
         if document.get("workspace_contract") is not None:
-            raise DraftProjectionError(
-                "tool-draft:CLI_WORKSPACE_CONTRACT_FORBIDDEN"
+            raise _projection_error(
+                "CLI_WORKSPACE_CONTRACT_FORBIDDEN",
+                ("workspace_contract",),
+                "a single-artifact (cli_v2) deliverable must set workspace_contract to null",
             )
         if document.get("fixture_builder") is not None or document.get(
             "fixture_blueprints"
         ):
-            raise DraftProjectionError(
-                "tool-draft:CLI_WORKSPACE_FIXTURES_FORBIDDEN"
+            raise _projection_error(
+                "CLI_WORKSPACE_FIXTURES_FORBIDDEN",
+                ("fixture_builder",),
+                "a single-artifact (cli_v2) deliverable must set fixture_builder to null and "
+                "fixture_blueprints to []",
             )
         try:
             output_format, output_contract = profile.contract_for(
@@ -1543,6 +1968,18 @@ def normalize_draft_document(
         prefix="tool-draft",
         function_name=reference_function,
     )
+    # The same ruler the repair path applies, applied where the source is first
+    # accepted: a draft that would fail every later repair is named now.
+    ownership_rows = workspace_reference_runtime_ownership_diagnostics(
+        str(document["reference_impl"]), workspace_contract
+    )
+    if ownership_rows:
+        first = ownership_rows[0]
+        raise _projection_error(
+            "WORKSPACE_REFERENCE_RUNTIME_OWNERSHIP_VIOLATION",
+            tuple(first["loc"].split(":", 1)),
+            first["msg"],
+        )
     commitments = normalize_semantic_commitments(document["semantic_commitments"])
     artifact_protocol = normalize_artifact_protocol(
         document["artifact_protocol"],
@@ -1591,7 +2028,9 @@ _PROJECTION_REPAIR_INSTRUCTION = (
     "workspace_bundle_v1, keep output_required_fields empty and repair only the "
     "complete workspace_contract while preserving fixture_builder and "
     "fixture_blueprints byte-for-byte; for cli_v2, workspace_contract and "
-    "fixture_builder must be null and fixture_blueprints empty."
+    "fixture_builder must be null and fixture_blueprints empty. "
+    "public_validation_errors lists exactly which contract fields Core rejected "
+    "(loc/type/msg); fix every listed field and leave the rest untouched."
 )
 
 
@@ -1608,19 +2047,28 @@ def _projection_repair_context(
         if authoritative_delivery_requirements is not None
         else document["delivery_requirements"]
     )
-    profile = select_product_delivery_profile(raw_requirements)
-    requirements, artifact = profile.admit_requirements(raw_requirements)
-    return {
-        "reason_code": str(error).removeprefix("tool-draft:"),
-        "preserve_delivery_requirements": deepcopy(
-            requirements.model_dump(mode="json")
-        ),
-        "selected_artifact": {
+    selected_artifact: dict[str, object] | None
+    try:
+        profile = select_product_delivery_profile(raw_requirements)
+        requirements, artifact = profile.admit_requirements(raw_requirements)
+        preserved: object = deepcopy(requirements.model_dump(mode="json"))
+        selected_artifact = {
             "profile_id": profile.profile_id,
             "format_id": artifact.format_id,
             "root_type": artifact.root_type,
             "allows_required_fields": artifact.allows_required_fields,
-        },
+        }
+    except ProductProfileError:
+        # The document being repaired may be exactly the one whose delivery
+        # shape is inadmissible; the repair must still get its facts (and the
+        # public diagnostics say what to fix) instead of crashing the drafter.
+        preserved = deepcopy(raw_requirements)
+        selected_artifact = None
+    return {
+        "reason_code": str(error).removeprefix("tool-draft:"),
+        "public_validation_errors": public_validation_diagnostics(error),
+        "preserve_delivery_requirements": preserved,
+        "selected_artifact": selected_artifact,
         "previous_output_required_fields": list(
             document.get("output_required_fields") or []
         ),
@@ -1645,6 +2093,131 @@ def normalize_verifier_document(document: dict) -> dict[str, str]:
     if not source.strip():
         raise DraftError("semantic-verifier-draft:EMPTY_SOURCE")
     return {"semantic_verifier": source}
+
+
+_WORKSPACE_CONTRACT_REPAIR_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["workspace_contract"],
+    "properties": {"workspace_contract": _WORKSPACE_CONTRACT_SCHEMA},
+    # The Pydantic-derived contract schema refers to root-relative ``#/$defs``;
+    # an embedded sub-schema is only self-contained with those definitions.
+    "$defs": deepcopy(_DRAFT_SCHEMA.get("$defs") or {}),
+}
+
+
+def normalize_workspace_contract_repair(document: dict, *, current: dict) -> dict:
+    """Validate a contract representation repair; semantics-bearing shape is fixed.
+
+    The repaired contract goes through the same Core compilers as a fresh draft
+    (runtime closure, resource floors, Pydantic validation).  The set of rule
+    roles and the delivery-shape flags must equal the current contract's: a
+    representation repair may reshape patterns, cardinalities and limits, never
+    what the tool delivers.
+    """
+
+    if not isinstance(document, dict) or not isinstance(document.get("workspace_contract"), dict):
+        raise DraftError("workspace-contract-repair:INVALID_DOCUMENT")
+    compiled_contract = _compile_workspace_contract_resource_floors(
+        _compile_workspace_runtime_closure(document["workspace_contract"])
+    )
+    try:
+        _reject_smoke_non_member_argument(compiled_contract)
+    except DraftProjectionError as exc:
+        raise DraftError(
+            "workspace-contract-repair:SMOKE_COMMAND_NON_MEMBER_ARGUMENT",
+            diagnostics=public_validation_diagnostics(exc),
+        ) from exc
+    try:
+        contract = WorkspaceArtifactContractV1.model_validate(compiled_contract)
+    except ValueError as exc:
+        projection = DraftProjectionError("tool-draft:WORKSPACE_CONTRACT_INVALID")
+        projection.__cause__ = exc
+        raise DraftError(
+            "workspace-contract-repair:WORKSPACE_CONTRACT_INVALID",
+            diagnostics=public_validation_diagnostics(projection),
+        ) from exc
+    repaired = contract.model_dump(mode="json")
+    current_roles = sorted(
+        str(rule.get("role") or "")
+        for rule in (current.get("rules") or [])
+        if isinstance(rule, dict)
+    )
+    repaired_roles = sorted(str(rule.get("role") or "") for rule in repaired.get("rules") or [])
+    if current_roles != repaired_roles:
+        raise DraftError("workspace-contract-repair:ROLE_SET_CHANGED")
+    for key in ("runnable", "require_offline_wheelhouse", "runtime_python_entrypoint"):
+        if (current.get(key) or None) != (repaired.get(key) or None):
+            raise DraftError("workspace-contract-repair:DELIVERY_SHAPE_CHANGED")
+    weakened = _contract_repair_weakenings(current, repaired)
+    if weakened:
+        raise DraftError("workspace-contract-repair:VALIDATOR_WEAKENED", diagnostics=weakened)
+    return repaired
+
+
+def _contract_repair_weakenings(current: dict, repaired: dict) -> list[dict[str, str]]:
+    """Rows naming every way a structural repair loosened the ruler.
+
+    The repair exists to fix representation (patterns, cardinalities, limits).
+    A validation profile, an executable bit, the extra-files switch and the
+    entrypoints are what the workspace is *checked against*; a repairer that
+    turns html_v1 into text_utf8_v1 makes an external-resource diagnostic
+    disappear while the delivered site still points at a CDN
+    (incident-contract-repair-weakens-validator-*).  Tightening is allowed.
+    """
+
+    def _by_role(rules: object) -> dict[str, dict]:
+        return {
+            str(rule.get("role") or ""): rule
+            for rule in (rules if isinstance(rules, list) else [])
+            if isinstance(rule, dict)
+        }
+
+    rows: list[dict[str, str]] = []
+
+    def _row(loc: str, msg: str) -> None:
+        rows.append({"loc": loc, "type": "validator_weakened", "msg": msg})
+
+    before, after = _by_role(current.get("rules")), _by_role(repaired.get("rules"))
+    for role, old in before.items():
+        new = after.get(role)
+        if new is None:
+            continue
+        old_profile = str(old.get("validation_profile") or "")
+        new_profile = str(new.get("validation_profile") or "")
+        if old_profile != new_profile:
+            _row(
+                f"workspace_contract.rules[role={role}].validation_profile",
+                f"role '{role}': validation_profile changed {old_profile} -> {new_profile}; "
+                "the profile is the ruler, not the representation",
+            )
+        if bool(old.get("executable", False)) != bool(new.get("executable", False)):
+            _row(
+                f"workspace_contract.rules[role={role}].executable",
+                f"role '{role}': executable changed {bool(old.get('executable', False))} -> "
+                f"{bool(new.get('executable', False))}",
+            )
+    if not bool(current.get("allow_extra_files", False)) and bool(repaired.get("allow_extra_files")):
+        _row(
+            "workspace_contract.allow_extra_files",
+            "allow_extra_files changed False -> True; extra files must stay forbidden",
+        )
+    old_entrypoints = sorted(map(str, current.get("entrypoints") or []))
+    new_entrypoints = sorted(map(str, repaired.get("entrypoints") or []))
+    if old_entrypoints != new_entrypoints:
+        _row(
+            "workspace_contract.entrypoints",
+            f"entrypoints changed {old_entrypoints} -> {new_entrypoints}",
+        )
+    dropped_profiles = set(map(str, current.get("directory_profiles") or [])) - set(
+        map(str, repaired.get("directory_profiles") or [])
+    )
+    if dropped_profiles:
+        _row(
+            "workspace_contract.directory_profiles",
+            f"directory profiles removed: {sorted(dropped_profiles)}; whole-tree checks are the ruler",
+        )
+    return rows
 
 
 def normalize_reference_repair_document(document: dict) -> dict[str, str]:
@@ -1683,6 +2256,27 @@ def normalize_workspace_reference_repair_document(
         function_name="build_workspace",
     )
     return {"reference_impl": source}
+
+def normalize_fixture_repair_document(
+    document: dict,
+    *,
+    input_kind: str,
+) -> dict[str, Any]:
+    """Validate a builder+blueprints repair before it can replace draft assets."""
+
+    try:
+        import jsonschema
+
+        jsonschema.validate(document, _FIXTURE_REPAIR_SCHEMA)
+    except jsonschema.ValidationError as exc:
+        raise DraftError("fixture-repair:INVALID_DOCUMENT") from exc
+    source = str(document["fixture_builder"])
+    if not source.strip():
+        raise DraftError("fixture-repair:EMPTY_SOURCE")
+    _validate_fixture_builder_source(source)
+    blueprints = _normalize_fixture_blueprints(document, input_kind=input_kind)
+    return {"fixture_builder": source, "fixture_blueprints": list(blueprints)}
+
 
 _INPUTS_SCHEMA = {
     "type": "object",
@@ -1867,6 +2461,30 @@ class CodexDrafter:
         )
         return normalize_verifier_document(document)
 
+    def repair_workspace_contract(self, context: dict) -> dict:
+        document = self._structured(
+            instructions=_WORKSPACE_CONTRACT_REPAIR_SYSTEM,
+            context=context,
+            schema=_WORKSPACE_CONTRACT_REPAIR_SCHEMA,
+            purpose="workspace-contract-structural-repair",
+        )
+        return {
+            "workspace_contract": normalize_workspace_contract_repair(
+                document, current=dict(context.get("current_workspace_contract") or {})
+            )
+        }
+
+    def repair_fixture_builder(self, context: dict) -> dict[str, Any]:
+        document = self._structured(
+            instructions=_FIXTURE_BUILDER_REPAIR_SYSTEM,
+            context=context,
+            schema=_CODEX_FIXTURE_REPAIR_SCHEMA,
+            purpose="fixture-builder-repair",
+        )
+        return normalize_fixture_repair_document(
+            document, input_kind=str(context.get("input_kind") or "file")
+        )
+
     def summarize_repo(self, context: dict) -> dict:
         instructions = _SUMMARY_SYSTEM
         context = _context_with_product_profile(context)
@@ -2003,10 +2621,16 @@ class FakeDrafter:
     def repair_reference(self, context: dict) -> dict[str, str]:
         raise DraftError("DRAFT_CONTROL_REPAIR_REQUIRES_ONLINE_DRAFTER")
 
+    def repair_workspace_contract(self, context: dict) -> dict:
+        raise DraftError("DRAFT_CONTROL_REPAIR_REQUIRES_ONLINE_DRAFTER")
+
     def repair_workspace_reference(self, context: dict) -> dict[str, str]:
         raise DraftError("DRAFT_CONTROL_REPAIR_REQUIRES_ONLINE_DRAFTER")
 
     def repair_verifier(self, context: dict) -> dict[str, str]:
+        raise DraftError("DRAFT_CONTROL_REPAIR_REQUIRES_ONLINE_DRAFTER")
+
+    def repair_fixture_builder(self, context: dict) -> dict[str, Any]:
         raise DraftError("DRAFT_CONTROL_REPAIR_REQUIRES_ONLINE_DRAFTER")
 
     def summarize_repo(self, context: dict) -> dict:
@@ -2288,14 +2912,30 @@ class LiteLLMDrafter:
                 document = json.loads(body[body.index("{"): body.rindex("}") + 1])
                 return normalizer(document)
             except (ValueError, IndexError, DraftError) as exc:
+                # Keep Core's rejection (its code and field rows) on the way out
+                # and on the way back in: a retry that only hears "did not
+                # conform" repeats the same mistake, and a round record that
+                # only keeps INVALID_MODEL_OUTPUT cannot be diagnosed from disk
+                # (incident-contract-repair-rejection-opaque-*).
+                inner_code = _rejection_code(exc)
+                rows = list(getattr(exc, "diagnostics", None) or [])
                 if attempt == 2:
-                    raise DraftError(f"{schema_name}:INVALID_MODEL_OUTPUT") from exc
+                    raise DraftError(
+                        f"{schema_name}:INVALID_MODEL_OUTPUT:{inner_code}",
+                        diagnostics=rows,
+                    ) from exc
                 text = self._once_with_system(
                     system,
                     user_msg
-                    + "\n\nYour previous output did not conform to the strict JSON "
-                    "schema. Return ONLY the corrected JSON object without changing "
-                    "the fixed public contract.",
+                    + "\n\nYour previous output was rejected by Core: "
+                    + inner_code
+                    + (
+                        "\n" + "\n".join(f"- {row.get('loc', '')}: {row.get('msg', '')}" for row in rows)
+                        if rows
+                        else ""
+                    )
+                    + "\nReturn ONLY the corrected JSON object without changing the "
+                    "fixed public contract.",
                     schema=schema,
                     schema_name=schema_name,
                 )
@@ -2327,6 +2967,31 @@ class LiteLLMDrafter:
             schema_name="semantic_verifier_contract_repair",
             normalizer=normalize_verifier_document,
         )
+
+    def repair_workspace_contract(self, context: dict) -> dict:
+        current = dict(context.get("current_workspace_contract") or {})
+        return self._repair_source(
+            context=context,
+            system=_WORKSPACE_CONTRACT_REPAIR_SYSTEM,
+            schema=_WORKSPACE_CONTRACT_REPAIR_SCHEMA,
+            schema_name="workspace_contract_structural_repair",
+            normalizer=lambda document: {
+                "workspace_contract": normalize_workspace_contract_repair(document, current=current)
+            },
+        )
+
+    def repair_fixture_builder(self, context: dict) -> dict[str, Any]:
+        input_kind = str(context.get("input_kind") or "file")
+        repaired = self._repair_source(
+            context=context,
+            system=_FIXTURE_BUILDER_REPAIR_SYSTEM,
+            schema=_FIXTURE_REPAIR_SCHEMA,
+            schema_name="fixture_builder_repair",
+            normalizer=lambda document: normalize_fixture_repair_document(
+                document, input_kind=input_kind
+            ),
+        )
+        return dict(repaired)
 
     def summarize_repo(self, context: dict) -> dict:
         """仓库摘要/自然语言需求建议(真 LLM)。不进 draft,不参与判定。
@@ -2474,13 +3139,7 @@ class LiteLLMDrafter:
                 timeout=_drafter_timeout_seconds(
                     default=(
                         _LONG_FORM_DRAFTER_TIMEOUT_SECONDS
-                        if schema_name in {
-                            "tool_draft",
-                            "semantic_verifier",
-                            "reference_contract_repair",
-                            "workspace_reference_execution_repair",
-                            "semantic_verifier_contract_repair",
-                        }
+                        if schema_name in _LONG_FORM_SCHEMA_NAMES
                         else _DEFAULT_DRAFTER_TIMEOUT_SECONDS
                     )
                 ),
@@ -2495,7 +3154,18 @@ class LiteLLMDrafter:
                 "structured output",
                 "structured_output",
             )):
-                raise DraftError("DRAFTER_STRUCTURED_OUTPUT_UNSUPPORTED") from exc
+                # The provider's complaint is about our schema, not about any
+                # secret: keep a bounded excerpt so the rejection is diagnosable.
+                raise DraftError(
+                    "DRAFTER_STRUCTURED_OUTPUT_UNSUPPORTED",
+                    diagnostics=[
+                        {
+                            "loc": "response_format",
+                            "type": "provider_schema_rejection",
+                            "msg": " ".join(str(exc).split())[:240],
+                        }
+                    ],
+                ) from exc
             raise
         self.temperature_dropped = dropped
         u = getattr(resp, "usage", None)
@@ -2523,6 +3193,90 @@ def _codex_ready() -> bool:
     return bool(run_subscription_preflight(subscription_config()).ready)
 
 
+class AnthropicGatewayDrafter(LiteLLMDrafter):
+    """Same drafting logic, Anthropic-native transport with a forced tool call.
+
+    Only the transport primitive differs: every prompt, schema, repair loop and
+    normalizer above it is the litellm channel's, so the two channels cannot
+    drift apart in what they ask for or accept.  The OpenAI-compatible shim in
+    front of Claude models accepts ``response_format`` and then ignores it, so
+    structured drafting must speak the Anthropic protocol to stay enforced.
+    """
+
+    def __init__(self) -> None:
+        from repoproof.agents.anthropic_gateway import (
+            AnthropicGatewayError,
+            gateway_config_from_env,
+        )
+
+        try:
+            self._config = gateway_config_from_env()
+        except AnthropicGatewayError as exc:
+            raise DraftError(
+                "起草通道未配置:需 REPOPROOF_ANTHROPIC_BASE / REPOPROOF_ANTHROPIC_KEY "
+                "与 REPOPROOF_ANTHROPIC_MODEL(或 REPOPROOF_MODEL)"
+            ) from exc
+        self.model = self._config.model_name
+        self.api_base = self._config.api_base
+        self.api_key = self._config.api_key
+        self.name = f"anthropic-gateway:{self.model}"
+        self.last_usage: dict = {}
+        self.temperature_dropped = False
+
+    def _once_with_system(
+        self,
+        system: str,
+        user_msg: str,
+        *,
+        schema: dict,
+        schema_name: str,
+    ) -> str:
+        from repoproof.agents.anthropic_gateway import (
+            AnthropicGatewayError,
+            call_messages,
+        )
+
+        try:
+            reply = call_messages(
+                self._config,
+                system=system,
+                user=user_msg,
+                schema=_anthropic_tool_schema(schema),
+                timeout_s=_drafter_timeout_seconds(
+                    default=(
+                        _LONG_FORM_DRAFTER_TIMEOUT_SECONDS
+                        if schema_name in _LONG_FORM_SCHEMA_NAMES
+                        else _DEFAULT_DRAFTER_TIMEOUT_SECONDS
+                    )
+                ),
+            )
+        except AnthropicGatewayError as exc:
+            raise DraftError(exc.code, diagnostics=(
+                [{"loc": "response", "type": "gateway", "msg": exc.detail}]
+                if exc.detail
+                else []
+            )) from exc
+        self.temperature_dropped = reply.temperature_dropped
+        self.last_usage = dict(reply.usage)
+        return reply.text
+
+
+def _anthropic_tool_schema(schema: dict) -> dict:
+    """Project one drafting schema into an Anthropic tool ``input_schema``.
+
+    The Anthropic tool contract wants a plain JSON Schema object; the OpenAI
+    strict-mode wrapper is not applied because enforcement here comes from the
+    forced tool call itself.  Root ``$defs`` travel with the schema so embedded
+    ``$ref`` targets resolve locally.
+    """
+
+    if not isinstance(schema, dict):
+        raise DraftError("ANTHROPIC_TOOL_SCHEMA_INVALID")
+    projected = deepcopy(schema)
+    projected.setdefault("type", "object")
+    return projected
+
+
 def configured_drafter_backend() -> str:
     """起草后端:未指定 = API 网关(产品默认,见 2ab838f)。
 
@@ -2537,11 +3291,13 @@ def configured_drafter_backend() -> str:
         "codex": "codex-cli",
         "subscription": "codex-cli",
         "api": "litellm",
+        "anthropic": "anthropic-gateway",
+        "claude": "anthropic-gateway",
     }
     backend = aliases.get(raw, raw)
-    if backend not in {"codex-cli", "litellm"}:
+    if backend not in {"codex-cli", "litellm", "anthropic-gateway"}:
         raise DraftError(
-            "未知起草 backend:需 codex-cli 或 litellm"
+            "未知起草 backend:需 codex-cli、litellm 或 anthropic-gateway"
         )
     return backend
 
@@ -2549,7 +3305,12 @@ def configured_drafter_backend() -> str:
 def online_drafter():
     """Build the configured online drafter without a silent fallback."""
 
-    return CodexDrafter() if configured_drafter_backend() == "codex-cli" else LiteLLMDrafter()
+    backend = configured_drafter_backend()
+    if backend == "codex-cli":
+        return CodexDrafter()
+    if backend == "anthropic-gateway":
+        return AnthropicGatewayDrafter()
+    return LiteLLMDrafter()
 
 
 def online_drafter_status() -> dict[str, str | bool]:
@@ -2559,6 +3320,21 @@ def online_drafter_status() -> dict[str, str | bool]:
         backend = configured_drafter_backend()
     except DraftError as exc:
         return {"ready": False, "backend": "INVALID", "label": str(exc)}
+    if backend == "anthropic-gateway":
+        from repoproof.agents.anthropic_gateway import (
+            AnthropicGatewayError,
+            gateway_config_from_env,
+        )
+
+        try:
+            gateway = gateway_config_from_env()
+        except AnthropicGatewayError as exc:
+            return {"ready": False, "backend": backend, "label": f"Claude 网关未配置:{exc.detail}"}
+        return {
+            "ready": True,
+            "backend": backend,
+            "label": f"Claude 网关已配置 · {gateway.model_name}",
+        }
     if backend == "litellm":
         ready = _litellm_ready()
         label = "API provider 已配置" if ready else "API provider 未配置"

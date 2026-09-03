@@ -288,3 +288,48 @@ def test_probe_marker_scan(tmp_path):
         encoding="utf-8")
     hits = scan_probe_marker(tmp_path, ["ok.py", "probe.py"])
     assert hits == ["probe.py"]
+
+
+def test_instrumentation_never_raises_into_upstream_for_unreprable_args(tmp_path):
+    """量具透明性第二面(incident-import-hook-constructor-repr-v1)。
+
+    真实上游惯用法:对象 __init__ 里先把**尚未构造完**的自身交给另一个
+    公开类(registry/functor 注册),此刻其 __repr__ 依赖的属性还没赋值。
+    量具对构造参数做 repr 摘要,不得让 repr 的异常射进被测上游 ——
+    回执允许降级(类型名摘要),观测不许改变被观测。
+    """
+    up = tmp_path / "up"
+    up.mkdir()
+    (up / "statepkg.py").write_text(
+        "class Functor:\n"
+        "    def __init__(self, owner):\n"
+        "        self.owner = owner\n"
+        "\n"
+        "\n"
+        "class Store:\n"
+        "    def __init__(self):\n"
+        "        self._setter = Functor(self)\n"
+        "        self._items = []\n"
+        "\n"
+        "    def __repr__(self):\n"
+        "        return f'Store({self._items!r})'\n",
+        encoding="utf-8")
+    hook = write_hook_dir(tmp_path / "hook")
+    ledger = tmp_path / "ledger.jsonl"
+    script = tmp_path / "child.py"
+    script.write_text(
+        "import statepkg\n"
+        "store = statepkg.Store()\n"
+        "assert store._setter.owner is store\n"
+        "assert store._items == []\n",
+        encoding="utf-8")
+    env = dict(os.environ,
+               PYTHONPATH=f"{hook}{os.pathsep}{up}",
+               **{ENV_MODULE: "statepkg", ENV_LEDGER: str(ledger),
+                  ENV_SECRET: "s3cr3t"})
+    r = subprocess.run([sys.executable, str(script)], env=env,
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr
+    got = verify_import_receipts(ledger, "s3cr3t", module="statepkg",
+                                 min_calls=2)
+    assert got["ok"] is True, got   # 回执降级不丢账

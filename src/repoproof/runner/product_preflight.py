@@ -29,6 +29,7 @@ from repoproof.adoption.intake.upstream_pin import normalize_dist_name
 from repoproof.domain.models import TaskPackageManifest, WorkspaceArtifactContractV1
 from repoproof.execution.workspace_bundle import (
     build_artifact_manifest,
+    manifest_divergence,
     run_workspace_smoke,
     validate_workspace,
 )
@@ -501,7 +502,7 @@ def run_product_preflight(
                     checks,
                     owner="CONTRACT",
                     code="REFERENCE_WORKSPACE_CONTRACT_MISMATCH",
-                    detail="；".join(structure.reason_codes[:3]),
+                    detail="；".join((structure.details or structure.reason_codes)[:3]),
                 )
             checks.append(
                 ProductPreflightCheck(name="reference_workspace_contract", ok=True)
@@ -512,12 +513,29 @@ def run_product_preflight(
             expected_manifest = build_artifact_manifest(
                 expected_path, limits=workspace_contract.limits
             )
-            if actual_manifest.tree_sha256 != expected_manifest.tree_sha256:
+            from repoproof.adoption.delivery.portable_workspace_runtime import (
+                golden_tree_sha256,
+            )
+
+            if golden_tree_sha256(reference_output) != golden_tree_sha256(expected_path):
+                divergence = manifest_divergence(
+                    actual_manifest,
+                    expected_manifest,
+                    actual_root=reference_output,
+                    expected_root=expected_path,
+                )
                 return _failure(
                     checks,
                     owner="CONTRACT",
                     code="REFERENCE_GOLDEN_MISMATCH",
-                    detail="冻结 reference 目录树与第一个用户确认的期望工作区不一致",
+                    detail=(
+                        "冻结 reference 目录树与第一个用户确认的期望工作区不一致："
+                        + "; ".join(
+                            f"{row['path']}={row['kind']}"
+                            + (f"@{row['locus']}" if row.get("locus") else "")
+                            for row in divergence
+                        )
+                    ),
                 )
             checks.append(
                 ProductPreflightCheck(name="reference_workspace_golden", ok=True)
@@ -608,12 +626,16 @@ def run_product_preflight(
                 )
             )
             if workspace_contract.runnable:
-                runtime = run_workspace_smoke(reference_output, workspace_contract)
+                smoke_stderr: list[str] = []
+                runtime = run_workspace_smoke(
+                    reference_output, workspace_contract, stderr_sink=smoke_stderr.append
+                )
                 if not runtime.passed:
                     isolation_unavailable = (
                         "WORKSPACE_SMOKE_ISOLATION_UNAVAILABLE"
                         in runtime.reason_codes
                     )
+                    excerpt = smoke_stderr[0] if smoke_stderr else ""
                     return _failure(
                         checks,
                         owner="HARNESS" if isolation_unavailable else "CONTRACT",
@@ -622,7 +644,11 @@ def run_product_preflight(
                             if isolation_unavailable
                             else "REFERENCE_WORKSPACE_SMOKE_FAILED"
                         ),
-                        detail="；".join(runtime.reason_codes[:3]),
+                        detail=(
+                            "；".join(runtime.reason_codes[:3])
+                            + f"；smoke_command={list(workspace_contract.smoke_command)} exit_code={runtime.exit_code}"
+                            + (f"；stderr: {excerpt}" if excerpt else "")
+                        ),
                     )
                 checks.append(
                     ProductPreflightCheck(name="reference_workspace_smoke", ok=True)

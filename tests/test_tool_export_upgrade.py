@@ -702,7 +702,7 @@ def test_pipeline_preflights_upgrade_before_models_and_uses_safe_installer(
     monkeypatch.setattr(
         tool_pipeline,
         "select_upstream_test_nodes",
-        lambda *_args: [],
+        lambda *_args, **_kwargs: [],
     )
 
     def materialize(*_args: object, **_kwargs: object) -> Path:

@@ -1618,8 +1618,12 @@ def _audit_workspace_execution(
             }
         )
         evidence["workspace_structure"] = {"ok": True}
+        from repoproof.adoption.delivery.portable_workspace_runtime import golden_tree_sha256
+
+        # Equality for acceptance is the golden identity (zip containers by
+        # their members); the raw tree hashes above stay in the evidence.
         reference_tree_match = (
-            actual_manifest.tree_sha256 == expected_manifest.tree_sha256
+            golden_tree_sha256(artifact_dir) == golden_tree_sha256(expected_dir)
         )
         evidence["reference_tree_match"] = reference_tree_match
         evidence["expected_tree_sha256"] = expected_manifest.tree_sha256

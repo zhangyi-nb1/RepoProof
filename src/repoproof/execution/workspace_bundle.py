@@ -30,6 +30,11 @@ from xml.etree import ElementTree
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from repoproof.adoption.delivery.portable_workspace_runtime import (
+    STRUCTURE_PROFILE_CODES,
+    directory_profile_errors,
+    profile_format_error,
+)
 from repoproof.domain.models import (
     ArtifactManifestEntryV1,
     ArtifactManifestV1,
@@ -48,15 +53,28 @@ DEFAULT_INPUT_MAX_FILES = 256
 DEFAULT_INPUT_MAX_BYTES = 256 * 1024 * 1024
 _READ_CHUNK = 1024 * 1024
 _SMOKE_OUTPUT_CAP = 1024 * 1024
+_VALIDATION_DETAIL_LIMIT = 40
 
 
 class WorkspaceBundleError(RuntimeError):
     """A stable fail-closed workspace mechanism error."""
 
-    def __init__(self, code: str, detail: str = "") -> None:
+    def __init__(
+        self,
+        code: str,
+        detail: str = "",
+        *,
+        diagnostics: tuple[str, ...] | list[str] = (),
+    ) -> None:
         super().__init__(f"{code}: {detail}" if detail else code)
         self.code = code
         self.detail = detail
+        # Public, bounded diagnostics for evidence-based repair.  ``diagnostics[0]``
+        # stays the short class (``detail``) so existing consumers keep working;
+        # later entries add location/message facts that are not answer keys.
+        self.diagnostics: tuple[str, ...] = tuple(str(item) for item in diagnostics if str(item)) or (
+            (detail,) if detail else ()
+        )
 
 
 class WorkspaceValidationResultV1(BaseModel):
@@ -69,6 +87,10 @@ class WorkspaceValidationResultV1(BaseModel):
     reason_codes: tuple[str, ...] = Field(default_factory=tuple, max_length=128)
     manifest: ArtifactManifestV1 | None = None
     matched_paths: dict[str, tuple[str, ...]] = Field(default_factory=dict)
+    # One public row per reason: which path, which rules, which resource. A bare
+    # code such as WORKSPACE_RULE_OVERLAP sends a repairer looking through the
+    # whole contract (incident-structural-codes-without-path-detail-*).
+    details: tuple[str, ...] = Field(default_factory=tuple, max_length=256)
 
 
 class InputPathIdentityV1(BaseModel):
@@ -245,6 +267,113 @@ def build_artifact_manifest(
     )
 
 
+def manifest_divergence(
+    actual: ArtifactManifestV1,
+    expected: ArtifactManifestV1,
+    *,
+    actual_root: Path | None = None,
+    expected_root: Path | None = None,
+    limit: int = 10,
+) -> list[dict[str, str]]:
+    """Explain why two tree identities differ, path by path, without leaking bytes.
+
+    Kinds: ``MISSING`` (expected only), ``EXTRA`` (actual only), ``BYTES_DIFFER``,
+    and — when both sides are readable zip containers whose member names and
+    member payloads are identical — ``ZIP_METADATA_ONLY`` (entry timestamps,
+    ordering or compression differ while the document parts do not).
+    """
+
+    by_actual = {entry.path: entry for entry in actual.entries}
+    by_expected = {entry.path: entry for entry in expected.entries}
+    rows: list[dict[str, str]] = []
+    for path in sorted(set(by_actual) | set(by_expected)):
+        if len(rows) >= limit:
+            break
+        left, right = by_actual.get(path), by_expected.get(path)
+        if left is None:
+            rows.append({"path": path, "kind": "MISSING"})
+        elif right is None:
+            rows.append({"path": path, "kind": "EXTRA"})
+        elif left.sha256 != right.sha256 or left.size != right.size:
+            kind = "BYTES_DIFFER"
+            locus = ""
+            if actual_root is not None and expected_root is not None:
+                try:
+                    same_parts = _zip_parts_equal(
+                        Path(actual_root) / path, Path(expected_root) / path
+                    )
+                except (OSError, zipfile.BadZipFile):
+                    same_parts = False
+                if same_parts:
+                    kind = "ZIP_METADATA_ONLY"
+                else:
+                    locus = _divergence_locus(Path(actual_root) / path, Path(expected_root) / path)
+            row = {"path": path, "kind": kind}
+            if locus:
+                row["locus"] = locus
+            rows.append(row)
+    return rows
+
+
+_LOCUS_EXCERPT_CHARS = 80
+
+
+def _divergence_locus(actual: Path, expected: Path) -> str:
+    """Where two differing files first diverge, named without expected-side bytes.
+
+    A zip container names the first member whose bytes differ (or the first
+    member present on one side only); a UTF-8 text file names the first
+    differing line and quotes a bounded excerpt of the ACTUAL side only — the
+    producer's own output — so a repair knows what to pin without the
+    expected tree ever being echoed (incident-divergence-locus-not-named-*).
+    Binary files without a better description yield "".
+    """
+
+    try:
+        left_bytes = actual.read_bytes()
+        right_bytes = expected.read_bytes()
+    except OSError:
+        return ""
+    if left_bytes[:4] == b"PK\x03\x04" and right_bytes[:4] == b"PK\x03\x04":
+        try:
+            with zipfile.ZipFile(actual) as one, zipfile.ZipFile(expected) as two:
+                names_one = {i.filename for i in one.infolist() if not i.is_dir()}
+                names_two = {i.filename for i in two.infolist() if not i.is_dir()}
+                for name in sorted(names_one | names_two):
+                    if name not in names_one or name not in names_two:
+                        return f"{name} (one side only)"
+                    if one.read(name) != two.read(name):
+                        return name
+        except (OSError, zipfile.BadZipFile, RuntimeError, ValueError):
+            return ""
+        return ""
+    try:
+        left_lines = left_bytes.decode("utf-8").splitlines()
+        right_lines = right_bytes.decode("utf-8").splitlines()
+    except UnicodeDecodeError:
+        return ""
+    for index, (a, b) in enumerate(zip(left_lines, right_lines, strict=False), start=1):
+        if a != b:
+            excerpt = a.strip()[:_LOCUS_EXCERPT_CHARS]
+            return f"line {index}: {excerpt}" if excerpt else f"line {index}"
+    if len(left_lines) != len(right_lines):
+        index = min(len(left_lines), len(right_lines)) + 1
+        return f"line {index}: line count differs ({len(left_lines)} vs {len(right_lines)})"
+    return ""
+
+
+def _zip_parts_equal(left: Path, right: Path) -> bool:
+    with zipfile.ZipFile(left) as one, zipfile.ZipFile(right) as two:
+        names_one = sorted(i.filename for i in one.infolist() if not i.is_dir())
+        names_two = sorted(i.filename for i in two.infolist() if not i.is_dir())
+        if names_one != names_two:
+            return False
+        for name in names_one:
+            if one.read(name) != two.read(name):
+                return False
+    return True
+
+
 def snapshot_admitted_path(
     source: Path,
     destination: Path,
@@ -413,7 +542,12 @@ def _validate_html(text: str) -> None:
     except Exception as exc:  # noqa: BLE001 - parser exceptions become one stable code
         raise WorkspaceBundleError("WORKSPACE_FORMAT_HTML_INVALID") from exc
     if parser.external_references:
-        raise WorkspaceBundleError("WORKSPACE_HTML_EXTERNAL_RESOURCE")
+        shown = parser.external_references[:3]
+        more = len(parser.external_references) - len(shown)
+        raise WorkspaceBundleError(
+            "WORKSPACE_HTML_EXTERNAL_RESOURCE",
+            ", ".join(shown) + (f" (+{more} more)" if more else ""),
+        )
 
 
 def _validate_zip(path: Path, *, wheel: bool) -> None:
@@ -432,6 +566,13 @@ def _validate_format(path: Path, rule: WorkspaceArtifactRule) -> None:
     profile = rule.validation_profile
     if profile in {"zip_v1", "wheel_v1"}:
         _validate_zip(path, wheel=profile == "wheel_v1")
+        return
+    if profile in STRUCTURE_PROFILE_CODES:
+        # One ruler for Core and the exported runtime (see portable_workspace_runtime).
+        payload, _ = _safe_read_regular(path, max_bytes=64 * 1024 * 1024)
+        code = profile_format_error(profile, path, payload)
+        if code is not None:
+            raise WorkspaceBundleError(code)
         return
     if profile == "sqlite_v1":
         try:
@@ -491,11 +632,22 @@ def validate_workspace(
     try:
         manifest = build_artifact_manifest(root, contract.limits)
     except WorkspaceBundleError as exc:
-        return WorkspaceValidationResultV1(ok=False, reason_codes=(exc.code,))
+        return WorkspaceValidationResultV1(
+            ok=False,
+            reason_codes=(exc.code,),
+            details=(f"{exc.code}: {exc.detail}",) if exc.detail else (),
+        )
 
     paths = [entry.path for entry in manifest.entries]
     matched_paths: dict[str, tuple[str, ...]] = {}
     reasons: list[str] = []
+    details: list[str] = []
+
+    def _note(code: str, text: str) -> None:
+        reasons.append(code)
+        if len(details) < _VALIDATION_DETAIL_LIMIT:
+            details.append(f"{code}: {text}")
+
     matched_any: set[str] = set()
     rule_by_path: dict[str, WorkspaceArtifactRule] = {}
     for rule in contract.rules:
@@ -503,39 +655,67 @@ def validate_workspace(
         matched_paths[rule.path_pattern] = matches
         matched_any.update(matches)
         if len(matches) < rule.min_count:
-            reasons.append("WORKSPACE_REQUIRED_ENTRY_MISSING")
+            _note(
+                "WORKSPACE_REQUIRED_ENTRY_MISSING",
+                f"pattern '{rule.path_pattern}' matched {len(matches)} < min_count {rule.min_count}",
+            )
         if len(matches) > rule.max_count:
-            reasons.append("WORKSPACE_ENTRY_CARDINALITY_EXCEEDED")
+            _note(
+                "WORKSPACE_ENTRY_CARDINALITY_EXCEEDED",
+                f"pattern '{rule.path_pattern}' matched {len(matches)} > max_count {rule.max_count}",
+            )
         for path in matches:
-            if path in rule_by_path:
-                reasons.append("WORKSPACE_RULE_OVERLAP")
+            first = rule_by_path.get(path)
+            if first is not None:
+                _note(
+                    "WORKSPACE_RULE_OVERLAP",
+                    f"'{path}' matches '{first.path_pattern}' and '{rule.path_pattern}'",
+                )
             else:
                 rule_by_path[path] = rule
-    if not contract.allow_extra_files and set(paths) - matched_any:
-        reasons.append("WORKSPACE_EXTRA_FILE_FORBIDDEN")
+    extra = sorted(set(paths) - matched_any)
+    if not contract.allow_extra_files and extra:
+        shown = extra[:10]
+        more = len(extra) - len(shown)
+        _note(
+            "WORKSPACE_EXTRA_FILE_FORBIDDEN",
+            ", ".join(f"'{path}'" for path in shown) + (f" (+{more} more)" if more else ""),
+        )
     for entrypoint in contract.entrypoints:
         if entrypoint not in paths:
-            reasons.append("WORKSPACE_ENTRYPOINT_MISSING")
+            _note("WORKSPACE_ENTRYPOINT_MISSING", f"'{entrypoint}' absent")
         elif not (next(item.mode for item in manifest.entries if item.path == entrypoint) & 0o111):
-            reasons.append("WORKSPACE_ENTRYPOINT_NOT_EXECUTABLE")
+            _note("WORKSPACE_ENTRYPOINT_NOT_EXECUTABLE", f"'{entrypoint}' lacks an executable bit")
 
     for entry in manifest.entries:
         entry_rule = rule_by_path.get(entry.path)
         if entry_rule is None:
             continue
         if entry_rule.executable != bool(entry.mode & 0o111):
-            reasons.append("WORKSPACE_EXECUTABLE_MODE_MISMATCH")
+            _note(
+                "WORKSPACE_EXECUTABLE_MODE_MISMATCH",
+                f"'{entry.path}' executable={bool(entry.mode & 0o111)} but rule "
+                f"'{entry_rule.path_pattern}' declares executable={entry_rule.executable}",
+            )
             continue
         try:
             _validate_format(Path(root) / entry.path, entry_rule)
         except WorkspaceBundleError as exc:
-            reasons.append(exc.code)
+            _note(
+                exc.code,
+                f"'{entry.path}' (profile {entry_rule.validation_profile})"
+                + (f" — {exc.detail}" if exc.detail else ""),
+            )
+    for profile in contract.directory_profiles:
+        for code, detail in directory_profile_errors(profile, Path(root)):
+            _note(code, detail)
     unique_reasons = tuple(sorted(set(reasons)))
     return WorkspaceValidationResultV1(
         ok=not unique_reasons,
         reason_codes=unique_reasons,
         manifest=manifest,
         matched_paths=matched_paths,
+        details=tuple(details),
     )
 
 
@@ -558,18 +738,25 @@ def _smoke_capture_digest(descriptor: int) -> tuple[str, bool]:
     return hashlib.sha256(payload).hexdigest(), False
 
 
+_SMOKE_STDERR_TAIL_CHARS = 600
+
+
 def run_workspace_smoke(
     root: Path,
     contract: WorkspaceArtifactContractV1,
     *,
     isolation_required: bool = True,
+    stderr_sink: Callable[[str], None] | None = None,
 ) -> WorkspaceRuntimeEvidenceV1:
     """Run the frozen entrypoint against an immutable copied workspace.
 
     The original artifact is never executed in place.  The child receives a
     sanitised environment, no network under the reviewed OS sandbox, a bounded
     timeout, and its complete process group is reaped before evidence is read.
-    Only hashes and stable reason codes leave this boundary.
+    Only hashes and stable reason codes leave this boundary as *evidence*; a
+    caller that needs the failure to be diagnosable (the draft self-check, the
+    preflight detail) passes ``stderr_sink`` and receives a bounded, single-line
+    excerpt of the child's stderr through that explicit channel instead.
     """
 
     if not contract.runnable or not contract.smoke_command:
@@ -579,6 +766,7 @@ def run_workspace_smoke(
         raise WorkspaceBundleError(
             "WORKSPACE_SMOKE_STRUCTURE_INVALID",
             ",".join(structure.reason_codes),
+            diagnostics=structure.details,
         )
     manifest = structure.manifest
     command_payload = json.dumps(
@@ -666,6 +854,12 @@ def run_workspace_smoke(
             stderr_sha, stderr_oversized = _smoke_capture_digest(stderr_fd)
             if stdout_oversized or stderr_oversized:
                 reasons.append("WORKSPACE_SMOKE_OUTPUT_LIMIT")
+            if stderr_sink is not None:
+                try:
+                    tail = stderr_path.read_bytes()[-4096:].decode("utf-8", errors="replace")
+                except OSError:
+                    tail = ""
+                stderr_sink(" ".join(tail.split())[-_SMOKE_STDERR_TAIL_CHARS:])
         finally:
             os.close(stdout_fd)
             os.close(stderr_fd)
@@ -707,6 +901,7 @@ def materialize_workspace_atomic(
             raise WorkspaceBundleError(
                 "WORKSPACE_CONTRACT_FAILED",
                 ",".join(result.reason_codes),
+                diagnostics=result.details,
             )
         try:
             os.rename(temporary, output_dir)

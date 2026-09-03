@@ -184,51 +184,61 @@ Source: {repo_url} @ {commit} (license: {license_id}).
 '''
 
 _TEST_PRELUDE = r'''import hashlib
+import io
 import os
 import runpy
 import stat
 import subprocess
+import zipfile
 from pathlib import Path
 
 _TOOL = os.environ["REPOPROOF_TOOL_BIN"]
 _FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
-def _tree_sha(root):
-    digest = hashlib.sha256(b"REPOPROOF-WORKSPACE-TREE-V1\0")
-    for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
-        info = path.lstat()
-        if stat.S_ISDIR(info.st_mode):
-            continue
-        assert stat.S_ISREG(info.st_mode) and not path.is_symlink()
-        payload = path.read_bytes()
-        relative = path.relative_to(root).as_posix().encode()
-        digest.update(len(relative).to_bytes(8, "big")); digest.update(relative)
-        digest.update(stat.S_IMODE(info.st_mode).to_bytes(4, "big"))
-        digest.update(len(payload).to_bytes(8, "big"))
-        digest.update(hashlib.sha256(payload).digest())
-    return digest.hexdigest()
+def _golden_file_identity(payload):
+    """One file's acceptance identity: zip archives by sorted (member, bytes);
+    everything else raw sha256.  Same ruler as Core's golden_file_identity."""
+    if payload[:4] == b"PK\x03\x04":
+        try:
+            with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+                members = sorted(
+                    (info.filename, archive.read(info.filename))
+                    for info in archive.infolist()
+                    if not info.is_dir()
+                )
+        except (zipfile.BadZipFile, OSError, RuntimeError, ValueError):
+            return hashlib.sha256(payload).hexdigest()
+        digest = hashlib.sha256(b"REPOPROOF-ZIP-MEMBERS-V1\0")
+        for name, body in members:
+            encoded = name.encode("utf-8")
+            digest.update(len(encoded).to_bytes(8, "big"))
+            digest.update(encoded)
+            digest.update(len(body).to_bytes(8, "big"))
+            digest.update(hashlib.sha256(body).digest())
+        return digest.hexdigest()
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _golden_sha(root):
-    """Bind product bytes and executable semantics, not Oracle hardening.
+    """Bind product content and executable semantics, not Oracle hardening.
 
     Frozen Oracle fixtures are intentionally chmod read-only.  The workspace
     contract separately checks whether each artifact is executable, so rw
-    permission bits are storage protection rather than product truth.
+    permission bits are storage protection rather than product truth.  Zip
+    containers are compared by their members, never by writer incidentals.
     """
-    digest = hashlib.sha256(b"REPOPROOF-WORKSPACE-GOLDEN-V1\0")
+    digest = hashlib.sha256(b"REPOPROOF-WORKSPACE-GOLDEN-V2\0")
     for path in sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix()):
         info = path.lstat()
         if stat.S_ISDIR(info.st_mode):
             continue
         assert stat.S_ISREG(info.st_mode) and not path.is_symlink()
         payload = path.read_bytes()
-        relative = path.relative_to(root).as_posix().encode()
+        relative = path.relative_to(root).as_posix().encode("utf-8")
         digest.update(len(relative).to_bytes(8, "big")); digest.update(relative)
         digest.update(int(bool(stat.S_IMODE(info.st_mode) & 0o111)).to_bytes(1, "big"))
-        digest.update(len(payload).to_bytes(8, "big"))
-        digest.update(hashlib.sha256(payload).digest())
+        digest.update(bytes.fromhex(_golden_file_identity(payload)))
     return digest.hexdigest()
 
 
@@ -283,7 +293,10 @@ def _test_source(
             "\ndef test_workspace_output_is_deterministic(tmp_path):\n"
             f"    first = _run_case(tmp_path / 'one', {identifier!r})\n"
             f"    second = _run_case(tmp_path / 'two', {identifier!r})\n"
-            "    assert _tree_sha(first) == _tree_sha(second)\n"
+            # Determinism is judged by the same golden identity as acceptance:
+            # zip writer incidentals (member DOS timestamps, ordering, compression)
+            # are not content (incident-artifact-identity-zip-metadata-*).
+            "    assert _golden_sha(first) == _golden_sha(second)\n"
         )
         if smoke_command:
             entrypoint = smoke_command[0].removeprefix("./")

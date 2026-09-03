@@ -300,8 +300,47 @@ class RepoProofEnvironment:
             f"{state['patch_lines_remaining']} lines remaining.{flags}"
         )
 
+    def workspace_dir(self) -> str:
+        """The absolute directory the agent's shell actually starts in.
+
+        ``default_cwd`` is a backend-relative sentinel ("host", "/adaptation"),
+        which is useless to the agent: it cannot `cd` to it and cannot tell
+        whether it is already there.  Resolving it here lets the task statement
+        name the real path instead of leaving the agent to search for it — and
+        searching the filesystem is precisely what the policy blocks.
+        """
+
+        session_root = getattr(self.backend, "session_root", None)
+        if not callable(session_root):
+            return str(self.default_cwd)
+        try:
+            root = Path(session_root(self.container))
+        except Exception:  # noqa: BLE001 — a prompt fact must never break a run
+            return str(self.default_cwd)
+        relative = str(self.default_cwd).lstrip("/")
+        return str((root / relative).resolve() if relative else root.resolve())
+
+    def scratch_dir(self) -> str:
+        """The sanctioned self-test output directory (see local_worktree_backend.scratch_dir)."""
+
+        session_root = getattr(self.backend, "session_root", None)
+        if not callable(session_root):
+            return ""
+        try:
+            root = Path(session_root(self.container))
+        except Exception:  # noqa: BLE001 — a prompt fact must never break a run
+            return ""
+        from repoproof.execution.local_worktree_backend import scratch_dir
+
+        return str(scratch_dir(root))
+
     def get_template_vars(self, **kwargs) -> dict[str, Any]:
-        return {"cwd": self.default_cwd, **self.template_vars}
+        return {
+            "cwd": self.default_cwd,
+            "workdir_abs": self.workspace_dir(),
+            "scratch_abs": self.scratch_dir(),
+            **self.template_vars,
+        }
 
     def serialize(self) -> dict:
         return {
