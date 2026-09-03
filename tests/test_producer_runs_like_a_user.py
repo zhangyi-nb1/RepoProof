@@ -53,3 +53,74 @@ def test_frozen_acceptance_invokes_the_tool_like_a_user() -> None:
     exec(compile(prelude.replace('os.environ["REPOPROOF_TOOL_BIN"]', '"unused"'), "p", "exec"), namespace)  # noqa: S102
     env = namespace["_tool_env"]()
     assert env["PYTHONDONTWRITEBYTECODE"] == ""
+
+
+_PRODUCER = """import sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+out.mkdir(parents=True)
+(out / "app.py").write_text("VALUE = 1\\n", encoding="utf-8")
+(out / "README.md").write_text("# report\\n", encoding="utf-8")
+sys.path.insert(0, str(out))
+import app  # the producer imports the file it just delivered
+
+(out / "report.txt").write_text(str(app.VALUE), encoding="utf-8")
+"""
+
+
+def _contract():
+    from repoproof.domain.models import WorkspaceArtifactContractV1
+
+    return WorkspaceArtifactContractV1.model_validate(
+        {
+            "schema_version": 1,
+            "rules": [
+                {"path_pattern": "app.py", "role": "application", "media_type": "text/x-python", "validation_profile": "python_compile_v1"},
+                {"path_pattern": "README.md", "role": "docs", "media_type": "text/markdown", "validation_profile": "text_utf8_v1"},
+                {"path_pattern": "report.txt", "role": "report", "media_type": "text/plain", "validation_profile": "text_utf8_v1"},
+            ],
+            "allow_extra_files": False,
+            "entrypoints": [],
+            "runnable": False,
+            "smoke_command": [],
+            "smoke_timeout_seconds": 10,
+            "require_offline_wheelhouse": False,
+            "limits": {"max_files": 16, "max_total_bytes": 100000, "max_file_bytes": 50000, "max_depth": 4, "max_path_bytes": 160},
+        }
+    )
+
+
+def test_behaviour_a_self_importing_producer_is_rejected_under_user_semantics(tmp_path: Path) -> None:
+    """The real behaviour, not a source grep: the same producer passes validation
+    under the hidden flag and is rejected the way a user's run would be."""
+
+    import subprocess
+    import sys
+
+    from repoproof.execution.workspace_bundle import validate_workspace
+
+    script = tmp_path / "producer.py"
+    script.write_text(_PRODUCER, encoding="utf-8")
+    contract = _contract()
+    outcomes = {}
+    for label, write_bytecode in (("hidden", False), ("user_like", True)):
+        home = tmp_path / f"home-{label}"
+        home.mkdir()
+        target = tmp_path / f"out-{label}"
+        process = subprocess.run(
+            [sys.executable, str(script), str(target)],
+            env=sanitised_subprocess_env(home, [], write_bytecode=write_bytecode),
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+        assert process.returncode == 0, process.stderr
+        result = validate_workspace(target, contract)
+        outcomes[label] = result
+
+    assert outcomes["hidden"].ok is True, outcomes["hidden"].details
+    assert outcomes["user_like"].ok is False
+    assert "WORKSPACE_EXTRA_FILE_FORBIDDEN" in outcomes["user_like"].reason_codes
+    assert any("__pycache__" in row for row in outcomes["user_like"].details)

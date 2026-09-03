@@ -87,6 +87,16 @@
 - 七个 validation profile:全部实现并与导出 runtime 单尺。`static_site_v1`(目录级:index.html 存在、内链闭合)于收口后补齐(合同可选 `directory_profiles` 字段;控制件 `tests/test_static_site_directory_profile.py`);已冻结合同不受影响,c5 的未来版本方可受益。
 - 协议 SHA 写入 HANDOFF:见 HANDOFF_STATE(记录性质,非预注册冻结)。
 
+## 收口后的更正(2026-09-04)
+
+- **c3 `tool-pygal-tool-v4` 的 READY 结论作废**:零模型复跑证明该交付件对每个输入都
+  `WORKSPACE_EXTRA_FILE: __pycache__/<app>.cpython-312.pyc` —— 生产者 import 了自己写进交付
+  目录的应用文件。它此前能过闸是因为**验收环境设了用户没有的 `PYTHONDONTWRITEBYTECODE`**
+  (假成功;已修 `producer-runs-like-a-user-v1`,需新任务版本重走)。
+- 其余 11 个冻结工作区工具在同一复跑下全部通过
+  (`runs/evidence/workspace-replays/workspace-replay-20260903T165021Z.json`)。
+- 冻结清单第七项 `static_site_v1` 已在收口后补齐(见上)。
+
 ## 诚实边界
 
 - 所有 Product 发次不计模型能力/Held-out;三档模型对照(sonnet-5 / opus-4.8 / opus-5)见 EXPLORATION_LOG,不可声称 opus-4.8 等价 gpt-5.6-terra。
