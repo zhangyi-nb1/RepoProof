@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="4" time="0.231" timestamp="2026-09-04T01:12:02.074779+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_producer_runs_like_a_user" name="test_sanitised_env_can_run_like_a_user" time="0.003"><failure message="TypeError: sanitised_subprocess_env() got an unexpected keyword argument 'write_bytecode'">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-438/test_sanitised_env_can_run_lik0')
+
+    def test_sanitised_env_can_run_like_a_user(tmp_path: Path) -&gt; None:
+        default = sanitised_subprocess_env(tmp_path, [])
+        assert default.get("PYTHONDONTWRITEBYTECODE") == "1"
+&gt;       user_like = sanitised_subprocess_env(tmp_path, [], write_bytecode=True)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: sanitised_subprocess_env() got an unexpected keyword argument 'write_bytecode'
+
+tests/test_producer_runs_like_a_user.py:32: TypeError</failure></testcase><testcase classname="tests.test_producer_runs_like_a_user" name="test_reference_candidate_execution_runs_like_a_user" time="0.002"><failure message="assert 'write_bytecode=True' in 'def _run_workspace_reference_candidate(\n    *,\n    reference_source: Path,\n    input_path: Path,\n    expected_dir...file_count&quot;: validation.manifest.file_count,\n            &quot;total_bytes&quot;: validation.manifest.total_bytes,\n        }\n'">def test_reference_candidate_execution_runs_like_a_user() -&gt; None:
+        source = inspect.getsource(product_jobs._run_workspace_reference_candidate)
+&gt;       assert "write_bytecode=True" in source
+E       assert 'write_bytecode=True' in 'def _run_workspace_reference_candidate(\n    *,\n    reference_source: Path,\n    input_path: Path,\n    expected_dir...file_count": validation.manifest.file_count,\n            "total_bytes": validation.manifest.total_bytes,\n        }\n'
+
+tests/test_producer_runs_like_a_user.py:39: AssertionError</failure></testcase><testcase classname="tests.test_producer_runs_like_a_user" name="test_smoke_after_delivery_still_forbids_bytecode" time="0.001" /><testcase classname="tests.test_producer_runs_like_a_user" name="test_frozen_acceptance_invokes_the_tool_like_a_user" time="0.000"><failure message="AssertionError: assert 'PYTHONDONTWRITEBYTECODE' in 'import hashlib\nimport io\nimport os\nimport runpy\nimport stat\nimport subprocess\nimport zipfile\nfrom pathlib impo...den_sha(output) == _golden_sha(expected)\n    else:\n        _semantic_acceptance(source, output)\n    return output\n'">def test_frozen_acceptance_invokes_the_tool_like_a_user() -&gt; None:
+        prelude = workspace_tool_assembler._TEST_PRELUDE
+&gt;       assert "PYTHONDONTWRITEBYTECODE" in prelude
+E       AssertionError: assert 'PYTHONDONTWRITEBYTECODE' in 'import hashlib\nimport io\nimport os\nimport runpy\nimport stat\nimport subprocess\nimport zipfile\nfrom pathlib impo...den_sha(output) == _golden_sha(expected)\n    else:\n        _semantic_acceptance(source, output)\n    return output\n'
+
+tests/test_producer_runs_like_a_user.py:51: AssertionError</failure></testcase></testsuite></testsuites>

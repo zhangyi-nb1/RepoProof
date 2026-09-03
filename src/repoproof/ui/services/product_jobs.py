@@ -1769,7 +1769,10 @@ def _run_workspace_reference_candidate(
             process = subprocess.run(  # noqa: S603 - fixed argv, no shell
                 argv,
                 cwd=root,
-                env=sanitised_subprocess_env(root, [str(upstream_dir)]),
+                # The producer stands in for the user's own run: bytecode is
+                # written, so a producer that imports a file it just wrote into
+                # the delivery is caught by structure validation before freeze.
+                env=sanitised_subprocess_env(root, [str(upstream_dir)], write_bytecode=True),
                 capture_output=True,
                 text=True,
                 timeout=timeout_s,

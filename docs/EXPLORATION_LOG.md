@@ -5029,3 +5029,25 @@ DOS 时间戳(2 秒窗口:主跑同窗侥幸过,净室跨窗)。这是 `golden-i
 (`1dcf7d1a234af287`)。**产品结论**:两次探针都不是模型能力问题,而是**上手前置条件**——
 默认拿主干 HEAD 往往是未发布版本;要么用户给发布 tag,要么系统在派生期就把"这不是可安装版本"
 说清楚(后者需第二起才动)。
+
+## 状态 · 2026-09-04 · 零模型回归挖出假成功:验收环境比用户环境宽松
+
+提交后按义务跑 12 个冻结工作区工具的零模型复跑(冻结 oracle 快照 + 密封 wheelhouse +
+离线重建包):**11 通过,`tool-pygal-tool-v4` 5/5 全败** ——
+`internal error: WORKSPACE_EXTRA_FILE: __pycache__/dashboard_app.cpython-312.pyc`。
+生产者把应用文件写进交付目录后又 import 了它,CPython 在**交付目录里**留下字节码,
+工具自己的合同校验当场拒发。
+
+决定性对照(同一冻结件、同一冻结尺、同一密封运行时):带 `PYTHONDONTWRITEBYTECODE=1`
+5 passed in 2.48s;不带 5 failed in 0.81s。会话环境全程设了这个开关(agent 轮次、公开测试、
+preflight、真发、净室复跑一律继承),**而用户没有** —— 于是一个每个输入都会撞上的缺陷
+一路通过全部闸门,工具被判 `VERIFIED_TOOL_READY` 并导出。假成功类,首起即修。
+
+修(`producer-runs-like-a-user-v1`):`sanitised_subprocess_env(..., write_bytecode=)` 默认仍禁
+(受保护树上的辅助进程不许留 __pycache__),但**代表用户跑的进程**显式开启:候选生成执行参考
+实现时开(冻结前就以 `WORKSPACE_EXTRA_FILE_FORBIDDEN` 拒掉这类生产者)、装配器编译的验收测试
+调用交付工具时清掉该开关(新冻结件生效)。交付之后才跑的 smoke 保持禁用 —— 那时写 .pyc 会改掉
+已交付树的身份。`tool-pygal-tool-v4` 的 READY 结论按此作废,需新任务版本重走。
+
+**网关**:同一时段 `192.168.11.1:8080` TCP 连不上(两条面都是连接层超时,同机 github.com 0.01 s
+通),不是模型池排空也不是凭据问题;按纪律暂停旅程类跑动,不切通道不换模型。

@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "protocol": "frozen-oracle-snapshot + sealed-task-wheelhouse + offline-rebuilt-package",
+  "checked_at": "20260903T165021Z",
+  "framework_git_commit": "2cb84e0a29b738f8bdd332e1fabb67f5e4853c35",
+  "framework_tree_sha256": "33599484a50b9c58ef2f6ee132b38ab13cc6083a0bfeee563b2c48d5efbacd1a",
+  "results": [
+    {
+      "tool": "networkx-tool",
+      "task_id": "tool-networkx-tool-v4",
+      "source_run_id": "tool-networkx-tool-v4-20260901-013543",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "4 passed in 2.62s"
+    },
+    {
+      "tool": "datasette-tool",
+      "task_id": "tool-datasette-tool-v3",
+      "source_run_id": "tool-datasette-tool-v3-20260901-164106",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 5.77s"
+    },
+    {
+      "tool": "textual-taskdesk",
+      "task_id": "tool-textual-taskdesk-v3",
+      "source_run_id": "tool-textual-taskdesk-v3-20260901-180812",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 4.10s"
+    },
+    {
+      "tool": "marimo-tool",
+      "task_id": "tool-marimo-tool-v3",
+      "source_run_id": "tool-marimo-tool-v3-20260902-000237",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 9.80s"
+    },
+    {
+      "tool": "research-project-starter",
+      "task_id": "tool-research-project-starter-v3",
+      "source_run_id": "tool-research-project-starter-v3-20260902-005027",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 3.46s"
+    },
+    {
+      "tool": "csvkit-tool",
+      "task_id": "tool-csvkit-tool-v1",
+      "source_run_id": "tool-csvkit-tool-v1-20260902-014025",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 4.06s"
+    },
+    {
+      "tool": "pdfplumber-tool",
+      "task_id": "tool-pdfplumber-tool-v1",
+      "source_run_id": "tool-pdfplumber-tool-v1-20260902-020425",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "4 passed in 2.61s"
+    },
+    {
+      "tool": "trafilatura-tool",
+      "task_id": "tool-trafilatura-tool-v1",
+      "source_run_id": "tool-trafilatura-tool-v1-20260902-035547",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "4 passed in 6.44s"
+    },
+    {
+      "tool": "pillow-tool",
+      "task_id": "tool-pillow-tool-v3",
+      "source_run_id": "tool-pillow-tool-v3-20260903-041151",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 5.18s"
+    },
+    {
+      "tool": "icalendar-tool",
+      "task_id": "tool-icalendar-tool-v1",
+      "source_run_id": "tool-icalendar-tool-v1-20260903-074651",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 3.19s"
+    },
+    {
+      "tool": "nbformat-tool",
+      "task_id": "tool-nbformat-tool-v4",
+      "source_run_id": "tool-nbformat-tool-v4-20260903-084715",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "6 passed in 3.97s"
+    },
+    {
+      "tool": "pygal-tool",
+      "task_id": "tool-pygal-tool-v4",
+      "source_run_id": "tool-pygal-tool-v4-20260903-134331",
+      "ok": false,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 1,
+      "detail": "5 failed in 0.83s"
+    }
+  ]
+}

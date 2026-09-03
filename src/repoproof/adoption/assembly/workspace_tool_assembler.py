@@ -196,6 +196,17 @@ _TOOL = os.environ["REPOPROOF_TOOL_BIN"]
 _FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
+def _tool_env():
+    """Invoke the delivered tool the way a user does.
+
+    The measurement session disables bytecode writing so pytest leaves no
+    __pycache__ in protected trees; the user has no such flag.  Clearing it for
+    the tool subprocess keeps acceptance from being more permissive than the
+    hands it ships to.
+    """
+    return {**os.environ, "PYTHONDONTWRITEBYTECODE": ""}
+
+
 def _golden_file_identity(payload):
     """One file's acceptance identity: zip archives by sorted (member, bytes);
     everything else raw sha256.  Same ruler as Core's golden_file_identity."""
@@ -261,7 +272,7 @@ def _run_case(tmp_path, example_id, *, exact=True):
     output = tmp_path / f"{example_id}-output"
     process = subprocess.run(
         [_TOOL, str(source), "--out-dir", str(output)],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True, text=True, timeout=120, env=_tool_env(),
     )
     assert process.returncode == 0, process.stderr
     assert output.is_dir()

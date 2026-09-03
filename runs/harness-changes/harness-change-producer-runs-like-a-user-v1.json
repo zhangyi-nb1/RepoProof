@@ -1,0 +1,22 @@
+{
+  "affected_component": "offline_sandbox.sanitised_subprocess_env(write_bytecode=…) + reference-candidate execution + assembler test prelude _tool_env",
+  "after_control_sha256": "47636c03a951dbee3df95c1698b33c6544d01fb30303d6c2428787331aea2104",
+  "anonymous_fixture_id": "anonymous-producer-runs-like-a-user",
+  "before_control_sha256": "0bc6cb215ad24e187468ec2c9964acf46d3bbf1a7029d5e34c0deb88a7c52fcd",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-04T01:14:09+08:00",
+  "evidence_id": "harness-change-producer-runs-like-a-user-v1",
+  "incident_ids": [
+    "incident-acceptance-env-more-permissive-pygal-v4"
+  ],
+  "invariant": "Measurement is never more permissive than the hands the tool ships to. Helper processes that import from frozen, protected trees keep bytecode writing off (a stray __pycache__ there is tampering or hash noise), but any process that stands in for the user's own run enables it: the reference producer in candidate generation, and the frozen acceptance tests when they invoke the delivered tool. A producer that writes an application file into the delivery and then imports it therefore fails structure validation before freeze instead of passing every gate and breaking on the user's first input. Execution that happens after delivery (the runnable smoke) still forbids bytecode, because writing .pyc then would change the identity of an already published tree. Safety/false-success exception: the defect was invisible to every gate precisely because the gates shared the flag.",
+  "normalized_fingerprint": "3c05924d77cd3597",
+  "regression_tests": [
+    "tests/test_producer_runs_like_a_user.py::test_sanitised_env_can_run_like_a_user",
+    "tests/test_producer_runs_like_a_user.py::test_reference_candidate_execution_runs_like_a_user",
+    "tests/test_producer_runs_like_a_user.py::test_smoke_after_delivery_still_forbids_bytecode",
+    "tests/test_producer_runs_like_a_user.py::test_frozen_acceptance_invokes_the_tool_like_a_user"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

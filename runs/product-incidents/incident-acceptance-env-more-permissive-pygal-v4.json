@@ -1,0 +1,31 @@
+{
+  "agent_diff_present": true,
+  "artifact_tree_diff": {
+    "agent_invoked": 1,
+    "decisive_control": "same frozen package, same frozen oracle snapshot, same sealed wheelhouse: with PYTHONDONTWRITEBYTECODE=1 -> 5 passed in 2.48s; without it -> 5 failed in 0.81s",
+    "evidence_path": "runs/evidence/workspace-replays/workspace-replay-20260903T165021Z.json",
+    "observed": "post-commit zero-model replay of 12 frozen workspace tools: 11 pass, tool-pygal-tool-v4 fails 5/5 with `internal error: WORKSPACE_EXTRA_FILE: __pycache__/dashboard_app.cpython-312.pyc` on every example — the producer writes dashboard_app.py into the staging directory and then imports it, so CPython leaves bytecode inside the delivery and the tool's own contract validation rejects it",
+    "why_false_success": "every measurement path (agent session, public tests, preflight, real build, clean replay) inherits the session env that disables bytecode writing, which no user has; the tool was certified VERIFIED_TOOL_READY and exported while being broken for every input in a user's hands"
+  },
+  "created_at": "2026-09-04T01:13:46+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "2cb84e0a29b738f8bdd332e1fabb67f5e4853c35",
+  "framework_tree_sha256": "3c2665ee2e653ce152ed6e1c65eaacda22695d33198d540b4cf9a562bc1b8640",
+  "incident_id": "incident-acceptance-env-more-permissive-pygal-v4",
+  "normalized_fingerprint": "3c05924d77cd3597",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": null,
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "measurement::delivered-tool-execution"
+  ],
+  "reason_codes": [
+    "WORKSPACE_EXTRA_FILE",
+    "ACCEPTANCE_ENV_MORE_PERMISSIVE_THAN_USER"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": true,
+  "schema_version": 1,
+  "stage": "ARTIFACT_STRUCTURE",
+  "task_version": "tool-pygal-tool-v4"
+}

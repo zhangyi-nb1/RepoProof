@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "protocol": "frozen-oracle-snapshot + sealed-task-wheelhouse + offline-rebuilt-package",
+  "checked_at": "20260901T154850Z",
+  "framework_git_commit": "7db6e65e641bb72a0112d62760eff1e0d32d82a6",
+  "framework_tree_sha256": "f5e97ca67ef854d0f18c3ef7b24114bb1665719dba21f3962149c981c6b3274a",
+  "results": [
+    {
+      "tool": "networkx-tool",
+      "task_id": "tool-networkx-tool-v4",
+      "source_run_id": "tool-networkx-tool-v4-20260901-013543",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "4 passed in 1.11s"
+    },
+    {
+      "tool": "datasette-tool",
+      "task_id": "tool-datasette-tool-v3",
+      "source_run_id": "tool-datasette-tool-v3-20260901-164106",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 10.06s"
+    },
+    {
+      "tool": "textual-taskdesk",
+      "task_id": "tool-textual-taskdesk-v3",
+      "source_run_id": "tool-textual-taskdesk-v3-20260901-180812",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 4.47s"
+    }
+  ]
+}

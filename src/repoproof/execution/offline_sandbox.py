@@ -24,8 +24,21 @@ class OfflineSandboxUnavailable(RuntimeError):
     """The host cannot enforce RepoProof's reviewed Product boundary."""
 
 
-def sanitised_subprocess_env(home: Path, extra_paths: list[str]) -> dict[str, str]:
-    """Return the minimum environment needed by an offline helper process."""
+def sanitised_subprocess_env(
+    home: Path,
+    extra_paths: list[str],
+    *,
+    write_bytecode: bool = False,
+) -> dict[str, str]:
+    """Return the minimum environment needed by an offline helper process.
+
+    Bytecode writing stays off by default: helper processes import from frozen,
+    protected trees and a stray ``__pycache__`` there is either tampering or
+    noise in a tree hash.  A process that stands in for **the user's own run**
+    passes ``write_bytecode=True`` instead: measuring a producer under an
+    interpreter flag the user will not have hides every defect that flag
+    suppresses (incident-acceptance-env-more-permissive-*).
+    """
 
     environment = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
@@ -33,8 +46,9 @@ def sanitised_subprocess_env(home: Path, extra_paths: list[str]) -> dict[str, st
         "LC_ALL": os.environ.get("LC_ALL", "C.UTF-8"),
         "HOME": str(home),
         "TMPDIR": str(home),
-        "PYTHONDONTWRITEBYTECODE": "1",
     }
+    if not write_bytecode:
+        environment["PYTHONDONTWRITEBYTECODE"] = "1"
     if extra_paths:
         environment["PYTHONPATH"] = os.pathsep.join(extra_paths)
     return environment

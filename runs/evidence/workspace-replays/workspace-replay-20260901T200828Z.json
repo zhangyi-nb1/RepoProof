@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "protocol": "frozen-oracle-snapshot + sealed-task-wheelhouse + offline-rebuilt-package",
+  "checked_at": "20260901T200828Z",
+  "framework_git_commit": "fd058584af1aa04f02801cbcde602cc9a27856e2",
+  "framework_tree_sha256": "a1ead76bb4655af265d6bc1de2540e2ba3779971ff0e9457060293b360c86750",
+  "results": [
+    {
+      "tool": "networkx-tool",
+      "task_id": "tool-networkx-tool-v4",
+      "source_run_id": "tool-networkx-tool-v4-20260901-013543",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "4 passed in 2.65s"
+    },
+    {
+      "tool": "datasette-tool",
+      "task_id": "tool-datasette-tool-v3",
+      "source_run_id": "tool-datasette-tool-v3-20260901-164106",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 7.63s"
+    },
+    {
+      "tool": "textual-taskdesk",
+      "task_id": "tool-textual-taskdesk-v3",
+      "source_run_id": "tool-textual-taskdesk-v3-20260901-180812",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 4.46s"
+    },
+    {
+      "tool": "marimo-tool",
+      "task_id": "tool-marimo-tool-v3",
+      "source_run_id": "tool-marimo-tool-v3-20260902-000237",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 11.35s"
+    },
+    {
+      "tool": "research-project-starter",
+      "task_id": "tool-research-project-starter-v3",
+      "source_run_id": "tool-research-project-starter-v3-20260902-005027",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 6.82s"
+    },
+    {
+      "tool": "csvkit-tool",
+      "task_id": "tool-csvkit-tool-v1",
+      "source_run_id": "tool-csvkit-tool-v1-20260902-014025",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 4.30s"
+    },
+    {
+      "tool": "pdfplumber-tool",
+      "task_id": "tool-pdfplumber-tool-v1",
+      "source_run_id": "tool-pdfplumber-tool-v1-20260902-020425",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "4 passed in 6.08s"
+    },
+    {
+      "tool": "trafilatura-tool",
+      "task_id": "tool-trafilatura-tool-v1",
+      "source_run_id": "tool-trafilatura-tool-v1-20260902-035547",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "4 passed in 11.47s"
+    }
+  ]
+}
