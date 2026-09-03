@@ -42,7 +42,10 @@ def compute(project_root: Path = REPO) -> dict:
     everything = count_passes(project_root)
     # 台账里出现过哪些宿主 —— 说明串由**数据**推出来,不由散文写死。
     from repoproof.persistence.bench_records import (
-        BASELINE_HOST, BASELINE_HOST_ALIASES, UNKNOWN, load_runs,
+        BASELINE_HOST,
+        BASELINE_HOST_ALIASES,
+        UNKNOWN,
+        load_runs,
     )
 
     hosts = sorted({str(r.get("host_id") or BASELINE_HOST).replace(UNKNOWN, BASELINE_HOST)
