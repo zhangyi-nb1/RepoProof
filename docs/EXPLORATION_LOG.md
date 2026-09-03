@@ -5110,3 +5110,28 @@ matches 'site/index.html' and 'site/**/*.html'` 连出三轮,两次合同修复�
 被校验器拒绝:`rules.5.path_pattern: workspace path uses an unsupported glob token`。
 拒绝信息说了"这个记号不支持",却**没说支持哪些**——模型无从学会这门路径语言。
 与既有单例同仓库同 revision,不构成第二起,依纪律不动手。
+
+## 状态 · 2026-09-04 · 两个"系统自己知道却不说"的缺陷
+
+上限与主人序列修好之后,三条旅程都走得更远(c5 attempt-22 走到 13 轮,把规则重叠、外部
+资源、构建日期漂移逐个解决;c1 attempt-14 走到 12 轮,合同与构建器都真正上了场)。停在
+哪里,就暴露下一层。这一轮的两处都属于同一种病:**Harness 手里握着决定性事实,却没交出去**。
+
+**一、夹具蓝图的 input_kind 是道假选择题**(pygal attempt-15、nbformat attempt-8,
+指纹 `ab90526cef31cfc3`)。Core 的规则写得很清楚——"每个蓝图都必须构建已准入的那一种
+输入",也就是这个字段**只有一个合法值**;而交给提供方强制的 JSON schema 里它仍是
+file/directory 二选一。等于请提供方放行一份 Core 必拒的文档:猜错就是
+`tool-draft:INVALID_MODEL_OUTPUT:WORKSPACE_FIXTURE_INPUT_KIND_MISMATCH`,两次尝试用完,
+整趟旅程 0 自检轮报废。修法是把 enum 钉成那一个值(起草面、投影自修重试、夹具重生成面
+一并),种类未知时维持二选一;Core 的拒绝规则一字不改——这是加固,不是替代。
+
+**二、判别力缺口的诊断只有路径**(mkdocs attempt-22、pygal attempt-13,
+指纹 `9a4d4cdcffef7686`)。探针是逐变异跑的,它知道自己改了什么(kind),也知道判官对每
+一次变异的回应(ACCEPTED / REJECTED / PROTOCOL_ERROR);`gaps` 却把这些压成一串文件路径。
+判官修复因此连打四轮全靠猜,最后被停滞预算终止。更要命的是
+`discriminated = any(REJECTED)` 这个定义,让**"每次变异都被接受"(判官什么都没查)**和
+**"每次变异都让判官崩了"(判官根本没跑完)**投影成同一条记录——而这两者的修法是相反的。
+诊断现在带上变异次数、种类与逐类结果;机器可读的 `discrimination_gaps` 仍保持纯路径。
+
+两处都是两个独立仓库各一起,先记后改;匿名负对照 before 红 / after 绿(含一条"尺子不变松"
+的对照:Core 仍拒绝种类不符的蓝图,该条改前改后都绿)。全量 2361 passed / 60 skipped。
