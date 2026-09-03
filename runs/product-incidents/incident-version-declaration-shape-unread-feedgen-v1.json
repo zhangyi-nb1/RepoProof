@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "deterministically_readable": "yes, by an AST literal read of the same file the current reader already opens; no code execution needed",
+    "measured_rarity": "1 of 52 pinned checkouts on this host has the tuple-only shape — rare, so no generic change on one incident",
+    "observed": "post-closeout fresh-repo probe (not an M6.3 case): the pinned checkout declares its version as a tuple literal `version = (1, 0, 0)` in <package>/version.py and composes the string in setup.py; upstream_version reads pyproject / setup.cfg / egg-info PKG-INFO / `__version__ = \"literal\"` / a release tag bound to the frozen commit — none matches, so no lock could be derived and the journey ended at self-check round 1 with zero model calls"
+  },
+  "created_at": "2026-09-04T00:07:22+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "deff499de9ab044bfc07c27ccae629e52c245946",
+  "framework_tree_sha256": "459aa4af3ce1fdb16ea6909131e4f71c2e4679fdbf5959bdd3b09bd074d0377f",
+  "incident_id": "incident-version-declaration-shape-unread-feedgen-v1",
+  "normalized_fingerprint": "2418b1b775ef5240",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "bbb9027e31c469f929eb288df929c0b8dd85c34ebcbb3e89f4b05d3112da3ae8",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "drafting::dependency-lock-derivation"
+  ],
+  "reason_codes": [
+    "DEPENDENCY_LOCK_MISSING",
+    "VERSION_DECLARATION_SHAPE_UNREAD"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

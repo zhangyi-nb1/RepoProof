@@ -1,0 +1,24 @@
+{
+  "affected_component": "cli.main wrapper (public_exception_message / exception_reason_code over _dispatch) + autopilot._parse_cli_json last-object decode + cli_failure_reason_codes",
+  "after_control_sha256": "697189a871ab4662a98ad9c28ea9197e9769fc5b9cd397445b9f4845298eee39",
+  "anonymous_fixture_id": "anonymous-cli-uncaught-payload",
+  "before_control_sha256": "3cb2cb6d0fb8ddf8f0e8488eb13932428c7bf805d609de4de3267a32dde239d2",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-04T00:23:36+08:00",
+  "evidence_id": "harness-change-cli-payload-contract-v1",
+  "incident_ids": [
+    "incident-uncaught-exception-escapes-cli-payload-jinja-v1",
+    "incident-uncaught-exception-escapes-cli-payload-nbformat-v1"
+  ],
+  "invariant": "The CLI always leaves one structured result on stdout: an uncaught exception is projected to ok=false with failure_owner HARNESS, reason_codes [CLI_UNCAUGHT_EXCEPTION, <exception class as a stable upper-snake code>], the exception type, and one bounded credential-free line (Bearer/sk-/api-key shapes redacted, whitespace collapsed, <=240 chars); the process still exits non-zero and argparse's SystemExit (--help, usage errors) is never swallowed. Successful and already-structured failure paths are byte-identical. On the consumer side the journey decodes the LAST decodable JSON object (a verb may print its payload and then crash) and, if no payload arrives at all, names the last exception class in the stderr tail beside CLI_PAYLOAD_MISSING.",
+  "normalized_fingerprint": "4427ff8214b47324",
+  "regression_tests": [
+    "tests/test_cli_uncaught_exception_payload.py::test_uncaught_exception_becomes_a_named_payload",
+    "tests/test_cli_uncaught_exception_payload.py::test_public_message_drops_credentials_and_is_bounded",
+    "tests/test_cli_uncaught_exception_payload.py::test_argparse_exit_is_not_swallowed",
+    "tests/test_cli_uncaught_exception_payload.py::test_ordinary_failure_path_is_unchanged",
+    "tests/test_cli_uncaught_exception_payload.py::test_consumer_fallback_names_the_exception_class"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "the same round reported DEPENDENCY_LOCK_MISSING with diagnostics=[] while readiness already knew the other blocking codes (SOURCE_REPO_LICENSE_MISSING, EXAMPLES_INSUFFICIENT) and _dependency_lock_state had composed a plain-language note naming the real cause ('钉版树读不出声明版本，多半是动态版本'); none of it reached the round record, so neither the operator nor the loop could act"
+  },
+  "created_at": "2026-09-04T00:07:22+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "deff499de9ab044bfc07c27ccae629e52c245946",
+  "framework_tree_sha256": "459aa4af3ce1fdb16ea6909131e4f71c2e4679fdbf5959bdd3b09bd074d0377f",
+  "incident_id": "incident-readiness-cause-not-carried-to-selfcheck-feedgen-v1",
+  "normalized_fingerprint": "1dcf7d1a234af287",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "bbb9027e31c469f929eb288df929c0b8dd85c34ebcbb3e89f4b05d3112da3ae8",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::readiness-projection"
+  ],
+  "reason_codes": [
+    "DEPENDENCY_LOCK_MISSING",
+    "READINESS_CAUSE_NOT_CARRIED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

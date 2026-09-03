@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "post-closeout fresh-repo probe: tool add died after 164 s with an uncaught ReferenceWheelhouseMaterializationError traceback; stdout carried no JSON, so the journey recorded only reason_codes=[CLI_PAYLOAD_MISSING] plus a 600-char stderr tail. The real cause — a version derived from the pinned main-branch tree (Jinja2==3.2.0.dev) that no index can serve — never became a public code"
+  },
+  "created_at": "2026-09-04T00:23:19+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "deff499de9ab044bfc07c27ccae629e52c245946",
+  "framework_tree_sha256": "33599484a50b9c58ef2f6ee132b38ab13cc6083a0bfeee563b2c48d5efbacd1a",
+  "incident_id": "incident-uncaught-exception-escapes-cli-payload-jinja-v1",
+  "normalized_fingerprint": "4427ff8214b47324",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "adf5218b921aead68440de981d493f176b8ed7ac240f74e3e1ce59f6ae7d5f18",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "autopilot::draft"
+  ],
+  "reason_codes": [
+    "CLI_PAYLOAD_MISSING",
+    "UNCAUGHT_EXCEPTION_ESCAPES_CLI_PAYLOAD"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

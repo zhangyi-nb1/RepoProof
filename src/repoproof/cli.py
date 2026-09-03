@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -147,7 +148,65 @@ def _action_delivery_profile(payload: dict) -> str | None:
     return str(((document.get("tool") or {}).get("delivery_profile_id")) or "").strip() or None
 
 
+_CREDENTIAL_SHAPES = (
+    re.compile(r"Bearer\s+\S+"),
+    re.compile(r"sk-[A-Za-z0-9_-]{8,}"),
+    re.compile(r"(?i)\b(?:api[_-]?key|authorization|auth[_-]?token|access[_-]?token)\b['\"\s:=]+[^\s,'\"}]+"),
+)
+
+
+def public_exception_message(exc: BaseException) -> str:
+    """One bounded, credential-free line describing a crash to its caller."""
+
+    text = " ".join(f"{type(exc).__name__}: {exc}".split())
+    for shape in _CREDENTIAL_SHAPES:
+        text = shape.sub("<redacted>", text)
+    return text[:240]
+
+
+def exception_reason_code(name: str) -> str:
+    """``ReferenceWheelhouseMaterializationError`` -> ``REFERENCE_WHEELHOUSE_MATERIALIZATION_ERROR``."""
+
+    spaced = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", str(name))
+    return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", spaced).upper()
+
+
 def main(argv: list[str] | None = None) -> int:
+    """Run one verb and ALWAYS leave a structured result on stdout.
+
+    Callers (the autopilot, Studio's job worker, a person) read one JSON
+    payload.  An uncaught exception used to escape as a bare traceback, so the
+    journey recorded only "no payload" and the real cause — a provider rate
+    limit, a wheelhouse that could not be built — never reached disk
+    (incident-*-cli-payload-*).
+    """
+
+    try:
+        return _dispatch(argv)
+    except SystemExit:
+        raise  # argparse's --help / usage exits stay exactly as they are
+    except Exception as exc:  # noqa: BLE001 - the payload contract is the point
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": public_exception_message(exc),
+                    "failure_owner": "HARNESS",
+                    "reason_codes": [
+                        "CLI_UNCAUGHT_EXCEPTION",
+                        exception_reason_code(type(exc).__name__),
+                    ],
+                    "exception_type": type(exc).__name__,
+                    "exit_code": 3,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 3
+
+
+def _dispatch(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="repoproof")
     sub = parser.add_subparsers(dest="cmd", required=True)
 

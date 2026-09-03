@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="5" time="0.203" timestamp="2026-09-04T00:20:56.248350+08:00" hostname="ZhangrongleideMacBook-Air.local"><testcase classname="tests.test_cli_uncaught_exception_payload" name="test_uncaught_exception_becomes_a_named_payload" time="0.019"><failure message="test_cli_uncaught_exception_payload.test_uncaught_exception_becomes_a_named_payload.&lt;locals&gt;.ReferenceWheelhouseMaterializationError: 参考依赖 wheelhouse 建立失败">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-417/test_uncaught_exception_become0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x109cc1dc0&gt;
+capsys = &lt;_pytest.capture.CaptureFixture object at 0x109e420f0&gt;
+
+    def test_uncaught_exception_becomes_a_named_payload(tmp_path: Path, monkeypatch, capsys) -&gt; None:
+        from repoproof.adoption.intake import draft_readiness
+    
+        class ReferenceWheelhouseMaterializationError(RuntimeError):
+            pass
+    
+        monkeypatch.setattr(
+            draft_readiness,
+            "read_draft_readiness",
+            _raise(ReferenceWheelhouseMaterializationError("参考依赖 wheelhouse 建立失败")),
+        )
+&gt;       code = cli.main(["tool", "readiness", "--draft-dir", str(tmp_path)])
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_cli_uncaught_exception_payload.py:54: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/repoproof/cli.py:631: in main
+    readiness = read_draft_readiness(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+_args = (PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-417/test_uncaught_exception_become0'),)
+_kwargs = {'project_root': PosixPath('/Users/zhangronglei/Desktop/XIANGMU/RepoProof')}
+
+    def _boom(*_args, **_kwargs):
+&gt;       raise exc
+E       test_cli_uncaught_exception_payload.test_uncaught_exception_becomes_a_named_payload.&lt;locals&gt;.ReferenceWheelhouseMaterializationError: 参考依赖 wheelhouse 建立失败
+
+tests/test_cli_uncaught_exception_payload.py:38: ReferenceWheelhouseMaterializationError</failure></testcase><testcase classname="tests.test_cli_uncaught_exception_payload" name="test_public_message_drops_credentials_and_is_bounded" time="0.002"><failure message="RuntimeError: POST https://gateway.internal/v1/messages failed&#10;headers: {'Authorization': 'Bearer sk-live-9f3a2b7c4d5e6f70', 'x-api-key': 'sk-live-9f3a2b7c4d5e6f70'}&#10;body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body">tmp_path = PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-417/test_public_message_drops_cred0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x10a3ee450&gt;
+capsys = &lt;_pytest.capture.CaptureFixture object at 0x10a3ee480&gt;
+
+    def test_public_message_drops_credentials_and_is_bounded(tmp_path: Path, monkeypatch, capsys) -&gt; None:
+        from repoproof.adoption.intake import draft_readiness
+    
+        leaky = (
+            "POST https://gateway.internal/v1/messages failed\n"
+            "headers: {'Authorization': 'Bearer sk-live-9f3a2b7c4d5e6f70', 'x-api-key': 'sk-live-9f3a2b7c4d5e6f70'}\n"
+            + "body " * 200
+        )
+        monkeypatch.setattr(draft_readiness, "read_draft_readiness", _raise(RuntimeError(leaky)))
+&gt;       cli.main(["tool", "readiness", "--draft-dir", str(tmp_path)])
+
+tests/test_cli_uncaught_exception_payload.py:73: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/repoproof/cli.py:631: in main
+    readiness = read_draft_readiness(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+_args = (PosixPath('/private/var/folders/y4/5c7qld1s10x731l5dkg6tfp80000gn/T/pytest-of-zhangronglei/pytest-417/test_public_message_drops_cred0'),)
+_kwargs = {'project_root': PosixPath('/Users/zhangronglei/Desktop/XIANGMU/RepoProof')}
+
+    def _boom(*_args, **_kwargs):
+&gt;       raise exc
+E       RuntimeError: POST https://gateway.internal/v1/messages failed
+E       headers: {'Authorization': 'Bearer sk-live-9f3a2b7c4d5e6f70', 'x-api-key': 'sk-live-9f3a2b7c4d5e6f70'}
+E       body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body body
+
+tests/test_cli_uncaught_exception_payload.py:38: RuntimeError</failure></testcase><testcase classname="tests.test_cli_uncaught_exception_payload" name="test_argparse_exit_is_not_swallowed" time="0.003" /><testcase classname="tests.test_cli_uncaught_exception_payload" name="test_ordinary_failure_path_is_unchanged" time="0.002" /><testcase classname="tests.test_cli_uncaught_exception_payload" name="test_consumer_fallback_names_the_exception_class" time="0.000"><failure message="AttributeError: module 'repoproof.ui.services.autopilot' has no attribute 'cli_failure_reason_codes'">def test_consumer_fallback_names_the_exception_class() -&gt; None:
+        stderr = (
+            'File "/x/y.py", line 3, in f\n'
+            "repoproof.adoption.intake.example_proposer.ReferenceWheelhouseMaterializationError: 建立失败\n"
+        )
+&gt;       codes = autopilot.cli_failure_reason_codes(stderr)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'repoproof.ui.services.autopilot' has no attribute 'cli_failure_reason_codes'
+
+tests/test_cli_uncaught_exception_payload.py:99: AttributeError</failure></testcase></testsuite></testsuites>

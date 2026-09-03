@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import re
 import subprocess
 import sys
 import time
@@ -92,12 +93,49 @@ def _now() -> str:
     return _dt.datetime.now(_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+_EXCEPTION_LINE_RE = re.compile(r"^(?:[\w.]+\.)?([A-Z][A-Za-z0-9_]*(?:Error|Exception|Failure))\b", re.MULTILINE)
+
+
 def _parse_cli_json(stdout: str) -> dict:
     start = stdout.find("{")
     end = stdout.rfind("}")
     if start < 0 or end < start:
         raise ValueError("CLI produced no JSON payload")
-    return json.loads(stdout[start : end + 1])
+    try:
+        return json.loads(stdout[start : end + 1])
+    except ValueError:
+        # A verb may print its own payload and then crash; the failure payload
+        # is the LAST decodable object, so decode from each "{" from the end.
+        decoder = json.JSONDecoder()
+        for index in range(len(stdout) - 1, start - 1, -1):
+            if stdout[index] != "{":
+                continue
+            try:
+                value, _ = decoder.raw_decode(stdout[index:])
+            except ValueError:
+                continue
+            if isinstance(value, dict):
+                return value
+        raise ValueError("CLI produced no decodable JSON payload") from None
+
+
+def cli_failure_reason_codes(stderr_tail: str) -> tuple[str, ...]:
+    """Name the crash even when no payload arrived: the last exception class in stderr.
+
+    A journey that only records CLI_PAYLOAD_MISSING says nothing at all
+    (incident-*-cli-payload-*).  The producing CLI now always emits a payload;
+    this keeps the consumer honest for any producer that does not.
+    """
+
+    from repoproof.cli import exception_reason_code
+
+    names = _EXCEPTION_LINE_RE.findall(str(stderr_tail or ""))
+    codes = ["CLI_PAYLOAD_MISSING"]
+    if names:
+        code = exception_reason_code(names[-1])
+        if code not in codes:
+            codes.append(code)
+    return tuple(codes)
 
 
 def cli_runner(project_root: Path) -> Runner:
@@ -115,11 +153,12 @@ def cli_runner(project_root: Path) -> Runner:
         try:
             payload = _parse_cli_json(process.stdout)
         except ValueError:
+            stderr_tail = process.stderr[-600:]
             payload = {
                 "ok": False,
                 "error": "CLI_PAYLOAD_MISSING",
-                "reason_codes": ["CLI_PAYLOAD_MISSING"],
-                "stderr_tail": process.stderr[-600:],
+                "reason_codes": list(cli_failure_reason_codes(stderr_tail)),
+                "stderr_tail": stderr_tail,
             }
         payload.setdefault("exit_code", process.returncode)
         return payload

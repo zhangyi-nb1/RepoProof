@@ -5002,3 +5002,30 @@ DOS 时间戳(2 秒窗口:主跑同窗侥幸过,净室跨窗)。这是 `golden-i
   教字段。控制件:`tests/test_static_site_directory_profile.py` 六条(匿名正负控),XML
   `anonymous-static-site-profile-controls.xml`。HarnessChangeEvidenceV1 按设计拒收非事故记录,
   故此项只以清单完成项入档,不造事故形状证据。
+
+## 状态 · 2026-09-04 · 收口后前向工作:六个提交 + 两个 fresh 仓库探针 → CLI 结果契约补齐
+
+**提交**(未推送,分六个:机制/脚本/证据/合同/台账/文档)。`oracle/controls/fixtures` 本批新增
+合计 **3.6 GB**(552 个 vendored wheel、一个 63 MB 的机器生成 hardcode 控制件),而仓内已跟踪的
+同类资产总共 13.3 MB —— 按 `tool_tasks/` 的同一理由不入公开仓,只提交 960 KB 的冻结合同身份。
+
+**两个从未用过的公开仓库探针**(一句用户目标 + 一条命令 `--until final`,零人工材料):
+- `python-feedgen`:停在 `DEPENDENCY_LOCK_MISSING`。真因两条:该仓把版本写成元组
+  `version = (1, 0, 0)` 而派生器只认 pyproject / setup.cfg / egg-info / `__version__ = "字面量"` /
+  与冻结 commit 绑定的发布 tag(实测 52 个钉版树里只有它是这个形状,**罕见,单例不改**);
+  另外它是 FreeBSD + LGPLv3+ 双许可且文件名 `license.bsd/license.lgpl`,准入据实提问"许可证
+  无法自动识别"——**这个闸门问得对**,LGPL 上游要不要把 wheel 装进交付件是人的决定。
+- `pallets/jinja`:停在 `CLI_PAYLOAD_MISSING`。真因是从主干派生出 `Jinja2==3.2.0.dev`
+  (未发布版本),wheelhouse 建不起来,而异常直接逃出 `tool add`,旅程只拿到"没有 payload"。
+
+**修(`cli-payload-contract-v1`,两个独立仓库同指纹 `4427ff8214b47324`)**:CLI 永远交出结构化
+结果——未捕获异常投影为 ok=false + `CLI_UNCAUGHT_EXCEPTION` + 异常类派生的稳定码 + 一行去凭据
+有界消息(Bearer/sk-/api-key 形状抹掉),argparse 的 SystemExit 不吞,成功路径逐字节不变;
+消费侧改解最后一个可解 JSON 对象,并在真没有 payload 时把 stderr 尾部的异常类投影成第二个码。
+配套记录:nbformat 那起 litellm 限流逃逸按同一机制重分类(原件 append-only 保留,上下文哈希
+重算与原件逐字节一致)。
+
+**待第二起的新单例**:元组形版本读不出(`2418b1b775ef5240`)、readiness 已知的真因没带进自检轮
+(`1dcf7d1a234af287`)。**产品结论**:两次探针都不是模型能力问题,而是**上手前置条件**——
+默认拿主干 HEAD 往往是未发布版本;要么用户给发布 tag,要么系统在派生期就把"这不是可安装版本"
+说清楚(后者需第二起才动)。
