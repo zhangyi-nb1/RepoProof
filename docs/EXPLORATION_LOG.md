@@ -5078,3 +5078,35 @@ preflight、真发、净室复跑一律继承),**而用户没有** —— 于是
 只可能是判官侧的缺陷)在旧上限下根本没走到路由;上限抬高后它会真正按 same-code 计数器
 落到 reference。若果真如此,就是 `38b1c4063e8f5dfe`(pygal 首起)的第二起独立证据——
 **等它自己发生,不拿预判当证据**。
+
+## 状态 · 2026-09-04 · 五次修复没有一次落在能修的人身上
+
+上限修好之后,c1/c3 的停止终于来自证据(停滞预算)而不是计数器——但证据本身暴露了下一层
+缺陷,而且在两个独立仓库上是**同一个**:
+
+- c1 attempt-13:r2 合同以 `WORKSPACE_EXTRA_FILE_FORBIDDEN: 'audit_workbook.xlsx'` 把生产者
+  从那个路径赶走,r3-r8 判官连喊六次 `WORKBOOK_MISSING: Expected file audit_workbook.xlsx
+  in output directory`。子诊断点名的主人是**合同的文件规则**。
+- c3 attempt-14:判官连喊六次 `INPUT_UNPARSEABLE: expected identifiable date/model/cost rows
+  in input, observed none parseable`。子诊断点名的主人是**夹具构建器**。
+
+两处的路由完全一样:r3/r4 判官、r5-r7 生产者。`repair_target_for` 对这个原因码根本不看
+子诊断,只按同码计数器在两位"明显主人"之间发牌;而停滞预算把"同一签名再来一次"一律算
+停滞,于是循环在真正的主人上场之前就被判死。五次修复,没有一次落在能修的人身上。
+
+修(`harness-disagreement-owner-sequence-v1`,指纹 `e2fc536291c90fcd`,xlsx + pygal 两个独立
+前置上下文):分歧是四个控制件之间的**对称证据**,主人序列补全为判官、判官、生产者、生产者、
+合同、构建器,之后才回到生产者;同时把停滞预算的键从 (码, 诊断) 改成 (码, 诊断, **主人**)
+——把同一份证据交给尚未答过的控制件是另一次尝试,不是停滞。主人有限,轮完仍会停,
+绝对上限依旧只是兜底。两条编码旧顺序的既有测试按新不变量更新。
+
+**记一笔历史账**:盘上只有 2 份 `HarnessChangeEvidenceV1`(今天这两份),而"两上下文已授权"
+的指纹有 32 个。逐个核对后确认另外 30 个都是**证据记录机制诞生之前**已经落地的修复
+(每个都能在仓库里找到对应的匿名回归测试),不是漏改。不回填——回填 before/after 对照哈希
+等于伪造证据。
+
+**c5 的下一层**(attempt-21,7 轮、停在停滞预算):`WORKSPACE_RULE_OVERLAP: 'site/index.html'
+matches 'site/index.html' and 'site/**/*.html'` 连出三轮,两次合同修复分别 NO_PROGRESS 和
+被校验器拒绝:`rules.5.path_pattern: workspace path uses an unsupported glob token`。
+拒绝信息说了"这个记号不支持",却**没说支持哪些**——模型无从学会这门路径语言。
+与既有单例同仓库同 revision,不构成第二起,依纪律不动手。
