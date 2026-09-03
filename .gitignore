@@ -60,3 +60,7 @@ benchmarks/v2/tasks/hb1_*/oracle/post_tests/
 benchmarks/v2/tasks/hb1_*/controls/positive/apply.patch
 benchmarks/v2/tasks/hb1_*/controls/nc_regression_break/apply.patch
 tool_tasks/
+
+# 本机临时件(浏览器 CLI 日志、个人笔记),与产品/证据无关
+.playwright-cli/
+_local_notes/

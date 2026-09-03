@@ -4071,3 +4071,934 @@ withdraw 各有测试文件),而**没有任何一条测试走完整条旅程**,�
 
 全量 1546+60+0(+8 钉)。
 
+
+## 状态 · 2026-09-02 · C6 marimo 修复后闭环(v3 ACTIVE) + 三处机制修复
+
+接续 M6.2 P0。原 c6 正式终态(EXTERNAL_GATEWAY_UNAVAILABLE,0 Agent)不改写;
+本轮为修复后能力证明:`tool-marimo-tool-v3` 达 `VERIFIED_TOOL_READY +
+ACTIVE + package OK`(run `tool-marimo-tool-v3-20260902-000237`,fresh
+audit `FRESH_INPUT_PASS`,fresh 输入=模型提出的 unicode-lab-notes,冻结
+builder/reference 生成真值)。至此修复后成功证明四例:NetworkX、Datasette、
+Textual、marimo。
+
+**过程暴露并按"修机制不修案例"处理的问题:**
+
+1. **admission 密钥扫描三重测量缺陷**(首闸误判 UNSUPPORTED):
+   正则把字符串字面量里的代码生成模板当运行时读取、把 `environ[...]=` 赋值
+   当"要求"、`MAX_PY_FILES=400` 字母序截断让 blocker 取决于文件排序(且
+   400 之后的真实密钥需求被静默漏掉 = 假阴方向)。修在测量层:AST 全树
+   确定性扫描(Load 上下文下标读取才算必需;赋值/测试区/文档单列),政策
+   边界一字未动 —— 真实库代码必需读取仍硬拦。
+   `incident-admission-secret-scan-misclassification-v1`(ec07ac092471471c)
+   + 8 条匿名控制(6 负 2 正)。
+2. **量具透明性第二面**:import-hook 对构造参数急切 repr,reactive
+   registry/functor 惯用法(构造中途对象传给公开类)时 AttributeError 射进
+   上游,正控 smoke 冤死。与 datasette v2 的 metadata 案同不变量
+   (OBSERVATION_INSTRUMENT_NOT_TRANSPARENT)。摘要降级为类型名投影,
+   异常不出量具。`incident-import-hook-constructor-repr-v1` +
+   `harness-change-import-hook-transparent-args-digest-v1`。
+3. **候选封存 lock 与冻结 canonical lock 两源接缝**(REFERENCE_GOLDEN_
+   MISMATCH):候选期把草稿 reference.lock.txt 原字节封进期望树,冻结编译
+   却剥注释 —— 起草器自己就写注释行,按默认格式走必中。单例非安全,
+   fail-closed:记 `incident-workspace-candidate-lock-canonicalization-v1`
+   (RECORD_PENDING_SECOND_INCIDENT),案例层 v2 用无注释 lock 绕行,
+   不改 Core,等第二独立指纹。
+4. **回归载具自身走了两次弯路后定形**:先手搓 exact 树比对(把 held-out
+   语义分层当缺陷 = 自造第二把尺子),再用错运行时(repo venv 缺
+   verifier 依赖)。定形为 `scripts/workspace_case_replay.py`:冻结
+   oracle_snapshot/test_capability.py 原样执行 + task 密封 wheelhouse +
+   Harness 测试工具链 + 离线重建导出包。三 ACTIVE 工具在新 framework
+   SHA 下 replay 全 PASS,证据落 runs/evidence/workspace-replays/。
+5. 起草物审阅捕获三处(全部草稿期,冻结前修正合法):verifier 过拟合
+   pandas 惯用法(承诺是惯用法无关的,verifier 越权 → 按承诺改宽)、
+   reference 误用上游 API(`Cell.__name__`→`.name`)、README 违背自己
+   发布的产物协议小节定位(reference 收敛到协议)。marimo cell 隔离
+   (import 必须进 cell)由彩排 smoke 抓出,同样修 reference 模板。
+6. 防泄漏闸真实拦截一次:我自己的 /tmp 调试残留(含真值)被
+   ANSWER_KEY_REACHABLE 判 REAL_BLOCKED —— 清残留后重跑,零 repair 消耗。
+
+任务谱系如实:v1 BLOCKED(golden mismatch)、v2 REHEARSAL_FAIL(hook 扰动)
+均为冻结记录不改写;v3 彩排 PASS_ADAPTED(0 模型调用)→ 真发 PASS_ADAPTED
+→ fresh audit PASS。台账 +3 行(431),v2_gate/product_summary 官方生成器
+重建,check_public_claims 过。
+
+## 状态 · 2026-09-02 · B1/B2 收官 ACTIVE + 晋级门槛达成;C1 真发通过待 fresh audit(用户暂停点)
+
+**冻结晋级门槛四项已全部满足**:B1 research-project-starter-v3 ACTIVE、
+B2 csvkit-tool-v1 ACTIVE(一次过,零 repair)、复杂 ACTIVE 四例
+(networkx v4 / datasette v3 / textual v3 / marimo v3,含 SQLite 与可运行
+应用覆盖)。profile 尚未翻 SUPPORTED —— 留待 P2 收口一并执行
+(QualificationExecutionRecordV2 + promote + 全量质量线)。
+
+本段新增机制修复(均全链证据:incident + 前后匿名控制 + evidence +
+全量 pytest 绿 + 三工具零模型 replay 绿):
+
+3. **conformance 执行根探测**(harness-change-conformance-execution-root-
+   probe-v1):上游套件 fixture 路径两种真实惯例(仓库根相对 vs 测试根
+   相对),原实现单猜测试根,B1 型套件必然 RepositoryNotFound 假拦截。
+   改为确定性探测(仓库根→单一测试根)并记录 execution_root;判据不降
+   (节点必须原样通过、不许 pip 补装、两根皆败仍拒)。
+4. **oracle 收集范围**(harness-change-oracle-collection-scope-v1):
+   隐藏验收把整个快照目录交给 pytest,fixture 数据树里的 test_*.py 被
+   当测试收集 —— 合法交付 tests/ 的工作区收集期撞车(B1 实测),且
+   fixture 内测试若通过会虚增 junit 计数(false-success 方向)。改为只
+   执行快照顶层 test 模块;无顶层 test 模块的旧谱系守恒(legacy
+   host_guided 明确判定缺陷授权面内的定点修)。
+
+起草物审阅另捕获并在草稿期修正(不动 Core):B2 起草一次
+WORKSPACE_CONTRACT_INVALID(provider 非确定性,复抽合法;单指纹观察中)、
+B2 幻觉 API `csvkit.reader.CSVKitReader`(2.2.0 无此物)与非法
+`dialect='strict'`、B2 verifier 为恒 False 占位(重写为独立复推导,经
+csvkit 自有 RowChecker 达成上游可观测 —— 纯再导出符号量具按所有权不包,
+UPSTREAM_CALL_NOT_OBSERVED 实测教训)、C1 builder 读顶层 kind 而值在
+parameters.kind(**原 FIXTURE_INPUT_DUPLICATE 病灶本尊**,通用闸现在
+拦得住、草稿本体在审阅期治好;blank 蓝图因不支持预期拒绝改为第三个
+有效场景)、C1 verifier 标题正则与 reference 空格分歧(reference 收敛
+到协议严格语法 第N页)、C1 verifier 无条件 INSUFFICIENT_PROTOCOL_
+OCR_NOTICE_TEXT 会冤死一切合法 OCR 页(改为只机检 presence+非空)。
+
+**当前暂停点(用户更新 Claude)**:
+- C1 pdfplumber:tool-pdfplumber-tool-v1 已 REHEARSAL PASS_ADAPTED +
+  真发 PASS_ADAPTED(run tool-pdfplumber-tool-v1-20260902-020425,已导出
+  /Users/zhangronglei/tools/pdfplumber-tool)。**下一步 = fresh audit**
+  (propose_audit_candidates → materialize → tool audit)→ ACTIVE。
+- C2 trafilatura:未开工;草稿在 ~/.repoproof/drafts/journey-264d21c622ee
+  (原 FIXTURE_BUILDER_FAILED),按 C1 同款程序播种 -v2、审阅、预检。
+- P2 收口清单未动:QualificationExecutionRecordV2、profile SUPPORTED、
+  HANDOFF_STATE Current status、全量质量线终验、案例 replay(replay 脚本
+  DEFAULT_CASES 已含五工具,B2/C1 ACTIVE 后需再补)。
+- 台账:B1/B2/C1 的 run 行已进 runs.jsonl;B2 后未再刷 gate/product_summary
+  (C1 audit 后一并刷)。
+
+## 状态 · 2026-09-02 · M6.2 本地收口:C1/C2 ACTIVE、九案终态齐、晋级门达成;两项新机制修复 + 一次自我更正
+
+接续暂停点。C1 pdfplumber `tool-pdfplumber-tool-v1` 与 C2 trafilatura
+`tool-trafilatura-tool-v1` 均走完 rehearsal → 真发 → fresh audit → `ACTIVE`。
+至此八个真实案例全部有修复后成功证明,首轮九个正式终态一字未改;两份
+append-only `QualificationExecutionRecordV2` 落在
+`docs/qualification_runs/m6_2_workspace_bundle_v2/`;冻结晋级门四项满足,
+`workspace_bundle_v1` 记为 `SUPPORTED`(权威表见 HANDOFF_STATE 09-02 节)。
+
+**本段新增机制修复(同前:incident → 匿名负控先红 → 修 → 转绿 → evidence →
+全量 pytest → 八工具 replay):**
+
+5. **fresh-audit 逐提案物化**(harness-change-fresh-audit-per-proposal-
+   materialization-v1;事故 pdf-v1 + starter-v3 两独立任务同指纹)。现象:C1
+   fresh audit 候选生成 `FIXTURE_BUILDER_FAILED`,细节只留 `CompletedProcess`。
+   复现挖根:提示词明写"Vary … Unicode … scenarios",冻结 builder 却用
+   `.encode('ascii')`,builder 从不声明参数域 → 模型提案的**唯一定义域 oracle
+   就是物化本身**;而循环把任一提案的异常当整批失败,同批可构建的
+   `empty-text-page` 被连坐丢弃,且 builder 侧没有 reference 侧早有的结构化
+   失败投影(量具不对称)。修在 release/fresh-audit 层:每提案独立物化、域外
+   拒绝记公开异常类、作为排除反馈进入有界再提案(2 轮)、系统性故障仍即时
+   中止、界内零物化仍失败;builder runner 补 `REPOPROOF_FIXTURE_BUILDER_FAILURE`
+   结构化标记。真实复跑:模型再提 Unicode 页被拒并记 `UnicodeEncodeError`,
+   两个可构建提案保留 → 审计 PASS。这条接缝此前**没有任何测试**。
+6. **conformance 准入面 = pytest 实际收集面**(harness-change-conformance-
+   admitted-test-surface-v1;事故 nested-package-tests-v1 + declared-testpaths-v1)。
+   现象:八任务里三个 `conformance.json = SKIPPED/0 节点`。逐个挖根:networkx
+   测试全在包内 `networkx/**/tests/`(265 文件)而选择器只看顶层 `tests/`;
+   trafilatura 命名 `*_tests.py` 且 pyproject 声明 `testpaths="tests/*test*.py"`
+   而选择器只 glob `test_*.py`;datasette `asyncio_mode=strict` 全异步 → 档位
+   排除,这一个是诚实限制。修法:读上游 pytest 配置(pytest.ini/pyproject/
+   tox.ini/setup.cfg 的 testpaths/python_files),缺省用 pytest 默认模式全仓
+   递归(跳 norecursedirs);显式 node id 下 `-c os.devnull` 的 pytest 照样能
+   执行这些文件,故不越出 base-pytest 档位。三真实树现各选 3 节点;三个冻结
+   任务包的 SKIPPED **不改写**。
+
+**自我更正(必须记):** 本轮多次后台 `pytest -q | tail -3` 的通知"exit code 0"
+是 **tail 的退出码**,不是 pytest 的。逐个回读输出文件:C2 之后的两次全量其实
+各有 1–2 条失败(宿主覆盖棘轮 k11 因五个新 Product 宿主入账而红;一次
+`product_summary_is_fresh` 因事实文件尚未重建;一次 UI 源码新鲜度检测因我
+正在改 src 时并发跑测试)。故此前几处"全量 pytest 绿"的表述**不成立**,以本条
+为准:棘轮按字典序追加五宿主后,退出码直接落文件核对 —— `PYTEST_EXIT=0`,
+2112 passed / 60 skipped / 0 failed。教训已入记忆:后台跑测试永远读 summary
+行,不信管道退出码。
+
+草稿期审阅修正(不动 Core,冻结前合法窗口):C2 builder 顶层 `pages` 未绑
+`parameters`(原 FIXTURE_BUILDER_FAILED 病灶本尊)、C2 verifier raw string 里
+`\\.` 转义泄漏使文章路径正则永不匹配、C2 verifier 文章编号按全部候选序号而
+reference 按可读页连续序号(按协议"阅读目录按 NNNN 递增"收敛到后者)、C2
+`_read_csv` 返回 list 与期望 tuple `==` 永假。
+
+其它:`.claude/launch.json` 曾被我改成走 `run_studio_live.sh`,已恢复为提交
+版本;用户 GitHub 账号更名为 `zhangrldndx`,remote 已指向新地址,本轮未触碰
+相关检测。未推送、未发布。
+
+
+## 状态 · 2026-09-02 · 起草物质量改为系统自检自修 + M6.3 复杂批次出题草案
+
+用户要求"项目运行起来不能靠人审核起草物,而是自身发现问题并解决"。本轮把
+上一条里"人工审阅修掉约十二处起草缺陷"这件事制度化(事故:五个独立 task
+version 同指纹 `3e0c167e3213252b`,evidence `harness-change-draft-self-check-
+bounded-repair-v1/v2`,匿名前后控制 19 条)。
+
+**机制(不造第二把尺子):**
+- 自检 = 现有候选生成尺子(builder→去重→reference→verifier+三反事实+覆盖)
+  在 `tool add` 起草完成后**自动**运行;新增 verifier 判别力探针
+  (`probe_workspace_verifier_discrimination`):只探针产物协议引用到的文件,
+  每文件抽样 ≤8 行逐行变异 + 截尾,至少一种变异被拒才算有判别 —— 先前只
+  变异首/中/末行会把"承诺只覆盖部分行"的合法 verifier 判成无判别,已改;
+- 自修 = 按公开失败码确定性路由(`repair_target_for`):builder 类→builder
+  +blueprints(新起草器入口 `repair_fixture_builder`),reference 执行类→
+  reference(复用有界修复),分歧/探针缺口/筛查执行失败→verifier;分歧交替
+  按**该码已修次数**计:裁决者两次(第二次带"上次修复未改变结果"+产物观测:
+  路径/字节/首行,不给内容与 reference 源码)后才轮到生产者;每次修复走既有
+  快照/标记/回滚事务(回滚集扩到 builder/blueprints),上限 3 次;系统性故障
+  永不喂模型;已确认样例存在时禁止改 builder/reference;
+- 报告 `draft_selfcheck.json` 绑定语义指纹 + 四控制件字节;readiness 新增
+  `DRAFT_SELF_CHECK_MISSING/STALE/FAILED`(只阻塞冻结,不阻塞人审阅确认);
+  手写草稿(无 draft_meta.json)与 cli_v2 不适用。CLI `tool self-check`、
+  Studio 审核页指标 + 按钮。
+
+**真实缺陷草稿上的端到端演示(原始 C2 草稿复制件,builder 顶层键 + verifier
+正则转义 + list/tuple 三处真 bug,证据 `runs/evidence/draft-selfcheck-demo/`):**
+- v1 FAILED:路由按全局修复次数把第二轮分歧判给 reference —— 把正确的生产者
+  改去迁就有 bug 的裁决者。修:按码计数。
+- v2 FAILED:builder 修中;verifier 修复只加防御代码,真 bug 原样 —— 给它的
+  证据只有 verifier 自己的 reason code。修:产物观测 + 历史通病提示。
+- v3 FAILED:verifier 修中正则转义,剩 list/tuple;但第二次分歧切去修 reference,
+  最后一轮浪费。修:裁决者两次机会。
+- **v4 PASSED**:builder → verifier → verifier(带复发证据)→ 4 组候选物化、
+  探针 5 文件零缺口,`SELFCHECK_EXIT=0`,零人工。
+
+**M6.3 出题草案** `docs/m6_3_complex_workspace_qualification_v1.yaml`
+(DRAFT_NOT_FROZEN,SHA 5dfb74eabc94908f…):N0 负控 = 用户的"实时监控
+Codex/Claude 余额"想法(凭证+联网+常驻,预期 admission 拒绝)+ 8 个复杂案例
+(XlsxWriter/python-pptx/pygal/Pillow/mkdocs/icalendar/nbformat/babel,tag→commit
+已解析,wheelhouse 未冻结),新增 7 个 validation profile 待实现。
+
+质量线:全量 pytest `PYTEST_EXIT=0`,2131 passed / 60 skipped / 0 failed
+(退出码落文件核对);Ruff 0;mypy 188 文件 0;`git diff --check` 通过;
+`check_public_claims` 通过。注意:两次全量 pytest 因我边改源码边跑而失真
+(源码新鲜度检测),均已弃用并重跑。未推送、未发布。
+
+## 状态 · 2026-09-02 · Journey autopilot + 六个新格式 profile;M6.3 批次第一阶段开跑
+
+用户新目标:项目独立跑完"彩排→冻结→ACTIVE"全程,人只给仓库地址和一句话。
+落地两件:
+
+1. **autopilot**(`src/repoproof/ui/services/autopilot.py`,CLI `tool autopilot`):
+   不新增任何判定,按生产路径串 `tool add`(含自检自修)→ 样例机器确认 →
+   意图机器确认 → wheelhouse 冻结进草稿(PREREGISTERED_RUNTIME 字节,Agent 前)
+   → `tool build --rehearsal-only` → `tool build-real` → 模型提 fresh 输入/冻结
+   reference 出真值/`tool audit --build` → registry+ledger 重算终态。首个失败站
+   即停,带该站 owner 与公开码;被替代的两道人闸留 `confirmed_by=autopilot`
+   来源标记(报告 + 草稿 `autopilot.json`);`--until` 可在任一站后暂停,
+   `--resume-task-id` 从真发续跑不重冻;`--expect-admission-rejection` 给 N0 型
+   负控。报告 `~/.repoproof/autopilot/<journey>.json` + `--record-dir` 副本。
+   机制测试 7 条(`tests/ui/test_autopilot.py`,注入式 runner)。
+2. **六个 Harness-owned 结构 profile**(`xlsx_v1/pptx_v1/png_v1/ics_v1/ipynb_v1/
+   mo_v1`,全 stdlib:OOXML 包+部件 XML 可解析、PNG 签名+IHDR+IEND、RFC 5545
+   折行与组件配对、nbformat 4 骨架、gettext magic+表长),正负控 11 组;
+   起草器 schema 由 Pydantic literal 自动派生,模型可直接选用。
+3. 批次驱动 `scripts/run_qualification_autopilot.py`:phase 1 全案 `--until
+   rehearsal`(零 Agent,所有 wheelhouse 在协议冻结前就位),phase 2 按 phase-1
+   报告的 task id 续跑真发/审计。批次 id `M6.3-WORKSPACE-V1`,Product 记录不计 Lab。
+
+M6.3 phase 1 已开跑:N0(用户的"实时监控 Codex/Claude 余额")在意图准入被
+`UNSUPPORTED_LONG_RUNNING_LIFECYCLE` 零执行拒绝,判 EXPECTED_REJECTION ✓。
+c1–c8 顺序执行中,结果见 `runs/m6-3-qualification-planning/<case>/` 与本日志后续条目。
+
+## 状态 · 2026-09-02 · M6.3 phase 1 首轮全败;七项 Harness 机制修复(全部 incident→匿名负控→修→evidence)
+
+phase 1 首轮(N0+c1–c8)结果:N0 EXPECTED_REJECTION ✓;c1/c3 DRAFT_FAILED
+(`WORKSPACE_CONTRACT_INVALID`);c2/c4/c7 REHEARSAL_FAILED(preflight
+`REFERENCE_GOLDEN_MISMATCH`);c5/c6/c8 DRAFT_SELF_CHECK_FAILED。**没有一例是
+模型偶然写错**——每例都从现象追到 Harness 的一个环节,按"两独立任务同指纹"
+授权后改机制:
+
+| 现象 | 根因(环节) | 机制修复 | evidence |
+|---|---|---|---|
+| c1/c3 合同投影两次都被拒,复跑又能过 | 起草层:投影修复上下文只给 reason code,不给 Core 的字段级拒绝原因(盲修) | `public_validation_diagnostics`(loc/type/msg,不含输入)进修复上下文与 `DraftError.diagnostics`;`tool add`/autopilot 落盘 | `drafter-projection-repair-diagnostics-v1` |
+| c2/c4 彩排"REHEARSAL_FAILED"无任何细节 | autopilot 只读 `stages.rehearsal`,真实原因在 `stages.preflight` | `_failed_substage` 投影子站 code/detail/owner;每站原始 payload 落盘 `stages/<站>.json` | `autopilot-failed-substage-projection-v1` |
+| c4 黄金树 `requirements.lock.txt` 不一致(M6.2 marimo v1 同类) | 密封器把调用方原始锁字节(Harness 派生的两行注释)写进黄金树,冻结时 assembler 却用规范锁 | `seal_offline_python_runtime` 一律写 `close_workspace_runtime_lock` 规范形;preflight 不一致详情逐路径给分歧类型(`manifest_divergence`) | `sealed-runtime-lock-canonical-v1` |
+| c5/c6 自检 reference 执行失败只剩异常类型名(`Abort`/`KeyError`) | reference 失败标记只投影类型;模型自己的草稿回溯不是答案键 | 标记带 `exception_message` + reference 帧(`Type: msg @ reference_impl.py:行 函数`),`WorkspaceBundleError.diagnostics` 第一项仍是类型名(UI 修复入口兼容) | `reference-failure-public-location-v1` |
+| c2 pptx zip 成员时间戳漂移、c7 ipynb cell id 随机 | 自检从未证明 reference **可复现**,黄金树到冻结 preflight 才发现漂移 | 候选生成对首个候选隔 ≥2 s 重跑 reference,树身份不同 → `WORKSPACE_REFERENCE_NOT_REPRODUCIBLE` + 逐路径分歧类型 → reference 修复(提示:钉 zip date_time、id 由内容派生、禁读时钟) | `reference-reproducibility-probe-v1` |
+| c5 `WORKSPACE_PATH_TOO_DEEP`、c1 `WORKSPACE_RULE_OVERLAP` 各烧掉 3 轮 reference 修复 | 合同结构缺陷被路由给 reference;模型把 Core 自有闭包路径(`vendor/wheels/*`、`run.sh`)重复写进规则 | 编译期丢弃与 Core 闭包重复的模型规则;结构码路由到新的第四修复位 `contract`(只改 pattern/基数/limits,角色集与交付形态不变,事务内重跑 Core 编译并校验,否则回滚) | `contract-structural-defects-v1` |
+
+单例待第二起(已记 incident):c2 `ZIP_METADATA_ONLY` 说明尺子把 zip 容器
+元数据当内容(`incident-golden-identity-zip-metadata-v1`);c8 babel 钉版源码
+树需要 `import_cldr` 构建产物,PYTHONPATH 让检出遮住已装 wheel
+(`incident-pinned-checkout-shadows-built-distribution-babel-v1`)。c8 首轮的
+`TYPEERROR` 是我在其子进程运行窗口内改了 `workspace_bundle.py` 造成的旧类/新
+调用错配(编辑窗口伪影,已在 incident 中注明),真实原因即上述 babel 数据文件。
+
+顺带:批次驱动改为 append-only(phase-1 复跑写 `attempt-N/`,phase 2 取最新);
+两个受影响 M6.2 冻结任务的 `conformance.json`/黄金树未改写。全量 pytest 第 6 轮
+2161 passed / 60 skipped / 0 failed(exit 文件确认)。phase 1 第二轮(c1–c8)已用
+修复后的树开跑,结果见 `runs/m6-3-qualification-planning/<case>/attempt-N/`。
+
+## 状态 · 2026-09-02 · M6.3 phase 1 第二轮:新机制生效的证据 + 再追四层根因
+
+第二轮(修复后的树,c1–c8)逐案:
+- **可复现探针生效**:c2 round 1 抓到 `quarterly_report.pptx=ZIP_METADATA_ONLY`,reference
+  修复后漂移消失;c7 抓到 ipynb 随机 cell id,自检 3 轮 PASSED 并走到彩排;c3 抓到
+  `charts/*.svg=BYTES_DIFFER`(SVG 生成器每次不同 id)。
+- **密封锁规范形生效**:c4 v2 一轮自检通过、冻结、preflight 黄金树一致(第一轮在此处死)。
+- **合同修复位生效但撞到自身缺陷**:c5 round 1 正确路由到 `contract`,drafter 却报
+  `DRAFTER_STRUCTURED_OUTPUT_UNSUPPORTED`——复现得到供应商原话:嵌入的合同子 schema 引用
+  `#/$defs/WorkspaceArtifactLimits` 而根上没有 `$defs`。修:修复 schema 自带根 `$defs`;
+  供应商拒绝 schema 的原话进 `DraftError.diagnostics`(`contract-structural-defects-v2`)。
+- **导出 runtime 校验器漂移(安全例外,首起即修)**:c4 v2 彩排零模型正控 5/5 全败,
+  导出工具报 `internal error: UnicodeDecodeError 0x89`——六个新 profile 只加进了 Core 的
+  `workspace_bundle._validate_format`,导出包里的 `portable_workspace_runtime._validate`
+  不认识 `png_v1`,落到 `payload.decode("utf-8")`;文本类新 profile 则被静默放行(假成功
+  风险)。修:六个结构校验器只在 portable 模块实现一份(stdlib),Core 委托;导出校验
+  对未知 profile / 非 UTF-8 / zip·sqlite·解析器异常一律给公开码,parity 测试逐 profile
+  钉死(`validator-parity-single-ruler-v1`)。
+- **裁决者修复观察太薄(两独立任务)**:c1(README 分节编码判定)与 c6(周视图 HTML
+  结构)verifier 两次修复都对不上 reference 实际输出——观察只给路径/大小/首行。修:
+  文本工件给有界摘录(1600 字/总 24000)、zip 容器给成员名、其他二进制给魔数
+  (`verifier-repair-observation-excerpts-v1`)。
+- 单例已记 incident、待第二起才改:c3 reference 修复两次都被
+  `WORKSPACE_REFERENCE_RUNTIME_OWNERSHIP_VIOLATION` 拒——策略只在修复路径跑(起草路径不跑,
+  第二把尺子),且把裸目录名 `vendor` 当保留字,而 reference 里 `"vendor"` 是账单列名;
+  c2 容器(pptx)观察只有成员名、裁决者看不到幻灯片文字;c6 `COMMITMENT_COVERAGE_MISMATCH`
+  不投影缺哪些 commitment id;c8 babel 钉版源码树缺 CLDR 数据。
+- 我的编辑窗口伪影两次(c8 首轮 `TYPEERROR`;第二轮 c7/c8 `CLI_PAYLOAD_MISSING` 撞上
+  portable 模块一分钟的 IndentationError)——记录在案,不计入模型或机制表现;第三轮复跑。
+
+第三轮(c4/c8/c5/c1/c2/c6/c7;c3 等策略修复授权)与全量 pytest 第 8 轮进行中。
+
+## 状态 · 2026-09-02 · M6.3 phase 1 第三轮:首批两例零人工到达彩排;再落两项机制
+
+第三轮(c1/c2/c4/c5/c6/c7/c8):
+- **c2(python-pptx)`tool-python-pptx-tool-v2` → `PAUSED_AT_REHEARSAL`**:自检 4 轮
+  (可复现探针→reference 自修→裁决者两次自修→通过)、机器确认样例与意图、冻结、preflight
+  黄金树一致、零模型正控通过。**c4(Pillow)`tool-pillow-tool-v3` → `PAUSED_AT_REHEARSAL`**
+  (自检 2 轮;校验器单尺修复后导出工具正控通过)。这是 M6.3 首两例达成 phase-1 目标,
+  全程无人工材料、无人工审核。
+- c1(xlsx)第二/三轮轨迹完全相同(裁决者 README 分节"编码"判定 4→2→1→1 后换码),
+  c6 同样在 `WEEKLY_VIEW_MISMATCH` 上停滞——两独立任务证明:裁决者只吐大写码,修复方
+  (无论修裁决者还是修 reference)不知道它到底期望什么。修:verify() 可选返回
+  `reason_details`(code→≤200 字公开"期望 vs 观察"一句),Harness 只留已报码的解释、
+  截断、进语义证据与分歧诊断(`CODE: 解释`);起草/修复提示要求给出
+  (`verifier-reason-details-v1`)。
+- c5 合同修复位:第二轮撞 `$defs` 悬空(已修),第三轮撞 `DRAFTER_TIMEOUT`——合同结构化
+  输出走的是 60 s 默认超时而非兄弟修复位的 300 s 长文本超时;已并入长文本集合。
+- c7 第三轮 `DRAFTER_CONNECTIVITY_ERROR`(网关波动,EXTERNAL,按规矩暂停不换后端,复跑)。
+- c8 三轮同因:babel 钉版源码树缺 CLDR 数据;新的公开定位诊断把这句话原样交给了模型,
+  但环境问题不是 reference 能修的——`pinned-checkout-shadows-built-distribution` 仍单例待第二起。
+- 台账新增三个彩排 run(pillow v2/v3、pptx v2)后按官方脚本重建 `docs/v2_gate.json`
+  与 `docs/product_summary.json`,`check_public_claims` 通过;ruff/mypy 0。
+
+第四轮(c1/c5/c6/c7)与全量 pytest 第 9 轮开跑。c3 仍等归属策略"第二把尺子"的第二起。
+
+## 状态 · 2026-09-02 · phase 1 第四轮:c1 到达彩排(三例);phase 2 首次开跑即 REAL_BLOCKED;驱动 phase-2 覆盖了三份首轮报告(诚实记录)
+
+- 第四轮:**c1(XlsxWriter)`tool-xlsxwriter-tool-v1` → `PAUSED_AT_REHEARSAL`**(自检 3 轮:
+  可复现探针抓到 xlsx core.xml 日期漂移→reference 自修→裁决者对齐)。至此 c1/c2/c4 三例
+  零人工到达 phase-1 目标。c5 走到第 4 轮(mkdocs 构建时间戳漂移→修;裁决者自建站失败);
+  c6 `reason_details` 已进诊断但解释仍笼统("title, rows or order differ")——提示词改为
+  要求"第一处差异的确切期望值与观察值";c7 撞上游限流:`litellm.RateLimitError` 未被映射成
+  公开码,`tool add` 子进程以回溯退出→`CLI_PAYLOAD_MISSING`(记 incident,待第二起)。
+- **phase 2 首跑(c1/c2/c4)三例几秒内 `REAL_BLOCKED`**,原因见下一条目。
+- **驱动缺陷与证据损失(诚实记录)**:phase 2 路径把 autopilot 报告写回案例顶层
+  `autopilot-report.json`,覆盖了 c1/c2/c4 的**首轮 phase-1 原始报告**(其摘要行仍在
+  `batch-phase1.log.jsonl`,细节已在本日志与 incident 中转述;stages 落盘是第二轮才有的)。
+  已修:phase 2 写 `phase2-attempt-N/`;各案例顶层现有 `phase1-attempt-1-autopilot-report.json`
+  仅对未被覆盖者是首轮原件(c3/c5/c6/c7/c8/N0),c1/c2/c4 的该文件是覆盖后的副本,勿当首轮原件引用。
+
+## 状态 · 2026-09-02 · phase 2 首跑被网关 503 零预算阻塞;autopilot 阻塞子站投影(v2);本轮收尾数字
+
+- phase 2(c1 v1 / c2 v2 / c4 v3)三例在 `tool build-real` 的 Agent 供应商预检即
+  `PROVIDER_UNAVAILABLE`(http 503,Agent 0 次调用),按规矩暂停、不换后端;独立探针确认网关
+  持续 503。autopilot 只记了 `REAL_BUILD_FAILED` 无细节——子站是 `blocked=true` 而非
+  `ok=false`;修:阻塞子站同等投影(preflight.status 为码、evidence 为 detail、owner EXTERNAL),
+  三任务版本同指纹 → `autopilot-failed-substage-projection-v2`。
+- 台账 444 行(本批新增彩排/阻塞发次 `counts_toward_*` 全 false),`docs/v2_gate.json`、
+  `docs/product_summary.json` 已按官方脚本重建,`check_public_claims` 通过;hosts_covered 棘轮
+  追加 `pillow-tool`、`python-pptx-tool`、`xlsxwriter-tool`。全量 pytest 第 10 轮
+  2206 passed / 60 skipped / 0 failed(exit 文件确认);第 11 轮(含阻塞投影修改)进行中。
+- 待网关恢复后:phase 2 复跑 c1/c2/c4(真发→fresh audit→ACTIVE),phase 1 复跑 c7(限流)、
+  c5/c6(界内未收敛,已强化 `reason_details` 要求"第一处差异的确切值");c3/c8 各等第二起。
+
+- 零模型回归(今日全部 Core 改动之后):`workspace-replay-20260902T080401Z.json` — M6.2 冻结工具 8/8 PASS(冻结 oracle 原样 + 密封 wheelhouse),校验器单尺/密封锁规范形等改动未改变任何已冻结任务的判决。
+- 网关自 06:44Z 起持续 503/超时(独立探针多次确认)。已挂后台看门狗 `/tmp/rp-gateway-watch.sh`
+  (每 5 分钟探测,恢复后依次跑 phase 2 c1/c2/c4 → phase 1 第五轮 c5/c6/c7,日志
+  `/tmp/rp-gateway-watch.log`、`/tmp/rp-m63-phase2-round2.log`、`/tmp/rp-m63-phase1-round5.log`,
+  6 小时放弃)。它跑完后台账会再变:须重跑 `gate_report.py --write`、`build_product_summary.py`、
+  `check_public_claims.py`,并视新宿主追加 hosts_covered 棘轮;phase-2 报告在
+  `runs/m6-3-qualification-planning/<case>/phase2-attempt-N/`。
+
+## 状态 · 2026-09-03 · 迁到 Claude 网关通道(显式、强制结构化);phase 2 三例在 Agent 站以同一签名 FAIL
+
+GPT 侧网关持续 503(额度用尽),用户要求仿照 Claude Code 的网关调用方式迁移。查证:
+`~/.claude/settings.json` 的 `ANTHROPIC_BASE_URL/ANTHROPIC_AUTH_TOKEN` 与项目 `.env` 的
+`REPOPROOF_API_BASE/KEY` **是同一台网关的两个上游**,凭据不通用(GPT key 调 Claude 模型 502)。
+
+**不能裸改 `.env`**:实测该网关的 OpenAI 兼容 shim 对 Claude 模型接受
+`response_format={json_schema, strict:true}` 却**完全不强制**(返回 ```json 围栏 + 字段与
+schema 无关),且带 `$defs` 的合同修复 schema 直接被拒。起草器的不变量恰恰写着"provider 不能
+强制就是能力不匹配,静默回落自由文本=把当初的可靠性 bug 放回来"。此发现按假成功类立案
+(`incident-openai-shim-schema-not-enforced-for-claude-v1`,安全例外首起即修)。
+
+落地(`harness-change-anthropic-enforced-drafting-channel-v1`,匿名负控 before 红/after 绿):
+- 新传输层 `src/repoproof/agents/anthropic_gateway.py`(stdlib urllib;本机 litellm 版本会把
+  结构化输出译成已废弃的 `output_format`,且其能力表联网拉取——两条都是既有教训)。结构化
+  输出=**强制工具调用**(`tools` + `tool_choice` + `input_schema`),没有 `tool_use` 块就报
+  `ANTHROPIC_STRUCTURED_OUTPUT_NOT_ENFORCED`,不收散文。
+- `AnthropicGatewayDrafter` 只覆写 `_once_with_system` 一个原语,`draft/repair_*/propose_*`
+  与 litellm 通道**是同一份代码**(有测试钉死方法同一性),两通道不可能漂移。
+- 通道显式点名(`REPOPROOF_DRAFTER_BACKEND=anthropic-gateway`),未配置报公开码、绝不静默换道。
+- temperature:sonnet-5 直接拒收该参数(400)。只允许这一个参数、在 provider 明确点名时降级
+  一次并记 `temperature_dropped`;Agent 侧用既有显式旋钮 `REPOPROOF_TEMPERATURE_POLICY=provider_default`。
+- 入口 `scripts/run_with_claude_gateway.sh`:凭据从 Claude Code 的设置文件读入**仅传子进程**,
+  仓库里不留第二份密钥。Agent 侧零改代码:同一网关的 OpenAI 兼容面 + `/v1` base,
+  provider 预检 `PROVIDER_READY`、native 工具协议可用(2.0 s)。
+- 六个真实起草 schema(含两个带 `$defs/$ref`)在 sonnet-5 上全部被接受且被强制。
+
+**phase 2 结果(c1 xlsxwriter v1、c2 python-pptx v2、c4 pillow v3,模型 claude-sonnet-5)**:
+三例全 FAIL,签名完全一致 —— `exit_status=LimitsExceeded`,恰好 20 次模型调用,输入
+27.4/34.2/34.7 万 token、输出仅 4.2–5.2 千,骨架 `NotImplementedError: workspace composition
+is not implemented` 原样留下,oracle 0/4~0/5。已排除 Harness 侧:题面明确告知步数预算;被拒的
+1–3 次是 `POLICY_DENIED: filesystem_root_sweep`(答案树保护,正确拦截)。轨迹显示模型把预算
+花在反复 dump 期望产物内部(xlsx/pptx XML),第 4 步就说"现在开始写 impl"却继续探查。
+`max_model_calls: 20` **冻结在任务合同**(host + tool 双写),不得为让模型通过而上调 ——
+这是模型侧结果,不是机制缺陷,如实记账(台账 447 行,三发 `counts_toward_*` 全 false)。
+
+## 状态 · 2026-09-03 · 题面环境谎报(对模型的过拟合)修复 + sonnet-5/opus-5 同题对照
+
+用户质疑"sonnet 不该比 5.6-terra 差,是不是过拟合/被骗了"。查证与更正:
+
+1. **先更正我自己的错误陈述**:此前说"GPT 在同样预算下完成过"是拿 M6.2 的**另一批任务**
+   说事;这三道题 GPT **从未走到真发站**。按规则数/文件数,python-pptx(3 规则/3 文件)比
+   GPT 通过的 csvkit(8/33)、marimo(8/37)**更简单**,"新题更难"不成立。
+2. **有无针对被测项目的特例代码**:全仓扫描 `src/` 中出现模型名之处**全是注释/事故记录**,
+   无一处按模型名分支;唯一按模型命令风格调过的启发式(context projector)在这批发次里
+   **未启用**(`REPOPROOF_CONTEXT_PROJECTION` 未设)。
+3. **但确实存在过拟合 —— 对象是"当初唯一用过的模型"**:Agent 系统题面声称
+   "sandboxed Linux container",实际是 **macOS 宿主会话目录**;题面**从不给出绝对工作目录**;
+   全盘扫描被策略拒也不预告。GPT 恰好无视容器声明直接 `ls` 开工;Claude 按容器约定先
+   `cd /root`,失败后花 15/20 步满盘找路并两次撞 `POLICY_DENIED: filesystem_root_sweep`。
+   策略自己的注释早写着"根扫描只拦不杀……27 发越界里 24 发只是在找 wheelhouse"——机制
+   一直知道 Agent 会因不知位置而空耗,只是从没告诉它。三例同指纹立案 + 前红后绿负控 →
+   `harness-change-agent-task-statement-truthful-environment-v1`:题面改为真实描述、按运行
+   渲染后端解析出的**绝对工作目录**、并预先声明扫描规则(闸门要杀的先教)。
+
+**同题对照(修正题面后,同一冻结预算 `max_model_calls: 20`)**
+
+| 模型 | 案例 | 结果 | 调用 | 写入动作 | 输出 tok | patch |
+|---|---|---|---|---|---|---|
+| sonnet-5 | c1 xlsx | FAIL | 20 | 0 | 4456 | 0 |
+| sonnet-5 | c2 pptx | FAIL | 20 | 0 | 5029 | 0 |
+| sonnet-5 | c4 pillow | FAIL | 20 | 0 | 5361 | 0 |
+| opus-5 | c1 xlsx | FAIL(输入 token 预算) | 20 | 0 | 13913 | 0 |
+| **opus-5** | **c2 pptx** | **PASS_ADAPTED** | 39(两轮) | 6 | 27535 | 7450 |
+| **opus-5** | **c4 pillow** | **PASS_ADAPTED** | 20 | 7 | 15107 | 7984 |
+
+题面修复的可测效果:策略拒绝 1/3/1 → **0/0/0**,找路耗步 ~15 → 0。修复后差距仍在,且
+**是真的模型差距**:sonnet-5 三例一次未落笔(策略是把期望产物逐字节反推透再动手,预算不够);
+opus-5 两例写出实现并通过 capability/host regression/policy/clean replay 四道闸门,
+`tool-python-pptx-tool-v2` 与 `tool-pillow-tool-v3` 均达 `VERIFIED_TOOL_READY` 并导出。
+
+两例随后卡在 fresh audit(`WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT`):冻结
+reference 与冻结 verifier 在**新输入**上分歧——起草自检只证明了候选输入上的一致,
+新输入才暴露。属新一类现象,已记录,待第二起再动机制。台账 453 行,gate/summary 已重建。
+
+## 状态 · 2026-09-03 · 档位对照(sonnet-5 / opus-4.8 / opus-5)未完:两例被网关腰斩;残留闸门假阳性立案
+
+按用户要求把默认档改为 **claude-opus-4-8**(同族次旗舰,对标 5.6-terra 的中档定位),
+`claude-opus-4-6` 作**显式**回退(`REPOPROOF_CLAUDE_MODEL=`,不自动切;4-6 接受
+`temperature=0` 而 4-8/5/sonnet-5 拒收,要确定性档须显式给 `REPOPROOF_TEMPERATURE_POLICY=0`)。
+六个真实起草 schema 在 4-8 上全部被接受且被强制。
+
+**同题对照(修正题面后,同一冻结任务与预算 `max_model_calls: 20`)**
+
+| 案例(规则/文件) | sonnet-5 | opus-4.8 | opus-5 |
+|---|---|---|---|
+| c1 xlsx(10/10) | FAIL 20 步 / 出 4456 / **0 写入** | FAIL 20 步 / 出 7495 / **1 写入** | FAIL 20 步 / 出 13913 / 0 写入(撞 400k 输入上限) |
+| c2 pptx(3/3) | FAIL / 0 写入 | **不可判**:网关 503 腰斩于第 2 轮第 30 步(当时 1/4 检查已绿) | **PASS_ADAPTED**(39 步两轮)→ VERIFIED_TOOL_READY |
+| c4 pillow(9/10) | FAIL / 0 写入 | **不可判**:网关 503 腰斩于第 10 步 | **PASS_ADAPTED**(20 步一轮)→ VERIFIED_TOOL_READY |
+
+terra 的参照点(M6.2 同等或更复杂的 workspace 任务):csvkit 8/33 → 19 步 PASS;
+marimo 8/37 → 17 步;textual 9/18 → 17 步;starter 10/10 → 21 步。
+
+**结论(诚实版)**:**尚不能判定 opus-4.8 与 terra 等价**——它只有 c1 一例完整数据,而 c1
+三档皆败;唯一定性信号是它是 c1 上**唯一真的动手写文件**的档,输出量介于 sonnet-5 与 opus-5
+之间。决定性的 c2/c4 两例都被外部中断,按规矩记为 EXTERNAL,不作模型判据。网关现返回
+`No available accounts`,两家额度都已耗尽,后续工作外部阻塞。
+
+**新立案(单例,待第二起)**:`incident-agent-self-test-output-trips-residue-gate-pptx-v1`
+—— 上一发**成功**的 Agent 用 `mktemp -d /private/tmp/wsXXXX` 自测刚写好的工具,其输出与冻结
+fixtures 的期望件**逐字节相同**(实现对了必然如此),于是 H9-a 答案残留闸门把**后续每一发**
+零预算拒开。闸门按内容比对本是为了避开按文件名的假阳性,但"正确输出 == 期望字节"使它必然
+误伤;且题面从未告诉 Agent `/tmp` 在扫描根内、也没给它一个合规的临时目录。属**假阻塞**
+(非假成功),已按闸门自带 remediation 把残留移出扫描根(`~/.repoproof/quarantine/`),机制不动。
+
+## 状态 · 2026-09-03 · 网关诊断 + opus-4.8 档位判定(c2 通过,与 opus-5 基本持平)
+
+**网关诊断**:不是额度封死,是**账号池间歇性排空**。同一分钟内 9 个模型全 200(1.0–6.6 s),
+十几分钟后又整体 503 `No available accounts`,再等又恢复。凭据分两套:GPT key 对 Claude 模型
+返回 502,Claude token 才通;两条上游各自计费,GPT 侧确实耗尽。
+
+**由此暴露并修复的机制缺陷(两独立任务版本同指纹)**:供应商在 run **中途**挂掉时,
+轮级早已判 `EXTERNAL/PROVIDER_UNAVAILABLE`,但**终态只看 capability**,于是一次抖动被写成
+该模型的 `FAIL` 进台账,与真正的能力失败无法区分(c2 死在第 30 步、c4 死在第 10 步)。
+修:`external_interruption_marker` 把它接进既有 `missing_external` 通道,闸门按**原决策表**
+判 `BLOCKED`(测量被打断 = 可恢复的非结论,与崩溃报告同一口径);Agent 侧退出(提交/步数/
+token 预算)一律不产生该标记。证据 `harness-change-external-interruption-is-not-a-task-failure-v1`。
+
+**档位对照终版(修正题面后,同一冻结任务与预算)**
+
+| 案例(规则/文件) | sonnet-5 | **opus-4.8** | opus-5 |
+|---|---|---|---|
+| c1 xlsx(10/10) | FAIL 20 步 / 0 写入 | FAIL 20 步 / 1 写入 | FAIL 20 步(撞 400k 输入上限) |
+| c2 pptx(3/3) | FAIL / 0 写入 | **PASS_ADAPTED 38 步两轮,四闸全绿** | **PASS_ADAPTED 39 步两轮** |
+| c4 pillow(9/10) | FAIL / 0 写入 | **PASS_ADAPTED 20 步一轮,四闸全绿** | **PASS_ADAPTED 20 步一轮** |
+
+**判定(三例收齐)**:opus-4.8 与 opus-5 在这三例上**结果完全一致**——通过/失败模式相同,
+步数几乎相同(c2 38 vs 39、c4 20 vs 20),c1 两者皆败。二者都远高于 sonnet-5(三例 0 写入)。但**不能声称它与 5.6-terra 等价**:terra 在同等或更
+复杂的 workspace 任务上是 17–21 步**一轮**通过,而 opus-4.8 在结构更简单的 c2 上用了 38 步
+两轮。方向上 opus-4.8 在本 harness 上**可能略弱于 terra**,而不是更强。副产物:担心"opus-5
+太强不公平"这一点数据不支持——它和 4.8 打平。
+
+结论:默认继续用 **opus-4.8**(更保守、更省),并在协议里写明档位对齐是判断而非等价证明。
+
+**残留闸门第二次发作**:c2 那发成功后又留下 `/tmp/out2`、`/tmp/wsp/out`,把下一发零预算拦停。
+仍是同一任务版本(其余两例实现不对、字节不同),**不构成两独立任务版本,机制不改**;改用
+操作侧 `scripts/clear_answer_key_residue.py`(复用闸门自己的检测器,移进隔离区、绝不删除)。
+
+## 状态 · 2026-09-03 · phase 1 第六轮(c5/c6/c7,opus-4.8):两类新机制缺陷,各两独立任务同指纹
+
+第六轮三例全部在自检第 1 轮停在 **`WORKSPACE_RUNTIME_APPLICATION_MISSING`**,无修复、无诊断:
+模型把合同写成 runnable + `runtime_python_entrypoint=app.py`,reference 却没写 app.py,
+Core 闭包密封器抛码 → `repair_target_for` 对整个 `WORKSPACE_RUNTIME_*` 家族没有路由 →
+自检一轮即止。协议里这三案本就是 `runnable: false`;提示词写的是"Core 拥有闭包、模型填
+entrypoint",没说 **entrypoint 文件本身要由 reference 写**——三例同一读法。修
+(`runtime-closure-disagreement-routing-v1`,mkdocs+icalendar 两起授权):合同-生产者分歧类
+闭包码路由为"先修生产者、同码再犯修合同表示";环境类 `WORKSPACE_RUNTIME_*`(wheelhouse/锁/
+wheel 集)仍不路由;候选生成投影带"缺的是哪个 entrypoint";提示词明说该文件归 reference 写。
+
+第五轮(sonnet-5)留下的另一类:c6 `CLI_WORKSPACE_FIXTURES_FORBIDDEN`、c7 `OUTPUT_TRANSPORT_MISMATCH`
+——模型文档**自相矛盾**(带 workspace 成员却把输出写成单文件/`text_artifact`),Core 只按
+delivery requirements 分类:要么当"用户需求不受支持"直接拒(不修),要么只给个码盲修。修
+(`delivery-shape-self-contradiction-v1`):在选 profile 之前检测文档内部矛盾,投影为可修的
+`DELIVERY_SHAPE_SELF_CONTRADICTION`,公开诊断点名 `delivery_requirements.outputs.N.kind`
+与它冲突的成员;一致的 workspace 文档与真正的单文件 cli 文档不受影响。
+
+第七轮(c5/c6/c7)与全量 pytest 第 15 轮开跑。
+
+## 状态 · 2026-09-03 · phase 1 第七/八轮(c5/c6/c7,opus-4.8):机制生效证据 + 三项新机制
+
+**第七轮生效证据**:闭包码路由后三例不再一轮即止——c5 走了 4 轮(可复现探针抓 mkdocs 时间戳
+→修;`INPUT_BINDING_CONTROL_FAILED`→修裁决者;判别力缺口两轮未收敛);c6 走 4 轮;
+**c7 自检 1 轮 PASSED、冻结 `tool-nbformat-tool-v2`**,倒在 preflight 的 smoke:合同
+`smoke_command: ./run.sh spec.json` 引用了工作区里不存在的 `spec.json`(复现:FileNotFoundError)。
+
+**新立案 / 新机制**
+- **裁决者"通过却带原因码"**(c6 第七轮、c5 第八轮,两仓库同指纹):模型爱返回
+  `ok=true, reason_codes=['OK']`;语义筛一直要求通过时原因码为空(`and not reasons`),但这条
+  规则从未告诉模型,分歧诊断只剩 "OK: 全部通过",修三次都对不上。修
+  (`verifier-verdict-consistency-named-v1`):判决保持不通过,原因码换成机制码
+  `VERIFIER_INFORMATIONAL_REASON_CODES_ON_PASS` 并附规则说明;起草/修复提示明写。
+- **投影拒绝无字段诊断**(c7 `WORKSPACE_FIXTURE_INPUT_KIND_MISMATCH`、c6 第五轮
+  `CLI_WORKSPACE_FIXTURES_FORBIDDEN`):Core 多处直接抛裸 DraftProjectionError,修复只拿到码。
+  修(`projection-diagnostics-everywhere-v1`):统一 `_projection_error(code, loc, msg)`,
+  blueprint 数量/形状/input_kind/重复、缺 builder、workspace 不许 required_fields、cli 形态
+  不许 workspace 成员——全部点名字段。
+- **我上一轮机制的缺陷**:第八轮 c6 首次真的触发 `DELIVERY_SHAPE_SELF_CONTRADICTION`,修复上下文
+  构造时又对同一份矛盾需求跑 profile 准入,`ProductProfileError` 逃逸把起草进程打死
+  (autopilot 只见 `CLI_PAYLOAD_MISSING`)。修(`delivery-shape-self-contradiction-v2`):
+  修复上下文对不可准入需求降级为原始需求 + `selected_artifact=None`,诊断照给。
+- **单例待第二起**:自检不跑 smoke(c7 v2;第一次 smoke 在冻结之后,可修的缺陷要付一个
+  task version;且 preflight smoke 详情只有码没有 stderr)。
+
+第九轮(c5/c6/c7)与全量 pytest 第 16 轮开跑。
+
+## 状态 · 2026-09-03 · 第九轮:三项机制生效证据 + 两项新机制(语义机制码解释、自检跑 smoke)
+
+第九轮生效证据:c6 第 1 轮 `WORKSPACE_RUNTIME_APPLICATION_MISSING` 带 entrypoint 诊断被
+reference 修复一次即过(上一轮在此一轮即止);c7 自检 4 轮通过并冻结 `tool-nbformat-tool-v3`。
+一次差点误判:c6 `week_view.html` 判别力缺口三轮不收敛,我怀疑探针对单行 HTML 只有一次编辑
+机会是仪器缺陷——重跑探针发现"截断最后一行"把整个文件清空后裁决者仍 ACCEPTED,即裁决者
+确实没看这个文件;缺口是真的,探针没错,不改。
+
+- **语义机制码无解释**(c5 `INPUT_BINDING_CONTROL_FAILED` 连修两次不动、c6
+  `COMMITMENT_COVERAGE_MISMATCH` 停滞;两仓库同指纹):裁决者自己的码已带 reason_details,
+  Harness 控制组产生的机制码却是裸码。修(`semantic-mechanism-code-explanations-v1`):四个
+  控制组码各附"观察到什么/违反哪条"一句,COMMITMENT_COVERAGE 列出缺失/多余 id;顺带把
+  可复现要求写进起草提示(每轮首轮都在为 mkdocs 时间戳付一次修复额度)。
+- **自检不跑 smoke**(c7 v2、v3 两个任务版本,同指纹):候选生成对首个密封候选跑与 preflight
+  同一把 `run_workspace_smoke`,失败即 `WORKSPACE_REFERENCE_SMOKE_FAILED` + smoke 码 + 退出码
+  + stderr 摘录(证据边界不变,摘录走显式 `stderr_sink`;preflight 详情同样带上),路由
+  先生产者后合同(`selfcheck-runs-smoke-v1`)。c7 v2/v3 的真因都是合同 `smoke_command`
+  与生产者不配(`./run.sh spec.json` 引用不存在文件;v3 `./run.sh` 无参仍非零退出)。
+
+## 状态 · 2026-09-03 · 第十轮:自检 smoke 机制生效 + 两项新机制(结构码带路径、smoke 语义先教后杀)
+
+第十轮生效证据:c6 第 1 轮 smoke 在冻结**之前**就抓到 `app.py` 里 `import reference_impl`
+(ModuleNotFoundError,带 stderr 摘录),reference 一次修复即过;c7 第 1 轮同样在自检期抓到
+`./run.sh` 无参退出码 2 —— 上一轮这两件事都要先付一个 task version 才能看见。
+
+- **结构码不带路径**(c5 mkdocs `WORKSPACE_HTML_EXTERNAL_RESOURCE,WORKSPACE_RULE_OVERLAP`
+  连修三次不动;c1 XlsxWriter 同类;c6 第 2 轮 `WORKSPACE_EXTRA_FILE_FORBIDDEN` 第三起;
+  同指纹 `3faa5b5501f81d46`):`validate_workspace` 只给码,修复者得自己猜是哪条路径撞了哪两条
+  规则。修(`structural-validation-path-details-v1`):结果新增 `details`,每个码一行——
+  RULE_OVERLAP 给路径+两条 pattern、EXTRA_FILE 给多出的路径、REQUIRED/CARDINALITY 给 pattern
+  与计数、格式失败给路径+profile+解析器细节(HTML 外链给 URL);候选生成把这些行作为
+  `WORKSPACE_REFERENCE_CONTRACT_FAILED` 的诊断交给修复,preflight 详情、`WORKSPACE_CONTRACT_FAILED`
+  / `SMOKE_STRUCTURE_INVALID` 同样带上;干净工作区零行。
+- **smoke 语义从没教过**(c6 第 3 轮 `./run.sh` 在密封工作区里找不到 `input` 目录、合同修复
+  原样返回 NO_PROGRESS;c7 v2 `./run.sh spec.json`/v3 无参崩;两仓库同指纹
+  `f0b52b01e927303f`):Harness 是在**只有交付工作区自身**的目录里跑 smoke,提示词只说过
+  "以 ./run.sh 开头"。修(`smoke-command-semantics-taught-v1`):起草/reference 修复/合同修复
+  三份提示词写明"单独运行、无候选输入、必须退出 0、缺参当 usage 退 0 或支持 --help";投影层把
+  指向非合同成员的文件参数当表示层矛盾拒绝(`SMOKE_COMMAND_NON_MEMBER_ARGUMENT`,loc
+  `workspace_contract.smoke_command.N`,仅在 allow_extra_files=false 时),旗标与成员路径不受影响。
+- **单例待第二起**:结构码与形态码混路由(c5,`681dec2091fe1349`);c7 第 2 轮合同修复
+  `INVALID_MODEL_OUTPUT`(模型没按 schema 回)。
+
+第十一轮(c5/c6/c7)待全量 pytest 第 18 轮绿后开跑。
+
+## 状态 · 2026-09-03 · 第十一轮:c6 零人工到彩排(第四例)+ 一项安全例外 + 两项循环机制
+
+第十一轮结果:**c6 `tool-icalendar-tool-v1` 自检 3 轮通过、冻结、彩排 `REHEARSAL_PASS_ONLY`**
+(路径细节生效:第 1 轮 `WORKSPACE_FORMAT_INVALID: 'generate.py' (profile python_compile_v1)`
+一次 reference 修复即过)。c5 从"第 1 轮原地不动"推进到第 4 轮语义分歧(裁决者对 mkdocs 导航/
+标题的假设与真实渲染不符,预算耗尽);c7 第 1 轮裁决者修复 NO_PROGRESS 即停。
+
+- **合同修复削弱尺子(安全/假成功,首起即修)**:c5 第 1 轮诊断点名 `html_v1` 页面引用 cdnjs,
+  合同修复"APPLIED"后第 2 轮外链码消失——终稿 draft.yaml 里 html 规则已被降成
+  `text_utf8_v1`,离线检查蒸发而站点仍引用 CDN。`normalize_workspace_contract_repair` 此前只守
+  role 集合与 runnable 三键。修(`contract-repair-cannot-weaken-validator-v1`):每个 role 的
+  validation_profile / executable 不得变、allow_extra_files 不得由关变开、entrypoints 不得变,
+  违者 `VALIDATOR_WEAKENED` 逐条点名回滚;收紧仍允许;提示词写明内容类诊断归生产者改字节。
+- **一次没应用上的修复 = 自检终局**(c6 第 10 轮合同 NO_PROGRESS、c7 第 10/11 轮合同
+  INVALID_MODEL_OUTPUT / 裁决者 NO_PROGRESS;两仓库同指纹 `869c1654321510f6`):循环在预算还剩时
+  立刻 break,`repair_target_for` 设计的 verifier→verifier→reference 根本走不到。修
+  (`selfcheck-continues-after-unapplied-repair-v1`):把循环抽成 `_self_check_repair_rounds`,
+  回滚后草稿没变,同一份失败直接交给路由表下一位、不重跑候选生成;只有起草者离线才提前停。
+- **结构性合同失败从不轮换归属**(c5 三轮、c1 四轮全派给合同,每次 APPLIED 码不变;两仓库同指纹
+  `191bd4e3a23d5ab2`):与闭包分歧码同理,同码再现说明另一侧才是噪声。修
+  (`structural-contract-failure-alternates-owner-v1`):奇数轮合同、偶数轮 reference。
+
+第十二轮(c5/c7 phase 1)与 c6 phase 2 待全量 pytest 第 19 轮绿后开跑。
+
+## 状态 · 2026-09-03 · 第十二轮:c7 到彩排(第五例)+ 量具改被测的第二起
+
+第十二轮结果:**c7 `tool-nbformat-tool-v4` 自检 2 轮通过(一次可复现修复)、冻结、彩排通过**——
+上一轮修的"回滚后交下一位"没用上,因为这轮根本没回滚。c5 又倒在第 4 轮:前两轮 reference 执行
+失败(mkdocs 配置 YAML、`ConfigurationError` 导入位置)各修一次即过,第 3/4 轮裁决者报
+`MKDOCS_CONFIG_LOAD_FAILED: AttributeError: 'function' object has no attribute 'cache_clear'`。
+
+- **量具改被测(第二起,沿用 v1 的测量有效性例外)**:追到 mkdocs `theme.py:127`
+  `utils.get_themes.cache_clear()`——上游在自己的 `@lru_cache` 公开函数上做清缓存,而回执代理
+  用 `functools.wraps` 只拷 `__dict__`,lru_cache 包装器的 `cache_clear/cache_info` 是对象方法,
+  拷不过来;正确的裁决者在正常运行里被量具打死(attempt-8 同样,当时没看出来)。修
+  (`import-hook-function-metadata-v2`):回执代理与反事实代理都把原对象上代理没有的公开属性
+  带上;两条子进程负控前红后绿。
+- c6 `tool-icalendar-tool-v1`、c7 `tool-nbformat-tool-v4` 残留扫描干净,待全量 pytest 第 20 轮
+  绿后开 phase 2;c5 再开第十三轮。
+
+第十三轮(c5 单例,与 c6/c7 phase 2 并发)在起草站 `ANTHROPIC_GATEWAY_UNAVAILABLE` 零预算停
+(网关账号池间歇排空,与 Agent 并发时更易触发);按纪律不换通道不换模型,phase 2 收尾后串行复跑。
+
+## 状态 · 2026-09-03 · phase 2 首打(c6/c7)全败于"题面没教验收比什么" + 题面机制修复
+
+c6 `tool-icalendar-tool-v1` 与 c7 `tool-nbformat-tool-v4` 的 phase 2(opus-4.8,冻结 20 调用/轮)
+都是 `STOP_NO_PROGRESS`:20/20 调用、零写入、`NO_ADAPTER_DIFF`。轨迹显示 Agent 把整轮花在反推
+三件事:黄金树逐字节比对且**含应用文件与 README**;run.sh/requirements.lock.txt/THIRD_PARTY_NOTICES.md/
+vendor 由 Harness 封存不用写;哪些期望文件与输入无关、在所有公开样例里逐字节相同(c6 的
+generate.py/README、c7 的 render_notebook.py)。c7 更把 15 步花在猜 notebook cell id 的派生规则
+(上游随机生成,参考实现钉死的规则公开合同里没有——而它就写在期望树的 render_notebook.py 里)。
+c1 XlsxWriter 的 opus-5/4.8 两发同一签名(19/20 步零写入)。三个任务版本同指纹
+`12fab86921b47e00`。这些事实全部可从公开样例算出,题面却一个字没说。
+
+修(`workspace-statement-teaches-public-fixtures-v1`):`public_fixture_digest(task_dir)` 只读
+`public_tests/fixtures/*/{input,expected}`,产出"样例数与布局 / Harness 封存路径 / 跨样例逐字节相同
+文件 / 随输入变化文件(期望树里的输入副本可能被规范化)"四行,只有路径与分类不含字节;
+workspace-tool-v1 题面新增 `WHAT ACCEPTANCE COMPARES` 段(逐字节、含应用文件与 README、"整轮不写
+=零分,先写再跑公开检查再改")。非 workspace 档口不受影响。
+
+未决观察(不改):黄金逐字节比对落在带参考实现自选任意值(cell id)的产物上,只有期望树里带
+应用文件时才可赢;不带应用文件的非 runnable 工作区若产物含此类值,公开合同必须写出派生规则,
+否则题面欠定——待第二起再议。
+
+## 状态 · 2026-09-03 · phase 2 复打:c6 一轮即过并 ACTIVE(驱动误报)+ c7 仍零写入 + 两项机制
+
+复打(题面带公开样例摘要):**c6 `tool-icalendar-tool-v1` 一轮 20 调用 `PASS_ADAPTED` 5/5 →
+`VERIFIED_TOOL_READY` → 新输入抽查 `FRESH_INPUT_PASS`,工具在盘上 ACTIVE**(M6.3 首个全程零人工
+到 ACTIVE 的复杂工作区案例)。但驱动报告写的是 `FRESH_AUDIT_FAILED`:autopilot 只在一个从不存在
+的 `reason_codes` 列表里找 FRESH_INPUT_PASS,而审核 CLI 给的是单数 `reason_code`;c4 pillow-v3
+两次 phase 2 同样是这个误报(当时被当成"新输入分歧"记了单例)。既有测试用同样虚构的形状,
+所以从没红过——第二把尺子。修(`autopilot-fresh-audit-real-payload-v1`):按真实形状判定
+(FRESH_INPUT_PASS / FRESH_INPUT_SEMANTIC_PASS 通过,失败投影审核自己的 reason_code),测试夹具改成
+真实形状。c6 phase2-attempt-2 报告按纪律不改写,以本条与 incident 为准。
+
+c7 `tool-nbformat-tool-v4` 复打仍 20/20 零写入:摘要已把 render_notebook.py 列为"跨样例常量、
+可复制",Agent 仍花 8–17 步猜 cell id 派生规则,第 18 步才打开它并发现规则就在里面。摘要没说
+"这就是 run.sh 执行的应用文件 = 所有变化文件的生成器,先读它"。修(v2):从公开 run.sh 解析
+`"$ROOT/<app>"`,仅当它是跨样例常量时点名为应用文件并要求先读。
+
+未决:c7 attempt-3 待打;c5 第十四轮待打(第十三轮网关零预算停)。
+
+## 状态 · 2026-09-03 · c7 attempt-3:能力 6/6 却 STOP_SCOPE_DRIFT → 自测输出去处机制
+
+题面 v2 生效:c7 Agent 第 5 步就读 render_notebook.py,第 14 步写完 impl,**能力 6/6 全过**;
+判 FAIL 的是 PolicyVerifier "adaptation files 60 > max_patch_files 16"——它把自测输出整棵工作区
+(含 11 个 wheel)写进包内 `_scratch/`。回看 c2 v2 的 H9-a 残留事故(正确输出写进 /tmp、逐字节
+等于期望件、拦停之后每一发),同一个根:Harness 从没给自测输出一个合法去处,题面也没说
+"包内留下的每个文件都计入补丁预算"。两个任务版本同指纹 `88dab6d119bdb4dc`。
+
+修(`agent-scratch-location-v1`):会话环境新增 `REPOPROOF_SCRATCH_DIR`(会话根内假 HOME 下
+`scratch/`,包外、随会话销毁、残留闸门显式跳过 `_sessions/`、不进 adaptation diff);系统提示渲染
+绝对路径 `scratch_abs`,workspace 题面点名变量,两处都写明"包内每个文件计入补丁预算、/tmp 不许
+写输出"。三条负控前红后绿。
+
+单例待第二起:Agent 会话 PATH 里裸 `python3` 是系统 3.9.6,自己跑公开检查时 smoke 失败,
+而验收(venv/bin 前置,G7)同一检查 6/6 过——Agent 看到闸门看不到的失败(`380128a7a28a40a7`)。
+
+待:全量 pytest 第 23 轮 → c7 phase 2 attempt-4 → c5 第十四轮。
+
+## 状态 · 2026-09-03 · c7 attempt-4:`tool-nbformat-tool-v4` 全程零人工到 ACTIVE(第二例)
+
+scratch 机制生效:Agent 第 15 步写完资源文件、第 16 步跑公开检查,补丁不再夹带自测输出;
+`PASS_ADAPTED` 6/6 → `VERIFIED_TOOL_READY` → 新输入抽查 `unicode-mixed-notebook` 通过 →
+`operational_status: ACTIVE`,驱动报告(修过的投影)终于与盘上一致。M6.3 至此两例全程到 ACTIVE
+(c6 icalendar-v1、c7 nbformat-v4),另 c1/c2/c4 到彩排、c2/c4 在档位探针目录下曾到 READY。
+PATH 单例第二次出现在同一任务版本(attempt-4 第 19 步同样本地 smoke 因系统 python3 3.9.6 失败,
+验收 6/6 过)——同任务版本不算独立第二起,仍单例。c5 第十四轮开跑。
+
+## 状态 · 2026-09-03 · c5 第十四轮:新机制全部触发但合同修复两次被拒且理由不见 → 拒绝理由随行
+
+第十四轮 c5(mkdocs)四轮都是同一行诊断 `docs/index.md matches docs/**/*.md and docs/index.md`:
+第 1/3 轮合同修复 ROLLED_BACK `WORKSPACE_CONTRACT_STRUCTURAL_REPAIR_INVALID_MODEL_OUTPUT`,第 2 轮
+轮换给 reference(生产者修不了合同重叠,APPLIED 无效),第 4 轮预算尽。追到 `_repair_source`:
+第二次尝试只被告知"不符合 schema",最终抛出时把内层 DraftError 的码与诊断行(可能正是新加的
+`VALIDATOR_WEAKENED`、`ROLE_SET_CHANGED` 或 smoke 参数越界)一并丢掉;轮记录只剩笼统码;c7
+attempt-10 同病。两仓库同指纹 `9f6895fa3c78f428`。
+
+修(`repair-rejection-reasons-travel-v1`):拒绝码与 loc/msg 行三路随行——重试提示、最终
+DraftError(消息保留内层码、diagnostics 保留行)、轮记录 `DraftSelfCheckRepairV1.diagnostics`;
+循环把此前所有未应用修复的行(带目标前缀)作为 `previous_rejections` 交给下一位。三条负控前红后绿。
+
+单例待第二起:字面路径规则被同合同的 glob 覆盖(`docs/index.md` vs `docs/**/*.md`)在投影期
+就可判定,现在要等候选生成后才报,白付一轮预算(`ff8cd4f3bcb70195`;c1 的四次重叠是
+`vendor/wheels/*` vs `*.whl` 机器规则,已由闭包去重解决,不算同类)。
+
+## 状态 · 2026-09-03 · c5 第十五轮:两个新单例(改标签、拒绝码不轮换)+ 转打 c1 phase 2
+
+第十五轮 c5:第 1 轮参考实现 `ConfigurationError: Config file 'mkdocs.yml' does not exist`(它自己
+生成的配置路径);reference 修复把**同一句话**包成 `UserInputError` 抛出,第 2 轮就成了
+`WORKSPACE_REFERENCE_FIXTURE_REJECTED`,循环连怪两轮 fixture builder,预算尽。两个单例待第二起:
+① 修复把内部错误改标签成输入拒绝(新 UserInputError 消息与上一轮内部错误同文,`b5c2a756f5040a7c`);
+② FIXTURE_REJECTED 永远派给 builder、从不轮换给 reference(`650b3fcc83cb47ba`,与闭包/结构码
+同一原则)。全库扫描只有 c5 一处改标签,不提前改。
+
+转打 c1 xlsxwriter phase 2(此前三档模型全在 19/20 步零写入败,是题面机制的第三个独立检验)。
+
+## 状态 · 2026-09-03 · c1 phase 2:题面机制生效但倒在 zip 容器元数据(第二起)+ 应用文件是空壳(单例)
+
+c1 `tool-xlsxwriter-tool-v1` phase 2(opus-4.8):这次两轮 40 调用都在写、都在比对——第 2 轮把
+xlsx 解包后**所有 XML 成员逐字节相同**,剩下的只是 zip 容器的成员顺序与压缩级别(xlsxwriter
+`in_memory` 与否、zlib 默认级别),黄金逐字节比对判 FAIL(1/5)。这与 c2 pptx 的
+`golden-identity-zip-metadata-v1` 单例同类:尺子把 zip 元数据当内容。两个任务版本 → 授权。
+另一个单例:c1 期望树里的 `app.py` 是空壳(只打印"用 ./run.sh 重新生成"),README 承诺重新生成,
+生成逻辑只在冻结的参考实现里;smoke 只验退出码,"runnable" 没有被验证的含义(c4 的 app 是静态
+服务器,c6/c7 才是真生成器)。
+
+修(`golden-identity-zip-canonical-v1`):验收等价性改用**黄金身份**——能解析为 zip 的文件按排序后的
+(成员名, 成员字节) 求身份,其余文件原始 sha256;路径与可执行位照旧绑定。单尺住在
+`portable_workspace_runtime`(stdlib),导出到任务包的公开测试前奏 `_golden_sha` 同算法(奇偶校验
+测试),Core 四处等价判断(preflight 黄金、抽查参考树匹配、可复现探针、公开测试)全部切换。证据
+清单的 `tree_sha256` 仍是原始字节(冻结件清单哈希不动)。**已冻结任务保留旧前奏**:c1 v1 的公开
+测试仍是逐字节尺子,要受益必须重新走 phase 1 冻结 v2。
+
+## 状态 · 2026-09-03 · c1 重冻结第 6 轮:归属筛查第二起 → 一把尺、只认路径、点名字面量
+
+c1 attempt-6(新尺子下 phase 1):第 1 轮可复现探针抓到 `out/audit_workbook.xlsx=BYTES_DIFFER`
+(成员真变了,不是容器元数据——正确判定),reference 修复却连续三次 ROLLED_BACK
+`WORKSPACE_REFERENCE_RUNTIME_OWNERSHIP_VIOLATION`、零诊断。对账域天然带 'vendor' 字面量(列名),
+修复路径独有的静态筛查把裸目录名当保留字,起草路径从不跑——与 c3 pygal(账单域 'vendor')同指纹
+`1b6c55d9c682c6f4`,第二起 → 授权。修(`reference-ownership-policy-single-ruler-v1`):
+`workspace_reference_runtime_ownership_diagnostics` 逐条点名字面量与行号;只认路径形态(三个归属
+文件、`vendor/...`、以及**作为路径段使用**的裸目录名:`/` 操作数或 Path/joinpath/join 实参);
+字典键/列名里的 'vendor' 放行;起草投影与修复路径跑同一函数,修复被拒时诊断行随行。
+
+## 状态 · 2026-09-03 · c1 第 7 轮:第一份文档 schema 被拒即终局 → 投影诊断 v2
+
+c1 attempt-7 起草在第一份模型文档就以 `tool-draft:INVALID_MODEL_OUTPUT:INVALID_DOCUMENT`、
+`draft_error_diagnostics=[]` 结束:jsonschema 的拒绝被包成裸 DraftError——没有 json path、没有消息,
+也不是 DraftProjectionError,有据的一次投影修复根本不跑(Anthropic 强制工具调用并不完整执行嵌套
+schema,本地校验才是真尺子)。这是"投影拒绝无字段诊断/修复盲目"类的第三起(nbformat、icalendar、
+xlsx),沿用 `projection-diagnostics-everywhere` 出 v2:schema 拒绝改为带 json path 与 schema 消息
+的 DraftProjectionError(不含被拒文档),自动进入既有的一次有据投影修复。
+
+## 状态 · 2026-09-03 · c5 第十六轮:机制全部生效、四轮四种缺陷各修一次、倒在修复上限
+
+第十六轮 c5:第 1 轮可复现漂移(mkdocs 时间戳)→ reference 修一次过;第 2 轮裁决者输入绑定与
+上游绑定两项控制组都没过 → 裁决者修一次;第 3 轮上游绑定仍没过 → 再修一次过;第 4 轮只剩
+`site/index.html` 判别力缺口,而 3 次修复用完。四轮四种缺陷、无一复发——所有 Harness 机制
+(路径细节、拒绝理由随行、轮换、控制组解释)都在工作,卡的是**为单文件任务定的 3 次修复上限**。
+单例待第二起(`SELF_CHECK_BOUND_EXHAUSTED_WITH_MONOTONE_PROGRESS`,attempt-12 同形);单仓库不改。
+全量 pytest 第 27 轮 2309/60/0。c1 第 8 轮开跑。
+
+c1 attempt-8(投影诊断 v2 后):起草通过,自检四轮——xlsx 可复现漂移两轮(第二次 reference 修复
+才钉住 OOXML docProps 时间戳)、裁决者输入绑定控制组两轮未过,倒在 3 次修复上限。单例:容器内
+成员级分歧没有点名(`audit_workbook.xlsx=BYTES_DIFFER` 不说是 docProps/core.xml,
+`CONTAINER_MEMBER_DIVERGENCE_NOT_NAMED`)。c1 第 9 轮开跑。
+
+c1 attempt-9:xlsx 可复现漂移三轮(第 3 轮 reference 修复甚至调了不存在的
+`set_default_date_time`),容器内成员级分歧不点名的单例已记(`CONTAINER_MEMBER_DIVERGENCE_NOT_NAMED`,
+同仓库两轮不算两起)。转打 c3 pygal phase 1——它此前正是被归属筛查单例卡死的案例,现在筛查已修。
+
+## 状态 · 2026-09-03 · c3 pygal:归属筛查修后自检 4 轮通过并冻结,倒在一致性预检(第三起)
+
+c3 attempt-3(归属筛查修复后首打):自检 4 轮通过(entrypoint 归 reference、裁决者告警语义、输入
+绑定控制组各修一次),确认、冻结 `tool-pygal-tool-v1`,彩排在 `conformance_preflight` BLOCKED
+(`UPSTREAM_CONFORMANCE_ENVIRONMENT`,HARNESS 归属):三个选中节点里 `test_simple_bar` 在函数体内
+运行期 import 测试专用包 pyquery,`test_xml_filters_change_bars` 倒在 conftest 用 pytest_generate_tests
+注入的套件级 [lxml] 参数化(lxml 未装)——静态 AST 可运行性画像看不见这两种依赖,选中的节点到
+彩排才发现跑不起来。与 research-project-starter / textual-taskdesk 两起同指纹 `7217f502846e0c2b`
+→ v2(`conformance-node-runnability-v2`):冻结前用与彩排相同的解释器与执行根**逐个执行**候选
+(候选列表从 3 扩到 8 个),只保留真正通过的 id(含参数 id),`ModuleNotFoundError: X` 淘汰后续
+模块级 import X 的候选,不装任何东西,丢弃节点带缺失模块名进任务包;预检与探针都加
+`--rootdir=<upstream>` 让节点 id 与 conftest 发现按套件自身。
+
+## 状态 · 2026-09-03 · c3 attempt-4:SVG 生成 id 漂移三轮修不中 → 分歧位置点名(第二起,合 c1 xlsx)
+
+c3 attempt-4(一致性探针已上):自检第 1 轮 entrypoint 归 reference 修一次过,第 2–4 轮
+`charts/spend_by_day.svg=BYTES_DIFFER, charts/spend_by_model.svg=BYTES_DIFFER` 三轮不动——pygal 给
+SVG 元素生成随机 id,而分歧行只说到文件路径,reference 修复只能猜。这与 c1 xlsx 的"容器内成员
+不点名"是同一个根:分歧行停在路径。两仓库 → 授权。修(`divergence-locus-named-v1`):
+`manifest_divergence` 行新增 `locus`——zip 容器点名第一个内容不同的成员,UTF-8 文本给第一处不同的
+行号与**实际侧**(reference 自己这次跑出来的)那一行的有界摘录,期望侧字节永不摘录;可复现探针
+诊断与 preflight 黄金详情都渲染 `path=KIND@locus`。邻居测试改为容忍 locus。
+
+## 状态 · 2026-09-03 · c3 attempt-5:`tool-pygal-tool-v2` 零人工到达彩排(第六例)
+
+分歧位置点名后的首打:自检 2 轮(smoke 抓到 `import reference_impl`,一次修复),冻结 v2;
+一致性探针在冻结前逐个执行 6 个候选,只留下真正通过的 `test_another_sparktext`,丢弃项带缺失
+模块名(pyquery)进任务包;预检 PASS,彩排 `REHEARSAL_PASS_ONLY`。至此六例到彩排(c1 v1、c2、
+c4、c6、c7、c3),两例 ACTIVE(c6、c7)。c3 phase 2 开跑。
+
+## 状态 · 2026-09-03 · c3 phase 2:真发 4 步即过、导出,倒在新输入抽查的冻结控制件分歧(第二起)
+
+c3 `tool-pygal-tool-v2` phase 2:Agent **4 次模型调用** `PASS_ADAPTED` 5/5 → `VERIFIED_TOOL_READY`
+导出 `~/tools/pygal-tool`;新输入抽查在候选提议步失败 `WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT`
+(`rejected_proposals 0`,报告里没有裁决者原因码)。c2 pptx-v2 的 phase2-attempt-3/8 完全同形。
+两个任务版本 → 授权:冻结的 reference 与冻结的裁决者只在起草的 3–4 个蓝图上证明过一致,第一个
+没见过的输入就分歧——自检期从没用"新输入"探过一致性,分歧发生时又不说原因。
+
+修(`selfcheck-fresh-agreement-probe-v1`):自检轮在起草蓝图通过与判别力探针通过之前**先**用在线提议
+一个没见过的蓝图(与新输入抽查同一条 `propose_workspace_fixture_candidates(offline=False)` 路径:
+起草者提议 → 冻结前 builder 物化 → reference → 裁决者 → 控制组),分歧即该轮失败并带裁决者原因码
+与细节,进既有 verifier→verifier→reference 修复;探针先于基础生成运行,起草蓝图仍是最新一代(确认样例
+不受影响);无在线起草者时跳过。新输入抽查的候选提议失败现在也把裁决者诊断行带进 `reason_codes`。
+
+## 状态 · 2026-09-03 · c3 attempt-6:`tool-pygal-tool-v3` 到彩排(新输入一致性探针 + 分歧位置点名双双生效)
+
+自检 3 轮:第 1–2 轮 SVG 漂移的分歧行现在写到 `@line 2: <svg xmlns:xlink=...`(实际侧摘录),
+reference 两次修复钉住;第 3 轮起草蓝图、判别力探针与**新输入一致性探针**全部通过;确认 4 例、
+冻结 v3、彩排通过。c3 phase 2(v3)开跑。
+
+## 状态 · 2026-09-03 · c3 v3 phase 2:零模型正控 PASS、真发零写入,追到冻结件里的"今天"
+
+台账里 `tool-pygal-tool-v3` 先有一行 `PASS_ADAPTED`(12:43,tool_pipeline 的零模型正控
+`fake="positive"`,真发前的彩排门,历史行为)再有一行真发 `FAIL`(12:47,20 步零写入):Agent 把
+整轮花在琢磨期望 SVG 注释里的 `on 2026-09-03`——上游把生成日期写进注释,参考实现的 `_stabilize_svg`
+正则没盖到这种写法,而隔 2 秒重跑的可复现探针看不见天级时钟读取,任务就带着"只在今天成立"的
+黄金件冻结了:明天参考实现自己就过不了自己的黄金件(preflight / 抽查),所有 Agent 发都 FAIL。
+这是冻结签发的"可复现"证书为假(伪认证),按安全/假成功例外首起即修:
+`reference-wall-clock-date-scan-v1`——探针在树身份一致后再扫生成的文本文件里今天的日期(本地与
+UTC、常见写法),输入里本来就有的字符串不算,命中即 `WALL_CLOCK_DATE_EMBEDDED` 带
+`path=WALL_CLOCK_DATE@line N: 实际侧摘录`,进 reference 修复(提示词加了对应条款)。
+已冻结的 v3 带着炸弹,c3 须重走 phase 1 冻结 v4。
+
+## 状态 · 2026-09-03 · c3 attempt-7:四轮四缺陷各修一次再倒在上限 → 修复预算改按"停滞"计(第二起,合 c5)
+
+c3 attempt-7(时钟扫描已上):smoke 抓到占位应用的假 import → SVG 日期漂移(locus 点名)→ 修复后的
+渲染器 AttributeError → SVG 格式不合,四轮四种缺陷各修一次、无一复发,倒在 3 次修复上限——与 c5
+attempt-16 同形,两仓库 → 授权。修(`selfcheck-bound-counts-stalls-v1`):`bound` 改为停滞预算,
+只有面对**已见过的失败签名**(首码 + 首行诊断)的修复才消耗;面对全新失败的修复是进展、不计;
+硬上限 `MAX_TOTAL_REPAIR_ROUNDS=6` 封顶总数。相关旧测试按新语义调整(同一失败首次免费、之后每次
+消耗一格:持续分歧序列变为 verifier, verifier, reference, reference)。
+
+## 状态 · 2026-09-03 · c3 attempt-8:停滞预算生效,`tool-pygal-tool-v4` 五轮四修到彩排
+
+自检 5 轮 4 次修复(smoke 占位 import → SVG 漂移两轮 → 裁决者输入绑定),第四次修复在旧上限下
+本不会发生;确认 3 例、冻结 v4、彩排通过、时钟扫描未触发(日期已钉住)。全量 pytest 第 34 轮
+2320/60/0。c3 phase 2(v4)开跑。
+
+## 状态 · 2026-09-03 · c3 v4 phase 2:真发 PASS、READY 导出,新输入抽查再分歧(现在带原因码)
+
+`tool-pygal-tool-v4`:正控 4 步 PASS,真发 20 步 `PASS_ADAPTED` 5/5 → `VERIFIED_TOOL_READY` 导出;
+新输入抽查候选提议步分歧 `SUMMARY_BALANCE_MISMATCH, MODEL_SVG_BAR_VALUE`——诊断随行机制生效,
+第一次说出了冻结裁决者反对什么:余额语义在起草与冻结前探针用过的场景里从没被区分开。
+这是冻结控制件分歧类的第三起(pptx-v2、pygal-v2、pygal-v4):一个冻结前探针不够。工具 READY
+未 ACTIVE 是诚实结果(控制件分歧的工具不该激活)。单例待第二起:抽查诊断没有喂给下一版本的起草
+(autopilot 下一次 phase 1 从零开始,可能重复同一歧义)。
+
+M6.3 现状:六例到彩排(c1 v1、c2、c4、c6、c7、c3 v2/v3/v4),两例 ACTIVE(c6、c7),c3 READY;
+c5/c1/c8 在 phase 1。本日新增 Harness 证据 25+ 份,全量 pytest 第 34 轮 2320/60/0。
+
+修(v2,`selfcheck-fresh-agreement-probe-v2`):冻结前探针改为提议并物化**两个**新场景;冻结后的
+抽查仍是终审。本日 Harness 机制清单(全部带前红后绿匿名负控 + HarnessChangeEvidenceV1 + 案例标识
+扫描):结构码带路径、smoke 语义先教后杀、合同修复不许削弱尺子、回滚后交下一位、结构失败轮换归属、
+量具保留 lru_cache 属性、题面公开样例摘要 v1/v2、autopilot 抽查真实形状、自测输出去处、拒绝理由随行、
+黄金身份 zip 规范化、归属筛查一把尺、投影诊断 v2(schema)、一致性节点执行探针 v2、分歧位置点名、
+新输入一致性探针 v1/v2、时钟日期扫描、停滞预算。待第二起的单例见各 incident 记录
+(`RECORD_PENDING_SECOND_INCIDENT`)。
+
+## 状态 · 2026-09-03 · c5 第十七轮:停滞预算下 7 轮 6 修,倒在 mkdocs 主题的 CDN 外链(模型侧)
+
+第十七轮 c5:合同修复被拒(现在能看到内层码 `WORKSPACE_CONTRACT_INVALID`)→ reference 修 YAML →
+合同修重叠 → 裁决者两轮把"站点不得引用外部资源"写准(它是对的:mkdocs 默认主题注入 cdnjs
+highlight.js)→ reference 修一次未去掉外链 → 同签名停滞,止于第 7 轮。Harness 机制全部透明工作;
+剩下的是参考实现要把 mkdocs 主题配成离线(模型能力/任务难度),不是 Harness 缺陷。字面规则被
+glob 覆盖(`docs/index.md` vs `docs/**/*.md`)同仓库第二次出现,单例不变。
+
+## 状态 · 2026-09-03 · c5/c1/c8 最后一轮各一次 → 记入失败;M6.3 探索批收口
+
+最后一轮:c5 attempt-18 停滞预算下 7 轮 6 修(外链 → 可复现 locus 点名 `Build Date UTC` → 裁决者
+绑定 → `site/index.html` 判别力缺口两轮停滞);c1 attempt-10 七轮六修在合同 root / reference+verifier
+`output/` 之间振荡(路径三角无人钉住,单例 `994a504420c8cc4b`);c8 attempt-3 六轮全倒在 babel 源码
+checkout 无 CLDR 数据(HARNESS 环境类单例,参考修复对环境错误无效)。三案均记为失败终态。
+
+收口:`docs/m6_3_closeout.md` + `runs/m6-3-qualification-planning/m6_3_terminal_states.json`(append-only)。
+终态:ACTIVE c4/c6/c7;READY 未 ACTIVE c2/c3(冻结控制件在新输入上分歧);失败 c1/c5/c8;N0 预期拒绝
+成立。晋级门(≥6 ACTIVE 且办公/图像/站点各≥1)**未达成**。本批 29 份 HarnessChangeEvidenceV1
+(3 份安全/伪认证例外)。协议仍 DRAFT_NOT_FROZEN,收口时文件 SHA-256 5dfb74eabc94908fdff213de9671245247e3d58ab2a341cffc1ea3e6dc81a67b(记录,非预注册冻结);
+`static_site_v1` 目录级 profile 未实现。全量 pytest 第 35 轮 2320/60/0。一切未提交未推送。
+
+## 状态 · 2026-09-03 · 收口后续:c2 v3 重冻结成功(探针立功)+ builder 诊断补齐
+
+按 closeout 建议第 1 步执行:**c2 `tool-python-pptx-tool-v3` 重冻结到彩排**——第 1 轮新输入
+一致性探针当场抓到裁决者对新输入的季度字段假设错误(`TITLE_SLIDE_SUBTITLE_MISSING_QUARTER`),
+verifier 修一次后双新场景一致;这正是 v2 冻结后才在抽查暴露的病,现在冻结前修掉。c3 attempt-9
+失败但暴露新的两起同类:`FIXTURE_BUILDER_FAILED` 诊断只有裸异常类(c3 pygal 五轮 + c8 babel,
+两仓库同指纹 `1076392f4f0eb06a`)→ 修 `builder-failure-diagnostics-v1`:builder 子进程失败标记
+补消息+源内帧(照 reference 口径,私有根掩蔽),投影为一行公开定位进 `FixtureBuilderError.detail`。
+旧投影测试改 v2 语义。c3 attempt-9 第 6 轮遇网关瞬断(ROLLED_BACK ANTHROPIC_GATEWAY_UNAVAILABLE),
+循环按设计继续。
+
+## 状态 · 2026-09-03 · c2 v3 phase 2:真发 5/5 全绿倒在净室判定测试 → 黄金身份 v2(第五等价点)
+
+c2 `tool-python-pptx-tool-v3` phase 2:正控 4 步 PASS;真发 40 步能力 5/5、回归/策略全绿,**净室
+replay 只在 `test_workspace_output_is_deterministic` 分歧**——冻结包里的判定测试仍哈希原始字节
+(`REPOPROOF-WORKSPACE-TREE-V1`),而 Agent 已把 docProps 钉到常量,残余抖动只是 pptx zip 成员的
+DOS 时间戳(2 秒窗口:主跑同窗侥幸过,净室跨窗)。这是 `golden-identity-zip-canonical-v1` 列举的
+四个等价点之外漏掉的**第五个**。第三起同指纹 → v2:判定测试改断 `_golden_sha`,前奏里的
+`_tree_sha` 第二尺整个删除;旧的"只读硬化"测试改断第二尺不存在。已冻结 v3 带旧测试,c2 须重
+冻结 v4。
+
+## 状态 · 2026-09-03 · c2 v4 净室绿了(判定尺生效)、抽查判 REVOKED(adapter 侧);c3 attempt-10 机制全生效仍败;static_site_v1 落地
+
+- **c2 v4**:重冻结一轮即过(判定测试已用黄金尺);phase 2 真发 20 步 6/6、**净室 replay 通过**
+  (`golden-identity-zip-canonical-v2` 生效)、READY 导出;新输入抽查 `FRESH_INPUT_EXECUTION_FAILED`
+  (emoji 场景,冻结 reference 跑通、Agent adapter exit 2)→ 审计判 `REVOKED`,归属 AGENT_ADAPTER,
+  `NEW_TASK_VERSION_REQUIRED`。闸门按设计工作:这是 adapter 对新输入的健壮性缺口(模型侧)。
+- **c3 attempt-10**:时钟扫描冻结前抓住 pygal `on 2026-09-03` 注释(v3 的炸弹不再可能);builder
+  诊断、locus、控制组解释全生效;倒在 `UPSTREAM_RESULT_BINDING_CONTROL_FAILED` 被路由表派给
+  reference 修两次(控制组失败只能是裁决者的病)——单例
+  `BINDING_CONTROL_FAILURE_ROUTED_TO_PRODUCER`(`38b1c4063e8f5dfe`)待第二起。链尾的 c3 phase 2
+  因 v5 未冻结未产生新发。
+- **static_site_v1(清单第七项,前向工作非事故修复)**:`directory_profile_errors` 单尺落
+  portable runtime(index.html 存在 + 内链闭合,目录链接经 index.html,`..` 越界记 broken);合同
+  新增可选 `directory_profiles`(旧冻结合同不受影响、未知名拒收);Core `validate_workspace` 出
+  details 行、导出 runtime 同尺(奇偶校验测试);修复删 profile 记 `VALIDATOR_WEAKENED`;起草提示
+  教字段。控制件:`tests/test_static_site_directory_profile.py` 六条(匿名正负控),XML
+  `anonymous-static-site-profile-controls.xml`。HarnessChangeEvidenceV1 按设计拒收非事故记录,
+  故此项只以清单完成项入档,不造事故形状证据。
