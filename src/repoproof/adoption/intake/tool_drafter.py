@@ -675,16 +675,64 @@ _FIXTURE_BLUEPRINT_SCHEMA = {
 }
 
 
-def _workspace_fixture_inputs_schema(requested: int) -> dict[str, Any]:
+def _schema_with_pinned_input_kind(schema: dict[str, Any], input_kind: str) -> dict[str, Any]:
+    """Pin the one legal blueprint input kind into a provider-enforced schema.
+
+    ``input_kind`` is not a model choice: Core rejects any blueprint that does
+    not build the admitted delivery input kind, so the field has exactly one
+    legal value.  Leaving both values in the enum asks the provider to permit a
+    document Core is certain to refuse, and a wrong guess ends the whole
+    journey at drafting (incident-blueprint-input-kind-guessable-*).  The
+    rejection stays exactly as strict; this only stops asking the model to
+    restate something the Harness already knows.  An unknown kind leaves the
+    schema untouched.
+    """
+
+    if input_kind not in {"file", "directory"}:
+        return schema
+    pinned = deepcopy(schema)
+    node = pinned.get("properties")
+    if not isinstance(node, dict):
+        return schema
+    rows = node.get("fixture_blueprints")
+    if not isinstance(rows, dict):
+        return schema
+    items = rows.get("items")
+    if not isinstance(items, dict):
+        return schema
+    properties = items.get("properties")
+    if not isinstance(properties, dict) or "input_kind" not in properties:
+        return schema
+    properties["input_kind"] = {"type": "string", "enum": [input_kind]}
+    return pinned
+
+
+def _context_input_kind(context: dict) -> str:
+    """The admitted delivery input kind this draft must build, if it is known."""
+
+    authoritative = context.get("authoritative_delivery_requirements")
+    if isinstance(authoritative, dict):
+        inputs = authoritative.get("inputs")
+        if isinstance(inputs, list) and inputs and isinstance(inputs[0], dict):
+            kind = str(inputs[0].get("kind") or "")
+            if kind:
+                return kind
+    return str(context.get("input_kind") or "")
+
+
+def _workspace_fixture_inputs_schema(requested: int, *, input_kind: str = "") -> dict[str, Any]:
     rows = deepcopy(_FIXTURE_BLUEPRINT_SCHEMA)
     rows["minItems"] = requested
     rows["maxItems"] = requested
-    return {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["fixture_blueprints"],
-        "properties": {"fixture_blueprints": rows},
-    }
+    return _schema_with_pinned_input_kind(
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["fixture_blueprints"],
+            "properties": {"fixture_blueprints": rows},
+        },
+        input_kind,
+    )
 
 _REQUIREMENT_BRIEF_SCHEMA = {
     "type": "object",
@@ -2398,11 +2446,14 @@ class CodexDrafter:
         instructions = _CODEX_DRAFT_SYSTEM
         if authoritative is not None:
             instructions += "\n" + _CONFIRMED_DELIVERY_INSTRUCTION
+        schema = _schema_with_pinned_input_kind(
+            _CODEX_DRAFT_SCHEMA, _context_input_kind(context)
+        )
         for attempt in (1, 2):
             document = self._structured(
                 instructions=instructions,
                 context=structured_context,
-                schema=_CODEX_DRAFT_SCHEMA,
+                schema=schema,
                 purpose=("tool-draft" if attempt == 1 else "tool-draft-projection-repair"),
             )
             try:
@@ -2528,7 +2579,9 @@ class CodexDrafter:
         return self._structured(
             instructions=_WORKSPACE_INPUTS_SYSTEM,
             context=context,
-            schema=_workspace_fixture_inputs_schema(requested),
+            schema=_workspace_fixture_inputs_schema(
+                requested, input_kind=_context_input_kind(context)
+            ),
             purpose="workspace-fixture-candidates",
         )
 
@@ -2810,10 +2863,11 @@ class LiteLLMDrafter:
         system = _SYSTEM
         if authoritative is not None:
             system += "\n" + _CONFIRMED_DELIVERY_INSTRUCTION
+        schema = _schema_with_pinned_input_kind(_DRAFT_SCHEMA, _context_input_kind(context))
         text = self._once_with_system(
             system,
             user_msg,
-            schema=_DRAFT_SCHEMA,
+            schema=schema,
             schema_name="tool_draft",
         )
         for attempt in (1, 2):
@@ -2840,21 +2894,28 @@ class LiteLLMDrafter:
                     exc,
                     authoritative_delivery_requirements=authoritative,
                 )
-                text = self._once(
+                text = self._once_with_system(
+                    system,
                     user_msg
                     + "\n\n"
                     + _PROJECTION_REPAIR_INSTRUCTION
                     + "\nCore projection repair facts:\n"
                     + json.dumps(repair_context, ensure_ascii=False, indent=1)
-                    + "\nOutput ONLY the corrected JSON object."
+                    + "\nOutput ONLY the corrected JSON object.",
+                    schema=schema,
+                    schema_name="tool_draft",
                 )
             except (ValueError, IndexError, DraftError) as exc:
                 if attempt == 2:
                     raise _invalid_model_output_error(exc) from exc
-                text = self._once(
+                text = self._once_with_system(
+                    system,
                     user_msg + "\n\nYour previous output did not conform to the "
                     "requested JSON schema. Output ONLY a corrected JSON object. "
-                    "Do not change, omit, or merge any delivery requirement.")
+                    "Do not change, omit, or merge any delivery requirement.",
+                    schema=schema,
+                    schema_name="tool_draft",
+                )
         raise DraftError("unreachable")
 
     def draft_verifier(self, context: dict) -> dict[str, str]:
@@ -3072,7 +3133,9 @@ class LiteLLMDrafter:
 
     def propose_workspace_fixture_blueprints(self, context: dict) -> dict:
         requested = max(1, min(int(context.get("how_many") or 4), 4))
-        schema = _workspace_fixture_inputs_schema(requested)
+        schema = _workspace_fixture_inputs_schema(
+            requested, input_kind=_context_input_kind(context)
+        )
         user_msg = json.dumps(context, ensure_ascii=False, indent=1)
         text = self._once_with_system(
             _WORKSPACE_INPUTS_SYSTEM,

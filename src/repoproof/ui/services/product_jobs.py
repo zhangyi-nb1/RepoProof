@@ -6675,6 +6675,41 @@ def _probe_draft_verifier_discrimination(draft_dir: Path, draft: dict):
         )
 
 
+def _discrimination_gap_diagnostics(probe) -> tuple[str, ...]:
+    """Say what slipped through, not just where.
+
+    The probe knows every mutation it applied and how the verifier answered;
+    reducing that to a bare path leaves the repairing model guessing, and it
+    makes "accepted every mutation" (the judge checks nothing) indistinguishable
+    from "errored on every mutation" (the judge never ran) — two failures whose
+    repairs are opposites (incident-discrimination-gap-diagnostics-bare-path-*).
+    """
+
+    gaps = tuple(str(item) for item in (getattr(probe, "gaps", ()) or ()))
+    detail = {
+        str(getattr(row, "path", "")): tuple(getattr(row, "mutations", ()) or ())
+        for row in (getattr(probe, "files", ()) or ())
+    }
+    rows: list[str] = []
+    for path in gaps:
+        mutations = detail.get(path) or ()
+        if not mutations:
+            rows.append(path)
+            continue
+        outcomes: dict[str, list[str]] = {}
+        for mutation in mutations:
+            outcomes.setdefault(str(getattr(mutation, "result", "")), []).append(
+                str(getattr(mutation, "kind", ""))
+            )
+        parts = [
+            f"{result}: {', '.join(sorted(set(kinds)))}"
+            for result, kinds in sorted(outcomes.items())
+            if result
+        ]
+        rows.append(f"{path} — 变异 {len(mutations)} 次无一被拒;{' | '.join(parts)}")
+    return tuple(rows)
+
+
 def _protocol_focus_paths(
     draft: dict, artifact_dir: Path, *, excluded: tuple[str, ...]
 ) -> tuple[str, ...]:
@@ -6792,7 +6827,7 @@ def _self_check_round(draft_dir: Path, draft: dict, *, round_index: int):
             round=round_index,
             check_ok=False,
             reason_codes=("VERIFIER_DISCRIMINATION_GAP",),
-            diagnostics=gaps,
+            diagnostics=_discrimination_gap_diagnostics(probe),
             generation_id=str(generation_id) if generation_id else None,
             candidate_count=len(candidates),
             discrimination_probed=probed,
