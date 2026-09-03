@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "protocol": "frozen-oracle-snapshot + sealed-task-wheelhouse + offline-rebuilt-package",
+  "checked_at": "20260903T172739Z",
+  "framework_git_commit": "b9acc8feb5777a98aa3758c6138f01cc50ce4d20",
+  "framework_tree_sha256": "3c2665ee2e653ce152ed6e1c65eaacda22695d33198d540b4cf9a562bc1b8640",
+  "results": [
+    {
+      "tool": "python-pptx-tool",
+      "task_id": "tool-python-pptx-tool-v4",
+      "source_run_id": "tool-python-pptx-tool-v4-20260903-174032",
+      "ok": false,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 1,
+      "detail": "6 failed in 3.74s"
+    }
+  ]
+}

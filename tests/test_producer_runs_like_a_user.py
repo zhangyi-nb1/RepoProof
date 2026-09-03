@@ -76,9 +76,24 @@ def _contract():
         {
             "schema_version": 1,
             "rules": [
-                {"path_pattern": "app.py", "role": "application", "media_type": "text/x-python", "validation_profile": "python_compile_v1"},
-                {"path_pattern": "README.md", "role": "docs", "media_type": "text/markdown", "validation_profile": "text_utf8_v1"},
-                {"path_pattern": "report.txt", "role": "report", "media_type": "text/plain", "validation_profile": "text_utf8_v1"},
+                {
+                    "path_pattern": "app.py",
+                    "role": "application",
+                    "media_type": "text/x-python",
+                    "validation_profile": "python_compile_v1",
+                },
+                {
+                    "path_pattern": "README.md",
+                    "role": "docs",
+                    "media_type": "text/markdown",
+                    "validation_profile": "text_utf8_v1",
+                },
+                {
+                    "path_pattern": "report.txt",
+                    "role": "report",
+                    "media_type": "text/plain",
+                    "validation_profile": "text_utf8_v1",
+                },
             ],
             "allow_extra_files": False,
             "entrypoints": [],
@@ -86,7 +101,13 @@ def _contract():
             "smoke_command": [],
             "smoke_timeout_seconds": 10,
             "require_offline_wheelhouse": False,
-            "limits": {"max_files": 16, "max_total_bytes": 100000, "max_file_bytes": 50000, "max_depth": 4, "max_path_bytes": 160},
+            "limits": {
+                "max_files": 16,
+                "max_total_bytes": 100000,
+                "max_file_bytes": 50000,
+                "max_depth": 4,
+                "max_path_bytes": 160,
+            },
         }
     )
 
@@ -124,3 +145,19 @@ def test_behaviour_a_self_importing_producer_is_rejected_under_user_semantics(tm
     assert outcomes["user_like"].ok is False
     assert "WORKSPACE_EXTRA_FILE_FORBIDDEN" in outcomes["user_like"].reason_codes
     assert any("__pycache__" in row for row in outcomes["user_like"].details)
+
+
+def test_both_statements_teach_the_residue_rule() -> None:
+    """闸门要杀的先教:两个任务版本的 Agent 都选了"把生成器写进交付目录再 import"这条捷径,
+    而题面从没说过它会在交付里留下字节码。"""
+
+    from repoproof.adoption.intake import tool_drafter
+    from repoproof.runner import host_guided
+
+    for text in (
+        inspect.getsource(host_guided._build_workspace_tool_prompt),
+        tool_drafter._WORKSPACE_REFERENCE_REPAIR_SYSTEM,
+    ):
+        lowered = text.lower()
+        assert "__pycache__" in lowered
+        assert "output_dir" in lowered

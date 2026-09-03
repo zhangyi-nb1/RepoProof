@@ -2249,7 +2249,7 @@ def propose_workspace_fixture_candidates(
     ) as exc:
         if generation_root is not None:
             shutil.rmtree(generation_root, ignore_errors=True)
-        code = str(getattr(exc, "code", type(exc).__name__.upper()))
+        code = str(getattr(exc, "code", "") or str(exc) or type(exc).__name__.upper())
         failure_owner = _workspace_fixture_failure_owner(code)
         diagnostics = _workspace_bundle_error_diagnostics(exc)
         return {
@@ -6735,15 +6735,28 @@ def _self_check_round(draft_dir: Path, draft: dict, *, round_index: int):
         fresh = propose_workspace_fixture_candidates(draft_dir, n=2, offline=False)
     except DraftError as exc:
         fresh = {"ok": True, "skipped": str(exc)}  # no online drafter: the probe cannot run offline
+    skipped_probe: tuple[str, ...] = ()
     if not fresh.get("ok"):
         fresh_codes = tuple(str(item) for item in (fresh.get("reason_codes") or []))
-        if fresh_codes and fresh_codes[0] != "REQUIRES_ONLINE_DRAFTER":
+        # The probe is an EXTRA gate.  Only the controls it exists to run — the
+        # frozen-to-be producer against the independent judge — may fail the
+        # round; a drafter, provider or Harness failure means the probe could
+        # not run at all and must not decide the journey (it once ended one
+        # with a bare DRAFTERROR).
+        probe_owner = str(fresh.get("failure_owner") or "") or (
+            _workspace_fixture_failure_owner(fresh_codes[0]) if fresh_codes else ""
+        )
+        if probe_owner == "CONTRACT":
             return DraftSelfCheckRoundV1(
                 round=round_index,
                 check_ok=False,
-                reason_codes=fresh_codes,
+                reason_codes=fresh_codes or ("WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",),
                 diagnostics=tuple(str(item) for item in (fresh.get("diagnostics") or [])),
             )
+        skipped_probe = (
+            "FRESH_AGREEMENT_PROBE_SKIPPED: "
+            + (", ".join(fresh_codes) or str(fresh.get("error") or "unavailable")),
+        )
     result = propose_workspace_fixture_candidates(
         draft_dir,
         n=max(1, min(blueprint_count or 3, 4)),
@@ -6788,6 +6801,7 @@ def _self_check_round(draft_dir: Path, draft: dict, *, round_index: int):
     return DraftSelfCheckRoundV1(
         round=round_index,
         check_ok=True,
+        diagnostics=skipped_probe,
         generation_id=str(generation_id) if generation_id else None,
         candidate_count=len(candidates),
         discrimination_probed=probed,

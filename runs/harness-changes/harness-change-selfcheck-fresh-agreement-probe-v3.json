@@ -1,0 +1,22 @@
+{
+  "affected_component": "product_jobs._self_check_round fresh-probe wiring (owner-gated) + candidate-generation code projection for DraftError",
+  "after_control_sha256": "6f971e6481415b30b86949a7cb2ce81a9109626e2cec4cfaeea3d39439ca222b",
+  "anonymous_fixture_id": "anonymous-fresh-probe-skips-drafter-failure",
+  "before_control_sha256": "7f1f369ecad9d4ae58b61c8cf950ba6b1341790452f4ebf6aad59f2be657bbcc",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-04T04:45:15+08:00",
+  "evidence_id": "harness-change-selfcheck-fresh-agreement-probe-v3",
+  "incident_ids": [
+    "incident-fresh-probe-decides-the-journey-mkdocs-v1"
+  ],
+  "invariant": "The pre-freeze fresh-input agreement probe is an EXTRA gate: it may fail a self-check round only when the failure belongs to the controls it exists to run — ownership decided by the existing single ruler (_workspace_fixture_failure_owner) or an explicit CONTRACT owner in the payload. A drafter, provider or Harness failure means the probe could not run; the round proceeds on the drafted blueprints and records FRESH_AGREEMENT_PROBE_SKIPPED with the public codes, so the skip is visible on disk. Candidate generation projects a DraftError's public message as its code instead of the bare class name, so a failure never again reaches the journey as `DRAFTERROR`.",
+  "normalized_fingerprint": "4a6f97410518e3e5",
+  "regression_tests": [
+    "tests/ui/test_fresh_probe_only_fails_on_disagreement.py::test_drafter_side_probe_failure_is_skipped",
+    "tests/ui/test_fresh_probe_only_fails_on_disagreement.py::test_harness_side_probe_failure_is_skipped",
+    "tests/ui/test_fresh_probe_only_fails_on_disagreement.py::test_real_disagreement_still_fails_the_round",
+    "tests/ui/test_fresh_probe_only_fails_on_disagreement.py::test_draft_error_keeps_its_public_message_as_the_code"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

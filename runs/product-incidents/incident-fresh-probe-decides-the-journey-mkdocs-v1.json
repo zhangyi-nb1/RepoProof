@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "defect_owner": "a mechanism introduced in this same session (selfcheck-fresh-agreement-probe-v1/v2); corrected on first sight the way delivery-shape-self-contradiction-v2 corrected v1",
+    "observed": "attempt-19 round 4 ended the journey with reason_codes=['DRAFTERROR'] and empty diagnostics: the fresh-input agreement probe added earlier today called the drafter, the call raised a DraftError, candidate generation projected the exception CLASS NAME as the public code (dropping its message), and the probe wiring treated any probe failure as the round's failure"
+  },
+  "created_at": "2026-09-04T04:45:15+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "b9acc8feb5777a98aa3758c6138f01cc50ce4d20",
+  "framework_tree_sha256": "4407b6a725a875179ef09cd578a6fac98c356d3eff92b006ccea50cbfa601dea",
+  "incident_id": "incident-fresh-probe-decides-the-journey-mkdocs-v1",
+  "normalized_fingerprint": "4a6f97410518e3e5",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::fresh-agreement-probe"
+  ],
+  "reason_codes": [
+    "DRAFTERROR",
+    "EXTRA_GATE_DECIDES_THE_JOURNEY"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

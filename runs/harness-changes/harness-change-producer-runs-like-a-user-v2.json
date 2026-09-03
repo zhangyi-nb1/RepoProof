@@ -1,0 +1,21 @@
+{
+  "affected_component": "workspace task statement + reference-repair prompt: never execute a module that lives inside output_dir",
+  "after_control_sha256": "f500f009576f82a8b49599affca722542538bef6b3c0fdf9ee34328d92e78c95",
+  "anonymous_fixture_id": "anonymous-producer-runs-like-a-user-v2",
+  "before_control_sha256": "0bc6cb215ad24e187468ec2c9964acf46d3bbf1a7029d5e34c0deb88a7c52fcd",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-04T01:29:26+08:00",
+  "evidence_id": "harness-change-producer-runs-like-a-user-v2",
+  "incident_ids": [
+    "incident-acceptance-env-more-permissive-pygal-v4",
+    "incident-acceptance-env-more-permissive-pptx-v4"
+  ],
+  "invariant": "v1 stopped the gate from being more permissive than the user. v2 teaches the rule the gate now enforces, because two independent task versions reached for the same shortcut: deliver the application file, then import it from output_dir to guarantee byte-identical output. Both statements (the Agent's workspace task statement and the reference-repair prompt) say that executing a module living in the delivery leaves __pycache__ beside it, that the stray file fails the structure contract on the user's machine, and that importing a package-side copy is equally byte-exact with nothing left behind. A gate that kills must teach first.",
+  "normalized_fingerprint": "3c05924d77cd3597",
+  "regression_tests": [
+    "tests/test_producer_runs_like_a_user.py::test_both_statements_teach_the_residue_rule",
+    "tests/test_producer_runs_like_a_user.py::test_behaviour_a_self_importing_producer_is_rejected_under_user_semantics"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}
