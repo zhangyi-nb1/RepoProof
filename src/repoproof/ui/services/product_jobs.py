@@ -7280,6 +7280,7 @@ def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repai
         MAX_TOTAL_REPAIR_ROUNDS,
         MIN_NO_EFFECT_REPAIRS,
         REPAIR_BUDGET_EXHAUSTED,
+        failure_own_words,
         repair_target_for,
         retired_any_defect,
     )
@@ -7322,7 +7323,9 @@ def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repai
             hard_cap = min(hard_cap + 1, ceiling)
         if last_effective_repair is not None:
             owner, rewrote = last_effective_repair
-            if rewrote and tuple(check.diagnostics) == previous_diagnostics:
+            if rewrote and failure_own_words(check.diagnostics) == failure_own_words(
+                previous_diagnostics
+            ):
                 no_effect[owner] = no_effect.get(owner, 0) + 1
             else:
                 no_effect.pop(owner, None)

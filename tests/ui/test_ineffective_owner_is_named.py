@@ -76,3 +76,37 @@ def test_a_rolled_back_repair_does_not_count(monkeypatch) -> None:
 def test_an_applied_repair_that_changed_nothing_does_not_count(monkeypatch) -> None:
     rounds = _drive(monkeypatch, [("RuntimeError: same",)], changed=False)
     assert not any(INEFFECTIVE_OWNER in row for row in rounds[-1].diagnostics)
+
+
+def test_a_moving_source_location_does_not_hide_an_unchanged_failure(monkeypatch) -> None:
+    """The failure's own words are what matter, not where they were raised.
+
+    A reference diagnostic carries a ``@ reference_impl.py:LINE fn`` suffix that
+    moves with every edit, so comparing whole rows made the very case this
+    marker exists for — an upstream that cannot run — look like it kept saying
+    something new.
+    """
+
+    rows = [
+        (
+            "RuntimeError",
+            f"RuntimeError: the pinned upstream is not usable "
+            f"@ reference_impl.py:{40 + i} _load; reference_impl.py:{100 + i} build_workspace",
+        )
+        for i in range(12)
+    ]
+    rounds = _drive(monkeypatch, rows)
+    named = [row for row in rounds[-1].diagnostics if INEFFECTIVE_OWNER in row]
+    assert named, f"位置后缀在动不代表失败在动,实际:{rounds[-1].diagnostics}"
+
+
+def test_a_genuinely_different_message_is_still_not_ineffective(monkeypatch) -> None:
+    rows = [
+        (
+            "RuntimeError",
+            f"RuntimeError: cause number {i} @ reference_impl.py:{40 + i} _load",
+        )
+        for i in range(12)
+    ]
+    rounds = _drive(monkeypatch, rows)
+    assert not any(INEFFECTIVE_OWNER in row for row in rounds[-1].diagnostics)

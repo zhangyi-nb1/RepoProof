@@ -77,6 +77,18 @@ INEFFECTIVE_OWNER = "SELF_CHECK_REPAIR_HAD_NO_EFFECT"
 MIN_NO_EFFECT_REPAIRS = 2
 
 
+def failure_own_words(diagnostics: tuple[str, ...] | list[str]) -> tuple[str, ...]:
+    """The failure's own words, minus the source locations that move with edits.
+
+    A reference diagnostic carries a ``@ reference_impl.py:LINE fn`` suffix that
+    shifts with every edit.  Comparing whole rows therefore made an upstream
+    that cannot run look like it kept saying something new, and hid exactly the
+    case this comparison exists for.
+    """
+
+    return tuple(str(row).split(" @ ")[0].strip() for row in diagnostics)
+
+
 def retired_any_defect(
     previous: tuple[str, ...] | list[str], current: tuple[str, ...] | list[str]
 ) -> bool:
