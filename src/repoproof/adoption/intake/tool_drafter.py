@@ -1886,6 +1886,36 @@ class _DocumentContradiction(ValueError):
         return [dict(row) for row in self._rows]
 
 
+# The drafting projection repair is the same shape as every other "the control
+# is wrong, fix it from the evidence" loop in this system, so it gets the same
+# kind of budget: attempts are earned while the rejection signature keeps
+# changing (that is progress) and spent when one signature repeats.  A single
+# attempt made the most expensive failure in the product — the whole journey,
+# with zero self-check rounds — turn on one throw of the dice
+# (incident-projection-repair-budget-is-one-*).
+_PROJECTION_REPAIR_STALL_BUDGET = 2
+_MAX_PROJECTION_REPAIR_ATTEMPTS = 5
+
+
+def _projection_rejection_signature(error: BaseException) -> tuple[str, str]:
+    """(code, first field loc) — what "the same rejection again" means."""
+
+    code = str(error).removeprefix("tool-draft:")
+    rows = public_validation_diagnostics(error)
+    return (code, str(rows[0].get("loc") or "") if rows else "")
+
+
+def _projection_repair_stall(
+    signature: tuple[str, str], seen: set[tuple[str, str]], spent: int
+) -> int:
+    """Spend the stall budget only when this exact rejection is not new."""
+
+    if signature in seen:
+        return spent + 1
+    seen.add(signature)
+    return spent
+
+
 def _projection_error(code: str, loc: tuple[object, ...], msg: str) -> DraftProjectionError:
     """A projection rejection that names its field, so the one bounded repair is evidence-based."""
 
@@ -2494,7 +2524,9 @@ class CodexDrafter:
         schema = _schema_with_pinned_input_kind(
             _CODEX_DRAFT_SCHEMA, _context_input_kind(context)
         )
-        for attempt in (1, 2):
+        seen: set[tuple[str, str]] = set()
+        stalled = 0
+        for attempt in range(1, _MAX_PROJECTION_REPAIR_ATTEMPTS + 2):
             document = self._structured(
                 instructions=instructions,
                 context=structured_context,
@@ -2510,7 +2542,13 @@ class CodexDrafter:
             except DeliveryAdmissionError:
                 raise
             except DraftProjectionError as exc:
-                if attempt == 2:
+                stalled = _projection_repair_stall(
+                    _projection_rejection_signature(exc), seen, stalled
+                )
+                if (
+                    stalled >= _PROJECTION_REPAIR_STALL_BUDGET
+                    or attempt > _MAX_PROJECTION_REPAIR_ATTEMPTS
+                ):
                     raise _invalid_model_output_error(exc) from exc
                 structured_context = {
                     **_context_with_product_profile(context),
@@ -2915,7 +2953,9 @@ class LiteLLMDrafter:
             schema=schema,
             schema_name="tool_draft",
         )
-        for attempt in (1, 2):
+        seen: set[tuple[str, str]] = set()
+        stalled = 0
+        for attempt in range(1, _MAX_PROJECTION_REPAIR_ATTEMPTS + 2):
             try:
                 body = text.strip()
                 if body.startswith("```"):
@@ -2932,7 +2972,13 @@ class LiteLLMDrafter:
                 # not bad model syntax.  Never ask the model to make it disappear.
                 raise
             except DraftProjectionError as exc:
-                if attempt == 2:
+                stalled = _projection_repair_stall(
+                    _projection_rejection_signature(exc), seen, stalled
+                )
+                if (
+                    stalled >= _PROJECTION_REPAIR_STALL_BUDGET
+                    or attempt > _MAX_PROJECTION_REPAIR_ATTEMPTS
+                ):
                     raise _invalid_model_output_error(exc) from exc
                 repair_context = _projection_repair_context(
                     document,
@@ -2951,7 +2997,7 @@ class LiteLLMDrafter:
                     schema_name="tool_draft",
                 )
             except (ValueError, IndexError, DraftError) as exc:
-                if attempt == 2:
+                if attempt >= 2:
                     raise _invalid_model_output_error(exc) from exc
                 text = self._once_with_system(
                     system,
