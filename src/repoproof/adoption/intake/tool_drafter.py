@@ -494,6 +494,20 @@ _CODEX_REFERENCE_REPAIR_SYSTEM = _REFERENCE_REPAIR_SYSTEM
 _CODEX_WORKSPACE_REFERENCE_REPAIR_SYSTEM = _WORKSPACE_REFERENCE_REPAIR_SYSTEM
 _CODEX_VERIFIER_REPAIR_SYSTEM = _VERIFIER_REPAIR_SYSTEM
 
+# Gateway codes that mean "not now" rather than "not ever": only these are
+# worth waiting out.  Auth, bad request and not-configured are facts about the
+# configuration and are reported on the first answer.
+_GATEWAY_AVAILABILITY_CODES: frozenset[str] = frozenset(
+    {
+        "ANTHROPIC_GATEWAY_UNAVAILABLE",
+        "ANTHROPIC_GATEWAY_TIMEOUT",
+        "ANTHROPIC_GATEWAY_CONNECTIVITY_ERROR",
+        "ANTHROPIC_GATEWAY_RATE_LIMITED",
+    }
+)
+_GATEWAY_AVAILABILITY_ATTEMPTS = 3
+_GATEWAY_RETRY_BACKOFF_SECONDS = 2.0
+
 _DEFAULT_DRAFTER_TIMEOUT_SECONDS = 60.0
 # Schemas whose value is a whole source file or contract need the long budget on
 # every channel; keeping one set stops the two transports from diverging.
@@ -3310,31 +3324,50 @@ class AnthropicGatewayDrafter(LiteLLMDrafter):
         schema: dict,
         schema_name: str,
     ) -> str:
-        from repoproof.agents.anthropic_gateway import (
-            AnthropicGatewayError,
-            call_messages,
-        )
+        import time
 
-        try:
-            reply = call_messages(
-                self._config,
-                system=system,
-                user=user_msg,
-                schema=_anthropic_tool_schema(schema),
-                timeout_s=_drafter_timeout_seconds(
-                    default=(
-                        _LONG_FORM_DRAFTER_TIMEOUT_SECONDS
-                        if schema_name in _LONG_FORM_SCHEMA_NAMES
-                        else _DEFAULT_DRAFTER_TIMEOUT_SECONDS
-                    )
-                ),
+        from repoproof.agents import anthropic_gateway
+        from repoproof.agents.anthropic_gateway import AnthropicGatewayError
+
+        timeout_s = _drafter_timeout_seconds(
+            default=(
+                _LONG_FORM_DRAFTER_TIMEOUT_SECONDS
+                if schema_name in _LONG_FORM_SCHEMA_NAMES
+                else _DEFAULT_DRAFTER_TIMEOUT_SECONDS
             )
-        except AnthropicGatewayError as exc:
-            raise DraftError(exc.code, diagnostics=(
-                [{"loc": "response", "type": "gateway", "msg": exc.detail}]
-                if exc.detail
-                else []
-            )) from exc
+        )
+        # ``call_messages`` deliberately retries nothing but the temperature
+        # parameter: network retries are the caller's decision.  This is that
+        # decision.  A blink-long outage otherwise scraps a journey that has
+        # already run for a quarter of an hour, and the recorded disposition for
+        # these codes has always been RETRY_INFRASTRUCTURE
+        # (incident-provider-interruption-recorded-as-fail-*).  Configuration
+        # failures are never retried — waiting does not fix a missing key.
+        last: AnthropicGatewayError | None = None
+        for attempt in range(_GATEWAY_AVAILABILITY_ATTEMPTS):
+            try:
+                reply = anthropic_gateway.call_messages(
+                    self._config,
+                    system=system,
+                    user=user_msg,
+                    schema=_anthropic_tool_schema(schema),
+                    timeout_s=timeout_s,
+                )
+                break
+            except AnthropicGatewayError as exc:
+                last = exc
+                if (
+                    exc.code not in _GATEWAY_AVAILABILITY_CODES
+                    or attempt == _GATEWAY_AVAILABILITY_ATTEMPTS - 1
+                ):
+                    raise DraftError(exc.code, diagnostics=(
+                        [{"loc": "response", "type": "gateway", "msg": exc.detail}]
+                        if exc.detail
+                        else []
+                    )) from exc
+                time.sleep(_GATEWAY_RETRY_BACKOFF_SECONDS * (attempt + 1))
+        else:  # pragma: no cover - the loop always breaks or raises
+            raise DraftError(last.code if last else "ANTHROPIC_GATEWAY_UNAVAILABLE")
         self.temperature_dropped = reply.temperature_dropped
         self.last_usage = dict(reply.usage)
         return reply.text
