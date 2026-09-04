@@ -7305,7 +7305,9 @@ def _pinned_upstream_supply_verdict(draft: dict, draft_dir: Path) -> dict | None
     return verdict
 
 
-def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repair: bool, drafter):
+def _self_check_repair_rounds(
+    draft_dir: Path, draft: dict, *, bound: int, repair: bool, drafter, first_check=None
+):
     """Check, route, repair — until the check passes or the repair budget is spent.
 
     A repair that was rolled back (identical output, invalid output, a
@@ -7354,7 +7356,10 @@ def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repai
     # not move one character says the failure does not depend on that control.
     no_effect: dict[str, int] = {}
     last_effective_repair: tuple[str, bool] | None = None
-    pending = None
+    # The caller may have already run round one — the supply gate needs a real
+    # failure before it can look at the wheelhouse, and re-running the round
+    # would regenerate candidates for nothing.
+    pending = first_check
     for round_index in range(1, ceiling + 2):
         check = (
             pending
@@ -7490,20 +7495,6 @@ def run_draft_self_check(
     readiness = _core_draft_readiness(draft, draft_dir)
     if not readiness.compatible or not readiness.current:
         return _readiness_rejection(readiness, action="起草自检")
-    supply = _pinned_upstream_supply_verdict(draft, draft_dir)
-    if supply and not supply.get("usable") and not _shadowed_upstream_override():
-        # Supply-side, decided before a single model call: the pinned checkout
-        # cannot stand in for the release, so no producer can be written that
-        # works.  Say what is missing and what to change instead of spending
-        # repairs on a control that is not the cause.
-        return {
-            "ok": False,
-            "status": "UNSUPPORTED_PINNED_UPSTREAM",
-            "rounds": 0,
-            "final_reason_codes": ["UNSUPPORTED_PINNED_UPSTREAM"],
-            "recommended_action": supply.get("remediation") or "",
-            "pinned_upstream_supply": supply,
-        }
     bound = MAX_REPAIR_ROUNDS if max_repair_rounds is None else max(0, int(max_repair_rounds))
     if repair and drafter is None:
         from repoproof.adoption.intake.tool_drafter import DraftError, online_drafter
@@ -7515,8 +7506,28 @@ def run_draft_self_check(
     drafter_name = (
         getattr(drafter, "name", type(drafter).__name__) if drafter is not None else "no-repair"
     )
+    # Round one first: it materialises the sealed wheel closure, which is what
+    # the supply verdict compares the pinned checkout against.  A failing first
+    # round is also the only moment where stopping still costs zero model calls.
+    first_check = _self_check_round(draft_dir, draft, round_index=1)
+    if not first_check.check_ok:
+        supply = _pinned_upstream_supply_verdict(draft, draft_dir)
+        if supply and not supply.get("usable") and not _shadowed_upstream_override():
+            # Supply-side, and decided before a single repair: the pinned
+            # checkout cannot stand in for the release, so there is no producer
+            # to write that would work.  Say what is missing and what to change
+            # instead of spending repairs on a control that is not the cause.
+            return {
+                "ok": False,
+                "status": "UNSUPPORTED_PINNED_UPSTREAM",
+                "rounds": 1,
+                "final_reason_codes": ["UNSUPPORTED_PINNED_UPSTREAM"],
+                "recommended_action": supply.get("remediation") or "",
+                "pinned_upstream_supply": supply,
+                "report": {"rounds": [first_check.model_dump(mode="json")]},
+            }
     rounds = _self_check_repair_rounds(
-        draft_dir, draft, bound=bound, repair=repair, drafter=drafter
+        draft_dir, draft, bound=bound, repair=repair, drafter=drafter, first_check=first_check
     )
     final = rounds[-1]
     ok = bool(final.check_ok)

@@ -126,3 +126,68 @@ def test_nothing_to_compare_never_condemns(tmp_path: Path) -> None:
         upstream_dir=root, wheelhouse=house, distribution="pkg", import_module="pkg"
     )
     assert verdict["usable"] is True and verdict["checked"] is False
+
+
+def test_the_gate_stops_the_journey_before_any_repair(monkeypatch, tmp_path: Path) -> None:
+    """一次模型修复都不花:首轮失败 → 供给判定 → 终态。"""
+
+    from repoproof.adoption.intake.draft_selfcheck import DraftSelfCheckRoundV1
+    from repoproof.ui.services import product_jobs
+
+    unusable = {
+        "usable": False,
+        "checked": True,
+        "severity": "PACKAGE_LARGELY_ABSENT",
+        "missing_count": 1084,
+        "remediation": "改钉已构建的发行版,或换一个用不到该能力的题目。",
+    }
+    repairs: list[str] = []
+    monkeypatch.setattr(
+        product_jobs,
+        "_self_check_round",
+        lambda *_a, **kw: DraftSelfCheckRoundV1(
+            round=kw.get("round_index", 1),
+            check_ok=False,
+            reason_codes=("WORKSPACE_REFERENCE_EXECUTION_FAILED",),
+            diagnostics=("RuntimeError",),
+        ),
+    )
+    monkeypatch.setattr(
+        product_jobs, "_apply_draft_control_repair", lambda *a, **k: repairs.append("called")
+    )
+    monkeypatch.setattr(product_jobs, "_pinned_upstream_supply_verdict", lambda *_a, **_k: unusable)
+    monkeypatch.setattr(product_jobs, "_core_draft_readiness", lambda *_a, **_k: _ready())
+    monkeypatch.setattr(product_jobs, "_validated_draft_dir", lambda *a, **k: (tmp_path, ""))
+    (tmp_path / "draft.yaml").write_text(
+        "tool:\n  delivery_profile_id: workspace_bundle_v1\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        "repoproof.adoption.intake.draft_selfcheck.is_workspace_draft", lambda _d: True
+    )
+
+    result = product_jobs.run_draft_self_check(tmp_path, repair=True, drafter=object())
+
+    assert result["status"] == "UNSUPPORTED_PINNED_UPSTREAM"
+    assert result["final_reason_codes"] == ["UNSUPPORTED_PINNED_UPSTREAM"]
+    assert "改钉已构建的发行版" in result["recommended_action"]
+    assert repairs == [], "供给侧判死不该花掉任何一次模型修复"
+
+
+def test_the_operator_can_override_the_gate(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("REPOPROOF_ALLOW_SHADOWED_UPSTREAM", "1")
+    assert product_jobs_override_is_on()
+
+
+def product_jobs_override_is_on() -> bool:
+    from repoproof.ui.services import product_jobs
+
+    return product_jobs._shadowed_upstream_override()
+
+
+def _ready():
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        compatible=True, current=True, ready=False, ready_to_confirm=True,
+        reason_codes=[], recommended_action="", model_dump=lambda mode: {},
+    )
