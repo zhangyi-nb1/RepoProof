@@ -16,6 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from repoproof.adoption.intake.draft_selfcheck import (
+    ABSOLUTE_REPAIR_CEILING,
     MAX_REPAIR_ROUNDS,
     MAX_TOTAL_REPAIR_ROUNDS,
     DraftSelfCheckRepairV1,
@@ -74,4 +75,7 @@ def test_repeated_failures_still_stop_at_the_stall_bound(monkeypatch) -> None:
 def test_hard_cap_bounds_even_monotone_progress(monkeypatch) -> None:
     failures = [("WORKSPACE_REFERENCE_EXECUTION_FAILED", f"Error {i}") for i in range(20)]  # distinct signatures
     rounds, repairs = _drive(monkeypatch, failures)
-    assert len(repairs) == MAX_TOTAL_REPAIR_ROUNDS
+    # Each round reports a different failure, so each one retires the previous
+    # defect and earns an extra unit of allowance beyond the base
+    # (test_ceiling_grows_with_retired_defects); the absolute ceiling still binds.
+    assert MAX_TOTAL_REPAIR_ROUNDS < len(repairs) <= ABSOLUTE_REPAIR_CEILING

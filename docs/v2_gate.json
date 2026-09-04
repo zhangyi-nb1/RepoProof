@@ -14,11 +14,11 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 267,
-    "assisted_repair_runs": 312,
+    "all_valid_run_outcomes": 271,
+    "assisted_repair_runs": 316,
     "development_baseline_runs": 68,
-    "exploratory": 94,
-    "exploratory_passes": 73,
+    "exploratory": 96,
+    "exploratory_passes": 75,
     "exploratory_run_ids": [
       "t3-offerclaw-browser-use-v5-20260812-024353",
       "t3-offerclaw-browser-use-v5-20260812-024503",
@@ -113,7 +113,9 @@
       "tool-pygal-tool-v3-20260903-124702",
       "tool-pygal-tool-v4-20260903-134331",
       "tool-python-pptx-tool-v3-20260903-165737",
-      "tool-python-pptx-tool-v4-20260903-174032"
+      "tool-python-pptx-tool-v4-20260903-174032",
+      "tool-python-pptx-tool-v5-20260904-035354",
+      "tool-xlsxwriter-tool-v2-20260904-104442"
     ],
     "heldout_model_evaluation_runs": 8,
     "heldout_passes": 2,
@@ -171,8 +173,8 @@
       }
     ],
     "provisional_evidence_runs": 4,
-    "smoke": 218,
-    "smoke_passes": 130,
+    "smoke": 220,
+    "smoke_passes": 132,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -391,9 +393,11 @@
       "tool-pygal-tool-v3-20260903-124345",
       "tool-pygal-tool-v4-20260903-134157",
       "tool-python-pptx-tool-v3-20260903-163150",
-      "tool-python-pptx-tool-v4-20260903-173917"
+      "tool-python-pptx-tool-v4-20260903-173917",
+      "tool-python-pptx-tool-v5-20260904-035242",
+      "tool-xlsxwriter-tool-v2-20260904-101704"
     ],
-    "total": 479,
+    "total": 483,
     "treatment_delivered_runs": 13,
     "treatment_not_delivered_runs": 4
   },
@@ -465,7 +469,7 @@
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "da5362564624c2acd48bb7169a3a32e8bcf3d27d47afe43291c33115a677c75a"
+    "runs_jsonl_sha256": "5969e17a4c2c4839e123971b4ce9fefa34cc1b1c59c9c6d15f4ca9923bf08e68"
   },
   "stages": {
     "T1": {

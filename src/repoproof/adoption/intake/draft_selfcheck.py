@@ -51,9 +51,36 @@ MAX_REPAIR_ROUNDS = 3
 # genuinely cannot converge is still ended by the stall budget after four
 # sightings of one signature.
 MAX_TOTAL_REPAIR_ROUNDS = 12
+# Raising the backstop from 6 to 12 was not enough, because the number was never
+# the point: a journey that retired twelve *different* defects — rule overlap,
+# entry cardinality, external resources, broken links, invalid format, build-date
+# drift, an unobserved upstream call, two binding controls, three discrimination
+# gaps — was cut off again, on a brand-new defect, with the stall budget still
+# untouched.  Tuning the constant to whatever the last repository needed is
+# fitting to a case; instead the allowance is *earned*: every round that retires
+# a sub-failure that was present before buys one more, up to an absolute ceiling
+# that exists only to bound catastrophe.  A journey going in circles retires
+# nothing and never leaves the base allowance.
+ABSOLUTE_REPAIR_CEILING = 30
 # Marker appended to the round the backstop truncated, so "still converging,
 # budget spent" is never read as "this failure has nowhere to be repaired".
 REPAIR_BUDGET_EXHAUSTED = "SELF_CHECK_REPAIR_BUDGET_EXHAUSTED"
+
+
+def retired_any_defect(
+    previous: tuple[str, ...] | list[str], current: tuple[str, ...] | list[str]
+) -> bool:
+    """True when some sub-failure the previous round reported is now gone.
+
+    Diagnostics carry a comma-joined code list as their first row; a code that
+    disappears from it is a defect actually retired, whatever else arrived.
+    """
+
+    def codes(rows: tuple[str, ...] | list[str]) -> set[str]:
+        head = str(rows[0]) if rows else ""
+        return {part.strip() for part in head.split(",") if part.strip()}
+
+    return bool(codes(previous) - codes(current))
 
 RepairTarget = Literal["builder", "reference", "verifier", "contract"]
 RepairOutcome = Literal["APPLIED", "NO_PROGRESS", "ROLLED_BACK", "UNAVAILABLE"]

@@ -7275,9 +7275,11 @@ def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repai
     """
 
     from repoproof.adoption.intake.draft_selfcheck import (
+        ABSOLUTE_REPAIR_CEILING,
         MAX_TOTAL_REPAIR_ROUNDS,
         REPAIR_BUDGET_EXHAUSTED,
         repair_target_for,
+        retired_any_defect,
     )
 
     rounds: list = []
@@ -7295,15 +7297,24 @@ def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repai
     # while the one owner who could fix it was still waiting its turn
     # (incident-disagreement-subdiagnostic-owner-ignored-*).
     seen_attempts: set[tuple[str, str, str]] = set()
+    # The base allowance is a floor, not the verdict: a round that retires a
+    # sub-failure present before it earns one more, up to the absolute ceiling.
+    # A journey going in circles retires nothing and never leaves the floor
+    # (incident-selfcheck-hard-cap-stops-progress-*).
     hard_cap = max(bound, MAX_TOTAL_REPAIR_ROUNDS) if bound else 0
+    ceiling = max(bound, ABSOLUTE_REPAIR_CEILING) if bound else 0
+    previous_diagnostics: tuple[str, ...] = ()
     pending = None
-    for round_index in range(1, hard_cap + 2):
+    for round_index in range(1, ceiling + 2):
         check = (
             pending
             if pending is not None
             else _self_check_round(draft_dir, draft, round_index=round_index)
         )
         pending = None
+        if retired_any_defect(previous_diagnostics, tuple(check.diagnostics)):
+            hard_cap = min(hard_cap + 1, ceiling)
+        previous_diagnostics = tuple(check.diagnostics)
         signature = (
             check.reason_codes[0] if check.reason_codes else "",
             check.diagnostics[0] if check.diagnostics else "",
