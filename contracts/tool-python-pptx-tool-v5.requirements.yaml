@@ -1,0 +1,89 @@
+task_id: tool-python-pptx-tool-v5
+controls:
+  positive: controls/tool-python-pptx-tool-v5/positive
+  negatives:
+  - path: controls/tool-python-pptx-tool-v5/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-python-pptx-tool-v5/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - q3-sales-review
+  - single-slide-minimal
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - python-pptx-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-title-slide
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 生成的 .pptx 第一张幻灯片为标题幻灯片，其标题文本等于输入 JSON 的 title 字段，副标题文本等于 subtitle 字段（subtitle
+    为空字符串时副标题占位符文本为空）。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:python-pptx-tool-workspace-semantic-v1
+- id: intent-one-content-slide-per-entry
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 标题幻灯片之后，每个 slides[] 条目按输入数组顺序恰好生成一张内容幻灯片，内容幻灯片总数等于 slides 数组长度；每张内容幻灯片的标题文本等于对应条目的
+    heading 字段。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:python-pptx-tool-workspace-semantic-v1
+- id: intent-metrics-rendered-on-slide
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: '每张内容幻灯片的正文按对应条目 metrics[] 的顺序逐条列出指标，每条呈现为“name: value unit”（unit 为空字符串时省略末尾空格与单位），无
+    metrics 时正文不含指标行。'
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:python-pptx-tool-workspace-semantic-v1
+- id: intent-notes-on-slide
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 每张内容幻灯片的备注（notes_slide 的 notes 文本框）文本等于对应条目的 notes 字段；notes 为空字符串时备注文本为空。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:python-pptx-tool-workspace-semantic-v1
+- id: intent-speaker-notes-file-order
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: out/speaker_notes.txt 按内容幻灯片顺序逐页给出讲稿，每页以其 heading 作为该段标题并包含该页 notes
+    文本，页与页之间可区分且顺序与幻灯片一致。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:python-pptx-tool-workspace-semantic-v1

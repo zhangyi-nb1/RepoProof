@@ -1,0 +1,36 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "public_tests/test_interface_contract.py"
+  ],
+  "collection_manifest_sha256": null,
+  "consumer_fixture_tree_sha256": "b5979d19d60a61af26e5285e734dadfbfe39c5aab8efe7725f4bb433322e005a",
+  "contract_sha256": "7657bbab16fa5e5a5a41023060c937088d914322472b8594eb463774c728d221",
+  "controls_summary": null,
+  "environment_constraints": null,
+  "expected_capability_nodes": null,
+  "expected_regression_nodes": null,
+  "held_out_fixture_sha256": "68d9fd22701072bad7433df818b0403fe061efd2fbf3901d9487229afcc5a600",
+  "image_digest": null,
+  "oracle_tree_sha256": "ce0d4fded3d3ff8f23b6d0231679c747d7d3d473b0bd80f981f80f58911273c3",
+  "prompt_manifest_sha256": null,
+  "public_examples_sha256": null,
+  "public_fixture_sha256": "dc979dc4c3453fa2bde84ab6e43691d5b2cd1f606b0b43d0ca179bc1470b2346",
+  "public_tests_tree_sha256": null,
+  "requirement_spec_sha256": null,
+  "responsibility_matrix": null,
+  "root_hash": "1b167b4ffda19175faef548f5bbcc3052dfcc5a1036f360618d60a197c8c2d32",
+  "source_commit": "e943bee8c9cdf0661cfdb83d5497e0725390e41e",
+  "source_git_tree_hash": "f1c92e5fce132b63b26baabde38b692203033b1e",
+  "task_id": "tool-xlsxwriter-tool-v2",
+  "wheelhouse_root": "f868c34fd93ae0a16e80f56be53e211b08d0185d9d3c08c6fbeb8b3e6a9abea0",
+  "wheelhouse_wheels": {
+    "xlsxwriter-3.2.9-py3-none-any.whl": "9a5db42bc5dff014806c58a20b9eae7322a134abb6fce3c92c181bfb275ec5b3"
+  }
+}

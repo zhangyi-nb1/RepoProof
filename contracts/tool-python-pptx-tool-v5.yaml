@@ -1,0 +1,292 @@
+task_id: tool-python-pptx-tool-v5
+source_repo:
+  url: https://github.com/scanny/python-pptx
+  revision: guided
+  resolved_commit: 278b47b1dedd5b46ee84c286e77cdfb0bf4594be
+  license: MIT
+  distribution: python-pptx
+  import_module: pptx
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_python-pptx-tool-v5
+  package: python_pptx_tool
+  entry_point: python-pptx-tool
+requirement_spec_file: tool-python-pptx-tool-v5.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: python-pptx-tool
+  summary: 把季度指标与要点笔记 JSON 打包成离线工作区，运行后生成可汇报的 PowerPoint 幻灯片与逐页讲稿文本。
+  interface:
+    usage: python-pptx-tool <input> --out-dir <new-directory>
+    input:
+      kind: file
+      format: 季度指标与要点笔记 JSON
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: generate_deck.py
+      role: 生成幻灯片与讲稿的 Python 应用文件（由 build_workspace 写出）
+      media_type: text/x-python
+      validation_profile: python_compile_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: README.md
+      role: 使用说明，指引运行 ./run.sh
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: metrics.json
+      role: 示例/内置输入 JSON，供 ./run.sh 无参数冒烟运行
+      media_type: application/json
+      validation_profile: json_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: out/quarterly_deck.pptx
+      role: 生成的 PowerPoint 演示文稿
+      media_type: application/vnd.openxmlformats-officedocument.presentationml.presentation
+      validation_profile: pptx_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: out/speaker_notes.txt
+      role: 生成的讲稿文本
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: run.sh
+      role: Harness-owned offline Python launcher
+      media_type: text/x-shellscript
+      validation_profile: shell_v1
+      min_count: 1
+      max_count: 1
+      executable: true
+    - path_pattern: requirements.lock.txt
+      role: Frozen Python dependency lock
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: THIRD_PARTY_NOTICES.md
+      role: Frozen third-party wheel inventory
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: vendor/wheels/*.whl
+      role: Frozen offline Python wheel closure
+      media_type: application/zip
+      validation_profile: wheel_v1
+      min_count: 1
+      max_count: 256
+      executable: false
+    allow_extra_files: false
+    entrypoints:
+    - run.sh
+    runnable: true
+    smoke_command:
+    - ./run.sh
+    smoke_timeout_seconds: 60
+    require_offline_wheelhouse: true
+    runtime_python_entrypoint: generate_deck.py
+    limits:
+      max_files: 512
+      max_total_bytes: 268435456
+      max_file_bytes: 67108864
+      max_depth: 6
+      max_path_bytes: 240
+    directory_profiles: []
+capability:
+  statement: '用户目标：我有季度指标的 JSON 和一份要点笔记，想生成一套能直接汇报的幻灯片，再附一份讲稿。
+
+    公开行为承诺：
+
+    - [title-slide] 生成的 .pptx 第一张幻灯片为标题幻灯片，其标题文本等于输入 JSON 的 title 字段，副标题文本等于 subtitle
+    字段（subtitle 为空字符串时副标题占位符文本为空）。
+
+    - [one-content-slide-per-entry] 标题幻灯片之后，每个 slides[] 条目按输入数组顺序恰好生成一张内容幻灯片，内容幻灯片总数等于
+    slides 数组长度；每张内容幻灯片的标题文本等于对应条目的 heading 字段。
+
+    - [metrics-rendered-on-slide] 每张内容幻灯片的正文按对应条目 metrics[] 的顺序逐条列出指标，每条呈现为“name:
+    value unit”（unit 为空字符串时省略末尾空格与单位），无 metrics 时正文不含指标行。
+
+    - [notes-on-slide] 每张内容幻灯片的备注（notes_slide 的 notes 文本框）文本等于对应条目的 notes 字段；notes
+    为空字符串时备注文本为空。
+
+    - [speaker-notes-file-order] out/speaker_notes.txt 按内容幻灯片顺序逐页给出讲稿，每页以其 heading
+    作为该段标题并包含该页 notes 文本，页与页之间可区分且顺序与幻灯片一致。
+
+    公开产物协议：
+
+    - [title-slide-text -> title-slide] 定位：用 pptx.Presentation 打开 out/quarterly_deck.pptx，取
+    slides[0]（第一张幻灯片）的标题占位符与副标题占位符的 text。；值表示：两个 UTF-8 字符串：标题占位符文本与副标题占位符文本。
+
+    - [content-slide-count-and-headings -> one-content-slide-per-entry] 定位：用 pptx.Presentation
+    打开 out/quarterly_deck.pptx，取 slides[1:] 的数量，以及每张幻灯片标题占位符的 text，按幻灯片顺序排列。；值表示：一个整数（内容幻灯片数量）后接按顺序排列的
+    UTF-8 标题字符串列表。
+
+    - [content-slide-metric-lines -> metrics-rendered-on-slide] 定位：对每张内容幻灯片（slides[1:]），读取其正文文本框中按段落顺序排列的指标行文本。；值表示：每张内容幻灯片对应一个有序的
+    UTF-8 行字符串列表，每行形如 name: value 或 name: value unit。
+
+    - [content-slide-notes-text -> notes-on-slide] 定位：对每张内容幻灯片（slides[1:]），若 has_notes_slide
+    则读取 notes_slide.notes_text_frame.text，否则视为空字符串，按幻灯片顺序排列。；值表示：按内容幻灯片顺序排列的 UTF-8
+    备注字符串列表。
+
+    - [speaker-notes-per-page -> speaker-notes-file-order] 定位：以 UTF-8 读取 out/speaker_notes.txt
+    全文，按页分段解析：每段以该页 heading 起始并含其 notes 文本，段落顺序即内容幻灯片顺序。；值表示：按顺序排列的分段文本，每段包含一个 heading
+    字符串与其 notes 字符串。
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: QuarterlyDeckWorkspace
+  intent_contract:
+    schema_version: 1
+    user_goal: 我有季度指标的 JSON 和一份要点笔记，想生成一套能直接汇报的幻灯片，再附一份讲稿。
+    user_goal_sha256: 549f48fd5e11e846a27b897bac3805ba5104192d70900a0be19a966f5967ebc2
+    commitments:
+    - commitment_id: title-slide
+      public_text: 生成的 .pptx 第一张幻灯片为标题幻灯片，其标题文本等于输入 JSON 的 title 字段，副标题文本等于 subtitle
+        字段（subtitle 为空字符串时副标题占位符文本为空）。
+      rationale: 用户要求可直接汇报的幻灯片，标题页须忠实反映输入标题与副标题。
+      origin: MODEL_PROPOSED
+    - commitment_id: one-content-slide-per-entry
+      public_text: 标题幻灯片之后，每个 slides[] 条目按输入数组顺序恰好生成一张内容幻灯片，内容幻灯片总数等于 slides 数组长度；每张内容幻灯片的标题文本等于对应条目的
+        heading 字段。
+      rationale: 每条季度要点须映射为一张顺序一致的可汇报幻灯片。
+      origin: MODEL_PROPOSED
+    - commitment_id: metrics-rendered-on-slide
+      public_text: '每张内容幻灯片的正文按对应条目 metrics[] 的顺序逐条列出指标，每条呈现为“name: value unit”（unit
+        为空字符串时省略末尾空格与单位），无 metrics 时正文不含指标行。'
+      rationale: 用户提供的季度指标名称/数值/单位须在幻灯片上可见。
+      origin: MODEL_PROPOSED
+    - commitment_id: notes-on-slide
+      public_text: 每张内容幻灯片的备注（notes_slide 的 notes 文本框）文本等于对应条目的 notes 字段；notes 为空字符串时备注文本为空。
+      rationale: 笔记要点须随幻灯片一起附带，便于汇报时参考。
+      origin: MODEL_PROPOSED
+    - commitment_id: speaker-notes-file-order
+      public_text: out/speaker_notes.txt 按内容幻灯片顺序逐页给出讲稿，每页以其 heading 作为该段标题并包含该页 notes
+        文本，页与页之间可区分且顺序与幻灯片一致。
+      rationale: 用户要求一份与幻灯片顺序一致的独立讲稿文本。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: quarterly-deck-workspace
+      observations:
+      - observation_id: title-slide-text
+        commitment_ids:
+        - title-slide
+        locator: 用 pptx.Presentation 打开 out/quarterly_deck.pptx，取 slides[0]（第一张幻灯片）的标题占位符与副标题占位符的
+          text。
+        value_encoding: 两个 UTF-8 字符串：标题占位符文本与副标题占位符文本。
+      - observation_id: content-slide-count-and-headings
+        commitment_ids:
+        - one-content-slide-per-entry
+        locator: 用 pptx.Presentation 打开 out/quarterly_deck.pptx，取 slides[1:] 的数量，以及每张幻灯片标题占位符的
+          text，按幻灯片顺序排列。
+        value_encoding: 一个整数（内容幻灯片数量）后接按顺序排列的 UTF-8 标题字符串列表。
+      - observation_id: content-slide-metric-lines
+        commitment_ids:
+        - metrics-rendered-on-slide
+        locator: 对每张内容幻灯片（slides[1:]），读取其正文文本框中按段落顺序排列的指标行文本。
+        value_encoding: '每张内容幻灯片对应一个有序的 UTF-8 行字符串列表，每行形如 name: value 或 name: value
+          unit。'
+      - observation_id: content-slide-notes-text
+        commitment_ids:
+        - notes-on-slide
+        locator: 对每张内容幻灯片（slides[1:]），若 has_notes_slide 则读取 notes_slide.notes_text_frame.text，否则视为空字符串，按幻灯片顺序排列。
+        value_encoding: 按内容幻灯片顺序排列的 UTF-8 备注字符串列表。
+      - observation_id: speaker-notes-per-page
+        commitment_ids:
+        - speaker-notes-file-order
+        locator: 以 UTF-8 读取 out/speaker_notes.txt 全文，按页分段解析：每段以该页 heading 起始并含其 notes
+          文本，段落顺序即内容幻灯片顺序。
+        value_encoding: 按顺序排列的分段文本，每段包含一个 heading 字符串与其 notes 字符串。
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: file
+          location: local
+          representation: utf8_text
+          format_label: 季度指标与要点笔记 JSON
+          role: 单个 JSON 文件，包含演示标题、若干季度指标条目（名称/数值/单位等）以及每张幻灯片的要点笔记文本
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: 离线工作区，运行 ./run.sh 后在 out/ 下生成 PowerPoint 幻灯片 (.pptx) 与逐页讲稿文本 (.txt)
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-03T19:52:25.602760Z'
+      semantics_sha256: c8a3c0d1af15b901f6a16f0159f3d166d1122728f3ee177124589f9726e7ef17
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: python-pptx-tool-workspace-semantic-v1
+    source_file: oracle/tool-python-pptx-tool-v5/semantic_verifier.py
+    source_sha256: f55ce23e4719f8bb2139c4bf80f501715eabf1387fc0e6aeb9fbd1fe20b4a144
+    required_for_operational_active: true

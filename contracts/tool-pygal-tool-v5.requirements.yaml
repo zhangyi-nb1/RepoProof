@@ -1,0 +1,82 @@
+task_id: tool-pygal-tool-v5
+controls:
+  positive: controls/tool-pygal-tool-v5/positive
+  negatives:
+  - path: controls/tool-pygal-tool-v5/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-pygal-tool-v5/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - openai_two_days
+  - anthropic_over_threshold
+  - no_balance_column
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_example_3
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - pygal-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-daily-spend-totals
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: daily.html 展示每个出现日期的总花费（同一日期所有模型 cost_usd 求和），日期按升序排列，且 charts/daily_spend.svg
+    由 pygal 渲染，其数据点值集合与这些每日总额一致。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-per-model-spend-totals
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: by_model.html 展示每个出现模型的总花费（该模型所有行 cost_usd 求和），模型名按升序排列，且 charts/model_spend.svg
+    由 pygal 渲染，其数据点值集合与这些每模型总额一致。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-remaining-balance
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 当输入含 balance_usd 列时，index.html 展示按日期升序取最后一天的余额作为“当前剩余余额”；无该列时展示“余额未知”。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1
+- id: intent-threshold-alerts
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 当某一天的总花费严格大于该天记录的 threshold_usd 时，index.html 在“超阈值提醒”区列出该日期及其总花费；无
+    threshold_usd 列或无任何一天超阈值时该区显示“无超阈值日期”。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:pygal-tool-workspace-semantic-v1

@@ -1,0 +1,289 @@
+task_id: tool-xlsxwriter-tool-v2
+source_repo:
+  url: https://github.com/jmcnamara/XlsxWriter
+  revision: guided
+  resolved_commit: e943bee8c9cdf0661cfdb83d5497e0725390e41e
+  license: BSD
+  distribution: xlsxwriter
+  import_module: xlsxwriter
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_xlsxwriter-tool-v2
+  package: xlsxwriter_tool
+  entry_point: xlsxwriter-tool
+requirement_spec_file: tool-xlsxwriter-tool-v2.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: xlsxwriter-tool
+  summary: 一键把当月三四张财务 CSV 目录转成带汇总页与异常标红的离线审计 Excel 工作区。
+  interface:
+    usage: xlsxwriter-tool <input> --out-dir <new-directory>
+    input:
+      kind: directory
+      format: 财务 CSV 目录（invoices.csv/payments.csv/accounts.csv）
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: build_audit_workbook.py
+      role: 生成审计工作簿的 Python 应用文件（由 build_workspace 写出）
+      media_type: text/x-python
+      validation_profile: python_compile_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: README.md
+      role: 使用说明，指引通过 ./run.sh 运行
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: sample_input/*.csv
+      role: 随附的样例财务 CSV，可作为 ./run.sh 的默认输入
+      media_type: text/csv
+      validation_profile: csv_v1
+      min_count: 3
+      max_count: 4
+      executable: false
+    - path_pattern: output/audit_workbook.xlsx
+      role: 生成的审计 Excel 工作簿
+      media_type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      validation_profile: xlsx_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: run.sh
+      role: Harness-owned offline Python launcher
+      media_type: text/x-shellscript
+      validation_profile: shell_v1
+      min_count: 1
+      max_count: 1
+      executable: true
+    - path_pattern: requirements.lock.txt
+      role: Frozen Python dependency lock
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: THIRD_PARTY_NOTICES.md
+      role: Frozen third-party wheel inventory
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: vendor/wheels/*.whl
+      role: Frozen offline Python wheel closure
+      media_type: application/zip
+      validation_profile: wheel_v1
+      min_count: 1
+      max_count: 256
+      executable: false
+    allow_extra_files: false
+    entrypoints:
+    - run.sh
+    runnable: true
+    smoke_command:
+    - ./run.sh
+    smoke_timeout_seconds: 60
+    require_offline_wheelhouse: true
+    runtime_python_entrypoint: build_audit_workbook.py
+    limits:
+      max_files: 512
+      max_total_bytes: 268435456
+      max_file_bytes: 67108864
+      max_depth: 4
+      max_path_bytes: 200
+    directory_profiles: []
+capability:
+  statement: '用户目标：每个月财务给我三四张 CSV（发票、付款、科目表），我想一键得到一个能直接交给审计的 Excel 工作簿，带汇总页和异常标红。
+
+    公开行为承诺：
+
+    - [sheets-present] 生成的 .xlsx 工作簿至少包含三个工作表：一个名为“汇总”的汇总页，以及分别名为“发票明细”和“付款明细”的明细页。
+
+    - [invoice-detail-rows] “发票明细”工作表在表头行之后，为输入 invoices.csv 中的每一张发票各输出一行，且发票行的顺序与
+    invoice_id 升序一致。
+
+    - [paid-total-column] “发票明细”工作表为每张发票给出一列“已付合计”，其值等于 payments.csv 中 invoice_id
+    匹配该发票的所有付款金额之和（无匹配付款时为 0）。
+
+    - [amount-mismatch-flag] 当某发票的“已付合计”与该发票 amount 不相等时，该发票在“发票明细”中被标记为异常（异常状态列取“异常”），金额一致时取“正常”。
+
+    - [unknown-account-flag] 当某发票的 account_code 未出现在 accounts.csv 的科目代码集合中时，该发票在“发票明细”中被标记为异常（异常状态列取“异常”）。
+
+    - [anomaly-highlight-format] “发票明细”中每一条被判定为异常的发票行，其单元格套用了带红色字体颜色的单元格格式，用以视觉标红异常。
+
+    - [summary-counts] “汇总”工作表给出发票总数、异常发票数、金额不符发票数与未知科目发票数四项统计，且数值与“发票明细”中的标记结果一致。
+
+    公开产物协议：
+
+    - [worksheet-names -> sheets-present] 定位：用 xlsxwriter 上游写出后，以标准 xlsx 解析读取工作簿的工作表名称列表。；值表示：字符串集合，至少包含“汇总”“发票明细”“付款明细”三项。
+
+    - [invoice-rows -> invoice-detail-rows] 定位：“发票明细”工作表第 1 行为表头，自第 2 行起为数据行，按行读取
+    invoice_id 列。；值表示：数据行序列；每行含 invoice_id 文本，行序为 invoice_id 升序。
+
+    - [paid-total-cell -> paid-total-column] 定位：“发票明细”表头中名为“已付合计”的列，读取每个数据行对应单元格数值。；值表示：每行一个非负数值，等于匹配付款金额之和。
+
+    - [status-cell -> amount-mismatch-flag,unknown-account-flag] 定位：“发票明细”表头中名为“异常状态”的列，读取每个数据行对应单元格文本。；值表示：枚举文本：“正常”或“异常”。
+
+    - [anomaly-red-format -> anomaly-highlight-format] 定位：对“发票明细”中异常状态为“异常”的数据行单元格，读取其单元格格式的字体颜色属性。；值表示：字体颜色为红色的格式标记（如颜色值对应红色）。
+
+    - [summary-metrics -> summary-counts] 定位：“汇总”工作表中以标签文本定位的四个统计单元格：发票总数、异常发票数、金额不符发票数、未知科目发票数。；值表示：四个非负整数，分别为对应计数，且与明细标记结果一致。
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: AuditWorkbookWorkspace
+  intent_contract:
+    schema_version: 1
+    user_goal: 每个月财务给我三四张 CSV（发票、付款、科目表），我想一键得到一个能直接交给审计的 Excel 工作簿，带汇总页和异常标红。
+    user_goal_sha256: 8fe194fd91bf6500b91c836ee2548b37298341f3b3801740573707ac6e60af12
+    commitments:
+    - commitment_id: sheets-present
+      public_text: 生成的 .xlsx 工作簿至少包含三个工作表：一个名为“汇总”的汇总页，以及分别名为“发票明细”和“付款明细”的明细页。
+      rationale: 用户要求带汇总页且能直接交给审计；工作表命名与存在性可由上游解析后核对。
+      origin: MODEL_PROPOSED
+    - commitment_id: invoice-detail-rows
+      public_text: “发票明细”工作表在表头行之后，为输入 invoices.csv 中的每一张发票各输出一行，且发票行的顺序与 invoice_id
+        升序一致。
+      rationale: 审计需逐张发票核对；行数与顺序须与输入确定性对应。
+      origin: MODEL_PROPOSED
+    - commitment_id: paid-total-column
+      public_text: “发票明细”工作表为每张发票给出一列“已付合计”，其值等于 payments.csv 中 invoice_id 匹配该发票的所有付款金额之和（无匹配付款时为
+        0）。
+      rationale: 金额是否收齐是审计核心，须由付款数据聚合驱动。
+      origin: MODEL_PROPOSED
+    - commitment_id: amount-mismatch-flag
+      public_text: 当某发票的“已付合计”与该发票 amount 不相等时，该发票在“发票明细”中被标记为异常（异常状态列取“异常”），金额一致时取“正常”。
+      rationale: 用户要求异常标红；金额不符是首要异常类别，需可判定。
+      origin: MODEL_PROPOSED
+    - commitment_id: unknown-account-flag
+      public_text: 当某发票的 account_code 未出现在 accounts.csv 的科目代码集合中时，该发票在“发票明细”中被标记为异常（异常状态列取“异常”）。
+      rationale: 科目代码不在科目表是第二类异常，须独立可判定。
+      origin: MODEL_PROPOSED
+    - commitment_id: anomaly-highlight-format
+      public_text: “发票明细”中每一条被判定为异常的发票行，其单元格套用了带红色字体颜色的单元格格式，用以视觉标红异常。
+      rationale: 用户明确要求“异常标红”，红色格式须实际写入工作簿并可从上游解析核验。
+      origin: MODEL_PROPOSED
+    - commitment_id: summary-counts
+      public_text: “汇总”工作表给出发票总数、异常发票数、金额不符发票数与未知科目发票数四项统计，且数值与“发票明细”中的标记结果一致。
+      rationale: 汇总页须准确概括明细页的异常计数，供审计快速总览。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: audit-workbook-xlsx
+      observations:
+      - observation_id: worksheet-names
+        commitment_ids:
+        - sheets-present
+        locator: 用 xlsxwriter 上游写出后，以标准 xlsx 解析读取工作簿的工作表名称列表。
+        value_encoding: 字符串集合，至少包含“汇总”“发票明细”“付款明细”三项。
+      - observation_id: invoice-rows
+        commitment_ids:
+        - invoice-detail-rows
+        locator: “发票明细”工作表第 1 行为表头，自第 2 行起为数据行，按行读取 invoice_id 列。
+        value_encoding: 数据行序列；每行含 invoice_id 文本，行序为 invoice_id 升序。
+      - observation_id: paid-total-cell
+        commitment_ids:
+        - paid-total-column
+        locator: “发票明细”表头中名为“已付合计”的列，读取每个数据行对应单元格数值。
+        value_encoding: 每行一个非负数值，等于匹配付款金额之和。
+      - observation_id: status-cell
+        commitment_ids:
+        - amount-mismatch-flag
+        - unknown-account-flag
+        locator: “发票明细”表头中名为“异常状态”的列，读取每个数据行对应单元格文本。
+        value_encoding: 枚举文本：“正常”或“异常”。
+      - observation_id: anomaly-red-format
+        commitment_ids:
+        - anomaly-highlight-format
+        locator: 对“发票明细”中异常状态为“异常”的数据行单元格，读取其单元格格式的字体颜色属性。
+        value_encoding: 字体颜色为红色的格式标记（如颜色值对应红色）。
+      - observation_id: summary-metrics
+        commitment_ids:
+        - summary-counts
+        locator: “汇总”工作表中以标签文本定位的四个统计单元格：发票总数、异常发票数、金额不符发票数、未知科目发票数。
+        value_encoding: 四个非负整数，分别为对应计数，且与明细标记结果一致。
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: directory
+          location: local
+          representation: utf8_text
+          format_label: 财务 CSV 目录（invoices.csv/payments.csv/accounts.csv）
+          role: 包含当月三四张财务 CSV 的本地目录，作为唯一输入
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: 含生成的审计 Excel 工作簿（.xlsx）与运行脚本的离线工作区
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-04T02:16:54.661889Z'
+      semantics_sha256: c386731552e3bba8a7a64ce3d15e34ce13d9618cd7a8e1a407c773a6527fdbf6
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: xlsxwriter-tool-workspace-semantic-v1
+    source_file: oracle/tool-xlsxwriter-tool-v2/semantic_verifier.py
+    source_sha256: a4a37759e6073e8393a0ea35c07952e6d1478813fdaebdf70ed0b149428ab4e2
+    required_for_operational_active: true

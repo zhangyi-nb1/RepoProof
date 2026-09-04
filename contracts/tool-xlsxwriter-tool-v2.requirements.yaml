@@ -1,0 +1,104 @@
+task_id: tool-xlsxwriter-tool-v2
+controls:
+  positive: controls/tool-xlsxwriter-tool-v2/positive
+  negatives:
+  - path: controls/tool-xlsxwriter-tool-v2/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-xlsxwriter-tool-v2/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - balanced-month
+  - amount-mismatch
+  - unknown-account
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_example_3
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - xlsxwriter-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-sheets-present
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 生成的 .xlsx 工作簿至少包含三个工作表：一个名为“汇总”的汇总页，以及分别名为“发票明细”和“付款明细”的明细页。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:xlsxwriter-tool-workspace-semantic-v1
+- id: intent-invoice-detail-rows
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: “发票明细”工作表在表头行之后，为输入 invoices.csv 中的每一张发票各输出一行，且发票行的顺序与 invoice_id 升序一致。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:xlsxwriter-tool-workspace-semantic-v1
+- id: intent-paid-total-column
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: “发票明细”工作表为每张发票给出一列“已付合计”，其值等于 payments.csv 中 invoice_id 匹配该发票的所有付款金额之和（无匹配付款时为
+    0）。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:xlsxwriter-tool-workspace-semantic-v1
+- id: intent-amount-mismatch-flag
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 当某发票的“已付合计”与该发票 amount 不相等时，该发票在“发票明细”中被标记为异常（异常状态列取“异常”），金额一致时取“正常”。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:xlsxwriter-tool-workspace-semantic-v1
+- id: intent-unknown-account-flag
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 当某发票的 account_code 未出现在 accounts.csv 的科目代码集合中时，该发票在“发票明细”中被标记为异常（异常状态列取“异常”）。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:xlsxwriter-tool-workspace-semantic-v1
+- id: intent-anomaly-highlight-format
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: “发票明细”中每一条被判定为异常的发票行，其单元格套用了带红色字体颜色的单元格格式，用以视觉标红异常。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:xlsxwriter-tool-workspace-semantic-v1
+- id: intent-summary-counts
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: “汇总”工作表给出发票总数、异常发票数、金额不符发票数与未知科目发票数四项统计，且数值与“发票明细”中的标记结果一致。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:xlsxwriter-tool-workspace-semantic-v1
