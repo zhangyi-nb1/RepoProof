@@ -1,0 +1,260 @@
+task_id: tool-mkdocs-tool-v1
+source_repo:
+  url: https://github.com/mkdocs/mkdocs
+  revision: guided
+  resolved_commit: bb7e8b62185b11d9f59bb7f50b13c15134f62f8a
+  license: BSD
+  distribution: mkdocs
+  import_module: mkdocs
+target_project:
+  kind: local_tool
+  path: fixtures/tool_skeleton_mkdocs-tool
+  package: mkdocs_tool
+  entry_point: mkdocs-tool
+requirement_spec_file: tool-mkdocs-tool-v1.requirements.yaml
+task_family: LOCAL-TOOL
+adoption_shape: WORKSPACE_ONBOARDING
+tool:
+  schema_version: 4
+  name: mkdocs-tool
+  summary: 把一个装满 Markdown 的目录用 MkDocs 1.6.1 构建成可离线浏览、可搜索、带导航目录的静态文档站，交付给下一任维护者。
+  interface:
+    usage: mkdocs-tool <input> --out-dir <new-directory>
+    input:
+      kind: directory
+      format: Markdown 文档目录
+      contract: null
+    output:
+      kind: directory
+      format: workspace directory
+      contract: null
+    exit_codes:
+      '0': success
+      '1': user_error
+      '2': internal_error
+  delivery_profile_id: workspace_bundle_v1
+  workspace_contract:
+    schema_version: 1
+    rules:
+    - path_pattern: build_site.py
+      role: 由 build_workspace 写出的非可执行 Python 应用文件：读取工作区内 docs/ 与 mkdocs.yml，调用 MkDocs
+        构建静态站到 site/。
+      media_type: text/x-python
+      validation_profile: python_compile_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: mkdocs.yml
+      role: MkDocs 配置文件，声明站点名、主题与导航。
+      media_type: application/yaml
+      validation_profile: yaml_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: README.md
+      role: 面向下一任维护者的交接说明，指导使用 ./run.sh。
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: docs/**/*.md
+      role: 从输入目录规整过来的 Markdown 源文档。
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 400
+      executable: false
+    - path_pattern: run.sh
+      role: Harness-owned offline Python launcher
+      media_type: text/x-shellscript
+      validation_profile: shell_v1
+      min_count: 1
+      max_count: 1
+      executable: true
+    - path_pattern: requirements.lock.txt
+      role: Frozen Python dependency lock
+      media_type: text/plain
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: THIRD_PARTY_NOTICES.md
+      role: Frozen third-party wheel inventory
+      media_type: text/markdown
+      validation_profile: text_utf8_v1
+      min_count: 1
+      max_count: 1
+      executable: false
+    - path_pattern: vendor/wheels/*.whl
+      role: Frozen offline Python wheel closure
+      media_type: application/zip
+      validation_profile: wheel_v1
+      min_count: 1
+      max_count: 256
+      executable: false
+    allow_extra_files: true
+    entrypoints:
+    - run.sh
+    runnable: true
+    smoke_command:
+    - ./run.sh
+    smoke_timeout_seconds: 120
+    require_offline_wheelhouse: true
+    runtime_python_entrypoint: build_site.py
+    limits:
+      max_files: 512
+      max_total_bytes: 268435456
+      max_file_bytes: 67108864
+      max_depth: 12
+      max_path_bytes: 240
+    directory_profiles: []
+capability:
+  statement: '用户目标：团队的 Markdown 文档散在一个目录里，我想生成一个不用联网就能翻、能搜、有目录的文档站，交接给下一任。
+
+    公开行为承诺：
+
+    - [docs-coverage] 输入目录（或单个 Markdown 文件）中的每一篇 .md/.markdown 文档都会被收录到工作区 docs/ 下，.markdown
+    归一化为 .md，且其原始 Unicode 文本内容按 MkDocs 逐字保留。
+
+    - [nav-mirrors-tree] mkdocs.yml 的 nav 与目录层级一一对应：每个 .md 生成一个导航条目，子目录生成一个分组，条目与分组均按名称排序。
+
+    - [builds-static-site] 用 ./run.sh 运行后，MkDocs 1.6.1 会把 docs/ 与 mkdocs.yml 构建为 site/
+    目录下的静态站点，其中包含可在浏览器离线打开的 site/index.html。
+
+    - [search-enabled] mkdocs.yml 启用 search 插件，因此构建出的站点包含客户端搜索索引，可离线搜索文档内容。
+
+    公开产物协议：
+
+    - [docs-md-files -> docs-coverage] 定位：工作区 docs/ 目录下递归列出的所有 *.md 文件相对路径及其 UTF-8
+    文本内容。；值表示：文件集合：每项为相对于 docs/ 的 POSIX 路径（以 .md 结尾）到该文件完整 UTF-8 文本的映射。
+
+    - [mkdocs-nav-block -> nav-mirrors-tree] 定位：工作区 mkdocs.yml 顶层 YAML 键 nav 的值。；值表示：YAML
+    序列；元素为单键映射 {标题: 相对路径}（文件条目）或 {分组标题: 子序列}（目录分组），同级按名称升序排列。
+
+    - [built-index-html -> builds-static-site] 定位：执行 ./run.sh 后生成的 site/index.html
+    文件是否存在且为可解析 HTML 文档。；值表示：布尔存在性加 HTML 文档根元素；无示例值。
+
+    - [search-plugin-entry -> search-enabled] 定位：工作区 mkdocs.yml 顶层 YAML 键 plugins
+    的值序列。；值表示：YAML 字符串序列，其中包含插件名 search。
+
+    统一运行语义：当输入不属于公开承诺定义的有效域时抛 UserInputError（CLI exit 1）；相同输入重复运行得到逐字节一致的结果；运行期完全离线。'
+  output_schema: MkDocsOfflineSite
+  intent_contract:
+    schema_version: 1
+    user_goal: 团队的 Markdown 文档散在一个目录里，我想生成一个不用联网就能翻、能搜、有目录的文档站，交接给下一任。
+    user_goal_sha256: a47e0f1666062c4bfe16c1df7115e9a319c963330a581e4b60364903d576c6d1
+    commitments:
+    - commitment_id: docs-coverage
+      public_text: 输入目录（或单个 Markdown 文件）中的每一篇 .md/.markdown 文档都会被收录到工作区 docs/ 下，.markdown
+        归一化为 .md，且其原始 Unicode 文本内容按 MkDocs 逐字保留。
+      rationale: 用户的核心需求是把散落的 Markdown 全部搬进文档站，不能丢文档。
+      origin: MODEL_PROPOSED
+    - commitment_id: nav-mirrors-tree
+      public_text: mkdocs.yml 的 nav 与目录层级一一对应：每个 .md 生成一个导航条目，子目录生成一个分组，条目与分组均按名称排序。
+      rationale: 用户要求“有目录”，导航结构必须可预测地反映源目录树。
+      origin: MODEL_PROPOSED
+    - commitment_id: builds-static-site
+      public_text: 用 ./run.sh 运行后，MkDocs 1.6.1 会把 docs/ 与 mkdocs.yml 构建为 site/ 目录下的静态站点，其中包含可在浏览器离线打开的
+        site/index.html。
+      rationale: 用户要求“不用联网就能翻”的静态文档站，构建产物必须由上游 MkDocs 生成。
+      origin: MODEL_PROPOSED
+    - commitment_id: search-enabled
+      public_text: mkdocs.yml 启用 search 插件，因此构建出的站点包含客户端搜索索引，可离线搜索文档内容。
+      rationale: 用户明确要求“能搜”。
+      origin: MODEL_PROPOSED
+    artifact_protocol:
+      schema_version: 1
+      protocol_id: mkdocs-offline-site
+      observations:
+      - observation_id: docs-md-files
+        commitment_ids:
+        - docs-coverage
+        locator: 工作区 docs/ 目录下递归列出的所有 *.md 文件相对路径及其 UTF-8 文本内容。
+        value_encoding: 文件集合：每项为相对于 docs/ 的 POSIX 路径（以 .md 结尾）到该文件完整 UTF-8 文本的映射。
+      - observation_id: mkdocs-nav-block
+        commitment_ids:
+        - nav-mirrors-tree
+        locator: 工作区 mkdocs.yml 顶层 YAML 键 nav 的值。
+        value_encoding: 'YAML 序列；元素为单键映射 {标题: 相对路径}（文件条目）或 {分组标题: 子序列}（目录分组），同级按名称升序排列。'
+      - observation_id: built-index-html
+        commitment_ids:
+        - builds-static-site
+        locator: 执行 ./run.sh 后生成的 site/index.html 文件是否存在且为可解析 HTML 文档。
+        value_encoding: 布尔存在性加 HTML 文档根元素；无示例值。
+      - observation_id: search-plugin-entry
+        commitment_ids:
+        - search-enabled
+        locator: 工作区 mkdocs.yml 顶层 YAML 键 plugins 的值序列。
+        value_encoding: YAML 字符串序列，其中包含插件名 search。
+    delivery:
+      profile_id: workspace_bundle_v1
+      support_status: SUPPORTED
+      origin: MODEL_PROPOSED
+      requirements:
+        inputs:
+        - kind: directory
+          location: local
+          representation: utf8_text
+          format_label: Markdown 文档目录
+          role: 一个本地目录，内含若干 .md 文档（可含子目录），作为文档站的源内容。
+        outputs:
+        - kind: directory
+          format_id: workspace_bundle
+          format_label: 离线多文件工作区
+          role: 一个可离线打开、带导航目录与客户端搜索的 MkDocs 静态站点工作区，交接给下一任。
+        network: offline
+        credentials: none
+        lifecycle: per_invocation
+        runtime: local_cpu
+        browser: none
+        external_side_effects: none
+      admitted_output_format_id: workspace_bundle
+    confirmation:
+      confirmed_by: USER
+      confirmed_at: '2026-09-04T10:53:22.166211Z'
+      semantics_sha256: fd5cc629c3ea30f01925202a83008a29e3b3e03d2aa43f0989fe4a883a46e7ac
+environment:
+  os: linux
+  arch: arm64
+  python: '3.12'
+  cpu_only: true
+  network_install: true
+  network_test: false
+constraints:
+  forbidden:
+  - gpu
+  - privileged_container
+  - oracle_write
+  - model_download
+  - network_at_test_time
+  editable_zones:
+  - tool
+  forbidden_install_extras: []
+budgets:
+  max_agent_steps: 20
+  max_wall_time_minutes: 30
+  max_command_minutes: 5
+  max_semantic_recoveries: 3
+  max_same_action: 2
+  max_patch_files: 16
+  max_patch_lines: 1200
+  max_input_tokens_total: 400000
+  max_output_tokens_total: 40000
+  monetary_soft_cap_usd: 5.0
+acceptance:
+  capability_command:
+  - pytest
+  - -q
+  - /oracle/test_capability.py
+  regression_command:
+  - pytest
+  - -q
+  - public_tests/test_interface_contract.py
+  probe_script: direct_tool_probe.py
+  semantic_verifier:
+    protocol: repoproof-workspace-semantic-verifier-v2
+    verifier_id: mkdocs-tool-workspace-semantic-v1
+    source_file: oracle/tool-mkdocs-tool-v1/semantic_verifier.py
+    source_sha256: b9272d04e09dd446db5cea1e8f19eea67f5d86e61c4b9c5eb9941f9a86324bfb
+    required_for_operational_active: true

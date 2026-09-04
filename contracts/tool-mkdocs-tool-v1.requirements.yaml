@@ -1,0 +1,81 @@
+task_id: tool-mkdocs-tool-v1
+controls:
+  positive: controls/tool-mkdocs-tool-v1/positive
+  negatives:
+  - path: controls/tool-mkdocs-tool-v1/negative_empty
+    label: NC_empty
+    must_fail_nodes:
+    - test_example
+  - path: controls/tool-mkdocs-tool-v1/negative_hardcode
+    label: NC_hardcode
+    must_fail_nodes:
+    - test_held_example
+requirements:
+- id: workspace-examples
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.statement
+  public_text: Generate the user-confirmed workspace for every admitted input.
+  examples:
+  - handoff-docs
+  - single-readme
+  - nested-sections
+  oracle_nodes:
+  - test_capability::test_example_1
+  - test_capability::test_example_2
+  - test_capability::test_example_3
+  - test_capability::test_held_example_1
+- id: workspace-interface
+  owner: HOST_INPUT_GUARD
+  severity: HARD
+  source_field: tool.interface
+  public_text: Accept one local path and atomically create only a new --out-dir.
+  examples:
+  - mkdocs-tool <input> --out-dir <new-directory>
+  oracle_nodes:
+  - test_interface_contract::test_help_reachable
+  - test_interface_contract::test_missing_input_is_user_error
+  - test_interface_contract::test_existing_output_is_not_overwritten
+- id: workspace-structure
+  owner: HARNESS
+  severity: HARD
+  source_field: tool.workspace_contract
+  public_text: Every output must satisfy the confirmed directory structure and format
+    contract.
+  examples: []
+  oracle_nodes: []
+  verified_by: workspace-structure-validator-v1
+- id: intent-docs-coverage
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 输入目录（或单个 Markdown 文件）中的每一篇 .md/.markdown 文档都会被收录到工作区 docs/ 下，.markdown
+    归一化为 .md，且其原始 Unicode 文本内容按 MkDocs 逐字保留。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:mkdocs-tool-workspace-semantic-v1
+- id: intent-nav-mirrors-tree
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: mkdocs.yml 的 nav 与目录层级一一对应：每个 .md 生成一个导航条目，子目录生成一个分组，条目与分组均按名称排序。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:mkdocs-tool-workspace-semantic-v1
+- id: intent-builds-static-site
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: 用 ./run.sh 运行后，MkDocs 1.6.1 会把 docs/ 与 mkdocs.yml 构建为 site/ 目录下的静态站点，其中包含可在浏览器离线打开的
+    site/index.html。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:mkdocs-tool-workspace-semantic-v1
+- id: intent-search-enabled
+  owner: ADAPTER
+  severity: HARD
+  source_field: capability.intent_contract.commitments
+  public_text: mkdocs.yml 启用 search 插件，因此构建出的站点包含客户端搜索索引，可离线搜索文档内容。
+  examples: []
+  oracle_nodes: []
+  verified_by: semantic-verifier:mkdocs-tool-workspace-semantic-v1

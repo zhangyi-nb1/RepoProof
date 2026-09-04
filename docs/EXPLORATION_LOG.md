@@ -5346,3 +5346,23 @@ before/after 哈希与逐轮证据本来就在记录里,系统只是从不做这
 
 证据落盘:`runs/evidence/workspace-replays/workspace-replay-20260904T105042Z.json`
 与 `…20260904T105339Z.json`。
+
+## 状态 · 2026-09-04 · c5 转 ACTIVE:8/9,记分牌 89%
+
+`tool-mkdocs-tool-v1` 自检 **10 轮 9 次修复**通过——**四个主人全部上场**(判官 4、生产者 3、
+构建器 2、合同 1),正是"分歧证据的主人不止两个"那处修复在起作用——冻结 → 彩排 → 真发
+`VERIFIED_TOOL_READY` → 新鲜输入审计通过(全新蓝图 **`unicode-heavy-docs`**,恰好就是它
+attempt-43 栽在 `Café` 上的那一类输入)→ `ACTIVE`。c5 此前连吃 43 次失败。
+
+新工具单独做了零模型净室复跑:**6 passed**。
+
+**注册表核对**:c1 xlsxwriter-v2、c2 python-pptx-v5、c3 pygal-v5、c4 pillow-v3、
+c5 mkdocs-v1、c6 icalendar-v1、c7 nbformat-v4 —— **7/8 ACTIVE**;c8 babel 未注册。
+含 N0 负控 = **8/9 ≈ 89%**。
+
+**c8 是唯一剩下的**,而它不是模型能力问题:八趟连吃同一条上游自陈的环境错误(钉版源码检出
+没有构建数据文件),生产者每次都真改写、失败原话一字不变——今天新加的"点名无效主人"标记
+正是为这种情形准备的。它的真因(phase-1 从不先证明上游在密封环境里能用)仍只有一个前置
+上下文,依纪律不动手。
+
+收口写入 `m6_3_terminal_states_v3.json`;**前两轮收口记录一字未改**,三份并存。

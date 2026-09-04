@@ -77,3 +77,17 @@
 {"case_id": "c5-offline-docs-site", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T06:51:11+00:00"}
 {"case_id": "c5-offline-docs-site", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T07:13:35+00:00"}
 {"case_id": "c5-offline-docs-site", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T07:28:49+00:00"}
+{"case_id": "c5-offline-docs-site", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T08:07:56+00:00"}
+{"case_id": "c8-translation-catalog-pack", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T08:07:56+00:00"}
+{"case_id": "c5-offline-docs-site", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T08:22:55+00:00"}
+{"case_id": "c8-translation-catalog-pack", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T08:22:55+00:00"}
+{"case_id": "c5-offline-docs-site", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T08:36:59+00:00"}
+{"case_id": "c8-translation-catalog-pack", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T08:36:59+00:00"}
+{"case_id": "c5-offline-docs-site", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T09:12:41+00:00"}
+{"case_id": "c8-translation-catalog-pack", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T09:12:41+00:00"}
+{"case_id": "c5-offline-docs-site", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T09:36:50+00:00"}
+{"case_id": "c8-translation-catalog-pack", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T09:36:50+00:00"}
+{"case_id": "c5-offline-docs-site", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T10:02:33+00:00"}
+{"case_id": "c8-translation-catalog-pack", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T10:02:33+00:00"}
+{"case_id": "c5-offline-docs-site", "phase": 2, "ok": false, "status": "PHASE1_NOT_REHEARSED", "started_at": "2026-09-04T10:43:00+00:00"}
+{"case_id": "c5-offline-docs-site", "phase": 2, "ok": true, "status": "ACTIVE", "started_at": "2026-09-04T10:53:56+00:00", "finished_at": "2026-09-04T11:05:56+00:00", "stop_stage": null, "stop_reason_codes": [], "task_id": "tool-mkdocs-tool-v1"}

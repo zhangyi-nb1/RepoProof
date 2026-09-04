@@ -2,7 +2,7 @@
   "_denominators": {
     "all_valid_run_outcomes": "全部有效发次里的 PASS 数(含机制消融)",
     "development_baseline_runs": "开发套件上的常规发次(**全台账口径**,不限阶段;新前缀的发次也会进这个数)",
-    "heldout_model_evaluation_runs": "未见任务能力评测(已扣除冒烟/探索/无效/机制四类);台账里的宿主:['local-tool/biopython-fasta-shortlist', 'local-tool/biopython-tool', 'local-tool/chardet-tool', 'local-tool/csvkit-tool', 'local-tool/datasette-tool', 'local-tool/emoji-tool', 'local-tool/feedparser-tool', 'local-tool/filetype-tool', 'local-tool/ftfy-tool', 'local-tool/html2md', 'local-tool/humanize-tool', 'local-tool/icalendar-tool', 'local-tool/inflect-tool', 'local-tool/jieba-tool', 'local-tool/json5-tool', 'local-tool/jsonschema-report', 'local-tool/jsonschema-tool', 'local-tool/junitparser-tool', 'local-tool/marimo-tool', 'local-tool/markdown-it-py-tool', 'local-tool/markdown-tool', 'local-tool/nbformat-tool', 'local-tool/networkx-dependency-risk', 'local-tool/networkx-tool', 'local-tool/num2words-tool', 'local-tool/opencc-tool', 'local-tool/pdf-table', 'local-tool/pdfplumber-tool', 'local-tool/phonenumbers-tool', 'local-tool/pillow-tool', 'local-tool/pint-field-kit', 'local-tool/pint-tool', 'local-tool/pygal-tool', 'local-tool/pygments-tool', 'local-tool/pypdf-tool', 'local-tool/pypinyin-tool', 'local-tool/pyspellchecker-tool', 'local-tool/python-dateutil-tool', 'local-tool/python-docx-tool', 'local-tool/python-pptx-tool', 'local-tool/python-slugify', 'local-tool/python-slugify-tool', 'local-tool/pyyaml-tool', 'local-tool/research-project-starter', 'local-tool/rispy-screening-table', 'local-tool/rispy-tool', 'local-tool/rrule-expand', 'local-tool/tabulate-tool', 'local-tool/textual-taskdesk', 'local-tool/tomli-tool', 'local-tool/trafilatura-tool', 'local-tool/unidecode-tool', 'local-tool/webcolors-tool', 'local-tool/xlsxwriter-tool', 'local-tool/xmltodict-tool', 'pallets/click', 'tobymao/sqlglot', 'zhangyi-nb1/offerclaw']",
+    "heldout_model_evaluation_runs": "未见任务能力评测(已扣除冒烟/探索/无效/机制四类);台账里的宿主:['local-tool/biopython-fasta-shortlist', 'local-tool/biopython-tool', 'local-tool/chardet-tool', 'local-tool/csvkit-tool', 'local-tool/datasette-tool', 'local-tool/emoji-tool', 'local-tool/feedparser-tool', 'local-tool/filetype-tool', 'local-tool/ftfy-tool', 'local-tool/html2md', 'local-tool/humanize-tool', 'local-tool/icalendar-tool', 'local-tool/inflect-tool', 'local-tool/jieba-tool', 'local-tool/json5-tool', 'local-tool/jsonschema-report', 'local-tool/jsonschema-tool', 'local-tool/junitparser-tool', 'local-tool/marimo-tool', 'local-tool/markdown-it-py-tool', 'local-tool/markdown-tool', 'local-tool/mkdocs-tool', 'local-tool/nbformat-tool', 'local-tool/networkx-dependency-risk', 'local-tool/networkx-tool', 'local-tool/num2words-tool', 'local-tool/opencc-tool', 'local-tool/pdf-table', 'local-tool/pdfplumber-tool', 'local-tool/phonenumbers-tool', 'local-tool/pillow-tool', 'local-tool/pint-field-kit', 'local-tool/pint-tool', 'local-tool/pygal-tool', 'local-tool/pygments-tool', 'local-tool/pypdf-tool', 'local-tool/pypinyin-tool', 'local-tool/pyspellchecker-tool', 'local-tool/python-dateutil-tool', 'local-tool/python-docx-tool', 'local-tool/python-pptx-tool', 'local-tool/python-slugify', 'local-tool/python-slugify-tool', 'local-tool/pyyaml-tool', 'local-tool/research-project-starter', 'local-tool/rispy-screening-table', 'local-tool/rispy-tool', 'local-tool/rrule-expand', 'local-tool/tabulate-tool', 'local-tool/textual-taskdesk', 'local-tool/tomli-tool', 'local-tool/trafilatura-tool', 'local-tool/unidecode-tool', 'local-tool/webcolors-tool', 'local-tool/xlsxwriter-tool', 'local-tool/xmltodict-tool', 'pallets/click', 'tobymao/sqlglot', 'zhangyi-nb1/offerclaw']",
     "heldout_passes": "held-out 里的通过数 —— 其余三类都有分子,只给分母会让人自己配一个",
     "mechanism_ablation_runs": "E1/AR 机制与判据实验 —— 不计能力",
     "observation_policy_qualification_runs": "WV:观测策略(投影旋钮)在线资格审 —— **不充闸门、不计模型能力**",
@@ -14,11 +14,11 @@
   },
   "_source": "scripts/gate_report.py — 闸门数字只能出自此脚本;散文只解释不下判断",
   "all_runs": {
-    "all_valid_run_outcomes": 273,
-    "assisted_repair_runs": 318,
+    "all_valid_run_outcomes": 275,
+    "assisted_repair_runs": 320,
     "development_baseline_runs": 68,
-    "exploratory": 97,
-    "exploratory_passes": 76,
+    "exploratory": 98,
+    "exploratory_passes": 77,
     "exploratory_run_ids": [
       "t3-offerclaw-browser-use-v5-20260812-024353",
       "t3-offerclaw-browser-use-v5-20260812-024503",
@@ -116,7 +116,8 @@
       "tool-python-pptx-tool-v4-20260903-174032",
       "tool-python-pptx-tool-v5-20260904-035354",
       "tool-xlsxwriter-tool-v2-20260904-104442",
-      "tool-pygal-tool-v5-20260904-123152"
+      "tool-pygal-tool-v5-20260904-123152",
+      "tool-mkdocs-tool-v1-20260904-185404"
     ],
     "heldout_model_evaluation_runs": 8,
     "heldout_passes": 2,
@@ -174,8 +175,8 @@
       }
     ],
     "provisional_evidence_runs": 4,
-    "smoke": 221,
-    "smoke_passes": 133,
+    "smoke": 222,
+    "smoke_passes": 134,
     "smoke_run_ids": [
       "t1-offerclaw-fastapi-mcp-v1-20260809-180850",
       "t1-offerclaw-fastapi-mcp-v1-20260809-182414",
@@ -397,9 +398,10 @@
       "tool-python-pptx-tool-v4-20260903-173917",
       "tool-python-pptx-tool-v5-20260904-035242",
       "tool-xlsxwriter-tool-v2-20260904-101704",
-      "tool-pygal-tool-v5-20260904-121138"
+      "tool-pygal-tool-v5-20260904-121138",
+      "tool-mkdocs-tool-v1-20260904-185329"
     ],
-    "total": 485,
+    "total": 487,
     "treatment_delivered_runs": 13,
     "treatment_not_delivered_runs": 4
   },
@@ -431,6 +433,7 @@
     "local-tool/marimo-tool",
     "local-tool/markdown-it-py-tool",
     "local-tool/markdown-tool",
+    "local-tool/mkdocs-tool",
     "local-tool/nbformat-tool",
     "local-tool/networkx-dependency-risk",
     "local-tool/networkx-tool",
@@ -471,7 +474,7 @@
   ],
   "inputs": {
     "adjudications_jsonl_sha256": "e7b8f1e35d3720d1d98a298d9c5673fd42008ddf3aadfff85289b3c4dfb46b9a",
-    "runs_jsonl_sha256": "b25d6500b32552ffbf4dd4f85ffedeaca5203d94af3956a82fd914122ab6e535"
+    "runs_jsonl_sha256": "0a25d838bfd9300eca96563c6d841f510dc749c6a0798dcb3cce0f12dec8e2be"
   },
   "stages": {
     "T1": {

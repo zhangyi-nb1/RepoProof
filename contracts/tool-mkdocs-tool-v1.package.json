@@ -1,0 +1,51 @@
+{
+  "acceptance_capability_command": [
+    "pytest",
+    "-q",
+    "/oracle/test_capability.py"
+  ],
+  "acceptance_regression_command": [
+    "pytest",
+    "-q",
+    "public_tests/test_interface_contract.py"
+  ],
+  "collection_manifest_sha256": null,
+  "consumer_fixture_tree_sha256": "3846ae8b563b19f34120108c0c202dd0ea8f8023d2f12309e5b6dc07a4bba049",
+  "contract_sha256": "48d21368d41b36bcc714bf6af73b2f31db7e4730db9094b61700558d33af72fb",
+  "controls_summary": null,
+  "environment_constraints": null,
+  "expected_capability_nodes": null,
+  "expected_regression_nodes": null,
+  "held_out_fixture_sha256": "c40449525ca8c452ee6472a2ab31d30c47418f8d7a398370727a693cda627f78",
+  "image_digest": null,
+  "oracle_tree_sha256": "f171f743452813841cc068a7ecc287b911573b8f3047ea81d05672e805248267",
+  "prompt_manifest_sha256": null,
+  "public_examples_sha256": null,
+  "public_fixture_sha256": "148413edc16a4f07e5c1ab264ab76e1a2c25432177235a74cd4138a1d3ab4d6c",
+  "public_tests_tree_sha256": null,
+  "requirement_spec_sha256": null,
+  "responsibility_matrix": null,
+  "root_hash": "5aef1fb0d984a88acab09424974ed8dd63f90f0cefe2b507c23cc78b22255781",
+  "source_commit": "bb7e8b62185b11d9f59bb7f50b13c15134f62f8a",
+  "source_git_tree_hash": "ab486a1d9e9032569fea19aed4e0529e14eb15bf",
+  "task_id": "tool-mkdocs-tool-v1",
+  "wheelhouse_root": "81573ff96f6f5d27023727d900fc40c543986a303e77d707a83d681708d96d19",
+  "wheelhouse_wheels": {
+    "click-8.5.0-py3-none-any.whl": "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360",
+    "ghp_import-2.1.0-py3-none-any.whl": "8337dd7b50877f163d4c0289bc1f1c7f127550241988d568c1db512c4324a619",
+    "jinja2-3.1.6-py3-none-any.whl": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67",
+    "markdown-3.10.3-py3-none-any.whl": "fa6c92a00a4a3c98b22728c64a935ae1928250ae65058a6ded814d2cc29a4cea",
+    "markupsafe-3.0.3-cp312-cp312-macosx_11_0_arm64.whl": "1872df69a4de6aead3491198eaf13810b565bdbeec3ae2dc8780f14458ec73ce",
+    "mergedeep-1.3.4-py3-none-any.whl": "70775750742b25c0d8f36c55aed03d24c3384d17c951b3175d898bd778ef0307",
+    "mkdocs-1.6.1-py3-none-any.whl": "db91759624d1647f3f34aa0c3f327dd2601beae39a366d6e064c03468d35c20e",
+    "mkdocs_get_deps-0.2.2-py3-none-any.whl": "e7878cbeac04860b8b5e0ca31d3abad3df9411a75a32cde82f8e44b6c16ff650",
+    "packaging-26.3-py3-none-any.whl": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+    "pathspec-1.1.1-py3-none-any.whl": "a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189",
+    "platformdirs-4.11.7-py3-none-any.whl": "8a02cb259042c79d1cd0450facc2fe6dc9d303ae7901afbe33bf8ea0b188cef6",
+    "python_dateutil-2.9.0.post0-py2.py3-none-any.whl": "a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427",
+    "pyyaml-6.0.3-cp312-cp312-macosx_11_0_arm64.whl": "fc09d0aa354569bc501d4e787133afc08552722d3ab34836a80547331bb5d4a0",
+    "pyyaml_env_tag-1.1-py3-none-any.whl": "17109e1a528561e32f026364712fee1264bc2ea6715120891174ed1b980d2e04",
+    "six-1.17.0-py2.py3-none-any.whl": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+    "watchdog-6.0.0-cp312-cp312-macosx_11_0_arm64.whl": "6f10cb2d5902447c7d0da897e2c6768bca89174d0c6e1e30abec5421af97a5b0"
+  }
+}
