@@ -541,13 +541,25 @@ def _alter_character(char: str) -> str:
     return "y" if char == "x" else "x"
 
 
-def _text_content_mutations(payload: bytes, *, limit: int) -> list[tuple[str, bytes]]:
+def _text_content_mutations(
+    payload: bytes, *, limit: int, input_tokens: tuple[str, ...] | frozenset[str] = ()
+) -> list[tuple[str, bytes]]:
     """Edit one character on each of up to ``limit`` sampled lines, then truncate.
 
     Commitments usually cover only some lines of a delivered file (a heading,
     a command, a table row).  Sampling first, last and evenly spaced lines asks
     the honest question — does the verifier recompute *any* content of this
     file — instead of demanding that every prose line be checked.
+
+    On a machine-generated page the semantics are a small minority of the
+    bytes: theme markup, asset links, scripts and navigation scaffolding fill
+    the rest, and an even sample lands on them almost every time.  The question
+    then silently becomes "does the verifier check the boilerplate", which a
+    semantic judge is designed *not* to do and which the frozen golden identity
+    already pins byte for byte
+    (incident-mutation-sampling-misses-the-semantics-*).  So lines carrying a
+    token that also occurs in the input are preferred; a file with no such line
+    falls back to the even sample, which asks no less than before.
     """
 
     try:
@@ -570,11 +582,25 @@ def _text_content_mutations(payload: bytes, *, limit: int) -> list[tuple[str, by
 
     budget = max(1, int(limit))
     edit_budget = max(1, budget - 1)
-    if len(nonempty) <= edit_budget:
-        sampled = list(nonempty)
-    else:
-        step = (len(nonempty) - 1) / (edit_budget - 1) if edit_budget > 1 else 0
-        sampled = sorted({nonempty[round(k * step)] for k in range(edit_budget)})
+    def _even(rows: list[int], count: int) -> list[int]:
+        if count <= 0 or not rows:
+            return []
+        if len(rows) <= count:
+            return list(rows)
+        step = (len(rows) - 1) / (count - 1) if count > 1 else 0
+        return sorted({rows[round(k * step)] for k in range(count)})
+
+    carrying = [
+        index
+        for index in nonempty
+        if any(token and token in lines[index] for token in input_tokens)
+    ]
+    # Semantic lines first, then the even sample fills the rest of the budget:
+    # targeting adds questions, it never removes any.
+    chosen = _even(carrying, edit_budget)
+    remaining = [index for index in nonempty if index not in set(chosen)]
+    chosen += _even(remaining, edit_budget - len(chosen))
+    sampled = sorted(set(chosen))
     mutations: list[tuple[str, bytes]] = []
     for index in sampled:
         edited = _edit(index)
@@ -597,11 +623,40 @@ def _binary_content_mutations(payload: bytes) -> list[tuple[str, bytes]]:
     return mutations
 
 
-def content_mutations(payload: bytes, *, limit: int) -> list[tuple[str, bytes]]:
+def content_mutations(
+    payload: bytes, *, limit: int, input_tokens: tuple[str, ...] | frozenset[str] = ()
+) -> list[tuple[str, bytes]]:
     """Deterministic content mutations for one delivered file."""
 
-    mutations = _text_content_mutations(payload, limit=limit) or _binary_content_mutations(payload)
+    mutations = _text_content_mutations(
+        payload, limit=limit, input_tokens=input_tokens
+    ) or _binary_content_mutations(payload)
     return mutations[: max(1, int(limit))]
+
+
+def _input_semantic_tokens(input_path: Path, *, limit: int = 400) -> frozenset[str]:
+    """Distinctive words the input actually contains, for targeting mutations.
+
+    Reading is bounded and best effort: an unreadable or binary input simply
+    yields no tokens, and the probe falls back to its even sample.
+    """
+
+    import re
+
+    tokens: set[str] = set()
+    paths = [input_path] if input_path.is_file() else sorted(input_path.rglob("*"))
+    for path in paths[:64]:
+        if path.is_symlink() or not path.is_file():
+            continue
+        try:
+            text = path.read_bytes()[:200_000].decode("utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for word in re.findall(r"[0-9A-Za-z\u4e00-\u9fff][0-9A-Za-z_\u4e00-\u9fff-]{3,31}", text):
+            tokens.add(word)
+            if len(tokens) >= limit:
+                return frozenset(tokens)
+    return frozenset(tokens)
 
 
 def probe_workspace_verifier_discrimination(
@@ -680,11 +735,14 @@ def probe_workspace_verifier_discrimination(
         )
         input_snapshot = snapshots / "input"
         snapshot_admitted_path(Path(input_path), input_snapshot)
+        input_tokens = _input_semantic_tokens(Path(input_path))
         for index, (relative, path) in enumerate(owned):
             payload = path.read_bytes()
             results: list[WorkspaceVerifierMutationV1] = []
             for mutation_index, (kind, mutated_payload) in enumerate(
-                content_mutations(payload, limit=max_mutations_per_file)
+                content_mutations(
+                    payload, limit=max_mutations_per_file, input_tokens=input_tokens
+                )
             ):
                 stage = root / f"mutation-{index}-{mutation_index}"
                 source_copy = stage / "source"
