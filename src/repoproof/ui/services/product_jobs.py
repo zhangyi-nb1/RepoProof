@@ -7276,7 +7276,9 @@ def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repai
 
     from repoproof.adoption.intake.draft_selfcheck import (
         ABSOLUTE_REPAIR_CEILING,
+        INEFFECTIVE_OWNER,
         MAX_TOTAL_REPAIR_ROUNDS,
+        MIN_NO_EFFECT_REPAIRS,
         REPAIR_BUDGET_EXHAUSTED,
         repair_target_for,
         retired_any_defect,
@@ -7304,6 +7306,10 @@ def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repai
     hard_cap = max(bound, MAX_TOTAL_REPAIR_ROUNDS) if bound else 0
     ceiling = max(bound, ABSOLUTE_REPAIR_CEILING) if bound else 0
     previous_diagnostics: tuple[str, ...] = ()
+    # A repair that really rewrote its control while the failure's own words did
+    # not move one character says the failure does not depend on that control.
+    no_effect: dict[str, int] = {}
+    last_effective_repair: tuple[str, bool] | None = None
     pending = None
     for round_index in range(1, ceiling + 2):
         check = (
@@ -7314,12 +7320,27 @@ def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repai
         pending = None
         if retired_any_defect(previous_diagnostics, tuple(check.diagnostics)):
             hard_cap = min(hard_cap + 1, ceiling)
+        if last_effective_repair is not None:
+            owner, rewrote = last_effective_repair
+            if rewrote and tuple(check.diagnostics) == previous_diagnostics:
+                no_effect[owner] = no_effect.get(owner, 0) + 1
+            else:
+                no_effect.pop(owner, None)
         previous_diagnostics = tuple(check.diagnostics)
         signature = (
             check.reason_codes[0] if check.reason_codes else "",
             check.diagnostics[0] if check.diagnostics else "",
         )
         if check.check_ok or not repair or stall_repairs >= bound or repairs_done >= hard_cap:
+            useless = [
+                f"{INEFFECTIVE_OWNER}: {owner} 改写了 {count} 次,失败的原话逐字未变"
+                for owner, count in sorted(no_effect.items())
+                if count >= MIN_NO_EFFECT_REPAIRS
+            ]
+            if not check.check_ok and useless:
+                check = check.model_copy(
+                    update={"diagnostics": tuple(check.diagnostics) + tuple(useless)}
+                )
             if not check.check_ok and repair and repairs_done >= hard_cap:
                 # The backstop, not the evidence, ended this one.  Say so: a
                 # truncated-while-converging round otherwise looks exactly like
@@ -7370,6 +7391,15 @@ def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repai
             ),
         )
         repairs_done += 1
+        last_effective_repair = (
+            target,
+            bool(
+                repair_result.outcome == "APPLIED"
+                and repair_result.before_sha256
+                and repair_result.after_sha256
+                and repair_result.before_sha256 != repair_result.after_sha256
+            ),
+        )
         rounds.append(check.model_copy(update={"repair": repair_result}))
         if repair_result.outcome == "UNAVAILABLE":
             break

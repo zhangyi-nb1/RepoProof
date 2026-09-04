@@ -65,6 +65,16 @@ ABSOLUTE_REPAIR_CEILING = 30
 # Marker appended to the round the backstop truncated, so "still converging,
 # budget spent" is never read as "this failure has nowhere to be repaired".
 REPAIR_BUDGET_EXHAUSTED = "SELF_CHECK_REPAIR_BUDGET_EXHAUSTED"
+# Marker for a control that was really rewritten — the repair applied and the
+# before/after hashes differ — while the failure's own words did not move one
+# character.  Change X and the evidence does not budge: the failure does not
+# depend on X.  Without saying so, an upstream that cannot run in the sealed
+# environment reads exactly like a model that could not write a producer
+# (incident-ineffective-owner-not-named-*).
+INEFFECTIVE_OWNER = "SELF_CHECK_REPAIR_HAD_NO_EFFECT"
+# How many no-effect repairs of one owner make the point.  One could be a
+# coincidence of two unrelated edits; two in a row is the owner telling you.
+MIN_NO_EFFECT_REPAIRS = 2
 
 
 def retired_any_defect(
