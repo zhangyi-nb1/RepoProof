@@ -96,6 +96,31 @@ def _now() -> str:
 _EXCEPTION_LINE_RE = re.compile(r"^(?:[\w.]+\.)?([A-Z][A-Za-z0-9_]*(?:Error|Exception|Failure))\b", re.MULTILINE)
 
 
+def located_failure(selfcheck: dict) -> str:
+    """Where the failure actually happened, in the failure's own words.
+
+    The journey report used to carry only a reason code and a generic "review
+    the public contract" line, while the failing round's own diagnostics — the
+    upstream's message and the innermost frame that raised it — sat one file
+    deeper.  A verdict nobody can act on is not a verdict.
+    """
+
+    report = selfcheck.get("report") if isinstance(selfcheck, dict) else None
+    rounds = (report or {}).get("rounds") or []
+    if not rounds:
+        return ""
+    diagnostics = [str(row) for row in (rounds[-1].get("diagnostics") or []) if str(row).strip()]
+    if not diagnostics:
+        return ""
+    located = next((row for row in diagnostics if " @ " in row), "")
+    rows = [diagnostics[0]]
+    if located and located != diagnostics[0]:
+        rows.append(located)
+    elif len(diagnostics) > 1:
+        rows.append(diagnostics[1])
+    return " | ".join(row[:600] for row in rows)
+
+
 def _parse_cli_json(stdout: str) -> dict:
     start = stdout.find("{")
     end = stdout.rfind("}")
@@ -405,22 +430,39 @@ def run_journey_autopilot(
         except (OSError, yaml.YAMLError):
             profile = ""
         codes = tuple(str(c) for c in (selfcheck.get("final_reason_codes") or []))
+        located = located_failure(selfcheck)
+        action = str(selfcheck.get("recommended_action") or "")
+        supply = selfcheck.get("pinned_upstream_supply") or {}
         record(
             "draft",
             selfcheck_ok,
             codes=codes,
-            detail=str(selfcheck.get("recommended_action") or ""),
+            detail=" || ".join(row for row in (located, action) if row),
             started=started,
             extra={
                 "admission_status": status,
                 "self_check_status": str(selfcheck.get("status") or ""),
                 "self_check_rounds": int(selfcheck.get("rounds") or 0),
                 "profile": profile,
+                "located_failure": located or None,
+                "pinned_upstream": (
+                    f"{supply.get('distribution')}@{supply.get('revision')} "
+                    f"{supply.get('severity')} missing={supply.get('missing_count')}"
+                    if supply
+                    else None
+                ),
             },
         )
         if not selfcheck_ok:
+            # A pinned upstream that cannot stand in for its release is a supply
+            # fact, not a failed draft: give it its own terminal state so nobody
+            # reads it as "the model could not write this tool".
+            unsupported = str(selfcheck.get("status") or "") == "UNSUPPORTED_PINNED_UPSTREAM"
             return finish(
-                ok=False, status="DRAFT_SELF_CHECK_FAILED", stop="draft", codes=codes or ("DRAFT_SELF_CHECK_FAILED",)
+                ok=False,
+                status="UNSUPPORTED_PINNED_UPSTREAM" if unsupported else "DRAFT_SELF_CHECK_FAILED",
+                stop="draft",
+                codes=codes or ("DRAFT_SELF_CHECK_FAILED",),
             )
         if profile != "workspace_bundle_v1":
             record(

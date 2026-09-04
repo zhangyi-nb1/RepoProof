@@ -20,6 +20,7 @@ import sys
 import tempfile
 import time
 import uuid
+import zipfile
 from collections.abc import Callable, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
@@ -7262,6 +7263,48 @@ def _apply_draft_control_repair(
         )
 
 
+def _shadowed_upstream_override() -> bool:
+    """The operator may proceed anyway; the choice is explicit and recorded."""
+
+    return os.environ.get("REPOPROOF_ALLOW_SHADOWED_UPSTREAM", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+
+
+def _pinned_upstream_supply_verdict(draft: dict, draft_dir: Path) -> dict | None:
+    """Can the pinned source checkout stand in for the released distribution?
+
+    Model-free and execution-free: the sealed run puts the checkout ahead of the
+    installed release on the import path, so a release file the checkout lacks is
+    simply unreachable.  Returns ``None`` when there is nothing to compare — the
+    check never condemns on absent evidence.
+    """
+
+    from repoproof.adoption.intake.upstream_conformance import pinned_source_tree_shadowing
+
+    source_repo = draft.get("source_repo") or {}
+    distribution = str(source_repo.get("distribution") or "")
+    import_module = str(source_repo.get("import_module") or "")
+    if not distribution or not import_module:
+        return None
+    upstream, _error = _draft_upstream_dir(draft_dir)
+    wheelhouse = Path(draft_dir) / "wheelhouse"
+    if upstream is None or not wheelhouse.is_dir():
+        return None
+    try:
+        verdict = pinned_source_tree_shadowing(
+            upstream_dir=Path(upstream),
+            wheelhouse=wheelhouse,
+            distribution=distribution,
+            import_module=import_module,
+        )
+    except (OSError, ValueError, zipfile.BadZipFile):
+        return None
+    verdict["revision"] = str(source_repo.get("revision") or "")
+    verdict["resolved_commit"] = str(source_repo.get("resolved_commit") or "")
+    return verdict
+
+
 def _self_check_repair_rounds(draft_dir: Path, draft: dict, *, bound: int, repair: bool, drafter):
     """Check, route, repair — until the check passes or the repair budget is spent.
 
@@ -7447,6 +7490,20 @@ def run_draft_self_check(
     readiness = _core_draft_readiness(draft, draft_dir)
     if not readiness.compatible or not readiness.current:
         return _readiness_rejection(readiness, action="起草自检")
+    supply = _pinned_upstream_supply_verdict(draft, draft_dir)
+    if supply and not supply.get("usable") and not _shadowed_upstream_override():
+        # Supply-side, decided before a single model call: the pinned checkout
+        # cannot stand in for the release, so no producer can be written that
+        # works.  Say what is missing and what to change instead of spending
+        # repairs on a control that is not the cause.
+        return {
+            "ok": False,
+            "status": "UNSUPPORTED_PINNED_UPSTREAM",
+            "rounds": 0,
+            "final_reason_codes": ["UNSUPPORTED_PINNED_UPSTREAM"],
+            "recommended_action": supply.get("remediation") or "",
+            "pinned_upstream_supply": supply,
+        }
     bound = MAX_REPAIR_ROUNDS if max_repair_rounds is None else max(0, int(max_repair_rounds))
     if repair and drafter is None:
         from repoproof.adoption.intake.tool_drafter import DraftError, online_drafter

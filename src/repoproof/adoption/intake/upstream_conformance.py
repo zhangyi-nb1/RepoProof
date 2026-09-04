@@ -594,3 +594,134 @@ def precheck_upstream_conformance(
         f"物化期拒绝:{suffix}",
         missing_module=missing,
     )
+
+
+# ---------------------------------------------------------------------------
+# 钉版源码树能不能顶替发行版(零模型、零执行、纯文件集比对)
+#
+# 密封运行把**钉版源码检出**放进 PYTHONPATH,它先于 site-packages 里那份已装
+# 好的发行版。绝大多数仓库两者内容一致,遮蔽无害;可有些仓库的运行期数据是
+# **构建时生成**的(本地化数据表、编译扩展、生成的解析器),git 树里只有一个
+# 空占位目录。这时导入照样成功,真正用到那部分能力才炸,而且**任何**参考实现
+# 都改不动它——失败与模型无关。
+#
+# 判据是可判定的:发行版有、源码树没有的运行期文件集非空即不可用。类型标注类
+# 文件不参与判定(它们不在运行期被读)。
+# ---------------------------------------------------------------------------
+
+_NON_RUNTIME_SUFFIXES = (".pyi",)
+_NON_RUNTIME_NAMES = ("py.typed",)
+
+
+def _runtime_members(names) -> set[str]:
+    keep: set[str] = set()
+    for raw in names:
+        name = str(raw).replace("\\", "/")
+        if name.endswith("/") or "/__pycache__/" in name or name.endswith(".pyc"):
+            continue
+        if ".dist-info/" in name or ".data/" in name:
+            continue
+        if name.endswith(_NON_RUNTIME_SUFFIXES) or name.rsplit("/", 1)[-1] in _NON_RUNTIME_NAMES:
+            continue
+        keep.add(name)
+    return keep
+
+
+def _wheel_for(wheelhouse: Path, distribution: str) -> Path | None:
+    stem = re.sub(r"[-_.]+", "_", str(distribution or "")).lower()
+    if not stem or not wheelhouse.is_dir():
+        return None
+    for candidate in sorted(wheelhouse.glob("*.whl")):
+        head = candidate.name.split("-", 1)[0]
+        if re.sub(r"[-_.]+", "_", head).lower() == stem:
+            return candidate
+    return None
+
+
+def _source_package_dir(upstream_dir: Path, import_module: str) -> Path | None:
+    top = str(import_module or "").split(".", 1)[0]
+    if not top:
+        return None
+    for candidate in (upstream_dir / "src" / top, upstream_dir / top):
+        if candidate.is_dir() and not candidate.is_symlink():
+            return candidate
+    return None
+
+
+def pinned_source_tree_shadowing(
+    *,
+    upstream_dir: Path,
+    wheelhouse: Path,
+    distribution: str,
+    import_module: str,
+) -> dict:
+    """Can the pinned source checkout stand in for the released distribution?
+
+    Returns a public, model-free verdict.  ``usable`` is False only when the
+    released distribution carries runtime files the pinned tree does not have:
+    PYTHONPATH puts the tree first, so those files are simply unreachable and
+    no reference implementation can bring them back.
+    """
+
+    upstream_dir = Path(upstream_dir)
+    wheel = _wheel_for(Path(wheelhouse), distribution)
+    package = _source_package_dir(upstream_dir, import_module)
+    top = str(import_module or "").split(".", 1)[0]
+    if wheel is None or package is None or not top:
+        return {
+            "usable": True,
+            "checked": False,
+            "severity": "NOT_COMPARED",
+            "reason": "没有可比对的发行版或源码包目录(不下结论)",
+            "distribution": str(distribution or ""),
+            "missing_count": 0,
+            "missing_sample": (),
+            "remediation": "",
+        }
+    import zipfile
+
+    with zipfile.ZipFile(wheel) as archive:
+        released = {
+            name for name in _runtime_members(archive.namelist())
+            if name == top or name.startswith(f"{top}/")
+        }
+    present = {
+        f"{top}/{path.relative_to(package).as_posix()}"
+        for path in package.rglob("*")
+        if path.is_file() and not path.is_symlink()
+    }
+    present = _runtime_members(present)
+    missing = sorted(released - present)
+    # 有缺失不等于顶不住。真实形态相差极大:一个仓库缺的是编译出来的界面翻译
+    # (源文件都在),另一个缺的是构建期生成的版本号——两者都跑通了;而"包等于
+    # 不在"的那个仓库,源码树只有发行版**不到零头**的运行期文件。所以判死的
+    # 条件是「多数运行期文件缺失」——不是调出来的阈值,而是一句话:源码树里
+    # 没有的,比有的还多,它就不是发行版的替身。
+    severity = "COMPLETE"
+    if missing:
+        severity = (
+            "PACKAGE_LARGELY_ABSENT" if len(missing) * 2 > len(released) else "PARTIAL"
+        )
+    remediation = ""
+    if severity == "PACKAGE_LARGELY_ABSENT":
+        remediation = (
+            f"钉版源码检出顶不住发行版:{top} 在发行版里有 {len(released)} 个运行期文件,"
+            f"这份检出只有 {len(present)} 个,缺 {len(missing)} 个"
+            f"(如 {', '.join(missing[:3])})。密封运行把源码检出放在 PYTHONPATH 最前,"
+            f"这些文件因此不可达,导入照样成功、真用到才炸,且任何参考实现都改不动它。"
+            f"两条出路:把本任务改钉**已构建的发行版**(而不是源码检出),"
+            f"或改用一个不需要这部分能力的题目。"
+        )
+    return {
+        "usable": severity != "PACKAGE_LARGELY_ABSENT",
+        "checked": True,
+        "severity": severity,
+        "distribution": str(distribution or ""),
+        "import_module": top,
+        "released_files": len(released),
+        "source_files": len(present),
+        "missing_count": len(missing),
+        "missing_sample": tuple(missing[:8]),
+        "wheel": wheel.name,
+        "remediation": remediation,
+    }

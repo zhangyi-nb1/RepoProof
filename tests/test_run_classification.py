@@ -428,6 +428,9 @@ def test_k11_the_heldout_prose_is_derived_from_data_not_written_down():
         "local-tool/marimo-tool",
         "local-tool/markdown-it-py-tool",
         "local-tool/markdown-tool",
+        # 2026-09-04 M6.3 第十五轮:c5 `tool-mkdocs-tool-v1` 零人工到达彩排并转
+        # ACTIVE(批次 EXPLORATORY_UNPREREGISTERED)。棘轮再翻一页。
+        "local-tool/mkdocs-tool",
         # 2026-09-03 M6.3 第十二轮:c7 `tool-nbformat-tool-v4` 零人工到达彩排
         # (零模型离线彩排发,批次 EXPLORATORY_UNPREREGISTERED)。
         "local-tool/nbformat-tool",
