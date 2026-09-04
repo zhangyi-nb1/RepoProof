@@ -5366,3 +5366,46 @@ c5 mkdocs-v1、c6 icalendar-v1、c7 nbformat-v4 —— **7/8 ACTIVE**;c8 babel �
 上下文,依纪律不动手。
 
 收口写入 `m6_3_terminal_states_v3.json`;**前两轮收口记录一字未改**,三份并存。
+
+## 状态 · 2026-09-05 · 失败要说出在哪;顶不住发行版的钉版上游冻结前就判不可实现
+
+操作者复盘时提了两条,都属于"闸门不杀的不许暗中判死"这一族,按其直接要求实施(不套两起
+独立证据门槛,证据按安全例外记录)。
+
+**一、失败要能定位。** 此前顶层报告的全部内容是:
+
+    final_status : DRAFT_SELF_CHECK_FAILED
+    stop_codes   : ['WORKSPACE_REFERENCE_EXECUTION_FAILED']
+    detail       : 人工复核公开合同后重新自检或创建新任务版本
+
+而那趟的公开合同毫无问题——这条建议把人往错误方向推。真正的定位躺在
+`stages/draft.json` 的逐轮记录里从没上浮。现在失败阶段带上**失败自己的话与出错位置**
+(首行诊断 + 含 `@ 文件:行 函数`、含最内层帧的那一行),原建议保留在后。
+
+**二、顶不住发行版的钉版上游,冻结前就判「不可实现」。** 密封运行把钉版源码检出放进
+PYTHONPATH,它先于装好的发行版。多数仓库两者一致,遮蔽无害;但有的仓库运行期数据是构建
+时生成的,git 树里只留占位目录——导入照样成功、真用到才炸,任何参考实现都改不动它。
+
+判据是纯文件集比对(零模型、零执行):**源码树里没有的比有的还多,它就不是发行版的替身**。
+不是调出来的阈值,本批真实盘面零误杀——
+
+| 仓库 | 发行版运行期文件 | 源码树 | 缺失 | 判定 | 该批实际结局 |
+|---|---|---|---|---|---|
+| babel | 1112 | 29 | 1084(97.5%) | PACKAGE_LARGELY_ABSENT | 十趟全败 |
+| mkdocs | 168 | 224 | 32(19%,`.po` 源都在) | PARTIAL(不判死) | **转 ACTIVE** |
+| icalendar | 427 | 462 | 1(构建期版本号) | PARTIAL(不判死) | **转 ACTIVE** |
+| xlsxwriter / pygal / nbformat | — | — | 0 | COMPLETE | 均 ACTIVE |
+
+闸门位置有个教训:第一版放在自检最开头,端到端跑下来**没触发**——密封 wheelhouse 是第一轮
+候选生成时才物化的,比对不到发行版就按设计不下结论。改成"先跑第一轮,失败了再判供给",
+那一刻证据必定在,而第一次模型修复还没发生,判死照样零模型调用。新增对照钉住这一点。
+
+真实旅程验证(c8 attempt-13):
+
+    final_status      : UNSUPPORTED_PINNED_UPSTREAM
+    self_check_rounds : 1                      (此前是 5 轮、4 次白花的模型修复)
+    detail ①          : 上游原话 + reference_impl.py:56 _read_catalog + core.py:61
+    detail ②          : 缺 1084 个文件 → 两条改法(改钉已构建发行版 / 换题)
+
+操作者可用 `REPOPROOF_ALLOW_SHADOWED_UPSTREAM=1` 显式豁免,豁免写进记录。
+全量 2425 passed / 60 skipped / 0 failed。
