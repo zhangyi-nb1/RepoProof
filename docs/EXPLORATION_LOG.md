@@ -5329,3 +5329,20 @@ before/after 哈希与逐轮证据本来就在记录里,系统只是从不做这
 
 顺带记下这次取证本身的一个教训:第一次扫描没扫到 c8,因为诊断带 `@ reference_impl.py:行`
 后缀,源码一改位置就变——**比对前要先把随修改移动的部分剥掉**,否则"逐字不变"永远测不到。
+
+## 状态 · 2026-09-04 · 零模型复跑:今天 15 处 Core 改动没有破坏任何冻结件
+
+按纪律在改完 Core 之后跑净室复跑(冻结 oracle 快照 + 任务密封 wheelhouse + 离线重建包,
+零模型):
+
+- 常规八工具(networkx / datasette / textual-taskdesk / marimo / research-project-starter /
+  csvkit / pdfplumber / trafilatura):**8/8 PASS**;
+- **本批六个 ACTIVE 工具**(icalendar-v1、nbformat-v4、pillow-v3、pygal-v5、python-pptx-v5、
+  xlsxwriter-v2):**6/6 PASS**,含今天新增的两个。
+
+第二组是关键:上一次正是这项检查把 `pygal-tool-v4` 的 READY 结论证伪(验收环境比用户环境
+宽松,藏掉了每个输入都会撞上的 `__pycache__` 缺陷)。这次两个新工具在同一把尺子下干净通过,
+说明本批的 ACTIVE 结论不是被宽松环境喂出来的。
+
+证据落盘:`runs/evidence/workspace-replays/workspace-replay-20260904T105042Z.json`
+与 `…20260904T105339Z.json`。
