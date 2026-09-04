@@ -1796,7 +1796,26 @@ def _compile_workspace_runtime_closure(value: object) -> object:
 
 
 _MAX_PUBLIC_DIAGNOSTICS = 12
-_MAX_PUBLIC_DIAGNOSTIC_MSG = 240
+# Wide enough for the remediation sentences the Harness itself authors.  At
+# 240 a rejection that named the one legal value was cut mid-value —
+# "...must use kind='directory' with format_id='work" — so the one bounded
+# projection repair was asked to act on an instruction that stopped
+# mid-word.  Writing guidance longer than the channel it travels through is
+# a Harness self-contradiction, provable without any case.
+_MAX_PUBLIC_DIAGNOSTIC_MSG = 480
+# When a message really is oversized, say so in the message: a silently
+# clipped instruction reads exactly like a complete one.
+_DIAGNOSTIC_ELLIPSIS = "…"
+
+
+def _bounded_public_msg(text: str) -> str:
+    """Keep the public message bounded, and visible when it had to be cut."""
+
+    value = str(text)
+    if len(value) <= _MAX_PUBLIC_DIAGNOSTIC_MSG:
+        return value
+    keep = _MAX_PUBLIC_DIAGNOSTIC_MSG - len(_DIAGNOSTIC_ELLIPSIS)
+    return value[:keep] + _DIAGNOSTIC_ELLIPSIS
 
 
 def public_validation_diagnostics(exc: BaseException) -> list[dict[str, str]]:
@@ -1824,12 +1843,12 @@ def public_validation_diagnostics(exc: BaseException) -> list[dict[str, str]]:
                 {
                     "loc": ".".join(str(part) for part in (row.get("loc") or ())),
                     "type": str(row.get("type") or "")[:80],
-                    "msg": str(row.get("msg") or "")[:_MAX_PUBLIC_DIAGNOSTIC_MSG],
+                    "msg": _bounded_public_msg(row.get("msg") or ""),
                 }
             )
         return projected
     if isinstance(cause, ValueError):
-        return [{"loc": "", "type": "value_error", "msg": str(cause)[:_MAX_PUBLIC_DIAGNOSTIC_MSG]}]
+        return [{"loc": "", "type": "value_error", "msg": _bounded_public_msg(str(cause))}]
     return []
 
 

@@ -274,6 +274,16 @@ def self_check_status(draft: dict, draft_dir: Path) -> SelfCheckStatus:
     return "PASSED" if report.ok else "FAILED"
 
 
+def _names_the_verifier_by_construction(diagnostics: tuple[str, ...] | list[str]) -> bool:
+    """Sub-diagnostics only the judge can own, whoever else is in the rotation."""
+
+    return any(
+        marker in str(item).upper()
+        for item in diagnostics
+        for marker in ("_BINDING_CONTROL_FAILED", "VERIFIER_INFORMATIONAL_")
+    )
+
+
 def repair_target_for(
     reason_code: str, *, round_index: int, diagnostics: tuple[str, ...] | list[str] = ()
 ) -> RepairTarget | None:
@@ -289,6 +299,16 @@ def repair_target_for(
     code = str(reason_code or "")
     if not code:
         return None
+    if code == _DISAGREEMENT_CODE and _names_the_verifier_by_construction(diagnostics):
+        # A Harness-run binding control proves the verdict ignored the input or
+        # the pinned upstream's returned values, and an informational verdict is
+        # the judge contradicting its own protocol: both are verifier-side by
+        # construction, whatever the same-code counter says.  Spending the
+        # judge's turns on unrelated content sub-failures first sent these to
+        # owners who could not possibly fix them
+        # (incident-binding-control-failure-routed-to-producer-*).  The stall
+        # budget still ends an unfixable one.
+        return "verifier"
     if code == _DISAGREEMENT_CODE:
         # Two evidence-based attempts on the judge (the second one knows the
         # first did not change the outcome), then the producer.  When neither
