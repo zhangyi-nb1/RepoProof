@@ -24,7 +24,7 @@ from collections.abc import Callable, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlsplit
 
 import yaml
@@ -6963,6 +6963,34 @@ def _confirmed_workspace_examples_present(draft_dir: Path) -> bool:
     return bool(isinstance(document, dict) and document.get("examples"))
 
 
+# Channel facts, not draft facts: when one of these ends a repair, no repair
+# happened at all — exactly the offline-drafter situation, which the loop already
+# treats as UNAVAILABLE.  Recording them as ROLLED_BACK kept the loop dealing
+# cards to a dead channel and wrote an external outage into the task's terminal
+# state (incident-provider-interruption-recorded-as-fail-*).
+_CHANNEL_FAILURE_MARKERS: tuple[str, ...] = (
+    "REQUIRES_ONLINE_DRAFTER",
+    "ANTHROPIC_GATEWAY_UNAVAILABLE",
+    "ANTHROPIC_GATEWAY_TIMEOUT",
+    "ANTHROPIC_GATEWAY_CONNECTIVITY_ERROR",
+    "ANTHROPIC_GATEWAY_RATE_LIMITED",
+    "ANTHROPIC_GATEWAY_MODEL_NOT_AVAILABLE",
+    "ANTHROPIC_GATEWAY_NOT_CONFIGURED",
+    "PROVIDER_UNAVAILABLE",
+    "PROVIDER_TIMEOUT",
+    "RATE_LIMITED",
+)
+
+
+def _repair_failure_outcome(message: str) -> Literal["ROLLED_BACK", "UNAVAILABLE"]:
+    """Tell "the channel was down" apart from "the model answered badly"."""
+
+    upper = str(message).upper()
+    if any(marker in upper for marker in _CHANNEL_FAILURE_MARKERS):
+        return "UNAVAILABLE"
+    return "ROLLED_BACK"
+
+
 def _apply_draft_control_repair(
     draft_dir: Path,
     draft: dict,
@@ -7217,9 +7245,7 @@ def _apply_draft_control_repair(
         _restore_draft_control_state(draft_dir, snapshot)
         _finish_draft_control_repair(draft_dir)
         message = str(exc)
-        outcome: RepairOutcome = (
-            "UNAVAILABLE" if "REQUIRES_ONLINE_DRAFTER" in message else "ROLLED_BACK"
-        )
+        outcome: RepairOutcome = _repair_failure_outcome(message)
         code = re.sub(r"[^A-Z0-9_]+", "_", message.upper()).strip("_")[:96] or "DRAFT_CONTROL_REPAIR_FAILED"
         rejection_rows = tuple(
             f"{row.get('loc', '')}: {row.get('msg', '')}".strip(": ")

@@ -321,7 +321,13 @@ _VERIFIER_SYSTEM = (
     "supplied commitments through public upstream semantics. If the public contract "
     "is insufficient, produce a "
     "conservative verifier whose stable reason_codes expose that insufficiency; do "
-    "not invent hidden rules. No extra keys."
+    "not invent hidden rules. No extra keys. "
+    "The verifier environment contains ONLY the Python standard library and the "
+    "pinned upstream distribution named in the supplied upstream identity; any other "
+    "third-party import raises ModuleNotFoundError at verification time and wastes the "
+    "whole check. Read delivered artifacts with the standard library: a zip-container "
+    "document through zipfile plus xml.etree, HTML through html.parser, and structured "
+    "text through json/csv/configparser."
 )
 
 _CODEX_VERIFIER_SYSTEM = _VERIFIER_SYSTEM
@@ -457,7 +463,13 @@ _VERIFIER_REPAIR_SYSTEM = (
     "list-versus-tuple or str-versus-int equality on parsed rows, substring matching on "
     "structured data instead of parsing it, ordinal or numbering rules that differ from "
     "the artifact protocol, and commitment ids that drift from the supplied semantic "
-    "commitments. Fix the actual defect; do not add unrelated defensive checks."
+    "commitments. Fix the actual defect; do not add unrelated defensive checks. "
+    "The verifier environment contains ONLY the Python standard library and the "
+    "pinned upstream distribution named in the supplied upstream identity; any other "
+    "third-party import raises ModuleNotFoundError at verification time and wastes the "
+    "whole check. Read delivered artifacts with the standard library: a zip-container "
+    "document through zipfile plus xml.etree, HTML through html.parser, and structured "
+    "text through json/csv/configparser."
 )
 _FIXTURE_BUILDER_REPAIR_SYSTEM = (
     "You repair ONLY a pre-freeze fixture builder and its 3-4 natural scenario "
