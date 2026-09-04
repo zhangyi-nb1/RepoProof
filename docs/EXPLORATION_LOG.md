@@ -5257,3 +5257,18 @@ xmlns:xlink 的先后顺序,典型的 hash 种子影响集合迭代序。查证:
 仍是一个上下文,不动手。
 
 记分牌:**6/9**。
+
+## 状态 · 2026-09-04 · c3 转 ACTIVE,M6.3 晋级闸门达成
+
+`tool-pygal-tool-v5` 自检 **6 轮 5 次修复**通过(smoke → 可复现性 → 判官两轮 → 构建器)→
+冻结 → 彩排 → 真发 `VERIFIED_TOOL_READY` → 新鲜输入审计通过(全新蓝图
+`unicode_models_multi_day`,artifact_tree d2366844)→ `ACTIVE`。c3 此前 21 次尝试全部倒在自检。
+
+**权威注册表核对**(`tool list`,非旅程记录):
+c1 xlsxwriter-tool-v2、c2 python-pptx-tool-v5、c3 pygal-tool-v5、c4 pillow-tool-v3、
+c6 icalendar-tool-v1、c7 nbformat-tool-v4 —— 六个 ACTIVE;c5 mkdocs / c8 babel 未注册。
+
+**闸门逐条核对**:≥6 个 ACTIVE ✓(恰好 6)、二进制办公类 c1+c2 ✓、图像类 c4 ✓、
+可重生成站点类 c3 ✓ —— **达成**。记分牌 **7/9 ≈ 78%**(含 N0 负控正确)。
+
+收口记录写在 `m6_3_terminal_states_v2.json`;**首轮收口记录一字未改**,两份并存。
