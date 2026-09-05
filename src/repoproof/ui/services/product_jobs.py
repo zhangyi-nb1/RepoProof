@@ -7517,6 +7517,21 @@ def run_draft_self_check(
             # checkout cannot stand in for the release, so there is no producer
             # to write that would work.  Say what is missing and what to change
             # instead of spending repairs on a control that is not the cause.
+            # Every self-check leaves a durable report binding what it proved;
+            # readiness reads that file.  Returning early without writing one
+            # would let an earlier PASSED report survive an unsupported verdict
+            # — the journey says "cannot be built", readiness says "self-check
+            # passed", and the freeze gate is bypassed.
+            unsupported_report = DraftSelfCheckReportV1(
+                ok=False,
+                drafter="no-repair",
+                rounds=(first_check,),
+                bound=draft_control_binding(draft, draft_dir),
+                final_reason_codes=("UNSUPPORTED_PINNED_UPSTREAM",),
+                recommended_action=supply.get("remediation") or "",
+                created_at=_utc_now_iso(),
+            )
+            report_path = write_draft_self_check(draft_dir, unsupported_report)
             return {
                 "ok": False,
                 "status": "UNSUPPORTED_PINNED_UPSTREAM",
@@ -7524,7 +7539,8 @@ def run_draft_self_check(
                 "final_reason_codes": ["UNSUPPORTED_PINNED_UPSTREAM"],
                 "recommended_action": supply.get("remediation") or "",
                 "pinned_upstream_supply": supply,
-                "report": {"rounds": [first_check.model_dump(mode="json")]},
+                "report_path": str(report_path),
+                "report": unsupported_report.model_dump(mode="json"),
             }
     rounds = _self_check_repair_rounds(
         draft_dir, draft, bound=bound, repair=repair, drafter=drafter, first_check=first_check

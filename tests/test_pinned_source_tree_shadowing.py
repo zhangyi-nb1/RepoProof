@@ -191,3 +191,72 @@ def _ready():
         compatible=True, current=True, ready=False, ready_to_confirm=True,
         reason_codes=[], recommended_action="", model_dump=lambda mode: {},
     )
+
+
+def test_the_gate_still_leaves_a_durable_report(monkeypatch, tmp_path: Path) -> None:
+    """每一次自检都要在盘上留下一份绑定当前控制件的报告——供给判死也不例外。
+
+    就绪度读的是那份报告。早返回却不写,会让**上一次**的 PASSED 报告活下来:
+    旅程说「不可实现」,就绪度却说「自检通过」,冻结闸门就此被绕过。
+    """
+
+    from repoproof.adoption.intake.draft_selfcheck import (
+        DraftControlBindingV1,
+        DraftSelfCheckReportV1,
+        DraftSelfCheckRoundV1,
+        read_draft_self_check,
+        write_draft_self_check,
+    )
+    from repoproof.ui.services import product_jobs
+
+    # 先在盘上放一份「通过」的旧报告,模拟同一草稿目录上一次自检成功。
+    write_draft_self_check(
+        tmp_path,
+        DraftSelfCheckReportV1(
+            ok=True,
+            drafter="earlier",
+            rounds=(DraftSelfCheckRoundV1(round=1, check_ok=True),),
+            bound=DraftControlBindingV1(),
+            final_reason_codes=(),
+            recommended_action="上一次通过了",
+            created_at="2026-01-01T00:00:00Z",
+        ),
+    )
+    assert read_draft_self_check(tmp_path).ok is True
+
+    monkeypatch.setattr(
+        product_jobs,
+        "_self_check_round",
+        lambda *_a, **kw: DraftSelfCheckRoundV1(
+            round=kw.get("round_index", 1),
+            check_ok=False,
+            reason_codes=("WORKSPACE_REFERENCE_EXECUTION_FAILED",),
+            diagnostics=("RuntimeError",),
+        ),
+    )
+    monkeypatch.setattr(
+        product_jobs,
+        "_pinned_upstream_supply_verdict",
+        lambda *_a, **_k: {
+            "usable": False,
+            "checked": True,
+            "severity": "PACKAGE_LARGELY_ABSENT",
+            "missing_count": 1084,
+            "remediation": "改钉已构建的发行版。",
+        },
+    )
+    monkeypatch.setattr(product_jobs, "_core_draft_readiness", lambda *_a, **_k: _ready())
+    monkeypatch.setattr(product_jobs, "_validated_draft_dir", lambda *a, **k: (tmp_path, ""))
+    (tmp_path / "draft.yaml").write_text(
+        "tool:\n  delivery_profile_id: workspace_bundle_v1\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        "repoproof.adoption.intake.draft_selfcheck.is_workspace_draft", lambda _d: True
+    )
+
+    product_jobs.run_draft_self_check(tmp_path, repair=True, drafter=object())
+
+    durable = read_draft_self_check(tmp_path)
+    assert durable is not None, "供给判死也要留下报告"
+    assert durable.ok is False, "旧的 PASSED 报告绝不能活下来"
+    assert "UNSUPPORTED_PINNED_UPSTREAM" in durable.final_reason_codes
