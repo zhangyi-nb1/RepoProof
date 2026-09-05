@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "mechanism": "起草的投影自修只有 1 次尝试:第一次仍不合格就 INVALID_MODEL_OUTPUT,整趟结束。同一套系统里凡是「控制件不对就照证据改」的循环都是停滞预算式的多次尝试(自检侧 12 次),唯独伤害最大的这一处只给一次——死在这里的代价是整趟旅程加零自检轮。",
+    "observed": "attempt-26:拒绝是 INVALID_DOCUMENT——workspace_contract 里多出一个自造字段 'runtime_python_entrypoint_role',schema additionalProperties 违反。字段级诊断完整,唯一那次投影自修没修好,整趟报废,自检一轮都没跑到。"
+  },
+  "created_at": "2026-09-04T09:58:48+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "666493c68e4f60933cd96d4585f95f20c6f190d7",
+  "framework_tree_sha256": "e3a05fb57cdb839169b4c4e4848741c63432fc5ea2ced9c0641cf0271fb5f794",
+  "incident_id": "incident-projection-repair-budget-is-one-mkdocs-v1",
+  "normalized_fingerprint": "28347bc723d11eb0",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "drafting::projection-repair-budget"
+  ],
+  "reason_codes": [
+    "DRAFTER_PROJECTION_REPAIR_BUDGET_EXHAUSTED_AT_ONE",
+    "DRAFT_DIES_BEFORE_ANY_SELF_CHECK"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "INTENT_ADMISSION",
+  "task_version": null
+}

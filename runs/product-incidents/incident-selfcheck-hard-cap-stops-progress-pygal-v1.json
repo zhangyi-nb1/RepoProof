@@ -1,0 +1,27 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-12: same shape — application missing -> syntax invalid -> drift -> drift -> upstream binding control -> semantic value mismatch, six distinct repairs then the cap; round 7 recorded a failure with no repair left"
+  },
+  "created_at": "2026-09-04T05:03:39+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "e7227a944de1c44b202f2b3a567949612c9c1d03",
+  "framework_tree_sha256": "4407b6a725a875179ef09cd578a6fac98c356d3eff92b006ccea50cbfa601dea",
+  "incident_id": "incident-selfcheck-hard-cap-stops-progress-pygal-v1",
+  "normalized_fingerprint": "5f49a6a5e527acb7",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "c696600c993cbe18d8862fd8453b79880337266aceee18d8fb1141cf403427ba",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::repair-hard-cap"
+  ],
+  "reason_codes": [
+    "SELF_CHECK_HARD_CAP_STOPS_MONOTONE_PROGRESS"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

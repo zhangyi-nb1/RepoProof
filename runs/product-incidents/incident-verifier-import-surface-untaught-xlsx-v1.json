@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "mechanism": "判官起草提示里没有一个字说明「哪些模块在判官环境里可导入」。模型只能猜,猜到流行的第三方读取库就白扔一整轮自检预算;而系统的应对是「修判官」,等于用把判官改弱的方式来教它环境边界。这是教学缺口,不是模型能力问题——两处修复后的判官都用标准库读通了同一份交付物。",
+    "observed": "attempt-15 r2:判官第一版靠 openpyxl 读交付的 .xlsx,判官环境里没有它,整轮变成 ARTIFACT_XLSX_UNREADABLE: \"No module named 'openpyxl'\";修复后的判官改用标准库照样读得动(后续各轮能逐行报出 '发票' 表的单元格)——环境本就够用,是没人告诉它可以用什么。"
+  },
+  "created_at": "2026-09-04T08:11:54+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "1f2fd7106175d2223d6840d00ae70a3516281727",
+  "framework_tree_sha256": "f16cf58a9244db7443ab232ed93de9f9f30dd8fcef086c3ffc9ee998f3a09065",
+  "incident_id": "incident-verifier-import-surface-untaught-xlsx-v1",
+  "normalized_fingerprint": "e9976eee01598670",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "de7a251efbbc0bdecbb20fc97a43a3542f2e9752fb1fd56eb0843c447c89d44a",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "drafting::verifier-authoring"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+    "VERIFIER_IMPORT_SURFACE_UNTAUGHT"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

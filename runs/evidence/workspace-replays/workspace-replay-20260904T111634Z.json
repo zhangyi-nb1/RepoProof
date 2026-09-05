@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "protocol": "frozen-oracle-snapshot + sealed-task-wheelhouse + offline-rebuilt-package",
+  "checked_at": "20260904T111634Z",
+  "framework_git_commit": "4d98e8a734e9f7fd94ec66fe866e4a091c52c373",
+  "framework_tree_sha256": "d87ce1564d01346a146d8923e0853d80fd49bb321efe6e10bb1957a47a33f68f",
+  "results": [
+    {
+      "tool": "mkdocs-tool",
+      "task_id": "tool-mkdocs-tool-v1",
+      "source_run_id": "tool-mkdocs-tool-v1-20260904-185404",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "6 passed in 5.27s"
+    }
+  ]
+}

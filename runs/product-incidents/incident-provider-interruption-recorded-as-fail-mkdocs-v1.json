@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-23 r7/r8/r9:外部网关中途掉线,三轮修复连续以 ANTHROPIC_GATEWAY_UNAVAILABLE 记成 ROLLED_BACK,循环继续在死通道上发牌,整趟旅程以 DRAFT_SELF_CHECK_FAILED 收场。同一时刻起草者离线会判 UNAVAILABLE 并立刻停——同一件事实两种判法。",
+    "prior_art": "同指纹的 pillow / pptx 两起早已 GENERIC_HARNESS_CHANGE_AUTHORIZED;当时的修复没覆盖自检修复循环这一面"
+  },
+  "created_at": "2026-09-04T08:33:25+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "1f2fd7106175d2223d6840d00ae70a3516281727",
+  "framework_tree_sha256": "fc77ce2c50dc171eb14f8f13d4f0611a8ab26e8ba0a8693c7fdd077d484725cf",
+  "incident_id": "incident-provider-interruption-recorded-as-fail-mkdocs-v1",
+  "normalized_fingerprint": "8d17aa6dfb7c898a",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::repair-transaction"
+  ],
+  "reason_codes": [
+    "PROVIDER_UNAVAILABLE",
+    "EXTERNAL_INTERRUPTION_RECORDED_AS_TASK_FAILURE"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

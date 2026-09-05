@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-25:子诊断 INPUT_BINDING_CONTROL_FAILED(Harness 自己跑的对照,证明判官换了输入仍然接受同一份产物——按构造只可能是判官侧)出现在 r6/r10/r11/r12/r13。r6 走了判官,但 r10/r11 走生产者、r12 走合同——因为该原因码的判官轮次早被 r6/r9 的内容类子失败占掉。三次修复不可能修好一个只属于判官的缺陷,最后停滞预算终止。",
+    "prior_art": "incident-binding-control-failure-routed-to-producer-pygal-v1(2026-09-03)提出「按子诊断路由」;这是第二个独立仓库"
+  },
+  "created_at": "2026-09-04T09:28:18+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "e5983b2165dd9b832a88a8f50175fd5040fba66b",
+  "framework_tree_sha256": "27ebfbad122e9cee72694a11323e5694fa1e86e7ec144324f1cf6897733545f9",
+  "incident_id": "incident-binding-control-failure-routed-to-producer-mkdocs-v1",
+  "normalized_fingerprint": "38b1c4063e8f5dfe",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::repair-routing"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+    "BINDING_CONTROL_FAILURE_ROUTED_TO_PRODUCER"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

@@ -1,0 +1,30 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "decisive_experiment": "同一受控环境(sanitised_subprocess_env)跑同一段只序列化字符串集合的脚本 8 次:8 种不同的顺序;加 PYTHONHASHSEED=0 后 8 次 1 种。",
+    "falsified_hypothesis": "**曾怀疑是尺子的错**:执行侧 6 处都钉了 PYTHONHASHSEED=0,唯独冻结前这个可复现性对照没钉,像是内部不一致。核对交付路径后证伪——装配出的验收测试用 {**os.environ, PYTHONDONTWRITEBYTECODE: ''} 调用交付工具,继承的是**用户环境**,并不钉种子。所以用户那边确实会看到字节漂移,尺子是对的;钉种子等于重蹈 incident-acceptance-env-more-permissive-* 的覆辙(验收比用户环境宽松)。**不许这么修。**",
+    "observed": "attempt-21 r2/r3/r5:两次运行的差别是 <svg> 上 xmlns 与 xmlns:xlink 的**先后顺序**互换(同样的记号、不同的序)。五轮生产者修复没有一次诊断出这是无序容器的迭代序。诊断只说 'BYTES_DIFFER@line N' 外加**其中一侧**的那行文本,既不说另一侧长什么样,也不说这属于哪一类不确定性——而 Harness 已经会命名另一类(WALL_CLOCK_DATE_EMBEDDED)。"
+  },
+  "created_at": "2026-09-04T11:12:58+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "de57724b894ff46d35d383c40c384df689aa05a4",
+  "framework_tree_sha256": "ac0bd1e9845dfc63425cbe414d39dd6f38d43998713da2242a817b9ed6a47972",
+  "incident_id": "incident-nondeterminism-class-not-named-pygal-v1",
+  "normalized_fingerprint": "056f58550c8d1b1d",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "c696600c993cbe18d8862fd8453b79880337266aceee18d8fb1141cf403427ba",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::reference-reproducibility"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_NOT_REPRODUCIBLE",
+    "NONDETERMINISM_CLASS_NOT_NAMED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

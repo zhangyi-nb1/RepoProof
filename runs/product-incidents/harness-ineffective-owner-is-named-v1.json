@@ -1,0 +1,20 @@
+{
+  "affected_component": "draft_selfcheck.INEFFECTIVE_OWNER/MIN_NO_EFFECT_REPAIRS; product_jobs._self_check_repair_rounds 记录每次修复是否真改写并在终局点名",
+  "after_control_sha256": "1c391177daab0219c814669e4844e88d2b7f9ff2aab61ee61e9a6be4c46cd051",
+  "anonymous_fixture_id": "ineffective-owner-is-named",
+  "before_control_sha256": "6c86bfe7094371c7e8d0ff85138eb208cafbebd0cbf4b61d3b84fe699274fff4",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-04T16:47:23+08:00",
+  "evidence_id": "harness-ineffective-owner-is-named-v1",
+  "incident_ids": [
+    "incident-ineffective-owner-not-named-babel-v1",
+    "incident-ineffective-owner-not-named-xlsx-v1"
+  ],
+  "invariant": "一个控制件被真正改写(修复 APPLIED 且前后哈希不同)两次以上而失败的原话逐字未变时,终局轮点名这个无效的主人;证据只要动过就不算无效;回滚或「改了等于没改」的修复不参与计数。",
+  "normalized_fingerprint": "00f4bc023c266587",
+  "regression_tests": [
+    "tests/ui/test_ineffective_owner_is_named.py"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

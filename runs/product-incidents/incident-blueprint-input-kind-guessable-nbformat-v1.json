@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "mechanism": "Core 规则是「每个蓝图都必须构建已准入的那一种输入」——该字段只有一个合法值;而交给提供方强制的 JSON schema 里 blueprint.input_kind 仍是 file/directory 二选一。让提供方放行一个 Core 必拒的文档,猜错即整趟报废。",
+    "observed": "attempt-8:同一拒绝码 WORKSPACE_FIXTURE_INPUT_KIND_MISMATCH 令起草整趟作废(当时诊断未随行,已由 557050ccfe4450c7 修复;本条记的是残留真因——字段本身是猜的)。"
+  },
+  "created_at": "2026-09-04T07:30:35+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "c6a72e81ec11ac30767dc4da997c435bc44af58a",
+  "framework_tree_sha256": "a09f24bbc2090c8cf23b77f13cb5654f45825e87399603ac2d265042c5ca02b5",
+  "incident_id": "incident-blueprint-input-kind-guessable-nbformat-v1",
+  "normalized_fingerprint": "ab90526cef31cfc3",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "3b9aba246da32bf7402459cc1e87cc6bf69bae3c530ce9ab1559e134874e5292",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "drafting::fixture-blueprint-schema"
+  ],
+  "reason_codes": [
+    "WORKSPACE_FIXTURE_INPUT_KIND_MISMATCH",
+    "SINGLE_LEGAL_VALUE_LEFT_AS_MODEL_CHOICE"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "INTENT_ADMISSION",
+  "task_version": null
+}

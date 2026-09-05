@@ -1,0 +1,20 @@
+{
+  "affected_component": "draft_selfcheck._names_the_verifier_by_construction + repair_target_for",
+  "after_control_sha256": "70a0ff7876c33daa4a20fa9340b01a04bfd95494e9ab49178f16d80cc20105d4",
+  "anonymous_fixture_id": "binding-control-always-names-the-verifier",
+  "before_control_sha256": "d4db20343427b858cd24500432364a072bad6dd9b9d3fa04829c89bc53c6e859",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-04T09:36:11+08:00",
+  "evidence_id": "harness-binding-control-always-names-the-verifier-v1",
+  "incident_ids": [
+    "incident-binding-control-failure-routed-to-producer-pygal-v1",
+    "incident-binding-control-failure-routed-to-producer-mkdocs-v1"
+  ],
+  "invariant": "分歧的子诊断含绑定对照(*_BINDING_CONTROL_FAILED)或判官自陈类(VERIFIER_INFORMATIONAL_*)时,无论同码计数走到第几轮一律路由到判官;没有这类子诊断时仍按既定主人序列轮转;停滞预算照旧兜底,判官修不好时循环仍会停。",
+  "normalized_fingerprint": "38b1c4063e8f5dfe",
+  "regression_tests": [
+    "tests/test_binding_control_always_names_the_verifier.py"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

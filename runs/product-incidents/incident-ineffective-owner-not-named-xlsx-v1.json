@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "mechanism": "「改了 X 而证据逐字不动,失败就不依赖 X」是一条可判定的推断,不是启发式猜测——修复记录里本来就有 before/after 哈希,证据本来就在轮次里。系统从不做这个推断,于是环境不可用与模型不争气在终态里无法区分。",
+    "observed": "attempt-13 r4-r8:同一句判词 'WORKBOOK_MISSING' 连续五轮**逐字不变**,期间生产者被修了三次(每次 APPLIED、前后哈希不同)。改了控制件而证据纹丝不动,说明失败不依赖这个控制件;记录没有把这件事说出来。"
+  },
+  "created_at": "2026-09-04T15:58:09+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "6d8cec702e2fa746935299254c6bd0811a068c41",
+  "framework_tree_sha256": "af8b1ed150c2956cf1b0bf07c38bc32f267311a57f106a76bac4a9e482b024dd",
+  "incident_id": "incident-ineffective-owner-not-named-xlsx-v1",
+  "normalized_fingerprint": "00f4bc023c266587",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "de7a251efbbc0bdecbb20fc97a43a3542f2e9752fb1fd56eb0843c447c89d44a",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::repair-effect"
+  ],
+  "reason_codes": [
+    "SELF_CHECK_REPAIR_HAD_NO_EFFECT",
+    "INEFFECTIVE_OWNER_NOT_NAMED"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

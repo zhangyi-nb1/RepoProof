@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "mechanism": "探针逐变异地知道自己改了什么(kind)和判官怎么回应(ACCEPTED / REJECTED / PROTOCOL_ERROR),`gaps` 却把这些事实压成一串路径。而且 discriminated=any(REJECTED) 的定义使得「每次变异都被接受」(判官不判别)与「每次变异都让判官崩了」(判官根本没跑完)投影成同一条记录——两者的修法相反。",
+    "observed": "attempt-22:前八轮把规则重叠、外部资源、构建日期漂移逐个解决,r9-r12 连打四次判官修复堵`VERIFIER_DISCRIMINATION_GAP`,交给修复模型的诊断始终只有两行路径('site/deploy/index.html'、'site/faq/index.html'),四轮之后被停滞预算终止。"
+  },
+  "created_at": "2026-09-04T07:42:00+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "c6a72e81ec11ac30767dc4da997c435bc44af58a",
+  "framework_tree_sha256": "f16cf58a9244db7443ab232ed93de9f9f30dd8fcef086c3ffc9ee998f3a09065",
+  "incident_id": "incident-discrimination-gap-diagnostics-bare-path-mkdocs-v1",
+  "normalized_fingerprint": "9a4d4cdcffef7686",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::discrimination-probe"
+  ],
+  "reason_codes": [
+    "VERIFIER_DISCRIMINATION_GAP",
+    "DISCRIMINATION_GAP_DIAGNOSTICS_BARE_PATH"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

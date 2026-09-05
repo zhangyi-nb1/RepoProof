@@ -1,0 +1,20 @@
+{
+  "affected_component": "product_jobs.run_draft_self_check 供给判死分支写 draft_selfcheck.json",
+  "after_control_sha256": "612b9ec8a6b2a104beccaea2d7f29ecee64accbac7c95491efbbe78977bd0d43",
+  "anonymous_fixture_id": "supply-gate-leaves-a-durable-report",
+  "before_control_sha256": "b623e25b2eeca41ff0d095a9981021c2581e8a42916b5bc4e5080505120623f7",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-05T11:27:34+08:00",
+  "evidence_id": "harness-supply-gate-leaves-a-durable-report-v1",
+  "incident_ids": [
+    "incident-pinned-checkout-shadows-built-distribution-babel-v1",
+    "incident-pinned-source-checkout-shadows-built-distribution-babel-v2"
+  ],
+  "invariant": "每一次自检都在盘上留下一份绑定当前控制件的报告——供给侧判死也不例外:报告 ok=False 且带 UNSUPPORTED_PINNED_UPSTREAM,上一次的 PASSED 报告绝不能活下来。",
+  "normalized_fingerprint": "88e5af16f887742a",
+  "regression_tests": [
+    "tests/test_pinned_source_tree_shadowing.py"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

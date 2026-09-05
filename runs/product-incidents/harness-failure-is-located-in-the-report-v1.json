@@ -1,0 +1,19 @@
+{
+  "affected_component": "autopilot.located_failure + draft 阶段记录(detail/facts)",
+  "after_control_sha256": "fabe11f067d7a0ba16060c1730b5150cc501a50b081c98fb70f71e42b0b5997d",
+  "anonymous_fixture_id": "failure-is-located-in-the-report",
+  "before_control_sha256": "65ff75c97773a30c2f908f7b56e6d401d1c2acde02f8295114e732b9109d3cc3",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-05T00:16:20+08:00",
+  "evidence_id": "harness-failure-is-located-in-the-report-v1",
+  "incident_ids": [
+    "incident-failure-not-located-in-journey-report-babel-v1"
+  ],
+  "invariant": "旅程报告的失败阶段带上**失败自己的话与出错位置**:失败轮的首行诊断,加上含 `@ 文件:行 函数`(含最内层帧)的那一行;原有建议不丢,定位在前建议在后;没有诊断可给时返回空,不塞占位文本。",
+  "normalized_fingerprint": "6f996791f67ba704",
+  "regression_tests": [
+    "tests/ui/test_failure_is_located_in_the_report.py"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "mechanism": "_text_content_mutations 的文档说得很清楚,它要问的是「判官有没有重算这个文件的**任何**内容」,做法是取首行、末行与等距行。可在语义只占少数行的机器生成页面上,等距取样几乎必落在样板行,于是这个问题实际变成了「判官有没有在查样板」——而语义判官按设计就不该对样板敏感,也不该内嵌期望字节。字节保真另有闸门:冻结时的 golden identity 已经逐字节钉死,不需要判别力探针再管一遍。",
+    "observed": "attempt-29(14 轮)与 attempt-30(16 轮)都停在同一处:'site/index.html — 变异 8 次无一被拒;ACCEPTED: edit-line-1, edit-line-36, edit-line-65, edit-line-98, edit-line-128, edit-line-155, edit-line-185, truncate-last-line'。那一页 185 行绝大多数是主题模板样板(meta、CSS 链接、脚本、导航骨架),不承载任何输入语义;而同一份判官在别的轮次实实在在地报出过 NAV_MISSING_PAGE / HEADING_NOT_RENDERED / PAGE_HTML_MISSING——它在查语义,只是均匀取样几乎必落在样板行上。四次判官修复无一能改变 0/8。"
+  },
+  "created_at": "2026-09-04T13:28:23+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "dcc854ccbf7221e0222e87704c7a4c97e1dde9e7",
+  "framework_tree_sha256": "0619f129e84fce4df041a4eb71e26f8a2df592149099a1f906cb1ceff2fb3a48",
+  "incident_id": "incident-mutation-sampling-misses-the-semantics-mkdocs-v1",
+  "normalized_fingerprint": "ecda8fe31ddc9cbf",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::discrimination-probe-sampling"
+  ],
+  "reason_codes": [
+    "VERIFIER_DISCRIMINATION_GAP",
+    "MUTATION_SAMPLING_MISSES_THE_SEMANTICS"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

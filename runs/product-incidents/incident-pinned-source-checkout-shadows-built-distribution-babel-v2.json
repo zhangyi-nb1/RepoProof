@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "independence": "与首起同仓库同 revision,仍是一个前置上下文——不构成第二起,不动手",
+    "observed": "attempt-4 五轮全是同一条上游自陈的环境错误(源码检出没有构建数据文件),四次生产者修复都 APPLIED、源码确实变了,失败文本却一字不改——没有任何参考实现能修好它。phase-1 流程里没有任何一步在让模型对着这个上游写生产者之前,先证明这个上游在密封环境里真的能用(仓库里已有 upstream_conformance.probe_runnable_nodes,autopilot 未用)。"
+  },
+  "created_at": "2026-09-04T11:14:04+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "de57724b894ff46d35d383c40c384df689aa05a4",
+  "framework_tree_sha256": "ac0bd1e9845dfc63425cbe414d39dd6f38d43998713da2242a817b9ed6a47972",
+  "incident_id": "incident-pinned-source-checkout-shadows-built-distribution-babel-v2",
+  "normalized_fingerprint": "88e5af16f887742a",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "f7fd7f3be07006187a0811d4a52e64cf7d01ad61d4ef100222179efd243ea5da",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::reference-execution"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_EXECUTION_FAILED",
+    "PINNED_SOURCE_CHECKOUT_SHADOWS_BUILT_DISTRIBUTION"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

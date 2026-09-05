@@ -1,0 +1,20 @@
+{
+  "affected_component": "tool_drafter._PROJECTION_REPAIR_STALL_BUDGET/_MAX_PROJECTION_REPAIR_ATTEMPTS/_projection_rejection_signature/_projection_repair_stall + 两个 drafter 的 draft()",
+  "after_control_sha256": "85af376a8441cd29f6987edca583288d89260b495a42320fd4d574494712c983",
+  "anonymous_fixture_id": "projection-repair-budget-is-a-stall-budget",
+  "before_control_sha256": "d78d959b42c581cd5b9b8e9bcfb0f13d6e9869562c448571e875e54d42c87c19",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-04T10:07:06+08:00",
+  "evidence_id": "harness-projection-repair-budget-is-a-stall-budget-v1",
+  "incident_ids": [
+    "incident-projection-repair-budget-is-one-xlsx-v1",
+    "incident-projection-repair-budget-is-one-mkdocs-v1"
+  ],
+  "invariant": "起草的投影自修按停滞计:拒绝签名(码 + 首个字段 loc)在变就继续给尝试(那是进展),同一签名重复才消耗停滞预算(2),耗尽即停并抛出最后一次的公开码;绝对上限(5 次自修)仍在,签名一直在变也不会无限重试;JSON 形状错的那条分支保持单次重试——同一提示下的第二个坏形状不是新证据。",
+  "normalized_fingerprint": "28347bc723d11eb0",
+  "regression_tests": [
+    "tests/test_projection_repair_budget_is_a_stall_budget.py"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

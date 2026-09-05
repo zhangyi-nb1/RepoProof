@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "mechanism": "Core 规则是「每个蓝图都必须构建已准入的那一种输入」——该字段只有一个合法值;而交给提供方强制的 JSON schema 里 blueprint.input_kind 仍是 file/directory 二选一。让提供方放行一个 Core 必拒的文档,猜错即整趟报废。",
+    "observed": "attempt-15:起草直接判死 tool-draft:INVALID_MODEL_OUTPUT:WORKSPACE_FIXTURE_INPUT_KIND_MISMATCH,字段级诊断已随行(fixture_blueprints.3.input_kind:blueprint input_kind='file' 而 delivery_requirements.inputs[0].kind 是 'directory')。两次尝试用完,整趟旅程 0 自检轮报废。"
+  },
+  "created_at": "2026-09-04T07:30:35+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "c6a72e81ec11ac30767dc4da997c435bc44af58a",
+  "framework_tree_sha256": "a09f24bbc2090c8cf23b77f13cb5654f45825e87399603ac2d265042c5ca02b5",
+  "incident_id": "incident-blueprint-input-kind-guessable-pygal-v1",
+  "normalized_fingerprint": "ab90526cef31cfc3",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "c696600c993cbe18d8862fd8453b79880337266aceee18d8fb1141cf403427ba",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "drafting::fixture-blueprint-schema"
+  ],
+  "reason_codes": [
+    "WORKSPACE_FIXTURE_INPUT_KIND_MISMATCH",
+    "SINGLE_LEGAL_VALUE_LEFT_AS_MODEL_CHOICE"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "INTENT_ADMISSION",
+  "task_version": null
+}

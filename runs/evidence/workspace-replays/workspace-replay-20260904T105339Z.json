@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "protocol": "frozen-oracle-snapshot + sealed-task-wheelhouse + offline-rebuilt-package",
+  "checked_at": "20260904T105339Z",
+  "framework_git_commit": "317bdfa2b5c1514f492a60d546c2d55c9ab18f02",
+  "framework_tree_sha256": "d87ce1564d01346a146d8923e0853d80fd49bb321efe6e10bb1957a47a33f68f",
+  "results": [
+    {
+      "tool": "icalendar-tool",
+      "task_id": "tool-icalendar-tool-v1",
+      "source_run_id": "tool-icalendar-tool-v1-20260903-074651",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 3.45s"
+    },
+    {
+      "tool": "nbformat-tool",
+      "task_id": "tool-nbformat-tool-v4",
+      "source_run_id": "tool-nbformat-tool-v4-20260903-084715",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "6 passed in 4.77s"
+    },
+    {
+      "tool": "pillow-tool",
+      "task_id": "tool-pillow-tool-v3",
+      "source_run_id": "tool-pillow-tool-v3-20260903-015332",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 8.63s"
+    },
+    {
+      "tool": "pygal-tool",
+      "task_id": "tool-pygal-tool-v5",
+      "source_run_id": "tool-pygal-tool-v5-20260904-123152",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "6 passed in 3.27s"
+    },
+    {
+      "tool": "python-pptx-tool",
+      "task_id": "tool-python-pptx-tool-v5",
+      "source_run_id": "tool-python-pptx-tool-v5-20260904-035354",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "5 passed in 20.10s"
+    },
+    {
+      "tool": "xlsxwriter-tool",
+      "task_id": "tool-xlsxwriter-tool-v2",
+      "source_run_id": "tool-xlsxwriter-tool-v2-20260904-104442",
+      "ok": true,
+      "step": "frozen_oracle_pytest",
+      "pytest_exit": 0,
+      "detail": "6 passed in 3.24s"
+    }
+  ]
+}

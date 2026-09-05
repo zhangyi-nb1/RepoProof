@@ -1,0 +1,28 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "上限抬到 12 之后 attempt-27/28 又在 12 处被截断:十二次修复退掉了十二个**不同**的缺陷(规则重叠、条目基数、外部资源、站内断链、格式非法、构建日期漂移、上游调用未观测、两个绑定对照、三处判别力缺口),停滞预算一格未动,最后停在一个全新的缺陷上。数字换了,角色没换。",
+    "why_not_a_bigger_number": "再把常数调大就是照着一个仓库调参。改成按进展发额度:每退掉一个此前存在的子失败多挣一格,原地打转(码集只增不减)的旅程拿不到额外额度,另设绝对天花板兜住灾难。"
+  },
+  "created_at": "2026-09-04T12:01:43+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "de57724b894ff46d35d383c40c384df689aa05a4",
+  "framework_tree_sha256": "0619f129e84fce4df041a4eb71e26f8a2df592149099a1f906cb1ceff2fb3a48",
+  "incident_id": "incident-selfcheck-hard-cap-stops-progress-mkdocs-v2",
+  "normalized_fingerprint": "5f49a6a5e527acb7",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "437d46a4d86a3f72d9d6bfddc955affd1d23527bb72675f75cc527b47af7373b",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::repair-hard-cap"
+  ],
+  "reason_codes": [
+    "SELF_CHECK_HARD_CAP_STOPS_MONOTONE_PROGRESS"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

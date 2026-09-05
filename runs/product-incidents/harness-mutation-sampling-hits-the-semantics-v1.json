@@ -1,0 +1,20 @@
+{
+  "affected_component": "workspace_semantic._text_content_mutations/content_mutations 增加 input_tokens; _input_semantic_tokens + probe_workspace_verifier_discrimination 传入",
+  "after_control_sha256": "8aa05cbb6ff7d26f65f39c6993b1ee25b28dedcc3109f54ccfd7faccb5a28531",
+  "anonymous_fixture_id": "mutation-sampling-hits-the-semantics",
+  "before_control_sha256": "b2d94d08511354397c1567dd147f0e91bedab6eaea3ab6b613809db0179833bd",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-04T13:57:17+08:00",
+  "evidence_id": "harness-mutation-sampling-hits-the-semantics-v1",
+  "incident_ids": [
+    "incident-mutation-sampling-misses-the-semantics-mkdocs-v1",
+    "incident-mutation-sampling-misses-the-semantics-pygal-v1"
+  ],
+  "invariant": "判别力探针的变异点优先落在「含有输入里出现过的记号」的行上;一行都不含时回落到原来的等距取样;定向只增加提问、不减少提问(变异条数与 truncate-last-line 一条都不少)。",
+  "normalized_fingerprint": "ecda8fe31ddc9cbf",
+  "regression_tests": [
+    "tests/test_mutation_sampling_hits_the_semantics.py"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

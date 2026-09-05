@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "authorised_by": "操作者直接指出并确认为初期 Harness 要求(不套两起门槛)",
+    "observed": "操作者复盘时指出:一趟连吃八次的旅程,顶层报告的全部内容只有 final_status、一个原因码,和一句「人工复核公开合同后重新自检或创建新任务版本」——而公开合同毫无问题,这条建议把人往错误方向推。真正的定位(上游原话、出错行、最内层帧)躺在 stages/draft.json 的逐轮记录里,从没上浮。"
+  },
+  "created_at": "2026-09-05T00:16:20+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "3dffe3c461729704981459bc2b334bb5c184d7df",
+  "framework_tree_sha256": "0bcb2e16a8b207e88deae66090babec904af905e853dbb5ffff4e78b72f6bb68",
+  "incident_id": "incident-failure-not-located-in-journey-report-babel-v1",
+  "normalized_fingerprint": "6f996791f67ba704",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "f7fd7f3be070f5f6cf9f4a4b1f6d1ad5db8d7f0f1c4a1c9f1b2e3d4c5a6b7c8d",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "autopilot::journey-report"
+  ],
+  "reason_codes": [
+    "DRAFT_SELF_CHECK_FAILED",
+    "FAILURE_NOT_LOCATED_IN_JOURNEY_REPORT"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

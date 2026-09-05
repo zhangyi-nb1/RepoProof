@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "independence": "与 incident-artifact-path-triangle-oscillation-xlsx-v1 同仓库同 revision(前置上下文哈希逐字节相同)——不构成第二起独立证据,依纪律不动手",
+    "observed": "attempt-13(修复上限抬到 12 之后):r2 WORKSPACE_EXTRA_FILE_FORBIDDEN 'audit_workbook.xlsx' 把生产者从那个路径赶走,r3-r8 判官连喊六次 WORKBOOK_MISSING 'Expected file audit_workbook.xlsx in output directory';两次判官修复 + 三次生产者修复无一能解,因为矛盾在第三方——合同的文件规则,而该原因码的路由里从来没有 contract。本轮终止来自停滞预算(同签名第四次)而非绝对上限,证实上限修复已把裁决权交还证据。"
+  },
+  "created_at": "2026-09-04T06:11:37+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "585a66e6f2cddc8c2d28140767af930e5a7381d4",
+  "framework_tree_sha256": "5d67ded51a2ebc3ed19244af91c55f643175d9a075c377ee1c0c7d8301edc6f1",
+  "incident_id": "incident-artifact-path-triangle-oscillation-xlsx-v2",
+  "normalized_fingerprint": "994a504420c8cc4b",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "de7a251efbbc0bdecbb20fc97a43a3542f2e9752fb1fd56eb0843c447c89d44a",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "drafting::artifact-path-consistency"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+    "ARTIFACT_PATH_TRIANGLE_NOT_PINNED_AT_PROJECTION"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

@@ -1,0 +1,20 @@
+{
+  "affected_component": "product_jobs._discrimination_gap_diagnostics + _self_check_round 缺口轮",
+  "after_control_sha256": "685d008f7b17e0794909ee2bae207054b99d9a51feb331389f2e606cb9c6370d",
+  "anonymous_fixture_id": "discrimination-gap-names-the-mutation",
+  "before_control_sha256": "138d94b4fe13b608fd528286c68b4a0a70810e79481eb1fa3242284da2e2d873",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-04T07:48:23+08:00",
+  "evidence_id": "harness-discrimination-gap-names-the-mutation-v1",
+  "incident_ids": [
+    "incident-discrimination-gap-diagnostics-bare-path-mkdocs-v1",
+    "incident-discrimination-gap-diagnostics-bare-path-pygal-v1"
+  ],
+  "invariant": "判别力缺口的诊断给出路径**和**溜过去的变异种类及判官对每类变异的回应;判官在全部变异上出错时诊断说的是「出错」而不是「接受」;已判别的文件不进诊断。",
+  "normalized_fingerprint": "9a4d4cdcffef7686",
+  "regression_tests": [
+    "tests/ui/test_discrimination_gap_names_the_mutation.py"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

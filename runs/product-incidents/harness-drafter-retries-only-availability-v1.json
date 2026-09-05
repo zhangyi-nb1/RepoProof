@@ -1,0 +1,20 @@
+{
+  "affected_component": "tool_drafter._GATEWAY_AVAILABILITY_CODES/_ATTEMPTS/_BACKOFF + AnthropicGatewayDrafter._once_with_system",
+  "after_control_sha256": "eae04e5b7249150b2bc6459842810770ae156feb8a473a4c307f656161194355",
+  "anonymous_fixture_id": "drafter-retries-only-availability",
+  "before_control_sha256": "019ca518a7b61ac8515a1df441480e148833f3559ba92429d1ad192c5d861823",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-04T08:54:05+08:00",
+  "evidence_id": "harness-drafter-retries-only-availability-v1",
+  "incident_ids": [
+    "incident-provider-interruption-recorded-as-fail-mkdocs-v1",
+    "incident-provider-interruption-recorded-as-fail-pygal-v2"
+  ],
+  "invariant": "起草通道对**可用性**类网关失败(不可用/超时/连接错/限流)有界重试(共 3 次尝试,2 秒起线性退避);**配置**类失败(未配置/认证失败/坏请求)一次都不重试;重试用尽后如实抛出原始公开码,不改写、不换通道、不换模型。",
+  "normalized_fingerprint": "8d17aa6dfb7c898a",
+  "regression_tests": [
+    "tests/test_drafter_retries_only_availability.py"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

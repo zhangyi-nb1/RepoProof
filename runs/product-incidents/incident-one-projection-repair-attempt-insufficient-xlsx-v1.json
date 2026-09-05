@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "not_yet_generic": "只有一个前置上下文。此前 icalendar / nbformat 两起同码事故的实测伤害是「补救语句是瞎的」(已修),不能据此推断当时第二次尝试会有用——那是推论不是观测。",
+    "observed": "attempt-16/17/18 连续三次同一起草期死法。attempt-18 的补救语句已经**完整**(275 字符,写明两条合法出路:改成 kind='directory' 配 format_id='workspace_bundle',或者把工作区成员整体去掉),模型拿到完整指令、用掉唯一那次投影自修,仍然交回矛盾文档。起草侧只有 1 次自修,自检侧却有 12 次修复预算——同一条旅程上两个数量级的差距。"
+  },
+  "created_at": "2026-09-04T09:47:32+08:00",
+  "disposition": "RECORD_PENDING_SECOND_INCIDENT",
+  "framework_git_commit": "666493c68e4f60933cd96d4585f95f20c6f190d7",
+  "framework_tree_sha256": "e3a05fb57cdb839169b4c4e4848741c63432fc5ea2ced9c0641cf0271fb5f794",
+  "incident_id": "incident-one-projection-repair-attempt-insufficient-xlsx-v1",
+  "normalized_fingerprint": "07b3cb1c5ebd4df7",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "de7a251efbbc0bdecbb20fc97a43a3542f2e9752fb1fd56eb0843c447c89d44a",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "drafting::projection-repair-budget"
+  ],
+  "reason_codes": [
+    "DELIVERY_SHAPE_SELF_CONTRADICTION",
+    "ONE_PROJECTION_REPAIR_ATTEMPT_INSUFFICIENT"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "INTENT_ADMISSION",
+  "task_version": null
+}

@@ -1,0 +1,20 @@
+{
+  "affected_component": "upstream_conformance.pinned_source_tree_shadowing; product_jobs._pinned_upstream_supply_verdict + run_draft_self_check 供给闸门; autopilot UNSUPPORTED_PINNED_UPSTREAM 终态",
+  "after_control_sha256": "1a6f18836bcebbdb51fbc8d11fbed47505024b5c5a9dff83e12a623abd859f5e",
+  "anonymous_fixture_id": "pinned-source-tree-shadowing-gate",
+  "before_control_sha256": "65ff75c97773a30c2f908f7b56e6d401d1c2acde02f8295114e732b9109d3cc3",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-05T00:16:42+08:00",
+  "evidence_id": "harness-pinned-source-tree-shadowing-gate-v1",
+  "incident_ids": [
+    "incident-pinned-checkout-shadows-built-distribution-babel-v1",
+    "incident-pinned-source-checkout-shadows-built-distribution-babel-v2"
+  ],
+  "invariant": "冻结前(且在任何修复模型调用之前)比对密封 wheelhouse 里的发行版与钉版源码检出的运行期文件集:多数缺失 = 源码树顶不住发行版,判 UNSUPPORTED_PINNED_UPSTREAM 终态并给出缺失清单与两条改法;少数缺失只如实报告不判死;比不了就不下结论;操作者可用 REPOPROOF_ALLOW_SHADOWED_UPSTREAM 显式豁免。",
+  "normalized_fingerprint": "88e5af16f887742a",
+  "regression_tests": [
+    "tests/test_pinned_source_tree_shadowing.py"
+  ],
+  "safety_or_false_success_exception": true,
+  "schema_version": 1
+}

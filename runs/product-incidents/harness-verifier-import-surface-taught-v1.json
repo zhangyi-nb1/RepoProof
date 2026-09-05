@@ -1,0 +1,20 @@
+{
+  "affected_component": "tool_drafter._VERIFIER_SYSTEM + _VERIFIER_REPAIR_SYSTEM",
+  "after_control_sha256": "5a5736390af76cd6e2458bfcda471bb872640816a9a30bd2cbda0aa01f7c9998",
+  "anonymous_fixture_id": "verifier-import-surface-taught",
+  "before_control_sha256": "8d68b6e0132f3a5f89dfe4f7e3fddaa2838b83ad902ee53b56b5a3d9d4b38ed6",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-04T08:33:25+08:00",
+  "evidence_id": "harness-verifier-import-surface-taught-v1",
+  "incident_ids": [
+    "incident-verifier-import-surface-untaught-xlsx-v1",
+    "incident-verifier-import-surface-untaught-mkdocs-v1"
+  ],
+  "invariant": "判官起草与判官修复两份提示词都写明可导入面:只有标准库与已钉住的上游发行版,别的第三方导入会在验证时报 ModuleNotFoundError;并给出通用标准库读法指引(zip 容器走 zipfile+xml.etree、HTML 走 html.parser、结构化文本走 json/csv/configparser),文中不含任何病例标识。",
+  "normalized_fingerprint": "e9976eee01598670",
+  "regression_tests": [
+    "tests/test_verifier_import_surface_taught.py"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

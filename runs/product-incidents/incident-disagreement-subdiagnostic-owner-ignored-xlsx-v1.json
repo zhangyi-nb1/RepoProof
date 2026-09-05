@@ -1,0 +1,29 @@
+{
+  "agent_diff_present": false,
+  "artifact_tree_diff": {
+    "agent_invoked": 0,
+    "observed": "attempt-13:子诊断 'WORKBOOK_MISSING: Expected file audit_workbook.xlsx in output directory' 点名的主人是**合同的文件规则**——上一轮正是合同以 WORKSPACE_EXTRA_FILE_FORBIDDEN 把该路径判为多余文件。路由器对该原因码完全不看子诊断,只按同码计数器发牌:r3/r4 判官、r5-r7 生产者,五次修复没有一次落在合同上,同一签名连出六轮后被停滞预算终止。",
+    "prior_art": "incident-binding-control-failure-routed-to-producer-pygal-v1(2026-09-03)已就同一站点写下提案「按子诊断路由」,当时只有一个上下文;本次在两个独立仓库上各自复现同一机制"
+  },
+  "created_at": "2026-09-04T06:22:20+08:00",
+  "disposition": "GENERIC_HARNESS_CHANGE_AUTHORIZED",
+  "framework_git_commit": "585a66e6f2cddc8c2d28140767af930e5a7381d4",
+  "framework_tree_sha256": "5d67ded51a2ebc3ed19244af91c55f643175d9a075c377ee1c0c7d8301edc6f1",
+  "incident_id": "incident-disagreement-subdiagnostic-owner-ignored-xlsx-v1",
+  "normalized_fingerprint": "e2fc536291c90fcd",
+  "owner": "HARNESS",
+  "pre_task_context_sha256": "de7a251efbbc0bdecbb20fc97a43a3542f2e9752fb1fd56eb0843c447c89d44a",
+  "profile_id": "workspace_bundle_v1",
+  "public_failed_nodes": [
+    "draft-selfcheck::repair-routing"
+  ],
+  "reason_codes": [
+    "WORKSPACE_REFERENCE_VERIFIER_SEMANTIC_DISAGREEMENT",
+    "DISAGREEMENT_SUBDIAGNOSTIC_OWNER_IGNORED_BY_ROUTER"
+  ],
+  "repair_eligible": false,
+  "safety_or_false_success": false,
+  "schema_version": 1,
+  "stage": "CONTRACT_AUTHORING",
+  "task_version": null
+}

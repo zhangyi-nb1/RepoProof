@@ -1,0 +1,23 @@
+{
+  "affected_component": "draft_selfcheck._DISAGREEMENT_OWNERS + repair_target_for; product_jobs._self_check_repair_rounds 停滞键改为(码,诊断,主人)",
+  "after_control_sha256": "4df70e125cf4c920d36c3c4ddd7bb7b207b404006e36e1865407edb3cc194224",
+  "anonymous_fixture_id": "disagreement-owner-sequence",
+  "before_control_sha256": "61c70498bd19914f621e84fa05a26b2557cc49beddfa251889f224f67e46fe85",
+  "case_identifier_scan_passed": true,
+  "created_at": "2026-09-04T06:53:36+08:00",
+  "evidence_id": "harness-disagreement-owner-sequence-v1",
+  "incident_ids": [
+    "incident-disagreement-subdiagnostic-owner-ignored-xlsx-v1",
+    "incident-disagreement-subdiagnostic-owner-ignored-pygal-v1"
+  ],
+  "invariant": "参考实现与判官的语义分歧是四个控制件之间的对称证据:主人序列为判官、判官、生产者、生产者、合同、构建器,之后才再回到生产者;停滞预算计的是「同一主人对同一份证据重复同一尝试」,把同一份证据交给尚未上场的主人不消耗预算;主人有限,轮完后同一签名仍会耗尽预算而停,不会跑到绝对上限。",
+  "normalized_fingerprint": "e2fc536291c90fcd",
+  "regression_tests": [
+    "tests/ui/test_disagreement_owner_sequence.py",
+    "tests/ui/test_selfcheck_continues_after_unapplied_repair.py",
+    "tests/ui/test_draft_selfcheck_service.py",
+    "tests/ui/test_selfcheck_bound_counts_stalls.py"
+  ],
+  "safety_or_false_success_exception": false,
+  "schema_version": 1
+}

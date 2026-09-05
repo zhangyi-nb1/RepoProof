@@ -1,0 +1,116 @@
+{
+ "batch": "EXPLORATORY_UNPREREGISTERED",
+ "cases": [
+  {
+   "case_id": "n0-live-balance-monitor",
+   "kind": "expected_rejection",
+   "note": "预期拒绝负控,零模型预算;与首轮收口一致",
+   "terminal_state": "EXPECTED_REJECTION_CONFIRMED"
+  },
+  {
+   "case_id": "c1-xlsx-reconciliation-workbook",
+   "kind": "complex",
+   "last_stop_reason_codes": [],
+   "latest_task": "tool-xlsxwriter-tool-v2",
+   "phase1_attempts": 18,
+   "phase2_attempts": 6,
+   "registry_operational_status": "ACTIVE",
+   "terminal_state": "ACTIVE"
+  },
+  {
+   "case_id": "c2-pptx-quarterly-briefing",
+   "kind": "complex",
+   "last_stop_reason_codes": [],
+   "latest_task": "tool-python-pptx-tool-v5",
+   "phase1_attempts": 5,
+   "phase2_attempts": 11,
+   "registry_operational_status": "ACTIVE",
+   "terminal_state": "ACTIVE"
+  },
+  {
+   "case_id": "c3-offline-usage-dashboard",
+   "kind": "complex",
+   "last_stop_reason_codes": [],
+   "latest_task": "tool-pygal-tool-v5",
+   "phase1_attempts": 21,
+   "phase2_attempts": 4,
+   "registry_operational_status": "ACTIVE",
+   "terminal_state": "ACTIVE"
+  },
+  {
+   "case_id": "c4-photo-contact-sheet",
+   "kind": "complex",
+   "last_stop_reason_codes": [],
+   "latest_task": "tool-pillow-tool-v3",
+   "phase1_attempts": 2,
+   "phase2_attempts": 9,
+   "registry_operational_status": "ACTIVE",
+   "terminal_state": "ACTIVE"
+  },
+  {
+   "case_id": "c5-offline-docs-site",
+   "kind": "complex",
+   "last_stop_reason_codes": [
+    "VERIFIER_DISCRIMINATION_GAP"
+   ],
+   "latest_task": null,
+   "phase1_attempts": 28,
+   "phase2_attempts": 0,
+   "registry_operational_status": null,
+   "terminal_state": "FAILED_PHASE1_AFTER_REPAIRS"
+  },
+  {
+   "case_id": "c6-calendar-schedule-pack",
+   "kind": "complex",
+   "last_stop_reason_codes": [],
+   "latest_task": "tool-icalendar-tool-v1",
+   "phase1_attempts": 10,
+   "phase2_attempts": 2,
+   "registry_operational_status": "ACTIVE",
+   "terminal_state": "ACTIVE"
+  },
+  {
+   "case_id": "c7-analysis-notebook-pack",
+   "kind": "complex",
+   "last_stop_reason_codes": [],
+   "latest_task": "tool-nbformat-tool-v4",
+   "phase1_attempts": 11,
+   "phase2_attempts": 4,
+   "registry_operational_status": "ACTIVE",
+   "terminal_state": "ACTIVE"
+  },
+  {
+   "case_id": "c8-translation-catalog-pack",
+   "kind": "complex",
+   "last_stop_reason_codes": [
+    "WORKSPACE_REFERENCE_EXECUTION_FAILED"
+   ],
+   "latest_task": null,
+   "phase1_attempts": 4,
+   "phase2_attempts": 0,
+   "registry_operational_status": null,
+   "terminal_state": "FAILED_PHASE1_AFTER_REPAIRS"
+  }
+ ],
+ "closed_at": "2026-09-04T12:55:18+08:00",
+ "framework_git_commit": "8859296dbb223963fccf55a8becfd7b7a5ed165f",
+ "gate": {
+  "active_cases": [
+   "c1-xlsx-reconciliation-workbook",
+   "c2-pptx-quarterly-briefing",
+   "c3-offline-usage-dashboard",
+   "c4-photo-contact-sheet",
+   "c6-calendar-schedule-pack",
+   "c7-analysis-notebook-pack"
+  ],
+  "definition": "八个复杂案例中 ≥6 个经修复后 ACTIVE，且二进制办公类（c1/c2）、图像类（c4）、可重生成站点类（c3）各至少一个",
+  "met": true,
+  "reason": "6/8 ACTIVE;二进制办公类 c1+c2、图像类 c4、可重生成站点类 c3 均在列"
+ },
+ "protocol_id": "m6.3-complex-workspace-qualification-v1",
+ "protocol_sha256_at_closeout": "5dfb74eabc94908fdff213de9671245247e3d58ab2a341cffc1ea3e6dc81a67b",
+ "protocol_status": "DRAFT_NOT_FROZEN",
+ "schema_version": 1,
+ "supersedes": "m6_3_terminal_states.json",
+ "supersedes_note": "首轮收口记录不改一字;本文件是同一协议下第二轮收口的独立记录"
+}
